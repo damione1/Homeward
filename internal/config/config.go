@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -35,7 +36,7 @@ func (c Config) Validate() error {
 	if err != nil || net.ParseIP(host) == nil || port == "" {
 		return fmt.Errorf("configuration: listen must be a numeric IP:port")
 	}
-	if _, err := net.LookupPort("tcp", port); err != nil {
+	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
 		return fmt.Errorf("configuration: invalid port: %w", err)
 	}
 	return nil
