@@ -1,6 +1,6 @@
 .PHONY: check
 check:
-	test -z "$$(gofmt -l cmd internal)"
+	test -z "$$(gofmt -l cmd internal contracts)"
 	go vet ./...
 	go test -race ./...
 	cargo fmt --all -- --check
@@ -13,3 +13,6 @@ check:
 	python3 scripts/check-corpus.py
 	python3 scripts/check-scope.py
 	python3 scripts/test-scope.py
+	buf breaking --against .compat/baseline
+	python3 scripts/check-contracts.py
+	sh scripts/check-generated.sh

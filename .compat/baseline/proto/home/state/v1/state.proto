@@ -1,0 +1,116 @@
+syntax = "proto3";
+package home.state.v1;
+
+import "google/protobuf/timestamp.proto";
+import "home/registry/v1/registry.proto";
+
+option go_package = "github.com/damione1/new-home-assistant/gen/home/state/v1;statev1";
+enum Availability {
+  AVAILABILITY_UNSPECIFIED = 0;
+  AVAILABILITY_AVAILABLE = 1;
+  AVAILABILITY_UNKNOWN = 2;
+  AVAILABILITY_UNAVAILABLE = 3;
+}
+enum Freshness {
+  FRESHNESS_UNSPECIFIED = 0;
+  FRESHNESS_FRESH = 1;
+  FRESHNESS_STALE = 2;
+}
+enum Provenance {
+  PROVENANCE_UNSPECIFIED = 0;
+  PROVENANCE_OBSERVED = 1;
+  PROVENANCE_RESTORED = 2;
+  PROVENANCE_ESTIMATED = 3;
+}
+message Quality {
+  Availability availability = 1;
+  Freshness freshness = 2;
+  Provenance provenance = 3;
+}
+
+// A string decimal preserves cost precision; it is never a floating-point currency.
+message Measurement {
+  double value = 1;
+  string unit = 2;
+  optional string decimal_value = 3;
+}
+message ObservedState {
+  home.registry.v1.EntityRef entity = 1;
+  Quality quality = 2;
+  uint64 revision = 3;
+  google.protobuf.Timestamp observed_at = 4;
+  google.protobuf.Timestamp received_at = 5;
+  google.protobuf.Timestamp last_changed = 6;
+  google.protobuf.Timestamp last_updated = 7;
+  google.protobuf.Timestamp last_reported = 8;
+  string source_session = 9;
+  optional uint64 source_seq = 10;
+  oneof value {
+    bool switch_on = 11;
+    Measurement measurement = 12;
+  }
+}
+
+// Cursor is bound to the authenticated view. Authorization/filter changes require resync.
+message ViewCursor {
+  string epoch = 1;
+  uint64 global_sequence = 2;
+  uint64 config_revision = 3;
+  uint64 authorization_revision = 4;
+  bytes filter_sha256 = 5;
+}
+message ViewFilter {
+  repeated string entity_ids = 1;
+}
+message OpenViewRequest {
+  ViewFilter filter = 1;
+  uint32 page_size = 2;
+}
+message OpenViewResponse {
+  string snapshot_token = 1;
+  ViewCursor cursor = 2;
+  repeated ObservedState states = 3;
+  repeated home.registry.v1.CapabilityDescription capabilities = 4;
+  string next_page_token = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+message ReadPageRequest {
+  string snapshot_token = 1;
+  string page_token = 2;
+}
+message ReadPageResponse {
+  OpenViewResponse page = 1;
+}
+message WatchViewRequest {
+  ViewCursor cursor = 1;
+}
+message StateDelta {
+  repeated ObservedState states = 1;
+}
+enum ResyncReason {
+  RESYNC_REASON_UNSPECIFIED = 0;
+  RESYNC_REASON_EPOCH_CHANGED = 1;
+  RESYNC_REASON_REPLAY_EXPIRED = 2;
+  RESYNC_REASON_CONFIGURATION_CHANGED = 3;
+  RESYNC_REASON_AUTHORIZATION_CHANGED = 4;
+  RESYNC_REASON_FILTER_CHANGED = 5;
+}
+message ResyncRequired {
+  ResyncReason reason = 1;
+  string message = 2;
+}
+message WatchViewResponse {
+  uint64 stream_sequence = 1;
+  ViewCursor cursor = 2;
+  oneof frame {
+    StateDelta delta = 3;
+    ResyncRequired resync_required = 4;
+  }
+}
+
+// Schema only. HTTP/Connect serving and client transport belong to later tickets.
+service StateService {
+  rpc OpenView(OpenViewRequest) returns (OpenViewResponse);
+  rpc ReadPage(ReadPageRequest) returns (ReadPageResponse);
+  rpc WatchView(WatchViewRequest) returns (stream WatchViewResponse);
+}

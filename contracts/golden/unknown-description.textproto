@@ -1,0 +1,1 @@
+schema_id: "vendor.synthetic.v1" major: 1 display_name: "Synthetic readable capability" endpoint: "main" descriptor_set: "synthetic-descriptor" descriptor_sha256: "synthetic-hash"

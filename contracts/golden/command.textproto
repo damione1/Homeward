@@ -1,0 +1,1 @@
+command_id: "synthetic-command" admission_epoch: "epoch-a" config_revision: 9007199254740993 target { entity_id: "synthetic-entity" } capability_schema_id: "core.switch.v1" arguments { set_switch { on: false } } expected_revision: 0 expires_at { seconds: 1790000000 nanos: 123456789 } endpoint: "main"
