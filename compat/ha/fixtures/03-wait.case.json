@@ -1,0 +1,24 @@
+{
+  "id": "03-wait",
+  "kind": "wait",
+  "synthetic": true,
+  "ha_reference_executed": false,
+  "inputs": {
+    "start": 0,
+    "release_events": [
+      {
+        "at": 4
+      }
+    ],
+    "until": 6
+  },
+  "expected": [
+    {
+      "at": 4,
+      "event": "action"
+    }
+  ],
+  "observed_sources": [
+    "Automatisations.md#automation.backyard_light_on_person_detected"
+  ]
+}

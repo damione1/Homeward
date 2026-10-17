@@ -1,0 +1,30 @@
+{
+  "input_boolean": {
+    "nha_fixture": {
+      "initial": false
+    }
+  },
+  "automation": [
+    {
+      "id": "nha_synthetic",
+      "triggers": [
+        {
+          "trigger": "event",
+          "event_type": "nha_test"
+        }
+      ],
+      "actions": [
+        {
+          "delay": 5
+        },
+        {
+          "action": "input_boolean.turn_on",
+          "target": {
+            "entity_id": "input_boolean.nha_fixture"
+          }
+        }
+      ],
+      "mode": "restart"
+    }
+  ]
+}

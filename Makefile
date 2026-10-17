@@ -10,3 +10,4 @@ check:
 	buf lint
 	python3 scripts/check-boundaries.py
 	python3 scripts/smoke-bootstrap.py
+	python3 scripts/check-corpus.py

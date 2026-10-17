@@ -1,0 +1,34 @@
+{
+  "id": "07-state-attribute",
+  "kind": "state",
+  "synthetic": true,
+  "ha_reference_executed": false,
+  "inputs": {
+    "reports": [
+      {
+        "at": 0,
+        "state": "off",
+        "attribute": 0
+      },
+      {
+        "at": 1,
+        "state": "on",
+        "attribute": 0
+      },
+      {
+        "at": 2,
+        "state": "on",
+        "attribute": 1
+      }
+    ]
+  },
+  "expected": [
+    {
+      "at": 1,
+      "event": "action"
+    }
+  ],
+  "observed_sources": [
+    "Automatisations.md#automation.water_leak_notification_2"
+  ]
+}

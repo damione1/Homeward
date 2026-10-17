@@ -1,0 +1,35 @@
+{
+  "input_number": {
+    "nha_output": {
+      "min": 0,
+      "max": 100
+    },
+    "nha_source": {
+      "min": 0,
+      "max": 100
+    }
+  },
+  "automation": [
+    {
+      "id": "nha_synthetic",
+      "triggers": [
+        {
+          "trigger": "event",
+          "event_type": "nha_test"
+        }
+      ],
+      "actions": [
+        {
+          "action": "input_number.set_value",
+          "target": {
+            "entity_id": "input_number.nha_output"
+          },
+          "data": {
+            "value": "{{ states('input_number.nha_source') | float(0) }}"
+          }
+        }
+      ],
+      "mode": "single"
+    }
+  ]
+}

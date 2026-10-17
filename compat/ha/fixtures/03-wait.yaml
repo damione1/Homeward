@@ -1,0 +1,37 @@
+{
+  "input_boolean": {
+    "nha_fixture": {
+      "initial": false
+    }
+  },
+  "automation": [
+    {
+      "id": "nha_synthetic",
+      "triggers": [
+        {
+          "trigger": "event",
+          "event_type": "nha_test"
+        }
+      ],
+      "actions": [
+        {
+          "wait_for_trigger": [
+            {
+              "trigger": "event",
+              "event_type": "nha_release"
+            }
+          ],
+          "timeout": 5,
+          "continue_on_timeout": false
+        },
+        {
+          "action": "input_boolean.turn_on",
+          "target": {
+            "entity_id": "input_boolean.nha_fixture"
+          }
+        }
+      ],
+      "mode": "single"
+    }
+  ]
+}

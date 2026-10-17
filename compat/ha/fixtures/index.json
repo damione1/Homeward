@@ -1,0 +1,14 @@
+{
+  "fixtures": [
+    "01-restart",
+    "02-queued",
+    "03-wait",
+    "04-mqtt-edge",
+    "05-scene",
+    "06-dates",
+    "07-state-attribute",
+    "08-for-bounce",
+    "09-script-call",
+    "10-template-default"
+  ]
+}

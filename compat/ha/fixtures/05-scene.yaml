@@ -1,0 +1,42 @@
+{
+  "input_boolean": {
+    "nha_fixture": {
+      "initial": false
+    }
+  },
+  "automation": [
+    {
+      "id": "nha_synthetic",
+      "triggers": [
+        {
+          "trigger": "event",
+          "event_type": "nha_test"
+        }
+      ],
+      "actions": [
+        {
+          "action": "scene.create",
+          "data": {
+            "scene_id": "nha_snapshot",
+            "snapshot_entities": [
+              "input_boolean.nha_fixture"
+            ]
+          }
+        },
+        {
+          "action": "input_boolean.turn_on",
+          "target": {
+            "entity_id": "input_boolean.nha_fixture"
+          }
+        },
+        {
+          "action": "scene.turn_on",
+          "target": {
+            "entity_id": "scene.nha_snapshot"
+          }
+        }
+      ],
+      "mode": "single"
+    }
+  ]
+}
