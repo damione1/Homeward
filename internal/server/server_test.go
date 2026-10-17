@@ -39,7 +39,7 @@ func TestNHA001Lifecycle(t *testing.T) {
 	}
 }
 func TestNHA001InvalidConfigurationNeverListens(t *testing.T) {
-	for _, data := range []string{"listen: [", "listen: '127.0.0.1:0'\nunknown: true", "listen: '127.0.0.1:0'\n---\nlisten: '127.0.0.1:1'", "listen: 'localhost:8787'", "listen: '127.0.0.1:99999'", ""} {
+	for _, data := range []string{"listen: [", "listen: '127.0.0.1:0'\nunknown: true", "listen: '127.0.0.1:0'\n---\nlisten: '127.0.0.1:1'", "listen: 'localhost:8787'", "listen: '127.0.0.1:99999'", "listen: '127.0.0.1:http'", "listen: '127.0.0.1:-1'", ""} {
 		if _, err := config.Parse([]byte(data)); err == nil {
 			t.Fatalf("accepted %q", data)
 		}

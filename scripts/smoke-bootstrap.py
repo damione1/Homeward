@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 """Real child process/SIGTERM and invalid-YAML proof; uses temporary directories outside repo."""
-import pathlib, subprocess, tempfile, socket, time, signal
+import pathlib, subprocess, tempfile, socket, signal, selectors, re, os, time
 with tempfile.TemporaryDirectory(prefix="nha001-") as directory:
     root=pathlib.Path(directory); binary=root/"homed"
     subprocess.run(["go","build","-o",str(binary),"./cmd/homed"],check=True)
-    with socket.socket() as s:
-        s.bind(("127.0.0.1",0));port=s.getsockname()[1]
-    cfg=root/"config.yaml";cfg.write_text(f'listen: "127.0.0.1:{port}"\n')
+    cfg=root/"config.yaml";cfg.write_text(f'listen: "127.0.0.1:0"\n')
     proc=subprocess.Popen([str(binary),"-config",str(cfg)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
     try:
-        assert "bootstrap ready" in proc.stdout.readline()
+        selector=selectors.DefaultSelector()
+        selector.register(proc.stdout,selectors.EVENT_READ)
+        try:
+            deadline=time.monotonic()+5; data=b""
+            while b"\n" not in data:
+                remaining=deadline-time.monotonic()
+                assert remaining>0 and selector.select(timeout=remaining), "startup log timeout"
+                chunk=os.read(proc.stdout.fileno(),4096)
+                assert chunk, "process exited before startup"
+                data+=chunk
+            line=data.decode()
+            port=int(re.search(r"bootstrap ready 127\.0\.0\.1:(\d+)",line)[1])
+        finally: selector.close()
         proc.send_signal(signal.SIGTERM)
         output=proc.communicate(timeout=5)[0]
         assert proc.returncode==0 and "shutdown complete" in output
