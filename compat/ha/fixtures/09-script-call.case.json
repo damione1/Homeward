@@ -1,0 +1,18 @@
+{
+  "id": "09-script-call",
+  "kind": "scripts",
+  "synthetic": true,
+  "ha_reference_executed": false,
+  "inputs": {
+    "start": 0
+  },
+  "expected": {
+    "direct_after": 5,
+    "detached_after": 0,
+    "child_action": 5
+  },
+  "observed_sources": [
+    "Scripts et scènes.md#script.dodo",
+    "Automatisations.md#automation.water_leak_notification_2"
+  ]
+}

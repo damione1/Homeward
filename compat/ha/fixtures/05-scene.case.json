@@ -1,0 +1,17 @@
+{
+  "id": "05-scene",
+  "kind": "scene",
+  "synthetic": true,
+  "ha_reference_executed": false,
+  "inputs": {
+    "initial": "off"
+  },
+  "expected": [
+    "off",
+    "on",
+    "off"
+  ],
+  "observed_sources": [
+    "Automatisations.md#automation.backyard_light_on_person_detected"
+  ]
+}

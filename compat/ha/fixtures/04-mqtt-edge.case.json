@@ -1,0 +1,36 @@
+{
+  "id": "04-mqtt-edge",
+  "kind": "mqtt",
+  "synthetic": true,
+  "ha_reference_executed": false,
+  "inputs": {
+    "messages": [
+      {
+        "at": 0,
+        "topic": "nha-fixture/button",
+        "payload": "press",
+        "retained": false
+      },
+      {
+        "at": 1,
+        "topic": "nha-fixture/button",
+        "payload": "press",
+        "retained": false
+      }
+    ]
+  },
+  "expected": [
+    {
+      "at": 0,
+      "event": "increment"
+    },
+    {
+      "at": 1,
+      "event": "increment"
+    }
+  ],
+  "observed_sources": [
+    "Automatisations.md#automation.guest_bedroom_remote",
+    "Blueprints et templates.md#blueprint:automation/Shawsky/z2m-ikea-symfonisk-gen2-e2123-media-control-v1-55.yaml"
+  ]
+}

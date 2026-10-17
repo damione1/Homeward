@@ -1,0 +1,45 @@
+{
+  "id": "01-restart",
+  "kind": "runs",
+  "synthetic": true,
+  "ha_reference_executed": false,
+  "inputs": {
+    "triggers": [
+      {
+        "at": 0,
+        "run": "a"
+      },
+      {
+        "at": 2,
+        "run": "b"
+      }
+    ],
+    "until": 8
+  },
+  "expected": [
+    {
+      "at": 0,
+      "event": "start",
+      "run": "a"
+    },
+    {
+      "at": 2,
+      "event": "cancel",
+      "run": "a"
+    },
+    {
+      "at": 2,
+      "event": "start",
+      "run": "b"
+    },
+    {
+      "at": 7,
+      "event": "action",
+      "run": "b"
+    }
+  ],
+  "observed_sources": [
+    "Automatisations.md#automation.reset_the_house_new_day",
+    "Scripts et scènes.md#script.pause_radon"
+  ]
+}

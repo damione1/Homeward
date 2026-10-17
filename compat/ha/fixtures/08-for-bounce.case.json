@@ -1,0 +1,36 @@
+{
+  "id": "08-for-bounce",
+  "kind": "for",
+  "synthetic": true,
+  "ha_reference_executed": false,
+  "inputs": {
+    "reports": [
+      {
+        "at": 0,
+        "state": "off"
+      },
+      {
+        "at": 1,
+        "state": "on"
+      },
+      {
+        "at": 3,
+        "state": "off"
+      },
+      {
+        "at": 4,
+        "state": "on"
+      }
+    ],
+    "until": 10
+  },
+  "expected": [
+    {
+      "at": 9,
+      "event": "action"
+    }
+  ],
+  "observed_sources": [
+    "Automatisations.md#automation.washing_machine_cycle_detection"
+  ]
+}
