@@ -13,3 +13,4 @@ check:
 	python3 scripts/check-corpus.py
 	python3 scripts/check-scope.py
 	python3 scripts/test-scope.py
+	python3 scripts/check-matter.py
