@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Real child process/SIGTERM and invalid-YAML proof; uses temporary directories outside repo."""
-import pathlib, subprocess, tempfile, socket, signal, selectors, re
+import pathlib, subprocess, tempfile, socket, signal, selectors, re, os, time
 with tempfile.TemporaryDirectory(prefix="nha001-") as directory:
     root=pathlib.Path(directory); binary=root/"homed"
     subprocess.run(["go","build","-o",str(binary),"./cmd/homed"],check=True)
@@ -10,8 +10,14 @@ with tempfile.TemporaryDirectory(prefix="nha001-") as directory:
         selector=selectors.DefaultSelector()
         selector.register(proc.stdout,selectors.EVENT_READ)
         try:
-            assert selector.select(timeout=5), "startup log timeout"
-            line=proc.stdout.readline()
+            deadline=time.monotonic()+5; data=b""
+            while b"\n" not in data:
+                remaining=deadline-time.monotonic()
+                assert remaining>0 and selector.select(timeout=remaining), "startup log timeout"
+                chunk=os.read(proc.stdout.fileno(),4096)
+                assert chunk, "process exited before startup"
+                data+=chunk
+            line=data.decode()
             port=int(re.search(r"bootstrap ready 127\.0\.0\.1:(\d+)",line)[1])
         finally: selector.close()
         proc.send_signal(signal.SIGTERM)
