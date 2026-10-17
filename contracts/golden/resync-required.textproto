@@ -1,0 +1,1 @@
+stream_sequence: 2 cursor { epoch: "epoch-a" global_sequence: 109 config_revision: 9007199254740993 authorization_revision: 4 filter_sha256: "synthetic-filter-a" } resync_required { reason: RESYNC_REASON_CONFIGURATION_CHANGED message: "new generation requires snapshot" }

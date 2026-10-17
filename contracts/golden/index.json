@@ -1,0 +1,50 @@
+{
+  "command": {
+    "message": "home.actions.v1.CommandRequest",
+    "schema": "home/actions/v1/actions.proto"
+  },
+  "unknown-extension": {
+    "message": "home.actions.v1.CommandRequest",
+    "schema": "home/actions/v1/actions.proto"
+  },
+  "unknown-quality": {
+    "message": "home.state.v1.ObservedState",
+    "schema": "home/state/v1/state.proto"
+  },
+  "unknown-description": {
+    "message": "home.registry.v1.CapabilityDescription",
+    "schema": "home/registry/v1/registry.proto"
+  },
+  "snapshot-page-1": {
+    "message": "home.state.v1.OpenViewResponse",
+    "schema": "home/state/v1/state.proto"
+  },
+  "snapshot-page-2": {
+    "message": "home.state.v1.ReadPageResponse",
+    "schema": "home/state/v1/state.proto"
+  },
+  "filtered-stream": {
+    "message": "home.state.v1.WatchViewResponse",
+    "schema": "home/state/v1/state.proto"
+  },
+  "resync-required": {
+    "message": "home.state.v1.WatchViewResponse",
+    "schema": "home/state/v1/state.proto"
+  },
+  "structured-error": {
+    "message": "home.actions.v1.ContractError",
+    "schema": "home/actions/v1/actions.proto"
+  },
+  "empty-entity-id": {
+    "message": "home.actions.v1.CommandRequest",
+    "schema": "home/actions/v1/actions.proto"
+  },
+  "empty-alias": {
+    "message": "home.actions.v1.CommandRequest",
+    "schema": "home/actions/v1/actions.proto"
+  },
+  "absent-target": {
+    "message": "home.actions.v1.CommandRequest",
+    "schema": "home/actions/v1/actions.proto"
+  }
+}
