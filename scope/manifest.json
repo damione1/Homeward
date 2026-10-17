@@ -1,0 +1,5107 @@
+{
+  "version": 1,
+  "inventory_date": "2026-10-16",
+  "ids_sha256": "4cdcd750642c903a58195e404717042b9c7e2fa045799132f38f73291e069d31",
+  "entities": [
+    {
+      "entity_id": "alarm_control_panel.alarm",
+      "source": "manual",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "alarm_control_panel.konnected_8813bf465e98_konnected_alarm",
+      "source": "esphome",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "alarm_control_panel.velociraptor_gw_alarm_manager",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.arc_soundbar_microphone",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_animal_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_baby_cry_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_cat_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_co_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_dog_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_fox_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_motion",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_person_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_person_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_rabbit_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_raccoon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_skunk_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_smoke_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_speaking_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.backyard_squirrel_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.basement_leak_sensor_water_leak",
+      "source": "mqtt",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.bathroom_motion_occupancy",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.damiens_macbook_pro_active",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.damiens_macbook_pro_focus",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.damiens_office_basement_keyboard_focus",
+      "source": "apple_tv",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_all_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_amazon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_amazon_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_animal_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_canada_post_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_canada_post_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_car_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_car_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_cat_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_cat_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_co_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_dog_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_dog_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_fedex_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_fedex_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_fox_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_fox_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_is_dark",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_motion",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_motion_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_package_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_package_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_person_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_person_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_person_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_purolator_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_purolator_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_rabbit_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_rabbit_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_raccoon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_raccoon_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_skunk_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_skunk_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_smoke_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_squirrel_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_squirrel_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_ups_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_ups_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_vehicle_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_waste_bin_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.driveway_waste_bin_occupancy_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.ekaterinas_ipad_kiosk_mode",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.entrance_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.entrance_package_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.eugenie_baby_cry_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.eugenie_co_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.eugenie_is_dark",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.eugenie_motion",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.eugenie_motion_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.eugenie_person_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.eugenie_smoke_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.eugenie_speaking_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.fire_tablet_device_admin",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.fire_tablet_kiosk_mode",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.fire_tablet_plugged_in",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_amazon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_canada_post_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_car_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_cat_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_dog_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_fedex_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_fox_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_motion",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_package_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_person_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_purolator_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_rabbit_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_raccoon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_skunk_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_squirrel_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_ups_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.front_door_waste_bin_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.g5_turret_ultra_is_dark",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.g5_turret_ultra_is_dark_2",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.g5_turret_ultra_motion",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.g5_turret_ultra_motion_2",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.garage_baby_cry_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.garage_co_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.garage_is_dark",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.garage_microphone",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.garage_motion",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.garage_motion_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.garage_person_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.garage_smoke_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.gazebo_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.gazebo_cat_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.gazebo_dog_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.gazebo_fox_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.gazebo_person_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.gazebo_rabbit_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.gazebo_raccoon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.gazebo_skunk_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.gazebo_squirrel_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_critical",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_critical_evening_peak_today",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_critical_evening_peak_tomorrow",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_critical_morning_peak_today",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_critical_morning_peak_tomorrow",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_current_period_epp_enabled",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_current_period_epp_enabled_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_hydroquebec_website_status",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_hydroquebec_website_status_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_next_anchor_period_critical",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_next_peak_period_critical",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_pre_heat_in_progress",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.hydroqc_maison_upcoming_critical_peak",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.ipad_camera_motion",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.ipad_focus",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.ipad_kiosk_mode",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.ipad_kiosk_screensaver",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.kitchen_microphone",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.kitchen_sink_leak_sensor_water_leak",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.konnected_52362c_motor",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.konnected_52362c_obstruction",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.konnected_52362c_synced",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.konnected_52362c_wall_button",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.konnected_8813bf465e98_basement",
+      "source": "esphome",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.konnected_8813bf465e98_living_room",
+      "source": "esphome",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.konnected_8813bf465e98_server_room",
+      "source": "esphome",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.package_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.package_amazon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.package_canada_post_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.package_fedex_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.package_motion",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.package_package_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.package_person_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.package_purolator_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.package_ups_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.pixel_8_is_charging",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_animal_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_co_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_doorbell",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_is_dark",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_motion",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_package_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_person_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_person_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_smoke_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.porch_speaking_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.relay_05_status",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.relay_06_relay_06_status",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.relay_07_relay_07_status",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_animal_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_cat_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_co_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_dog_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_fox_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_package_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_person_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_person_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_rabbit_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_raccoon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_skunk_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_smoke_alarm_detected",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_entrance_squirrel_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_cat_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_dog_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_fox_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_motion",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_package_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_person_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_rabbit_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_raccoon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_skunk_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_squirrel_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.side_yard_waste_bin_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.stairs_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.stairs_cat_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.stairs_dog_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.stairs_fox_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.stairs_package_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.stairs_person_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.stairs_rabbit_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.stairs_raccoon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.stairs_skunk_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.stairs_squirrel_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.terasse_all_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.terasse_cat_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.terasse_dog_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.terasse_fox_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.terasse_person_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.terasse_rabbit_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.terasse_raccoon_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.terasse_skunk_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.terasse_squirrel_occupancy",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.workday_sensor",
+      "source": "workday",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "binary_sensor.zigbee2mqtt_bridge_connection_state",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "button.fire_tablet_bring_to_foreground",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "button.fire_tablet_clear_browser_cache",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "button.fire_tablet_load_start_url",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "button.fire_tablet_restart_browser",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "button.fire_tablet_send_to_background",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "button.fire_tablet_trigger_motion_activity",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "button.freedom_tv_scan_clients",
+      "source": "plex",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "button.konnected_52362c_pre_close_warning",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "button.konnected_8813bf465e98_chime",
+      "source": "esphome",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "calendar.anniversaires",
+      "source": "local_calendar",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "calendar.black_bin_collections",
+      "source": "local_calendar",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "calendar.blue_bin_collections",
+      "source": "local_calendar",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "calendar.branches_collections",
+      "source": "local_calendar",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "calendar.famille",
+      "source": "remote_calendar",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "calendar.family",
+      "source": "local_calendar",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "calendar.green_bin_collections",
+      "source": "local_calendar",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "calendar.holidays",
+      "source": "local_calendar",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "calendar.sprinklers",
+      "source": "local_calendar",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "calendar.workday_sensor_calendar",
+      "source": "workday",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.backyard",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.backyard_low_resolution_channel",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.driveway",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.driveway_low_resolution_channel",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.eugenie_high_resolution_channel",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.fire_tablet",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.front_door",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.garage_high_resolution_channel",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.package",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.porch_low_resolution_channel",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.side_entrance_low_resolution_channel",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "camera.side_yard",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.chambre_eugenie",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.chambre_principale",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.chambre_sous_sol",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.living_room",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.neviweb130_climate_chambre_eugenie",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.neviweb130_climate_chambre_principale",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.neviweb130_climate_chambre_sous_sol",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.neviweb130_climate_living_room",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.neviweb130_climate_plancher_cuisine",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.neviweb130_climate_salle_a_manger",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.neviweb130_climate_salle_de_bain",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.neviweb130_climate_sous_sol",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.plancher_cuisine",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.salle_a_manger",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.salle_de_bain",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "climate.sous_sol",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "conversation.home_assistant",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "counter.bathroom_heating_used_today",
+      "source": "counter",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "cover.konnected_52362c_garage_door",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "device_tracker.damiens_macbook_pro",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "device_tracker.ipad_4",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.backyard_motion_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.backyard_smart_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.backyard_sound_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.backyard_vehicle",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.driveway_driveway_motion_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.driveway_driveway_smart_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.driveway_driveway_sound_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.driveway_vehicle",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.eugenie_motion_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.eugenie_smart_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.eugenie_sound_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.eugenie_vehicle",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.garage_garage_motion_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.garage_garage_smart_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.garage_garage_sound_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.garage_vehicle",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.porch_doorbell",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.porch_fingerprint",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.porch_nfc",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.porch_porch_motion_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.porch_porch_package",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.porch_porch_smart_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.porch_porch_sound_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.porch_vehicle",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.side_entrance_motion_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.side_entrance_smart_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.side_entrance_sound_detection",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "event.side_entrance_vehicle",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "fan.living_room_ceiling_fan",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.backyard_cat",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.backyard_dog",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.backyard_fox",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.backyard_person",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.backyard_rabbit",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.backyard_raccoon",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.backyard_skunk",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.backyard_squirrel",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_car",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_cat",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_dog",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_fox",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_package",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_person",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_rabbit",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_raccoon",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_skunk",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_squirrel",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_ups",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.driveway_waste_bin",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.front_door_car",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.front_door_cat",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.front_door_dog",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.front_door_fox",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.front_door_package",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.front_door_person",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.front_door_raccoon",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.front_door_squirrel",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.front_door_waste_bin",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.package_package",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.package_person",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.side_yard_cat",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.side_yard_dog",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.side_yard_fox",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.side_yard_package",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.side_yard_person",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.side_yard_rabbit",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.side_yard_raccoon",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.side_yard_skunk",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.side_yard_squirrel",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "image.side_yard_waste_bin",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.away_mode",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.basement_tv_playing",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.ch4_occupancy",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.default_dashboard",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.detection_on",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.gazon_mode_germination",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.guests",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.heating_season",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.morning_routine_done",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.night_mode",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.poubelle_vue_aujourd_hui",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.sdb1_occupancy",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.trashs_out",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_boolean.washing_machine_running",
+      "source": "input_boolean",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_button.cast_to_nest_hub",
+      "source": "input_button",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_button.pause_bird_s_radio",
+      "source": "input_button",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_button.start_bird_s_radio",
+      "source": "input_button",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_button.trash_out",
+      "source": "input_button",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_datetime.bathroom_heating_time",
+      "source": "input_datetime",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_datetime.ch_occupancy_last_time",
+      "source": "input_datetime",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_datetime.gazon_date_de_semis",
+      "source": "input_datetime",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_datetime.sdb1_occupancy_last_time",
+      "source": "input_datetime",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_select.default_dashboard",
+      "source": "input_select",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_select.time_of_day",
+      "source": "input_select",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "input_text.guest_bedroom_remote_last_event",
+      "source": "input_text",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.basement_lights",
+      "source": "group",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.basement_sitting_area_spot_lights",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.bed_lamp_guest_bedroom",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.bedroom_closet",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.dining_room_pendants",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.eugenie_bedroom_light",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.guest_bedroom_main_lights",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.kitchen_lights",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.kitchen_main_lights",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.kitchen_sink_light",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.kitchen_table_pendants",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.konnected_52362c_garage_light",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.library_lamp",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.living_room_lights",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.living_room_stairs",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.master_bedroom_table_lamps",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.sw_side_entrance_light_switch_01_salon2",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.switch_basement_1",
+      "source": "esphome",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.switch_porch",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.table_lamp",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.wled_desk",
+      "source": "wled",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "light.wled_desk_main",
+      "source": "wled",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "lock.konnected_52362c_lock",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.basement",
+      "source": "apple_tv",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.bathroom_speaker",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.eugenie_speaker",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.fire_tablet",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.garage",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.gazebo_speaker",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.guest_bedroom_tv_2",
+      "source": "androidtv_remote",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.kitchen",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.plex_plex_for_android_tv_shield_android_tv",
+      "source": "plex",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.plex_plex_for_ios_ipad_2",
+      "source": "plex",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.porch_speaker",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.shield_2",
+      "source": "androidtv_remote",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "media_player.soundbar",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "notify.damiens_macbook_pro",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "notify.ekaterinas_ipad",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "notify.fire_tablet_overlay_message",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "notify.fire_tablet_text_to_speech",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "notify.ipad",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "notify.pixel_8",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "notify.pixel_8_katarina",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "notify.s9",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "notify.shield_tv",
+      "source": "nfandroidtv",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.arc_soundbar_audio_delay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.arc_soundbar_balance",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.arc_soundbar_bass",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.arc_soundbar_music_surround_level",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.arc_soundbar_sub_gain",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.arc_soundbar_surround_level",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.arc_soundbar_treble",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.bathroom_speaker_balance",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.bathroom_speaker_bass",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.bathroom_speaker_treble",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.fire_tablet_screen_brightness",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.fire_tablet_screen_off_timer",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.fire_tablet_screensaver_brightness",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.fire_tablet_screensaver_timer",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.garage_balance",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.garage_bass",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.garage_treble",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.gazebo_balance",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.gazebo_bass",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.gazebo_treble",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.kitchen_balance",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.kitchen_bass",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.kitchen_treble",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.sprinklers_sprinkler_multiplier",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.sprinklers_zone_1_duration",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.sprinklers_zone_2_duration",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.sprinklers_zone_3_duration",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.sprinklers_zone_4_duration",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "number.sprinklers_zone_5_duration",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "person.damien",
+      "source": "person",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "person.irina",
+      "source": "person",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "person.katarina",
+      "source": "person",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "remote.basement",
+      "source": "apple_tv",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "remote.guest_bedroom_tv",
+      "source": "androidtv_remote",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "remote.shield",
+      "source": "androidtv_remote",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "select.chambre_eugenie_hilo_energy",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "select.chambre_principale_hilo_energy",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "select.chambre_sous_sol_hilo_energy",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "select.chauffe_eau_hilo_energy",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "select.hilo_energy_total",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "select.living_room_hilo_energy",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "select.plancher_cuisine_hilo_energy",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "select.salle_a_manger_hilo_energy",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "select.salle_de_bain_hilo_energy",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "select.sous_sol_hilo_energy",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.arc_soundbar_audio_input_format",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.backyard_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.backyard_cat_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.backyard_dog_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.backyard_fox_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.backyard_person_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.backyard_rabbit_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.backyard_raccoon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.backyard_skunk_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.backyard_squirrel_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.basement_leak_sensor_battery",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.bathroom_motion_battery",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.bathroom_motion_illuminance",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.bathroom_remote_sonos_battery",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_eugenie_hilo_energy",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_eugenie_hilo_energy_high",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_eugenie_hilo_energy_low",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_eugenie_hilo_energy_medium",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_eugenie_power",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_eugenie_target_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_eugenie_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_principale_hilo_energy",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_principale_hilo_energy_high",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_principale_hilo_energy_low",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_principale_hilo_energy_medium",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_principale_power",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_principale_target_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_principale_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_sous_sol_hilo_energy",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_sous_sol_hilo_energy_high",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_sous_sol_hilo_energy_low",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_sous_sol_hilo_energy_medium",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_sous_sol_power",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_sous_sol_target_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chambre_sous_sol_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chauffe_eau_hilo_energy",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chauffe_eau_hilo_energy_high",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chauffe_eau_hilo_energy_low",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chauffe_eau_hilo_energy_medium",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chauffe_eau_power",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.chauffe_eau_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.damiens_macbook_pro_internal_battery_level",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.damiens_macbook_pro_internal_battery_state",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.defi_hilo",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.design_lamp_relay_energy",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.design_lamp_relay_power",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.desk_switch_battery",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_all_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_amazon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_amazon_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_canada_post_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_canada_post_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_car_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_car_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_cat_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_cat_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_dog_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_dog_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_fedex_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_fedex_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_fox_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_fox_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_last_recognized_plate",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_package_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_package_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_person_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_person_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_purolator_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_purolator_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_rabbit_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_rabbit_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_raccoon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_raccoon_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_review_status",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_skunk_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_skunk_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_squirrel_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_squirrel_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_ups_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_ups_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_waste_bin_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.driveway_waste_bin_count_2",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ekaterinas_ipad_battery_level",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ekaterinas_ipad_battery_state",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ekaterinas_ipad_kiosk_brightness",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ekaterinas_ipad_kiosk_volume",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.entrance_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.entrance_last_doorbell_ring",
+      "source": "unifiprotect",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.entrance_package_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.eugenie_webcam_relay_energy",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.eugenie_webcam_relay_power",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.fire_tablet_battery",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.fire_tablet_battery_temperature",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.fire_tablet_current_page",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.fire_tablet_free_memory",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.fire_tablet_screen_orientation",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.fire_tablet_total_memory",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.freedom_tv",
+      "source": "plex",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_amazon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_canada_post_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_car_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_cat_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_dog_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_fedex_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_fox_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_package_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_person_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_purolator_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_rabbit_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_raccoon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_review_status",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_skunk_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_squirrel_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_ups_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.front_door_waste_bin_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.gazebo_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.gazebo_cat_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.gazebo_dog_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.gazebo_fox_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.gazebo_person_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.gazebo_rabbit_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.gazebo_raccoon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.gazebo_skunk_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.gazebo_squirrel_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_cost_total",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_energy_total",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_energy_total_high",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_energy_total_low",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_energy_total_low_cost",
+      "source": "energy",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_energy_total_medium",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_energy_total_medium_cost",
+      "source": "energy",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_gateway",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_rate_access",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_rate_current",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_rate_low",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_rate_low_threshold",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_rate_medium",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hilo_rate_reward_rate",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hvac_energy_consumption",
+      "source": "integration",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hvac_power_consumption",
+      "source": "template",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_balance",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_balance_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_cumulated_winter_credit",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_average_temperature",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_average_temperature_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_daily_bill_mean",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_daily_bill_mean_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_daily_consumption_mean",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_daily_consumption_mean_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_kwh_cost_mean",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_kwh_cost_mean_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_projected_bill",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_projected_bill_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_projected_total_consumption",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_projected_total_consumption_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_rate",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_rate_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_rate_option",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_rate_option_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_total_consumption",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_total_consumption_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_total_to_date",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_billing_period_total_to_date_2",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_current_wc_period_detail",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_next_anchor_end",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_next_anchor_start",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_next_peak_end",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_next_peak_start",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_next_pre_heat_start",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.hydroqc_maison_projected_cumulated_winter_credit",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ikea_sw_01_battery",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ikea_sw_02_battery",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ipad_battery_level",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ipad_battery_state",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.kitchen_ikea_switch_battery",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.kitchen_sink_leak_sensor_battery",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.konnected_52362c_garage_openings",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.living_room_hilo_energy",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.living_room_hilo_energy_high",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.living_room_hilo_energy_low",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.living_room_hilo_energy_medium",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.living_room_power",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.living_room_target_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.living_room_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.meter00_power",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.neviweb130_daily_requests",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.neviweb130_sensor_tableau_elec",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.notifications_hilo",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.outdoor_weather_hilo",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.package_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.package_amazon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.package_canada_post_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.package_fedex_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.package_package_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.package_person_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.package_purolator_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.package_ups_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.pixel_8_battery_level",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.pixel_8_battery_state",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.pixel_8_do_not_disturb_sensor",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.pixel_8_katarina_battery_level",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.pixel_8_katarina_battery_state",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.plancher_cuisine_energy",
+      "source": "integration",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.plancher_cuisine_hilo_energy",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.plancher_cuisine_hilo_energy_high",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.plancher_cuisine_hilo_energy_low",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.plancher_cuisine_hilo_energy_medium",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.plancher_cuisine_power",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.plancher_cuisine_power_2",
+      "source": "template",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.plancher_cuisine_target_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.plancher_cuisine_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.porch_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.porch_package_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.porch_person_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.recompenses_hilo",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.s9_battery_level",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.s9_battery_state",
+      "source": "mobile_app",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_a_manger_hilo_energy",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_a_manger_hilo_energy_high",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_a_manger_hilo_energy_low",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_a_manger_hilo_energy_medium",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_a_manger_power",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_a_manger_target_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_a_manger_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_de_bain_hilo_energy",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_de_bain_hilo_energy_high",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_de_bain_hilo_energy_low",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_de_bain_hilo_energy_medium",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_de_bain_power",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_de_bain_target_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.salle_de_bain_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_entrance_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_entrance_cat_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_entrance_dog_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_entrance_fox_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_entrance_package_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_entrance_person_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_entrance_rabbit_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_entrance_raccoon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_entrance_skunk_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_entrance_squirrel_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_cat_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_dog_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_fox_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_package_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_person_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_rabbit_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_raccoon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_review_status",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_skunk_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_squirrel_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.side_yard_waste_bin_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sonos_remote_kitchen_battery",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sous_sol_hilo_energy",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sous_sol_hilo_energy_high",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sous_sol_hilo_energy_low",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sous_sol_hilo_energy_medium",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sous_sol_power",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sous_sol_target_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sous_sol_temperature",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.stairs_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.stairs_cat_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.stairs_dog_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.stairs_fox_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.stairs_package_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.stairs_person_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.stairs_rabbit_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.stairs_raccoon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.stairs_skunk_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.stairs_squirrel_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sun_next_dawn",
+      "source": "sun",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sun_next_dusk",
+      "source": "sun",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sun_next_midnight",
+      "source": "sun",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sun_next_noon",
+      "source": "sun",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sun_next_rising",
+      "source": "sun",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.sun_next_setting",
+      "source": "sun",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.terasse_all_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.terasse_cat_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.terasse_dog_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.terasse_fox_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.terasse_person_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.terasse_rabbit_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.terasse_raccoon_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.terasse_skunk_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.terasse_squirrel_count",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.u6_pro_state",
+      "source": "unifi",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.uap_ac_m_state",
+      "source": "unifi",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.udm_se_state",
+      "source": "unifi",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ups_energy_consumption",
+      "source": "integration",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ups_load",
+      "source": "nut",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.ups_power_consumption",
+      "source": "template",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.washing_machine_energy",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sensor.washing_machine_power",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "sun.sun",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.arc_soundbar_crossfade",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.arc_soundbar_loudness",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.arc_soundbar_night_sound",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.arc_soundbar_speech_enhancement",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.arc_soundbar_subwoofer_enabled",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.arc_soundbar_surround_enabled",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.arc_soundbar_surround_music_full_volume",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.arc_soundbar_tv_autoplay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.arc_soundbar_ungroup_on_autoplay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.backyard_detect",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.backyard_motion",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.backyard_recordings",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.backyard_review_alerts",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.backyard_review_detections",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.backyard_snapshots",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.basement_relay",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.bathroom_speaker_crossfade",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.bathroom_speaker_loudness",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.bathroom_speaker_tv_autoplay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.bathroom_speaker_ungroup_on_autoplay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.chauffe_eau",
+      "source": "hilo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.design_lamp_relay",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.driveway_detect",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.driveway_motion",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.driveway_recordings",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.driveway_review_alerts",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.driveway_review_detections",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.driveway_snapshots",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.eugenie_webcam_relay",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.fire_tablet_kiosk_lock",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.fire_tablet_maintenance_mode",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.fire_tablet_motion_detection",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.fire_tablet_screen",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.fire_tablet_screensaver",
+      "source": "fully_kiosk",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.front_door_detect",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.front_door_motion",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.front_door_recordings",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.front_door_review_alerts",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.front_door_review_detections",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.front_door_snapshots",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.garage_crossfade",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.garage_loudness",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.garage_tv_autoplay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.garage_ungroup_on_autoplay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.gazebo_crossfade",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.gazebo_daily_alarm_08_51",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.gazebo_lights",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.gazebo_loudness",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.gazebo_tv_autoplay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.gazebo_ungroup_on_autoplay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.kitchen_crossfade",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.kitchen_loudness",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.kitchen_tv_autoplay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.kitchen_ungroup_on_autoplay",
+      "source": "sonos",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.konnected_52362c_toggle_only",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.konnected_8813bf465e98_warning",
+      "source": "esphome",
+      "diagnostic_open": true,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.living_room_relay",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.living_room_relay_tv_1",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.neviweb130_switch_chauffe_eau",
+      "source": "neviweb130",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.package_detect",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.package_motion",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.package_recordings",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.package_review_alerts",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.package_review_detections",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.package_snapshots",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.side_yard_detect",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.side_yard_motion",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.side_yard_recordings",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.side_yard_review_alerts",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.side_yard_review_detections",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.side_yard_snapshots",
+      "source": "frigate",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_auto_advance",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_enable_zone_1",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_enable_zone_2",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_enable_zone_3",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_enable_zone_4",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_enable_zone_5",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_garden_sprinklers",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_zone_1",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_zone_2",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_zone_3",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_zone_4",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.sprinklers_zone_5",
+      "source": "esphome",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.unassigned_smart_away",
+      "source": "lutron_caseta",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.vintage_lamp_relay",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "switch.washing_machine",
+      "source": "mqtt",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "todo.brico",
+      "source": "local_todo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "todo.costco",
+      "source": "local_todo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "todo.grosseries",
+      "source": "local_todo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "todo.shopping_list",
+      "source": "shopping_list",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "todo.summer_fun",
+      "source": "local_todo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "todo.to_do",
+      "source": "local_todo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "todo.to_do_secondary",
+      "source": "local_todo",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "weather.maison",
+      "source": "met",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "zone.alesco",
+      "source": "zone",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "zone.autour_maison",
+      "source": "zone",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "zone.home",
+      "source": "hors registre",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "zone.ski_saint_bruno",
+      "source": "zone",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    },
+    {
+      "entity_id": "zone.swimming_pool",
+      "source": "zone",
+      "diagnostic_open": false,
+      "driver_support": "unqualified"
+    }
+  ]
+}
