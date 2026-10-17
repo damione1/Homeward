@@ -1,0 +1,12 @@
+.PHONY: check
+check:
+	test -z "$$(gofmt -l cmd internal)"
+	go vet ./...
+	go test -race ./...
+	cargo fmt --all -- --check
+	cargo clippy --locked --workspace --all-targets -- -D warnings
+	cargo test --locked --workspace
+	cargo check --locked --workspace
+	buf lint
+	python3 scripts/check-boundaries.py
+	python3 scripts/smoke-bootstrap.py

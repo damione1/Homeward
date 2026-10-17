@@ -1,0 +1,7 @@
+syntax = "proto3";
+package home.registry.v1;
+option go_package = "github.com/damione1/new-home-assistant/gen/home/registry/v1;registryv1";
+// Stable internal identity; public references arrive in NHA-004.
+message EntityId {
+  string value = 1;
+}
