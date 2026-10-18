@@ -87,7 +87,7 @@ with tempfile.TemporaryDirectory(prefix="nha027-bootstrap-") as directory:
                     data_read += chunk
                 line = data_read.decode()
                 assert password not in line
-                port = int(re.search(r"bootstrap ready 127\.0\.0\.1:(\d+)", line)[1])
+                port = int(re.search(r"public transport ready 127\.0\.0\.1:(\d+)", line)[1])
             finally:
                 selector.close()
             proc.send_signal(signal.SIGTERM)
@@ -112,12 +112,12 @@ with tempfile.TemporaryDirectory(prefix="nha027-bootstrap-") as directory:
         subprocess.run(psql + ["-c", f"INSERT INTO public.homeward_schema_migrations(version) VALUES ({future_version})"], check=True, capture_output=True, text=True, env=pg_env)
         future = subprocess.run([str(binary), "-config", str(cfg)], capture_output=True, text=True, timeout=10, env=env)
         assert future.returncode != 0 and f"schema version {future_version} is newer" in future.stderr
-        assert "bootstrap ready" not in future.stderr and password not in future.stderr
+        assert "public transport ready" not in future.stderr and password not in future.stderr
     finally:
         run("pg_ctl", "-D", str(root / "data"), "-m", "immediate", "-w", "stop")
 
     cfg.write_text(settings)
     result = subprocess.run([str(binary), "-config", str(cfg)], capture_output=True, text=True, timeout=10, env=env)
     assert result.returncode != 0 and "postgres: unavailable" in result.stderr
-    assert "bootstrap ready" not in result.stderr and password not in result.stderr
+    assert "public transport ready" not in result.stderr and password not in result.stderr
 print("isolated PostgreSQL startup, SIGTERM, invalid YAML, future schema, and unavailable DB: pass")
