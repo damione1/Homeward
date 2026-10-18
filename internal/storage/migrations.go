@@ -30,6 +30,12 @@ const (
 	ConfigIncomplete
 	ConfigIntegrity
 	ConfigTransactionClosed
+	SecretInvalid
+	SecretUnavailable
+	SecretKeyMismatch
+	SecretIntegrity
+	SecretNotFound
+	SecretCommitUnknown
 )
 
 // Error deliberately excludes driver and connection details from its diagnostic.
@@ -39,11 +45,29 @@ type Error struct {
 	cause error
 }
 
-func (e *Error) Kind() Kind            { return e.kind }
-func (e *Error) FoundVersion() Version { return e.found }
-func (e *Error) Unwrap() error         { return e.cause }
-func (e *Error) GoString() string      { return e.Error() }
+func (e *Error) Kind() Kind {
+	if e == nil {
+		return 0
+	}
+	return e.kind
+}
+func (e *Error) FoundVersion() Version {
+	if e == nil {
+		return Version{}
+	}
+	return e.found
+}
+func (e *Error) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+func (e *Error) GoString() string { return e.Error() }
 func (e *Error) Error() string {
+	if e == nil {
+		return "postgres: unknown storage failure"
+	}
 	switch e.kind {
 	case InvalidSettings:
 		return "postgres: invalid explicit connection settings"
@@ -73,6 +97,18 @@ func (e *Error) Error() string {
 		return "postgres: configuration integrity failure"
 	case ConfigTransactionClosed:
 		return "postgres: configuration transaction is closed"
+	case SecretInvalid:
+		return "secrets: invalid input"
+	case SecretUnavailable:
+		return "secrets: unavailable"
+	case SecretKeyMismatch:
+		return "secrets: persistent key is missing or does not match the store"
+	case SecretIntegrity:
+		return "secrets: integrity failure"
+	case SecretNotFound:
+		return "secrets: handle not found"
+	case SecretCommitUnknown:
+		return "secrets: commit outcome unknown"
 	default:
 		return "postgres: unknown storage failure"
 	}
@@ -343,6 +379,46 @@ CREATE TRIGGER config_entries_no_truncate BEFORE TRUNCATE ON public.config_gener
     FOR EACH STATEMENT EXECUTE FUNCTION public.homeward_config_no_truncate();
 CREATE TRIGGER config_active_no_truncate BEFORE TRUNCATE ON public.config_active
     FOR EACH STATEMENT EXECUTE FUNCTION public.homeward_config_no_truncate();
+`}, {version: Version{5}, sql: `
+CREATE TABLE public.secret_bootstrap (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    key_id bytea NOT NULL UNIQUE CHECK (octet_length(key_id) = 32),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE FUNCTION public.homeward_secret_bootstrap_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'secret bootstrap identity is immutable' USING ERRCODE = '23514';
+END
+$$;
+CREATE TRIGGER secret_bootstrap_immutable BEFORE UPDATE OR DELETE ON public.secret_bootstrap
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_secret_bootstrap_immutable();
+CREATE TRIGGER secret_bootstrap_no_truncate BEFORE TRUNCATE ON public.secret_bootstrap
+    FOR EACH STATEMENT EXECUTE FUNCTION public.homeward_secret_bootstrap_immutable();
+CREATE TYPE public.secret_cipher_suite AS ENUM ('aes256gcm_hkdf_sha256_v1');
+CREATE TABLE public.secret_salts (
+    salt bytea PRIMARY KEY CHECK (octet_length(salt) = 32)
+);
+CREATE TRIGGER secret_salts_no_delete BEFORE DELETE OR TRUNCATE ON public.secret_salts
+    FOR EACH STATEMENT EXECUTE FUNCTION public.homeward_secret_bootstrap_immutable();
+CREATE TABLE public.integration_secrets (
+    instance_id text NOT NULL CHECK (instance_id <> ''),
+    secret_name text NOT NULL CHECK (secret_name <> '' AND octet_length(secret_name) <= 256),
+    revision bigint NOT NULL CHECK (revision > 0),
+    key_id bytea NOT NULL REFERENCES public.secret_bootstrap(key_id),
+    suite public.secret_cipher_suite NOT NULL,
+    salt bytea NOT NULL UNIQUE REFERENCES public.secret_salts(salt),
+    ciphertext bytea NOT NULL CHECK (octet_length(ciphertext) >= 28 AND octet_length(ciphertext) <= 1048604),
+    updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY (instance_id, secret_name)
+);
+CREATE TYPE public.secret_audit_reason AS ENUM ('foreign_handle', 'inactive_session');
+CREATE TABLE public.secret_access_audit (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    requesting_instance text NOT NULL CHECK (requesting_instance <> ''),
+    target_instance text NOT NULL CHECK (target_instance <> ''),
+    reason public.secret_audit_reason NOT NULL,
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
 `}}
 
 var latestVersion = migrations[len(migrations)-1].version

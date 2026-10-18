@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/netip"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/damione1/Homeward/internal/storage"
 
@@ -17,6 +19,7 @@ import (
 type Config struct {
 	listen   netip.AddrPort
 	postgres storage.Settings
+	dataDir  string
 }
 
 var ErrUninitialized = errors.New("configuration: uninitialized")
@@ -29,6 +32,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 	var raw struct {
 		Listen   string                  `yaml:"listen"`
 		Postgres storage.ConnectionInput `yaml:"postgres"`
+		DataDir  string                  `yaml:"data_dir"`
 	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
@@ -48,7 +52,17 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 	if err != nil {
 		return Config{}, fmt.Errorf("configuration: %w", err)
 	}
-	return Config{listen: endpoint, postgres: postgres}, nil
+	if !filepath.IsAbs(raw.DataDir) || filepath.Clean(raw.DataDir) != raw.DataDir || raw.DataDir == "/" || strings.ContainsRune(raw.DataDir, '\x00') {
+		return Config{}, fmt.Errorf("configuration: data_dir must be an absolute normalized persistent directory")
+	}
+	return Config{listen: endpoint, postgres: postgres, dataDir: raw.DataDir}, nil
+}
+
+func (c Config) DataDir() (string, error) {
+	if c.dataDir == "" {
+		return "", ErrUninitialized
+	}
+	return c.dataDir, nil
 }
 
 func (c Config) PostgresSettings() (storage.Settings, error) {

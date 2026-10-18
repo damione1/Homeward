@@ -1,5 +1,7 @@
 /target/
 /.tools/
 /homed
+**/.env
+**/.env.pending-*
 *.local.yaml
 __pycache__/

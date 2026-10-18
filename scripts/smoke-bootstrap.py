@@ -33,7 +33,8 @@ with tempfile.TemporaryDirectory(prefix="nha027-bootstrap-") as directory:
     run("pg_ctl", "-D", str(data), "-l", str(log), "-o", pg_options, "-w", "start")
     try:
         cfg = root / "config.yaml"
-        settings = ("listen: '127.0.0.1:0'\npostgres:\n"
+        settings = ("listen: '127.0.0.1:0'\n"
+                    f"data_dir: '{root / 'app-data'}'\npostgres:\n"
                     "  host: '127.0.0.1'\n"
                     f"  port: {pg_port}\n"
                     "  database: postgres\n  user: homeward_test\n"

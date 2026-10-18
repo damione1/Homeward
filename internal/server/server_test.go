@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/damione1/Homeward/internal/config"
 	"net"
 	"testing"
@@ -15,7 +16,7 @@ func TestNHA001Lifecycle(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var lc net.ListenConfig
-	c, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable"), func(string) (string, bool) { return "fake", true })
+	c, err := config.ParseWithEnv([]byte(fmt.Sprintf("data_dir: %q\nlisten: '127.0.0.1:0'\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable", t.TempDir())), func(string) (string, bool) { return "fake", true })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +46,7 @@ func TestNHA001Lifecycle(t *testing.T) {
 }
 
 func TestNHA027CanceledBeforeAdmission(t *testing.T) {
-	c, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable"), func(string) (string, bool) { return "fake", true })
+	c, err := config.ParseWithEnv([]byte(fmt.Sprintf("data_dir: %q\nlisten: '127.0.0.1:0'\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable", t.TempDir())), func(string) (string, bool) { return "fake", true })
 	if err != nil {
 		t.Fatal(err)
 	}

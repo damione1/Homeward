@@ -12,7 +12,7 @@ import (
 
 func TestEndpointParsingAndZero(t *testing.T) {
 	for _, address := range []string{"127.0.0.1:0", "0.0.0.0:65535", "[::1]:8787", "[::]:0"} {
-		c, err := config.ParseWithEnv([]byte("listen: '"+address+"'\n"+testPostgres), testLookup)
+		c, err := config.ParseWithEnv([]byte("listen: '"+address+"'\n"+testPostgres(t)), testLookup)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -41,13 +41,15 @@ func TestEndpointParsingAndZero(t *testing.T) {
 	}
 }
 
-const testPostgres = "postgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable\n"
+func testPostgres(t *testing.T) string {
+	return fmt.Sprintf("data_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable\n", t.TempDir())
+}
 
 func testLookup(string) (string, bool) { return "fake", true }
 
 func TestNHA027SecretReferenceAndZero(t *testing.T) {
 	const canary = "NHA027_private_canary"
-	c, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\n"+testPostgres), func(string) (string, bool) { return canary, true })
+	c, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\n"+testPostgres(t)), func(string) (string, bool) { return canary, true })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +65,26 @@ func TestNHA027SecretReferenceAndZero(t *testing.T) {
 	if _, err := (config.Config{}).PostgresSettings(); !errors.Is(err, config.ErrUninitialized) {
 		t.Fatalf("zero config accepted: %v", err)
 	}
-	if _, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\n"+testPostgres), func(string) (string, bool) { return "", false }); err == nil || strings.Contains(err.Error(), canary) {
+	if _, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\n"+testPostgres(t)), func(string) (string, bool) { return "", false }); err == nil || strings.Contains(err.Error(), canary) {
 		t.Fatalf("missing secret accepted/leaked: %v", err)
+	}
+}
+
+func TestNHA051PersistentDataBoundary(t *testing.T) {
+	if _, err := (config.Config{}).DataDir(); !errors.Is(err, config.ErrUninitialized) {
+		t.Fatalf("zero data directory: %v", err)
+	}
+	for _, bad := range []string{"", "relative/data", "/tmp/../data", "/", "/tmp/\x00data"} {
+		input := "listen: '127.0.0.1:0'\ndata_dir: " + fmt.Sprintf("%q", bad) + "\n" + "postgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable\n"
+		if _, err := config.ParseWithEnv([]byte(input), testLookup); err == nil {
+			t.Fatalf("data_dir %q accepted", bad)
+		}
+	}
+	c, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\n"+testPostgres(t)), testLookup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path, err := c.DataDir(); err != nil || path == "" {
+		t.Fatalf("parsed data dir: %q %v", path, err)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -352,6 +353,13 @@ type SessionHost interface {
 	Publish(context.Context, Binding, StateObservation) error
 	Emit(context.Context, Binding, DeviceEvent) error
 	ReportHealth(context.Context, HealthReport) error
+	Secrets() (SecretProvider, error)
+}
+
+// SecretProvider is a session-bound capability. Its caller cannot select the
+// requesting instance; a handle's target is checked on every read.
+type SecretProvider interface {
+	Read(context.Context, storage.SecretHandle) (storage.SecretValue, error)
 }
 
 type Driver interface {
@@ -375,6 +383,7 @@ type Manager struct {
 	actions                    *actionTracker
 	supervisor                 *Supervisor
 	durable                    *DurableCommandService
+	secrets                    *storage.SecretRepository
 	composition                compositionPhase
 	durableRegistration        durableRegistrationPhase
 }

@@ -34,8 +34,8 @@ func nha151Store(t *testing.T) (*Store, context.Context) {
 		t.Fatal(err)
 	}
 	t.Cleanup(s.Close)
-	if version, err := s.Migrate(ctx); err != nil || version.Number() != 4 {
-		t.Fatalf("migration v4: %v %v", version, err)
+	if version, err := s.Migrate(ctx); err != nil || version != CurrentVersion() {
+		t.Fatalf("migration chain: %v %v", version, err)
 	}
 	return s, ctx
 }

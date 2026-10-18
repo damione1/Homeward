@@ -57,6 +57,10 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	if _, err := c.ListenEndpoint(); err != nil {
 		return err
 	}
+	dataDir, err := c.DataDir()
+	if err != nil {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -65,6 +69,11 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		return err
 	}
 	if _, err := store.Migrate(ctx); err != nil {
+		store.Close()
+		return err
+	}
+	secrets, err := store.BootstrapSecrets(ctx, dataDir)
+	if err != nil {
 		store.Close()
 		return err
 	}
@@ -92,6 +101,10 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	}
 	host, err := integrations.NewHost(plan.Identity, sequence, catalog)
 	if err != nil {
+		store.Close()
+		return err
+	}
+	if err := host.AttachSecrets(secrets); err != nil {
 		store.Close()
 		return err
 	}
