@@ -24,14 +24,15 @@ var (
 // intentions requiring durable audit. It is not a fallback from the volatile
 // route. Construct it before admitting durable traffic and Close it on shutdown.
 type DurableCommandService struct {
-	mu      sync.Mutex
-	router  *CommandRouter
-	store   *storage.Store
-	runtime *storage.CommandRuntime
-	epoch   string
-	active  int
-	closing bool
-	closed  chan struct{}
+	mu       sync.Mutex
+	router   *CommandRouter
+	store    *storage.Store
+	runtime  *storage.CommandRuntime
+	epoch    string
+	active   int
+	closing  bool
+	closed   chan struct{}
+	closeErr error
 }
 
 func NewDurableCommandService(ctx context.Context, host *Manager, generation GenerationAuthority, store *storage.Store) (*DurableCommandService, error) {
@@ -75,24 +76,22 @@ func NewDurableCommandServiceWithClock(ctx context.Context, host *Manager, gener
 	uncertain := &actions.CommandResponse{Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}
 	encoded, err := proto.Marshal(uncertain)
 	if err != nil {
-		runtime.Close()
-		return nil, ErrInvalidInput
+		return nil, errors.Join(ErrInvalidInput, err, runtime.Close())
 	}
 	outcome, err := store.RecoverCommandIntents(ctx, runtime, encoded)
 	if outcome != storage.TransactionCommitted || err != nil {
-		runtime.Close()
-		return nil, durableTransactionError(outcome)
+		return nil, errors.Join(durableTransactionError(outcome), err, runtime.Close())
 	}
 	service := &DurableCommandService{router: router, store: store, runtime: runtime, epoch: epoch, closed: make(chan struct{})}
 	if err := host.completeDurable(service); err != nil {
-		runtime.Close()
-		return nil, err
+		return nil, errors.Join(err, runtime.Close())
 	}
 	return service, nil
 }
 
-// Done closes only after active dispatches have recorded their final durable
-// result and the database-wide command runtime guard has been released.
+// Done closes after active dispatches have recorded their final durable result
+// and the runtime release attempt has ended. Call Close with a live context to
+// obtain the recorded release result; Done alone does not prove release.
 func (s *DurableCommandService) Done() <-chan struct{} {
 	if s == nil {
 		return nil
@@ -120,7 +119,7 @@ func (s *DurableCommandService) Close(ctx context.Context) error {
 			}
 			select {
 			case <-s.closed:
-				return nil
+				return s.closeResult()
 			case <-ctx.Done():
 				return ctx.Err()
 			}
@@ -133,10 +132,16 @@ func (s *DurableCommandService) Close(ctx context.Context) error {
 	}
 	select {
 	case <-done:
-		return nil
+		return s.closeResult()
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (s *DurableCommandService) closeResult() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closeErr
 }
 
 func (s *DurableCommandService) begin() (*storage.CommandRuntime, error) {
@@ -166,7 +171,15 @@ func (s *DurableCommandService) end() {
 }
 
 func (s *DurableCommandService) finishClose(runtime *storage.CommandRuntime) {
-	runtime.Close()
+	var err error
+	if runtime == nil {
+		err = ErrInvalidInput
+	} else {
+		err = runtime.Close()
+	}
+	s.mu.Lock()
+	s.closeErr = err
+	s.mu.Unlock()
 	close(s.closed)
 }
 

@@ -562,8 +562,8 @@ func (h *Manager) startServing(supervisor *Supervisor) (*DurableCommandService, 
 
 // ClosePreparedRuntime owns cleanup until Supervisor.Start freezes composition.
 // Configure must finish synchronously before this call; no service I/O runs
-// under Host's mutex. The returned channel closes after the durable guard is
-// physically released, including after a bounded Close times out.
+// under Host's mutex. The returned channel closes after the release attempt,
+// including after a bounded Close times out. A later Close reports its result.
 func (h *Manager) ClosePreparedRuntime(ctx context.Context) (<-chan struct{}, error) {
 	if h == nil || h.active == nil || ctx == nil {
 		return nil, ErrInvalidInput

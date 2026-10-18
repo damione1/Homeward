@@ -49,7 +49,15 @@ func nha024StoreCluster(t *testing.T) (*storage.Store, storage.Settings, testpg.
 func TestNHA024PostgresShutdownRefusesNewDurableCommand(t *testing.T) {
 	store, settings, cluster := nha024StoreCluster(t)
 	rig := nha023SetupBare(t, &nha022Driver{})
-	service := nha024Service(t, rig, store)
+	service, err := integrations.NewDurableCommandService(context.Background(), rig.host, rig.gen, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = service.Close(ctx)
+	})
 	if err := cluster.Stop(); err != nil {
 		t.Fatal(err)
 	}
@@ -58,6 +66,10 @@ func TestNHA024PostgresShutdownRefusesNewDurableCommand(t *testing.T) {
 	}
 	if _, err := storage.Open(context.Background(), settings); err == nil {
 		t.Fatal("cold start opened unavailable PostgreSQL")
+	}
+	var releaseErr *storage.RuntimeReleaseError
+	if err := service.Close(context.Background()); !errors.As(err, &releaseErr) {
+		t.Fatalf("closed PostgreSQL falsely confirmed runtime release: %v", err)
 	}
 	volatile, err := integrations.NewVolatileCommandService(rig.host, rig.gen, integrations.DefaultVolatileCommandLimits())
 	if err != nil {
@@ -394,6 +406,7 @@ func TestNHA024RuntimeGuardBoundToStoreAndPhysicalSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer runtime.Close()
 	encoded, _ := proto.Marshal(&actions.CommandResponse{Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE})
 	if _, err := other.RecoverCommandIntents(context.Background(), runtime, encoded); err == nil {
 		t.Fatal("cross-database runtime guard admitted")
@@ -406,12 +419,16 @@ func TestNHA024RuntimeGuardBoundToStoreAndPhysicalSession(t *testing.T) {
 	if _, err := secondConnection.AcquireCommandRuntime(context.Background()); err == nil {
 		t.Fatal("second session acquired a live runtime")
 	}
-	runtime.Close()
+	if err := runtime.Close(); err != nil {
+		t.Fatalf("runtime release: %v", err)
+	}
 	reacquired, err := secondConnection.AcquireCommandRuntime(context.Background())
 	if err != nil {
 		t.Fatalf("physical session lock not released: %v", err)
 	}
-	reacquired.Close()
+	if err := reacquired.Close(); err != nil {
+		t.Fatalf("successor release: %v", err)
+	}
 }
 
 func TestNHA024TypedBusyResultReplaysAcrossRestart(t *testing.T) {
