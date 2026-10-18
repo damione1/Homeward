@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/damione1/Homeward/internal/hilo"
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/neviweb"
 	"github.com/damione1/Homeward/internal/storage"
@@ -25,6 +26,7 @@ type Config struct {
 	dataDir  string
 	mqtt     *mqtt.Settings
 	neviweb  *neviweb.Settings
+	hilo     *hilo.Settings
 	workers  []worker.Config
 	energy   []EnergyBinding
 	public   PublicSettings
@@ -43,6 +45,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		DataDir  string                  `yaml:"data_dir"`
 		MQTT     *mqtt.Input             `yaml:"mqtt"`
 		Neviweb  *neviweb.Input          `yaml:"neviweb"`
+		Hilo     *hilo.Input             `yaml:"hilo"`
 		Energy   []energyInput           `yaml:"energy"`
 		Public   *publicInput            `yaml:"public"`
 		Workers  []struct {
@@ -102,6 +105,13 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 			return Config{}, fmt.Errorf("configuration: %w", err)
 		}
 		result.neviweb = &settings
+	}
+	if raw.Hilo != nil {
+		settings, err := hilo.ParseSettings(*raw.Hilo)
+		if err != nil {
+			return Config{}, fmt.Errorf("configuration: %w", err)
+		}
+		result.hilo = &settings
 	}
 	if len(raw.Workers) > 16 {
 		return Config{}, ErrInvalidYAML
