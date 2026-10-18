@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -43,7 +42,7 @@ func (p *nha026ServerPilot) Stop(context.Context) error { p.stopped.Add(1); retu
 
 func TestNHA026RunWithFactoryUsesProductionDatabaseListenerAndSupervisorPath(t *testing.T) {
 	cluster := testpg.Start(t)
-	data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", filepath.Join(t.TempDir(), "app-data"), cluster.Port))
+	data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", shortPrivateDataDir(t), cluster.Port))
 	configValue, err := config.ParseWithEnv(data, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +111,7 @@ func TestNHA026RunOwnsPreparedDurableServiceThroughFailureAndShutdown(t *testing
 	for _, mode := range []string{"configure-error", "cancel-before-start", "serving-stop"} {
 		t.Run(mode, func(t *testing.T) {
 			cluster := testpg.Start(t)
-			data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", filepath.Join(t.TempDir(), "app-data"), cluster.Port))
+			data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", shortPrivateDataDir(t), cluster.Port))
 			configValue, err := config.ParseWithEnv(data, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
 			if err != nil {
 				t.Fatal(err)

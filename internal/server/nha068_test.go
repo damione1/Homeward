@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -23,7 +22,7 @@ import (
 func TestNHA068RunActivatesConfiguredMQTTWithoutFactory(t *testing.T) {
 	broker := testbroker.Start(t)
 	cluster := testpg.Start(t)
-	dataDir := filepath.Join(t.TempDir(), "app-data")
+	dataDir := shortPrivateDataDir(t)
 	const instance = "nha068-server-pilot"
 	data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\nmqtt:\n  profile: '5'\n  broker: 'mqtt://%s'\n  instance: '%s'\n  mode: passive\n  username_secret: mqtt-username\n  password_secret: mqtt-password\n  subscriptions: ['nha068/state/#']\n", dataDir, cluster.Port, broker.Address, instance))
 	c, err := config.ParseWithEnv(data, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })

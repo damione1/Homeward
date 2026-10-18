@@ -13,7 +13,6 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -124,7 +123,7 @@ func nha139Config(t *testing.T, port int, public string) config.Config {
 	t.Helper()
 	yaml := fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npublic:\n  url: 'http://127.0.0.1:8787'\n  max_request_bytes: 128\n  max_concurrent_requests: 1\n  request_timeout: 80ms\n  stream_timeout: 2s\n  shutdown_timeout: 1s\n%s"+
 		"postgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n",
-		filepath.Join(t.TempDir(), "data"), public, port)
+		shortPrivateDataDir(t), public, port)
 	value, err := config.ParseWithEnv([]byte(yaml), func(name string) (string, bool) {
 		return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD"
 	})

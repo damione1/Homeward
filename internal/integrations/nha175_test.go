@@ -13,7 +13,6 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -1290,7 +1289,7 @@ func (p *nha175ServerPilot) Stop(ctx context.Context) error {
 }
 func TestNHA175RunWithFactoryJoinsStreamsBeforePostgresClose(t *testing.T) {
 	cluster := testpg.Start(t)
-	dataDir := filepath.Join(t.TempDir(), "private-data")
+	dataDir := testpg.ShortPrivateDataDir(t)
 	input := fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", dataDir, cluster.Port)
 	c, err := config.ParseWithEnv([]byte(input), func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
 	if err != nil {
