@@ -234,6 +234,27 @@ func newRig(ctx context.Context, adapter Adapter, scenario Case, profile Fixture
 		}
 		records = append(records, record)
 	}
+	if preparer, ok := adapter.(FixturePreparer); ok {
+		gate := &fixtureAdmissionState{open: true, seen: make(map[integrations.SourceKey]bool),
+			aliases: make(map[domain.HAAlias]bool), host: host, fixture: fixture, instance: instance,
+			records: append([]integrations.RegistryRecord(nil), records...)}
+		for _, source := range []FixtureSource{profile.Switch(), profile.Light()} {
+			key, _ := integrations.NewSourceKey(source.Device, source.Entity)
+			gate.seen[key] = true
+		}
+		for _, aliasText := range []string{"switch.nha095_relay_1", "light.nha095_light_2"} {
+			alias, _ := domain.ParseHAAlias(aliasText)
+			gate.aliases[alias] = true
+		}
+		prepareErr := preparer.PrepareFixture(ctx, FixtureAdmission{state: gate})
+		gate.mu.Lock()
+		gate.open = false
+		gate.mu.Unlock()
+		if prepareErr != nil {
+			return nil, prepareErr
+		}
+		records = gate.records
+	}
 	if err := fixture.PublishRegistry(ctx, records); err != nil {
 		return nil, err
 	}

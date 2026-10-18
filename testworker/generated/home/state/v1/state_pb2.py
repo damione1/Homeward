@@ -26,7 +26,7 @@ from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__
 from home.registry.v1 import registry_pb2 as home_dot_registry_dot_v1_dot_registry__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x19home/state/v1/state.proto\x12\rhome.state.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fhome/registry/v1/registry.proto\"\x98\x01\n\x07Quality\x12\x31\n\x0c\x61vailability\x18\x01 \x01(\x0e\x32\x1b.home.state.v1.Availability\x12+\n\tfreshness\x18\x02 \x01(\x0e\x32\x18.home.state.v1.Freshness\x12-\n\nprovenance\x18\x03 \x01(\x0e\x32\x19.home.state.v1.Provenance\"X\n\x0bMeasurement\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x0c\n\x04unit\x18\x02 \x01(\t\x12\x1a\n\rdecimal_value\x18\x03 \x01(\tH\x00\x88\x01\x01\x42\x10\n\x0e_decimal_value\"\x92\x01\n\nLightValue\x12\x0f\n\x02on\x18\x01 \x01(\x08H\x00\x88\x01\x01\x12\x1f\n\x12\x62rightness_percent\x18\x02 \x01(\x01H\x01\x88\x01\x01\x12\x1e\n\x11\x63olor_temp_mireds\x18\x03 \x01(\rH\x02\x88\x01\x01\x42\x05\n\x03_onB\x15\n\x13_brightness_percentB\x14\n\x12_color_temp_mireds\"\xad\x04\n\rObservedState\x12+\n\x06\x65ntity\x18\x01 \x01(\x0b\x32\x1b.home.registry.v1.EntityRef\x12\'\n\x07quality\x18\x02 \x01(\x0b\x32\x16.home.state.v1.Quality\x12\x10\n\x08revision\x18\x03 \x01(\x04\x12/\n\x0bobserved_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12/\n\x0breceived_at\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x30\n\x0clast_changed\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x30\n\x0clast_updated\x18\x07 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x31\n\rlast_reported\x18\x08 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x16\n\x0esource_session\x18\t \x01(\t\x12\x17\n\nsource_seq\x18\n \x01(\x04H\x01\x88\x01\x01\x12\x13\n\tswitch_on\x18\x0b \x01(\x08H\x00\x12\x31\n\x0bmeasurement\x18\x0c \x01(\x0b\x32\x1a.home.state.v1.MeasurementH\x00\x12*\n\x05light\x18\r \x01(\x0b\x32\x19.home.state.v1.LightValueH\x00\x42\x07\n\x05valueB\r\n\x0b_source_seq\"\xca\x01\n\nViewCursor\x12\r\n\x05\x65poch\x18\x01 \x01(\t\x12\x17\n\x0fglobal_sequence\x18\x02 \x01(\x04\x12\x17\n\x0f\x63onfig_revision\x18\x03 \x01(\x04\x12\x1e\n\x16\x61uthorization_revision\x18\x04 \x01(\x04\x12\x15\n\rfilter_sha256\x18\x05 \x01(\x0c\x12\x15\n\rconfig_sha256\x18\x06 \x01(\x0c\x12\x17\n\x0f\x61\x64mission_proof\x18\x07 \x01(\x0c\x12\x14\n\x0cgrant_sha256\x18\x08 \x01(\x0c\"\xe9\x01\n\nViewEntity\x12\x11\n\tentity_id\x18\x01 \x01(\t\x12\x11\n\tdevice_id\x18\x02 \x01(\t\x12\x16\n\x0eoriginal_alias\x18\x03 \x01(\t\x12\x15\n\rcurrent_alias\x18\x04 \x01(\t\x12\x1a\n\x12historical_aliases\x18\x05 \x03(\t\x12=\n\x0c\x63\x61pabilities\x18\x06 \x03(\x0b\x32\'.home.registry.v1.CapabilityDescription\x12+\n\x05state\x18\x07 \x01(\x0b\x32\x1c.home.state.v1.ObservedState\" \n\nViewFilter\x12\x12\n\nentity_ids\x18\x01 \x03(\t\"O\n\x0fOpenViewRequest\x12)\n\x06\x66ilter\x18\x01 \x01(\x0b\x32\x19.home.state.v1.ViewFilter\x12\x11\n\tpage_size\x18\x02 \x01(\r\"\xb8\x02\n\x10OpenViewResponse\x12\x16\n\x0esnapshot_token\x18\x01 \x01(\t\x12)\n\x06\x63ursor\x18\x02 \x01(\x0b\x32\x19.home.state.v1.ViewCursor\x12,\n\x06states\x18\x03 \x03(\x0b\x32\x1c.home.state.v1.ObservedState\x12=\n\x0c\x63\x61pabilities\x18\x04 \x03(\x0b\x32\'.home.registry.v1.CapabilityDescription\x12\x17\n\x0fnext_page_token\x18\x05 \x01(\t\x12.\n\nexpires_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12+\n\x08\x65ntities\x18\x07 \x03(\x0b\x32\x19.home.state.v1.ViewEntity\"=\n\x0fReadPageRequest\x12\x16\n\x0esnapshot_token\x18\x01 \x01(\t\x12\x12\n\npage_token\x18\x02 \x01(\t\"A\n\x10ReadPageResponse\x12-\n\x04page\x18\x01 \x01(\x0b\x32\x1f.home.state.v1.OpenViewResponse\"h\n\x10WatchViewRequest\x12)\n\x06\x63ursor\x18\x01 \x01(\x0b\x32\x19.home.state.v1.ViewCursor\x12)\n\x06\x66ilter\x18\x02 \x01(\x0b\x32\x19.home.state.v1.ViewFilter\":\n\nStateDelta\x12,\n\x06states\x18\x01 \x03(\x0b\x32\x1c.home.state.v1.ObservedState\"N\n\x0eResyncRequired\x12+\n\x06reason\x18\x01 \x01(\x0e\x32\x1b.home.state.v1.ResyncReason\x12\x0f\n\x07message\x18\x02 \x01(\t\"\xc6\x01\n\x11WatchViewResponse\x12\x17\n\x0fstream_sequence\x18\x01 \x01(\x04\x12)\n\x06\x63ursor\x18\x02 \x01(\x0b\x32\x19.home.state.v1.ViewCursor\x12*\n\x05\x64\x65lta\x18\x03 \x01(\x0b\x32\x19.home.state.v1.StateDeltaH\x00\x12\x38\n\x0fresync_required\x18\x04 \x01(\x0b\x32\x1d.home.state.v1.ResyncRequiredH\x00\x42\x07\n\x05\x66rame*\x80\x01\n\x0c\x41vailability\x12\x1c\n\x18\x41VAILABILITY_UNSPECIFIED\x10\x00\x12\x1a\n\x16\x41VAILABILITY_AVAILABLE\x10\x01\x12\x18\n\x14\x41VAILABILITY_UNKNOWN\x10\x02\x12\x1c\n\x18\x41VAILABILITY_UNAVAILABLE\x10\x03*P\n\tFreshness\x12\x19\n\x15\x46RESHNESS_UNSPECIFIED\x10\x00\x12\x13\n\x0f\x46RESHNESS_FRESH\x10\x01\x12\x13\n\x0f\x46RESHNESS_STALE\x10\x02*t\n\nProvenance\x12\x1a\n\x16PROVENANCE_UNSPECIFIED\x10\x00\x12\x17\n\x13PROVENANCE_OBSERVED\x10\x01\x12\x17\n\x13PROVENANCE_RESTORED\x10\x02\x12\x18\n\x14PROVENANCE_ESTIMATED\x10\x03*\xbc\x03\n\x0cResyncReason\x12\x1d\n\x19RESYNC_REASON_UNSPECIFIED\x10\x00\x12\x1f\n\x1bRESYNC_REASON_EPOCH_CHANGED\x10\x01\x12 \n\x1cRESYNC_REASON_REPLAY_EXPIRED\x10\x02\x12\'\n#RESYNC_REASON_CONFIGURATION_CHANGED\x10\x03\x12\'\n#RESYNC_REASON_AUTHORIZATION_CHANGED\x10\x04\x12 \n\x1cRESYNC_REASON_FILTER_CHANGED\x10\x05\x12 \n\x1cRESYNC_REASON_INVALID_CURSOR\x10\x06\x12\x1d\n\x19RESYNC_REASON_CLIENT_SLOW\x10\x07\x12\"\n\x1eRESYNC_REASON_REGISTRY_CHANGED\x10\x08\x12&\n\"RESYNC_REASON_CAPABILITIES_CHANGED\x10\t\x12&\n\"RESYNC_REASON_REGISTRY_UNAVAILABLE\x10\n\x12!\n\x1dRESYNC_REASON_FRAME_TOO_LARGE\x10\x0b\x32\xfa\x01\n\x0cStateService\x12K\n\x08OpenView\x12\x1e.home.state.v1.OpenViewRequest\x1a\x1f.home.state.v1.OpenViewResponse\x12K\n\x08ReadPage\x12\x1e.home.state.v1.ReadPageRequest\x1a\x1f.home.state.v1.ReadPageResponse\x12P\n\tWatchView\x12\x1f.home.state.v1.WatchViewRequest\x1a .home.state.v1.WatchViewResponse0\x01\x42\x38Z6github.com/damione1/Homeward/gen/home/state/v1;statev1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x19home/state/v1/state.proto\x12\rhome.state.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fhome/registry/v1/registry.proto\"\x98\x01\n\x07Quality\x12\x31\n\x0c\x61vailability\x18\x01 \x01(\x0e\x32\x1b.home.state.v1.Availability\x12+\n\tfreshness\x18\x02 \x01(\x0e\x32\x18.home.state.v1.Freshness\x12-\n\nprovenance\x18\x03 \x01(\x0e\x32\x19.home.state.v1.Provenance\"X\n\x0bMeasurement\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x0c\n\x04unit\x18\x02 \x01(\t\x12\x1a\n\rdecimal_value\x18\x03 \x01(\tH\x00\x88\x01\x01\x42\x10\n\x0e_decimal_value\"\x92\x01\n\nLightValue\x12\x0f\n\x02on\x18\x01 \x01(\x08H\x00\x88\x01\x01\x12\x1f\n\x12\x62rightness_percent\x18\x02 \x01(\x01H\x01\x88\x01\x01\x12\x1e\n\x11\x63olor_temp_mireds\x18\x03 \x01(\rH\x02\x88\x01\x01\x42\x05\n\x03_onB\x15\n\x13_brightness_percentB\x14\n\x12_color_temp_mireds\"2\n\x08\x46\x61nValue\x12&\n\x05speed\x18\x01 \x01(\x0e\x32\x17.home.state.v1.FanSpeed\"\xd5\x04\n\rObservedState\x12+\n\x06\x65ntity\x18\x01 \x01(\x0b\x32\x1b.home.registry.v1.EntityRef\x12\'\n\x07quality\x18\x02 \x01(\x0b\x32\x16.home.state.v1.Quality\x12\x10\n\x08revision\x18\x03 \x01(\x04\x12/\n\x0bobserved_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12/\n\x0breceived_at\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x30\n\x0clast_changed\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x30\n\x0clast_updated\x18\x07 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x31\n\rlast_reported\x18\x08 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x16\n\x0esource_session\x18\t \x01(\t\x12\x17\n\nsource_seq\x18\n \x01(\x04H\x01\x88\x01\x01\x12\x13\n\tswitch_on\x18\x0b \x01(\x08H\x00\x12\x31\n\x0bmeasurement\x18\x0c \x01(\x0b\x32\x1a.home.state.v1.MeasurementH\x00\x12*\n\x05light\x18\r \x01(\x0b\x32\x19.home.state.v1.LightValueH\x00\x12&\n\x03\x66\x61n\x18\x0e \x01(\x0b\x32\x17.home.state.v1.FanValueH\x00\x42\x07\n\x05valueB\r\n\x0b_source_seq\"\xca\x01\n\nViewCursor\x12\r\n\x05\x65poch\x18\x01 \x01(\t\x12\x17\n\x0fglobal_sequence\x18\x02 \x01(\x04\x12\x17\n\x0f\x63onfig_revision\x18\x03 \x01(\x04\x12\x1e\n\x16\x61uthorization_revision\x18\x04 \x01(\x04\x12\x15\n\rfilter_sha256\x18\x05 \x01(\x0c\x12\x15\n\rconfig_sha256\x18\x06 \x01(\x0c\x12\x17\n\x0f\x61\x64mission_proof\x18\x07 \x01(\x0c\x12\x14\n\x0cgrant_sha256\x18\x08 \x01(\x0c\"\xe9\x01\n\nViewEntity\x12\x11\n\tentity_id\x18\x01 \x01(\t\x12\x11\n\tdevice_id\x18\x02 \x01(\t\x12\x16\n\x0eoriginal_alias\x18\x03 \x01(\t\x12\x15\n\rcurrent_alias\x18\x04 \x01(\t\x12\x1a\n\x12historical_aliases\x18\x05 \x03(\t\x12=\n\x0c\x63\x61pabilities\x18\x06 \x03(\x0b\x32\'.home.registry.v1.CapabilityDescription\x12+\n\x05state\x18\x07 \x01(\x0b\x32\x1c.home.state.v1.ObservedState\" \n\nViewFilter\x12\x12\n\nentity_ids\x18\x01 \x03(\t\"O\n\x0fOpenViewRequest\x12)\n\x06\x66ilter\x18\x01 \x01(\x0b\x32\x19.home.state.v1.ViewFilter\x12\x11\n\tpage_size\x18\x02 \x01(\r\"\xb8\x02\n\x10OpenViewResponse\x12\x16\n\x0esnapshot_token\x18\x01 \x01(\t\x12)\n\x06\x63ursor\x18\x02 \x01(\x0b\x32\x19.home.state.v1.ViewCursor\x12,\n\x06states\x18\x03 \x03(\x0b\x32\x1c.home.state.v1.ObservedState\x12=\n\x0c\x63\x61pabilities\x18\x04 \x03(\x0b\x32\'.home.registry.v1.CapabilityDescription\x12\x17\n\x0fnext_page_token\x18\x05 \x01(\t\x12.\n\nexpires_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12+\n\x08\x65ntities\x18\x07 \x03(\x0b\x32\x19.home.state.v1.ViewEntity\"=\n\x0fReadPageRequest\x12\x16\n\x0esnapshot_token\x18\x01 \x01(\t\x12\x12\n\npage_token\x18\x02 \x01(\t\"A\n\x10ReadPageResponse\x12-\n\x04page\x18\x01 \x01(\x0b\x32\x1f.home.state.v1.OpenViewResponse\"h\n\x10WatchViewRequest\x12)\n\x06\x63ursor\x18\x01 \x01(\x0b\x32\x19.home.state.v1.ViewCursor\x12)\n\x06\x66ilter\x18\x02 \x01(\x0b\x32\x19.home.state.v1.ViewFilter\":\n\nStateDelta\x12,\n\x06states\x18\x01 \x03(\x0b\x32\x1c.home.state.v1.ObservedState\"N\n\x0eResyncRequired\x12+\n\x06reason\x18\x01 \x01(\x0e\x32\x1b.home.state.v1.ResyncReason\x12\x0f\n\x07message\x18\x02 \x01(\t\"\xc6\x01\n\x11WatchViewResponse\x12\x17\n\x0fstream_sequence\x18\x01 \x01(\x04\x12)\n\x06\x63ursor\x18\x02 \x01(\x0b\x32\x19.home.state.v1.ViewCursor\x12*\n\x05\x64\x65lta\x18\x03 \x01(\x0b\x32\x19.home.state.v1.StateDeltaH\x00\x12\x38\n\x0fresync_required\x18\x04 \x01(\x0b\x32\x1d.home.state.v1.ResyncRequiredH\x00\x42\x07\n\x05\x66rame*\x80\x01\n\x0c\x41vailability\x12\x1c\n\x18\x41VAILABILITY_UNSPECIFIED\x10\x00\x12\x1a\n\x16\x41VAILABILITY_AVAILABLE\x10\x01\x12\x18\n\x14\x41VAILABILITY_UNKNOWN\x10\x02\x12\x1c\n\x18\x41VAILABILITY_UNAVAILABLE\x10\x03*P\n\tFreshness\x12\x19\n\x15\x46RESHNESS_UNSPECIFIED\x10\x00\x12\x13\n\x0f\x46RESHNESS_FRESH\x10\x01\x12\x13\n\x0f\x46RESHNESS_STALE\x10\x02*t\n\nProvenance\x12\x1a\n\x16PROVENANCE_UNSPECIFIED\x10\x00\x12\x17\n\x13PROVENANCE_OBSERVED\x10\x01\x12\x17\n\x13PROVENANCE_RESTORED\x10\x02\x12\x18\n\x14PROVENANCE_ESTIMATED\x10\x03*\x90\x01\n\x08\x46\x61nSpeed\x12\x19\n\x15\x46\x41N_SPEED_UNSPECIFIED\x10\x00\x12\x11\n\rFAN_SPEED_OFF\x10\x01\x12\x11\n\rFAN_SPEED_LOW\x10\x02\x12\x14\n\x10\x46\x41N_SPEED_MEDIUM\x10\x03\x12\x19\n\x15\x46\x41N_SPEED_MEDIUM_HIGH\x10\x04\x12\x12\n\x0e\x46\x41N_SPEED_HIGH\x10\x05*\xbc\x03\n\x0cResyncReason\x12\x1d\n\x19RESYNC_REASON_UNSPECIFIED\x10\x00\x12\x1f\n\x1bRESYNC_REASON_EPOCH_CHANGED\x10\x01\x12 \n\x1cRESYNC_REASON_REPLAY_EXPIRED\x10\x02\x12\'\n#RESYNC_REASON_CONFIGURATION_CHANGED\x10\x03\x12\'\n#RESYNC_REASON_AUTHORIZATION_CHANGED\x10\x04\x12 \n\x1cRESYNC_REASON_FILTER_CHANGED\x10\x05\x12 \n\x1cRESYNC_REASON_INVALID_CURSOR\x10\x06\x12\x1d\n\x19RESYNC_REASON_CLIENT_SLOW\x10\x07\x12\"\n\x1eRESYNC_REASON_REGISTRY_CHANGED\x10\x08\x12&\n\"RESYNC_REASON_CAPABILITIES_CHANGED\x10\t\x12&\n\"RESYNC_REASON_REGISTRY_UNAVAILABLE\x10\n\x12!\n\x1dRESYNC_REASON_FRAME_TOO_LARGE\x10\x0b\x32\xfa\x01\n\x0cStateService\x12K\n\x08OpenView\x12\x1e.home.state.v1.OpenViewRequest\x1a\x1f.home.state.v1.OpenViewResponse\x12K\n\x08ReadPage\x12\x1e.home.state.v1.ReadPageRequest\x1a\x1f.home.state.v1.ReadPageResponse\x12P\n\tWatchView\x12\x1f.home.state.v1.WatchViewRequest\x1a .home.state.v1.WatchViewResponse0\x01\x42\x38Z6github.com/damione1/Homeward/gen/home/state/v1;statev1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,44 +34,48 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'home.state.v1.state_pb2', _
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z6github.com/damione1/Homeward/gen/home/state/v1;statev1'
-  _globals['_AVAILABILITY']._serialized_start=2513
-  _globals['_AVAILABILITY']._serialized_end=2641
-  _globals['_FRESHNESS']._serialized_start=2643
-  _globals['_FRESHNESS']._serialized_end=2723
-  _globals['_PROVENANCE']._serialized_start=2725
-  _globals['_PROVENANCE']._serialized_end=2841
-  _globals['_RESYNCREASON']._serialized_start=2844
-  _globals['_RESYNCREASON']._serialized_end=3288
+  _globals['_AVAILABILITY']._serialized_start=2605
+  _globals['_AVAILABILITY']._serialized_end=2733
+  _globals['_FRESHNESS']._serialized_start=2735
+  _globals['_FRESHNESS']._serialized_end=2815
+  _globals['_PROVENANCE']._serialized_start=2817
+  _globals['_PROVENANCE']._serialized_end=2933
+  _globals['_FANSPEED']._serialized_start=2936
+  _globals['_FANSPEED']._serialized_end=3080
+  _globals['_RESYNCREASON']._serialized_start=3083
+  _globals['_RESYNCREASON']._serialized_end=3527
   _globals['_QUALITY']._serialized_start=111
   _globals['_QUALITY']._serialized_end=263
   _globals['_MEASUREMENT']._serialized_start=265
   _globals['_MEASUREMENT']._serialized_end=353
   _globals['_LIGHTVALUE']._serialized_start=356
   _globals['_LIGHTVALUE']._serialized_end=502
-  _globals['_OBSERVEDSTATE']._serialized_start=505
-  _globals['_OBSERVEDSTATE']._serialized_end=1062
-  _globals['_VIEWCURSOR']._serialized_start=1065
-  _globals['_VIEWCURSOR']._serialized_end=1267
-  _globals['_VIEWENTITY']._serialized_start=1270
-  _globals['_VIEWENTITY']._serialized_end=1503
-  _globals['_VIEWFILTER']._serialized_start=1505
-  _globals['_VIEWFILTER']._serialized_end=1537
-  _globals['_OPENVIEWREQUEST']._serialized_start=1539
-  _globals['_OPENVIEWREQUEST']._serialized_end=1618
-  _globals['_OPENVIEWRESPONSE']._serialized_start=1621
-  _globals['_OPENVIEWRESPONSE']._serialized_end=1933
-  _globals['_READPAGEREQUEST']._serialized_start=1935
-  _globals['_READPAGEREQUEST']._serialized_end=1996
-  _globals['_READPAGERESPONSE']._serialized_start=1998
-  _globals['_READPAGERESPONSE']._serialized_end=2063
-  _globals['_WATCHVIEWREQUEST']._serialized_start=2065
-  _globals['_WATCHVIEWREQUEST']._serialized_end=2169
-  _globals['_STATEDELTA']._serialized_start=2171
-  _globals['_STATEDELTA']._serialized_end=2229
-  _globals['_RESYNCREQUIRED']._serialized_start=2231
-  _globals['_RESYNCREQUIRED']._serialized_end=2309
-  _globals['_WATCHVIEWRESPONSE']._serialized_start=2312
-  _globals['_WATCHVIEWRESPONSE']._serialized_end=2510
-  _globals['_STATESERVICE']._serialized_start=3291
-  _globals['_STATESERVICE']._serialized_end=3541
+  _globals['_FANVALUE']._serialized_start=504
+  _globals['_FANVALUE']._serialized_end=554
+  _globals['_OBSERVEDSTATE']._serialized_start=557
+  _globals['_OBSERVEDSTATE']._serialized_end=1154
+  _globals['_VIEWCURSOR']._serialized_start=1157
+  _globals['_VIEWCURSOR']._serialized_end=1359
+  _globals['_VIEWENTITY']._serialized_start=1362
+  _globals['_VIEWENTITY']._serialized_end=1595
+  _globals['_VIEWFILTER']._serialized_start=1597
+  _globals['_VIEWFILTER']._serialized_end=1629
+  _globals['_OPENVIEWREQUEST']._serialized_start=1631
+  _globals['_OPENVIEWREQUEST']._serialized_end=1710
+  _globals['_OPENVIEWRESPONSE']._serialized_start=1713
+  _globals['_OPENVIEWRESPONSE']._serialized_end=2025
+  _globals['_READPAGEREQUEST']._serialized_start=2027
+  _globals['_READPAGEREQUEST']._serialized_end=2088
+  _globals['_READPAGERESPONSE']._serialized_start=2090
+  _globals['_READPAGERESPONSE']._serialized_end=2155
+  _globals['_WATCHVIEWREQUEST']._serialized_start=2157
+  _globals['_WATCHVIEWREQUEST']._serialized_end=2261
+  _globals['_STATEDELTA']._serialized_start=2263
+  _globals['_STATEDELTA']._serialized_end=2321
+  _globals['_RESYNCREQUIRED']._serialized_start=2323
+  _globals['_RESYNCREQUIRED']._serialized_end=2401
+  _globals['_WATCHVIEWRESPONSE']._serialized_start=2404
+  _globals['_WATCHVIEWRESPONSE']._serialized_end=2602
+  _globals['_STATESERVICE']._serialized_start=3530
+  _globals['_STATESERVICE']._serialized_end=3780
 # @@protoc_insertion_point(module_scope)

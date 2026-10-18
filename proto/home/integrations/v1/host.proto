@@ -8,8 +8,7 @@ import "home/state/v1/state.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/integrations/v1;integrationsv1";
 
-// Only v1.0 with this descriptor digest is admitted. An enum unknown to the
-// generated decoder is never an admitted capability or operation.
+// Exact v1.0 and v1.1 descriptor profiles are admitted. Fan is v1.1 only.
 enum Capability {
   CAPABILITY_UNSPECIFIED = 0;
   CAPABILITY_DISCOVER = 1;
@@ -66,6 +65,7 @@ message Observation {
     bool switch_on = 7;
     MeasurementValue measurement = 8;
     home.state.v1.LightValue light = 9;
+    home.state.v1.FanValue fan = 10;
   }
 }
 message PublishRequest { Observation observation = 1; }
@@ -106,6 +106,8 @@ enum CommandResultKind {
   COMMAND_RESULT_KIND_UNSPECIFIED = 0;
   COMMAND_RESULT_KIND_ACCEPTED = 1;
   COMMAND_RESULT_KIND_FAILED = 2;
+  // Host 1.1 only: the bridge acknowledged the command, before any observed state.
+  COMMAND_RESULT_KIND_ACKNOWLEDGED = 3;
 }
 message CompleteCommandRequest {
   string command_id = 1;

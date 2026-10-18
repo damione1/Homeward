@@ -105,6 +105,33 @@ type StateObservation struct {
 	causality  domain.Causality
 }
 
+// Components returns owned copies of a validated raw report. It permits a
+// simulator to fault a real driver's transport report before Host admission.
+func (s StateObservation) Components() (string, domain.Quality, *domain.StateValue, *time.Time, time.Time, *uint64, domain.Causality, error) {
+	if _, err := domain.NewStateReport(s.quality, s.value, s.observedAt, s.receivedAt, mustProbeSource(), 1); err != nil || s.endpoint == "" {
+		return "", domain.Quality{}, nil, nil, time.Time{}, nil, domain.Causality{}, ErrInvalidInput
+	}
+	if _, _, err := s.causality.Components(); err != nil {
+		return "", domain.Quality{}, nil, nil, time.Time{}, nil, domain.Causality{}, err
+	}
+	var value *domain.StateValue
+	if s.value != nil {
+		copyValue := *s.value
+		value = &copyValue
+	}
+	var observed *time.Time
+	if s.observedAt != nil {
+		copyTime := *s.observedAt
+		observed = &copyTime
+	}
+	var sequence *uint64
+	if s.sequence != nil {
+		copySequence := *s.sequence
+		sequence = &copySequence
+	}
+	return s.endpoint, s.quality, value, observed, s.receivedAt, sequence, s.causality, nil
+}
+
 func NewStateObservation(endpoint string, quality domain.Quality, value *domain.StateValue, observedAt *time.Time, receivedAt time.Time, sequence *uint64) (StateObservation, error) {
 	if endpoint == "" || len(endpoint) > 128 || !utf8.ValidString(endpoint) {
 		return StateObservation{}, ErrInvalidInput
@@ -1063,6 +1090,14 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 				}
 				if err := h.catalog.AdmitDomainLight(binding.entity, observation.endpoint, light); err != nil {
 					return err
+				}
+				matched = true
+			}
+		case domain.ValueFan:
+			if description.SchemaId == contracts.FanSchema {
+				speed, ok := observation.value.Fan()
+				if !ok || h.catalog.AdmitDomainFan(binding.entity, observation.endpoint, speed) != nil {
+					return ErrInvalidInput
 				}
 				matched = true
 			}

@@ -17,6 +17,7 @@ func TestNHA025StructuredProjectionIsNotCompleteProof(t *testing.T) {
 	zero := 0.0
 	off := false
 	speed := "medium"
+	canonicalSpeed := "Medium"
 	cases := []struct {
 		name    string
 		request *actions.CommandRequest
@@ -28,8 +29,9 @@ func TestNHA025StructuredProjectionIsNotCompleteProof(t *testing.T) {
 		{"light color temperature without on", &actions.CommandRequest{CapabilitySchemaId: contracts.LightSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{ColorTempMireds: &colorTemp}}}}, proofLight},
 		{"light off with present zero brightness", &actions.CommandRequest{CapabilitySchemaId: contracts.LightSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{On: &off, BrightnessPercent: &zero}}}}, proofLight},
 		{"light without fields", &actions.CommandRequest{CapabilitySchemaId: contracts.LightSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{}}}}, proofUnavailable},
-		{"fan on only", &actions.CommandRequest{CapabilitySchemaId: contracts.FanSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{On: &on}}}}, proofSwitch},
+		{"fan on only", &actions.CommandRequest{CapabilitySchemaId: contracts.FanSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{On: &on}}}}, proofFan},
 		{"fan with speed", &actions.CommandRequest{CapabilitySchemaId: contracts.FanSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{On: &on, Speed: &speed}}}}, proofUnavailable},
+		{"fan with canonical speed", &actions.CommandRequest{CapabilitySchemaId: contracts.FanSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{Speed: &canonicalSpeed}}}}, proofFan},
 		{"climate has no Boolean proof", &actions.CommandRequest{CapabilitySchemaId: contracts.ClimateSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetClimate{SetClimate: &actions.SetClimate{}}}}, proofUnavailable},
 		{"missing arguments", &actions.CommandRequest{CapabilitySchemaId: contracts.SwitchSchema}, proofUnavailable},
 	}

@@ -25,6 +25,58 @@ type Config struct {
 	executable  string
 	args        []string
 	secretNames map[string]struct{}
+	bindings    []ConfiguredBinding
+}
+
+// ConfiguredBinding is an operator-supplied source-to-manifest mapping. The
+// registry remains the sole identity authority and persists it idempotently.
+type ConfiguredBinding struct {
+	key   integrations.SourceKey
+	alias domain.HAAlias
+}
+
+func NewConfiguredBinding(device, entity, alias string) (ConfiguredBinding, error) {
+	key, err := integrations.NewSourceKey(device, entity)
+	if err != nil {
+		return ConfiguredBinding{}, ErrInvalidConfig
+	}
+	label, err := domain.ParseHAAlias(alias)
+	if err != nil {
+		return ConfiguredBinding{}, ErrInvalidConfig
+	}
+	return ConfiguredBinding{key: key, alias: label}, nil
+}
+
+func (b ConfiguredBinding) Components() (integrations.SourceKey, string, error) {
+	if _, _, err := b.key.Components(); err != nil {
+		return integrations.SourceKey{}, "", ErrInvalidConfig
+	}
+	alias, err := b.alias.Value()
+	if err != nil {
+		return integrations.SourceKey{}, "", ErrInvalidConfig
+	}
+	return b.key, alias, nil
+}
+
+func (c Config) WithBindings(bindings []ConfiguredBinding) (Config, error) {
+	if _, err := c.Instance(); err != nil || len(bindings) > 256 {
+		return Config{}, ErrInvalidConfig
+	}
+	keys := make(map[integrations.SourceKey]bool, len(bindings))
+	aliases := make(map[string]bool, len(bindings))
+	for _, binding := range bindings {
+		key, alias, err := binding.Components()
+		if err != nil || keys[key] || aliases[alias] {
+			return Config{}, ErrInvalidConfig
+		}
+		keys[key], aliases[alias] = true, true
+	}
+	c.bindings = append([]ConfiguredBinding(nil), bindings...)
+	return c, nil
+}
+
+func (c Config) Bindings() []ConfiguredBinding {
+	return append([]ConfiguredBinding(nil), c.bindings...)
 }
 
 func NewConfig(instanceText, executable string, args, secretNames []string) (Config, error) {
@@ -66,5 +118,17 @@ func NewPilotSpec(c Config) (integrations.PilotSpec, error) {
 	if err != nil {
 		return integrations.PilotSpec{}, err
 	}
-	return integrations.NewPilotSpec(instance, func() integrations.Pilot { return newPilot(c) })
+	return integrations.NewPilotSpec(instance, func() integrations.Pilot {
+		pilot, _ := NewPilot(c)
+		return pilot
+	})
+}
+
+// NewPilot is the same validated factory used by NewPilotSpec. A test Adapter
+// may wrap its SessionHost while leaving the production process and RPC path intact.
+func NewPilot(c Config) (integrations.Pilot, error) {
+	if _, err := c.Instance(); err != nil {
+		return nil, err
+	}
+	return newPilot(c), nil
 }

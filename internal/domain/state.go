@@ -101,7 +101,55 @@ const (
 	ValueSwitch
 	ValueMeasurement
 	ValueLight
+	ValueFan
 )
+
+// FanSpeed is closed to the LEAP speeds the Host can prove. The zero value is
+// absent and cannot be published as a present fan reading.
+type FanSpeed uint8
+
+const (
+	FanSpeedUnspecified FanSpeed = iota
+	FanSpeedOff
+	FanSpeedLow
+	FanSpeedMedium
+	FanSpeedMediumHigh
+	FanSpeedHigh
+)
+
+func ParseFanSpeed(raw string) (FanSpeed, error) {
+	switch raw {
+	case "Off":
+		return FanSpeedOff, nil
+	case "Low":
+		return FanSpeedLow, nil
+	case "Medium":
+		return FanSpeedMedium, nil
+	case "MediumHigh":
+		return FanSpeedMediumHigh, nil
+	case "High":
+		return FanSpeedHigh, nil
+	default:
+		return FanSpeedUnspecified, ErrInvalidState
+	}
+}
+
+func (s FanSpeed) String() (string, error) {
+	switch s {
+	case FanSpeedOff:
+		return "Off", nil
+	case FanSpeedLow:
+		return "Low", nil
+	case FanSpeedMedium:
+		return "Medium", nil
+	case FanSpeedMediumHigh:
+		return "MediumHigh", nil
+	case FanSpeedHigh:
+		return "High", nil
+	default:
+		return "", ErrInvalidState
+	}
+}
 
 // LightValue preserves each observed field independently. Off is a present
 // value; absent brightness and color temperature are never filled from zero.
@@ -164,6 +212,7 @@ type StateValue struct {
 	switchOn    bool
 	measurement Measurement
 	light       LightValue
+	fan         FanSpeed
 }
 
 func NewSwitchValue(on bool) StateValue { return StateValue{kind: ValueSwitch, switchOn: on} }
@@ -182,6 +231,13 @@ func NewLightStateValue(light LightValue) (StateValue, error) {
 	return StateValue{kind: ValueLight, light: light}, nil
 }
 
+func NewFanStateValue(speed FanSpeed) (StateValue, error) {
+	if _, err := speed.String(); err != nil {
+		return StateValue{}, err
+	}
+	return StateValue{kind: ValueFan, fan: speed}, nil
+}
+
 func (v StateValue) Kind() (ValueKind, error) {
 	switch v.kind {
 	case ValueSwitch:
@@ -193,6 +249,10 @@ func (v StateValue) Kind() (ValueKind, error) {
 	case ValueLight:
 		if _, _, _, err := v.light.Components(); err == nil {
 			return ValueLight, nil
+		}
+	case ValueFan:
+		if _, err := v.fan.String(); err == nil {
+			return ValueFan, nil
 		}
 	case ValueUnspecified:
 	default:
@@ -207,6 +267,8 @@ func (v StateValue) Measurement() (Measurement, bool) {
 }
 
 func (v StateValue) Light() (LightValue, bool) { return v.light, v.kind == ValueLight }
+
+func (v StateValue) Fan() (FanSpeed, bool) { return v.fan, v.kind == ValueFan }
 
 // SourceStamp records a driver's session and optional source sequence. Their
 // ordering policy belongs to the later host sequencer; revision is supplied by

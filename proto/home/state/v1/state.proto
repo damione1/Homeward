@@ -39,6 +39,16 @@ message LightValue {
   optional double brightness_percent = 2;
   optional uint32 color_temp_mireds = 3;
 }
+enum FanSpeed {
+  FAN_SPEED_UNSPECIFIED = 0;
+  FAN_SPEED_OFF = 1;
+  FAN_SPEED_LOW = 2;
+  FAN_SPEED_MEDIUM = 3;
+  FAN_SPEED_MEDIUM_HIGH = 4;
+  FAN_SPEED_HIGH = 5;
+}
+// A present Off is distinct from an absent or unavailable fan reading.
+message FanValue { FanSpeed speed = 1; }
 message ObservedState {
   home.registry.v1.EntityRef entity = 1;
   Quality quality = 2;
@@ -54,6 +64,7 @@ message ObservedState {
     bool switch_on = 11;
     Measurement measurement = 12;
     LightValue light = 13;
+    FanValue fan = 14;
   }
 }
 

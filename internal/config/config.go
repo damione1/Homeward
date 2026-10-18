@@ -43,6 +43,11 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 			Executable  string   `yaml:"executable"`
 			Args        []string `yaml:"args"`
 			SecretNames []string `yaml:"secret_names"`
+			Bindings    []struct {
+				Device string `yaml:"device"`
+				Entity string `yaml:"entity"`
+				Alias  string `yaml:"alias"`
+			} `yaml:"bindings"`
 		} `yaml:"external_workers"`
 	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
@@ -84,6 +89,18 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		}
 		instances[input.Instance] = true
 		configured, err := worker.NewConfig(input.Instance, input.Executable, input.Args, input.SecretNames)
+		if err != nil {
+			return Config{}, fmt.Errorf("configuration: %w", err)
+		}
+		bindings := make([]worker.ConfiguredBinding, 0, len(input.Bindings))
+		for _, item := range input.Bindings {
+			binding, err := worker.NewConfiguredBinding(item.Device, item.Entity, item.Alias)
+			if err != nil {
+				return Config{}, fmt.Errorf("configuration: %w", err)
+			}
+			bindings = append(bindings, binding)
+		}
+		configured, err = configured.WithBindings(bindings)
 		if err != nil {
 			return Config{}, fmt.Errorf("configuration: %w", err)
 		}

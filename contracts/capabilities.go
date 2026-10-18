@@ -493,6 +493,27 @@ func (c *CapabilityCatalog) AdmitDomainLight(entity domain.EntityID, endpoint st
 	return nil
 }
 
+func (c *CapabilityCatalog) AdmitDomainFan(entity domain.EntityID, endpoint string, speed domain.FanSpeed) error {
+	if !c.ready() || endpoint == "" {
+		return ErrUninitializedCatalog
+	}
+	id, err := entity.Value()
+	if err != nil {
+		return err
+	}
+	name, err := speed.String()
+	if err != nil {
+		return err
+	}
+	c.mu.RLock()
+	d := c.instances[id][capabilityKey(FanSchema, endpoint)]
+	c.mu.RUnlock()
+	if d == nil || d.GetFan() == nil || !contains(d.GetFan().SpeedOptions, name) {
+		return ErrInvalidCapability
+	}
+	return nil
+}
+
 // AdmitDomainMeasurement checks a driver-produced typed measurement against
 // the same per-instance constraints as a wire observation. The comparison also
 // rejects mismatched semantic class, aggregation, and decimal precision.

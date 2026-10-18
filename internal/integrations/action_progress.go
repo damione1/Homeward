@@ -115,6 +115,7 @@ const (
 	proofUnavailable actionProofKind = iota
 	proofSwitch
 	proofLight
+	proofFan
 )
 
 type actionPredicate struct {
@@ -125,6 +126,8 @@ type actionPredicate struct {
 	hasBrightness bool
 	colorTemp     uint32
 	hasColorTemp  bool
+	fanSpeed      domain.FanSpeed
+	hasFanSpeed   bool
 }
 
 func predicateFor(request *actions.CommandRequest) actionPredicate {
@@ -157,8 +160,20 @@ func predicateFor(request *actions.CommandRequest) actionPredicate {
 			}
 		}
 	case *actions.ActionArgs_SetFan:
-		if request.CapabilitySchemaId == contracts.FanSchema && arg != nil && arg.SetFan != nil && arg.SetFan.On != nil && arg.SetFan.Speed == nil {
-			return actionPredicate{kind: proofSwitch, on: *arg.SetFan.On}
+		if request.CapabilitySchemaId == contracts.FanSchema && arg != nil && arg.SetFan != nil {
+			predicate := actionPredicate{kind: proofFan}
+			if arg.SetFan.On != nil {
+				predicate.on, predicate.hasOn = *arg.SetFan.On, true
+			}
+			if arg.SetFan.Speed != nil {
+				var err error
+				predicate.fanSpeed, err = domain.ParseFanSpeed(*arg.SetFan.Speed)
+				if err != nil {
+					return actionPredicate{}
+				}
+				predicate.hasFanSpeed = true
+			}
+			return predicate
 		}
 	case *actions.ActionArgs_SetClimate, *actions.ActionArgs_Extension:
 		return actionPredicate{}
@@ -423,6 +438,14 @@ func (t *actionTracker) observe(binding Binding, endpoint, schema string, receip
 		if err != nil || (e.predicate.hasOn && on != e.predicate.on) ||
 			(e.predicate.hasBrightness && (brightness == nil || math.Abs(*brightness-e.predicate.brightness) > 1e-6)) ||
 			(e.predicate.hasColorTemp && (colorTemp == nil || *colorTemp != e.predicate.colorTemp)) {
+			return
+		}
+		t.expire(e)
+		t.advance(e, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
+	case proofFan:
+		speed, isFan := value.Fan()
+		if !isFan || (e.predicate.hasFanSpeed && speed != e.predicate.fanSpeed) ||
+			(e.predicate.hasOn && (speed != domain.FanSpeedOff) != e.predicate.on) {
 			return
 		}
 		t.expire(e)

@@ -17,7 +17,7 @@ import grpc
 from home.integrations.v1 import host_pb2, host_pb2_grpc
 from home.registry.v1 import registry_pb2
 from home.state.v1 import state_pb2
-from schema_digest import SCHEMA_DIGEST_HEX
+from schema_digest import LEGACY_SCHEMA_DIGEST_HEX, SCHEMA_DIGEST_HEX
 
 
 def mark(path, text):
@@ -122,7 +122,7 @@ def run_conformance(args, stub, metadata, handles, stop_heartbeat):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("normal", "incompatible", "incompatible_host_major", "incompatible_host_minor", "incompatible_driver_major", "incompatible_digest", "silent", "crash", "fail", "hold", "many_hold", "stubborn", "orphan_child", "small_frame", "large_frame", "no_command", "secret", "conformance"), default="normal")
+    parser.add_argument("--mode", choices=("normal", "new", "new_hold", "incompatible", "incompatible_host_major", "incompatible_host_minor", "incompatible_driver_major", "incompatible_digest", "incompatible_version_pair", "incompatible_new_digest", "silent", "crash", "fail", "hold", "many_hold", "stubborn", "orphan_child", "small_frame", "large_frame", "no_command", "secret", "conformance"), default="normal")
     parser.add_argument("--marker")
     parser.add_argument("--control-socket")
     parser.add_argument("--child-stubborn", action="store_true")
@@ -147,10 +147,10 @@ def main():
         try:
             welcome = stub.Handshake(host_pb2.HandshakeRequest(
                 host_major=2 if args.mode == "incompatible_host_major" else 1,
-                host_minor=1 if args.mode == "incompatible_host_minor" else 0,
+                host_minor=1 if args.mode in ("new", "new_hold", "incompatible_host_minor", "incompatible_version_pair", "incompatible_new_digest") else 0,
                 driver_major=2 if args.mode == "incompatible_driver_major" else 1,
-                driver_minor=1 if args.mode == "incompatible" else 0,
-                schema_sha256=bytes(32) if args.mode == "incompatible_digest" else bytes.fromhex(SCHEMA_DIGEST_HEX),
+                driver_minor=1 if args.mode in ("new", "new_hold", "incompatible", "incompatible_new_digest") else 0,
+                schema_sha256=bytes(32) if args.mode in ("incompatible_digest", "incompatible_new_digest") else bytes.fromhex(SCHEMA_DIGEST_HEX if args.mode in ("new", "new_hold") else LEGACY_SCHEMA_DIGEST_HEX),
                 max_frame_bytes=1024 if args.mode == "small_frame" else 2 << 20 if args.mode == "large_frame" else 65536,
                 capabilities=[host_pb2.CAPABILITY_DISCOVER, host_pb2.CAPABILITY_PUBLISH,
                               host_pb2.CAPABILITY_EMIT, host_pb2.CAPABILITY_HEALTH,
@@ -162,8 +162,8 @@ def main():
             if args.mode.startswith("incompatible") and error.code() == grpc.StatusCode.FAILED_PRECONDITION:
                 return
             raise
-        assert welcome.driver_major == 1 and welcome.driver_minor == 0
-        assert welcome.schema_sha256 == bytes.fromhex(SCHEMA_DIGEST_HEX)
+        assert welcome.driver_major == 1 and welcome.driver_minor == (1 if args.mode in ("new", "new_hold") else 0)
+        assert welcome.schema_sha256 == bytes.fromhex(SCHEMA_DIGEST_HEX if args.mode in ("new", "new_hold") else LEGACY_SCHEMA_DIGEST_HEX)
         assert (host_pb2.CAPABILITY_COMMAND in welcome.capabilities) == (args.mode != "no_command")
         assert (host_pb2.CAPABILITY_SECRET_READ in welcome.capabilities) == (args.mode == "secret")
         if args.mode == "small_frame":
@@ -274,7 +274,12 @@ def main():
         except grpc.RpcError as error:
             assert error.code() == grpc.StatusCode.ALREADY_EXISTS
             mark(args.marker, "second_stream_rejected")
-        if args.mode in ("hold", "many_hold"):
+        if args.mode == "new_hold":
+            stub.ReportHealth(host_pb2.ReportHealthRequest(
+                status=host_pb2.HEALTH_STATUS_READY,
+                detail="synthetic ready after initial snapshots"),
+                metadata=metadata, timeout=5)
+        if args.mode in ("hold", "new_hold", "many_hold"):
             while True:
                 time.sleep(1)
         try:

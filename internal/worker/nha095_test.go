@@ -12,7 +12,11 @@ func TestNHA095WorkerVersionMatrix(t *testing.T) {
 		good := startWorkerRig(t, "normal")
 		waitMarker(t, good.marker, "handshake_ok", 6*time.Second)
 	})
-	for _, mode := range []string{"incompatible", "incompatible_host_major", "incompatible_host_minor", "incompatible_driver_major", "incompatible_digest"} {
+	t.Run("host-and-driver-1.1-exact-digest", func(t *testing.T) {
+		good := startWorkerRig(t, "new")
+		waitMarker(t, good.marker, "handshake_ok", 6*time.Second)
+	})
+	for _, mode := range []string{"incompatible", "incompatible_host_major", "incompatible_host_minor", "incompatible_driver_major", "incompatible_digest", "incompatible_version_pair", "incompatible_new_digest"} {
 		t.Run(mode, func(t *testing.T) {
 			bad := startWorkerRig(t, mode)
 			waitMarker(t, bad.marker, "handshake_rejected:FAILED_PRECONDITION", 6*time.Second)

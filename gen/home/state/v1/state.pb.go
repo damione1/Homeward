@@ -176,6 +176,64 @@ func (Provenance) EnumDescriptor() ([]byte, []int) {
 	return file_home_state_v1_state_proto_rawDescGZIP(), []int{2}
 }
 
+type FanSpeed int32
+
+const (
+	FanSpeed_FAN_SPEED_UNSPECIFIED FanSpeed = 0
+	FanSpeed_FAN_SPEED_OFF         FanSpeed = 1
+	FanSpeed_FAN_SPEED_LOW         FanSpeed = 2
+	FanSpeed_FAN_SPEED_MEDIUM      FanSpeed = 3
+	FanSpeed_FAN_SPEED_MEDIUM_HIGH FanSpeed = 4
+	FanSpeed_FAN_SPEED_HIGH        FanSpeed = 5
+)
+
+// Enum value maps for FanSpeed.
+var (
+	FanSpeed_name = map[int32]string{
+		0: "FAN_SPEED_UNSPECIFIED",
+		1: "FAN_SPEED_OFF",
+		2: "FAN_SPEED_LOW",
+		3: "FAN_SPEED_MEDIUM",
+		4: "FAN_SPEED_MEDIUM_HIGH",
+		5: "FAN_SPEED_HIGH",
+	}
+	FanSpeed_value = map[string]int32{
+		"FAN_SPEED_UNSPECIFIED": 0,
+		"FAN_SPEED_OFF":         1,
+		"FAN_SPEED_LOW":         2,
+		"FAN_SPEED_MEDIUM":      3,
+		"FAN_SPEED_MEDIUM_HIGH": 4,
+		"FAN_SPEED_HIGH":        5,
+	}
+)
+
+func (x FanSpeed) Enum() *FanSpeed {
+	p := new(FanSpeed)
+	*p = x
+	return p
+}
+
+func (x FanSpeed) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FanSpeed) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_state_v1_state_proto_enumTypes[3].Descriptor()
+}
+
+func (FanSpeed) Type() protoreflect.EnumType {
+	return &file_home_state_v1_state_proto_enumTypes[3]
+}
+
+func (x FanSpeed) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FanSpeed.Descriptor instead.
+func (FanSpeed) EnumDescriptor() ([]byte, []int) {
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{3}
+}
+
 type ResyncReason int32
 
 const (
@@ -236,11 +294,11 @@ func (x ResyncReason) String() string {
 }
 
 func (ResyncReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_state_v1_state_proto_enumTypes[3].Descriptor()
+	return file_home_state_v1_state_proto_enumTypes[4].Descriptor()
 }
 
 func (ResyncReason) Type() protoreflect.EnumType {
-	return &file_home_state_v1_state_proto_enumTypes[3]
+	return &file_home_state_v1_state_proto_enumTypes[4]
 }
 
 func (x ResyncReason) Number() protoreflect.EnumNumber {
@@ -249,7 +307,7 @@ func (x ResyncReason) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ResyncReason.Descriptor instead.
 func (ResyncReason) EnumDescriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{3}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{4}
 }
 
 type Quality struct {
@@ -433,6 +491,51 @@ func (x *LightValue) GetColorTempMireds() uint32 {
 	return 0
 }
 
+// A present Off is distinct from an absent or unavailable fan reading.
+type FanValue struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Speed         FanSpeed               `protobuf:"varint,1,opt,name=speed,proto3,enum=home.state.v1.FanSpeed" json:"speed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FanValue) Reset() {
+	*x = FanValue{}
+	mi := &file_home_state_v1_state_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FanValue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FanValue) ProtoMessage() {}
+
+func (x *FanValue) ProtoReflect() protoreflect.Message {
+	mi := &file_home_state_v1_state_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FanValue.ProtoReflect.Descriptor instead.
+func (*FanValue) Descriptor() ([]byte, []int) {
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *FanValue) GetSpeed() FanSpeed {
+	if x != nil {
+		return x.Speed
+	}
+	return FanSpeed_FAN_SPEED_UNSPECIFIED
+}
+
 type ObservedState struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Entity        *v1.EntityRef          `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
@@ -450,6 +553,7 @@ type ObservedState struct {
 	//	*ObservedState_SwitchOn
 	//	*ObservedState_Measurement
 	//	*ObservedState_Light
+	//	*ObservedState_Fan
 	Value         isObservedState_Value `protobuf_oneof:"value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -457,7 +561,7 @@ type ObservedState struct {
 
 func (x *ObservedState) Reset() {
 	*x = ObservedState{}
-	mi := &file_home_state_v1_state_proto_msgTypes[3]
+	mi := &file_home_state_v1_state_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -469,7 +573,7 @@ func (x *ObservedState) String() string {
 func (*ObservedState) ProtoMessage() {}
 
 func (x *ObservedState) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[3]
+	mi := &file_home_state_v1_state_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -482,7 +586,7 @@ func (x *ObservedState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ObservedState.ProtoReflect.Descriptor instead.
 func (*ObservedState) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{3}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ObservedState) GetEntity() *v1.EntityRef {
@@ -589,6 +693,15 @@ func (x *ObservedState) GetLight() *LightValue {
 	return nil
 }
 
+func (x *ObservedState) GetFan() *FanValue {
+	if x != nil {
+		if x, ok := x.Value.(*ObservedState_Fan); ok {
+			return x.Fan
+		}
+	}
+	return nil
+}
+
 type isObservedState_Value interface {
 	isObservedState_Value()
 }
@@ -605,11 +718,17 @@ type ObservedState_Light struct {
 	Light *LightValue `protobuf:"bytes,13,opt,name=light,proto3,oneof"`
 }
 
+type ObservedState_Fan struct {
+	Fan *FanValue `protobuf:"bytes,14,opt,name=fan,proto3,oneof"`
+}
+
 func (*ObservedState_SwitchOn) isObservedState_Value() {}
 
 func (*ObservedState_Measurement) isObservedState_Value() {}
 
 func (*ObservedState_Light) isObservedState_Value() {}
+
+func (*ObservedState_Fan) isObservedState_Value() {}
 
 // Cursor is bound to the authenticated view. Authorization/filter changes require resync.
 type ViewCursor struct {
@@ -629,7 +748,7 @@ type ViewCursor struct {
 
 func (x *ViewCursor) Reset() {
 	*x = ViewCursor{}
-	mi := &file_home_state_v1_state_proto_msgTypes[4]
+	mi := &file_home_state_v1_state_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -641,7 +760,7 @@ func (x *ViewCursor) String() string {
 func (*ViewCursor) ProtoMessage() {}
 
 func (x *ViewCursor) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[4]
+	mi := &file_home_state_v1_state_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -654,7 +773,7 @@ func (x *ViewCursor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ViewCursor.ProtoReflect.Descriptor instead.
 func (*ViewCursor) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{4}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ViewCursor) GetEpoch() string {
@@ -729,7 +848,7 @@ type ViewEntity struct {
 
 func (x *ViewEntity) Reset() {
 	*x = ViewEntity{}
-	mi := &file_home_state_v1_state_proto_msgTypes[5]
+	mi := &file_home_state_v1_state_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -741,7 +860,7 @@ func (x *ViewEntity) String() string {
 func (*ViewEntity) ProtoMessage() {}
 
 func (x *ViewEntity) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[5]
+	mi := &file_home_state_v1_state_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -754,7 +873,7 @@ func (x *ViewEntity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ViewEntity.ProtoReflect.Descriptor instead.
 func (*ViewEntity) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{5}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ViewEntity) GetEntityId() string {
@@ -815,7 +934,7 @@ type ViewFilter struct {
 
 func (x *ViewFilter) Reset() {
 	*x = ViewFilter{}
-	mi := &file_home_state_v1_state_proto_msgTypes[6]
+	mi := &file_home_state_v1_state_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -827,7 +946,7 @@ func (x *ViewFilter) String() string {
 func (*ViewFilter) ProtoMessage() {}
 
 func (x *ViewFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[6]
+	mi := &file_home_state_v1_state_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -840,7 +959,7 @@ func (x *ViewFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ViewFilter.ProtoReflect.Descriptor instead.
 func (*ViewFilter) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{6}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ViewFilter) GetEntityIds() []string {
@@ -860,7 +979,7 @@ type OpenViewRequest struct {
 
 func (x *OpenViewRequest) Reset() {
 	*x = OpenViewRequest{}
-	mi := &file_home_state_v1_state_proto_msgTypes[7]
+	mi := &file_home_state_v1_state_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -872,7 +991,7 @@ func (x *OpenViewRequest) String() string {
 func (*OpenViewRequest) ProtoMessage() {}
 
 func (x *OpenViewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[7]
+	mi := &file_home_state_v1_state_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -885,7 +1004,7 @@ func (x *OpenViewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenViewRequest.ProtoReflect.Descriptor instead.
 func (*OpenViewRequest) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{7}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *OpenViewRequest) GetFilter() *ViewFilter {
@@ -917,7 +1036,7 @@ type OpenViewResponse struct {
 
 func (x *OpenViewResponse) Reset() {
 	*x = OpenViewResponse{}
-	mi := &file_home_state_v1_state_proto_msgTypes[8]
+	mi := &file_home_state_v1_state_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -929,7 +1048,7 @@ func (x *OpenViewResponse) String() string {
 func (*OpenViewResponse) ProtoMessage() {}
 
 func (x *OpenViewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[8]
+	mi := &file_home_state_v1_state_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -942,7 +1061,7 @@ func (x *OpenViewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenViewResponse.ProtoReflect.Descriptor instead.
 func (*OpenViewResponse) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{8}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *OpenViewResponse) GetSnapshotToken() string {
@@ -1004,7 +1123,7 @@ type ReadPageRequest struct {
 
 func (x *ReadPageRequest) Reset() {
 	*x = ReadPageRequest{}
-	mi := &file_home_state_v1_state_proto_msgTypes[9]
+	mi := &file_home_state_v1_state_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1016,7 +1135,7 @@ func (x *ReadPageRequest) String() string {
 func (*ReadPageRequest) ProtoMessage() {}
 
 func (x *ReadPageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[9]
+	mi := &file_home_state_v1_state_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1029,7 +1148,7 @@ func (x *ReadPageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadPageRequest.ProtoReflect.Descriptor instead.
 func (*ReadPageRequest) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{9}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ReadPageRequest) GetSnapshotToken() string {
@@ -1055,7 +1174,7 @@ type ReadPageResponse struct {
 
 func (x *ReadPageResponse) Reset() {
 	*x = ReadPageResponse{}
-	mi := &file_home_state_v1_state_proto_msgTypes[10]
+	mi := &file_home_state_v1_state_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1067,7 +1186,7 @@ func (x *ReadPageResponse) String() string {
 func (*ReadPageResponse) ProtoMessage() {}
 
 func (x *ReadPageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[10]
+	mi := &file_home_state_v1_state_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1080,7 +1199,7 @@ func (x *ReadPageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadPageResponse.ProtoReflect.Descriptor instead.
 func (*ReadPageResponse) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{10}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ReadPageResponse) GetPage() *OpenViewResponse {
@@ -1101,7 +1220,7 @@ type WatchViewRequest struct {
 
 func (x *WatchViewRequest) Reset() {
 	*x = WatchViewRequest{}
-	mi := &file_home_state_v1_state_proto_msgTypes[11]
+	mi := &file_home_state_v1_state_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1113,7 +1232,7 @@ func (x *WatchViewRequest) String() string {
 func (*WatchViewRequest) ProtoMessage() {}
 
 func (x *WatchViewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[11]
+	mi := &file_home_state_v1_state_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1126,7 +1245,7 @@ func (x *WatchViewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchViewRequest.ProtoReflect.Descriptor instead.
 func (*WatchViewRequest) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{11}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *WatchViewRequest) GetCursor() *ViewCursor {
@@ -1152,7 +1271,7 @@ type StateDelta struct {
 
 func (x *StateDelta) Reset() {
 	*x = StateDelta{}
-	mi := &file_home_state_v1_state_proto_msgTypes[12]
+	mi := &file_home_state_v1_state_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1164,7 +1283,7 @@ func (x *StateDelta) String() string {
 func (*StateDelta) ProtoMessage() {}
 
 func (x *StateDelta) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[12]
+	mi := &file_home_state_v1_state_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1177,7 +1296,7 @@ func (x *StateDelta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateDelta.ProtoReflect.Descriptor instead.
 func (*StateDelta) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{12}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *StateDelta) GetStates() []*ObservedState {
@@ -1197,7 +1316,7 @@ type ResyncRequired struct {
 
 func (x *ResyncRequired) Reset() {
 	*x = ResyncRequired{}
-	mi := &file_home_state_v1_state_proto_msgTypes[13]
+	mi := &file_home_state_v1_state_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1209,7 +1328,7 @@ func (x *ResyncRequired) String() string {
 func (*ResyncRequired) ProtoMessage() {}
 
 func (x *ResyncRequired) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[13]
+	mi := &file_home_state_v1_state_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1222,7 +1341,7 @@ func (x *ResyncRequired) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResyncRequired.ProtoReflect.Descriptor instead.
 func (*ResyncRequired) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{13}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ResyncRequired) GetReason() ResyncReason {
@@ -1254,7 +1373,7 @@ type WatchViewResponse struct {
 
 func (x *WatchViewResponse) Reset() {
 	*x = WatchViewResponse{}
-	mi := &file_home_state_v1_state_proto_msgTypes[14]
+	mi := &file_home_state_v1_state_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1266,7 +1385,7 @@ func (x *WatchViewResponse) String() string {
 func (*WatchViewResponse) ProtoMessage() {}
 
 func (x *WatchViewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[14]
+	mi := &file_home_state_v1_state_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1279,7 +1398,7 @@ func (x *WatchViewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchViewResponse.ProtoReflect.Descriptor instead.
 func (*WatchViewResponse) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{14}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *WatchViewResponse) GetStreamSequence() uint64 {
@@ -1360,7 +1479,9 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\x11color_temp_mireds\x18\x03 \x01(\rH\x02R\x0fcolorTempMireds\x88\x01\x01B\x05\n" +
 	"\x03_onB\x15\n" +
 	"\x13_brightness_percentB\x14\n" +
-	"\x12_color_temp_mireds\"\xc0\x05\n" +
+	"\x12_color_temp_mireds\"9\n" +
+	"\bFanValue\x12-\n" +
+	"\x05speed\x18\x01 \x01(\x0e2\x17.home.state.v1.FanSpeedR\x05speed\"\xed\x05\n" +
 	"\rObservedState\x123\n" +
 	"\x06entity\x18\x01 \x01(\v2\x1b.home.registry.v1.EntityRefR\x06entity\x120\n" +
 	"\aquality\x18\x02 \x01(\v2\x16.home.state.v1.QualityR\aquality\x12\x1a\n" +
@@ -1378,7 +1499,8 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	" \x01(\x04H\x01R\tsourceSeq\x88\x01\x01\x12\x1d\n" +
 	"\tswitch_on\x18\v \x01(\bH\x00R\bswitchOn\x12>\n" +
 	"\vmeasurement\x18\f \x01(\v2\x1a.home.state.v1.MeasurementH\x00R\vmeasurement\x121\n" +
-	"\x05light\x18\r \x01(\v2\x19.home.state.v1.LightValueH\x00R\x05lightB\a\n" +
+	"\x05light\x18\r \x01(\v2\x19.home.state.v1.LightValueH\x00R\x05light\x12+\n" +
+	"\x03fan\x18\x0e \x01(\v2\x17.home.state.v1.FanValueH\x00R\x03fanB\a\n" +
 	"\x05valueB\r\n" +
 	"\v_source_seq\"\xc1\x02\n" +
 	"\n" +
@@ -1451,7 +1573,14 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\x16PROVENANCE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13PROVENANCE_OBSERVED\x10\x01\x12\x17\n" +
 	"\x13PROVENANCE_RESTORED\x10\x02\x12\x18\n" +
-	"\x14PROVENANCE_ESTIMATED\x10\x03*\xbc\x03\n" +
+	"\x14PROVENANCE_ESTIMATED\x10\x03*\x90\x01\n" +
+	"\bFanSpeed\x12\x19\n" +
+	"\x15FAN_SPEED_UNSPECIFIED\x10\x00\x12\x11\n" +
+	"\rFAN_SPEED_OFF\x10\x01\x12\x11\n" +
+	"\rFAN_SPEED_LOW\x10\x02\x12\x14\n" +
+	"\x10FAN_SPEED_MEDIUM\x10\x03\x12\x19\n" +
+	"\x15FAN_SPEED_MEDIUM_HIGH\x10\x04\x12\x12\n" +
+	"\x0eFAN_SPEED_HIGH\x10\x05*\xbc\x03\n" +
 	"\fResyncReason\x12\x1d\n" +
 	"\x19RESYNC_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bRESYNC_REASON_EPOCH_CHANGED\x10\x01\x12 \n" +
@@ -1483,72 +1612,76 @@ func file_home_state_v1_state_proto_rawDescGZIP() []byte {
 	return file_home_state_v1_state_proto_rawDescData
 }
 
-var file_home_state_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_home_state_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_home_state_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_home_state_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_home_state_v1_state_proto_goTypes = []any{
 	(Availability)(0),                // 0: home.state.v1.Availability
 	(Freshness)(0),                   // 1: home.state.v1.Freshness
 	(Provenance)(0),                  // 2: home.state.v1.Provenance
-	(ResyncReason)(0),                // 3: home.state.v1.ResyncReason
-	(*Quality)(nil),                  // 4: home.state.v1.Quality
-	(*Measurement)(nil),              // 5: home.state.v1.Measurement
-	(*LightValue)(nil),               // 6: home.state.v1.LightValue
-	(*ObservedState)(nil),            // 7: home.state.v1.ObservedState
-	(*ViewCursor)(nil),               // 8: home.state.v1.ViewCursor
-	(*ViewEntity)(nil),               // 9: home.state.v1.ViewEntity
-	(*ViewFilter)(nil),               // 10: home.state.v1.ViewFilter
-	(*OpenViewRequest)(nil),          // 11: home.state.v1.OpenViewRequest
-	(*OpenViewResponse)(nil),         // 12: home.state.v1.OpenViewResponse
-	(*ReadPageRequest)(nil),          // 13: home.state.v1.ReadPageRequest
-	(*ReadPageResponse)(nil),         // 14: home.state.v1.ReadPageResponse
-	(*WatchViewRequest)(nil),         // 15: home.state.v1.WatchViewRequest
-	(*StateDelta)(nil),               // 16: home.state.v1.StateDelta
-	(*ResyncRequired)(nil),           // 17: home.state.v1.ResyncRequired
-	(*WatchViewResponse)(nil),        // 18: home.state.v1.WatchViewResponse
-	(*v1.EntityRef)(nil),             // 19: home.registry.v1.EntityRef
-	(*timestamppb.Timestamp)(nil),    // 20: google.protobuf.Timestamp
-	(*v1.CapabilityDescription)(nil), // 21: home.registry.v1.CapabilityDescription
+	(FanSpeed)(0),                    // 3: home.state.v1.FanSpeed
+	(ResyncReason)(0),                // 4: home.state.v1.ResyncReason
+	(*Quality)(nil),                  // 5: home.state.v1.Quality
+	(*Measurement)(nil),              // 6: home.state.v1.Measurement
+	(*LightValue)(nil),               // 7: home.state.v1.LightValue
+	(*FanValue)(nil),                 // 8: home.state.v1.FanValue
+	(*ObservedState)(nil),            // 9: home.state.v1.ObservedState
+	(*ViewCursor)(nil),               // 10: home.state.v1.ViewCursor
+	(*ViewEntity)(nil),               // 11: home.state.v1.ViewEntity
+	(*ViewFilter)(nil),               // 12: home.state.v1.ViewFilter
+	(*OpenViewRequest)(nil),          // 13: home.state.v1.OpenViewRequest
+	(*OpenViewResponse)(nil),         // 14: home.state.v1.OpenViewResponse
+	(*ReadPageRequest)(nil),          // 15: home.state.v1.ReadPageRequest
+	(*ReadPageResponse)(nil),         // 16: home.state.v1.ReadPageResponse
+	(*WatchViewRequest)(nil),         // 17: home.state.v1.WatchViewRequest
+	(*StateDelta)(nil),               // 18: home.state.v1.StateDelta
+	(*ResyncRequired)(nil),           // 19: home.state.v1.ResyncRequired
+	(*WatchViewResponse)(nil),        // 20: home.state.v1.WatchViewResponse
+	(*v1.EntityRef)(nil),             // 21: home.registry.v1.EntityRef
+	(*timestamppb.Timestamp)(nil),    // 22: google.protobuf.Timestamp
+	(*v1.CapabilityDescription)(nil), // 23: home.registry.v1.CapabilityDescription
 }
 var file_home_state_v1_state_proto_depIdxs = []int32{
 	0,  // 0: home.state.v1.Quality.availability:type_name -> home.state.v1.Availability
 	1,  // 1: home.state.v1.Quality.freshness:type_name -> home.state.v1.Freshness
 	2,  // 2: home.state.v1.Quality.provenance:type_name -> home.state.v1.Provenance
-	19, // 3: home.state.v1.ObservedState.entity:type_name -> home.registry.v1.EntityRef
-	4,  // 4: home.state.v1.ObservedState.quality:type_name -> home.state.v1.Quality
-	20, // 5: home.state.v1.ObservedState.observed_at:type_name -> google.protobuf.Timestamp
-	20, // 6: home.state.v1.ObservedState.received_at:type_name -> google.protobuf.Timestamp
-	20, // 7: home.state.v1.ObservedState.last_changed:type_name -> google.protobuf.Timestamp
-	20, // 8: home.state.v1.ObservedState.last_updated:type_name -> google.protobuf.Timestamp
-	20, // 9: home.state.v1.ObservedState.last_reported:type_name -> google.protobuf.Timestamp
-	5,  // 10: home.state.v1.ObservedState.measurement:type_name -> home.state.v1.Measurement
-	6,  // 11: home.state.v1.ObservedState.light:type_name -> home.state.v1.LightValue
-	21, // 12: home.state.v1.ViewEntity.capabilities:type_name -> home.registry.v1.CapabilityDescription
-	7,  // 13: home.state.v1.ViewEntity.state:type_name -> home.state.v1.ObservedState
-	10, // 14: home.state.v1.OpenViewRequest.filter:type_name -> home.state.v1.ViewFilter
-	8,  // 15: home.state.v1.OpenViewResponse.cursor:type_name -> home.state.v1.ViewCursor
-	7,  // 16: home.state.v1.OpenViewResponse.states:type_name -> home.state.v1.ObservedState
-	21, // 17: home.state.v1.OpenViewResponse.capabilities:type_name -> home.registry.v1.CapabilityDescription
-	20, // 18: home.state.v1.OpenViewResponse.expires_at:type_name -> google.protobuf.Timestamp
-	9,  // 19: home.state.v1.OpenViewResponse.entities:type_name -> home.state.v1.ViewEntity
-	12, // 20: home.state.v1.ReadPageResponse.page:type_name -> home.state.v1.OpenViewResponse
-	8,  // 21: home.state.v1.WatchViewRequest.cursor:type_name -> home.state.v1.ViewCursor
-	10, // 22: home.state.v1.WatchViewRequest.filter:type_name -> home.state.v1.ViewFilter
-	7,  // 23: home.state.v1.StateDelta.states:type_name -> home.state.v1.ObservedState
-	3,  // 24: home.state.v1.ResyncRequired.reason:type_name -> home.state.v1.ResyncReason
-	8,  // 25: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
-	16, // 26: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
-	17, // 27: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
-	11, // 28: home.state.v1.StateService.OpenView:input_type -> home.state.v1.OpenViewRequest
-	13, // 29: home.state.v1.StateService.ReadPage:input_type -> home.state.v1.ReadPageRequest
-	15, // 30: home.state.v1.StateService.WatchView:input_type -> home.state.v1.WatchViewRequest
-	12, // 31: home.state.v1.StateService.OpenView:output_type -> home.state.v1.OpenViewResponse
-	14, // 32: home.state.v1.StateService.ReadPage:output_type -> home.state.v1.ReadPageResponse
-	18, // 33: home.state.v1.StateService.WatchView:output_type -> home.state.v1.WatchViewResponse
-	31, // [31:34] is the sub-list for method output_type
-	28, // [28:31] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	3,  // 3: home.state.v1.FanValue.speed:type_name -> home.state.v1.FanSpeed
+	21, // 4: home.state.v1.ObservedState.entity:type_name -> home.registry.v1.EntityRef
+	5,  // 5: home.state.v1.ObservedState.quality:type_name -> home.state.v1.Quality
+	22, // 6: home.state.v1.ObservedState.observed_at:type_name -> google.protobuf.Timestamp
+	22, // 7: home.state.v1.ObservedState.received_at:type_name -> google.protobuf.Timestamp
+	22, // 8: home.state.v1.ObservedState.last_changed:type_name -> google.protobuf.Timestamp
+	22, // 9: home.state.v1.ObservedState.last_updated:type_name -> google.protobuf.Timestamp
+	22, // 10: home.state.v1.ObservedState.last_reported:type_name -> google.protobuf.Timestamp
+	6,  // 11: home.state.v1.ObservedState.measurement:type_name -> home.state.v1.Measurement
+	7,  // 12: home.state.v1.ObservedState.light:type_name -> home.state.v1.LightValue
+	8,  // 13: home.state.v1.ObservedState.fan:type_name -> home.state.v1.FanValue
+	23, // 14: home.state.v1.ViewEntity.capabilities:type_name -> home.registry.v1.CapabilityDescription
+	9,  // 15: home.state.v1.ViewEntity.state:type_name -> home.state.v1.ObservedState
+	12, // 16: home.state.v1.OpenViewRequest.filter:type_name -> home.state.v1.ViewFilter
+	10, // 17: home.state.v1.OpenViewResponse.cursor:type_name -> home.state.v1.ViewCursor
+	9,  // 18: home.state.v1.OpenViewResponse.states:type_name -> home.state.v1.ObservedState
+	23, // 19: home.state.v1.OpenViewResponse.capabilities:type_name -> home.registry.v1.CapabilityDescription
+	22, // 20: home.state.v1.OpenViewResponse.expires_at:type_name -> google.protobuf.Timestamp
+	11, // 21: home.state.v1.OpenViewResponse.entities:type_name -> home.state.v1.ViewEntity
+	14, // 22: home.state.v1.ReadPageResponse.page:type_name -> home.state.v1.OpenViewResponse
+	10, // 23: home.state.v1.WatchViewRequest.cursor:type_name -> home.state.v1.ViewCursor
+	12, // 24: home.state.v1.WatchViewRequest.filter:type_name -> home.state.v1.ViewFilter
+	9,  // 25: home.state.v1.StateDelta.states:type_name -> home.state.v1.ObservedState
+	4,  // 26: home.state.v1.ResyncRequired.reason:type_name -> home.state.v1.ResyncReason
+	10, // 27: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
+	18, // 28: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
+	19, // 29: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
+	13, // 30: home.state.v1.StateService.OpenView:input_type -> home.state.v1.OpenViewRequest
+	15, // 31: home.state.v1.StateService.ReadPage:input_type -> home.state.v1.ReadPageRequest
+	17, // 32: home.state.v1.StateService.WatchView:input_type -> home.state.v1.WatchViewRequest
+	14, // 33: home.state.v1.StateService.OpenView:output_type -> home.state.v1.OpenViewResponse
+	16, // 34: home.state.v1.StateService.ReadPage:output_type -> home.state.v1.ReadPageResponse
+	20, // 35: home.state.v1.StateService.WatchView:output_type -> home.state.v1.WatchViewResponse
+	33, // [33:36] is the sub-list for method output_type
+	30, // [30:33] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_home_state_v1_state_proto_init() }
@@ -1558,12 +1691,13 @@ func file_home_state_v1_state_proto_init() {
 	}
 	file_home_state_v1_state_proto_msgTypes[1].OneofWrappers = []any{}
 	file_home_state_v1_state_proto_msgTypes[2].OneofWrappers = []any{}
-	file_home_state_v1_state_proto_msgTypes[3].OneofWrappers = []any{
+	file_home_state_v1_state_proto_msgTypes[4].OneofWrappers = []any{
 		(*ObservedState_SwitchOn)(nil),
 		(*ObservedState_Measurement)(nil),
 		(*ObservedState_Light)(nil),
+		(*ObservedState_Fan)(nil),
 	}
-	file_home_state_v1_state_proto_msgTypes[14].OneofWrappers = []any{
+	file_home_state_v1_state_proto_msgTypes[15].OneofWrappers = []any{
 		(*WatchViewResponse_Delta)(nil),
 		(*WatchViewResponse_ResyncRequired)(nil),
 	}
@@ -1572,8 +1706,8 @@ func file_home_state_v1_state_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_state_v1_state_proto_rawDesc), len(file_home_state_v1_state_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   15,
+			NumEnums:      5,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

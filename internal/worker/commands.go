@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/damione1/Homeward/contracts"
 	wire "github.com/damione1/Homeward/gen/home/integrations/v1"
 	"github.com/damione1/Homeward/internal/integrations"
 )
@@ -58,6 +59,14 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	defer timer.Stop()
 	item := &delivery{result: make(chan error, 1), command: command, ctx: ctx, expires: expires}
 	p.mu.Lock()
+	if p.hostMinor == 1 && !p.ready {
+		p.mu.Unlock()
+		return ErrUnavailable
+	}
+	if p.hostMinor == 0 && request.CapabilitySchemaId == contracts.FanSchema {
+		p.mu.Unlock()
+		return ErrUnavailable
+	}
 	handle := p.entityHandles[entityText]
 	if len(handle) != 32 {
 		p.mu.Unlock()
@@ -216,21 +225,41 @@ func (p *pilot) CompleteCommand(_ context.Context, r *connect.Request[wire.Compl
 		return nil, err
 	}
 	var result error
+	acknowledged := false
 	switch r.Msg.Kind {
 	case wire.CommandResultKind_COMMAND_RESULT_KIND_ACCEPTED:
 	case wire.CommandResultKind_COMMAND_RESULT_KIND_FAILED:
 		result = ErrCommandFailed
+	case wire.CommandResultKind_COMMAND_RESULT_KIND_ACKNOWLEDGED:
+		acknowledged = true
 	default:
 		return nil, rpcInvalid()
 	}
 	p.mu.Lock()
 	item, exists := p.pending[r.Msg.CommandId]
-	if !exists || !item.delivered || !p.active {
+	if exists && p.hostMinor == 0 && item.frame.Request.CapabilitySchemaId == contracts.FanSchema {
+		p.mu.Unlock()
+		return nil, rpcInvalid()
+	}
+	if acknowledged && p.hostMinor != 1 {
+		p.mu.Unlock()
+		return nil, rpcInvalid()
+	}
+	if !exists || !item.delivered || !p.active || !p.deliveryEligible(item) {
 		p.mu.Unlock()
 		return nil, rpcUnavailable()
 	}
 	delete(p.pending, r.Msg.CommandId)
 	p.mu.Unlock()
+	if acknowledged {
+		if err := item.command.Acknowledge(); err != nil {
+			select {
+			case item.result <- err:
+			default:
+			}
+			return nil, rpcUnavailable()
+		}
+	}
 	select {
 	case item.result <- result:
 	default:

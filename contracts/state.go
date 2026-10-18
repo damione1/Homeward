@@ -13,6 +13,42 @@ import (
 
 var ErrInvalidWireState = errors.New("invalid wire state")
 
+func AdmitWireFanSpeed(speed state.FanSpeed) (domain.FanSpeed, error) {
+	switch speed {
+	case state.FanSpeed_FAN_SPEED_OFF:
+		return domain.FanSpeedOff, nil
+	case state.FanSpeed_FAN_SPEED_LOW:
+		return domain.FanSpeedLow, nil
+	case state.FanSpeed_FAN_SPEED_MEDIUM:
+		return domain.FanSpeedMedium, nil
+	case state.FanSpeed_FAN_SPEED_MEDIUM_HIGH:
+		return domain.FanSpeedMediumHigh, nil
+	case state.FanSpeed_FAN_SPEED_HIGH:
+		return domain.FanSpeedHigh, nil
+	case state.FanSpeed_FAN_SPEED_UNSPECIFIED:
+	default:
+	}
+	return domain.FanSpeedUnspecified, ErrInvalidWireState
+}
+
+func WireFanSpeed(speed domain.FanSpeed) (state.FanSpeed, error) {
+	switch speed {
+	case domain.FanSpeedOff:
+		return state.FanSpeed_FAN_SPEED_OFF, nil
+	case domain.FanSpeedLow:
+		return state.FanSpeed_FAN_SPEED_LOW, nil
+	case domain.FanSpeedMedium:
+		return state.FanSpeed_FAN_SPEED_MEDIUM, nil
+	case domain.FanSpeedMediumHigh:
+		return state.FanSpeed_FAN_SPEED_MEDIUM_HIGH, nil
+	case domain.FanSpeedHigh:
+		return state.FanSpeed_FAN_SPEED_HIGH, nil
+	case domain.FanSpeedUnspecified:
+	default:
+	}
+	return state.FanSpeed_FAN_SPEED_UNSPECIFIED, ErrInvalidWireState
+}
+
 // StateCapabilityAdmission supplies the capability context missing from state
 // wire values carrying per-instance measurement or light constraints.
 type StateCapabilityAdmission struct {
@@ -211,6 +247,19 @@ func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, m
 			return domain.ObservedState{}, err
 		}
 		value = &v
+	case *state.ObservedState_Fan:
+		if item == nil || item.Fan == nil || len(item.Fan.ProtoReflect().GetUnknown()) != 0 || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		speed, err := AdmitWireFanSpeed(item.Fan.Speed)
+		if err != nil || measurement.Endpoint == "" || measurement.Catalog.AdmitDomainFan(entity, measurement.Endpoint, speed) != nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		v, err := domain.NewFanStateValue(speed)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &v
 	case nil:
 	default:
 		return domain.ObservedState{}, ErrInvalidWireState
@@ -286,6 +335,13 @@ func EncodeObservedState(observed domain.ObservedState) (*state.ObservedState, e
 				return nil, err
 			}
 			w.Value = &state.ObservedState_Light{Light: &state.LightValue{On: &on, BrightnessPercent: brightness, ColorTempMireds: colorTemp}}
+		case domain.ValueFan:
+			speed, _ := value.Fan()
+			wireSpeed, err := WireFanSpeed(speed)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_Fan{Fan: &state.FanValue{Speed: wireSpeed}}
 		case domain.ValueUnspecified:
 			return nil, ErrInvalidWireState
 		default:

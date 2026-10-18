@@ -28,7 +28,7 @@ from home.registry.v1 import registry_pb2 as home_dot_registry_dot_v1_dot_regist
 from home.state.v1 import state_pb2 as home_dot_state_dot_v1_dot_state__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fhome/integrations/v1/host.proto\x12\x14home.integrations.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dhome/actions/v1/actions.proto\x1a\x1fhome/registry/v1/registry.proto\x1a\x19home/state/v1/state.proto\"\xce\x01\n\x10HandshakeRequest\x12\x12\n\nhost_major\x18\x01 \x01(\r\x12\x12\n\nhost_minor\x18\x02 \x01(\r\x12\x14\n\x0c\x64river_major\x18\x03 \x01(\r\x12\x14\n\x0c\x64river_minor\x18\x04 \x01(\r\x12\x15\n\rschema_sha256\x18\x05 \x01(\x0c\x12\x17\n\x0fmax_frame_bytes\x18\x06 \x01(\r\x12\x36\n\x0c\x63\x61pabilities\x18\x07 \x03(\x0e\x32 .home.integrations.v1.Capability\"\x81\x02\n\x11HandshakeResponse\x12\x12\n\nhost_major\x18\x01 \x01(\r\x12\x12\n\nhost_minor\x18\x02 \x01(\r\x12\x14\n\x0c\x64river_major\x18\x03 \x01(\r\x12\x14\n\x0c\x64river_minor\x18\x04 \x01(\r\x12\x15\n\rschema_sha256\x18\x05 \x01(\x0c\x12\x17\n\x0fmax_frame_bytes\x18\x06 \x01(\r\x12\x36\n\x0c\x63\x61pabilities\x18\x07 \x03(\x0e\x32 .home.integrations.v1.Capability\x12\x19\n\x11heartbeat_seconds\x18\x08 \x01(\r\x12\x15\n\rlease_seconds\x18\t \x01(\r\"+\n\tSourceKey\x12\x0e\n\x06\x64\x65vice\x18\x01 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x02 \x01(\t\"{\n\tCandidate\x12/\n\x06source\x18\x01 \x01(\x0b\x32\x1f.home.integrations.v1.SourceKey\x12=\n\x0c\x64\x65scriptions\x18\x02 \x03(\x0b\x32\'.home.registry.v1.CapabilityDescription\"F\n\x0f\x44iscoverRequest\x12\x33\n\ncandidates\x18\x01 \x03(\x0b\x32\x1f.home.integrations.v1.Candidate\"\x19\n\x07\x42inding\x12\x0e\n\x06handle\x18\x01 \x01(\x0c\"C\n\x10\x44iscoverResponse\x12/\n\x08\x62indings\x18\x01 \x03(\x0b\x32\x1d.home.integrations.v1.Binding\"\xba\x01\n\x10MeasurementValue\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x0c\n\x04unit\x18\x02 \x01(\t\x12\x11\n\tprecision\x18\x03 \x01(\r\x12\x37\n\x08semantic\x18\x04 \x01(\x0e\x32%.home.registry.v1.MeasurementSemantic\x12=\n\x0b\x61ggregation\x18\x05 \x01(\x0e\x32(.home.registry.v1.MeasurementAggregation\"\x91\x03\n\x0bObservation\x12\x16\n\x0e\x62inding_handle\x18\x01 \x01(\x0c\x12\x10\n\x08\x65ndpoint\x18\x02 \x01(\t\x12\'\n\x07quality\x18\x03 \x01(\x0b\x32\x16.home.state.v1.Quality\x12\x34\n\x0bobserved_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.TimestampH\x01\x88\x01\x01\x12\x17\n\nsource_seq\x18\x05 \x01(\x04H\x02\x88\x01\x01\x12 \n\x13\x63ommand_correlation\x18\x06 \x01(\tH\x03\x88\x01\x01\x12\x13\n\tswitch_on\x18\x07 \x01(\x08H\x00\x12=\n\x0bmeasurement\x18\x08 \x01(\x0b\x32&.home.integrations.v1.MeasurementValueH\x00\x12*\n\x05light\x18\t \x01(\x0b\x32\x19.home.state.v1.LightValueH\x00\x42\x07\n\x05valueB\x0e\n\x0c_observed_atB\r\n\x0b_source_seqB\x16\n\x14_command_correlation\"H\n\x0ePublishRequest\x12\x36\n\x0bobservation\x18\x01 \x01(\x0b\x32!.home.integrations.v1.Observation\"\xc0\x01\n\x05\x45vent\x12\x16\n\x0e\x62inding_handle\x18\x01 \x01(\x0c\x12\x0c\n\x04\x63ode\x18\x02 \x01(\t\x12/\n\x0bobserved_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x17\n\nsource_seq\x18\x04 \x01(\x04H\x00\x88\x01\x01\x12 \n\x13\x63ommand_correlation\x18\x05 \x01(\tH\x01\x88\x01\x01\x42\r\n\x0b_source_seqB\x16\n\x14_command_correlation\"9\n\x0b\x45mitRequest\x12*\n\x05\x65vent\x18\x01 \x01(\x0b\x32\x1b.home.integrations.v1.Event\"\x93\x01\n\x13ReportHealthRequest\x12\x32\n\x06status\x18\x01 \x01(\x0e\x32\".home.integrations.v1.HealthStatus\x12\x0e\n\x06\x64\x65tail\x18\x02 \x01(\t\x12 \n\x13\x63ommand_correlation\x18\x03 \x01(\tH\x00\x88\x01\x01\x42\x16\n\x14_command_correlation\"!\n\x11ReadSecretRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\"#\n\x12ReadSecretResponse\x12\r\n\x05value\x18\x01 \x01(\x0c\"\x11\n\x0fPublishResponse\"\x0e\n\x0c\x45mitResponse\"\x16\n\x14ReportHealthResponse\"\x19\n\x17\x43ompleteCommandResponse\"\x12\n\x10HeartbeatRequest\"\x13\n\x11HeartbeatResponse\"\x11\n\x0f\x43ommandsRequest\"q\n\x10\x43ommandsResponse\x12\x30\n\x07request\x18\x01 \x01(\x0b\x32\x1f.home.actions.v1.CommandRequest\x12\x13\n\x0b\x63orrelation\x18\x02 \x01(\t\x12\x16\n\x0e\x62inding_handle\x18\x03 \x01(\x0c\"c\n\x16\x43ompleteCommandRequest\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x35\n\x04kind\x18\x02 \x01(\x0e\x32\'.home.integrations.v1.CommandResultKind*\xb9\x01\n\nCapability\x12\x1a\n\x16\x43\x41PABILITY_UNSPECIFIED\x10\x00\x12\x17\n\x13\x43\x41PABILITY_DISCOVER\x10\x01\x12\x16\n\x12\x43\x41PABILITY_PUBLISH\x10\x02\x12\x13\n\x0f\x43\x41PABILITY_EMIT\x10\x03\x12\x15\n\x11\x43\x41PABILITY_HEALTH\x10\x04\x12\x16\n\x12\x43\x41PABILITY_COMMAND\x10\x05\x12\x1a\n\x16\x43\x41PABILITY_SECRET_READ\x10\x06*\x81\x01\n\x0cHealthStatus\x12\x1d\n\x19HEALTH_STATUS_UNSPECIFIED\x10\x00\x12\x17\n\x13HEALTH_STATUS_READY\x10\x01\x12\x1a\n\x16HEALTH_STATUS_DEGRADED\x10\x02\x12\x1d\n\x19HEALTH_STATUS_UNAVAILABLE\x10\x03*z\n\x11\x43ommandResultKind\x12#\n\x1f\x43OMMAND_RESULT_KIND_UNSPECIFIED\x10\x00\x12 \n\x1c\x43OMMAND_RESULT_KIND_ACCEPTED\x10\x01\x12\x1e\n\x1a\x43OMMAND_RESULT_KIND_FAILED\x10\x02\x32\xe0\x06\n\x0bHostService\x12\\\n\tHandshake\x12&.home.integrations.v1.HandshakeRequest\x1a\'.home.integrations.v1.HandshakeResponse\x12Y\n\x08\x44iscover\x12%.home.integrations.v1.DiscoverRequest\x1a&.home.integrations.v1.DiscoverResponse\x12V\n\x07Publish\x12$.home.integrations.v1.PublishRequest\x1a%.home.integrations.v1.PublishResponse\x12M\n\x04\x45mit\x12!.home.integrations.v1.EmitRequest\x1a\".home.integrations.v1.EmitResponse\x12\x65\n\x0cReportHealth\x12).home.integrations.v1.ReportHealthRequest\x1a*.home.integrations.v1.ReportHealthResponse\x12_\n\nReadSecret\x12\'.home.integrations.v1.ReadSecretRequest\x1a(.home.integrations.v1.ReadSecretResponse\x12[\n\x08\x43ommands\x12%.home.integrations.v1.CommandsRequest\x1a&.home.integrations.v1.CommandsResponse0\x01\x12n\n\x0f\x43ompleteCommand\x12,.home.integrations.v1.CompleteCommandRequest\x1a-.home.integrations.v1.CompleteCommandResponse\x12\\\n\tHeartbeat\x12&.home.integrations.v1.HeartbeatRequest\x1a\'.home.integrations.v1.HeartbeatResponseBFZDgithub.com/damione1/Homeward/gen/home/integrations/v1;integrationsv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fhome/integrations/v1/host.proto\x12\x14home.integrations.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dhome/actions/v1/actions.proto\x1a\x1fhome/registry/v1/registry.proto\x1a\x19home/state/v1/state.proto\"\xce\x01\n\x10HandshakeRequest\x12\x12\n\nhost_major\x18\x01 \x01(\r\x12\x12\n\nhost_minor\x18\x02 \x01(\r\x12\x14\n\x0c\x64river_major\x18\x03 \x01(\r\x12\x14\n\x0c\x64river_minor\x18\x04 \x01(\r\x12\x15\n\rschema_sha256\x18\x05 \x01(\x0c\x12\x17\n\x0fmax_frame_bytes\x18\x06 \x01(\r\x12\x36\n\x0c\x63\x61pabilities\x18\x07 \x03(\x0e\x32 .home.integrations.v1.Capability\"\x81\x02\n\x11HandshakeResponse\x12\x12\n\nhost_major\x18\x01 \x01(\r\x12\x12\n\nhost_minor\x18\x02 \x01(\r\x12\x14\n\x0c\x64river_major\x18\x03 \x01(\r\x12\x14\n\x0c\x64river_minor\x18\x04 \x01(\r\x12\x15\n\rschema_sha256\x18\x05 \x01(\x0c\x12\x17\n\x0fmax_frame_bytes\x18\x06 \x01(\r\x12\x36\n\x0c\x63\x61pabilities\x18\x07 \x03(\x0e\x32 .home.integrations.v1.Capability\x12\x19\n\x11heartbeat_seconds\x18\x08 \x01(\r\x12\x15\n\rlease_seconds\x18\t \x01(\r\"+\n\tSourceKey\x12\x0e\n\x06\x64\x65vice\x18\x01 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x02 \x01(\t\"{\n\tCandidate\x12/\n\x06source\x18\x01 \x01(\x0b\x32\x1f.home.integrations.v1.SourceKey\x12=\n\x0c\x64\x65scriptions\x18\x02 \x03(\x0b\x32\'.home.registry.v1.CapabilityDescription\"F\n\x0f\x44iscoverRequest\x12\x33\n\ncandidates\x18\x01 \x03(\x0b\x32\x1f.home.integrations.v1.Candidate\"\x19\n\x07\x42inding\x12\x0e\n\x06handle\x18\x01 \x01(\x0c\"C\n\x10\x44iscoverResponse\x12/\n\x08\x62indings\x18\x01 \x03(\x0b\x32\x1d.home.integrations.v1.Binding\"\xba\x01\n\x10MeasurementValue\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x0c\n\x04unit\x18\x02 \x01(\t\x12\x11\n\tprecision\x18\x03 \x01(\r\x12\x37\n\x08semantic\x18\x04 \x01(\x0e\x32%.home.registry.v1.MeasurementSemantic\x12=\n\x0b\x61ggregation\x18\x05 \x01(\x0e\x32(.home.registry.v1.MeasurementAggregation\"\xb9\x03\n\x0bObservation\x12\x16\n\x0e\x62inding_handle\x18\x01 \x01(\x0c\x12\x10\n\x08\x65ndpoint\x18\x02 \x01(\t\x12\'\n\x07quality\x18\x03 \x01(\x0b\x32\x16.home.state.v1.Quality\x12\x34\n\x0bobserved_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.TimestampH\x01\x88\x01\x01\x12\x17\n\nsource_seq\x18\x05 \x01(\x04H\x02\x88\x01\x01\x12 \n\x13\x63ommand_correlation\x18\x06 \x01(\tH\x03\x88\x01\x01\x12\x13\n\tswitch_on\x18\x07 \x01(\x08H\x00\x12=\n\x0bmeasurement\x18\x08 \x01(\x0b\x32&.home.integrations.v1.MeasurementValueH\x00\x12*\n\x05light\x18\t \x01(\x0b\x32\x19.home.state.v1.LightValueH\x00\x12&\n\x03\x66\x61n\x18\n \x01(\x0b\x32\x17.home.state.v1.FanValueH\x00\x42\x07\n\x05valueB\x0e\n\x0c_observed_atB\r\n\x0b_source_seqB\x16\n\x14_command_correlation\"H\n\x0ePublishRequest\x12\x36\n\x0bobservation\x18\x01 \x01(\x0b\x32!.home.integrations.v1.Observation\"\xc0\x01\n\x05\x45vent\x12\x16\n\x0e\x62inding_handle\x18\x01 \x01(\x0c\x12\x0c\n\x04\x63ode\x18\x02 \x01(\t\x12/\n\x0bobserved_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x17\n\nsource_seq\x18\x04 \x01(\x04H\x00\x88\x01\x01\x12 \n\x13\x63ommand_correlation\x18\x05 \x01(\tH\x01\x88\x01\x01\x42\r\n\x0b_source_seqB\x16\n\x14_command_correlation\"9\n\x0b\x45mitRequest\x12*\n\x05\x65vent\x18\x01 \x01(\x0b\x32\x1b.home.integrations.v1.Event\"\x93\x01\n\x13ReportHealthRequest\x12\x32\n\x06status\x18\x01 \x01(\x0e\x32\".home.integrations.v1.HealthStatus\x12\x0e\n\x06\x64\x65tail\x18\x02 \x01(\t\x12 \n\x13\x63ommand_correlation\x18\x03 \x01(\tH\x00\x88\x01\x01\x42\x16\n\x14_command_correlation\"!\n\x11ReadSecretRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\"#\n\x12ReadSecretResponse\x12\r\n\x05value\x18\x01 \x01(\x0c\"\x11\n\x0fPublishResponse\"\x0e\n\x0c\x45mitResponse\"\x16\n\x14ReportHealthResponse\"\x19\n\x17\x43ompleteCommandResponse\"\x12\n\x10HeartbeatRequest\"\x13\n\x11HeartbeatResponse\"\x11\n\x0f\x43ommandsRequest\"q\n\x10\x43ommandsResponse\x12\x30\n\x07request\x18\x01 \x01(\x0b\x32\x1f.home.actions.v1.CommandRequest\x12\x13\n\x0b\x63orrelation\x18\x02 \x01(\t\x12\x16\n\x0e\x62inding_handle\x18\x03 \x01(\x0c\"c\n\x16\x43ompleteCommandRequest\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x35\n\x04kind\x18\x02 \x01(\x0e\x32\'.home.integrations.v1.CommandResultKind*\xb9\x01\n\nCapability\x12\x1a\n\x16\x43\x41PABILITY_UNSPECIFIED\x10\x00\x12\x17\n\x13\x43\x41PABILITY_DISCOVER\x10\x01\x12\x16\n\x12\x43\x41PABILITY_PUBLISH\x10\x02\x12\x13\n\x0f\x43\x41PABILITY_EMIT\x10\x03\x12\x15\n\x11\x43\x41PABILITY_HEALTH\x10\x04\x12\x16\n\x12\x43\x41PABILITY_COMMAND\x10\x05\x12\x1a\n\x16\x43\x41PABILITY_SECRET_READ\x10\x06*\x81\x01\n\x0cHealthStatus\x12\x1d\n\x19HEALTH_STATUS_UNSPECIFIED\x10\x00\x12\x17\n\x13HEALTH_STATUS_READY\x10\x01\x12\x1a\n\x16HEALTH_STATUS_DEGRADED\x10\x02\x12\x1d\n\x19HEALTH_STATUS_UNAVAILABLE\x10\x03*\xa0\x01\n\x11\x43ommandResultKind\x12#\n\x1f\x43OMMAND_RESULT_KIND_UNSPECIFIED\x10\x00\x12 \n\x1c\x43OMMAND_RESULT_KIND_ACCEPTED\x10\x01\x12\x1e\n\x1a\x43OMMAND_RESULT_KIND_FAILED\x10\x02\x12$\n COMMAND_RESULT_KIND_ACKNOWLEDGED\x10\x03\x32\xe0\x06\n\x0bHostService\x12\\\n\tHandshake\x12&.home.integrations.v1.HandshakeRequest\x1a\'.home.integrations.v1.HandshakeResponse\x12Y\n\x08\x44iscover\x12%.home.integrations.v1.DiscoverRequest\x1a&.home.integrations.v1.DiscoverResponse\x12V\n\x07Publish\x12$.home.integrations.v1.PublishRequest\x1a%.home.integrations.v1.PublishResponse\x12M\n\x04\x45mit\x12!.home.integrations.v1.EmitRequest\x1a\".home.integrations.v1.EmitResponse\x12\x65\n\x0cReportHealth\x12).home.integrations.v1.ReportHealthRequest\x1a*.home.integrations.v1.ReportHealthResponse\x12_\n\nReadSecret\x12\'.home.integrations.v1.ReadSecretRequest\x1a(.home.integrations.v1.ReadSecretResponse\x12[\n\x08\x43ommands\x12%.home.integrations.v1.CommandsRequest\x1a&.home.integrations.v1.CommandsResponse0\x01\x12n\n\x0f\x43ompleteCommand\x12,.home.integrations.v1.CompleteCommandRequest\x1a-.home.integrations.v1.CompleteCommandResponse\x12\\\n\tHeartbeat\x12&.home.integrations.v1.HeartbeatRequest\x1a\'.home.integrations.v1.HeartbeatResponseBFZDgithub.com/damione1/Homeward/gen/home/integrations/v1;integrationsv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,12 +36,12 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'home.integrations.v1.host_p
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZDgithub.com/damione1/Homeward/gen/home/integrations/v1;integrationsv1'
-  _globals['_CAPABILITY']._serialized_start=2494
-  _globals['_CAPABILITY']._serialized_end=2679
-  _globals['_HEALTHSTATUS']._serialized_start=2682
-  _globals['_HEALTHSTATUS']._serialized_end=2811
-  _globals['_COMMANDRESULTKIND']._serialized_start=2813
-  _globals['_COMMANDRESULTKIND']._serialized_end=2935
+  _globals['_CAPABILITY']._serialized_start=2534
+  _globals['_CAPABILITY']._serialized_end=2719
+  _globals['_HEALTHSTATUS']._serialized_start=2722
+  _globals['_HEALTHSTATUS']._serialized_end=2851
+  _globals['_COMMANDRESULTKIND']._serialized_start=2854
+  _globals['_COMMANDRESULTKIND']._serialized_end=3014
   _globals['_HANDSHAKEREQUEST']._serialized_start=182
   _globals['_HANDSHAKEREQUEST']._serialized_end=388
   _globals['_HANDSHAKERESPONSE']._serialized_start=391
@@ -59,37 +59,37 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_MEASUREMENTVALUE']._serialized_start=989
   _globals['_MEASUREMENTVALUE']._serialized_end=1175
   _globals['_OBSERVATION']._serialized_start=1178
-  _globals['_OBSERVATION']._serialized_end=1579
-  _globals['_PUBLISHREQUEST']._serialized_start=1581
-  _globals['_PUBLISHREQUEST']._serialized_end=1653
-  _globals['_EVENT']._serialized_start=1656
-  _globals['_EVENT']._serialized_end=1848
-  _globals['_EMITREQUEST']._serialized_start=1850
-  _globals['_EMITREQUEST']._serialized_end=1907
-  _globals['_REPORTHEALTHREQUEST']._serialized_start=1910
-  _globals['_REPORTHEALTHREQUEST']._serialized_end=2057
-  _globals['_READSECRETREQUEST']._serialized_start=2059
-  _globals['_READSECRETREQUEST']._serialized_end=2092
-  _globals['_READSECRETRESPONSE']._serialized_start=2094
-  _globals['_READSECRETRESPONSE']._serialized_end=2129
-  _globals['_PUBLISHRESPONSE']._serialized_start=2131
-  _globals['_PUBLISHRESPONSE']._serialized_end=2148
-  _globals['_EMITRESPONSE']._serialized_start=2150
-  _globals['_EMITRESPONSE']._serialized_end=2164
-  _globals['_REPORTHEALTHRESPONSE']._serialized_start=2166
-  _globals['_REPORTHEALTHRESPONSE']._serialized_end=2188
-  _globals['_COMPLETECOMMANDRESPONSE']._serialized_start=2190
-  _globals['_COMPLETECOMMANDRESPONSE']._serialized_end=2215
-  _globals['_HEARTBEATREQUEST']._serialized_start=2217
-  _globals['_HEARTBEATREQUEST']._serialized_end=2235
-  _globals['_HEARTBEATRESPONSE']._serialized_start=2237
-  _globals['_HEARTBEATRESPONSE']._serialized_end=2256
-  _globals['_COMMANDSREQUEST']._serialized_start=2258
-  _globals['_COMMANDSREQUEST']._serialized_end=2275
-  _globals['_COMMANDSRESPONSE']._serialized_start=2277
-  _globals['_COMMANDSRESPONSE']._serialized_end=2390
-  _globals['_COMPLETECOMMANDREQUEST']._serialized_start=2392
-  _globals['_COMPLETECOMMANDREQUEST']._serialized_end=2491
-  _globals['_HOSTSERVICE']._serialized_start=2938
-  _globals['_HOSTSERVICE']._serialized_end=3802
+  _globals['_OBSERVATION']._serialized_end=1619
+  _globals['_PUBLISHREQUEST']._serialized_start=1621
+  _globals['_PUBLISHREQUEST']._serialized_end=1693
+  _globals['_EVENT']._serialized_start=1696
+  _globals['_EVENT']._serialized_end=1888
+  _globals['_EMITREQUEST']._serialized_start=1890
+  _globals['_EMITREQUEST']._serialized_end=1947
+  _globals['_REPORTHEALTHREQUEST']._serialized_start=1950
+  _globals['_REPORTHEALTHREQUEST']._serialized_end=2097
+  _globals['_READSECRETREQUEST']._serialized_start=2099
+  _globals['_READSECRETREQUEST']._serialized_end=2132
+  _globals['_READSECRETRESPONSE']._serialized_start=2134
+  _globals['_READSECRETRESPONSE']._serialized_end=2169
+  _globals['_PUBLISHRESPONSE']._serialized_start=2171
+  _globals['_PUBLISHRESPONSE']._serialized_end=2188
+  _globals['_EMITRESPONSE']._serialized_start=2190
+  _globals['_EMITRESPONSE']._serialized_end=2204
+  _globals['_REPORTHEALTHRESPONSE']._serialized_start=2206
+  _globals['_REPORTHEALTHRESPONSE']._serialized_end=2228
+  _globals['_COMPLETECOMMANDRESPONSE']._serialized_start=2230
+  _globals['_COMPLETECOMMANDRESPONSE']._serialized_end=2255
+  _globals['_HEARTBEATREQUEST']._serialized_start=2257
+  _globals['_HEARTBEATREQUEST']._serialized_end=2275
+  _globals['_HEARTBEATRESPONSE']._serialized_start=2277
+  _globals['_HEARTBEATRESPONSE']._serialized_end=2296
+  _globals['_COMMANDSREQUEST']._serialized_start=2298
+  _globals['_COMMANDSREQUEST']._serialized_end=2315
+  _globals['_COMMANDSRESPONSE']._serialized_start=2317
+  _globals['_COMMANDSRESPONSE']._serialized_end=2430
+  _globals['_COMPLETECOMMANDREQUEST']._serialized_start=2432
+  _globals['_COMPLETECOMMANDREQUEST']._serialized_end=2531
+  _globals['_HOSTSERVICE']._serialized_start=3017
+  _globals['_HOSTSERVICE']._serialized_end=3881
 # @@protoc_insertion_point(module_scope)

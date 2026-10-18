@@ -1,6 +1,8 @@
 .PHONY: check
+check: export PYTHONDONTWRITEBYTECODE=1
 check:
 	sh scripts/ensure-worker-python.sh
+	PYTHONDONTWRITEBYTECODE=1 "$$(cat .tools/worker-python/python-path)" -m unittest -q testworker.caseta_worker_test
 	test -z "$$(gofmt -l cmd internal contracts compat sdk examples)"
 	go vet ./...
 	go test -race ./...

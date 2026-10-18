@@ -3,3 +3,8 @@ grpcio-tools==1.75.1
 protobuf==6.32.1
 setuptools==84.0.0
 typing-extensions==4.16.0
+cffi==2.1.1
+cryptography==50.0.2
+orjson==3.13.0
+pycparser==3.11
+pylutron-caseta==0.29.0

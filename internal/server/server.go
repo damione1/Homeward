@@ -207,6 +207,21 @@ func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, 
 		specs = append(specs, spec)
 	}
 	return RuntimePlan{Identity: repository, Pilots: specs, Configure: func(ctx context.Context, _ *integrations.Manager, _ *storage.Store) error {
+		for _, configured := range workers {
+			instance, err := configured.Instance()
+			if err != nil {
+				return err
+			}
+			for _, binding := range configured.Bindings() {
+				key, alias, err := binding.Components()
+				if err != nil {
+					return err
+				}
+				if _, err := repository.ConfigureBinding(ctx, instance, key, alias); err != nil {
+					return err
+				}
+			}
+		}
 		return repository.AttachProjection(ctx, sequence)
 	}}, nil
 }

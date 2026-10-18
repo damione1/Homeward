@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"connectrpc.com/connect"
+	"github.com/damione1/Homeward/contracts"
 	wire "github.com/damione1/Homeward/gen/home/integrations/v1"
 	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
 	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
@@ -54,9 +55,19 @@ func (p *pilot) Handshake(_ context.Context, r *connect.Request[wire.HandshakeRe
 	if proto.Size(msg)+5 > maxFrame {
 		return nil, connect.NewError(connect.CodeResourceExhausted, ErrCapacity)
 	}
-	digest, _ := hex.DecodeString(schemaDigestHex)
-	if msg.HostMajor != 1 || msg.HostMinor != 0 || msg.DriverMajor != 1 || msg.DriverMinor != 0 ||
-		len(msg.SchemaSha256) != len(digest) || subtle.ConstantTimeCompare(msg.SchemaSha256, digest) != 1 {
+	const hostMajor uint32 = 1
+	const driverMajor uint32 = 1
+	var expected string
+	switch {
+	case msg.HostMajor == hostMajor && msg.HostMinor == 0 && msg.DriverMajor == driverMajor && msg.DriverMinor == 0:
+		expected = schemaDigestV10Hex
+	case msg.HostMajor == hostMajor && msg.HostMinor == 1 && msg.DriverMajor == driverMajor && msg.DriverMinor == 1:
+		expected = schemaDigestV11Hex
+	default:
+		return nil, connect.NewError(connect.CodeFailedPrecondition, ErrInvalidConfig)
+	}
+	digest, _ := hex.DecodeString(expected)
+	if len(msg.SchemaSha256) != len(digest) || subtle.ConstantTimeCompare(msg.SchemaSha256, digest) != 1 {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, ErrInvalidConfig)
 	}
 	if msg.MaxFrameBytes < 1024 || len(msg.Capabilities) == 0 || len(msg.Capabilities) > 6 {
@@ -91,8 +102,8 @@ func (p *pilot) Handshake(_ context.Context, r *connect.Request[wire.HandshakeRe
 	if len(granted) == 0 {
 		return nil, rpcInvalid()
 	}
-	response := &wire.HandshakeResponse{HostMajor: 1, HostMinor: 0,
-		DriverMajor: 1, DriverMinor: 0, SchemaSha256: digest, MaxFrameBytes: limit,
+	response := &wire.HandshakeResponse{HostMajor: hostMajor, HostMinor: msg.HostMinor,
+		DriverMajor: driverMajor, DriverMinor: msg.DriverMinor, SchemaSha256: digest, MaxFrameBytes: limit,
 		Capabilities: granted, HeartbeatSeconds: uint32(heartbeatInterval / time.Second),
 		LeaseSeconds: uint32(leaseTimeout / time.Second)}
 	if proto.Size(response)+5 > int(limit) {
@@ -102,7 +113,7 @@ func (p *pilot) Handshake(_ context.Context, r *connect.Request[wire.HandshakeRe
 	for _, capability := range granted {
 		p.capabilities[capability] = true
 	}
-	p.frameLimit, p.lastHeartbeat, p.handshaken = limit, time.Now(), true
+	p.frameLimit, p.lastHeartbeat, p.handshaken, p.hostMinor = limit, time.Now(), true, msg.HostMinor
 	close(p.handshakeDone)
 	return connect.NewResponse(response), nil
 }
@@ -137,6 +148,13 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 		candidate, err := integrations.NewCandidate(key, input.Descriptions)
 		if err != nil {
 			return nil, rpcInvalid()
+		}
+		if p.hostMinor == 0 {
+			for _, description := range input.Descriptions {
+				if description != nil && description.SchemaId == contracts.FanSchema {
+					return nil, rpcInvalid()
+				}
+			}
 		}
 		candidates = append(candidates, candidate)
 		keys = append(keys, key)
@@ -299,6 +317,11 @@ func (p *pilot) Publish(ctx context.Context, r *connect.Request[wire.PublishRequ
 	if input == nil || input.Quality == nil {
 		return nil, rpcInvalid()
 	}
+	if p.hostMinor == 0 {
+		if _, fan := input.Value.(*wire.Observation_Fan); fan {
+			return nil, rpcInvalid()
+		}
+	}
 	binding, entity, err := p.binding(input.BindingHandle)
 	if err != nil {
 		return nil, err
@@ -404,6 +427,11 @@ func (p *pilot) ReportHealth(ctx context.Context, r *connect.Request[wire.Report
 	if err != nil {
 		return nil, rpcInvalid()
 	}
+	if p.hostMinor == 1 && status != integrations.HealthReady {
+		p.mu.Lock()
+		p.ready = false
+		p.mu.Unlock()
+	}
 	if r.Msg.CommandCorrelation != nil {
 		cause, err := p.causality(*r.Msg.CommandCorrelation, "")
 		if err != nil {
@@ -418,6 +446,11 @@ func (p *pilot) ReportHealth(ctx context.Context, r *connect.Request[wire.Report
 	defer cancel()
 	if err := p.host.ReportHealth(callCtx, report); err != nil {
 		return nil, rpcHost(err)
+	}
+	if p.hostMinor == 1 && status == integrations.HealthReady {
+		p.mu.Lock()
+		p.ready = p.active
+		p.mu.Unlock()
 	}
 	return connect.NewResponse(&wire.ReportHealthResponse{}), nil
 }
@@ -533,6 +566,19 @@ func parseValue(input *wire.Observation) (*domain.StateValue, error) {
 			return nil, err
 		}
 		v, err := domain.NewLightStateValue(light)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
+	case *wire.Observation_Fan:
+		if value.Fan == nil {
+			return nil, integrations.ErrInvalidInput
+		}
+		speed, err := contracts.AdmitWireFanSpeed(value.Fan.Speed)
+		if err != nil {
+			return nil, err
+		}
+		v, err := domain.NewFanStateValue(speed)
 		if err != nil {
 			return nil, err
 		}
