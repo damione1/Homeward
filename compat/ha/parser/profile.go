@@ -28,6 +28,9 @@ func profileRule(profile SyntaxProfile) *rule {
 	if profile == SyntaxProfileLogic {
 		return logicRule()
 	}
+	if profile == SyntaxProfileScene {
+		return sceneRule()
+	}
 	openSyntax := &rule{open: true}
 	mode := &rule{kind: KindScalar, values: map[string]bool{"single": true, "restart": true, "queued": true}}
 	target := mapping(map[string]*rule{"entity_id": scalar(), "device_id": scalar(), "area_id": scalar()})
@@ -71,6 +74,26 @@ func profileRule(profile SyntaxProfile) *rule {
 		root.fields[FamilyGroup.Key()] = &rule{kind: KindMapping, dynamic: group}
 	}
 	return root
+}
+
+// Scene syntax is closed at its structural levels. Entity attributes are
+// retained like service data so the scene compiler can refuse one member at a
+// time with its original path and position, without discarding other members.
+func sceneRule() *rule {
+	member := &rule{alternatives: []*rule{{open: true, kind: KindMapping}, {kind: KindScalar}}}
+	entities := &rule{kind: KindMapping, dynamic: member}
+	metadata := &rule{kind: KindMapping, dynamic: mapping(map[string]*rule{"entity_only": scalar()})}
+	scene := mapping(map[string]*rule{
+		"id": scalar(), "name": scalar(), "icon": scalar(),
+		"entities": entities, "metadata": metadata,
+	})
+	// Both accepted forms have a mapping root. The semantic compiler requires
+	// exactly one form; a union here only admits its known structural keys.
+	scene.fields["scene"] = sequence(mapping(map[string]*rule{
+		"id": scalar(), "name": scalar(), "icon": scalar(),
+		"entities": entities, "metadata": metadata,
+	}))
+	return scene
 }
 
 func validateProfile(root Node, profile SyntaxProfile) *Diagnostic {

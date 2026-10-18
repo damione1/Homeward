@@ -59,6 +59,9 @@ func TestNHA158ExactPartitionAndZeroValue(t *testing.T) {
 		if err != nil || retained[alias] != definition.Decision() {
 			t.Fatalf("unexpected retained definition %q", alias)
 		}
+		if definition.Path() != "scope/logic_mvp_sources/"+alias+".yaml" {
+			t.Fatalf("retained definition %q lost its admitted source path", alias)
+		}
 		delete(retained, alias)
 	}
 	if len(retained) != 0 {

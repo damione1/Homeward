@@ -19,6 +19,7 @@ var ErrWorkerExit = errors.New("worker: process exited")
 var ErrHeartbeat = errors.New("worker: heartbeat lease expired")
 var ErrCommandFailed = errors.New("worker: command failed")
 var ErrCasetaHAProfileUnavailable = errors.New("worker: configured Caseta HA light profile requires Host 1.3 and its qualified light descriptor")
+var ErrCasetaHAFanProfileUnavailable = errors.New("worker: configured Caseta HA four-speed fan profile requires Host 1.1 or 1.3 and its qualified fan descriptor")
 var ErrJoinTimeout = errors.New("worker: process join timed out")
 
 type Config struct {
@@ -35,6 +36,7 @@ type ConfiguredBinding struct {
 	key          integrations.SourceKey
 	alias        domain.HAAlias
 	lightProfile configuredLightProfile
+	fanProfile   configuredFanProfile
 }
 
 // Only profiles explicitly configured for a binding may cross the worker/Host
@@ -44,6 +46,13 @@ type configuredLightProfile uint8
 const (
 	configuredLightProfileNone configuredLightProfile = iota
 	configuredLightProfileCasetaHA100V1
+)
+
+type configuredFanProfile uint8
+
+const (
+	configuredFanProfileNone configuredFanProfile = iota
+	configuredFanProfileCasetaHA4V1
 )
 
 func NewConfiguredBinding(device, entity, alias string) (ConfiguredBinding, error) {
@@ -63,7 +72,8 @@ func (b ConfiguredBinding) Components() (integrations.SourceKey, string, error) 
 		return integrations.SourceKey{}, "", ErrInvalidConfig
 	}
 	alias, err := b.alias.Value()
-	if err != nil || b.lightProfile > configuredLightProfileCasetaHA100V1 {
+	if err != nil || b.lightProfile > configuredLightProfileCasetaHA100V1 || b.fanProfile > configuredFanProfileCasetaHA4V1 ||
+		b.lightProfile != configuredLightProfileNone && b.fanProfile != configuredFanProfileNone {
 		return integrations.SourceKey{}, "", ErrInvalidConfig
 	}
 	return b.key, alias, nil
@@ -82,6 +92,21 @@ func (b ConfiguredBinding) WithCasetaHA100V1() (ConfiguredBinding, error) {
 
 func (b ConfiguredBinding) CasetaHA100V1() bool {
 	return b.lightProfile == configuredLightProfileCasetaHA100V1
+}
+
+// WithCasetaHAFan4V1 qualifies only this configured SourceKey and fan alias.
+// The actual protocol and descriptor are checked after handshake/discovery.
+func (b ConfiguredBinding) WithCasetaHAFan4V1() (ConfiguredBinding, error) {
+	_, alias, err := b.Components()
+	if err != nil || b.lightProfile != configuredLightProfileNone || b.fanProfile != configuredFanProfileNone || !strings.HasPrefix(alias, "fan.") {
+		return ConfiguredBinding{}, ErrInvalidConfig
+	}
+	b.fanProfile = configuredFanProfileCasetaHA4V1
+	return b, nil
+}
+
+func (b ConfiguredBinding) CasetaHAFan4V1() bool {
+	return b.fanProfile == configuredFanProfileCasetaHA4V1
 }
 
 func (c Config) WithBindings(bindings []ConfiguredBinding) (Config, error) {

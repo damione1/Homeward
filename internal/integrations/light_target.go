@@ -31,7 +31,7 @@ func NewMQTTLightEncoding(scale uint32, fingerprint [sha256.Size]byte, ikea30W b
 // WithLightEncoding attaches a validated, value-owned profile to one light
 // candidate. The Host revalidates it on admission, including private fields.
 func (c Candidate) WithLightEncoding(encoding LightEncoding) (Candidate, error) {
-	if !validLightEncoding(encoding) || c.casetaAlias != (domain.HAAlias{}) || len(c.descriptions) != 1 || c.descriptions[0] == nil || c.descriptions[0].SchemaId != contracts.LightSchema {
+	if !validLightEncoding(encoding) || c.casetaAlias != (domain.HAAlias{}) || c.casetaFanAlias != (domain.HAAlias{}) || len(c.descriptions) != 1 || c.descriptions[0] == nil || c.descriptions[0].SchemaId != contracts.LightSchema {
 		return Candidate{}, ErrInvalidInput
 	}
 	c.lightEncoding = encoding
@@ -42,7 +42,7 @@ func (c Candidate) WithLightEncoding(encoding LightEncoding) (Candidate, error) 
 // SourceKey/alias and the actually negotiated Host 1.3 have been joined by the
 // worker. Host checks the resolved identity and exact capability before commit.
 func (c Candidate) WithCasetaHA100V1(alias domain.HAAlias) (Candidate, error) {
-	if _, err := alias.Value(); err != nil || c.lightEncoding != (LightEncoding{}) || c.casetaAlias != (domain.HAAlias{}) || !validCasetaHA100V1Description(c.descriptions) {
+	if _, err := alias.Value(); err != nil || c.lightEncoding != (LightEncoding{}) || c.casetaAlias != (domain.HAAlias{}) || c.casetaFanAlias != (domain.HAAlias{}) || !validCasetaHA100V1Description(c.descriptions) {
 		return Candidate{}, ErrInvalidInput
 	}
 	c.casetaAlias = alias
