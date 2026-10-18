@@ -24,6 +24,12 @@ const (
 	MigrationFailed
 	TransactionFailed
 	CommandRuntimeBusy
+	ConfigInvalid
+	ConfigConflict
+	ConfigNotFound
+	ConfigIncomplete
+	ConfigIntegrity
+	ConfigTransactionClosed
 )
 
 // Error deliberately excludes driver and connection details from its diagnostic.
@@ -55,6 +61,18 @@ func (e *Error) Error() string {
 		return "postgres: transaction failed and rolled back"
 	case CommandRuntimeBusy:
 		return "postgres: durable command runtime already active"
+	case ConfigInvalid:
+		return "postgres: invalid configuration input"
+	case ConfigConflict:
+		return "postgres: configuration conflict"
+	case ConfigNotFound:
+		return "postgres: configuration record not found"
+	case ConfigIncomplete:
+		return "postgres: historical configuration is incomplete"
+	case ConfigIntegrity:
+		return "postgres: configuration integrity failure"
+	case ConfigTransactionClosed:
+		return "postgres: configuration transaction is closed"
 	default:
 		return "postgres: unknown storage failure"
 	}
@@ -119,6 +137,212 @@ CREATE TABLE public.command_intents (
            (state IN ('result', 'indeterminate') AND response IS NOT NULL))
 );
 CREATE INDEX command_intents_dispatching ON public.command_intents(state)
+`}, {version: Version{4}, sql: `
+CREATE TYPE public.config_document_kind AS ENUM ('yaml_source');
+CREATE TYPE public.config_schema_version AS ENUM ('ha-declarative-1');
+CREATE TYPE public.config_syntax_profile AS ENUM ('ha-2026.10/declarative-1');
+CREATE TABLE public.config_documents (
+    id text PRIMARY KEY CHECK (id <> '' AND octet_length(id) <= 255),
+    logical_path text NOT NULL UNIQUE CHECK (logical_path <> '' AND octet_length(logical_path) <= 4096),
+    kind public.config_document_kind NOT NULL,
+    last_revision bigint NOT NULL DEFAULT 0 CHECK (last_revision >= 0)
+);
+CREATE TABLE public.config_versions (
+    document_id text NOT NULL REFERENCES public.config_documents(id),
+    revision bigint NOT NULL CHECK (revision > 0),
+    parent_revision bigint CHECK (parent_revision > 0 AND parent_revision < revision),
+    source_hash bytea NOT NULL CHECK (octet_length(source_hash) = 32),
+    author text NOT NULL CHECK (author <> '' AND octet_length(author) <= 255),
+    source text NOT NULL CHECK (source <> '' AND octet_length(source) <= 255),
+    schema_version public.config_schema_version NOT NULL,
+    syntax_profile public.config_syntax_profile NOT NULL,
+    accepted_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    yaml_source bytea NOT NULL CHECK (octet_length(yaml_source) <= 1048576),
+    CONSTRAINT config_version_source_hash_matches_bytes CHECK (source_hash = sha256(yaml_source)),
+    PRIMARY KEY (document_id, revision)
+);
+CREATE TABLE public.config_generations (
+    revision bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (revision > 0),
+    entry_path text NOT NULL CHECK (entry_path <> ''),
+    candidate_hash bytea NOT NULL CHECK (octet_length(candidate_hash) = 32),
+    manifest_hash bytea NOT NULL CHECK (octet_length(manifest_hash) = 32),
+    entry_count integer NOT NULL CHECK (entry_count > 0 AND entry_count <= 256),
+    sealed boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE TABLE public.config_generation_entries (
+    generation_revision bigint NOT NULL REFERENCES public.config_generations(revision),
+    document_id text NOT NULL REFERENCES public.config_documents(id),
+    version_revision bigint NOT NULL CHECK (version_revision > 0),
+    source_hash bytea NOT NULL CHECK (octet_length(source_hash) = 32),
+    PRIMARY KEY (generation_revision, document_id)
+);
+CREATE TABLE public.config_active (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    generation_revision bigint REFERENCES public.config_generations(revision),
+    activated_at timestamptz,
+    CHECK ((generation_revision IS NULL) = (activated_at IS NULL))
+);
+INSERT INTO public.config_active(singleton) VALUES (true);
+CREATE FUNCTION public.homeward_config_guard_document() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'config document identity and revision are protected' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.id IS DISTINCT FROM OLD.id OR
+       NEW.logical_path IS DISTINCT FROM OLD.logical_path OR
+       NEW.kind IS DISTINCT FROM OLD.kind OR
+       NEW.last_revision IS DISTINCT FROM OLD.last_revision + 1 THEN
+        RAISE EXCEPTION 'config document identity and revision are protected' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$$;
+CREATE TRIGGER config_document_identity BEFORE UPDATE OR DELETE ON public.config_documents
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_config_guard_document();
+CREATE FUNCTION public.homeward_config_guard_version() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        RAISE EXCEPTION 'config version is immutable' USING ERRCODE = '23514';
+    END IF;
+    PERFORM pg_advisory_xact_lock(481316, 151);
+    IF current_setting('homeward.config_gc', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'config version deletion requires collection' USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM public.config_active a
+        JOIN public.config_generation_entries e ON e.generation_revision = a.generation_revision
+        WHERE a.singleton AND e.document_id = OLD.document_id AND e.version_revision = OLD.revision
+    ) THEN
+        RAISE EXCEPTION 'active config version is protected' USING ERRCODE = '23514';
+    END IF;
+    RETURN OLD;
+END
+$$;
+CREATE TRIGGER config_version_immutable BEFORE UPDATE OR DELETE ON public.config_versions
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_config_guard_version();
+CREATE FUNCTION public.homeward_config_guard_version_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE allocated bigint;
+BEGIN
+    SELECT last_revision INTO allocated FROM public.config_documents WHERE id = NEW.document_id;
+    IF NEW.revision IS DISTINCT FROM allocated OR
+       (NEW.revision = 1 AND NEW.parent_revision IS NOT NULL) OR
+       (NEW.revision > 1 AND NEW.parent_revision IS DISTINCT FROM NEW.revision - 1) THEN
+        RAISE EXCEPTION 'config revision was not allocated' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$$;
+CREATE TRIGGER config_version_allocated BEFORE INSERT ON public.config_versions
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_config_guard_version_insert();
+CREATE FUNCTION public.homeward_config_guard_manifest() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE actual_count integer;
+DECLARE source_bytes bigint;
+BEGIN
+    IF TG_TABLE_NAME = 'config_generations' THEN
+      IF TG_OP = 'UPDATE' THEN
+       IF NOT OLD.sealed AND NEW.sealed AND
+          NEW.revision IS NOT DISTINCT FROM OLD.revision AND
+          NEW.entry_path IS NOT DISTINCT FROM OLD.entry_path AND
+          NEW.candidate_hash IS NOT DISTINCT FROM OLD.candidate_hash AND
+          NEW.manifest_hash IS NOT DISTINCT FROM OLD.manifest_hash AND
+          NEW.entry_count IS NOT DISTINCT FROM OLD.entry_count AND
+          NEW.created_at IS NOT DISTINCT FROM OLD.created_at THEN
+        PERFORM pg_advisory_xact_lock(481316, 151);
+        SELECT count(*), COALESCE(sum(octet_length(v.yaml_source)),0)
+          INTO actual_count, source_bytes
+          FROM public.config_generation_entries e
+          LEFT JOIN public.config_versions v
+            ON v.document_id=e.document_id AND v.revision=e.version_revision
+          WHERE e.generation_revision=OLD.revision;
+        IF actual_count <> OLD.entry_count OR source_bytes > 4194304 OR EXISTS (
+            SELECT 1 FROM public.config_generation_entries e
+            LEFT JOIN public.config_versions v
+              ON v.document_id=e.document_id AND v.revision=e.version_revision
+            WHERE e.generation_revision=OLD.revision
+              AND (v.revision IS NULL OR v.source_hash <> e.source_hash)
+        ) THEN
+            RAISE EXCEPTION 'config manifest cannot be sealed' USING ERRCODE = '23514';
+        END IF;
+        RETURN NEW;
+       END IF;
+      END IF;
+    END IF;
+    RAISE EXCEPTION 'config manifest is immutable' USING ERRCODE = '23514';
+END
+$$;
+CREATE TRIGGER config_generation_immutable BEFORE UPDATE OR DELETE ON public.config_generations
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_config_guard_manifest();
+CREATE TRIGGER config_entry_immutable BEFORE UPDATE OR DELETE ON public.config_generation_entries
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_config_guard_manifest();
+CREATE FUNCTION public.homeward_config_guard_entry_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE is_sealed boolean;
+BEGIN
+    PERFORM pg_advisory_xact_lock(481316, 151);
+    SELECT sealed INTO is_sealed FROM public.config_generations
+      WHERE revision = NEW.generation_revision FOR UPDATE;
+    IF is_sealed IS DISTINCT FROM false THEN
+        RAISE EXCEPTION 'config manifest is sealed' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$$;
+CREATE TRIGGER config_entry_sealed BEFORE INSERT ON public.config_generation_entries
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_config_guard_entry_insert();
+CREATE FUNCTION public.homeward_config_guard_active() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE actual_count integer;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'active config pointer cannot be removed' USING ERRCODE = '23514';
+    END IF;
+    PERFORM pg_advisory_xact_lock(481316, 151);
+    IF OLD.generation_revision IS NOT NULL AND
+       (NEW.generation_revision IS NULL OR NEW.generation_revision <= OLD.generation_revision) THEN
+        RAISE EXCEPTION 'active generation revision must advance' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.generation_revision IS NOT NULL THEN
+        SELECT count(*) INTO actual_count
+        FROM public.config_generation_entries
+        WHERE generation_revision = NEW.generation_revision;
+        IF actual_count <> (SELECT entry_count FROM public.config_generations WHERE revision = NEW.generation_revision)
+           OR NOT (SELECT sealed FROM public.config_generations WHERE revision = NEW.generation_revision)
+           OR EXISTS (
+               SELECT 1 FROM public.config_generation_entries e
+               LEFT JOIN public.config_versions v
+                 ON v.document_id = e.document_id AND v.revision = e.version_revision
+               WHERE e.generation_revision = NEW.generation_revision
+                 AND (v.revision IS NULL OR v.source_hash <> e.source_hash)
+           ) THEN
+            RAISE EXCEPTION 'active generation is incomplete' USING ERRCODE = '23514';
+        END IF;
+    END IF;
+    RETURN NEW;
+END
+$$;
+CREATE TRIGGER config_active_integrity BEFORE UPDATE OR DELETE ON public.config_active
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_config_guard_active();
+CREATE FUNCTION public.homeward_config_no_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'active config pointer is a singleton' USING ERRCODE = '23514';
+END
+$$;
+CREATE TRIGGER config_active_no_insert BEFORE INSERT ON public.config_active
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_config_no_insert();
+CREATE FUNCTION public.homeward_config_no_truncate() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'config history cannot be truncated' USING ERRCODE = '23514';
+END
+$$;
+CREATE TRIGGER config_documents_no_truncate BEFORE TRUNCATE ON public.config_documents
+    FOR EACH STATEMENT EXECUTE FUNCTION public.homeward_config_no_truncate();
+CREATE TRIGGER config_versions_no_truncate BEFORE TRUNCATE ON public.config_versions
+    FOR EACH STATEMENT EXECUTE FUNCTION public.homeward_config_no_truncate();
+CREATE TRIGGER config_generations_no_truncate BEFORE TRUNCATE ON public.config_generations
+    FOR EACH STATEMENT EXECUTE FUNCTION public.homeward_config_no_truncate();
+CREATE TRIGGER config_entries_no_truncate BEFORE TRUNCATE ON public.config_generation_entries
+    FOR EACH STATEMENT EXECUTE FUNCTION public.homeward_config_no_truncate();
+CREATE TRIGGER config_active_no_truncate BEFORE TRUNCATE ON public.config_active
+    FOR EACH STATEMENT EXECUTE FUNCTION public.homeward_config_no_truncate();
 `}}
 
 var latestVersion = migrations[len(migrations)-1].version

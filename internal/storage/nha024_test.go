@@ -22,14 +22,17 @@ func TestNHA024MigrationPreservesRegistryAndMatchesTypedStates(t *testing.T) {
 		INSERT INTO public.registry_entities(id,device_id,manifest_alias) VALUES ('Host:fixture','fixture-device','switch.fixture')`); err != nil {
 		t.Fatal(err)
 	}
-	if version, err := store.Migrate(ctx); err != nil || version.Number() != 3 {
+	if version, err := store.migrate(ctx, migrations[:3]); err != nil || version.Number() != 3 {
 		t.Fatalf("ledger migration = %v %v", version, err)
 	}
 	var alias string
 	if err := store.pool.QueryRow(ctx, `SELECT manifest_alias FROM public.registry_entities WHERE id='Host:fixture'`).Scan(&alias); err != nil || alias != "switch.fixture" {
 		t.Fatalf("registry data lost: %q %v", alias, err)
 	}
-	if version, err := store.Migrate(ctx); err != nil || version.Number() != 3 {
+	if version, err := store.Migrate(ctx); err != nil || version != CurrentVersion() {
+		t.Fatalf("upgrade to current schema = %v %v", version, err)
+	}
+	if version, err := store.Migrate(ctx); err != nil || version != CurrentVersion() {
 		t.Fatalf("repeat migration = %v %v", version, err)
 	}
 	for _, pair := range []struct {
