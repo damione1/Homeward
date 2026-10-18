@@ -1,0 +1,17 @@
+entity { entity_id: "Host:synthetic/lamp" }
+quality { availability: AVAILABILITY_AVAILABLE freshness: FRESHNESS_FRESH provenance: PROVENANCE_OBSERVED }
+revision: 2
+observed_at { seconds: 1790000000 nanos: 123 }
+received_at { seconds: 1790000001 }
+last_changed { seconds: 1790000000 }
+last_updated { seconds: 1790000000 }
+last_reported { seconds: 1790000001 }
+source_session: "synthetic-climate"
+source_seq: 0
+climate {
+  current_temperature_celsius: 0
+  setpoint_range_celsius { low_celsius: 18 high_celsius: 23 }
+  mode: CLIMATE_MODE_AUTO
+  activity: CLIMATE_ACTIVITY_HEATING
+  fan_active: false
+}

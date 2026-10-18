@@ -102,6 +102,7 @@ const (
 	ValueMeasurement
 	ValueLight
 	ValueFan
+	ValueClimate
 )
 
 // FanSpeed is closed to the LEAP speeds the Host can prove. The zero value is
@@ -213,6 +214,7 @@ type StateValue struct {
 	measurement Measurement
 	light       LightValue
 	fan         FanSpeed
+	climate     ClimateValue
 }
 
 func NewSwitchValue(on bool) StateValue { return StateValue{kind: ValueSwitch, switchOn: on} }
@@ -238,6 +240,13 @@ func NewFanStateValue(speed FanSpeed) (StateValue, error) {
 	return StateValue{kind: ValueFan, fan: speed}, nil
 }
 
+func NewClimateStateValue(climate ClimateValue) (StateValue, error) {
+	if _, err := climate.Components(); err != nil {
+		return StateValue{}, err
+	}
+	return StateValue{kind: ValueClimate, climate: climate}, nil
+}
+
 func (v StateValue) Kind() (ValueKind, error) {
 	switch v.kind {
 	case ValueSwitch:
@@ -254,6 +263,10 @@ func (v StateValue) Kind() (ValueKind, error) {
 		if _, err := v.fan.String(); err == nil {
 			return ValueFan, nil
 		}
+	case ValueClimate:
+		if _, err := v.climate.Components(); err == nil {
+			return ValueClimate, nil
+		}
 	case ValueUnspecified:
 	default:
 	}
@@ -269,6 +282,8 @@ func (v StateValue) Measurement() (Measurement, bool) {
 func (v StateValue) Light() (LightValue, bool) { return v.light, v.kind == ValueLight }
 
 func (v StateValue) Fan() (FanSpeed, bool) { return v.fan, v.kind == ValueFan }
+
+func (v StateValue) Climate() (ClimateValue, bool) { return v.climate, v.kind == ValueClimate }
 
 // SourceStamp records a driver's session and optional source sequence. Their
 // ordering policy belongs to the later host sequencer; revision is supplied by

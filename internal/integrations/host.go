@@ -1101,6 +1101,17 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 				}
 				matched = true
 			}
+		case domain.ValueClimate:
+			if description.SchemaId == contracts.ClimateSchema {
+				climate, ok := observation.value.Climate()
+				if !ok {
+					return ErrInvalidInput
+				}
+				if err := h.catalog.AdmitDomainClimate(binding.entity, observation.endpoint, climate); err != nil {
+					return err
+				}
+				matched = true
+			}
 		case domain.ValueUnspecified:
 			return ErrInvalidInput
 		default:

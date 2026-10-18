@@ -1576,6 +1576,8 @@ impl ::buffa::ExtensionSet for FanConstraints {
 }
 #[derive(Clone, PartialEq, Default)]
 pub struct ClimateConstraints {
+    /// These first two fields authorize commands, independently of observations.
+    ///
     /// Field 1: `setpoint_celsius`
     pub setpoint_celsius: ::buffa::MessageField<
         NumberBounds,
@@ -1587,6 +1589,25 @@ pub struct ClimateConstraints {
     ///
     /// Field 3: `activity_options`
     pub activity_options: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ClimateActivity>>,
+    /// Field 4: `observed_temperature_celsius`
+    pub observed_temperature_celsius: ::buffa::MessageField<
+        ClimateTemperatureObservation,
+        ::buffa::Inline<ClimateTemperatureObservation>,
+    >,
+    /// Field 5: `observed_setpoint_celsius`
+    pub observed_setpoint_celsius: ::buffa::MessageField<
+        ClimateTemperatureObservation,
+        ::buffa::Inline<ClimateTemperatureObservation>,
+    >,
+    /// Field 6: `observed_setpoint_range_celsius`
+    pub observed_setpoint_range_celsius: ::buffa::MessageField<
+        ClimateSetpointRangeConstraints,
+        ::buffa::Inline<ClimateSetpointRangeConstraints>,
+    >,
+    /// Field 7: `observed_mode_options`
+    pub observed_mode_options: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ClimateMode>>,
+    /// Field 8: `observes_fan_activity`
+    pub observes_fan_activity: bool,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -1596,6 +1617,14 @@ impl ::core::fmt::Debug for ClimateConstraints {
             .field("setpoint_celsius", &self.setpoint_celsius)
             .field("mode_options", &self.mode_options)
             .field("activity_options", &self.activity_options)
+            .field("observed_temperature_celsius", &self.observed_temperature_celsius)
+            .field("observed_setpoint_celsius", &self.observed_setpoint_celsius)
+            .field(
+                "observed_setpoint_range_celsius",
+                &self.observed_setpoint_range_celsius,
+            )
+            .field("observed_mode_options", &self.observed_mode_options)
+            .field("observes_fan_activity", &self.observes_fan_activity)
             .finish()
     }
 }
@@ -1650,6 +1679,41 @@ impl ::buffa::Message for ClimateConstraints {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if self.observed_temperature_celsius.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.observed_temperature_celsius.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.observed_setpoint_celsius.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.observed_setpoint_celsius.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.observed_setpoint_range_celsius.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.observed_setpoint_range_celsius.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.observed_mode_options.is_empty() {
+            let payload: u64 = self
+                .observed_mode_options
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if self.observes_fan_activity {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1689,6 +1753,44 @@ impl ::buffa::Message for ClimateConstraints {
             for v in &self.activity_options {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        if self.observed_temperature_celsius.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.observed_temperature_celsius.write_to(__cache, buf);
+        }
+        if self.observed_setpoint_celsius.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.observed_setpoint_celsius.write_to(__cache, buf);
+        }
+        if self.observed_setpoint_range_celsius.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                6u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.observed_setpoint_range_celsius.write_to(__cache, buf);
+        }
+        if !self.observed_mode_options.is_empty() {
+            let payload: u64 = self
+                .observed_mode_options
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(7u32, payload, buf);
+            for v in &self.observed_mode_options {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if self.observes_fan_activity {
+            ::buffa::types::put_bool_field(8u32, self.observes_fan_activity, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1790,6 +1892,84 @@ impl ::buffa::Message for ClimateConstraints {
                     );
                 }
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.observed_temperature_celsius.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.observed_setpoint_celsius.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.observed_setpoint_range_celsius.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            7u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.observed_mode_options.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.observed_mode_options
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.observed_mode_options
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.observes_fan_activity = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1801,11 +1981,327 @@ impl ::buffa::Message for ClimateConstraints {
         self.setpoint_celsius = ::buffa::MessageField::none();
         self.mode_options.clear();
         self.activity_options.clear();
+        self.observed_temperature_celsius = ::buffa::MessageField::none();
+        self.observed_setpoint_celsius = ::buffa::MessageField::none();
+        self.observed_setpoint_range_celsius = ::buffa::MessageField::none();
+        self.observed_mode_options.clear();
+        self.observes_fan_activity = false;
         self.__buffa_unknown_fields.clear();
     }
 }
 impl ::buffa::ExtensionSet for ClimateConstraints {
     const PROTO_FQN: &'static str = "home.registry.v1.ClimateConstraints";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+/// Presence advertises an observation. Absent bounds mean unknown device limits.
+#[derive(Clone, PartialEq, Default)]
+pub struct ClimateTemperatureObservation {
+    /// Field 1: `bounds`
+    pub bounds: ::buffa::MessageField<NumberBounds, ::buffa::Inline<NumberBounds>>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ClimateTemperatureObservation {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ClimateTemperatureObservation")
+            .field("bounds", &self.bounds)
+            .finish()
+    }
+}
+impl ClimateTemperatureObservation {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.registry.v1.ClimateTemperatureObservation";
+}
+::buffa::impl_default_instance!(ClimateTemperatureObservation);
+impl ::buffa::MessageName for ClimateTemperatureObservation {
+    const PACKAGE: &'static str = "home.registry.v1";
+    const NAME: &'static str = "ClimateTemperatureObservation";
+    const FULL_NAME: &'static str = "home.registry.v1.ClimateTemperatureObservation";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.registry.v1.ClimateTemperatureObservation";
+}
+impl ::buffa::Message for ClimateTemperatureObservation {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.bounds.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.bounds.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.bounds.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.bounds.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.bounds.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.bounds = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ClimateTemperatureObservation {
+    const PROTO_FQN: &'static str = "home.registry.v1.ClimateTemperatureObservation";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+/// Presence advertises a pair, independently of simple setpoint commands.
+#[derive(Clone, PartialEq, Default)]
+pub struct ClimateSetpointRangeConstraints {
+    /// Field 1: `low_celsius`
+    pub low_celsius: ::buffa::MessageField<NumberBounds, ::buffa::Inline<NumberBounds>>,
+    /// Field 2: `high_celsius`
+    pub high_celsius: ::buffa::MessageField<NumberBounds, ::buffa::Inline<NumberBounds>>,
+    /// Field 3: `minimum_delta_celsius`
+    pub minimum_delta_celsius: ::core::option::Option<f64>,
+    /// Field 4: `maximum_delta_celsius`
+    pub maximum_delta_celsius: ::core::option::Option<f64>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ClimateSetpointRangeConstraints {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ClimateSetpointRangeConstraints")
+            .field("low_celsius", &self.low_celsius)
+            .field("high_celsius", &self.high_celsius)
+            .field("minimum_delta_celsius", &self.minimum_delta_celsius)
+            .field("maximum_delta_celsius", &self.maximum_delta_celsius)
+            .finish()
+    }
+}
+impl ClimateSetpointRangeConstraints {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.registry.v1.ClimateSetpointRangeConstraints";
+}
+impl ClimateSetpointRangeConstraints {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::minimum_delta_celsius`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_minimum_delta_celsius(mut self, value: f64) -> Self {
+        self.minimum_delta_celsius = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::maximum_delta_celsius`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_maximum_delta_celsius(mut self, value: f64) -> Self {
+        self.maximum_delta_celsius = Some(value);
+        self
+    }
+}
+::buffa::impl_default_instance!(ClimateSetpointRangeConstraints);
+impl ::buffa::MessageName for ClimateSetpointRangeConstraints {
+    const PACKAGE: &'static str = "home.registry.v1";
+    const NAME: &'static str = "ClimateSetpointRangeConstraints";
+    const FULL_NAME: &'static str = "home.registry.v1.ClimateSetpointRangeConstraints";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.registry.v1.ClimateSetpointRangeConstraints";
+}
+impl ::buffa::Message for ClimateSetpointRangeConstraints {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.low_celsius.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.low_celsius.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.high_celsius.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.high_celsius.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.minimum_delta_celsius.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if self.maximum_delta_celsius.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.low_celsius.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.low_celsius.write_to(__cache, buf);
+        }
+        if self.high_celsius.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.high_celsius.write_to(__cache, buf);
+        }
+        if let Some(v) = self.minimum_delta_celsius {
+            ::buffa::types::put_double_field(3u32, v, buf);
+        }
+        if let Some(v) = self.maximum_delta_celsius {
+            ::buffa::types::put_double_field(4u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.low_celsius.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.high_celsius.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.minimum_delta_celsius = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.maximum_delta_celsius = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.low_celsius = ::buffa::MessageField::none();
+        self.high_celsius = ::buffa::MessageField::none();
+        self.minimum_delta_celsius = ::core::option::Option::None;
+        self.maximum_delta_celsius = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ClimateSetpointRangeConstraints {
+    const PROTO_FQN: &'static str = "home.registry.v1.ClimateSetpointRangeConstraints";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4714,6 +5210,8 @@ pub mod __buffa {
         }
         #[derive(Clone, Debug, Default)]
         pub struct ClimateConstraintsView<'a> {
+            /// These first two fields authorize commands, independently of observations.
+            ///
             /// Field 1: `setpoint_celsius`
             pub setpoint_celsius: ::buffa::MessageFieldView<
                 super::super::__buffa::view::NumberBoundsView<'a>,
@@ -4730,6 +5228,25 @@ pub mod __buffa {
                 'a,
                 ::buffa::EnumValue<super::super::ClimateActivity>,
             >,
+            /// Field 4: `observed_temperature_celsius`
+            pub observed_temperature_celsius: ::buffa::MessageFieldView<
+                super::super::__buffa::view::ClimateTemperatureObservationView<'a>,
+            >,
+            /// Field 5: `observed_setpoint_celsius`
+            pub observed_setpoint_celsius: ::buffa::MessageFieldView<
+                super::super::__buffa::view::ClimateTemperatureObservationView<'a>,
+            >,
+            /// Field 6: `observed_setpoint_range_celsius`
+            pub observed_setpoint_range_celsius: ::buffa::MessageFieldView<
+                super::super::__buffa::view::ClimateSetpointRangeConstraintsView<'a>,
+            >,
+            /// Field 7: `observed_mode_options`
+            pub observed_mode_options: ::buffa::RepeatedView<
+                'a,
+                ::buffa::EnumValue<super::super::ClimateMode>,
+            >,
+            /// Field 8: `observes_fan_activity`
+            pub observes_fan_activity: bool,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for ClimateConstraintsView<'a> {
@@ -4792,6 +5309,90 @@ pub mod __buffa {
                                 );
                             }
                         }
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.observed_temperature_celsius.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.observed_temperature_celsius = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::ClimateTemperatureObservationView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.observed_setpoint_celsius.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.observed_setpoint_celsius = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::ClimateTemperatureObservationView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.observed_setpoint_range_celsius.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.observed_setpoint_range_celsius = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::ClimateSetpointRangeConstraintsView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.observes_fan_activity = ::buffa::types::decode_bool(
+                            &mut cur,
+                        )?;
                     }
                     2u32 => {
                         if tag.wire_type()
@@ -4859,6 +5460,39 @@ pub mod __buffa {
                             );
                         }
                     }
+                    7u32 => {
+                        if tag.wire_type()
+                            == ::buffa::encoding::WireType::LengthDelimited
+                        {
+                            let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                            view.observed_mode_options
+                                .reserve(::buffa::encoding::count_varints(payload));
+                            let mut pcur: &[u8] = payload;
+                            while !pcur.is_empty() {
+                                view.observed_mode_options
+                                    .push(
+                                        ::buffa::EnumValue::from(
+                                            ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                        ),
+                                    );
+                            }
+                        } else if tag.wire_type() == ::buffa::encoding::WireType::Varint
+                        {
+                            view.observed_mode_options
+                                .push(
+                                    ::buffa::EnumValue::from(
+                                        ::buffa::types::decode_int32(&mut cur)?,
+                                    ),
+                                );
+                        } else {
+                            return Err(
+                                ::buffa::encoding::wire_type_mismatch(
+                                    tag,
+                                    ::buffa::encoding::WireType::LengthDelimited,
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -4899,6 +5533,46 @@ pub mod __buffa {
                     },
                     mode_options: self.mode_options.to_vec(),
                     activity_options: self.activity_options.to_vec(),
+                    observed_temperature_celsius: match self
+                        .observed_temperature_celsius
+                        .as_option()
+                    {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::ClimateTemperatureObservation,
+                                ::buffa::Inline<super::super::ClimateTemperatureObservation>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    observed_setpoint_celsius: match self
+                        .observed_setpoint_celsius
+                        .as_option()
+                    {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::ClimateTemperatureObservation,
+                                ::buffa::Inline<super::super::ClimateTemperatureObservation>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    observed_setpoint_range_celsius: match self
+                        .observed_setpoint_range_celsius
+                        .as_option()
+                    {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::ClimateSetpointRangeConstraints,
+                                ::buffa::Inline<
+                                    super::super::ClimateSetpointRangeConstraints,
+                                >,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    observed_mode_options: self.observed_mode_options.to_vec(),
+                    observes_fan_activity: self.observes_fan_activity,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -4941,6 +5615,49 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(payload) as u64
                             + payload;
                 }
+                if self.observed_temperature_celsius.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self
+                        .observed_temperature_celsius
+                        .compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.observed_setpoint_celsius.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self
+                        .observed_setpoint_celsius
+                        .compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.observed_setpoint_range_celsius.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self
+                        .observed_setpoint_range_celsius
+                        .compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if !self.observed_mode_options.is_empty() {
+                    let payload: u64 = self
+                        .observed_mode_options
+                        .iter()
+                        .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                        .sum::<u64>();
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(payload) as u64
+                            + payload;
+                }
+                if self.observes_fan_activity {
+                    size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -4981,6 +5698,48 @@ pub mod __buffa {
                     for v in &self.activity_options {
                         ::buffa::types::encode_int32(v.to_i32(), buf);
                     }
+                }
+                if self.observed_temperature_celsius.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.observed_temperature_celsius.write_to(__cache, buf);
+                }
+                if self.observed_setpoint_celsius.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.observed_setpoint_celsius.write_to(__cache, buf);
+                }
+                if self.observed_setpoint_range_celsius.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.observed_setpoint_range_celsius.write_to(__cache, buf);
+                }
+                if !self.observed_mode_options.is_empty() {
+                    let payload: u64 = self
+                        .observed_mode_options
+                        .iter()
+                        .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                        .sum::<u64>();
+                    ::buffa::types::put_len_delimited_header(7u32, payload, buf);
+                    for v in &self.observed_mode_options {
+                        ::buffa::types::encode_int32(v.to_i32(), buf);
+                    }
+                }
+                if self.observes_fan_activity {
+                    ::buffa::types::put_bool_field(
+                        8u32,
+                        self.observes_fan_activity,
+                        buf,
+                    );
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -5077,6 +5836,8 @@ pub mod __buffa {
             pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
                 self.0.into_bytes()
             }
+            /// These first two fields authorize commands, independently of observations.
+            ///
             /// Field 1: `setpoint_celsius`
             #[must_use]
             pub fn setpoint_celsius(
@@ -5108,6 +5869,48 @@ pub mod __buffa {
             > {
                 &self.0.reborrow().activity_options
             }
+            /// Field 4: `observed_temperature_celsius`
+            #[must_use]
+            pub fn observed_temperature_celsius(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::ClimateTemperatureObservationView<'_>,
+            > {
+                &self.0.reborrow().observed_temperature_celsius
+            }
+            /// Field 5: `observed_setpoint_celsius`
+            #[must_use]
+            pub fn observed_setpoint_celsius(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::ClimateTemperatureObservationView<'_>,
+            > {
+                &self.0.reborrow().observed_setpoint_celsius
+            }
+            /// Field 6: `observed_setpoint_range_celsius`
+            #[must_use]
+            pub fn observed_setpoint_range_celsius(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::ClimateSetpointRangeConstraintsView<'_>,
+            > {
+                &self.0.reborrow().observed_setpoint_range_celsius
+            }
+            /// Field 7: `observed_mode_options`
+            #[must_use]
+            pub fn observed_mode_options(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                ::buffa::EnumValue<super::super::ClimateMode>,
+            > {
+                &self.0.reborrow().observed_mode_options
+            }
+            /// Field 8: `observes_fan_activity`
+            #[must_use]
+            pub fn observes_fan_activity(&self) -> bool {
+                self.0.reborrow().observes_fan_activity
+            }
         }
         impl ::core::convert::From<::buffa::OwnedView<ClimateConstraintsView<'static>>>
         for ClimateConstraintsOwnedView {
@@ -5130,6 +5933,691 @@ pub mod __buffa {
         impl ::buffa::HasMessageView for super::super::ClimateConstraints {
             type View<'a> = ClimateConstraintsView<'a>;
             type ViewHandle = ClimateConstraintsOwnedView;
+        }
+        /// Presence advertises an observation. Absent bounds mean unknown device limits.
+        #[derive(Clone, Debug, Default)]
+        pub struct ClimateTemperatureObservationView<'a> {
+            /// Field 1: `bounds`
+            pub bounds: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ClimateTemperatureObservationView<'a> {
+            type Owned = super::super::ClimateTemperatureObservation;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.bounds.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.bounds = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NumberBoundsView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ClimateTemperatureObservation,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ClimateTemperatureObservation,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ClimateTemperatureObservation {
+                    bounds: match self.bounds.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NumberBounds,
+                                ::buffa::Inline<super::super::NumberBounds>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ClimateTemperatureObservationView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.bounds.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.bounds.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.bounds.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.bounds.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ClimateTemperatureObservationView<'a> {
+            const PACKAGE: &'static str = "home.registry.v1";
+            const NAME: &'static str = "ClimateTemperatureObservation";
+            const FULL_NAME: &'static str = "home.registry.v1.ClimateTemperatureObservation";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.registry.v1.ClimateTemperatureObservation";
+        }
+        ::buffa::impl_default_view_instance!(ClimateTemperatureObservationView);
+        ::buffa::impl_view_reborrow!(ClimateTemperatureObservationView);
+        /** Self-contained, `'static` owned view of a `ClimateTemperatureObservation` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ClimateTemperatureObservationView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ClimateTemperatureObservationView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ClimateTemperatureObservationOwnedView(
+            ::buffa::OwnedView<ClimateTemperatureObservationView<'static>>,
+        );
+        impl ClimateTemperatureObservationOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ClimateTemperatureObservationOwnedView(
+                        ::buffa::OwnedView::decode(bytes)?,
+                    ),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ClimateTemperatureObservationOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ClimateTemperatureObservation,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ClimateTemperatureObservationOwnedView(
+                        ::buffa::OwnedView::from_owned(msg)?,
+                    ),
+                )
+            }
+            /// Borrow the full [`ClimateTemperatureObservationView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ClimateTemperatureObservationView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(
+                &self,
+            ) -> super::super::ClimateTemperatureObservation {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `bounds`
+            #[must_use]
+            pub fn bounds(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'_>,
+            > {
+                &self.0.reborrow().bounds
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<ClimateTemperatureObservationView<'static>>,
+        > for ClimateTemperatureObservationOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<ClimateTemperatureObservationView<'static>>,
+            ) -> Self {
+                ClimateTemperatureObservationOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ClimateTemperatureObservationOwnedView>
+        for ::buffa::OwnedView<ClimateTemperatureObservationView<'static>> {
+            fn from(wrapper: ClimateTemperatureObservationOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<ClimateTemperatureObservationView<'static>>,
+        > for ClimateTemperatureObservationOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<ClimateTemperatureObservationView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ClimateTemperatureObservation {
+            type View<'a> = ClimateTemperatureObservationView<'a>;
+            type ViewHandle = ClimateTemperatureObservationOwnedView;
+        }
+        /// Presence advertises a pair, independently of simple setpoint commands.
+        #[derive(Clone, Debug, Default)]
+        pub struct ClimateSetpointRangeConstraintsView<'a> {
+            /// Field 1: `low_celsius`
+            pub low_celsius: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'a>,
+            >,
+            /// Field 2: `high_celsius`
+            pub high_celsius: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'a>,
+            >,
+            /// Field 3: `minimum_delta_celsius`
+            pub minimum_delta_celsius: ::core::option::Option<f64>,
+            /// Field 4: `maximum_delta_celsius`
+            pub maximum_delta_celsius: ::core::option::Option<f64>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ClimateSetpointRangeConstraintsView<'a> {
+            type Owned = super::super::ClimateSetpointRangeConstraints;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.low_celsius.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.low_celsius = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NumberBoundsView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.high_celsius.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.high_celsius = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NumberBoundsView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.minimum_delta_celsius = Some(
+                            ::buffa::types::decode_double(&mut cur)?,
+                        );
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.maximum_delta_celsius = Some(
+                            ::buffa::types::decode_double(&mut cur)?,
+                        );
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ClimateSetpointRangeConstraints,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ClimateSetpointRangeConstraints,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ClimateSetpointRangeConstraints {
+                    low_celsius: match self.low_celsius.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NumberBounds,
+                                ::buffa::Inline<super::super::NumberBounds>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    high_celsius: match self.high_celsius.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NumberBounds,
+                                ::buffa::Inline<super::super::NumberBounds>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    minimum_delta_celsius: self.minimum_delta_celsius,
+                    maximum_delta_celsius: self.maximum_delta_celsius,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ClimateSetpointRangeConstraintsView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.low_celsius.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.low_celsius.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.high_celsius.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.high_celsius.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.minimum_delta_celsius.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
+                if self.maximum_delta_celsius.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.low_celsius.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.low_celsius.write_to(__cache, buf);
+                }
+                if self.high_celsius.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.high_celsius.write_to(__cache, buf);
+                }
+                if let Some(v) = self.minimum_delta_celsius {
+                    ::buffa::types::put_double_field(3u32, v, buf);
+                }
+                if let Some(v) = self.maximum_delta_celsius {
+                    ::buffa::types::put_double_field(4u32, v, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ClimateSetpointRangeConstraintsView<'a> {
+            const PACKAGE: &'static str = "home.registry.v1";
+            const NAME: &'static str = "ClimateSetpointRangeConstraints";
+            const FULL_NAME: &'static str = "home.registry.v1.ClimateSetpointRangeConstraints";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.registry.v1.ClimateSetpointRangeConstraints";
+        }
+        ::buffa::impl_default_view_instance!(ClimateSetpointRangeConstraintsView);
+        ::buffa::impl_view_reborrow!(ClimateSetpointRangeConstraintsView);
+        /** Self-contained, `'static` owned view of a `ClimateSetpointRangeConstraints` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ClimateSetpointRangeConstraintsView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ClimateSetpointRangeConstraintsView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ClimateSetpointRangeConstraintsOwnedView(
+            ::buffa::OwnedView<ClimateSetpointRangeConstraintsView<'static>>,
+        );
+        impl ClimateSetpointRangeConstraintsOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ClimateSetpointRangeConstraintsOwnedView(
+                        ::buffa::OwnedView::decode(bytes)?,
+                    ),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ClimateSetpointRangeConstraintsOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ClimateSetpointRangeConstraints,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ClimateSetpointRangeConstraintsOwnedView(
+                        ::buffa::OwnedView::from_owned(msg)?,
+                    ),
+                )
+            }
+            /// Borrow the full [`ClimateSetpointRangeConstraintsView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ClimateSetpointRangeConstraintsView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(
+                &self,
+            ) -> super::super::ClimateSetpointRangeConstraints {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `low_celsius`
+            #[must_use]
+            pub fn low_celsius(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'_>,
+            > {
+                &self.0.reborrow().low_celsius
+            }
+            /// Field 2: `high_celsius`
+            #[must_use]
+            pub fn high_celsius(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'_>,
+            > {
+                &self.0.reborrow().high_celsius
+            }
+            /// Field 3: `minimum_delta_celsius`
+            #[must_use]
+            pub fn minimum_delta_celsius(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().minimum_delta_celsius
+            }
+            /// Field 4: `maximum_delta_celsius`
+            #[must_use]
+            pub fn maximum_delta_celsius(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().maximum_delta_celsius
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<ClimateSetpointRangeConstraintsView<'static>>,
+        > for ClimateSetpointRangeConstraintsOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<ClimateSetpointRangeConstraintsView<'static>>,
+            ) -> Self {
+                ClimateSetpointRangeConstraintsOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ClimateSetpointRangeConstraintsOwnedView>
+        for ::buffa::OwnedView<ClimateSetpointRangeConstraintsView<'static>> {
+            fn from(wrapper: ClimateSetpointRangeConstraintsOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<ClimateSetpointRangeConstraintsView<'static>>,
+        > for ClimateSetpointRangeConstraintsOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<ClimateSetpointRangeConstraintsView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ClimateSetpointRangeConstraints {
+            type View<'a> = ClimateSetpointRangeConstraintsView<'a>;
+            type ViewHandle = ClimateSetpointRangeConstraintsOwnedView;
         }
         #[derive(Clone, Debug, Default)]
         pub struct MeasurementConstraintsView<'a> {
@@ -6212,6 +7700,14 @@ pub use self::__buffa::view::FanConstraintsOwnedView;
 pub use self::__buffa::view::ClimateConstraintsView;
 #[doc(inline)]
 pub use self::__buffa::view::ClimateConstraintsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ClimateTemperatureObservationView;
+#[doc(inline)]
+pub use self::__buffa::view::ClimateTemperatureObservationOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ClimateSetpointRangeConstraintsView;
+#[doc(inline)]
+pub use self::__buffa::view::ClimateSetpointRangeConstraintsOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::MeasurementConstraintsView;
 #[doc(inline)]
