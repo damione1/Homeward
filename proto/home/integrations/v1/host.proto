@@ -1,0 +1,126 @@
+syntax = "proto3";
+package home.integrations.v1;
+
+import "google/protobuf/timestamp.proto";
+import "home/actions/v1/actions.proto";
+import "home/registry/v1/registry.proto";
+import "home/state/v1/state.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/integrations/v1;integrationsv1";
+
+// Only v1.0 with this descriptor digest is admitted. An enum unknown to the
+// generated decoder is never an admitted capability or operation.
+enum Capability {
+  CAPABILITY_UNSPECIFIED = 0;
+  CAPABILITY_DISCOVER = 1;
+  CAPABILITY_PUBLISH = 2;
+  CAPABILITY_EMIT = 3;
+  CAPABILITY_HEALTH = 4;
+  CAPABILITY_COMMAND = 5;
+  CAPABILITY_SECRET_READ = 6;
+}
+
+message HandshakeRequest {
+  uint32 host_major = 1;
+  uint32 host_minor = 2;
+  uint32 driver_major = 3;
+  uint32 driver_minor = 4;
+  bytes schema_sha256 = 5;
+  uint32 max_frame_bytes = 6;
+  repeated Capability capabilities = 7;
+}
+message HandshakeResponse {
+  uint32 host_major = 1;
+  uint32 host_minor = 2;
+  uint32 driver_major = 3;
+  uint32 driver_minor = 4;
+  bytes schema_sha256 = 5;
+  uint32 max_frame_bytes = 6;
+  repeated Capability capabilities = 7;
+  uint32 heartbeat_seconds = 8;
+  uint32 lease_seconds = 9;
+}
+message SourceKey { string device = 1; string entity = 2; }
+message Candidate {
+  SourceKey source = 1;
+  repeated home.registry.v1.CapabilityDescription descriptions = 2;
+}
+message DiscoverRequest { repeated Candidate candidates = 1; }
+message Binding { bytes handle = 1; }
+message DiscoverResponse { repeated Binding bindings = 1; }
+message MeasurementValue {
+  double value = 1;
+  string unit = 2;
+  uint32 precision = 3;
+  home.registry.v1.MeasurementSemantic semantic = 4;
+  home.registry.v1.MeasurementAggregation aggregation = 5;
+}
+message Observation {
+  bytes binding_handle = 1;
+  string endpoint = 2;
+  home.state.v1.Quality quality = 3;
+  optional google.protobuf.Timestamp observed_at = 4;
+  optional uint64 source_seq = 5;
+  optional string command_correlation = 6;
+  oneof value {
+    bool switch_on = 7;
+    MeasurementValue measurement = 8;
+    home.state.v1.LightValue light = 9;
+  }
+}
+message PublishRequest { Observation observation = 1; }
+message Event {
+  bytes binding_handle = 1;
+  string code = 2;
+  google.protobuf.Timestamp observed_at = 3;
+  optional uint64 source_seq = 4;
+  optional string command_correlation = 5;
+}
+message EmitRequest { Event event = 1; }
+enum HealthStatus {
+  HEALTH_STATUS_UNSPECIFIED = 0;
+  HEALTH_STATUS_READY = 1;
+  HEALTH_STATUS_DEGRADED = 2;
+  HEALTH_STATUS_UNAVAILABLE = 3;
+}
+message ReportHealthRequest {
+  HealthStatus status = 1;
+  string detail = 2;
+  optional string command_correlation = 3;
+}
+message ReadSecretRequest { string name = 1; }
+message ReadSecretResponse { bytes value = 1; }
+message PublishResponse {}
+message EmitResponse {}
+message ReportHealthResponse {}
+message CompleteCommandResponse {}
+message HeartbeatRequest {}
+message HeartbeatResponse {}
+message CommandsRequest {}
+message CommandsResponse {
+  home.actions.v1.CommandRequest request = 1;
+  string correlation = 2;
+  bytes binding_handle = 3;
+}
+enum CommandResultKind {
+  COMMAND_RESULT_KIND_UNSPECIFIED = 0;
+  COMMAND_RESULT_KIND_ACCEPTED = 1;
+  COMMAND_RESULT_KIND_FAILED = 2;
+}
+message CompleteCommandRequest {
+  string command_id = 1;
+  CommandResultKind kind = 2;
+}
+
+// Every call is on a private Unix socket and authenticated for one attempt.
+service HostService {
+  rpc Handshake(HandshakeRequest) returns (HandshakeResponse);
+  rpc Discover(DiscoverRequest) returns (DiscoverResponse);
+  rpc Publish(PublishRequest) returns (PublishResponse);
+  rpc Emit(EmitRequest) returns (EmitResponse);
+  rpc ReportHealth(ReportHealthRequest) returns (ReportHealthResponse);
+  rpc ReadSecret(ReadSecretRequest) returns (ReadSecretResponse);
+  rpc Commands(CommandsRequest) returns (stream CommandsResponse);
+  rpc CompleteCommand(CompleteCommandRequest) returns (CompleteCommandResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}

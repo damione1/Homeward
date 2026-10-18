@@ -1,5 +1,6 @@
 .PHONY: check
 check:
+	sh scripts/ensure-worker-python.sh
 	test -z "$$(gofmt -l cmd internal contracts compat)"
 	go vet ./...
 	go test -race ./...
@@ -16,4 +17,5 @@ check:
 	buf breaking --against .compat/baseline
 	python3 scripts/check-contracts.py
 	sh scripts/check-generated.sh
+	sh scripts/check-worker-generated.sh
 	python3 scripts/check-matter.py

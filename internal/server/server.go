@@ -1,5 +1,5 @@
-// Package server composes the cancellable bootstrap runtime. Driver activation
-// from configuration and the public API belong to later tickets.
+// Package server composes the cancellable bootstrap runtime and configured
+// supervised pilots. The public action API belongs to a later ticket.
 package server
 
 import (
@@ -16,6 +16,7 @@ import (
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
+	"github.com/damione1/Homeward/internal/worker"
 	"github.com/damione1/Homeward/scope"
 )
 
@@ -97,11 +98,15 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			store.Close()
 			return err
 		}
-	} else if mqttSettings, enabled := c.MQTTSettings(); enabled {
-		plan, err = defaultMQTTRuntimePlan(mqttSettings, store, sequence)
-		if err != nil {
-			store.Close()
-			return err
+	} else {
+		mqttSettings, mqttEnabled := c.MQTTSettings()
+		workers := c.ExternalWorkers()
+		if mqttEnabled || len(workers) != 0 {
+			plan, err = defaultConfiguredRuntimePlan(mqttSettings, mqttEnabled, workers, store, sequence)
+			if err != nil {
+				store.Close()
+				return err
+			}
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -166,10 +171,10 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 // MQTT path. It never configures identities from discovery; the repository
 // resolves only bindings explicitly persisted by an operator.
 func defaultMQTTRuntimePlan(settings mqtt.Settings, store *storage.Store, sequence *sequencer.Sequencer) (RuntimePlan, error) {
-	instance, err := settings.Instance()
-	if err != nil {
-		return RuntimePlan{}, err
-	}
+	return defaultConfiguredRuntimePlan(settings, true, nil, store, sequence)
+}
+
+func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, workers []worker.Config, store *storage.Store, sequence *sequencer.Sequencer) (RuntimePlan, error) {
 	manifest, err := registry.ParseManifest(scope.ManifestV1())
 	if err != nil {
 		return RuntimePlan{}, err
@@ -178,15 +183,30 @@ func defaultMQTTRuntimePlan(settings mqtt.Settings, store *storage.Store, sequen
 	if err != nil {
 		return RuntimePlan{}, err
 	}
-	pilotFactory, err := mqtt.NewDiscoveryPilotFactory(settings, repository)
-	if err != nil {
-		return RuntimePlan{}, err
+	specs := make([]integrations.PilotSpec, 0, len(workers)+1)
+	if mqttEnabled {
+		instance, err := mqttSettings.Instance()
+		if err != nil {
+			return RuntimePlan{}, err
+		}
+		pilotFactory, err := mqtt.NewDiscoveryPilotFactory(mqttSettings, repository)
+		if err != nil {
+			return RuntimePlan{}, err
+		}
+		spec, err := integrations.NewPilotSpec(instance, pilotFactory)
+		if err != nil {
+			return RuntimePlan{}, err
+		}
+		specs = append(specs, spec)
 	}
-	spec, err := integrations.NewPilotSpec(instance, pilotFactory)
-	if err != nil {
-		return RuntimePlan{}, err
+	for _, configured := range workers {
+		spec, err := worker.NewPilotSpec(configured)
+		if err != nil {
+			return RuntimePlan{}, err
+		}
+		specs = append(specs, spec)
 	}
-	return RuntimePlan{Identity: repository, Pilots: []integrations.PilotSpec{spec}, Configure: func(ctx context.Context, _ *integrations.Manager, _ *storage.Store) error {
+	return RuntimePlan{Identity: repository, Pilots: specs, Configure: func(ctx context.Context, _ *integrations.Manager, _ *storage.Store) error {
 		return repository.AttachProjection(ctx, sequence)
 	}}, nil
 }

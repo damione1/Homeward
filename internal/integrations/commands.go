@@ -79,6 +79,17 @@ func (c AdmittedCommand) liveOwner() bool {
 	return !c.host.retirementExhausted && !sourceRetiring && !entityRetiring && session != nil && session.live() && session.id == c.binding.session && session.bindings[c.entity] == c.binding && c.host.owners[c.entity] == c.binding
 }
 
+// ReadyForTransport rechecks the Host fence immediately before an external
+// adapter emits a queued command. A packet already in flight remains uncertain.
+func (c AdmittedCommand) ReadyForTransport() bool {
+	if c.host == nil {
+		return false
+	}
+	c.host.mu.Lock()
+	defer c.host.mu.Unlock()
+	return c.host.admission == admissionOpen && c.liveOwner()
+}
+
 func (c AdmittedCommand) Identity() (domain.CommandID, domain.ActorID, domain.EntityID, error) {
 	if _, err := c.id.Value(); err != nil {
 		return domain.CommandID{}, domain.ActorID{}, domain.EntityID{}, ErrInvalidInput

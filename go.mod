@@ -26,8 +26,9 @@ require (
 	github.com/rs/xid v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
+	golang.org/x/net v0.43.0
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

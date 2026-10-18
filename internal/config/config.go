@@ -13,6 +13,7 @@ import (
 
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/storage"
+	"github.com/damione1/Homeward/internal/worker"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -22,6 +23,7 @@ type Config struct {
 	postgres storage.Settings
 	dataDir  string
 	mqtt     *mqtt.Settings
+	workers  []worker.Config
 }
 
 var ErrUninitialized = errors.New("configuration: uninitialized")
@@ -36,6 +38,12 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		Postgres storage.ConnectionInput `yaml:"postgres"`
 		DataDir  string                  `yaml:"data_dir"`
 		MQTT     *mqtt.Input             `yaml:"mqtt"`
+		Workers  []struct {
+			Instance    string   `yaml:"instance"`
+			Executable  string   `yaml:"executable"`
+			Args        []string `yaml:"args"`
+			SecretNames []string `yaml:"secret_names"`
+		} `yaml:"external_workers"`
 	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
@@ -66,8 +74,25 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		}
 		result.mqtt = &settings
 	}
+	if len(raw.Workers) > 16 {
+		return Config{}, ErrInvalidYAML
+	}
+	instances := make(map[string]bool, len(raw.Workers))
+	for _, input := range raw.Workers {
+		if instances[input.Instance] {
+			return Config{}, ErrInvalidYAML
+		}
+		instances[input.Instance] = true
+		configured, err := worker.NewConfig(input.Instance, input.Executable, input.Args, input.SecretNames)
+		if err != nil {
+			return Config{}, fmt.Errorf("configuration: %w", err)
+		}
+		result.workers = append(result.workers, configured)
+	}
 	return result, nil
 }
+
+func (c Config) ExternalWorkers() []worker.Config { return append([]worker.Config(nil), c.workers...) }
 
 func (c Config) MQTTSettings() (mqtt.Settings, bool) {
 	if c.mqtt == nil {
