@@ -1,6 +1,6 @@
 .PHONY: check
 check:
-	test -z "$$(gofmt -l cmd internal contracts)"
+	test -z "$$(gofmt -l cmd internal contracts compat)"
 	go vet ./...
 	go test -race ./...
 	cargo fmt --all -- --check
