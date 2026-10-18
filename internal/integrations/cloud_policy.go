@@ -32,6 +32,14 @@ const (
 	CloudCredentialCommitUnknown
 	CloudCredentialCommittedRetired
 	CloudCredentialCommittedUnobserved
+	CloudStreamsDisabled
+	CloudStreamCapacity
+	CloudStreamClosed
+	CloudStreamBusy
+	CloudStreamProtocolFailed
+	CloudStreamIdle
+	CloudStreamEnded
+	CloudStreamCanceled
 )
 
 type CloudError struct {
@@ -99,6 +107,22 @@ func (e *CloudError) Error() string {
 		return "cloud: credential committed after session admission ended"
 	case CloudCredentialCommittedUnobserved:
 		return "cloud: credential committed after caller cancellation"
+	case CloudStreamsDisabled:
+		return "cloud: observation streams are disabled"
+	case CloudStreamCapacity:
+		return "cloud: observation stream capacity exhausted"
+	case CloudStreamClosed:
+		return "cloud: observation stream closed"
+	case CloudStreamBusy:
+		return "cloud: observation stream operation already active"
+	case CloudStreamProtocolFailed:
+		return "cloud: observation stream protocol failed"
+	case CloudStreamIdle:
+		return "cloud: observation stream idle limit exceeded"
+	case CloudStreamEnded:
+		return "cloud: observation stream ended remotely"
+	case CloudStreamCanceled:
+		return "cloud: observation stream canceled"
 	default:
 		return "cloud: unknown failure"
 	}
@@ -193,6 +217,7 @@ type cloudScopeState struct {
 	inFlight, queued int
 	notBefore        time.Time
 	changed          chan struct{}
+	streams          map[*CloudObservationStream]struct{}
 }
 
 type CloudClock interface{ Now() time.Time }
@@ -213,15 +238,16 @@ func (w realCloudWait) C() <-chan time.Time               { return w.timer.C }
 func (w realCloudWait) Stop() bool                        { return w.timer.Stop() }
 
 type CloudPolicy struct {
-	mu        sync.Mutex
-	limits    CloudLimits
-	bindings  map[domain.IntegrationInstanceID]CloudAccountID
-	states    map[cloudScopeKey]*cloudScopeState
-	clock     CloudClock
-	timer     CloudTimer
-	jitter    Jitter
-	refreshMu sync.Mutex
-	refresh   map[storage.SecretHandle]*cloudRefreshState
+	mu           sync.Mutex
+	limits       CloudLimits
+	streamLimits CloudStreamLimits
+	bindings     map[domain.IntegrationInstanceID]CloudAccountID
+	states       map[cloudScopeKey]*cloudScopeState
+	clock        CloudClock
+	timer        CloudTimer
+	jitter       Jitter
+	refreshMu    sync.Mutex
+	refresh      map[storage.SecretHandle]*cloudRefreshState
 }
 
 func (p *CloudPolicy) String() string   { return "[REDACTED CLOUD POLICY]" }
