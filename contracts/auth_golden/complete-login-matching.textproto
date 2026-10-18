@@ -1,0 +1,2 @@
+challenge_id { value: "challenge-a" }
+proof { recovery_code: "synthetic-recovery-code" }

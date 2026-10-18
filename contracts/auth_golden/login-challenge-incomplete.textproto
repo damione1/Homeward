@@ -1,0 +1,4 @@
+challenge {
+  id { value: "challenge-a" }
+  expires_at { seconds: 1792314300 }
+}

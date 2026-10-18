@@ -1,0 +1,8 @@
+id { value: "account-a" }
+login_name: "synthetic-admin"
+display_name: "Synthetic Admin"
+role: ACCOUNT_ROLE_ADMIN
+status: ACCOUNT_STATUS_ACTIVE
+created_at { seconds: 1792310000 }
+updated_at { seconds: 1792310000 }
+second_factor_enabled: false

@@ -1,0 +1,5 @@
+enrollment_required {
+  account_id { value: "account-a" }
+  enrollment_token: "synthetic-enrollment"
+  expires_at { seconds: 1792314300 }
+}

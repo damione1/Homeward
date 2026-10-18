@@ -1,0 +1,2 @@
+client_name: "synthetic-mcp-client"
+lifetime { seconds: 1 nanos: 500000000 }

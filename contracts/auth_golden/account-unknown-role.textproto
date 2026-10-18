@@ -1,0 +1,6 @@
+id { value: "account-a" }
+login_name: "synthetic-admin"
+role: 99
+status: ACCOUNT_STATUS_ACTIVE
+created_at { seconds: 1792310000 }
+updated_at { seconds: 1792310000 }

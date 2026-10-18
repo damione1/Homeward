@@ -1,1 +1,2 @@
 contracts/golden/*.bin binary
+contracts/auth_golden/*.bin binary

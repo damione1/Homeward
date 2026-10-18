@@ -1,0 +1,2 @@
+client_name: "synthetic-mcp-client"
+scopes { family: SCOPE_FAMILY_ACTIONS operation: SCOPE_OPERATION_WRITE }

@@ -1,0 +1,7 @@
+id { value: "mcp-key-a" }
+account_id { value: "account-a" }
+client_name: "synthetic-mcp-client"
+audience: CREDENTIAL_AUDIENCE_MCP
+scopes { family: 99 operation: SCOPE_OPERATION_WRITE }
+created_at { seconds: 1792310000 }
+expires_at { seconds: 1794900000 }

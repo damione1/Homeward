@@ -1,0 +1,12 @@
+authenticated {
+  session {
+    id { value: "session-a" }
+    account_id { value: "account-a" }
+    created_at { seconds: 1792310000 }
+    expires_at { seconds: 1794900000 }
+  }
+  audience: CREDENTIAL_AUDIENCE_INTERACTIVE
+  access_token: "synthetic-access"
+  access_expires_at { seconds: 1792314900 nanos: 1 }
+  refresh_token: "synthetic-refresh"
+}

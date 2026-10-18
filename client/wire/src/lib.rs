@@ -6,7 +6,10 @@ pub mod home {
     pub mod registry { pub mod v1 { include!("generated/home.registry.v1.rs"); } }
     pub mod actions { pub mod v1 { include!("generated/home.actions.v1.rs"); } }
     pub mod state { pub mod v1 { include!("generated/home.state.v1.rs"); } }
+    pub mod auth { pub mod v1 { include!("generated/home.auth.v1.rs"); } }
 }
+
+pub mod auth_contract;
 
 /// Pure representation/generation admission example. Authorization, expiry,
 /// identity resolution and dispatch remain responsibilities of later services.

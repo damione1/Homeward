@@ -1,0 +1,430 @@
+syntax = "proto3";
+package home.auth.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/auth/v1;authv1";
+
+// IDs are open, opaque and different types. Admission rejects an absent or empty value.
+message AccountId { string value = 1; }
+message SessionId { string value = 1; }
+message FactorCredentialId { string value = 1; }
+message InvitationId { string value = 1; }
+message ChallengeId { string value = 1; }
+message McpKeyId { string value = 1; }
+message InstanceId { string value = 1; }
+
+enum AccountRole {
+  ACCOUNT_ROLE_UNSPECIFIED = 0;
+  ACCOUNT_ROLE_ADMIN = 1;
+  ACCOUNT_ROLE_USER = 2;
+}
+
+enum AccountStatus {
+  ACCOUNT_STATUS_UNSPECIFIED = 0;
+  ACCOUNT_STATUS_ACTIVE = 1;
+  ACCOUNT_STATUS_DISABLED = 2;
+  ACCOUNT_STATUS_PENDING_INVITATION = 3;
+}
+
+// A scope only describes a requested ceiling. Role, object grants, current account
+// rights and revocation are evaluated by the later authorization service.
+enum ScopeFamily {
+  SCOPE_FAMILY_UNSPECIFIED = 0;
+  SCOPE_FAMILY_STATE_REGISTRY = 1;
+  SCOPE_FAMILY_HISTORY = 2;
+  SCOPE_FAMILY_MEDIA = 3;
+  SCOPE_FAMILY_LOCATION = 4;
+  SCOPE_FAMILY_ACTIONS = 5;
+  SCOPE_FAMILY_DASHBOARDS = 6;
+  SCOPE_FAMILY_CALENDARS = 7;
+  SCOPE_FAMILY_LISTS = 8;
+  SCOPE_FAMILY_LOGIC = 9;
+  SCOPE_FAMILY_INTEGRATIONS = 10;
+  SCOPE_FAMILY_GLOBAL_CONFIGURATION = 11;
+  SCOPE_FAMILY_ACCOUNTS = 12;
+  SCOPE_FAMILY_BACKUPS = 13;
+}
+enum ScopeOperation {
+  SCOPE_OPERATION_UNSPECIFIED = 0;
+  SCOPE_OPERATION_READ = 1;
+  SCOPE_OPERATION_WRITE = 2;
+  SCOPE_OPERATION_ADMINISTER = 3;
+}
+message Scope {
+  ScopeFamily family = 1;
+  ScopeOperation operation = 2;
+}
+
+message Account {
+  AccountId id = 1;
+  string login_name = 2;
+  string display_name = 3;
+  AccountRole role = 4;
+  AccountStatus status = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  // Active, verified enrollment only. Admin policy and a restricted login
+  // outcome are separate dimensions, never inferred from this boolean.
+  bool second_factor_enabled = 8;
+}
+
+// This service must only be registered on the operator-owned Unix socket, with
+// filesystem access checks. Never mount it on the public Connect mux. The
+// schema does not authenticate or authorize a peer on its own.
+service OperatorAccountService {
+  rpc BootstrapAdmin(BootstrapAdminRequest) returns (BootstrapAdminResponse);
+  rpc RecoverAccount(RecoverAccountRequest) returns (RecoverAccountResponse);
+}
+message BootstrapAdminRequest {
+  string login_name = 1;
+  string display_name = 2;
+  string password = 3;
+}
+message BootstrapAdminResponse { Account account = 1; }
+message RecoverAccountRequest {
+  AccountId account_id = 1;
+  string replacement_password = 2;
+}
+message RecoverAccountResponse { Account account = 1; }
+
+service AccountService {
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+  rpc UpdateAccount(UpdateAccountRequest) returns (UpdateAccountResponse);
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
+  rpc CreateInvitation(CreateInvitationRequest) returns (CreateInvitationResponse);
+  rpc AcceptInvitation(AcceptInvitationRequest) returns (AcceptInvitationResponse);
+  rpc ListInvitations(ListInvitationsRequest) returns (ListInvitationsResponse);
+  rpc RevokeInvitation(RevokeInvitationRequest) returns (RevokeInvitationResponse);
+  rpc GetSecondFactorPolicy(GetSecondFactorPolicyRequest) returns (GetSecondFactorPolicyResponse);
+  rpc SetSecondFactorPolicy(SetSecondFactorPolicyRequest) returns (SetSecondFactorPolicyResponse);
+}
+// An administrator may create a ready account directly or invite a person.
+// Implementations enforce the last-admin and name uniqueness invariants.
+message CreateAccountRequest {
+  string login_name = 1;
+  string display_name = 2;
+  AccountRole role = 3;
+  string initial_password = 4;
+}
+message CreateAccountResponse { Account account = 1; }
+message GetAccountRequest { AccountId account_id = 1; }
+message GetAccountResponse { Account account = 1; }
+message ListAccountsRequest {}
+message ListAccountsResponse { repeated Account accounts = 1; }
+message UpdateAccountRequest {
+  AccountId account_id = 1;
+  optional string display_name = 2;
+  optional AccountRole role = 3;
+  optional AccountStatus status = 4;
+}
+message UpdateAccountResponse { Account account = 1; }
+message DeleteAccountRequest { AccountId account_id = 1; }
+message DeleteAccountResponse {}
+
+message Invitation {
+  InvitationId id = 1;
+  string login_name = 2;
+  AccountRole role = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  google.protobuf.Timestamp created_at = 5;
+  optional google.protobuf.Timestamp accepted_at = 6;
+  optional google.protobuf.Timestamp revoked_at = 7;
+}
+message CreateInvitationRequest {
+  string login_name = 1;
+  AccountRole role = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+// The invitation token is returned once. List/Get never return it.
+message CreateInvitationResponse {
+  Invitation invitation = 1;
+  string invitation_token = 2;
+}
+message AcceptInvitationRequest {
+  string invitation_token = 1;
+  string password = 2;
+  string display_name = 3;
+}
+message AcceptInvitationResponse { Account account = 1; }
+message ListInvitationsRequest {}
+message ListInvitationsResponse { repeated Invitation invitations = 1; }
+message RevokeInvitationRequest { InvitationId invitation_id = 1; }
+message RevokeInvitationResponse {}
+// The default false value is the decided policy for an unconfigured instance.
+message SecondFactorPolicy {
+  bool require_admin_factor = 1;
+  google.protobuf.Timestamp updated_at = 2;
+}
+message GetSecondFactorPolicyRequest {}
+message GetSecondFactorPolicyResponse { SecondFactorPolicy policy = 1; }
+message SetSecondFactorPolicyRequest { bool require_admin_factor = 1; }
+message SetSecondFactorPolicyResponse { SecondFactorPolicy policy = 1; }
+
+enum FactorKind {
+  FACTOR_KIND_UNSPECIFIED = 0;
+  FACTOR_KIND_FIDO2 = 1;
+}
+message FactorCredential {
+  FactorCredentialId id = 1;
+  AccountId account_id = 2;
+  FactorKind kind = 3;
+  google.protobuf.Timestamp created_at = 4;
+  optional google.protobuf.Timestamp last_used_at = 5;
+}
+message Fido2AssertionChallenge {
+  bytes challenge = 1;
+  string rp_id = 2;
+  repeated bytes allowed_credential_ids = 3;
+  InstanceId instance_id = 4;
+  string origin = 5;
+}
+message Fido2EnrollmentChallenge {
+  bytes challenge = 1;
+  string rp_id = 2;
+  bytes user_id = 3;
+  string user_name = 4;
+  InstanceId instance_id = 5;
+  string origin = 6;
+}
+message RecoveryCodeChallenge {}
+message FactorOption {
+  oneof method {
+    Fido2AssertionChallenge fido2 = 1;
+    RecoveryCodeChallenge recovery_code = 2;
+  }
+}
+message FactorChallenge {
+  ChallengeId id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  // At least one distinct option is required. CompleteLogin accepts only a
+  // proof matching an option offered by this exact challenge; a recovery code
+  // is an explicit alternative, never a silent FIDO2 downgrade.
+  repeated FactorOption options = 3;
+}
+message EnrollmentChallenge {
+  ChallengeId id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  Fido2EnrollmentChallenge fido2 = 3;
+}
+message Fido2Assertion {
+  bytes credential_id = 1;
+  bytes authenticator_data = 2;
+  bytes client_data_json = 3;
+  bytes signature = 4;
+  optional bytes user_handle = 5;
+  // CLI derives this from client_data_json and binds it to the verified TLS
+  // instance, challenge, RP ID and origin before asking CTAP for an assertion.
+  // Server recomputes it from client_data_json; the client value is untrusted.
+  bytes client_data_hash = 6;
+}
+message Fido2Attestation {
+  bytes credential_id = 1;
+  bytes client_data_json = 2;
+  bytes attestation_object = 3;
+  bytes client_data_hash = 4;
+}
+message FactorProof {
+  oneof proof {
+    Fido2Assertion fido2 = 1;
+    string recovery_code = 2;
+  }
+}
+
+// An interactive access token is short-lived (15 minutes by default); the
+// session/rotating refresh family has its own expiry (30 days by default).
+enum CredentialAudience {
+  CREDENTIAL_AUDIENCE_UNSPECIFIED = 0;
+  CREDENTIAL_AUDIENCE_INTERACTIVE = 1;
+  CREDENTIAL_AUDIENCE_MCP = 2;
+}
+message Session {
+  SessionId id = 1;
+  AccountId account_id = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  optional google.protobuf.Timestamp revoked_at = 5;
+  optional google.protobuf.Timestamp last_used_at = 6;
+}
+// Bearer values are emitted only at login/refresh, never in Session metadata.
+message SessionTokens {
+  Session session = 1;
+  CredentialAudience audience = 2;
+  string access_token = 3;
+  google.protobuf.Timestamp access_expires_at = 4;
+  string refresh_token = 5;
+}
+// Only Begin/CompleteFactorEnrollment may accept this grant. It grants no
+// business API or session access when admin 2FA policy requires enrollment.
+message EnrollmentRequired {
+  AccountId account_id = 1;
+  // Presented in Begin/CompleteFactorEnrollment.enrollment_token. No other
+  // operation accepts it. After activation, start a fresh password login.
+  string enrollment_token = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+message LoginDecision {
+  // A challenge and authenticated session cannot be present together.
+  oneof outcome {
+    SessionTokens authenticated = 1;
+    FactorChallenge challenge = 2;
+    EnrollmentRequired enrollment_required = 3;
+  }
+}
+service AuthService {
+  rpc StartLogin(StartLoginRequest) returns (StartLoginResponse);
+  rpc CompleteLogin(CompleteLoginRequest) returns (CompleteLoginResponse);
+  rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse);
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  rpc BeginFactorEnrollment(BeginFactorEnrollmentRequest) returns (BeginFactorEnrollmentResponse);
+  rpc CompleteFactorEnrollment(CompleteFactorEnrollmentRequest) returns (CompleteFactorEnrollmentResponse);
+  rpc ListFactors(ListFactorsRequest) returns (ListFactorsResponse);
+  rpc RemoveFactor(RemoveFactorRequest) returns (RemoveFactorResponse);
+  rpc ReplaceRecoveryCodes(ReplaceRecoveryCodesRequest) returns (ReplaceRecoveryCodesResponse);
+}
+message StartLoginRequest {
+  string login_name = 1;
+  string password = 2;
+}
+message StartLoginResponse { LoginDecision decision = 1; }
+message CompleteLoginRequest {
+  ChallengeId challenge_id = 1;
+  FactorProof proof = 2;
+}
+message CompleteLoginResponse { LoginDecision decision = 1; }
+message RefreshSessionRequest { string refresh_token = 1; }
+message RefreshSessionResponse { SessionTokens tokens = 1; }
+message ListSessionsRequest { AccountId account_id = 1; }
+message ListSessionsResponse { repeated Session sessions = 1; }
+message RevokeSessionRequest { SessionId session_id = 1; }
+message RevokeSessionResponse {}
+message BeginFactorEnrollmentRequest {
+  // Only FIDO2 is enrollable; recovery codes are issued with activation.
+  FactorKind kind = 1;
+  // Required for EnrollmentRequired flow; absent for an already signed-in user.
+  string enrollment_token = 2;
+}
+message BeginFactorEnrollmentResponse { EnrollmentChallenge challenge = 1; }
+message CompleteFactorEnrollmentRequest {
+  ChallengeId challenge_id = 1;
+  Fido2Attestation attestation = 2;
+  string enrollment_token = 3;
+}
+// Recovery codes are returned once after verified enrollment.
+message CompleteFactorEnrollmentResponse {
+  FactorCredential factor = 1;
+  repeated string recovery_codes = 2;
+}
+message ListFactorsRequest { AccountId account_id = 1; }
+message ListFactorsResponse { repeated FactorCredential factors = 1; }
+// Implementations require recent authentication or protected local recovery.
+message RemoveFactorRequest { FactorCredentialId factor_id = 1; }
+message RemoveFactorResponse {}
+// Replacing codes invalidates unused old codes and returns replacements once.
+message ReplaceRecoveryCodesRequest { AccountId account_id = 1; }
+message ReplaceRecoveryCodesResponse { repeated string recovery_codes = 1; }
+
+message McpKey {
+  McpKeyId id = 1;
+  AccountId account_id = 2;
+  string client_name = 3;
+  CredentialAudience audience = 4;
+  repeated Scope scopes = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  optional google.protobuf.Timestamp revoked_at = 8;
+  optional google.protobuf.Timestamp last_used_at = 9;
+}
+service McpKeyService {
+  rpc CreateMcpKey(CreateMcpKeyRequest) returns (CreateMcpKeyResponse);
+  rpc ListMcpKeys(ListMcpKeysRequest) returns (ListMcpKeysResponse);
+  rpc RevokeMcpKey(RevokeMcpKeyRequest) returns (RevokeMcpKeyResponse);
+}
+message CreateMcpKeyRequest {
+  string client_name = 1;
+  repeated Scope scopes = 2;
+  // Absent means 30 days. Admission rejects nonpositive or > 365 days.
+  google.protobuf.Duration lifetime = 3;
+}
+// The MCP bearer secret is returned once; metadata never includes it.
+message CreateMcpKeyResponse {
+  McpKey key = 1;
+  string secret = 2;
+}
+message ListMcpKeysRequest { AccountId account_id = 1; }
+message ListMcpKeysResponse { repeated McpKey keys = 1; }
+message RevokeMcpKeyRequest { McpKeyId key_id = 1; }
+message RevokeMcpKeyResponse {}
+
+// No human-controlled text, credential, token or provider payload in errors.
+// Future adapters must convert every admitted code/detail combination.
+enum AuthErrorCode {
+  AUTH_ERROR_CODE_UNSPECIFIED = 0;
+  AUTH_ERROR_CODE_UNAUTHENTICATED = 1;
+  AUTH_ERROR_CODE_PERMISSION_DENIED = 2;
+  AUTH_ERROR_CODE_CONFLICT = 3;
+  AUTH_ERROR_CODE_EXPIRED = 4;
+  AUTH_ERROR_CODE_INVALID_ARGUMENT = 5;
+  AUTH_ERROR_CODE_RATE_LIMITED = 6;
+}
+enum AuthenticationFailure {
+  AUTHENTICATION_FAILURE_UNSPECIFIED = 0;
+  AUTHENTICATION_FAILURE_INVALID_CREDENTIAL = 1;
+  AUTHENTICATION_FAILURE_REVOKED = 2;
+  AUTHENTICATION_FAILURE_FACTOR_REQUIRED = 3;
+}
+enum PermissionFailure {
+  PERMISSION_FAILURE_UNSPECIFIED = 0;
+  PERMISSION_FAILURE_LOCAL_OPERATOR_REQUIRED = 1;
+  PERMISSION_FAILURE_SCOPE_DENIED = 2;
+  PERMISSION_FAILURE_ACCOUNT_DISABLED = 3;
+}
+enum ConflictFailure {
+  CONFLICT_FAILURE_UNSPECIFIED = 0;
+  CONFLICT_FAILURE_ALREADY_EXISTS = 1;
+  CONFLICT_FAILURE_BOOTSTRAP_COMPLETE = 2;
+  CONFLICT_FAILURE_ALREADY_USED = 3;
+  CONFLICT_FAILURE_LAST_ADMIN = 4;
+}
+enum ExpiredResource {
+  EXPIRED_RESOURCE_UNSPECIFIED = 0;
+  EXPIRED_RESOURCE_INVITATION = 1;
+  EXPIRED_RESOURCE_CHALLENGE = 2;
+  EXPIRED_RESOURCE_SESSION = 3;
+  EXPIRED_RESOURCE_ACCESS_TOKEN = 4;
+  EXPIRED_RESOURCE_MCP_KEY = 5;
+}
+enum AuthField {
+  AUTH_FIELD_UNSPECIFIED = 0;
+  AUTH_FIELD_LOGIN_NAME = 1;
+  AUTH_FIELD_PASSWORD = 2;
+  AUTH_FIELD_ACCOUNT_ID = 3;
+  AUTH_FIELD_ROLE = 4;
+  AUTH_FIELD_STATUS = 5;
+  AUTH_FIELD_SESSION_ID = 6;
+  AUTH_FIELD_CHALLENGE_ID = 7;
+  AUTH_FIELD_FACTOR_PROOF = 8;
+  AUTH_FIELD_FACTOR_KIND = 9;
+  AUTH_FIELD_FACTOR_ID = 10;
+  AUTH_FIELD_INVITATION_TOKEN = 11;
+  AUTH_FIELD_EXPIRES_AT = 12;
+  AUTH_FIELD_CLIENT_NAME = 13;
+  AUTH_FIELD_SCOPES = 14;
+  AUTH_FIELD_LIFETIME = 15;
+  AUTH_FIELD_MCP_KEY_ID = 16;
+}
+message AuthError {
+  AuthErrorCode code = 1;
+  oneof detail {
+    AuthenticationFailure authentication = 2;
+    PermissionFailure permission = 3;
+    ConflictFailure conflict = 4;
+    ExpiredResource expired = 5;
+    AuthField invalid_field = 6;
+    google.protobuf.Timestamp retry_at = 7;
+  }
+}

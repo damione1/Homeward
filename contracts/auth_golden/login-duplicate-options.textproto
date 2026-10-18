@@ -1,0 +1,6 @@
+challenge {
+  id { value: "challenge-duplicate" }
+  expires_at { seconds: 1792314300 }
+  options { recovery_code {} }
+  options { recovery_code {} }
+}

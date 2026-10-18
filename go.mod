@@ -3,6 +3,7 @@ module github.com/damione1/Homeward
 go 1.25.2
 
 require (
+	connectrpc.com/connect v1.21.0
 	github.com/jackc/pgx/v5 v5.10.0
 	go.yaml.in/yaml/v3 v3.0.4
 	google.golang.org/protobuf v1.36.11

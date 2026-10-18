@@ -1,0 +1,5 @@
+challenge {
+  id { value: "challenge-recovery" }
+  expires_at { seconds: 1792314300 }
+  options { recovery_code {} }
+}
