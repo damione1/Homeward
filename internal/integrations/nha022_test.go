@@ -269,7 +269,9 @@ func TestNHA022FakeDriverAdmissionAndFences(t *testing.T) {
 	if err := host.AttachCommandDriver(replacement, newDriver); err != nil {
 		t.Fatal(err)
 	}
-	nha022Check(t, router, nha022Actor(t), request, true)
+	reconnected := proto.Clone(request).(*actions.CommandRequest)
+	reconnected.CommandId = "command-after-reconnect"
+	nha022Check(t, router, nha022Actor(t), reconnected, true)
 	if len(driver.Commands()) != 1 || len(newDriver.Commands()) != 1 {
 		t.Fatal("reconnection dispatched to old fake driver")
 	}
@@ -384,6 +386,7 @@ func TestNHA022TwoBindingsOneExplicitDevice(t *testing.T) {
 	router, _ := integrations.NewCommandRouter(host, &nha022Generation{revision: 7})
 	a := nha022Request(t, ids[0].Entity, epoch, contracts.SwitchSchema, "relay", nha022Switch())
 	b := nha022Request(t, ids[1].Entity, epoch, contracts.SwitchSchema, "relay", nha022Switch())
+	b.CommandId = "command-b"
 	nha022Check(t, router, nha022Actor(t), a, false)
 	nha022Check(t, router, nha022Actor(t), b, false)
 	if err := host.DesignateCommandOwner(device, contracts.SwitchSchema, "relay", ids[0].Entity); err != nil {
@@ -405,8 +408,10 @@ func TestNHA022TwoBindingsOneExplicitDevice(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	actor := nha022Actor(t)
+	secondA := proto.Clone(a).(*actions.CommandRequest)
+	secondA.CommandId = "command-second-a"
 	go func() {
-		response, err := router.Dispatch(ctx, actor, a)
+		response, err := router.Dispatch(ctx, actor, secondA)
 		if err == nil && response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
 			err = integrations.ErrCommandRouteUnavailable
 		}
@@ -551,6 +556,7 @@ func TestNHA022EndpointSerializationAcrossCapabilities(t *testing.T) {
 	sameEndpoint := nha022Request(t, ids[0].Entity, epoch, contracts.LightSchema, "shared", nha022Light(50))
 	nha022Busy(t, router, actor, sameEndpoint)
 	otherEndpoint := nha022Request(t, ids[0].Entity, epoch, contracts.SwitchSchema, "other", nha022Switch())
+	otherEndpoint.CommandId = "command-other-endpoint"
 	nha022Check(t, router, actor, otherEndpoint, true)
 	close(driver.release)
 	select {

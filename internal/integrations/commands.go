@@ -13,16 +13,66 @@ import (
 )
 
 // CommandDriver receives only immutable, fully admitted commands. Its method
-// may perform I/O, so Host calls it after releasing all admission locks.
+// may perform I/O, so Host calls it after releasing all admission locks. It
+// must honor cancellation before later steps and must not detach unsupervised
+// work after Dispatch returns.
 type CommandDriver interface {
 	Dispatch(context.Context, AdmittedCommand) error
 }
 
 type AdmittedCommand struct {
-	id      domain.CommandID
-	actor   domain.ActorID
-	entity  domain.EntityID
-	request *actions.CommandRequest
+	id       domain.CommandID
+	actor    domain.ActorID
+	entity   domain.EntityID
+	request  *actions.CommandRequest
+	progress *actionEntry
+	tracker  *actionTracker
+	host     *Manager
+	binding  Binding
+}
+
+// Causality is a command-scoped token. A driver attaches it to a subsequent
+// StateObservation; a value match without this token cannot confirm an action.
+func (c AdmittedCommand) Causality() (domain.Causality, error) {
+	if _, _, _, err := c.Identity(); err != nil || c.progress == nil {
+		return domain.Causality{}, ErrInvalidInput
+	}
+	return domain.NewCausality(nil, &c.progress.correlation)
+}
+
+func (c AdmittedCommand) Acknowledge() error {
+	if _, _, _, err := c.Identity(); err != nil || c.progress == nil || c.tracker == nil || c.host == nil {
+		return ErrInvalidInput
+	}
+	c.host.mu.Lock()
+	defer c.host.mu.Unlock()
+	if !c.liveOwner() {
+		return ErrInactiveSession
+	}
+	return c.tracker.acknowledge(c.progress)
+}
+
+func (c AdmittedCommand) ConfirmProtocol(qualifier ProtocolConfirmation) error {
+	if _, _, _, err := c.Identity(); err != nil || c.progress == nil || c.tracker == nil || c.host == nil || nilInterface(qualifier) {
+		return ErrInvalidInput
+	}
+	// Protocol parsing may be slow; run it before taking Host or tracker locks.
+	if err := qualifier.QualifyProtocolConfirmation(c); err != nil {
+		return err
+	}
+	c.host.mu.Lock()
+	defer c.host.mu.Unlock()
+	if !c.liveOwner() {
+		return ErrInactiveSession
+	}
+	return c.tracker.protocol(c.progress)
+}
+
+// Called with Host lock held. The lease remains historically valid, but a
+// replaced owner may no longer issue new acknowledgements or confirmations.
+func (c AdmittedCommand) liveOwner() bool {
+	session := c.host.active[c.binding.instance]
+	return session != nil && session.live() && session.id == c.binding.session && session.bindings[c.entity] == c.binding && c.host.owners[c.entity] == c.binding
 }
 
 func (c AdmittedCommand) Identity() (domain.CommandID, domain.ActorID, domain.EntityID, error) {
@@ -147,6 +197,12 @@ func NewCommandRouterWithClock(host *Manager, generation GenerationAuthority, cl
 	if !ok || nilInterface(projection) {
 		return nil, ErrInvalidInput
 	}
+	if pointSource, ok := host.sink.(ActionPointSource); !ok || nilInterface(pointSource) {
+		return nil, ErrInvalidInput
+	}
+	if receiptSink, ok := host.sink.(ActionReceiptSink); !ok || nilInterface(receiptSink) {
+		return nil, ErrInvalidInput
+	}
 	return &CommandRouter{host: host, generation: generation, projection: projection, clock: clock}, nil
 }
 
@@ -238,6 +294,11 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_FAILED, Error: contractErr}, nil
 	}
 	var admitted AdmittedCommand
+	var actionPoint ActionPoint
+	correlation, err := newActionCorrelation()
+	if err != nil {
+		return nil, err
+	}
 	var driver CommandDriver
 	var leased commandEndpointSlot
 	defer func() {
@@ -287,6 +348,13 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 			if err := r.projection.AdmitCommandRoute(CommandRoute{Entity: entity, Alias: alias, Binding: binding, Description: description, Designated: selected, ExpectedRevision: wire.ExpectedRevision, Epoch: wire.AdmissionEpoch}); err != nil {
 				return err
 			}
+			pointSource := r.projection.(ActionPointSource) // checked at construction
+			var pointErr error
+			actionPoint, pointErr = pointSource.CommandActionPoint(entity)
+			if pointErr != nil {
+				return pointErr
+			}
+			admitted = AdmittedCommand{id: id, actor: actor, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding}
 			// Slot lease is reserved before the Host lock is released.
 			h.inflight[endpointSlot] = true
 			leased = endpointSlot
@@ -298,7 +366,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		}
 		if routeErr != nil {
 			switch {
-			case errors.Is(routeErr, ErrCommandRouteBusy), errors.Is(routeErr, context.Canceled), errors.Is(routeErr, context.DeadlineExceeded):
+			case errors.Is(routeErr, ErrCommandRouteBusy), errors.Is(routeErr, ErrActionProgressFull), errors.Is(routeErr, context.Canceled), errors.Is(routeErr, context.DeadlineExceeded):
 				routeFailure = routeErr
 			case errors.Is(routeErr, errCommandExpired):
 				rejected = commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at").Error
@@ -313,7 +381,6 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		}
 		// Lease linearization: route validation succeeded under Host→catalogue→
 		// sequencer locks. Later revocation cannot retroactively cancel it.
-		admitted = AdmittedCommand{id: id, actor: actor, entity: entity, request: resolved}
 		driver = session.commandDriver
 		return nil
 	})
@@ -335,11 +402,31 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at"), nil
 	}
+	progress, err := r.host.actions.accept(id, entity, admitted.binding, wire, actionPoint, correlation, wire.ExpiresAt.AsTime().Sub(r.clock.Now()))
+	if err != nil {
+		return nil, err
+	}
+	admitted.progress = progress
 	dispatchCtx, cancel := context.WithDeadline(ctx, wire.ExpiresAt.AsTime())
 	defer cancel()
+	if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
+		r.host.actions.abort(progress)
+		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at"), nil
+	}
+	if !r.host.actions.begin(dispatchCtx, cancel, admitted.progress) {
+		return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_CANCELLED}, nil
+	}
+	defer r.host.actions.finish(admitted.progress)
+	defer func() {
+		if panicValue := recover(); panicValue != nil {
+			r.host.actions.uncertain(admitted.progress)
+			panic(panicValue)
+		}
+	}()
 	if err := driver.Dispatch(dispatchCtx, admitted); err != nil {
+		r.host.actions.uncertain(admitted.progress)
 		// Once the driver was called, a transport error cannot prove the absence
-		// of a physical effect. Confirmation belongs to a later ticket.
+		// of a physical effect. Keep the live progression indeterminate.
 		return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}, err
 	}
 	return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_DISPATCHED}, nil

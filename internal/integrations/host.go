@@ -365,6 +365,7 @@ type Manager struct {
 	volatile                   *volatileCommandLedger
 	unprotectedCommandDispatch bool
 	commandPolicies            map[domain.CommandID]commandPolicy
+	actions                    *actionTracker
 }
 
 type Session struct {
@@ -380,7 +381,7 @@ func NewHost(authority IdentityAuthority, sink Sink, catalog *contracts.Capabili
 	if nilInterface(authority) || nilInterface(sink) || !catalog.Ready() {
 		return nil, ErrInvalidInput
 	}
-	return &Manager{authority: authority, sink: sink, catalog: catalog, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy)}, nil
+	return &Manager{authority: authority, sink: sink, catalog: catalog, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: newActionTracker(realActionClock{})}, nil
 }
 
 // Capabilities returns the admitted declarations for a bound Host entity. It
@@ -587,6 +588,8 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 		return ErrInvalidInput
 	}
 	var supported bool
+	proofSchema := ""
+	proofAmbiguous := false
 	descriptions, err := h.catalog.Descriptions(binding.entity)
 	if err != nil {
 		return err
@@ -595,6 +598,7 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 		if description.Endpoint != observation.endpoint {
 			continue
 		}
+		matched := false
 		if observation.value == nil {
 			supported = true
 			break
@@ -604,11 +608,11 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 		case domain.ValueSwitch:
 			switch description.SchemaId {
 			case contracts.SwitchSchema, contracts.BinarySchema, contracts.LightSchema, contracts.FanSchema:
-				supported = true
+				matched = true
 			case contracts.MeasurementSchema, contracts.ClimateSchema:
-				supported = false
+				matched = false
 			default:
-				supported = false
+				matched = false
 			}
 		case domain.ValueMeasurement:
 			if description.SchemaId == contracts.MeasurementSchema {
@@ -619,15 +623,20 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 				if err := h.catalog.AdmitDomainMeasurement(binding.entity, observation.endpoint, measurement); err != nil {
 					return err
 				}
-				supported = true
+				matched = true
 			}
 		case domain.ValueUnspecified:
 			return ErrInvalidInput
 		default:
 			return ErrInvalidInput
 		}
-		if supported {
-			break
+		if matched {
+			supported = true
+			if proofSchema == "" {
+				proofSchema = description.SchemaId
+			} else if proofSchema != description.SchemaId {
+				proofAmbiguous = true
+			}
 		}
 	}
 	if !supported {
@@ -636,7 +645,19 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 	if _, _, err := observation.causality.Components(); err != nil {
 		return err
 	}
-	return h.sink.AcceptState(ctx, binding.entity, AcceptedState{observation: observation, source: probe, instance: s.instance})
+	accepted := AcceptedState{observation: observation, source: probe, instance: s.instance}
+	if receipts, ok := h.sink.(ActionReceiptSink); ok {
+		receipt, err := receipts.AcceptStateWithActionReceipt(ctx, binding.entity, accepted)
+		if err != nil {
+			return err
+		}
+		// The sequencer lock is released. Host still fences session ownership.
+		if !proofAmbiguous {
+			h.actions.observe(binding, observation.endpoint, proofSchema, receipt)
+		}
+		return nil
+	}
+	return h.sink.AcceptState(ctx, binding.entity, accepted)
 }
 
 func (s *Session) Emit(ctx context.Context, binding Binding, event DeviceEvent) error {

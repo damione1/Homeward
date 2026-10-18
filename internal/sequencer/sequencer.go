@@ -344,28 +344,35 @@ func (s *Sequencer) MonotonicNow() time.Duration {
 // AcceptState is called synchronously under the Host's session lock. The
 // revision, projection update, and journal append share this one mutex.
 func (s *Sequencer) AcceptState(ctx context.Context, entity domain.EntityID, accepted integrations.AcceptedState) error {
+	_, err := s.AcceptStateWithActionReceipt(ctx, entity, accepted)
+	return err
+}
+
+// AcceptStateWithActionReceipt returns the exact admission point, without a
+// full snapshot or a callback while the sequencer lock is held.
+func (s *Sequencer) AcceptStateWithActionReceipt(ctx context.Context, entity domain.EntityID, accepted integrations.AcceptedState) (integrations.ActionReceipt, error) {
 	if s == nil || s.journal == nil || ctx == nil {
-		return ErrInvalidInput
+		return integrations.ActionReceipt{}, ErrInvalidInput
 	}
 	if _, err := entity.Value(); err != nil {
-		return err
+		return integrations.ActionReceipt{}, err
 	}
 	instance, source, causality, err := accepted.Metadata()
 	if err != nil {
-		return err
+		return integrations.ActionReceipt{}, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	at, err := s.nextTime(ctx)
 	if err != nil {
-		return err
+		return integrations.ActionReceipt{}, err
 	}
 	if err := s.admitIdentity(entity, instance); err != nil {
-		return err
+		return integrations.ActionReceipt{}, err
 	}
 	previous, exists := s.states[entity]
 	if !exists && len(s.states) >= MaxProjectedEntities {
-		return ErrProjectionFull
+		return integrations.ActionReceipt{}, ErrProjectionFull
 	}
 	var prev *domain.ObservedState
 	var revision uint64 = 1
@@ -373,24 +380,42 @@ func (s *Sequencer) AcceptState(ctx context.Context, entity domain.EntityID, acc
 		prev = &previous
 		_, _, _, _, current, err := previous.Components()
 		if err != nil {
-			return err
+			return integrations.ActionReceipt{}, err
 		}
 		if current == math.MaxUint64 {
-			return ErrSequenceExhausted
+			return integrations.ActionReceipt{}, ErrSequenceExhausted
 		}
 		revision = current + 1
 	}
 	report, err := accepted.ReportAt(revision, at)
 	if err != nil {
-		return err
+		return integrations.ActionReceipt{}, err
 	}
 	next, transition, err := domain.ApplyStateReport(entity, prev, report)
 	if err != nil {
-		return err
+		return integrations.ActionReceipt{}, err
 	}
 	s.states[entity] = next
-	s.publish(s.append(Entry{kind: KindState, instance: instance, entity: entity, source: source, causality: causality, receivedAt: at, state: next, transition: transition}))
-	return nil
+	entry := s.append(Entry{kind: KindState, instance: instance, entity: entity, source: source, causality: causality, receivedAt: at, state: next, transition: transition})
+	s.publish(entry)
+	point, _ := integrations.NewActionPoint(entry.cursor.seq, revision, entry.admittedTick)
+	return integrations.NewActionReceipt(point, next, instance, source, causality)
+}
+
+func (s *Sequencer) CommandActionPoint(entity domain.EntityID) (integrations.ActionPoint, error) {
+	if s == nil || s.journal == nil {
+		return integrations.ActionPoint{}, ErrInvalidInput
+	}
+	if _, err := entity.Value(); err != nil {
+		return integrations.ActionPoint{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var revision uint64
+	if current, ok := s.states[entity]; ok {
+		_, _, _, _, revision, _ = current.Components()
+	}
+	return integrations.NewActionPoint(s.seq, revision, s.MonotonicNow())
 }
 
 func (s *Sequencer) AcceptEvent(ctx context.Context, entity domain.EntityID, accepted integrations.AcceptedEvent) error {

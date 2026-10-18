@@ -137,6 +137,13 @@ func (f *Fixture) AdmitCommandRoute(route integrations.CommandRoute) error {
 	return f.sequence.AdmitCommandRoute(route)
 }
 
+func (f *Fixture) CommandActionPoint(entity domain.EntityID) (integrations.ActionPoint, error) {
+	if f == nil || f.sequence == nil {
+		return integrations.ActionPoint{}, integrations.ErrInvalidInput
+	}
+	return f.sequence.CommandActionPoint(entity)
+}
+
 func (f *Fixture) CurrentAdmissionEpoch() (string, error) {
 	if f == nil || f.sequence == nil {
 		return "", integrations.ErrInvalidInput
@@ -238,6 +245,13 @@ func (f *Fixture) AcceptState(ctx context.Context, entity domain.EntityID, state
 		return integrations.ErrInvalidInput
 	}
 	return f.sequence.AcceptState(ctx, entity, state)
+}
+
+func (f *Fixture) AcceptStateWithActionReceipt(ctx context.Context, entity domain.EntityID, state integrations.AcceptedState) (integrations.ActionReceipt, error) {
+	if f == nil || f.sequence == nil {
+		return integrations.ActionReceipt{}, integrations.ErrInvalidInput
+	}
+	return f.sequence.AcceptStateWithActionReceipt(ctx, entity, state)
 }
 
 func (f *Fixture) AcceptEvent(ctx context.Context, entity domain.EntityID, event integrations.AcceptedEvent) error {
