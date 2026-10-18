@@ -211,14 +211,66 @@ func intentStateText(state IntentState) (string, bool) {
 	}
 }
 
+type runtimeReleaseState uint8
+
+const (
+	runtimeReleaseUnspecified runtimeReleaseState = iota
+	runtimeReleaseHeld
+	runtimeReleaseConfirmed
+	runtimeReleaseUnconfirmed
+)
+
+// RuntimeReleaseError means the old session was removed from the pool, but
+// PostgreSQL did not confirm that it released the runtime lock. A successor
+// must still acquire the lock itself before recovering commands.
+type RuntimeReleaseError struct{ cause error }
+
+func (e *RuntimeReleaseError) Error() string {
+	return "postgres: durable command runtime release unconfirmed"
+}
+
+func (e *RuntimeReleaseError) GoString() string { return e.Error() }
+
+func (e *RuntimeReleaseError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
+// RuntimeCleanupError means PostgreSQL confirmed the lock was released, but
+// closing the now-unlocked client session failed. The release proof is retained
+// even though the overall Close call reports an error.
+type RuntimeCleanupError struct{ cause error }
+
+func (e *RuntimeCleanupError) Error() string {
+	return "postgres: durable command runtime released but session cleanup failed"
+}
+
+func (e *RuntimeCleanupError) GoString() string { return e.Error() }
+
+func (e *RuntimeCleanupError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
 // CommandRuntime holds a database-wide session advisory lock while this
 // process may dispatch durable commands. A replacement runtime cannot recover
-// dispatching rows until the old session is gone.
+// dispatching rows until the old session is gone or its release is confirmed.
 type CommandRuntime struct {
-	mu    sync.Mutex
-	conn  *pgxpool.Conn
-	owner *Store
+	mu           sync.Mutex
+	conn         *pgxpool.Conn
+	owner        *Store
+	releaseState runtimeReleaseState
+	releaseErr   error
 }
+
+const (
+	commandRuntimeLockClass  int32 = 481316
+	commandRuntimeLockObject int32 = 24
+)
 
 func (s *Store) AcquireCommandRuntime(ctx context.Context) (*CommandRuntime, error) {
 	if s == nil || s.pool == nil || ctx == nil {
@@ -235,7 +287,7 @@ func (s *Store) AcquireCommandRuntime(ctx context.Context) (*CommandRuntime, err
 		return nil, &Error{kind: Unavailable}
 	}
 	var locked bool
-	err = conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(481316, 24)`).Scan(&locked)
+	err = conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1::integer, $2::integer)`, commandRuntimeLockClass, commandRuntimeLockObject).Scan(&locked)
 	if err != nil {
 		physical := conn.Hijack()
 		closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -247,7 +299,7 @@ func (s *Store) AcquireCommandRuntime(ctx context.Context) (*CommandRuntime, err
 		conn.Release()
 		return nil, &Error{kind: CommandRuntimeBusy}
 	}
-	return &CommandRuntime{conn: conn, owner: s}, nil
+	return &CommandRuntime{conn: conn, owner: s, releaseState: runtimeReleaseHeld}, nil
 }
 
 func (r *CommandRuntime) Ping(ctx context.Context) error {
@@ -270,23 +322,45 @@ func (r *CommandRuntime) pingLocked(ctx context.Context) error {
 	return nil
 }
 
-func (r *CommandRuntime) Close() {
-	if r == nil {
-		return
+func (r *CommandRuntime) Close() error {
+	if r == nil || r.owner == nil {
+		return &Error{kind: InvalidSettings}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.conn == nil {
-		return
+	switch r.releaseState {
+	case runtimeReleaseConfirmed, runtimeReleaseUnconfirmed:
+		return r.releaseErr
+	case runtimeReleaseHeld:
+		if r.conn == nil {
+			return &Error{kind: InvalidSettings}
+		}
+	default:
+		return &Error{kind: InvalidSettings}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	// Hijack removes the session from the pool before closing it. Even an
-	// uncertain close can never return a possibly locked connection to callers.
+	// A successful reply comes from the session that holds the lock. The
+	// backend releases the lock before sending true, even if its later
+	// Terminate and TCP EOF cannot yet reach PostgreSQL.
+	var unlocked bool
+	unlockErr := r.conn.QueryRow(ctx, `SELECT pg_advisory_unlock($1::integer, $2::integer)`, commandRuntimeLockClass, commandRuntimeLockObject).Scan(&unlocked)
+	// Always remove the session from the pool, including after a timeout or
+	// false reply. No caller may reuse a possibly locked connection.
 	physical := r.conn.Hijack()
-	_ = physical.Close(ctx)
-	_ = physical.PgConn().Conn().Close()
 	r.conn = nil
+	closeErr := physical.Close(ctx)
+	_ = physical.PgConn().Conn().Close()
+	if unlockErr != nil || !unlocked {
+		r.releaseState = runtimeReleaseUnconfirmed
+		r.releaseErr = &RuntimeReleaseError{cause: errors.Join(unlockErr, closeErr)}
+		return r.releaseErr
+	}
+	r.releaseState = runtimeReleaseConfirmed
+	if closeErr != nil {
+		r.releaseErr = &RuntimeCleanupError{cause: closeErr}
+	}
+	return r.releaseErr
 }
 
 // RecoverCommandIntents only runs while the runtime session guard is held.

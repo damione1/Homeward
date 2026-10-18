@@ -337,15 +337,27 @@ func (s *Supervisor) beginStop() error {
 
 func (s *Supervisor) drainDurable(service *DurableCommandService) {
 	// Close rejects new durable admissions, then waits for the whole dispatch,
-	// including SQL result persistence. A timed-out close still retains its
-	// database guard; Done waits for the eventual active-call completion.
+	// including SQL result persistence. A timed-out close retains its guard
+	// until dispatch ends. Done marks the end of the release attempt; Close
+	// reports whether PostgreSQL actually confirmed the release.
 	ctx, cancel := context.WithTimeout(context.Background(), s.policy.joinTimeout)
 	err := service.Close(ctx)
+	requestErr := ctx.Err()
 	cancel()
-	if err != nil {
+	// The runtime's own bounded SQL query may wrap context.DeadlineExceeded.
+	// Only the request context expiring means this drain call timed out.
+	timedOut := requestErr != nil && err == requestErr
+	if timedOut {
 		s.record(errors.Join(ErrPilotJoinTimeout, err))
+	} else if err != nil {
+		s.record(err)
 	}
 	<-service.Done()
+	if timedOut {
+		if releaseErr := service.Close(context.Background()); releaseErr != nil {
+			s.record(releaseErr)
+		}
+	}
 	close(s.drainDone)
 }
 
