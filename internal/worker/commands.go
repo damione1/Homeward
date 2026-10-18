@@ -59,7 +59,7 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	defer timer.Stop()
 	item := &delivery{result: make(chan error, 1), command: command, ctx: ctx, expires: expires}
 	p.mu.Lock()
-	if p.hostMinor == 1 && !p.ready {
+	if p.hostMinor >= 1 && !p.ready {
 		p.mu.Unlock()
 		return ErrUnavailable
 	}
@@ -241,7 +241,7 @@ func (p *pilot) CompleteCommand(_ context.Context, r *connect.Request[wire.Compl
 		p.mu.Unlock()
 		return nil, rpcInvalid()
 	}
-	if acknowledged && p.hostMinor != 1 {
+	if acknowledged && p.hostMinor < 1 {
 		p.mu.Unlock()
 		return nil, rpcInvalid()
 	}

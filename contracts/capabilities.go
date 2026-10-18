@@ -360,6 +360,9 @@ func (c *CapabilityCatalog) validateDescription(d *registry.CapabilityDescriptio
 		if !validModes(constraints.Climate.ModeOptions) || !validActivities(constraints.Climate.ActivityOptions) {
 			return errors.New("invalid climate options")
 		}
+		if !validClimateObservations(constraints.Climate) {
+			return errors.New("invalid climate observation constraints")
+		}
 	case *registry.CapabilityDescription_Measurement:
 		if constraints == nil || d.SchemaId != MeasurementSchema || constraints.Measurement == nil {
 			return errors.New("measurement schema/constraints mismatch")
@@ -411,9 +414,7 @@ func uniqueOptions(options []string) bool {
 func validModes(options []registry.ClimateMode) bool {
 	seen := map[registry.ClimateMode]bool{}
 	for _, option := range options {
-		switch option {
-		case registry.ClimateMode_CLIMATE_MODE_OFF, registry.ClimateMode_CLIMATE_MODE_HEAT, registry.ClimateMode_CLIMATE_MODE_COOL, registry.ClimateMode_CLIMATE_MODE_AUTO, registry.ClimateMode_CLIMATE_MODE_DRY, registry.ClimateMode_CLIMATE_MODE_FAN_ONLY:
-		default:
+		if _, err := AdmitWireClimateMode(option); err != nil {
 			return false
 		}
 		if seen[option] {
@@ -427,9 +428,7 @@ func validModes(options []registry.ClimateMode) bool {
 func validActivities(options []registry.ClimateActivity) bool {
 	seen := map[registry.ClimateActivity]bool{}
 	for _, option := range options {
-		switch option {
-		case registry.ClimateActivity_CLIMATE_ACTIVITY_IDLE, registry.ClimateActivity_CLIMATE_ACTIVITY_HEATING, registry.ClimateActivity_CLIMATE_ACTIVITY_COOLING, registry.ClimateActivity_CLIMATE_ACTIVITY_DRYING, registry.ClimateActivity_CLIMATE_ACTIVITY_FAN_ONLY:
-		default:
+		if _, err := AdmitWireClimateActivity(option); err != nil {
 			return false
 		}
 		if seen[option] {

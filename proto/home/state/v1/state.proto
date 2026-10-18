@@ -49,6 +49,23 @@ enum FanSpeed {
 }
 // A present Off is distinct from an absent or unavailable fan reading.
 message FanValue { FanSpeed speed = 1; }
+// A present range requires both endpoints at operational admission.
+message ClimateSetpointRange {
+  optional double low_celsius = 1;
+  optional double high_celsius = 2;
+}
+message ClimateValue {
+  optional double current_temperature_celsius = 1;
+  oneof setpoint {
+    double setpoint_celsius = 2;
+    ClimateSetpointRange setpoint_range_celsius = 3;
+  }
+  // Requested mode and observed physical activity are independent.
+  optional home.registry.v1.ClimateMode mode = 4;
+  optional home.registry.v1.ClimateActivity activity = 5;
+  // Absent is not an observed false/off reading.
+  optional bool fan_active = 6;
+}
 message ObservedState {
   home.registry.v1.EntityRef entity = 1;
   Quality quality = 2;
@@ -65,6 +82,7 @@ message ObservedState {
     Measurement measurement = 12;
     LightValue light = 13;
     FanValue fan = 14;
+    ClimateValue climate = 15;
   }
 }
 

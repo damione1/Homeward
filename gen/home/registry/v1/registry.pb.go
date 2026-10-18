@@ -800,12 +800,18 @@ func (x *FanConstraints) GetSpeedOptions() []string {
 }
 
 type ClimateConstraints struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	SetpointCelsius *NumberBounds          `protobuf:"bytes,1,opt,name=setpoint_celsius,json=setpointCelsius,proto3" json:"setpoint_celsius,omitempty"`
-	ModeOptions     []ClimateMode          `protobuf:"varint,2,rep,packed,name=mode_options,json=modeOptions,proto3,enum=home.registry.v1.ClimateMode" json:"mode_options,omitempty"`
-	ActivityOptions []ClimateActivity      `protobuf:"varint,3,rep,packed,name=activity_options,json=activityOptions,proto3,enum=home.registry.v1.ClimateActivity" json:"activity_options,omitempty"` // Observations only.
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// These first two fields authorize commands, independently of observations.
+	SetpointCelsius              *NumberBounds                    `protobuf:"bytes,1,opt,name=setpoint_celsius,json=setpointCelsius,proto3" json:"setpoint_celsius,omitempty"`
+	ModeOptions                  []ClimateMode                    `protobuf:"varint,2,rep,packed,name=mode_options,json=modeOptions,proto3,enum=home.registry.v1.ClimateMode" json:"mode_options,omitempty"`
+	ActivityOptions              []ClimateActivity                `protobuf:"varint,3,rep,packed,name=activity_options,json=activityOptions,proto3,enum=home.registry.v1.ClimateActivity" json:"activity_options,omitempty"` // Observations only.
+	ObservedTemperatureCelsius   *ClimateTemperatureObservation   `protobuf:"bytes,4,opt,name=observed_temperature_celsius,json=observedTemperatureCelsius,proto3" json:"observed_temperature_celsius,omitempty"`
+	ObservedSetpointCelsius      *ClimateTemperatureObservation   `protobuf:"bytes,5,opt,name=observed_setpoint_celsius,json=observedSetpointCelsius,proto3" json:"observed_setpoint_celsius,omitempty"`
+	ObservedSetpointRangeCelsius *ClimateSetpointRangeConstraints `protobuf:"bytes,6,opt,name=observed_setpoint_range_celsius,json=observedSetpointRangeCelsius,proto3" json:"observed_setpoint_range_celsius,omitempty"`
+	ObservedModeOptions          []ClimateMode                    `protobuf:"varint,7,rep,packed,name=observed_mode_options,json=observedModeOptions,proto3,enum=home.registry.v1.ClimateMode" json:"observed_mode_options,omitempty"`
+	ObservesFanActivity          bool                             `protobuf:"varint,8,opt,name=observes_fan_activity,json=observesFanActivity,proto3" json:"observes_fan_activity,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *ClimateConstraints) Reset() {
@@ -859,6 +865,155 @@ func (x *ClimateConstraints) GetActivityOptions() []ClimateActivity {
 	return nil
 }
 
+func (x *ClimateConstraints) GetObservedTemperatureCelsius() *ClimateTemperatureObservation {
+	if x != nil {
+		return x.ObservedTemperatureCelsius
+	}
+	return nil
+}
+
+func (x *ClimateConstraints) GetObservedSetpointCelsius() *ClimateTemperatureObservation {
+	if x != nil {
+		return x.ObservedSetpointCelsius
+	}
+	return nil
+}
+
+func (x *ClimateConstraints) GetObservedSetpointRangeCelsius() *ClimateSetpointRangeConstraints {
+	if x != nil {
+		return x.ObservedSetpointRangeCelsius
+	}
+	return nil
+}
+
+func (x *ClimateConstraints) GetObservedModeOptions() []ClimateMode {
+	if x != nil {
+		return x.ObservedModeOptions
+	}
+	return nil
+}
+
+func (x *ClimateConstraints) GetObservesFanActivity() bool {
+	if x != nil {
+		return x.ObservesFanActivity
+	}
+	return false
+}
+
+// Presence advertises an observation. Absent bounds mean unknown device limits.
+type ClimateTemperatureObservation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Bounds        *NumberBounds          `protobuf:"bytes,1,opt,name=bounds,proto3" json:"bounds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClimateTemperatureObservation) Reset() {
+	*x = ClimateTemperatureObservation{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClimateTemperatureObservation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClimateTemperatureObservation) ProtoMessage() {}
+
+func (x *ClimateTemperatureObservation) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClimateTemperatureObservation.ProtoReflect.Descriptor instead.
+func (*ClimateTemperatureObservation) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ClimateTemperatureObservation) GetBounds() *NumberBounds {
+	if x != nil {
+		return x.Bounds
+	}
+	return nil
+}
+
+// Presence advertises a pair, independently of simple setpoint commands.
+type ClimateSetpointRangeConstraints struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	LowCelsius          *NumberBounds          `protobuf:"bytes,1,opt,name=low_celsius,json=lowCelsius,proto3" json:"low_celsius,omitempty"`
+	HighCelsius         *NumberBounds          `protobuf:"bytes,2,opt,name=high_celsius,json=highCelsius,proto3" json:"high_celsius,omitempty"`
+	MinimumDeltaCelsius *float64               `protobuf:"fixed64,3,opt,name=minimum_delta_celsius,json=minimumDeltaCelsius,proto3,oneof" json:"minimum_delta_celsius,omitempty"`
+	MaximumDeltaCelsius *float64               `protobuf:"fixed64,4,opt,name=maximum_delta_celsius,json=maximumDeltaCelsius,proto3,oneof" json:"maximum_delta_celsius,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *ClimateSetpointRangeConstraints) Reset() {
+	*x = ClimateSetpointRangeConstraints{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClimateSetpointRangeConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClimateSetpointRangeConstraints) ProtoMessage() {}
+
+func (x *ClimateSetpointRangeConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClimateSetpointRangeConstraints.ProtoReflect.Descriptor instead.
+func (*ClimateSetpointRangeConstraints) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ClimateSetpointRangeConstraints) GetLowCelsius() *NumberBounds {
+	if x != nil {
+		return x.LowCelsius
+	}
+	return nil
+}
+
+func (x *ClimateSetpointRangeConstraints) GetHighCelsius() *NumberBounds {
+	if x != nil {
+		return x.HighCelsius
+	}
+	return nil
+}
+
+func (x *ClimateSetpointRangeConstraints) GetMinimumDeltaCelsius() float64 {
+	if x != nil && x.MinimumDeltaCelsius != nil {
+		return *x.MinimumDeltaCelsius
+	}
+	return 0
+}
+
+func (x *ClimateSetpointRangeConstraints) GetMaximumDeltaCelsius() float64 {
+	if x != nil && x.MaximumDeltaCelsius != nil {
+		return *x.MaximumDeltaCelsius
+	}
+	return 0
+}
+
 type MeasurementConstraints struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Unit          string                 `protobuf:"bytes,1,opt,name=unit,proto3" json:"unit,omitempty"`
@@ -872,7 +1027,7 @@ type MeasurementConstraints struct {
 
 func (x *MeasurementConstraints) Reset() {
 	*x = MeasurementConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[8]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -884,7 +1039,7 @@ func (x *MeasurementConstraints) String() string {
 func (*MeasurementConstraints) ProtoMessage() {}
 
 func (x *MeasurementConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[8]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -897,7 +1052,7 @@ func (x *MeasurementConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MeasurementConstraints.ProtoReflect.Descriptor instead.
 func (*MeasurementConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{8}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *MeasurementConstraints) GetUnit() string {
@@ -944,7 +1099,7 @@ type BinaryConstraints struct {
 
 func (x *BinaryConstraints) Reset() {
 	*x = BinaryConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[9]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -956,7 +1111,7 @@ func (x *BinaryConstraints) String() string {
 func (*BinaryConstraints) ProtoMessage() {}
 
 func (x *BinaryConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[9]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -969,7 +1124,7 @@ func (x *BinaryConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BinaryConstraints.ProtoReflect.Descriptor instead.
 func (*BinaryConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{9}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *BinaryConstraints) GetDeviceClass() string {
@@ -989,7 +1144,7 @@ type ExtensionConstraints struct {
 
 func (x *ExtensionConstraints) Reset() {
 	*x = ExtensionConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[10]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1001,7 +1156,7 @@ func (x *ExtensionConstraints) String() string {
 func (*ExtensionConstraints) ProtoMessage() {}
 
 func (x *ExtensionConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[10]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1014,7 +1169,7 @@ func (x *ExtensionConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtensionConstraints.ProtoReflect.Descriptor instead.
 func (*ExtensionConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{10}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ExtensionConstraints) GetActionMessage() string {
@@ -1064,11 +1219,26 @@ const file_home_registry_v1_registry_proto_rawDesc = "" +
 	"\x11color_temp_mireds\x18\x03 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x0fcolorTempMireds\"L\n" +
 	"\x0eFanConstraints\x12\x15\n" +
 	"\x06set_on\x18\x01 \x01(\bR\x05setOn\x12#\n" +
-	"\rspeed_options\x18\x02 \x03(\tR\fspeedOptions\"\xef\x01\n" +
+	"\rspeed_options\x18\x02 \x03(\tR\fspeedOptions\"\xd0\x05\n" +
 	"\x12ClimateConstraints\x12I\n" +
 	"\x10setpoint_celsius\x18\x01 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x0fsetpointCelsius\x12@\n" +
 	"\fmode_options\x18\x02 \x03(\x0e2\x1d.home.registry.v1.ClimateModeR\vmodeOptions\x12L\n" +
-	"\x10activity_options\x18\x03 \x03(\x0e2!.home.registry.v1.ClimateActivityR\x0factivityOptions\"\x8f\x02\n" +
+	"\x10activity_options\x18\x03 \x03(\x0e2!.home.registry.v1.ClimateActivityR\x0factivityOptions\x12q\n" +
+	"\x1cobserved_temperature_celsius\x18\x04 \x01(\v2/.home.registry.v1.ClimateTemperatureObservationR\x1aobservedTemperatureCelsius\x12k\n" +
+	"\x19observed_setpoint_celsius\x18\x05 \x01(\v2/.home.registry.v1.ClimateTemperatureObservationR\x17observedSetpointCelsius\x12x\n" +
+	"\x1fobserved_setpoint_range_celsius\x18\x06 \x01(\v21.home.registry.v1.ClimateSetpointRangeConstraintsR\x1cobservedSetpointRangeCelsius\x12Q\n" +
+	"\x15observed_mode_options\x18\a \x03(\x0e2\x1d.home.registry.v1.ClimateModeR\x13observedModeOptions\x122\n" +
+	"\x15observes_fan_activity\x18\b \x01(\bR\x13observesFanActivity\"W\n" +
+	"\x1dClimateTemperatureObservation\x126\n" +
+	"\x06bounds\x18\x01 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x06bounds\"\xcb\x02\n" +
+	"\x1fClimateSetpointRangeConstraints\x12?\n" +
+	"\vlow_celsius\x18\x01 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\n" +
+	"lowCelsius\x12A\n" +
+	"\fhigh_celsius\x18\x02 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\vhighCelsius\x127\n" +
+	"\x15minimum_delta_celsius\x18\x03 \x01(\x01H\x00R\x13minimumDeltaCelsius\x88\x01\x01\x127\n" +
+	"\x15maximum_delta_celsius\x18\x04 \x01(\x01H\x01R\x13maximumDeltaCelsius\x88\x01\x01B\x18\n" +
+	"\x16_minimum_delta_celsiusB\x18\n" +
+	"\x16_maximum_delta_celsius\"\x8f\x02\n" +
 	"\x16MeasurementConstraints\x12\x12\n" +
 	"\x04unit\x18\x01 \x01(\tR\x04unit\x12\x1c\n" +
 	"\tprecision\x18\x02 \x01(\rR\tprecision\x12A\n" +
@@ -1120,45 +1290,54 @@ func file_home_registry_v1_registry_proto_rawDescGZIP() []byte {
 }
 
 var file_home_registry_v1_registry_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_home_registry_v1_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_home_registry_v1_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_home_registry_v1_registry_proto_goTypes = []any{
-	(ClimateMode)(0),               // 0: home.registry.v1.ClimateMode
-	(ClimateActivity)(0),           // 1: home.registry.v1.ClimateActivity
-	(MeasurementSemantic)(0),       // 2: home.registry.v1.MeasurementSemantic
-	(MeasurementAggregation)(0),    // 3: home.registry.v1.MeasurementAggregation
-	(*EntityId)(nil),               // 4: home.registry.v1.EntityId
-	(*EntityRef)(nil),              // 5: home.registry.v1.EntityRef
-	(*CapabilityDescription)(nil),  // 6: home.registry.v1.CapabilityDescription
-	(*NumberBounds)(nil),           // 7: home.registry.v1.NumberBounds
-	(*SwitchConstraints)(nil),      // 8: home.registry.v1.SwitchConstraints
-	(*LightConstraints)(nil),       // 9: home.registry.v1.LightConstraints
-	(*FanConstraints)(nil),         // 10: home.registry.v1.FanConstraints
-	(*ClimateConstraints)(nil),     // 11: home.registry.v1.ClimateConstraints
-	(*MeasurementConstraints)(nil), // 12: home.registry.v1.MeasurementConstraints
-	(*BinaryConstraints)(nil),      // 13: home.registry.v1.BinaryConstraints
-	(*ExtensionConstraints)(nil),   // 14: home.registry.v1.ExtensionConstraints
+	(ClimateMode)(0),                        // 0: home.registry.v1.ClimateMode
+	(ClimateActivity)(0),                    // 1: home.registry.v1.ClimateActivity
+	(MeasurementSemantic)(0),                // 2: home.registry.v1.MeasurementSemantic
+	(MeasurementAggregation)(0),             // 3: home.registry.v1.MeasurementAggregation
+	(*EntityId)(nil),                        // 4: home.registry.v1.EntityId
+	(*EntityRef)(nil),                       // 5: home.registry.v1.EntityRef
+	(*CapabilityDescription)(nil),           // 6: home.registry.v1.CapabilityDescription
+	(*NumberBounds)(nil),                    // 7: home.registry.v1.NumberBounds
+	(*SwitchConstraints)(nil),               // 8: home.registry.v1.SwitchConstraints
+	(*LightConstraints)(nil),                // 9: home.registry.v1.LightConstraints
+	(*FanConstraints)(nil),                  // 10: home.registry.v1.FanConstraints
+	(*ClimateConstraints)(nil),              // 11: home.registry.v1.ClimateConstraints
+	(*ClimateTemperatureObservation)(nil),   // 12: home.registry.v1.ClimateTemperatureObservation
+	(*ClimateSetpointRangeConstraints)(nil), // 13: home.registry.v1.ClimateSetpointRangeConstraints
+	(*MeasurementConstraints)(nil),          // 14: home.registry.v1.MeasurementConstraints
+	(*BinaryConstraints)(nil),               // 15: home.registry.v1.BinaryConstraints
+	(*ExtensionConstraints)(nil),            // 16: home.registry.v1.ExtensionConstraints
 }
 var file_home_registry_v1_registry_proto_depIdxs = []int32{
 	8,  // 0: home.registry.v1.CapabilityDescription.switch:type_name -> home.registry.v1.SwitchConstraints
 	9,  // 1: home.registry.v1.CapabilityDescription.light:type_name -> home.registry.v1.LightConstraints
 	10, // 2: home.registry.v1.CapabilityDescription.fan:type_name -> home.registry.v1.FanConstraints
 	11, // 3: home.registry.v1.CapabilityDescription.climate:type_name -> home.registry.v1.ClimateConstraints
-	12, // 4: home.registry.v1.CapabilityDescription.measurement:type_name -> home.registry.v1.MeasurementConstraints
-	13, // 5: home.registry.v1.CapabilityDescription.binary:type_name -> home.registry.v1.BinaryConstraints
-	14, // 6: home.registry.v1.CapabilityDescription.extension:type_name -> home.registry.v1.ExtensionConstraints
+	14, // 4: home.registry.v1.CapabilityDescription.measurement:type_name -> home.registry.v1.MeasurementConstraints
+	15, // 5: home.registry.v1.CapabilityDescription.binary:type_name -> home.registry.v1.BinaryConstraints
+	16, // 6: home.registry.v1.CapabilityDescription.extension:type_name -> home.registry.v1.ExtensionConstraints
 	7,  // 7: home.registry.v1.LightConstraints.brightness_percent:type_name -> home.registry.v1.NumberBounds
 	7,  // 8: home.registry.v1.LightConstraints.color_temp_mireds:type_name -> home.registry.v1.NumberBounds
 	7,  // 9: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
 	0,  // 10: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
 	1,  // 11: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
-	2,  // 12: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
-	3,  // 13: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
-	7,  // 14: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	12, // 12: home.registry.v1.ClimateConstraints.observed_temperature_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
+	12, // 13: home.registry.v1.ClimateConstraints.observed_setpoint_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
+	13, // 14: home.registry.v1.ClimateConstraints.observed_setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
+	0,  // 15: home.registry.v1.ClimateConstraints.observed_mode_options:type_name -> home.registry.v1.ClimateMode
+	7,  // 16: home.registry.v1.ClimateTemperatureObservation.bounds:type_name -> home.registry.v1.NumberBounds
+	7,  // 17: home.registry.v1.ClimateSetpointRangeConstraints.low_celsius:type_name -> home.registry.v1.NumberBounds
+	7,  // 18: home.registry.v1.ClimateSetpointRangeConstraints.high_celsius:type_name -> home.registry.v1.NumberBounds
+	2,  // 19: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
+	3,  // 20: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
+	7,  // 21: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_home_registry_v1_registry_proto_init() }
@@ -1181,14 +1360,15 @@ func file_home_registry_v1_registry_proto_init() {
 	}
 	file_home_registry_v1_registry_proto_msgTypes[3].OneofWrappers = []any{}
 	file_home_registry_v1_registry_proto_msgTypes[9].OneofWrappers = []any{}
-	file_home_registry_v1_registry_proto_msgTypes[10].OneofWrappers = []any{}
+	file_home_registry_v1_registry_proto_msgTypes[11].OneofWrappers = []any{}
+	file_home_registry_v1_registry_proto_msgTypes[12].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_registry_v1_registry_proto_rawDesc), len(file_home_registry_v1_registry_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

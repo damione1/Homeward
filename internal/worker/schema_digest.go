@@ -3,3 +3,4 @@ package worker
 
 const schemaDigestV10Hex = "c363e86d3419af3de9fad141bb43465f6669b9edcbb6ddfab4561c7561d5ec88"
 const schemaDigestV11Hex = "1d72cec9576e703a3b14c0d3c93e9eca144fc1d52f7fdd47521d6edbe58f3286"
+const schemaDigestV12Hex = "d0387fda259b28a927908aba972efeb64088ea439a6feda8da210a3d9874fe28"

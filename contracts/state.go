@@ -260,6 +260,22 @@ func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, m
 			return domain.ObservedState{}, err
 		}
 		value = &v
+	case *state.ObservedState_Climate:
+		if item == nil || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		climate, err := AdmitWireClimateValue(item.Climate)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		if err := measurement.Catalog.AdmitDomainClimate(entity, measurement.Endpoint, climate); err != nil {
+			return domain.ObservedState{}, err
+		}
+		v, err := domain.NewClimateStateValue(climate)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &v
 	case nil:
 	default:
 		return domain.ObservedState{}, ErrInvalidWireState
@@ -342,6 +358,13 @@ func EncodeObservedState(observed domain.ObservedState) (*state.ObservedState, e
 				return nil, err
 			}
 			w.Value = &state.ObservedState_Fan{Fan: &state.FanValue{Speed: wireSpeed}}
+		case domain.ValueClimate:
+			climate, _ := value.Climate()
+			wireClimate, err := EncodeClimateValue(climate)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_Climate{Climate: wireClimate}
 		case domain.ValueUnspecified:
 			return nil, ErrInvalidWireState
 		default:

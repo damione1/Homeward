@@ -67,9 +67,26 @@ enum ClimateActivity {
   CLIMATE_ACTIVITY_FAN_ONLY = 5;
 }
 message ClimateConstraints {
+  // These first two fields authorize commands, independently of observations.
   NumberBounds setpoint_celsius = 1;
   repeated ClimateMode mode_options = 2;
   repeated ClimateActivity activity_options = 3; // Observations only.
+  ClimateTemperatureObservation observed_temperature_celsius = 4;
+  ClimateTemperatureObservation observed_setpoint_celsius = 5;
+  ClimateSetpointRangeConstraints observed_setpoint_range_celsius = 6;
+  repeated ClimateMode observed_mode_options = 7;
+  bool observes_fan_activity = 8;
+}
+// Presence advertises an observation. Absent bounds mean unknown device limits.
+message ClimateTemperatureObservation {
+  NumberBounds bounds = 1;
+}
+// Presence advertises a pair, independently of simple setpoint commands.
+message ClimateSetpointRangeConstraints {
+  NumberBounds low_celsius = 1;
+  NumberBounds high_celsius = 2;
+  optional double minimum_delta_celsius = 3;
+  optional double maximum_delta_celsius = 4;
 }
 enum MeasurementSemantic {
   MEASUREMENT_SEMANTIC_UNSPECIFIED = 0;

@@ -8,7 +8,8 @@ import "home/state/v1/state.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/integrations/v1;integrationsv1";
 
-// Exact v1.0 and v1.1 descriptor profiles are admitted. Fan is v1.1 only.
+// Exact v1.0, v1.1 and v1.2 profiles are admitted. Fan requires v1.1;
+// climate observations and their declarations require v1.2.
 enum Capability {
   CAPABILITY_UNSPECIFIED = 0;
   CAPABILITY_DISCOVER = 1;
@@ -66,6 +67,7 @@ message Observation {
     MeasurementValue measurement = 8;
     home.state.v1.LightValue light = 9;
     home.state.v1.FanValue fan = 10;
+    home.state.v1.ClimateValue climate = 11;
   }
 }
 message PublishRequest { Observation observation = 1; }

@@ -25,7 +25,8 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Exact v1.0 and v1.1 descriptor profiles are admitted. Fan is v1.1 only.
+// Exact v1.0, v1.1 and v1.2 profiles are admitted. Fan requires v1.1;
+// climate observations and their declarations require v1.2.
 type Capability int32
 
 const (
@@ -718,6 +719,7 @@ type Observation struct {
 	//	*Observation_Measurement
 	//	*Observation_Light
 	//	*Observation_Fan
+	//	*Observation_Climate
 	Value         isObservation_Value `protobuf_oneof:"value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -838,6 +840,15 @@ func (x *Observation) GetFan() *v11.FanValue {
 	return nil
 }
 
+func (x *Observation) GetClimate() *v11.ClimateValue {
+	if x != nil {
+		if x, ok := x.Value.(*Observation_Climate); ok {
+			return x.Climate
+		}
+	}
+	return nil
+}
+
 type isObservation_Value interface {
 	isObservation_Value()
 }
@@ -858,6 +869,10 @@ type Observation_Fan struct {
 	Fan *v11.FanValue `protobuf:"bytes,10,opt,name=fan,proto3,oneof"`
 }
 
+type Observation_Climate struct {
+	Climate *v11.ClimateValue `protobuf:"bytes,11,opt,name=climate,proto3,oneof"`
+}
+
 func (*Observation_SwitchOn) isObservation_Value() {}
 
 func (*Observation_Measurement) isObservation_Value() {}
@@ -865,6 +880,8 @@ func (*Observation_Measurement) isObservation_Value() {}
 func (*Observation_Light) isObservation_Value() {}
 
 func (*Observation_Fan) isObservation_Value() {}
+
+func (*Observation_Climate) isObservation_Value() {}
 
 type PublishRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1588,7 +1605,7 @@ const file_home_integrations_v1_host_proto_rawDesc = "" +
 	"\x04unit\x18\x02 \x01(\tR\x04unit\x12\x1c\n" +
 	"\tprecision\x18\x03 \x01(\rR\tprecision\x12A\n" +
 	"\bsemantic\x18\x04 \x01(\x0e2%.home.registry.v1.MeasurementSemanticR\bsemantic\x12J\n" +
-	"\vaggregation\x18\x05 \x01(\x0e2(.home.registry.v1.MeasurementAggregationR\vaggregation\"\xa9\x04\n" +
+	"\vaggregation\x18\x05 \x01(\x0e2(.home.registry.v1.MeasurementAggregationR\vaggregation\"\xe2\x04\n" +
 	"\vObservation\x12%\n" +
 	"\x0ebinding_handle\x18\x01 \x01(\fR\rbindingHandle\x12\x1a\n" +
 	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x120\n" +
@@ -1602,7 +1619,8 @@ const file_home_integrations_v1_host_proto_rawDesc = "" +
 	"\vmeasurement\x18\b \x01(\v2&.home.integrations.v1.MeasurementValueH\x00R\vmeasurement\x121\n" +
 	"\x05light\x18\t \x01(\v2\x19.home.state.v1.LightValueH\x00R\x05light\x12+\n" +
 	"\x03fan\x18\n" +
-	" \x01(\v2\x17.home.state.v1.FanValueH\x00R\x03fanB\a\n" +
+	" \x01(\v2\x17.home.state.v1.FanValueH\x00R\x03fan\x127\n" +
+	"\aclimate\x18\v \x01(\v2\x1b.home.state.v1.ClimateValueH\x00R\aclimateB\a\n" +
 	"\x05valueB\x0e\n" +
 	"\f_observed_atB\r\n" +
 	"\v_source_seqB\x16\n" +
@@ -1725,7 +1743,8 @@ var file_home_integrations_v1_host_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil),    // 31: google.protobuf.Timestamp
 	(*v11.LightValue)(nil),           // 32: home.state.v1.LightValue
 	(*v11.FanValue)(nil),             // 33: home.state.v1.FanValue
-	(*v12.CommandRequest)(nil),       // 34: home.actions.v1.CommandRequest
+	(*v11.ClimateValue)(nil),         // 34: home.state.v1.ClimateValue
+	(*v12.CommandRequest)(nil),       // 35: home.actions.v1.CommandRequest
 }
 var file_home_integrations_v1_host_proto_depIdxs = []int32{
 	0,  // 0: home.integrations.v1.HandshakeRequest.capabilities:type_name -> home.integrations.v1.Capability
@@ -1741,35 +1760,36 @@ var file_home_integrations_v1_host_proto_depIdxs = []int32{
 	10, // 10: home.integrations.v1.Observation.measurement:type_name -> home.integrations.v1.MeasurementValue
 	32, // 11: home.integrations.v1.Observation.light:type_name -> home.state.v1.LightValue
 	33, // 12: home.integrations.v1.Observation.fan:type_name -> home.state.v1.FanValue
-	11, // 13: home.integrations.v1.PublishRequest.observation:type_name -> home.integrations.v1.Observation
-	31, // 14: home.integrations.v1.Event.observed_at:type_name -> google.protobuf.Timestamp
-	13, // 15: home.integrations.v1.EmitRequest.event:type_name -> home.integrations.v1.Event
-	1,  // 16: home.integrations.v1.ReportHealthRequest.status:type_name -> home.integrations.v1.HealthStatus
-	34, // 17: home.integrations.v1.CommandsResponse.request:type_name -> home.actions.v1.CommandRequest
-	2,  // 18: home.integrations.v1.CompleteCommandRequest.kind:type_name -> home.integrations.v1.CommandResultKind
-	3,  // 19: home.integrations.v1.HostService.Handshake:input_type -> home.integrations.v1.HandshakeRequest
-	7,  // 20: home.integrations.v1.HostService.Discover:input_type -> home.integrations.v1.DiscoverRequest
-	12, // 21: home.integrations.v1.HostService.Publish:input_type -> home.integrations.v1.PublishRequest
-	14, // 22: home.integrations.v1.HostService.Emit:input_type -> home.integrations.v1.EmitRequest
-	15, // 23: home.integrations.v1.HostService.ReportHealth:input_type -> home.integrations.v1.ReportHealthRequest
-	16, // 24: home.integrations.v1.HostService.ReadSecret:input_type -> home.integrations.v1.ReadSecretRequest
-	24, // 25: home.integrations.v1.HostService.Commands:input_type -> home.integrations.v1.CommandsRequest
-	26, // 26: home.integrations.v1.HostService.CompleteCommand:input_type -> home.integrations.v1.CompleteCommandRequest
-	22, // 27: home.integrations.v1.HostService.Heartbeat:input_type -> home.integrations.v1.HeartbeatRequest
-	4,  // 28: home.integrations.v1.HostService.Handshake:output_type -> home.integrations.v1.HandshakeResponse
-	9,  // 29: home.integrations.v1.HostService.Discover:output_type -> home.integrations.v1.DiscoverResponse
-	18, // 30: home.integrations.v1.HostService.Publish:output_type -> home.integrations.v1.PublishResponse
-	19, // 31: home.integrations.v1.HostService.Emit:output_type -> home.integrations.v1.EmitResponse
-	20, // 32: home.integrations.v1.HostService.ReportHealth:output_type -> home.integrations.v1.ReportHealthResponse
-	17, // 33: home.integrations.v1.HostService.ReadSecret:output_type -> home.integrations.v1.ReadSecretResponse
-	25, // 34: home.integrations.v1.HostService.Commands:output_type -> home.integrations.v1.CommandsResponse
-	21, // 35: home.integrations.v1.HostService.CompleteCommand:output_type -> home.integrations.v1.CompleteCommandResponse
-	23, // 36: home.integrations.v1.HostService.Heartbeat:output_type -> home.integrations.v1.HeartbeatResponse
-	28, // [28:37] is the sub-list for method output_type
-	19, // [19:28] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	34, // 13: home.integrations.v1.Observation.climate:type_name -> home.state.v1.ClimateValue
+	11, // 14: home.integrations.v1.PublishRequest.observation:type_name -> home.integrations.v1.Observation
+	31, // 15: home.integrations.v1.Event.observed_at:type_name -> google.protobuf.Timestamp
+	13, // 16: home.integrations.v1.EmitRequest.event:type_name -> home.integrations.v1.Event
+	1,  // 17: home.integrations.v1.ReportHealthRequest.status:type_name -> home.integrations.v1.HealthStatus
+	35, // 18: home.integrations.v1.CommandsResponse.request:type_name -> home.actions.v1.CommandRequest
+	2,  // 19: home.integrations.v1.CompleteCommandRequest.kind:type_name -> home.integrations.v1.CommandResultKind
+	3,  // 20: home.integrations.v1.HostService.Handshake:input_type -> home.integrations.v1.HandshakeRequest
+	7,  // 21: home.integrations.v1.HostService.Discover:input_type -> home.integrations.v1.DiscoverRequest
+	12, // 22: home.integrations.v1.HostService.Publish:input_type -> home.integrations.v1.PublishRequest
+	14, // 23: home.integrations.v1.HostService.Emit:input_type -> home.integrations.v1.EmitRequest
+	15, // 24: home.integrations.v1.HostService.ReportHealth:input_type -> home.integrations.v1.ReportHealthRequest
+	16, // 25: home.integrations.v1.HostService.ReadSecret:input_type -> home.integrations.v1.ReadSecretRequest
+	24, // 26: home.integrations.v1.HostService.Commands:input_type -> home.integrations.v1.CommandsRequest
+	26, // 27: home.integrations.v1.HostService.CompleteCommand:input_type -> home.integrations.v1.CompleteCommandRequest
+	22, // 28: home.integrations.v1.HostService.Heartbeat:input_type -> home.integrations.v1.HeartbeatRequest
+	4,  // 29: home.integrations.v1.HostService.Handshake:output_type -> home.integrations.v1.HandshakeResponse
+	9,  // 30: home.integrations.v1.HostService.Discover:output_type -> home.integrations.v1.DiscoverResponse
+	18, // 31: home.integrations.v1.HostService.Publish:output_type -> home.integrations.v1.PublishResponse
+	19, // 32: home.integrations.v1.HostService.Emit:output_type -> home.integrations.v1.EmitResponse
+	20, // 33: home.integrations.v1.HostService.ReportHealth:output_type -> home.integrations.v1.ReportHealthResponse
+	17, // 34: home.integrations.v1.HostService.ReadSecret:output_type -> home.integrations.v1.ReadSecretResponse
+	25, // 35: home.integrations.v1.HostService.Commands:output_type -> home.integrations.v1.CommandsResponse
+	21, // 36: home.integrations.v1.HostService.CompleteCommand:output_type -> home.integrations.v1.CompleteCommandResponse
+	23, // 37: home.integrations.v1.HostService.Heartbeat:output_type -> home.integrations.v1.HeartbeatResponse
+	29, // [29:38] is the sub-list for method output_type
+	20, // [20:29] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_home_integrations_v1_host_proto_init() }
@@ -1782,6 +1802,7 @@ func file_home_integrations_v1_host_proto_init() {
 		(*Observation_Measurement)(nil),
 		(*Observation_Light)(nil),
 		(*Observation_Fan)(nil),
+		(*Observation_Climate)(nil),
 	}
 	file_home_integrations_v1_host_proto_msgTypes[10].OneofWrappers = []any{}
 	file_home_integrations_v1_host_proto_msgTypes[12].OneofWrappers = []any{}

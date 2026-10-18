@@ -63,6 +63,8 @@ func (p *pilot) Handshake(_ context.Context, r *connect.Request[wire.HandshakeRe
 		expected = schemaDigestV10Hex
 	case msg.HostMajor == hostMajor && msg.HostMinor == 1 && msg.DriverMajor == driverMajor && msg.DriverMinor == 1:
 		expected = schemaDigestV11Hex
+	case msg.HostMajor == hostMajor && msg.HostMinor == 2 && msg.DriverMajor == driverMajor && msg.DriverMinor == 2:
+		expected = schemaDigestV12Hex
 	default:
 		return nil, connect.NewError(connect.CodeFailedPrecondition, ErrInvalidConfig)
 	}
@@ -153,6 +155,15 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 			for _, description := range input.Descriptions {
 				if description != nil && description.SchemaId == contracts.FanSchema {
 					return nil, rpcInvalid()
+				}
+			}
+		}
+		if p.hostMinor < 2 {
+			for _, description := range input.Descriptions {
+				if description != nil {
+					if climate := description.GetClimate(); climate != nil && (climate.ObservedTemperatureCelsius != nil || climate.ObservedSetpointCelsius != nil || climate.ObservedSetpointRangeCelsius != nil || len(climate.ObservedModeOptions) != 0 || climate.ObservesFanActivity) {
+						return nil, rpcInvalid()
+					}
 				}
 			}
 		}
@@ -322,6 +333,11 @@ func (p *pilot) Publish(ctx context.Context, r *connect.Request[wire.PublishRequ
 			return nil, rpcInvalid()
 		}
 	}
+	if p.hostMinor < 2 {
+		if _, climate := input.Value.(*wire.Observation_Climate); climate {
+			return nil, rpcInvalid()
+		}
+	}
 	binding, entity, err := p.binding(input.BindingHandle)
 	if err != nil {
 		return nil, err
@@ -427,7 +443,7 @@ func (p *pilot) ReportHealth(ctx context.Context, r *connect.Request[wire.Report
 	if err != nil {
 		return nil, rpcInvalid()
 	}
-	if p.hostMinor == 1 && status != integrations.HealthReady {
+	if p.hostMinor >= 1 && status != integrations.HealthReady {
 		p.mu.Lock()
 		p.ready = false
 		p.mu.Unlock()
@@ -447,7 +463,7 @@ func (p *pilot) ReportHealth(ctx context.Context, r *connect.Request[wire.Report
 	if err := p.host.ReportHealth(callCtx, report); err != nil {
 		return nil, rpcHost(err)
 	}
-	if p.hostMinor == 1 && status == integrations.HealthReady {
+	if p.hostMinor >= 1 && status == integrations.HealthReady {
 		p.mu.Lock()
 		p.ready = p.active
 		p.mu.Unlock()
@@ -554,6 +570,19 @@ func parseQuality(input *statev1.Quality) (domain.Quality, error) {
 
 func parseValue(input *wire.Observation) (*domain.StateValue, error) {
 	switch value := input.Value.(type) {
+	case *wire.Observation_Climate:
+		if value == nil {
+			return nil, integrations.ErrInvalidInput
+		}
+		climate, err := contracts.AdmitWireClimateValue(value.Climate)
+		if err != nil {
+			return nil, err
+		}
+		v, err := domain.NewClimateStateValue(climate)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
 	case *wire.Observation_SwitchOn:
 		v := domain.NewSwitchValue(value.SwitchOn)
 		return &v, nil

@@ -241,8 +241,8 @@ func TestNHA017WireEnumCoverage(t *testing.T) {
 		}
 	}
 	fields := (&state.ObservedState{}).ProtoReflect().Descriptor().Oneofs().ByName("value").Fields()
-	if fields.Len() != 4 || fields.ByName("switch_on") == nil || fields.ByName("measurement") == nil ||
-		fields.ByName("light") == nil || fields.ByName("fan") == nil {
+	if fields.Len() != 5 || fields.ByName("switch_on") == nil || fields.ByName("measurement") == nil ||
+		fields.ByName("light") == nil || fields.ByName("fan") == nil || fields.ByName("climate") == nil || fields.ByName("climate").Number() != 15 {
 		t.Fatal("state value oneof changed; review admission and encoding")
 	}
 }
