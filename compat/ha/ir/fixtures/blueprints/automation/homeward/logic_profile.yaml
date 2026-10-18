@@ -1,0 +1,76 @@
+# Original Homeward semantic fixture; no third-party blueprint content.
+blueprint:
+  name: Synthetic panel sequence
+  domain: automation
+  input:
+    controller:
+      selector:
+        device: {}
+    enabled:
+      default: true
+      selector:
+        boolean: {}
+    tick:
+      default: 100
+      selector:
+        number:
+          min: 0
+          max: 1000
+    loops:
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 10
+    press_action:
+      default: []
+      selector:
+        action: {}
+    hold_action:
+      default: []
+      selector:
+        action: {}
+    scene_action:
+      default: []
+      selector:
+        action: {}
+mode: queued
+max: 2
+max_exceeded: silent
+variables:
+  enabled: !input enabled
+triggers:
+- trigger: event
+  event_type: synthetic.press
+  id: press
+- trigger: device
+  domain: mqtt
+  device_id: !input controller
+  type: action
+  subtype: hold
+  id: hold
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: press
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ enabled }}'
+      then: !input press_action
+      else: !input scene_action
+  default:
+  - repeat:
+      count: !input loops
+      sequence:
+      - parallel:
+        - sequence: !input hold_action
+        - sequence:
+          - wait_for_trigger:
+            - trigger: event
+              event_type: synthetic.release
+            timeout:
+              milliseconds: !input tick
+            continue_on_timeout: false
+          - stop: released

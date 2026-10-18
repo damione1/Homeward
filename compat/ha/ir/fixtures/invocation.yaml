@@ -1,0 +1,46 @@
+id: synthetic-logic
+alias: Synthetic logic profile
+use_blueprint:
+  path: homeward/logic_profile.yaml
+  input:
+    controller: synthetic-panel
+    enabled: false
+    tick: 0
+    loops: 2
+    press_action:
+    - action: light.turn_on
+      metadata: {}
+      data:
+        brightness_pct: 50
+        transition: 1
+      target:
+        entity_id: light.synthetic
+    hold_action:
+    - action: light.turn_on
+      data:
+        brightness_step_pct: -15
+        transition: 1
+      target:
+        entity_id: light.synthetic
+    - action: light.turn_on
+      data:
+        brightness_step_pct: 15
+        transition: 1
+      target:
+        entity_id: light.synthetic
+    - action: light.turn_off
+      data:
+        transition: 2
+      target:
+        entity_id: light.synthetic
+    scene_action:
+    - action: scene.turn_on
+      data:
+        transition: 10
+      target:
+        entity_id: scene.synthetic
+    - action: scene.turn_on
+      data:
+        transition: 2
+      target:
+        entity_id: scene.synthetic
