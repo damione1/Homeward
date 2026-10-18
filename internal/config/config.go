@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/storage"
 
 	"go.yaml.in/yaml/v3"
@@ -20,6 +21,7 @@ type Config struct {
 	listen   netip.AddrPort
 	postgres storage.Settings
 	dataDir  string
+	mqtt     *mqtt.Settings
 }
 
 var ErrUninitialized = errors.New("configuration: uninitialized")
@@ -33,6 +35,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		Listen   string                  `yaml:"listen"`
 		Postgres storage.ConnectionInput `yaml:"postgres"`
 		DataDir  string                  `yaml:"data_dir"`
+		MQTT     *mqtt.Input             `yaml:"mqtt"`
 	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
@@ -55,7 +58,22 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 	if !filepath.IsAbs(raw.DataDir) || filepath.Clean(raw.DataDir) != raw.DataDir || raw.DataDir == "/" || strings.ContainsRune(raw.DataDir, '\x00') {
 		return Config{}, fmt.Errorf("configuration: data_dir must be an absolute normalized persistent directory")
 	}
-	return Config{listen: endpoint, postgres: postgres, dataDir: raw.DataDir}, nil
+	result := Config{listen: endpoint, postgres: postgres, dataDir: raw.DataDir}
+	if raw.MQTT != nil {
+		settings, err := mqtt.ParseSettings(*raw.MQTT)
+		if err != nil {
+			return Config{}, fmt.Errorf("configuration: %w", err)
+		}
+		result.mqtt = &settings
+	}
+	return result, nil
+}
+
+func (c Config) MQTTSettings() (mqtt.Settings, bool) {
+	if c.mqtt == nil {
+		return mqtt.Settings{}, false
+	}
+	return *c.mqtt, true
 }
 
 func (c Config) DataDir() (string, error) {

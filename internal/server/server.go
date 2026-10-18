@@ -12,6 +12,7 @@ import (
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
+	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
 )
@@ -94,6 +95,23 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			store.Close()
 			return err
 		}
+	} else if mqttSettings, enabled := c.MQTTSettings(); enabled {
+		instance, err := mqttSettings.Instance()
+		if err != nil {
+			store.Close()
+			return err
+		}
+		pilotFactory, err := mqtt.NewPilotFactory(mqttSettings, mqtt.UnmappedObservations{})
+		if err != nil {
+			store.Close()
+			return err
+		}
+		spec, err := integrations.NewPilotSpec(instance, pilotFactory)
+		if err != nil {
+			store.Close()
+			return err
+		}
+		plan.Pilots = []integrations.PilotSpec{spec}
 	}
 	if err := ctx.Err(); err != nil {
 		store.Close()
