@@ -101,6 +101,7 @@ version = "0.1.0"
 dependencies = [
  "buffa",
  "buffa-types",
+ "home-client-model",
 ]
 
 [[package]]

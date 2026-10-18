@@ -14,8 +14,12 @@ func TestNHA001Lifecycle(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var lc net.ListenConfig
+	c, err := config.Parse([]byte("listen: '127.0.0.1:0'"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	go func() {
-		done <- Run(ctx, config.Config{Listen: "127.0.0.1:0"}, lc.Listen, func(a net.Addr) { ready <- a })
+		done <- Run(ctx, c, lc.Listen, func(a net.Addr) { ready <- a })
 	}()
 	var addr net.Addr
 	select {
@@ -45,7 +49,7 @@ func TestNHA001InvalidConfigurationNeverListens(t *testing.T) {
 		}
 	}
 	called := false
-	err := Run(context.Background(), config.Config{Listen: "invalid"}, func(context.Context, string, string) (net.Listener, error) { called = true; return nil, nil }, nil)
+	err := Run(context.Background(), config.Config{}, func(context.Context, string, string) (net.Listener, error) { called = true; return nil, nil }, nil)
 	if err == nil || called {
 		t.Fatal("invalid config reached listener")
 	}

@@ -11,13 +11,14 @@ import (
 type ListenFunc func(context.Context, string, string) (net.Listener, error)
 
 func Run(ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr)) error {
-	if err := c.Validate(); err != nil {
+	endpoint, err := c.ListenEndpoint()
+	if err != nil {
 		return err
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	l, err := listen(ctx, "tcp", c.Listen)
+	l, err := listen(ctx, "tcp", endpoint.String())
 	if err != nil {
 		return err
 	}
