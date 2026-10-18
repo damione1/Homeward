@@ -73,6 +73,16 @@ const (
 	RouteFlowServerStream
 )
 
+// RouteTransport is a closed admission rule for the actual server connection.
+// URL metadata and proxy headers never satisfy RouteTransportTLSRequired.
+type RouteTransport uint8
+
+const (
+	RouteTransportUnspecified RouteTransport = iota
+	RouteTransportOptionalTLS
+	RouteTransportTLSRequired
+)
+
 // RouteKey is a transport identity, not a business permission. Authorization
 // providers own the later mapping from an admitted route to actual rights.
 type RouteKey struct {
@@ -119,18 +129,20 @@ type Auditor interface {
 }
 
 type publicRoute struct {
-	key     RouteKey
-	access  RouteAccess
-	flow    RouteFlow
-	handler http.Handler
+	key       RouteKey
+	access    RouteAccess
+	flow      RouteFlow
+	transport RouteTransport
+	handler   http.Handler
 }
 
 // ConnectProcedure is an exact generated procedure, with explicit admission
 // and flow policy. Unlisted methods on a generated service stay unreachable.
 type ConnectProcedure struct {
-	Path   string
-	Access RouteAccess
-	Flow   RouteFlow
+	Path      string
+	Access    RouteAccess
+	Flow      RouteFlow
+	Transport RouteTransport
 }
 
 type ConnectHandlerBuilder func(...connect.HandlerOption) (string, http.Handler)
@@ -181,7 +193,7 @@ func typedNilPublic(value any) bool {
 	}
 }
 
-func (p *PublicPlan) Register(kind RouteKind, method RouteMethod, exactPath string, access RouteAccess, flow RouteFlow, handler http.Handler) error {
+func (p *PublicPlan) Register(kind RouteKind, method RouteMethod, exactPath string, access RouteAccess, flow RouteFlow, transport RouteTransport, handler http.Handler) error {
 	if p == nil {
 		return ErrInvalidPublicPlan
 	}
@@ -193,7 +205,7 @@ func (p *PublicPlan) Register(kind RouteKind, method RouteMethod, exactPath stri
 	if p.frozen {
 		return ErrPublicPlanFrozen
 	}
-	if kind == RouteKindConnect || !validPublicRoute(kind, method, exactPath, access, flow) || handler == nil || typedNilPublic(handler) {
+	if kind == RouteKindConnect || !validPublicRoute(kind, method, exactPath, access, flow, transport) || handler == nil || typedNilPublic(handler) {
 		return ErrInvalidPublicPlan
 	}
 	key := routeLookup{method: method.httpMethod(), path: exactPath}
@@ -202,7 +214,7 @@ func (p *PublicPlan) Register(kind RouteKind, method RouteMethod, exactPath stri
 	}
 	p.routes[key] = publicRoute{
 		key:    RouteKey{kind: kind, method: method, path: exactPath},
-		access: access, flow: flow, handler: handler,
+		access: access, flow: flow, transport: transport, handler: handler,
 	}
 	return nil
 }
@@ -226,7 +238,7 @@ func (p *PublicPlan) RegisterConnect(build ConnectHandlerBuilder, procedures ...
 	}
 	seen := make(map[routeLookup]struct{}, len(procedures))
 	for _, procedure := range procedures {
-		if !validPublicRoute(RouteKindConnect, RouteMethodPost, procedure.Path, procedure.Access, procedure.Flow) {
+		if !validPublicRoute(RouteKindConnect, RouteMethodPost, procedure.Path, procedure.Access, procedure.Flow, procedure.Transport) {
 			return ErrInvalidPublicPlan
 		}
 		key := routeLookup{method: http.MethodPost, path: procedure.Path}
@@ -244,13 +256,13 @@ func (p *PublicPlan) RegisterConnect(build ConnectHandlerBuilder, procedures ...
 		key := routeLookup{method: http.MethodPost, path: procedure.Path}
 		p.routes[key] = publicRoute{
 			key:    RouteKey{kind: RouteKindConnect, method: RouteMethodPost, path: procedure.Path},
-			access: procedure.Access, flow: procedure.Flow,
+			access: procedure.Access, flow: procedure.Flow, transport: procedure.Transport,
 		}
 	}
 	return nil
 }
 
-func validPublicRoute(kind RouteKind, method RouteMethod, exactPath string, access RouteAccess, flow RouteFlow) bool {
+func validPublicRoute(kind RouteKind, method RouteMethod, exactPath string, access RouteAccess, flow RouteFlow, transport RouteTransport) bool {
 	switch kind {
 	case RouteKindConnect, RouteKindMCP, RouteKindMedia:
 	default:
@@ -266,6 +278,9 @@ func validPublicRoute(kind RouteKind, method RouteMethod, exactPath string, acce
 		return false
 	}
 	if flow != RouteFlowUnary && flow != RouteFlowServerStream {
+		return false
+	}
+	if transport != RouteTransportOptionalTLS && transport != RouteTransportTLSRequired {
 		return false
 	}
 	if len(exactPath) < 2 || exactPath[0] != '/' || strings.HasSuffix(exactPath, "/") ||
@@ -310,7 +325,7 @@ func compilePublicPlan(plan *PublicPlan, settings config.PublicSettings) (*compi
 	plan.frozen = true
 	result.authenticator, result.authorizer, result.auditor = plan.authenticator, plan.authorizer, plan.auditor
 	for key, route := range plan.routes {
-		if !validPublicRoute(route.key.kind, route.key.method, route.key.path, route.access, route.flow) ||
+		if !validPublicRoute(route.key.kind, route.key.method, route.key.path, route.access, route.flow, route.transport) ||
 			key.method != route.key.method.httpMethod() || key.path != route.key.path ||
 			(route.key.kind != RouteKindConnect && (route.handler == nil || typedNilPublic(route.handler))) {
 			return nil, ErrInvalidPublicPlan
@@ -458,6 +473,10 @@ func (p *compiledPublic) handler(settings config.PublicSettings, admissions *pub
 			_ = controller.SetReadDeadline(time.Time{})
 			_ = controller.SetWriteDeadline(time.Time{})
 		}()
+		if route.transport == RouteTransportTLSRequired && r.TLS == nil {
+			p.deny(w, r, route, nil, PublicErrorPermissionDenied)
+			return
+		}
 		select {
 		case sem <- struct{}{}:
 			defer func() { <-sem }()

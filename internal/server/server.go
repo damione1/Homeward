@@ -76,6 +76,10 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	servingTransport, err := preparePublicServingTransport(c, publicSettings)
+	if err != nil {
+		return err
+	}
 	store, err := storage.Open(ctx, settings)
 	if err != nil {
 		return err
@@ -211,7 +215,7 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	publicDone := closedPublicDone()
 	listenerErr := operatorStartErr
 	if operatorStartErr == nil {
-		publicDone, listenerErr = runPublicListener(lifecycleCtx, c, listen, ready, public, publicSettings)
+		publicDone, listenerErr = runPublicListenerPrepared(lifecycleCtx, c, listen, ready, public, publicSettings, servingTransport)
 	}
 	_ = host.CloseAdmissions()
 	authorization.CloseAdmissions()

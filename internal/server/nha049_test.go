@@ -64,7 +64,7 @@ func (nha049AllowRoute) Authorize(context.Context, domain.ActorID, RouteKey) err
 
 func nha049Config(t *testing.T, port int, dataDir string) config.Config {
 	t.Helper()
-	yaml := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", dataDir, port))
+	yaml := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\n%spostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", dataDir, nha181TLSYAML(), port))
 	value, err := config.ParseWithEnv(yaml, func(name string) (string, bool) {
 		return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD"
 	})
@@ -112,6 +112,7 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 	const recoveryCanary = "NHA049 synthetic recovery canary 2026"
 	cluster := testpg.Start(t)
 	dataDir := shortPrivateDataDir(t)
+	roots := nha181CertificateFixture(t, dataDir)
 	settings := nha049Config(t, cluster.Port, dataDir)
 	identity := &nha049Identity{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -147,8 +148,9 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 		return dial.DialContext(ctx, "unix", socket)
 	}}}
 	operator := authv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
-	publicHTTP := &http.Client{}
-	publicURL := "http://" + address.String()
+	publicHTTP := nha181Client(roots)
+	defer publicHTTP.CloseIdleConnections()
+	publicURL := "https://" + address.String()
 	accountClient := authv1connect.NewAccountServiceClient(publicHTTP, publicURL)
 	defer func() {
 		cancel()
@@ -384,6 +386,7 @@ func TestNHA049OperatorUIDAdmission(t *testing.T) {
 func TestNHA049DefaultRunSocketRestartAndFailClosed(t *testing.T) {
 	cluster := testpg.Start(t)
 	dataDir := shortPrivateDataDir(t)
+	roots := nha181CertificateFixture(t, dataDir)
 	settings := nha049Config(t, cluster.Port, dataDir)
 	socket := filepath.Join(dataDir, operatorSocketName)
 	var listen net.ListenConfig
@@ -430,7 +433,9 @@ func TestNHA049DefaultRunSocketRestartAndFailClosed(t *testing.T) {
 	if err != nil || uid != uint32(os.Geteuid()) {
 		t.Fatalf("actual Unix peer UID=%d: %v", uid, err)
 	}
-	public := authv1connect.NewAccountServiceClient(&http.Client{}, "http://"+address.String())
+	publicHTTP := nha181Client(roots)
+	defer publicHTTP.CloseIdleConnections()
+	public := authv1connect.NewAccountServiceClient(publicHTTP, "https://"+address.String())
 	_, err = public.CreateAccount(context.Background(), nha049Request(&authv1.CreateAccountRequest{LoginName: "Closed Route", DisplayName: "Closed Route", Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: "NHA049 closed route password"}, "admin"))
 	nha049Code(t, err, connect.CodeUnavailable)
 	storeSettings, _ := settings.PostgresSettings()

@@ -32,6 +32,24 @@ func runPublicListener(
 	if ctx == nil || listen == nil || public == nil {
 		return closedPublicDone(), ErrInvalidContext
 	}
+	servingTransport, err := preparePublicServingTransport(c, settings)
+	if err != nil {
+		return closedPublicDone(), err
+	}
+	return runPublicListenerPrepared(ctx, c, listen, ready, public, settings, servingTransport)
+}
+
+func runPublicListenerPrepared(
+	ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr),
+	public *compiledPublic, settings config.PublicSettings, transport publicServingTransport,
+) (<-chan struct{}, error) {
+	if ctx == nil || listen == nil || public == nil {
+		return closedPublicDone(), ErrInvalidContext
+	}
+	if transport.mode != config.PublicTransportH2C && transport.mode != config.PublicTransportTLS ||
+		transport.mode == config.PublicTransportTLS && transport.tlsConfig == nil {
+		return closedPublicDone(), config.ErrInvalidPublicSettings
+	}
 	endpoint, err := c.ListenEndpoint()
 	if err != nil {
 		return closedPublicDone(), err
@@ -50,11 +68,13 @@ func runPublicListener(
 	sessions := newPublicAdmissions()
 	connections := newPublicListenerConnections(listener)
 	servingCtx, servingCancel := context.WithCancel(ctx)
-	h2cHandler := h2c.NewHandler(public.handler(settings, admissions), &http2.Server{})
+	var routeHandler http.Handler = public.handler(settings, admissions)
+	if transport.mode == config.PublicTransportH2C {
+		routeHandler = h2c.NewHandler(routeHandler, &http2.Server{})
+	}
 	sessionHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The generated clients and reverse proxy use HTTP/2 prior knowledge.
-		// Reject HTTP/1.1 Upgrade before h2c can buffer its entire first body.
-		if requestsH2CUpgrade(r) {
+		// Reject Upgrade before h2c can buffer its entire first body.
+		if transport.mode == config.PublicTransportH2C && requestsH2CUpgrade(r) {
 			http.Error(w, "h2c upgrade unsupported; use HTTP/2 prior knowledge", http.StatusUpgradeRequired)
 			return
 		}
@@ -63,7 +83,7 @@ func runPublicListener(
 			return
 		}
 		defer sessions.end()
-		h2cHandler.ServeHTTP(w, r)
+		routeHandler.ServeHTTP(w, r)
 	})
 	server := &http.Server{
 		// The outer cap also bounds h2c's first-request read before the
@@ -73,8 +93,23 @@ func runPublicListener(
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 	}
+	if transport.mode == config.PublicTransportTLS {
+		protocols := new(http.Protocols)
+		protocols.SetHTTP1(true)
+		protocols.SetHTTP2(true)
+		server.Protocols = protocols
+		server.TLSConfig = transport.tlsConfig
+	}
 	serveDone := make(chan error, 1)
-	go func() { serveDone <- server.Serve(connections) }()
+	go func() {
+		if transport.mode == config.PublicTransportTLS {
+			// ServeTLS wraps the tracked listener. Its Accept returns *tls.Conn
+			// to net/http, so ALPN h2 is visible while raw sockets remain tracked.
+			serveDone <- server.ServeTLS(connections, "", "")
+		} else {
+			serveDone <- server.Serve(connections)
+		}
+	}()
 	var serveErr error
 	serveExited := false
 	select {
