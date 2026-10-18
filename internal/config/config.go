@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/damione1/Homeward/internal/mqtt"
+	"github.com/damione1/Homeward/internal/neviweb"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/worker"
 
@@ -23,6 +24,7 @@ type Config struct {
 	postgres storage.Settings
 	dataDir  string
 	mqtt     *mqtt.Settings
+	neviweb  *neviweb.Settings
 	workers  []worker.Config
 	public   PublicSettings
 }
@@ -39,6 +41,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		Postgres storage.ConnectionInput `yaml:"postgres"`
 		DataDir  string                  `yaml:"data_dir"`
 		MQTT     *mqtt.Input             `yaml:"mqtt"`
+		Neviweb  *neviweb.Input          `yaml:"neviweb"`
 		Public   *publicInput            `yaml:"public"`
 		Workers  []struct {
 			Instance    string   `yaml:"instance"`
@@ -86,6 +89,13 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		}
 		result.mqtt = &settings
 	}
+	if raw.Neviweb != nil {
+		settings, err := neviweb.ParseSettings(*raw.Neviweb)
+		if err != nil {
+			return Config{}, fmt.Errorf("configuration: %w", err)
+		}
+		result.neviweb = &settings
+	}
 	if len(raw.Workers) > 16 {
 		return Config{}, ErrInvalidYAML
 	}
@@ -130,6 +140,13 @@ func (c Config) MQTTSettings() (mqtt.Settings, bool) {
 		return mqtt.Settings{}, false
 	}
 	return *c.mqtt, true
+}
+
+func (c Config) NeviwebSettings() (neviweb.Settings, bool) {
+	if c.neviweb == nil {
+		return neviweb.Settings{}, false
+	}
+	return *c.neviweb, true
 }
 
 func (c Config) DataDir() (string, error) {

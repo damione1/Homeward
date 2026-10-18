@@ -37,6 +37,9 @@ const (
 	SecretNotFound
 	SecretCommitUnknown
 	SecretConflict
+	QuotaInvalid
+	QuotaUnavailable
+	QuotaCommitUnknown
 )
 
 // Error deliberately excludes driver and connection details from its diagnostic.
@@ -112,6 +115,12 @@ func (e *Error) Error() string {
 		return "secrets: commit outcome unknown"
 	case SecretConflict:
 		return "secrets: credential changed since it was read"
+	case QuotaInvalid:
+		return "cloud quota: invalid account budget"
+	case QuotaUnavailable:
+		return "cloud quota: unavailable"
+	case QuotaCommitUnknown:
+		return "cloud quota: reservation commit outcome unknown"
 	default:
 		return "postgres: unknown storage failure"
 	}
@@ -437,6 +446,15 @@ CREATE TABLE public.registry_mqtt_discovery_topics (
 );
 CREATE INDEX registry_mqtt_discovery_by_topic
     ON public.registry_mqtt_discovery_topics(instance_id, discovery_topic);
+`}, {version: Version{7}, sql: `
+-- Every committed row is one conservative admission before cloud transport.
+CREATE TABLE public.cloud_request_reservations (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    account_id text NOT NULL CHECK (account_id <> '' AND octet_length(account_id) <= 128),
+    reserved_at timestamptz NOT NULL
+);
+CREATE INDEX cloud_request_reservations_by_account_time
+    ON public.cloud_request_reservations(account_id, reserved_at);
 `}}
 
 var latestVersion = migrations[len(migrations)-1].version

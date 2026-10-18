@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,17 +54,97 @@ func (r CloudRequest) MarshalJSON() ([]byte, error) { return json.Marshal(r.Stri
 type CloudResponse struct {
 	status      int
 	body        []byte
+	cookies     CloudCookies
 	owner       *CloudClient
 	observation bool
 	healthEpoch uint64
 }
 
-func (r CloudResponse) StatusCode() int  { return r.status }
-func (r CloudResponse) Bytes() []byte    { return append([]byte(nil), r.body...) }
-func (r CloudResponse) String() string   { return "[REDACTED CLOUD RESPONSE]" }
-func (r CloudResponse) GoString() string { return r.String() }
+func (r CloudResponse) StatusCode() int       { return r.status }
+func (r CloudResponse) Bytes() []byte         { return append([]byte(nil), r.body...) }
+func (r CloudResponse) Cookies() CloudCookies { return r.cookies.clone() }
+func (r CloudResponse) String() string        { return "[REDACTED CLOUD RESPONSE]" }
+func (r CloudResponse) GoString() string      { return r.String() }
 func (r CloudResponse) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.String())
+}
+
+// CloudCookies is an owned, bounded snapshot. Its diagnostic paths never
+// expose session material; CookieHeader is an explicit secret-handling step.
+type CloudCookies struct{ values []http.Cookie }
+
+func (c CloudCookies) clone() CloudCookies {
+	return CloudCookies{values: append([]http.Cookie(nil), c.values...)}
+}
+func (c CloudCookies) String() string               { return "[REDACTED CLOUD COOKIES]" }
+func (c CloudCookies) GoString() string             { return c.String() }
+func (c CloudCookies) MarshalJSON() ([]byte, error) { return json.Marshal(c.String()) }
+func (c CloudCookies) CookieHeader() (string, error) {
+	if len(c.values) == 0 {
+		return "", &CloudError{kind: CloudInvalid}
+	}
+	return c.MergeHeader("")
+}
+
+// MergeHeader follows the upstream client cookie-jar rule for one account
+// while keeping the owned snapshot bounded and diagnostics redacted.
+func (c CloudCookies) MergeHeader(previous string) (string, error) {
+	if len(c.values) == 0 {
+		return previous, nil
+	}
+	values := make(map[string]string)
+	for _, part := range strings.Split(previous, "; ") {
+		if part == "" {
+			continue
+		}
+		name, value, ok := strings.Cut(part, "=")
+		if !ok || name == "" {
+			return "", &CloudError{kind: CloudInvalid}
+		}
+		values[name] = value
+	}
+	for _, cookie := range c.values {
+		values[cookie.Name] = cookie.Value
+	}
+	if len(values) > 16 {
+		return "", &CloudError{kind: CloudResponseTooLarge}
+	}
+	names := make([]string, 0, len(values))
+	for name := range values {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		parts = append(parts, name+"="+values[name])
+	}
+	joined := strings.Join(parts, "; ")
+	if len(joined) > 8192 {
+		return "", &CloudError{kind: CloudResponseTooLarge}
+	}
+	return joined, nil
+}
+
+func snapshotCloudCookies(response *http.Response) (CloudCookies, error) {
+	values := response.Cookies()
+	if len(values) > 16 {
+		return CloudCookies{}, &CloudError{kind: CloudResponseTooLarge}
+	}
+	owned := make([]http.Cookie, 0, len(values))
+	for _, cookie := range values {
+		if cookie.Name == "" || len(cookie.Name) > 256 || len(cookie.Value) > 4096 || strings.ContainsAny(cookie.Name, "\r\n;= ") || strings.ContainsAny(cookie.Value, "\r\n;") {
+			return CloudCookies{}, &CloudError{kind: CloudInvalid}
+		}
+		owned = append(owned, http.Cookie{Name: cookie.Name, Value: cookie.Value})
+	}
+	return CloudCookies{values: owned}, nil
+}
+
+// CloudAttemptAdmission is trusted composition's durable fence. A nonzero
+// retry time denies the attempt locally; an error denies it as unavailable.
+// It runs before every HTTP attempt, including retries and login exchanges.
+type CloudAttemptAdmission interface {
+	ReserveAttempt(context.Context) (time.Time, error)
 }
 
 // CloudClient is a session-bound view of a shared policy. It neither owns
@@ -78,6 +159,7 @@ type CloudClient struct {
 	healthMu    sync.Mutex
 	degraded    bool
 	healthEpoch uint64
+	admission   CloudAttemptAdmission
 }
 
 func (c *CloudClient) String() string   { return "[REDACTED CLOUD CLIENT]" }
@@ -86,7 +168,10 @@ func (c *CloudClient) MarshalJSON() ([]byte, error) {
 	return json.Marshal(c.String())
 }
 
-func NewCloudClient(host SessionHost, policy *CloudPolicy, transport *http.Transport) (*CloudClient, error) {
+func NewCloudClient(host SessionHost, policy *CloudPolicy, transport *http.Transport, admission ...CloudAttemptAdmission) (*CloudClient, error) {
+	if len(admission) > 1 || (len(admission) == 1 && nilInterface(admission[0])) {
+		return nil, &CloudError{kind: CloudInvalid}
+	}
 	session, ok := host.(*Session)
 	if !ok || session == nil || session.host == nil || policy == nil || policy.states == nil || (transport != nil && nilInterface(transport)) {
 		return nil, &CloudError{kind: CloudInvalid}
@@ -116,7 +201,11 @@ func NewCloudClient(host SessionHost, policy *CloudPolicy, transport *http.Trans
 	// fresh connections for every policy attempt, including GET actions.
 	ownedTransport.DisableKeepAlives = true
 	client := &http.Client{Transport: ownedTransport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &CloudClient{session: session, secrets: secrets, policy: policy, scope: state, http: client}, nil
+	result := &CloudClient{session: session, secrets: secrets, policy: policy, scope: state, http: client}
+	if len(admission) == 1 {
+		result.admission = admission[0]
+	}
+	return result, nil
 }
 
 func (c *CloudClient) valid() bool {
@@ -266,6 +355,18 @@ func (c *CloudClient) send(ctx context.Context, request CloudRequest, beforeTran
 	if !c.live() || (beforeTransport != nil && !beforeTransport()) {
 		return CloudResponse{}, time.Time{}, &CloudError{kind: CloudSessionInactive}
 	}
+	if c.admission != nil {
+		retryAt, reserveErr := c.admission.ReserveAttempt(attempt)
+		if reserveErr != nil {
+			return CloudResponse{}, time.Time{}, &CloudError{kind: CloudQuotaStoreUnavailable}
+		}
+		if !retryAt.IsZero() {
+			return CloudResponse{}, time.Time{}, &CloudError{kind: CloudLocalQuotaExhausted, retryAt: retryAt}
+		}
+		if attempt.Err() != nil || !c.live() || (beforeTransport != nil && !beforeTransport()) {
+			return CloudResponse{}, time.Time{}, &CloudError{kind: CloudSessionInactive}
+		}
+	}
 	if entered != nil {
 		*entered = true
 	}
@@ -301,12 +402,16 @@ func (c *CloudClient) send(ctx context.Context, request CloudRequest, beforeTran
 		return CloudResponse{}, time.Time{}, &CloudError{kind: CloudSessionInactive}
 	}
 	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
-		return CloudResponse{}, time.Time{}, &CloudError{kind: CloudCredentialFailed}
+		return CloudResponse{}, time.Time{}, &CloudError{kind: CloudCredentialFailed, responseBody: content}
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return CloudResponse{}, time.Time{}, &CloudError{kind: CloudHTTPFailed, retryable: response.StatusCode >= 500 && response.StatusCode <= 599}
+		return CloudResponse{}, time.Time{}, &CloudError{kind: CloudHTTPFailed, retryable: response.StatusCode >= 500 && response.StatusCode <= 599, responseBody: content}
 	}
-	return CloudResponse{status: response.StatusCode, body: content}, time.Time{}, nil
+	cookies, err := snapshotCloudCookies(response)
+	if err != nil {
+		return CloudResponse{}, time.Time{}, err
+	}
+	return CloudResponse{status: response.StatusCode, body: content, cookies: cookies}, time.Time{}, nil
 }
 
 func parseCloudRetryAfter(raw string, now time.Time) (time.Time, bool) {
