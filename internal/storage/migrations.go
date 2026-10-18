@@ -516,6 +516,60 @@ CREATE TABLE public.energy_checkpoints (
     generation bigint NOT NULL CHECK (generation > 0),
     state jsonb NOT NULL CHECK (octet_length(state::text) <= 16384)
 );
+`}, {version: Version{10}, sql: `
+-- Interactive sessions use opaque bearer digests. Consumed refresh digests
+-- remain until the absolute session deadline so a replay can revoke its family.
+CREATE TABLE public.auth_sessions (
+    id text PRIMARY KEY CHECK (id <> '' AND octet_length(id) <= 128),
+    account_id text NOT NULL REFERENCES public.auth_accounts(id) ON DELETE CASCADE,
+    account_revision bigint NOT NULL CHECK (account_revision > 0),
+    created_at timestamptz NOT NULL,
+    expires_at timestamptz NOT NULL,
+    revoked_at timestamptz,
+    current_generation integer NOT NULL CHECK (current_generation BETWEEN 1 AND 4096),
+    last_used_at timestamptz,
+    CHECK (expires_at > created_at)
+);
+CREATE INDEX auth_sessions_by_account ON public.auth_sessions(account_id, created_at, id);
+CREATE TABLE public.auth_refresh_generations (
+    session_id text NOT NULL REFERENCES public.auth_sessions(id) ON DELETE CASCADE,
+    generation integer NOT NULL CHECK (generation BETWEEN 1 AND 4096),
+    token_digest bytea NOT NULL UNIQUE CHECK (octet_length(token_digest) = 32),
+    state smallint NOT NULL CHECK (state IN (1, 2)),
+    issued_at timestamptz NOT NULL,
+    consumed_at timestamptz,
+    PRIMARY KEY(session_id, generation),
+    CHECK ((state = 1 AND consumed_at IS NULL) OR (state = 2 AND consumed_at IS NOT NULL))
+);
+CREATE UNIQUE INDEX auth_refresh_one_current ON public.auth_refresh_generations(session_id) WHERE state = 1;
+CREATE TABLE public.auth_access_credentials (
+    session_id text PRIMARY KEY REFERENCES public.auth_sessions(id) ON DELETE CASCADE,
+    token_digest bytea NOT NULL UNIQUE CHECK (octet_length(token_digest) = 32),
+    audience smallint NOT NULL CHECK (audience = 1),
+    expires_at timestamptz NOT NULL
+);
+CREATE TABLE public.auth_login_attempts (
+    login_digest bytea PRIMARY KEY CHECK (octet_length(login_digest) = 32),
+    attempts timestamptz[] NOT NULL CHECK (cardinality(attempts) BETWEEN 1 AND 5)
+);
+CREATE TABLE public.auth_login_challenges (
+    account_id text PRIMARY KEY REFERENCES public.auth_accounts(id) ON DELETE CASCADE,
+    id text NOT NULL UNIQUE CHECK (id <> '' AND octet_length(id) <= 128),
+    account_revision bigint NOT NULL CHECK (account_revision > 0),
+    options bytea NOT NULL CHECK (octet_length(options) BETWEEN 1 AND 16384),
+    expires_at timestamptz NOT NULL,
+    attempts smallint NOT NULL DEFAULT 0 CHECK (attempts BETWEEN 0 AND 5),
+    consumed_at timestamptz
+);
+CREATE TABLE public.auth_enrollment_grants (
+    token_digest bytea PRIMARY KEY CHECK (octet_length(token_digest) = 32),
+    account_id text NOT NULL REFERENCES public.auth_accounts(id) ON DELETE CASCADE,
+    account_revision bigint NOT NULL CHECK (account_revision > 0),
+    expires_at timestamptz NOT NULL,
+    consumed_at timestamptz
+);
+ALTER TABLE public.auth_audit DROP CONSTRAINT auth_audit_action_check;
+ALTER TABLE public.auth_audit ADD CONSTRAINT auth_audit_action_check CHECK (action BETWEEN 1 AND 20);
 `}}
 
 var latestVersion = migrations[len(migrations)-1].version

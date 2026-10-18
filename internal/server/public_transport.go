@@ -118,6 +118,13 @@ type Authenticator interface {
 	Authenticate(context.Context, *http.Request) (domain.ActorID, error)
 }
 
+// LeasedAuthenticator extends the existing injected authenticator without
+// changing custom PublicPlan providers. Its returned context is canceled when
+// the admitted session is revoked; release unregisters the in-flight request.
+type LeasedAuthenticator interface {
+	AuthenticateWithLease(context.Context, *http.Request) (domain.ActorID, context.Context, func(), error)
+}
+
 type Authorizer interface {
 	// Authorize must return when ctx is canceled.
 	Authorize(context.Context, domain.ActorID, RouteKey) error
@@ -163,6 +170,7 @@ type PublicPlan struct {
 	mu            sync.Mutex
 	valid         bool
 	frozen        bool
+	sessionClock  sessionClock // private composition/test clock; default is real time
 	authenticator Authenticator
 	authorizer    Authorizer
 	auditor       Auditor
@@ -330,6 +338,9 @@ func compilePublicPlan(plan *PublicPlan, settings config.PublicSettings) (*compi
 			(route.key.kind != RouteKindConnect && (route.handler == nil || typedNilPublic(route.handler))) {
 			return nil, ErrInvalidPublicPlan
 		}
+		if _, builtIn := plan.authenticator.(*sessionAuth); builtIn && route.access == RouteAccessProtected && route.transport != RouteTransportTLSRequired {
+			return nil, ErrInvalidPublicPlan
+		}
 		result.routes[key] = route
 	}
 	for _, registration := range plan.connect {
@@ -490,7 +501,26 @@ func (p *compiledPublic) handler(settings config.PublicSettings, admissions *pub
 				p.deny(w, r, route, nil, PublicErrorUnavailable)
 				return
 			}
-			admitted, err := p.authenticator.Authenticate(ctx, r)
+			var admitted domain.ActorID
+			var err error
+			if leased, ok := p.authenticator.(LeasedAuthenticator); ok {
+				var leaseContext context.Context
+				var release func()
+				admitted, leaseContext, release, err = leased.AuthenticateWithLease(ctx, r)
+				if release != nil {
+					defer release()
+				}
+				if err == nil {
+					if leaseContext == nil {
+						err = ErrInvalidPublicPlan
+					} else {
+						ctx = leaseContext
+						r = r.WithContext(ctx)
+					}
+				}
+			} else {
+				admitted, err = p.authenticator.Authenticate(ctx, r)
+			}
 			if err != nil {
 				p.deny(w, r, route, nil, contextErrorCode(ctx, PublicErrorUnauthenticated))
 				return

@@ -325,7 +325,12 @@ func TestNHA181AccountGateRejectsPlaintextBeforeBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registerAccountRoutes(plan, nil); err != nil {
+	store := &storage.Store{} // TLS gate exits before handler or database access.
+	coordinator, err := newSessionCoordinator(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registerAccountRoutes(plan, store, coordinator); err != nil {
 		t.Fatal(err)
 	}
 	compiled, err := compilePublicPlan(plan, public)

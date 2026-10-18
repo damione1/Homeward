@@ -14,7 +14,30 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type accountHandler struct{ store *storage.Store }
+type accountHandler struct {
+	store       *storage.Store
+	coordinator *sessionCoordinator
+}
+
+func (h *accountHandler) accountMutationGuard(ctx context.Context, target contracts.AccountID) (*sessionGuard, error) {
+	if h == nil || h.coordinator == nil {
+		return nil, storage.ErrSessionUnavailable
+	}
+	return h.coordinator.enter(ctx, target)
+}
+
+func finishAccountMutation(guard *sessionGuard, ctx context.Context, err error, revoking bool) {
+	if guard == nil {
+		return
+	}
+	if errors.Is(err, storage.ErrAccountCommitUnknown) {
+		guard.quarantine()
+		guard.cancelLeases(ctx, nil)
+	} else if err == nil && revoking {
+		guard.cancelLeases(ctx, nil)
+	}
+	guard.release()
+}
 
 var _ authv1connect.AccountServiceHandler = (*accountHandler)(nil)
 var _ authv1connect.OperatorAccountServiceHandler = (*accountHandler)(nil)
@@ -242,7 +265,12 @@ func (h *accountHandler) RecoverAccount(ctx context.Context, request *connect.Re
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
+	guard, err := h.accountMutationGuard(ctx, id)
+	if err != nil {
+		return nil, accountRPCError(err)
+	}
 	record, err := h.store.RecoverAccount(ctx, id, verifier)
+	finishAccountMutation(guard, ctx, err, true)
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
@@ -356,7 +384,25 @@ func (h *accountHandler) UpdateAccount(ctx context.Context, request *connect.Req
 		}
 		changes.Status = &status
 	}
-	record, err := h.store.UpdateAccount(ctx, actor, target, changes)
+	guard, err := h.accountMutationGuard(ctx, target)
+	if err != nil {
+		return nil, accountRPCError(err)
+	}
+	outcome, err := h.store.UpdateAccountWithOutcome(ctx, actor, target, changes)
+	var record storage.AccountRecord
+	var rightsChanged bool
+	if err == nil {
+		record, rightsChanged, err = outcome.Result()
+		if err != nil {
+			// A committed update without an admitted outcome cannot establish
+			// whether existing leases remain authorized.
+			guard.quarantine()
+			guard.cancelLeases(ctx, nil)
+			guard.release()
+			return nil, accountRPCError(err)
+		}
+	}
+	finishAccountMutation(guard, ctx, err, rightsChanged)
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
@@ -379,7 +425,13 @@ func (h *accountHandler) DeleteAccount(ctx context.Context, request *connect.Req
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
-	if err := h.store.DeleteAccount(ctx, actor, target); err != nil {
+	guard, err := h.accountMutationGuard(ctx, target)
+	if err != nil {
+		return nil, accountRPCError(err)
+	}
+	err = h.store.DeleteAccount(ctx, actor, target)
+	finishAccountMutation(guard, ctx, err, true)
+	if err != nil {
 		return nil, accountRPCError(err)
 	}
 	return connect.NewResponse(&authv1.DeleteAccountResponse{}), nil

@@ -87,33 +87,63 @@ func (s *Store) ListAccounts(ctx context.Context, actor contracts.AccountID) ([]
 	})
 }
 
+// AccountUpdateOutcome carries the rights-change decision made under the same
+// account transaction that commits the updated record. Zero is not admitted.
+type AccountUpdateOutcome struct {
+	record        AccountRecord
+	rightsChanged bool
+	valid         bool
+}
+
+func (o AccountUpdateOutcome) Result() (AccountRecord, bool, error) {
+	if !o.valid {
+		return AccountRecord{}, false, ErrAccountUnavailable
+	}
+	if _, err := o.record.Revision(); err != nil {
+		return AccountRecord{}, false, ErrAccountUnavailable
+	}
+	return o.record, o.rightsChanged, nil
+}
+
+// UpdateAccount retains the NHA-049 API for existing callers. The transport
+// uses UpdateAccountWithOutcome to cancel session leases only when this exact
+// committed transaction changed role or status.
 func (s *Store) UpdateAccount(ctx context.Context, actor, target contracts.AccountID, changes AccountChanges) (AccountRecord, error) {
-	targetValue, err := sqlAccountID(target)
+	outcome, err := s.UpdateAccountWithOutcome(ctx, actor, target, changes)
 	if err != nil {
 		return AccountRecord{}, err
 	}
-	if changes.Display == nil && changes.Role == nil && changes.Status == nil {
-		return AccountRecord{}, ErrAccountInvalid
+	record, _, err := outcome.Result()
+	return record, err
+}
+
+func (s *Store) UpdateAccountWithOutcome(ctx context.Context, actor, target contracts.AccountID, changes AccountChanges) (AccountUpdateOutcome, error) {
+	targetValue, err := sqlAccountID(target)
+	if err != nil {
+		return AccountUpdateOutcome{}, err
 	}
-	return accountTransaction(s, ctx, accountAudit{actor: &actor, target: &target, action: authActionUpdateAccount}, func(tx pgx.Tx) (AccountRecord, error) {
+	if changes.Display == nil && changes.Role == nil && changes.Status == nil {
+		return AccountUpdateOutcome{}, ErrAccountInvalid
+	}
+	return accountTransaction(s, ctx, accountAudit{actor: &actor, target: &target, action: authActionUpdateAccount}, func(tx pgx.Tx) (AccountUpdateOutcome, error) {
 		if _, err := lockAuthSingleton(ctx, tx); err != nil {
-			return AccountRecord{}, err
+			return AccountUpdateOutcome{}, err
 		}
 		if err := requireAdmin(ctx, tx, actor); err != nil {
-			return AccountRecord{}, err
+			return AccountUpdateOutcome{}, err
 		}
 		current, err := accountByID(ctx, tx, target)
 		if err != nil {
-			return AccountRecord{}, err
+			return AccountUpdateOutcome{}, err
 		}
 		display, err := current.display.Value()
 		if err != nil {
-			return AccountRecord{}, err
+			return AccountUpdateOutcome{}, err
 		}
 		if changes.Display != nil {
 			display, err = changes.Display.Value()
 			if err != nil {
-				return AccountRecord{}, ErrAccountInvalid
+				return AccountUpdateOutcome{}, ErrAccountInvalid
 			}
 		}
 		role := current.role
@@ -122,7 +152,7 @@ func (s *Store) UpdateAccount(ctx context.Context, actor, target contracts.Accou
 		}
 		roleSQL, err := sqlRole(role)
 		if err != nil {
-			return AccountRecord{}, err
+			return AccountUpdateOutcome{}, err
 		}
 		status := current.status
 		if changes.Status != nil {
@@ -130,16 +160,16 @@ func (s *Store) UpdateAccount(ctx context.Context, actor, target contracts.Accou
 		}
 		statusSQL, err := sqlStatus(status)
 		if err != nil {
-			return AccountRecord{}, err
+			return AccountUpdateOutcome{}, err
 		}
 		if current.role == authv1.AccountRole_ACCOUNT_ROLE_ADMIN && current.status == authv1.AccountStatus_ACCOUNT_STATUS_ACTIVE &&
 			(role != current.role || status != current.status) {
 			count, err := activeAdminCount(ctx, tx)
 			if err != nil {
-				return AccountRecord{}, err
+				return AccountUpdateOutcome{}, err
 			}
 			if count <= 1 {
-				return AccountRecord{}, ErrLastActiveAdmin
+				return AccountUpdateOutcome{}, ErrLastActiveAdmin
 			}
 		}
 		// Display-only changes leave future sessions valid; only a real role or
@@ -149,9 +179,13 @@ func (s *Store) UpdateAccount(ctx context.Context, actor, target contracts.Accou
             revocation_revision=revocation_revision+CASE WHEN $5 THEN 1 ELSE 0 END,updated_at=now() WHERE id=$1`,
 			targetValue, display, roleSQL, statusSQL, rightsChanged)
 		if err != nil {
-			return AccountRecord{}, err
+			return AccountUpdateOutcome{}, err
 		}
-		return accountByID(ctx, tx, target)
+		updated, err := accountByID(ctx, tx, target)
+		if err != nil {
+			return AccountUpdateOutcome{}, err
+		}
+		return AccountUpdateOutcome{record: updated, rightsChanged: rightsChanged, valid: true}, nil
 	})
 }
 

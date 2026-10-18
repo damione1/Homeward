@@ -34,8 +34,8 @@ type operatorListener struct {
 // startOperatorListener is the only path to the generated operator service.
 // It binds within the already validated 0700 data directory before public
 // readiness, then admits only local peers whose kernel UID is our effective UID.
-func startOperatorListener(ctx context.Context, dataDir string, store *storage.Store) (*operatorListener, error) {
-	if ctx == nil || store == nil {
+func startOperatorListener(ctx context.Context, dataDir string, store *storage.Store, coordinator *sessionCoordinator) (*operatorListener, error) {
+	if ctx == nil || store == nil || coordinator == nil {
 		return nil, ErrInvalidContext
 	}
 	root, err := storage.OpenPrivateDataDir(dataDir)
@@ -77,7 +77,7 @@ func startOperatorListener(ctx context.Context, dataDir string, store *storage.S
 		root.Close()
 		return nil, errors.Join(ErrOperatorSocketUnsafe, errors.New("final socket identity"), err)
 	}
-	_, handler := authv1connect.NewOperatorAccountServiceHandler(&accountHandler{store: store})
+	_, handler := authv1connect.NewOperatorAccountServiceHandler(&accountHandler{store: store, coordinator: coordinator})
 	active := newPublicAdmissions()
 	server := &http.Server{
 		Handler: http.MaxBytesHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
