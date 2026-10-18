@@ -3,11 +3,15 @@ use home_wire_contract::home::{
     actions::v1 as actions, registry::v1 as registry, state::v1 as state,
 };
 fn golden(name: &str) -> Vec<u8> {
-    std::fs::read(format!(
-        "{}/../../contracts/golden/{name}.bin",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
+    let cwd = std::env::current_dir().expect("cannot locate golden fixture: no current directory");
+    let path = cwd.join(format!("../../contracts/golden/{name}.bin"));
+    std::fs::read(&path).unwrap_or_else(|error| {
+        panic!(
+            "cannot read golden fixture {} from test cwd {} (expected client/wire): {error}",
+            path.display(),
+            cwd.display()
+        )
+    })
 }
 fn roundtrip<M: Message + Default>(name: &str) -> M {
     let bytes = golden(name);
