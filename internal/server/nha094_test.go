@@ -61,7 +61,7 @@ func TestNHA094RunConfiguredWorkerAndSharedCommandStatePlan(t *testing.T) {
 	}
 	workerScript := filepath.Join(root, "testworker/fake_worker.py")
 	marker := filepath.Join(t.TempDir(), "worker.log")
-	dataDir := filepath.Join(t.TempDir(), "data")
+	dataDir := shortPrivateDataDir(t)
 	const instanceText = "nha094-server-worker"
 	configuration := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\nexternal_workers:\n  - instance: %q\n    executable: %q\n    args: [%q, %q, %q, %q]\n    secret_names: [nha094-token]\n",
 		dataDir, cluster.Port, instanceText, strings.TrimSpace(string(pythonPath)), workerScript, "--mode=secret", "--marker", marker))

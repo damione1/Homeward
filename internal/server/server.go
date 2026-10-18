@@ -151,6 +151,10 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	if err := ctx.Err(); err != nil {
 		return closePreparedRuntime(host, store, err)
 	}
+	plan.Public, err = registerAccountRoutes(plan.Public, store)
+	if err != nil {
+		return closePreparedRuntime(host, store, err)
+	}
 	public, err := compilePublicPlan(plan.Public, publicSettings)
 	if err != nil {
 		return closePreparedRuntime(host, store, err)
@@ -175,16 +179,22 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		case <-watchStop:
 		}
 	}()
-	publicDone, listenerErr := runPublicListener(lifecycleCtx, c, listen, ready, public, publicSettings)
+	operator, operatorStartErr := startOperatorListener(lifecycleCtx, dataDir, store)
+	publicDone := closedPublicDone()
+	listenerErr := operatorStartErr
+	if operatorStartErr == nil {
+		publicDone, listenerErr = runPublicListener(lifecycleCtx, c, listen, ready, public, publicSettings)
+	}
 	_ = host.CloseAdmissions()
 	close(watchStop)
 	<-watchDone
 	lifecycleCancel()
 	stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	operatorDone, operatorErr := operator.stop(stopCtx)
 	stopErr := supervisor.Stop(stopCtx)
 	cancel()
 	select {
-	case <-publicDone:
+	case <-joinPublicDrains(publicDone, operatorDone):
 		select {
 		case <-supervisor.Done():
 			store.Close()
@@ -192,15 +202,16 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			go func() { <-supervisor.Done(); store.Close() }()
 		}
 	default:
-		// A timed-out public handler may still be unwinding. Retain PostgreSQL
-		// until both transport and durable pilot drain have actually completed.
+		// Timed-out handlers may still be unwinding. Retain PostgreSQL until
+		// both transports and durable pilots have actually drained.
 		go func() {
 			<-publicDone
+			<-operatorDone
 			<-supervisor.Done()
 			store.Close()
 		}()
 	}
-	return errors.Join(listenerErr, stopErr)
+	return errors.Join(listenerErr, operatorErr, stopErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured

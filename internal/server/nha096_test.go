@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -56,7 +55,7 @@ func (p *nha096ServerPilot) Stop(context.Context) error {
 
 func TestNHA096RunWithFactoryComposesScopedCloudPilotAndStops(t *testing.T) {
 	cluster := testpg.Start(t)
-	c := nha051ServerConfig(t, cluster.Port, filepath.Join(t.TempDir(), "private-data"))
+	c := nha051ServerConfig(t, cluster.Port, shortPrivateDataDir(t))
 	var requests atomic.Int32
 	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)

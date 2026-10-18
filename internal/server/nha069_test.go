@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -25,7 +24,7 @@ import (
 func TestNHA069RunAndSharedDefaultPlanAdmitConfiguredDiscovery(t *testing.T) {
 	broker := testbroker.Start(t)
 	cluster := testpg.Start(t)
-	dataDir := filepath.Join(t.TempDir(), "data")
+	dataDir := shortPrivateDataDir(t)
 	const instanceText = "nha069-server-pilot"
 	const discoveryTopic = "homeassistant/sensor/nha069-power/config"
 	const stateTopic = "zigbee2mqtt/nha069-power/state"

@@ -292,6 +292,11 @@ func equalKeyID(a, b []byte) bool {
 	return diff == 0
 }
 
+// OpenPrivateDataDir verifies the persistent operator-owned directory and
+// returns a rooted handle for sibling private resources such as the Unix
+// account recovery socket. The caller owns Close.
+func OpenPrivateDataDir(path string) (*os.Root, error) { return openSecretRoot(path) }
+
 func openSecretRoot(path string) (*os.Root, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path || path == "/" || strings.ContainsRune(path, '\x00') {
 		return nil, &Error{kind: SecretInvalid}

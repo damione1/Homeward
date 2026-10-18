@@ -455,6 +455,58 @@ CREATE TABLE public.cloud_request_reservations (
 );
 CREATE INDEX cloud_request_reservations_by_account_time
     ON public.cloud_request_reservations(account_id, reserved_at);
+`}, {version: Version{8}, sql: `
+-- Account identities, invitation claims, and bootstrap history are one
+-- transactional authority. Earlier migrations are immutable.
+CREATE TABLE public.auth_bootstrap (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    completed boolean NOT NULL DEFAULT false
+);
+INSERT INTO public.auth_bootstrap(singleton, completed) VALUES (true, false);
+CREATE TABLE public.auth_accounts (
+    id text PRIMARY KEY CHECK (id <> '' AND octet_length(id) <= 128),
+    login_name text NOT NULL CHECK (login_name <> '' AND octet_length(login_name) <= 256),
+    login_key text NOT NULL UNIQUE CHECK (login_key <> '' AND octet_length(login_key) <= 256),
+    display_name text NOT NULL CHECK (octet_length(display_name) <= 1024),
+    role smallint NOT NULL CHECK (role IN (1, 2)),
+    status smallint NOT NULL CHECK (status IN (1, 2)),
+    password_profile smallint NOT NULL CHECK (password_profile = 1),
+    password_salt bytea NOT NULL CHECK (octet_length(password_salt) = 16),
+    password_digest bytea NOT NULL CHECK (octet_length(password_digest) = 32),
+    revocation_revision bigint NOT NULL DEFAULT 1 CHECK (revocation_revision > 0),
+    second_factor_enabled boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.auth_invitations (
+    id text PRIMARY KEY CHECK (id <> '' AND octet_length(id) <= 128),
+    login_name text NOT NULL CHECK (login_name <> '' AND octet_length(login_name) <= 256),
+    login_key text NOT NULL CHECK (login_key <> '' AND octet_length(login_key) <= 256),
+    role smallint NOT NULL CHECK (role IN (1, 2)),
+    token_digest bytea NOT NULL UNIQUE CHECK (octet_length(token_digest) = 32),
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    accepted_at timestamptz,
+    revoked_at timestamptz,
+    CHECK (accepted_at IS NULL OR revoked_at IS NULL)
+);
+CREATE TABLE public.auth_login_claims (
+    login_key text PRIMARY KEY CHECK (login_key <> '' AND octet_length(login_key) <= 256),
+    owner_kind smallint NOT NULL CHECK (owner_kind IN (1, 2)),
+    owner_id text NOT NULL CHECK (owner_id <> '' AND octet_length(owner_id) <= 128),
+    UNIQUE (owner_kind, owner_id)
+);
+CREATE TABLE public.auth_audit (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    occurred_at timestamptz NOT NULL DEFAULT now(),
+    actor_account_id text,
+    target_account_id text,
+    invitation_id text,
+    action smallint NOT NULL CHECK (action BETWEEN 1 AND 12),
+    outcome smallint NOT NULL CHECK (outcome IN (1, 2)),
+    route_path text CHECK (route_path IS NULL OR octet_length(route_path) <= 256)
+);
+CREATE INDEX auth_audit_by_time ON public.auth_audit(occurred_at DESC, id DESC);
 `}}
 
 var latestVersion = migrations[len(migrations)-1].version

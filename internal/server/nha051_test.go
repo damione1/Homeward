@@ -89,7 +89,7 @@ func (p *nha051Pilot) Stop(context.Context) error { return nil }
 
 func TestNHA051RunWithFactoryBootstrapsBeforePilotAndReady(t *testing.T) {
 	cluster := testpg.Start(t)
-	dataDir := filepath.Join(t.TempDir(), "persistent-data")
+	dataDir := shortPrivateDataDir(t)
 	c := nha051ServerConfig(t, cluster.Port, dataDir)
 	inst, err := domain.ParseIntegrationInstanceID("fake-instance-a")
 	if err != nil {
@@ -186,7 +186,7 @@ func TestNHA051RunWithFactoryBootstrapsBeforePilotAndReady(t *testing.T) {
 
 func TestNHA051RevocationDuringBlockedReadReturnsNoValue(t *testing.T) {
 	cluster := testpg.Start(t)
-	dataDir := filepath.Join(t.TempDir(), "persistent-data")
+	dataDir := shortPrivateDataDir(t)
 	c := nha051ServerConfig(t, cluster.Port, dataDir)
 	inst, err := domain.ParseIntegrationInstanceID("fake-instance-a")
 	if err != nil {
@@ -356,7 +356,7 @@ func (p *nha051AuditFailurePilot) Stop(context.Context) error { return nil }
 
 func TestNHA051AuditInsertFailureClosesCrossInstanceAccess(t *testing.T) {
 	cluster := testpg.Start(t)
-	dataDir := filepath.Join(t.TempDir(), "persistent-data")
+	dataDir := shortPrivateDataDir(t)
 	c := nha051ServerConfig(t, cluster.Port, dataDir)
 	inst, err := domain.ParseIntegrationInstanceID("fake-instance-a")
 	if err != nil {

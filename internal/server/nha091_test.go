@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -86,7 +85,7 @@ func TestNHA091ConfiguredRunComposesElevenReadOnlySources(t *testing.T) {
 	}))
 	defer upstream.Close()
 	cluster := testpg.Start(t)
-	dataDir := filepath.Join(t.TempDir(), "private-data")
+	dataDir := shortPrivateDataDir(t)
 	var yaml strings.Builder
 	fmt.Fprintf(&yaml, "listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\nneviweb:\n  instance: nha091-test\n  base_url: %q\n  account_id: '123'\n  network_id: '456'\n  username_secret: username\n  password_secret: password\n  session_secret: session\n  bindings:\n", dataDir, cluster.Port, upstream.URL)
 	for i, alias := range nha091Aliases {
