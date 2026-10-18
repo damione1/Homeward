@@ -151,15 +151,19 @@ type CloudAttemptAdmission interface {
 // pilot restarts nor a command ledger. A single policy must be shared by all
 // pilots of a configured account to enforce their common quota.
 type CloudClient struct {
-	session     *Session
-	secrets     *sessionSecretProvider
-	policy      *CloudPolicy
-	scope       *cloudScopeState
-	http        *http.Client
-	healthMu    sync.Mutex
-	degraded    bool
-	healthEpoch uint64
-	admission   CloudAttemptAdmission
+	session        *Session
+	secrets        *sessionSecretProvider
+	policy         *CloudPolicy
+	scope          *cloudScopeState
+	http           *http.Client
+	healthMu       sync.Mutex
+	degraded       bool
+	healthEpoch    uint64
+	admission      CloudAttemptAdmission
+	streamMu       sync.Mutex
+	streamWG       sync.WaitGroup
+	streamsClosed  chan struct{}
+	streamsClosing bool
 }
 
 func (c *CloudClient) String() string   { return "[REDACTED CLOUD CLIENT]" }
@@ -201,7 +205,7 @@ func NewCloudClient(host SessionHost, policy *CloudPolicy, transport *http.Trans
 	// fresh connections for every policy attempt, including GET actions.
 	ownedTransport.DisableKeepAlives = true
 	client := &http.Client{Transport: ownedTransport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	result := &CloudClient{session: session, secrets: secrets, policy: policy, scope: state, http: client}
+	result := &CloudClient{session: session, secrets: secrets, policy: policy, scope: state, http: client, streamsClosed: make(chan struct{})}
 	if len(admission) == 1 {
 		result.admission = admission[0]
 	}
@@ -212,10 +216,11 @@ func (c *CloudClient) valid() bool {
 	return c != nil && c.session != nil && c.secrets != nil && c.policy != nil && c.scope != nil && c.http != nil
 }
 
-// Close releases idle connections owned by this client's cloned transport.
-// In-flight requests still rely on their context and the session fence.
+// Close cancels and joins owned observation streams, then releases idle
+// connections. Finite requests retain their existing context/session fence.
 func (c *CloudClient) Close() {
 	if c != nil && c.http != nil {
+		c.closeObservationStreams()
 		c.http.CloseIdleConnections()
 	}
 }
@@ -488,6 +493,15 @@ func (c *CloudClient) degrade(kind CloudFailureKind) {
 	}
 	c.healthMu.Lock()
 	defer c.healthMu.Unlock()
+	c.degradeLocked(kind)
+}
+
+// The shared epoch is advanced while healthMu excludes receipt admission.
+// Callers must release any stream/network locks before reporting to Host.
+func (c *CloudClient) degradeLocked(kind CloudFailureKind) {
+	if kind == CloudSessionInactive || kind == CloudInvalid {
+		return
+	}
 	c.healthEpoch++
 	if c.degraded {
 		return
@@ -507,9 +521,13 @@ func (c *CloudClient) ConfirmObservationAdmitted(ctx context.Context, response C
 	if !c.valid() || ctx == nil || response.owner != c || !response.observation || response.status < 200 || response.status >= 300 {
 		return &CloudError{kind: CloudInvalid}
 	}
+	return c.confirmObservationEpoch(ctx, response.healthEpoch)
+}
+
+func (c *CloudClient) confirmObservationEpoch(ctx context.Context, epoch uint64) error {
 	c.healthMu.Lock()
 	defer c.healthMu.Unlock()
-	if response.healthEpoch != c.healthEpoch {
+	if epoch != c.healthEpoch {
 		return &CloudError{kind: CloudInvalid}
 	}
 	if !c.degraded {

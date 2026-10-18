@@ -4,6 +4,7 @@ go 1.27.2
 
 require (
 	connectrpc.com/connect v1.21.0
+	github.com/coder/websocket v1.8.15
 	github.com/eclipse/paho.golang v0.23.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/mochi-mqtt/server/v2 v2.7.9
