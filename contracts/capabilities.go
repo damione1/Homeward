@@ -187,7 +187,14 @@ type DriverCapabilityRegistration struct {
 // entity in a discovery batch. Reconnection can refresh advertised limits, while
 // a bad later declaration leaves every previous entity unchanged.
 func (c *CapabilityCatalog) ReplaceDriverCapabilitiesBatch(registrations []DriverCapabilityRegistration) error {
-	if !c.ready() || len(registrations) == 0 {
+	return c.WithDriverCapabilitiesBatch(registrations, func() error { return nil })
+}
+
+// WithDriverCapabilitiesBatch stages a validated replacement, runs a bounded
+// in-memory admission, then commits the catalogue only if admission succeeds.
+// The callback must never perform SQL, network I/O, or call back into catalog.
+func (c *CapabilityCatalog) WithDriverCapabilitiesBatch(registrations []DriverCapabilityRegistration, admit func() error) error {
+	if !c.ready() || len(registrations) == 0 || admit == nil {
 		return ErrUninitializedCatalog
 	}
 	staged := make(map[string]map[string]*registry.CapabilityDescription)
@@ -219,6 +226,9 @@ func (c *CapabilityCatalog) ReplaceDriverCapabilitiesBatch(registrations []Drive
 				}
 			}
 		}
+	}
+	if err := admit(); err != nil {
+		return err
 	}
 	for entity, descriptions := range staged {
 		c.instances[entity] = descriptions

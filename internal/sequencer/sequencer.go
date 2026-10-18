@@ -12,16 +12,19 @@ import (
 	"sync"
 	"time"
 
+	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 )
 
 var (
-	ErrInvalidInput      = errors.New("invalid sequencer input")
-	ErrEpochMismatch     = errors.New("sequencer cursor belongs to another epoch")
-	ErrCursorExpired     = errors.New("sequencer cursor has expired from the memory journal")
-	ErrSequenceExhausted = errors.New("sequencer sequence exhausted")
-	ErrProjectionFull    = errors.New("sequencer projection is full")
+	ErrInvalidInput        = errors.New("invalid sequencer input")
+	ErrEpochMismatch       = errors.New("sequencer cursor belongs to another epoch")
+	ErrCursorExpired       = errors.New("sequencer cursor has expired from the memory journal")
+	ErrSequenceExhausted   = errors.New("sequencer sequence exhausted")
+	ErrProjectionFull      = errors.New("sequencer projection is full")
+	ErrRegistryUnavailable = errors.New("registry projection is unavailable")
+	ErrIdentityConflict    = errors.New("discovery identity is absent or retired in registry projection")
 )
 
 const MaxJournalCapacity = 65536
@@ -54,29 +57,43 @@ const (
 	KindState
 	KindEvent
 	KindHealth
+	KindRegistry
+	KindCapabilities
 )
 
 // Entry is an immutable value returned from the journal. Only the matching
 // accessor succeeds for its kind; the payload cannot be mutated by a reader.
 type Entry struct {
-	cursor     Cursor
-	kind       Kind
-	instance   domain.IntegrationInstanceID
-	entity     domain.EntityID
-	source     domain.SourceStamp
-	causality  domain.Causality
-	receivedAt time.Time
-	state      domain.ObservedState
-	transition domain.StateTransition
-	event      integrations.DeviceEvent
-	health     integrations.HealthReport
+	cursor       Cursor
+	kind         Kind
+	instance     domain.IntegrationInstanceID
+	entity       domain.EntityID
+	source       domain.SourceStamp
+	causality    domain.Causality
+	receivedAt   time.Time
+	state        domain.ObservedState
+	transition   domain.StateTransition
+	event        integrations.DeviceEvent
+	health       integrations.HealthReport
+	registry     []integrations.RegistryRecord
+	capabilities []integrations.DiscoveryDeclaration
 }
 
 func (e Entry) Cursor() Cursor        { return e.cursor }
 func (e Entry) Kind() Kind            { return e.kind }
 func (e Entry) ReceivedAt() time.Time { return e.receivedAt }
-func (e Entry) Origin() (domain.IntegrationInstanceID, domain.SourceStamp, domain.Causality) {
-	return e.instance, e.source, e.causality
+
+// Origin is present only for reports admitted from an integration session.
+// Registry and capability publications carry no integration-report origin.
+func (e Entry) Origin() (domain.IntegrationInstanceID, domain.SourceStamp, domain.Causality, bool) {
+	switch e.kind {
+	case KindState, KindEvent, KindHealth:
+		return e.instance, e.source, e.causality, true
+	case KindRegistry, KindCapabilities, KindUnspecified:
+		return domain.IntegrationInstanceID{}, domain.SourceStamp{}, domain.Causality{}, false
+	default:
+		return domain.IntegrationInstanceID{}, domain.SourceStamp{}, domain.Causality{}, false
+	}
 }
 func (e Entry) State() (domain.EntityID, domain.ObservedState, domain.StateTransition, bool) {
 	return e.entity, e.state, e.transition, e.kind == KindState
@@ -87,27 +104,45 @@ func (e Entry) Event() (domain.EntityID, integrations.DeviceEvent, bool) {
 func (e Entry) Health() (integrations.HealthReport, bool) {
 	return e.health, e.kind == KindHealth
 }
+func (e Entry) Registry() ([]integrations.RegistryRecord, bool) {
+	if e.kind != KindRegistry {
+		return nil, false
+	}
+	return append([]integrations.RegistryRecord(nil), e.registry...), true
+}
+func (e Entry) Capabilities() ([]integrations.DiscoveryDeclaration, bool) {
+	if e.kind != KindCapabilities {
+		return nil, false
+	}
+	return append([]integrations.DiscoveryDeclaration(nil), e.capabilities...), true
+}
 
 // Snapshot copies the current projection and the cursor under one lock. Its
 // maps belong to the caller. Future registry/capability projections must join
 // this same capture boundary before a full server snapshot can be claimed.
 type Snapshot struct {
-	Cursor Cursor
-	States map[domain.EntityID]domain.ObservedState
-	Health map[domain.IntegrationInstanceID]integrations.HealthReport
+	Cursor        Cursor
+	States        map[domain.EntityID]domain.ObservedState
+	Health        map[domain.IntegrationInstanceID]integrations.HealthReport
+	Registry      map[domain.EntityID]integrations.RegistryRecord
+	Capabilities  map[domain.EntityID][]*wireregistry.CapabilityDescription
+	RegistryReady bool
 }
 
 type Sequencer struct {
-	mu      sync.Mutex
-	clock   Clock
-	epoch   [16]byte
-	seq     uint64
-	journal []Entry
-	count   int
-	states  map[domain.EntityID]domain.ObservedState
-	health  map[domain.IntegrationInstanceID]integrations.HealthReport
-	limits  QueueLimits
-	subs    map[*Subscription]struct{}
+	mu            sync.Mutex
+	clock         Clock
+	epoch         [16]byte
+	seq           uint64
+	journal       []Entry
+	count         int
+	states        map[domain.EntityID]domain.ObservedState
+	health        map[domain.IntegrationInstanceID]integrations.HealthReport
+	registry      map[domain.EntityID]integrations.RegistryRecord
+	capabilities  map[domain.EntityID][]*wireregistry.CapabilityDescription
+	registryState registryProjectionState
+	limits        QueueLimits
+	subs          map[*Subscription]struct{}
 }
 
 func New(clock Clock, journalCapacity int) (*Sequencer, error) {
@@ -125,7 +160,7 @@ func NewWithLimits(clock Clock, journalCapacity int, limits QueueLimits) (*Seque
 			return nil, ErrInvalidInput
 		}
 	}
-	s := &Sequencer{clock: clock, journal: make([]Entry, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), limits: limits, subs: make(map[*Subscription]struct{})}
+	s := &Sequencer{clock: clock, journal: make([]Entry, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), registry: make(map[domain.EntityID]integrations.RegistryRecord), capabilities: make(map[domain.EntityID][]*wireregistry.CapabilityDescription), limits: limits, subs: make(map[*Subscription]struct{})}
 	if _, err := rand.Read(s.epoch[:]); err != nil {
 		return nil, err
 	}
@@ -184,6 +219,9 @@ func (s *Sequencer) AcceptState(ctx context.Context, entity domain.EntityID, acc
 	if err != nil {
 		return err
 	}
+	if err := s.admitIdentity(entity, instance); err != nil {
+		return err
+	}
 	previous, exists := s.states[entity]
 	if !exists && len(s.states) >= MaxProjectedEntities {
 		return ErrProjectionFull
@@ -232,6 +270,9 @@ func (s *Sequencer) AcceptEvent(ctx context.Context, entity domain.EntityID, acc
 	if err != nil {
 		return err
 	}
+	if err := s.admitIdentity(entity, instance); err != nil {
+		return err
+	}
 	s.append(Entry{kind: KindEvent, instance: instance, entity: entity, source: accepted.Source, causality: causality, receivedAt: at, event: accepted.Event})
 	s.publish(s.journal[(s.seq-1)%uint64(len(s.journal))])
 	return nil
@@ -269,6 +310,9 @@ func (s *Sequencer) Capture() (Snapshot, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.registryState == registryUnavailable {
+		return Snapshot{}, ErrRegistryUnavailable
+	}
 	states := make(map[domain.EntityID]domain.ObservedState, len(s.states))
 	for id, state := range s.states {
 		states[id] = state
@@ -277,7 +321,15 @@ func (s *Sequencer) Capture() (Snapshot, error) {
 	for id, report := range s.health {
 		health[id] = report
 	}
-	return Snapshot{Cursor: Cursor{epoch: s.epoch, seq: s.seq}, States: states, Health: health}, nil
+	registry := make(map[domain.EntityID]integrations.RegistryRecord, len(s.registry))
+	for id, record := range s.registry {
+		registry[id] = record
+	}
+	capabilities := make(map[domain.EntityID][]*wireregistry.CapabilityDescription, len(s.capabilities))
+	for id, descriptions := range s.capabilities {
+		capabilities[id] = cloneDescriptions(descriptions)
+	}
+	return Snapshot{Cursor: Cursor{epoch: s.epoch, seq: s.seq}, States: states, Health: health, Registry: registry, Capabilities: capabilities, RegistryReady: s.registryState == registryReady}, nil
 }
 
 func (s *Sequencer) State(entity domain.EntityID) (domain.ObservedState, bool, error) {

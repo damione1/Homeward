@@ -58,6 +58,17 @@ message ViewCursor {
   uint64 config_revision = 3;
   uint64 authorization_revision = 4;
   bytes filter_sha256 = 5;
+  bytes config_sha256 = 6;
+}
+// One registry identity and its declarations/state from the same capture.
+message ViewEntity {
+  string entity_id = 1;
+  string device_id = 2;
+  string original_alias = 3;
+  string current_alias = 4;
+  repeated string historical_aliases = 5;
+  repeated home.registry.v1.CapabilityDescription capabilities = 6;
+  ObservedState state = 7;
 }
 message ViewFilter {
   repeated string entity_ids = 1;
@@ -73,6 +84,7 @@ message OpenViewResponse {
   repeated home.registry.v1.CapabilityDescription capabilities = 4;
   string next_page_token = 5;
   google.protobuf.Timestamp expires_at = 6;
+  repeated ViewEntity entities = 7;
 }
 message ReadPageRequest {
   string snapshot_token = 1;

@@ -159,7 +159,10 @@ func TestNHA018TenThousandConcurrentMutationsAndAtomicCaptures(t *testing.T) {
 		if !ok || entry.Kind() != sequencer.KindState {
 			t.Fatalf("entry %d is not state", i)
 		}
-		instance, source, causal := entry.Origin()
+		instance, source, causal, present := entry.Origin()
+		if !present {
+			t.Fatal("state origin absent")
+		}
 		index := -1
 		for j, p := range publishers {
 			if p.entity == entity {
@@ -297,7 +300,10 @@ func TestNHA018ReconnectClockCausesAndCursorErrors(t *testing.T) {
 	if err != nil || len(initial) != 3 {
 		t.Fatalf("initial fake journal: %d %v", len(initial), err)
 	}
-	_, initialSource, _ := initial[0].Origin()
+	_, initialSource, _, present := initial[0].Origin()
+	if !present {
+		t.Fatal("state origin absent")
+	}
 	_, sourceSeq, _ := initialSource.Components()
 	if sourceSeq != nil {
 		t.Fatal("absent source sequence was confused with zero")
@@ -347,7 +353,10 @@ func TestNHA018EventHealthCausalityAndSourceZero(t *testing.T) {
 		t.Fatal("event/health kinds lost")
 	}
 	for _, entry := range entries {
-		gotInstance, source, gotCausal := entry.Origin()
+		gotInstance, source, gotCausal, present := entry.Origin()
+		if !present {
+			t.Fatal("event/health origin absent")
+		}
 		if gotInstance != instance || gotCausal != causal || entry.ReceivedAt().IsZero() {
 			t.Fatal("event/health origin or receipt lost")
 		}

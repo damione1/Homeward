@@ -6,32 +6,21 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/damione1/Homeward/internal/domain"
 )
 
 var ErrInvalidManifest = errors.New("invalid registry manifest")
-var ErrInvalidHAAlias = errors.New("invalid Home Assistant alias")
+var ErrInvalidHAAlias = domain.ErrInvalidHAAlias
 
 // HAAlias is a Home Assistant domain.object_id label, never a Host EntityID.
 // Its zero value is invalid and must not cross the registry boundary.
-type HAAlias struct{ value string }
-
-var haAliasPattern = regexp.MustCompile(`^[a-z0-9_]+\.[a-z0-9_]+$`)
+type HAAlias = domain.HAAlias
 
 func ParseHAAlias(value string) (HAAlias, error) {
-	if len(value) == 0 || len(value) > 255 || !haAliasPattern.MatchString(value) {
-		return HAAlias{}, ErrInvalidHAAlias
-	}
-	return HAAlias{value: value}, nil
-}
-
-func (a HAAlias) Value() (string, error) {
-	if _, err := ParseHAAlias(a.value); err != nil {
-		return "", err
-	}
-	return a.value, nil
+	return domain.ParseHAAlias(value)
 }
 
 // Manifest is a parsed admission boundary. Its zero value grants no identities.

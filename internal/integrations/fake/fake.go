@@ -189,7 +189,10 @@ func (f *Fixture) Events() ([]RecordedEvent, error) {
 		if !ok {
 			continue
 		}
-		instance, source, causality := entry.Origin()
+		instance, source, causality, present := entry.Origin()
+		if !present {
+			return nil, integrations.ErrInvalidInput
+		}
 		events = append(events, RecordedEvent{Entity: entity, Event: event, Source: source, Instance: instance, Causality: causality})
 	}
 	return events, nil

@@ -510,12 +510,23 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 		bindings[i] = Binding{key: keys[i], device: identity.Device, entity: identity.Entity, instance: s.instance, session: s.id}
 	}
 	registrations := make([]contracts.DriverCapabilityRegistration, 0)
+	declarations := make([]DiscoveryDeclaration, 0, len(bindings))
 	for i, binding := range bindings {
+		declaration, err := newDiscoveryDeclaration(binding.device, binding.entity, s.instance, binding.key, candidates[i].descriptions)
+		if err != nil {
+			return nil, err
+		}
+		declarations = append(declarations, declaration)
 		for _, description := range candidates[i].descriptions {
 			registrations = append(registrations, contracts.DriverCapabilityRegistration{Entity: binding.entity, Description: description})
 		}
 	}
-	if err := h.catalog.ReplaceDriverCapabilitiesBatch(registrations); err != nil {
+	if err := h.catalog.WithDriverCapabilitiesBatch(registrations, func() error {
+		if projection, ok := h.sink.(ProjectionSink); ok {
+			return projection.AcceptDiscovery(ctx, declarations)
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	for _, binding := range bindings {

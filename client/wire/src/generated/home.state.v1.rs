@@ -1081,6 +1081,8 @@ pub struct ViewCursor {
     pub authorization_revision: u64,
     /// Field 5: `filter_sha256`
     pub filter_sha256: ::buffa::alloc::vec::Vec<u8>,
+    /// Field 6: `config_sha256`
+    pub config_sha256: ::buffa::alloc::vec::Vec<u8>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -1092,6 +1094,7 @@ impl ::core::fmt::Debug for ViewCursor {
             .field("config_revision", &self.config_revision)
             .field("authorization_revision", &self.authorization_revision)
             .field("filter_sha256", &self.filter_sha256)
+            .field("config_sha256", &self.config_sha256)
             .finish()
     }
 }
@@ -1144,6 +1147,9 @@ impl ::buffa::Message for ViewCursor {
         if !self.filter_sha256.is_empty() {
             size += 1u64 + ::buffa::types::bytes_encoded_len(&self.filter_sha256) as u64;
         }
+        if !self.config_sha256.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.config_sha256) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1168,6 +1174,9 @@ impl ::buffa::Message for ViewCursor {
         }
         if !self.filter_sha256.is_empty() {
             ::buffa::types::put_shared_bytes_field(5u32, &self.filter_sha256, buf);
+        }
+        if !self.config_sha256.is_empty() {
+            ::buffa::types::put_shared_bytes_field(6u32, &self.config_sha256, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1217,6 +1226,13 @@ impl ::buffa::Message for ViewCursor {
                 )?;
                 ::buffa::types::merge_bytes(&mut self.filter_sha256, buf)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.config_sha256, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1230,11 +1246,251 @@ impl ::buffa::Message for ViewCursor {
         self.config_revision = 0u64;
         self.authorization_revision = 0u64;
         self.filter_sha256.clear();
+        self.config_sha256.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
 impl ::buffa::ExtensionSet for ViewCursor {
     const PROTO_FQN: &'static str = "home.state.v1.ViewCursor";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+/// One registry identity and its declarations/state from the same capture.
+#[derive(Clone, PartialEq, Default)]
+pub struct ViewEntity {
+    /// Field 1: `entity_id`
+    pub entity_id: ::buffa::alloc::string::String,
+    /// Field 2: `device_id`
+    pub device_id: ::buffa::alloc::string::String,
+    /// Field 3: `original_alias`
+    pub original_alias: ::buffa::alloc::string::String,
+    /// Field 4: `current_alias`
+    pub current_alias: ::buffa::alloc::string::String,
+    /// Field 5: `historical_aliases`
+    pub historical_aliases: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Field 6: `capabilities`
+    pub capabilities: ::buffa::alloc::vec::Vec<
+        super::super::registry::v1::CapabilityDescription,
+    >,
+    /// Field 7: `state`
+    pub state: ::buffa::MessageField<ObservedState, ::buffa::Inline<ObservedState>>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ViewEntity {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ViewEntity")
+            .field("entity_id", &self.entity_id)
+            .field("device_id", &self.device_id)
+            .field("original_alias", &self.original_alias)
+            .field("current_alias", &self.current_alias)
+            .field("historical_aliases", &self.historical_aliases)
+            .field("capabilities", &self.capabilities)
+            .field("state", &self.state)
+            .finish()
+    }
+}
+impl ViewEntity {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.ViewEntity";
+}
+::buffa::impl_default_instance!(ViewEntity);
+impl ::buffa::MessageName for ViewEntity {
+    const PACKAGE: &'static str = "home.state.v1";
+    const NAME: &'static str = "ViewEntity";
+    const FULL_NAME: &'static str = "home.state.v1.ViewEntity";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.ViewEntity";
+}
+impl ::buffa::Message for ViewEntity {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.entity_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.entity_id) as u64;
+        }
+        if !self.device_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.device_id) as u64;
+        }
+        if !self.original_alias.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.original_alias) as u64;
+        }
+        if !self.current_alias.is_empty() {
+            size
+                += 1u64 + ::buffa::types::string_encoded_len(&self.current_alias) as u64;
+        }
+        for v in &self.historical_aliases {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.capabilities {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.state.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.state.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.entity_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.entity_id, buf);
+        }
+        if !self.device_id.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.device_id, buf);
+        }
+        if !self.original_alias.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.original_alias, buf);
+        }
+        if !self.current_alias.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.current_alias, buf);
+        }
+        for v in &self.historical_aliases {
+            ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        for v in &self.capabilities {
+            ::buffa::types::put_len_delimited_header(
+                6u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if self.state.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.state.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.entity_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.device_id, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.original_alias, buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.current_alias, buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.historical_aliases.push(__elem);
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.capabilities.push(elem);
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.state.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.entity_id.clear();
+        self.device_id.clear();
+        self.original_alias.clear();
+        self.current_alias.clear();
+        self.historical_aliases.clear();
+        self.capabilities.clear();
+        self.state = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ViewEntity {
+    const PROTO_FQN: &'static str = "home.state.v1.ViewEntity";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1490,6 +1746,8 @@ pub struct OpenViewResponse {
         ::buffa_types::google::protobuf::Timestamp,
         ::buffa::Inline<::buffa_types::google::protobuf::Timestamp>,
     >,
+    /// Field 7: `entities`
+    pub entities: ::buffa::alloc::vec::Vec<ViewEntity>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -1502,6 +1760,7 @@ impl ::core::fmt::Debug for OpenViewResponse {
             .field("capabilities", &self.capabilities)
             .field("next_page_token", &self.next_page_token)
             .field("expires_at", &self.expires_at)
+            .field("entities", &self.entities)
             .finish()
     }
 }
@@ -1574,6 +1833,14 @@ impl ::buffa::Message for OpenViewResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.entities {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1621,6 +1888,14 @@ impl ::buffa::Message for OpenViewResponse {
                 buf,
             );
             self.expires_at.write_to(__cache, buf);
+        }
+        for v in &self.entities {
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1695,6 +1970,18 @@ impl ::buffa::Message for OpenViewResponse {
                     ctx,
                 )?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.entities.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1709,6 +1996,7 @@ impl ::buffa::Message for OpenViewResponse {
         self.capabilities.clear();
         self.next_page_token.clear();
         self.expires_at = ::buffa::MessageField::none();
+        self.entities.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3957,6 +4245,8 @@ pub mod __buffa {
             pub authorization_revision: u64,
             /// Field 5: `filter_sha256`
             pub filter_sha256: &'a [u8],
+            /// Field 6: `config_sha256`
+            pub config_sha256: &'a [u8],
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for ViewCursorView<'a> {
@@ -4032,6 +4322,13 @@ pub mod __buffa {
                         )?;
                         view.filter_sha256 = ::buffa::types::borrow_bytes(&mut cur)?;
                     }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.config_sha256 = ::buffa::types::borrow_bytes(&mut cur)?;
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -4060,6 +4357,7 @@ pub mod __buffa {
                     config_revision: self.config_revision,
                     authorization_revision: self.authorization_revision,
                     filter_sha256: (self.filter_sha256).to_vec(),
+                    config_sha256: (self.config_sha256).to_vec(),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -4103,6 +4401,12 @@ pub mod __buffa {
                             + ::buffa::types::bytes_encoded_len(&self.filter_sha256)
                                 as u64;
                 }
+                if !self.config_sha256.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::bytes_encoded_len(&self.config_sha256)
+                                as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -4134,6 +4438,13 @@ pub mod __buffa {
                     ::buffa::types::put_shared_bytes_field(
                         5u32,
                         &self.filter_sha256,
+                        buf,
+                    );
+                }
+                if !self.config_sha256.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(
+                        6u32,
+                        &self.config_sha256,
                         buf,
                     );
                 }
@@ -4255,6 +4566,11 @@ pub mod __buffa {
             pub fn filter_sha256(&self) -> &'_ [u8] {
                 self.0.reborrow().filter_sha256
             }
+            /// Field 6: `config_sha256`
+            #[must_use]
+            pub fn config_sha256(&self) -> &'_ [u8] {
+                self.0.reborrow().config_sha256
+            }
         }
         impl ::core::convert::From<::buffa::OwnedView<ViewCursorView<'static>>>
         for ViewCursorOwnedView {
@@ -4277,6 +4593,457 @@ pub mod __buffa {
         impl ::buffa::HasMessageView for super::super::ViewCursor {
             type View<'a> = ViewCursorView<'a>;
             type ViewHandle = ViewCursorOwnedView;
+        }
+        /// One registry identity and its declarations/state from the same capture.
+        #[derive(Clone, Debug, Default)]
+        pub struct ViewEntityView<'a> {
+            /// Field 1: `entity_id`
+            pub entity_id: &'a str,
+            /// Field 2: `device_id`
+            pub device_id: &'a str,
+            /// Field 3: `original_alias`
+            pub original_alias: &'a str,
+            /// Field 4: `current_alias`
+            pub current_alias: &'a str,
+            /// Field 5: `historical_aliases`
+            pub historical_aliases: ::buffa::RepeatedView<'a, &'a str>,
+            /// Field 6: `capabilities`
+            pub capabilities: ::buffa::RepeatedView<
+                'a,
+                super::super::super::super::registry::v1::__buffa::view::CapabilityDescriptionView<
+                    'a,
+                >,
+            >,
+            /// Field 7: `state`
+            pub state: ::buffa::MessageFieldView<
+                super::super::__buffa::view::ObservedStateView<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ViewEntityView<'a> {
+            type Owned = super::super::ViewEntity;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.entity_id = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.device_id = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.original_alias = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.current_alias = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.state.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.state = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::ObservedStateView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::buffa::__private::element_footprint(&__elem),
+                        )?;
+                        view.historical_aliases.push(__elem);
+                    }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::core::mem::size_of::<
+                                super::super::super::super::registry::v1::__buffa::view::CapabilityDescriptionView,
+                            >(),
+                        )?;
+                        view.capabilities
+                            .push(
+                                <super::super::super::super::registry::v1::__buffa::view::CapabilityDescriptionView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            );
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<super::super::ViewEntity, ::buffa::DecodeError> {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<super::super::ViewEntity, ::buffa::DecodeError> {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ViewEntity {
+                    entity_id: self.entity_id.to_string(),
+                    device_id: self.device_id.to_string(),
+                    original_alias: self.original_alias.to_string(),
+                    current_alias: self.current_alias.to_string(),
+                    historical_aliases: self
+                        .historical_aliases
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                    capabilities: self
+                        .capabilities
+                        .iter()
+                        .map(|v| v.to_owned_from_source(__buffa_src))
+                        .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+                    state: match self.state.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::ObservedState,
+                                ::buffa::Inline<super::super::ObservedState>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ViewEntityView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.entity_id.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.entity_id) as u64;
+                }
+                if !self.device_id.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.device_id) as u64;
+                }
+                if !self.original_alias.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.original_alias)
+                                as u64;
+                }
+                if !self.current_alias.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.current_alias)
+                                as u64;
+                }
+                for v in &self.historical_aliases {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
+                for v in &self.capabilities {
+                    let __slot = __cache.reserve();
+                    let inner_size = v.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.state.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.state.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.entity_id.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.entity_id, buf);
+                }
+                if !self.device_id.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.device_id, buf);
+                }
+                if !self.original_alias.is_empty() {
+                    ::buffa::types::put_string_field(3u32, &self.original_alias, buf);
+                }
+                if !self.current_alias.is_empty() {
+                    ::buffa::types::put_string_field(4u32, &self.current_alias, buf);
+                }
+                for v in &self.historical_aliases {
+                    ::buffa::types::put_string_field(5u32, v, buf);
+                }
+                for v in &self.capabilities {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    v.write_to(__cache, buf);
+                }
+                if self.state.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.state.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ViewEntityView<'a> {
+            const PACKAGE: &'static str = "home.state.v1";
+            const NAME: &'static str = "ViewEntity";
+            const FULL_NAME: &'static str = "home.state.v1.ViewEntity";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.ViewEntity";
+        }
+        ::buffa::impl_default_view_instance!(ViewEntityView);
+        ::buffa::impl_view_reborrow!(ViewEntityView);
+        /** Self-contained, `'static` owned view of a `ViewEntity` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ViewEntityView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ViewEntityView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ViewEntityOwnedView(::buffa::OwnedView<ViewEntityView<'static>>);
+        impl ViewEntityOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ViewEntityOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ViewEntityOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ViewEntity,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ViewEntityOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ViewEntityView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ViewEntityView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ViewEntity {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `entity_id`
+            #[must_use]
+            pub fn entity_id(&self) -> &'_ str {
+                self.0.reborrow().entity_id
+            }
+            /// Field 2: `device_id`
+            #[must_use]
+            pub fn device_id(&self) -> &'_ str {
+                self.0.reborrow().device_id
+            }
+            /// Field 3: `original_alias`
+            #[must_use]
+            pub fn original_alias(&self) -> &'_ str {
+                self.0.reborrow().original_alias
+            }
+            /// Field 4: `current_alias`
+            #[must_use]
+            pub fn current_alias(&self) -> &'_ str {
+                self.0.reborrow().current_alias
+            }
+            /// Field 5: `historical_aliases`
+            #[must_use]
+            pub fn historical_aliases(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+                &self.0.reborrow().historical_aliases
+            }
+            /// Field 6: `capabilities`
+            #[must_use]
+            pub fn capabilities(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                super::super::super::super::registry::v1::__buffa::view::CapabilityDescriptionView<
+                    '_,
+                >,
+            > {
+                &self.0.reborrow().capabilities
+            }
+            /// Field 7: `state`
+            #[must_use]
+            pub fn state(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::ObservedStateView<'_>,
+            > {
+                &self.0.reborrow().state
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<ViewEntityView<'static>>>
+        for ViewEntityOwnedView {
+            fn from(inner: ::buffa::OwnedView<ViewEntityView<'static>>) -> Self {
+                ViewEntityOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ViewEntityOwnedView>
+        for ::buffa::OwnedView<ViewEntityView<'static>> {
+            fn from(wrapper: ViewEntityOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<ViewEntityView<'static>>>
+        for ViewEntityOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ViewEntityView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ViewEntity {
+            type View<'a> = ViewEntityView<'a>;
+            type ViewHandle = ViewEntityOwnedView;
         }
         #[derive(Clone, Debug, Default)]
         pub struct ViewFilterView<'a> {
@@ -4831,6 +5598,11 @@ pub mod __buffa {
             pub expires_at: ::buffa::MessageFieldView<
                 ::buffa_types::google::protobuf::__buffa::view::TimestampView<'a>,
             >,
+            /// Field 7: `entities`
+            pub entities: ::buffa::RepeatedView<
+                'a,
+                super::super::__buffa::view::ViewEntityView<'a>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for OpenViewResponseView<'a> {
@@ -4973,6 +5745,26 @@ pub mod __buffa {
                                 )?,
                             );
                     }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::core::mem::size_of::<
+                                super::super::__buffa::view::ViewEntityView,
+                            >(),
+                        )?;
+                        view.entities
+                            .push(
+                                <super::super::__buffa::view::ViewEntityView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            );
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -5032,6 +5824,11 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    entities: self
+                        .entities
+                        .iter()
+                        .map(|v| v.to_owned_from_source(__buffa_src))
+                        .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -5090,6 +5887,14 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                for v in &self.entities {
+                    let __slot = __cache.reserve();
+                    let inner_size = v.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -5138,6 +5943,14 @@ pub mod __buffa {
                         buf,
                     );
                     self.expires_at.write_to(__cache, buf);
+                }
+                for v in &self.entities {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    v.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -5283,6 +6096,16 @@ pub mod __buffa {
                 ::buffa_types::google::protobuf::__buffa::view::TimestampView<'_>,
             > {
                 &self.0.reborrow().expires_at
+            }
+            /// Field 7: `entities`
+            #[must_use]
+            pub fn entities(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                super::super::__buffa::view::ViewEntityView<'_>,
+            > {
+                &self.0.reborrow().entities
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<OpenViewResponseView<'static>>>
@@ -7206,6 +8029,10 @@ pub use self::__buffa::view::ObservedStateOwnedView;
 pub use self::__buffa::view::ViewCursorView;
 #[doc(inline)]
 pub use self::__buffa::view::ViewCursorOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ViewEntityView;
+#[doc(inline)]
+pub use self::__buffa::view::ViewEntityOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ViewFilterView;
 #[doc(inline)]

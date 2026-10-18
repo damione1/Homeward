@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"sync"
+	"time"
 
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -14,13 +16,14 @@ import (
 )
 
 var (
-	ErrInvalidInput    = errors.New("invalid registry input")
-	ErrOutsideManifest = errors.New("identity is outside the configured manifest")
-	ErrUnconfigured    = errors.New("source identity has no explicit binding")
-	ErrTombstoned      = errors.New("identity was retired")
-	ErrAliasConflict   = errors.New("HA alias belongs to another identity")
-	ErrBindingConflict = errors.New("source binding conflicts with configuration")
-	ErrStorage         = errors.New("registry storage unavailable")
+	ErrInvalidInput          = errors.New("invalid registry input")
+	ErrOutsideManifest       = errors.New("identity is outside the configured manifest")
+	ErrUnconfigured          = errors.New("source identity has no explicit binding")
+	ErrTombstoned            = errors.New("identity was retired")
+	ErrAliasConflict         = errors.New("HA alias belongs to another identity")
+	ErrBindingConflict       = errors.New("source binding conflicts with configuration")
+	ErrStorage               = errors.New("registry storage unavailable")
+	ErrProjectionUnavailable = errors.New("registry projection requires reconciliation")
 )
 
 // storageFailure preserves typed causes for diagnosis without rendering SQL,
@@ -35,8 +38,11 @@ func (e *storageFailure) Is(target error) bool { return target == ErrStorage }
 // Repository implements integrations.IdentityAuthority against the same Store
 // migrated at server cold start. It owns durable configuration, not live sessions.
 type Repository struct {
-	store    *storage.Store
-	manifest Manifest
+	store           *storage.Store
+	manifest        Manifest
+	mu              sync.RWMutex
+	projection      integrations.ProjectionSink
+	projectionDirty bool
 }
 
 var _ integrations.IdentityAuthority = (*Repository)(nil)
@@ -89,15 +95,55 @@ func classify(err error) error {
 }
 
 func (r *Repository) transaction(ctx context.Context, fn func(pgx.Tx) error) error {
+	_, err := r.transactionOutcome(ctx, fn)
+	return err
+}
+
+func (r *Repository) transactionOutcome(ctx context.Context, fn func(pgx.Tx) error) (storage.TransactionOutcome, error) {
 	if r == nil || r.store == nil || ctx == nil {
-		return ErrInvalidInput
+		return storage.TransactionNotCommitted, ErrInvalidInput
 	}
-	return classify(r.store.InTransaction(ctx, func(tx pgx.Tx) error {
+	outcome, err := r.store.InTransactionOutcome(ctx, func(tx pgx.Tx) error {
 		if err := lock(ctx, tx); err != nil {
 			return err
 		}
 		return fn(tx)
-	}))
+	})
+	return outcome, classify(err)
+}
+
+func (r *Repository) mutate(ctx context.Context, fn func(pgx.Tx) error) error {
+	if r == nil {
+		return ErrInvalidInput
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.projectionDirty {
+		return ErrProjectionUnavailable
+	}
+	outcome, err := r.transactionOutcome(ctx, fn)
+	if err != nil {
+		if outcome == storage.TransactionIndeterminate && r.projection != nil {
+			r.projectionDirty = true
+			r.projection.InvalidateRegistry()
+		}
+		return err
+	}
+	if r.projection == nil {
+		return nil
+	}
+	// Commit is now durable. The caller's cancellation cannot skip publication.
+	background, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	records, err := r.listUnlocked(background)
+	if err == nil {
+		err = r.projection.PublishRegistry(background, records)
+	}
+	if err != nil {
+		r.projectionDirty = true
+		r.projection.InvalidateRegistry()
+	}
+	return err
 }
 
 // ConfigureBinding records an operator's explicit mapping from a stable source
@@ -114,7 +160,7 @@ func (r *Repository) ConfigureBinding(ctx context.Context, instance domain.Integ
 	if r == nil || !r.manifest.permits(alias) {
 		return result, ErrOutsideManifest
 	}
-	err = r.transaction(ctx, func(tx pgx.Tx) error {
+	err = r.mutate(ctx, func(tx pgx.Tx) error {
 		var deviceID, entityID, existingAlias string
 		var retired bool
 		err := tx.QueryRow(ctx, `SELECT d.id, e.id, e.manifest_alias, e.tombstoned
@@ -195,6 +241,14 @@ func assign(result *integrations.ResolvedIdentity, deviceText, entityText string
 // Resolve is one atomic batch read. It only admits configured, active sources
 // whose original identity remains in the supplied manifest snapshot.
 func (r *Repository) Resolve(ctx context.Context, instance domain.IntegrationInstanceID, keys []integrations.SourceKey) ([]integrations.ResolvedIdentity, error) {
+	if r == nil {
+		return nil, ErrInvalidInput
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.projectionDirty {
+		return nil, ErrProjectionUnavailable
+	}
 	if len(keys) == 0 || len(keys) > 256 {
 		return nil, ErrInvalidInput
 	}
@@ -250,7 +304,7 @@ func (r *Repository) Rename(ctx context.Context, entity domain.EntityID, alias s
 	if err != nil || aliasErr != nil {
 		return ErrInvalidInput
 	}
-	return r.transaction(ctx, func(tx pgx.Tx) error {
+	return r.mutate(ctx, func(tx pgx.Tx) error {
 		var retired bool
 		var originalAlias string
 		if err := tx.QueryRow(ctx, `SELECT tombstoned,manifest_alias FROM public.registry_entities WHERE id=$1`, entityText).Scan(&retired, &originalAlias); errors.Is(err, pgx.ErrNoRows) {
@@ -294,7 +348,7 @@ func (r *Repository) Tombstone(ctx context.Context, entity domain.EntityID) erro
 	if err != nil {
 		return ErrInvalidInput
 	}
-	return r.transaction(ctx, func(tx pgx.Tx) error {
+	return r.mutate(ctx, func(tx pgx.Tx) error {
 		result, err := tx.Exec(ctx, `UPDATE public.registry_entities SET tombstoned=true WHERE id=$1`, entityText)
 		if err != nil {
 			return err

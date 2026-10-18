@@ -525,6 +525,7 @@ type ViewCursor struct {
 	ConfigRevision        uint64                 `protobuf:"varint,3,opt,name=config_revision,json=configRevision,proto3" json:"config_revision,omitempty"`
 	AuthorizationRevision uint64                 `protobuf:"varint,4,opt,name=authorization_revision,json=authorizationRevision,proto3" json:"authorization_revision,omitempty"`
 	FilterSha256          []byte                 `protobuf:"bytes,5,opt,name=filter_sha256,json=filterSha256,proto3" json:"filter_sha256,omitempty"`
+	ConfigSha256          []byte                 `protobuf:"bytes,6,opt,name=config_sha256,json=configSha256,proto3" json:"config_sha256,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -594,6 +595,106 @@ func (x *ViewCursor) GetFilterSha256() []byte {
 	return nil
 }
 
+func (x *ViewCursor) GetConfigSha256() []byte {
+	if x != nil {
+		return x.ConfigSha256
+	}
+	return nil
+}
+
+// One registry identity and its declarations/state from the same capture.
+type ViewEntity struct {
+	state             protoimpl.MessageState      `protogen:"open.v1"`
+	EntityId          string                      `protobuf:"bytes,1,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	DeviceId          string                      `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	OriginalAlias     string                      `protobuf:"bytes,3,opt,name=original_alias,json=originalAlias,proto3" json:"original_alias,omitempty"`
+	CurrentAlias      string                      `protobuf:"bytes,4,opt,name=current_alias,json=currentAlias,proto3" json:"current_alias,omitempty"`
+	HistoricalAliases []string                    `protobuf:"bytes,5,rep,name=historical_aliases,json=historicalAliases,proto3" json:"historical_aliases,omitempty"`
+	Capabilities      []*v1.CapabilityDescription `protobuf:"bytes,6,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	State             *ObservedState              `protobuf:"bytes,7,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ViewEntity) Reset() {
+	*x = ViewEntity{}
+	mi := &file_home_state_v1_state_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ViewEntity) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ViewEntity) ProtoMessage() {}
+
+func (x *ViewEntity) ProtoReflect() protoreflect.Message {
+	mi := &file_home_state_v1_state_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ViewEntity.ProtoReflect.Descriptor instead.
+func (*ViewEntity) Descriptor() ([]byte, []int) {
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ViewEntity) GetEntityId() string {
+	if x != nil {
+		return x.EntityId
+	}
+	return ""
+}
+
+func (x *ViewEntity) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *ViewEntity) GetOriginalAlias() string {
+	if x != nil {
+		return x.OriginalAlias
+	}
+	return ""
+}
+
+func (x *ViewEntity) GetCurrentAlias() string {
+	if x != nil {
+		return x.CurrentAlias
+	}
+	return ""
+}
+
+func (x *ViewEntity) GetHistoricalAliases() []string {
+	if x != nil {
+		return x.HistoricalAliases
+	}
+	return nil
+}
+
+func (x *ViewEntity) GetCapabilities() []*v1.CapabilityDescription {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+func (x *ViewEntity) GetState() *ObservedState {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
 type ViewFilter struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	EntityIds     []string               `protobuf:"bytes,1,rep,name=entity_ids,json=entityIds,proto3" json:"entity_ids,omitempty"`
@@ -603,7 +704,7 @@ type ViewFilter struct {
 
 func (x *ViewFilter) Reset() {
 	*x = ViewFilter{}
-	mi := &file_home_state_v1_state_proto_msgTypes[4]
+	mi := &file_home_state_v1_state_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -615,7 +716,7 @@ func (x *ViewFilter) String() string {
 func (*ViewFilter) ProtoMessage() {}
 
 func (x *ViewFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[4]
+	mi := &file_home_state_v1_state_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -628,7 +729,7 @@ func (x *ViewFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ViewFilter.ProtoReflect.Descriptor instead.
 func (*ViewFilter) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{4}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ViewFilter) GetEntityIds() []string {
@@ -648,7 +749,7 @@ type OpenViewRequest struct {
 
 func (x *OpenViewRequest) Reset() {
 	*x = OpenViewRequest{}
-	mi := &file_home_state_v1_state_proto_msgTypes[5]
+	mi := &file_home_state_v1_state_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -660,7 +761,7 @@ func (x *OpenViewRequest) String() string {
 func (*OpenViewRequest) ProtoMessage() {}
 
 func (x *OpenViewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[5]
+	mi := &file_home_state_v1_state_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -673,7 +774,7 @@ func (x *OpenViewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenViewRequest.ProtoReflect.Descriptor instead.
 func (*OpenViewRequest) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{5}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *OpenViewRequest) GetFilter() *ViewFilter {
@@ -698,13 +799,14 @@ type OpenViewResponse struct {
 	Capabilities  []*v1.CapabilityDescription `protobuf:"bytes,4,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
 	NextPageToken string                      `protobuf:"bytes,5,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	ExpiresAt     *timestamppb.Timestamp      `protobuf:"bytes,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	Entities      []*ViewEntity               `protobuf:"bytes,7,rep,name=entities,proto3" json:"entities,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *OpenViewResponse) Reset() {
 	*x = OpenViewResponse{}
-	mi := &file_home_state_v1_state_proto_msgTypes[6]
+	mi := &file_home_state_v1_state_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -716,7 +818,7 @@ func (x *OpenViewResponse) String() string {
 func (*OpenViewResponse) ProtoMessage() {}
 
 func (x *OpenViewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[6]
+	mi := &file_home_state_v1_state_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -729,7 +831,7 @@ func (x *OpenViewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenViewResponse.ProtoReflect.Descriptor instead.
 func (*OpenViewResponse) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{6}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *OpenViewResponse) GetSnapshotToken() string {
@@ -774,6 +876,13 @@ func (x *OpenViewResponse) GetExpiresAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *OpenViewResponse) GetEntities() []*ViewEntity {
+	if x != nil {
+		return x.Entities
+	}
+	return nil
+}
+
 type ReadPageRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SnapshotToken string                 `protobuf:"bytes,1,opt,name=snapshot_token,json=snapshotToken,proto3" json:"snapshot_token,omitempty"`
@@ -784,7 +893,7 @@ type ReadPageRequest struct {
 
 func (x *ReadPageRequest) Reset() {
 	*x = ReadPageRequest{}
-	mi := &file_home_state_v1_state_proto_msgTypes[7]
+	mi := &file_home_state_v1_state_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -796,7 +905,7 @@ func (x *ReadPageRequest) String() string {
 func (*ReadPageRequest) ProtoMessage() {}
 
 func (x *ReadPageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[7]
+	mi := &file_home_state_v1_state_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -809,7 +918,7 @@ func (x *ReadPageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadPageRequest.ProtoReflect.Descriptor instead.
 func (*ReadPageRequest) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{7}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ReadPageRequest) GetSnapshotToken() string {
@@ -835,7 +944,7 @@ type ReadPageResponse struct {
 
 func (x *ReadPageResponse) Reset() {
 	*x = ReadPageResponse{}
-	mi := &file_home_state_v1_state_proto_msgTypes[8]
+	mi := &file_home_state_v1_state_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -847,7 +956,7 @@ func (x *ReadPageResponse) String() string {
 func (*ReadPageResponse) ProtoMessage() {}
 
 func (x *ReadPageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[8]
+	mi := &file_home_state_v1_state_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -860,7 +969,7 @@ func (x *ReadPageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadPageResponse.ProtoReflect.Descriptor instead.
 func (*ReadPageResponse) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{8}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ReadPageResponse) GetPage() *OpenViewResponse {
@@ -879,7 +988,7 @@ type WatchViewRequest struct {
 
 func (x *WatchViewRequest) Reset() {
 	*x = WatchViewRequest{}
-	mi := &file_home_state_v1_state_proto_msgTypes[9]
+	mi := &file_home_state_v1_state_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -891,7 +1000,7 @@ func (x *WatchViewRequest) String() string {
 func (*WatchViewRequest) ProtoMessage() {}
 
 func (x *WatchViewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[9]
+	mi := &file_home_state_v1_state_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -904,7 +1013,7 @@ func (x *WatchViewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchViewRequest.ProtoReflect.Descriptor instead.
 func (*WatchViewRequest) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{9}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *WatchViewRequest) GetCursor() *ViewCursor {
@@ -923,7 +1032,7 @@ type StateDelta struct {
 
 func (x *StateDelta) Reset() {
 	*x = StateDelta{}
-	mi := &file_home_state_v1_state_proto_msgTypes[10]
+	mi := &file_home_state_v1_state_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -935,7 +1044,7 @@ func (x *StateDelta) String() string {
 func (*StateDelta) ProtoMessage() {}
 
 func (x *StateDelta) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[10]
+	mi := &file_home_state_v1_state_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -948,7 +1057,7 @@ func (x *StateDelta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateDelta.ProtoReflect.Descriptor instead.
 func (*StateDelta) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{10}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *StateDelta) GetStates() []*ObservedState {
@@ -968,7 +1077,7 @@ type ResyncRequired struct {
 
 func (x *ResyncRequired) Reset() {
 	*x = ResyncRequired{}
-	mi := &file_home_state_v1_state_proto_msgTypes[11]
+	mi := &file_home_state_v1_state_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -980,7 +1089,7 @@ func (x *ResyncRequired) String() string {
 func (*ResyncRequired) ProtoMessage() {}
 
 func (x *ResyncRequired) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[11]
+	mi := &file_home_state_v1_state_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -993,7 +1102,7 @@ func (x *ResyncRequired) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResyncRequired.ProtoReflect.Descriptor instead.
 func (*ResyncRequired) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{11}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ResyncRequired) GetReason() ResyncReason {
@@ -1025,7 +1134,7 @@ type WatchViewResponse struct {
 
 func (x *WatchViewResponse) Reset() {
 	*x = WatchViewResponse{}
-	mi := &file_home_state_v1_state_proto_msgTypes[12]
+	mi := &file_home_state_v1_state_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1037,7 +1146,7 @@ func (x *WatchViewResponse) String() string {
 func (*WatchViewResponse) ProtoMessage() {}
 
 func (x *WatchViewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_state_v1_state_proto_msgTypes[12]
+	mi := &file_home_state_v1_state_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1050,7 +1159,7 @@ func (x *WatchViewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchViewResponse.ProtoReflect.Descriptor instead.
 func (*WatchViewResponse) Descriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{12}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *WatchViewResponse) GetStreamSequence() uint64 {
@@ -1142,21 +1251,31 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\tswitch_on\x18\v \x01(\bH\x00R\bswitchOn\x12>\n" +
 	"\vmeasurement\x18\f \x01(\v2\x1a.home.state.v1.MeasurementH\x00R\vmeasurementB\a\n" +
 	"\x05valueB\r\n" +
-	"\v_source_seq\"\xd0\x01\n" +
+	"\v_source_seq\"\xf5\x01\n" +
 	"\n" +
 	"ViewCursor\x12\x14\n" +
 	"\x05epoch\x18\x01 \x01(\tR\x05epoch\x12'\n" +
 	"\x0fglobal_sequence\x18\x02 \x01(\x04R\x0eglobalSequence\x12'\n" +
 	"\x0fconfig_revision\x18\x03 \x01(\x04R\x0econfigRevision\x125\n" +
 	"\x16authorization_revision\x18\x04 \x01(\x04R\x15authorizationRevision\x12#\n" +
-	"\rfilter_sha256\x18\x05 \x01(\fR\ffilterSha256\"+\n" +
+	"\rfilter_sha256\x18\x05 \x01(\fR\ffilterSha256\x12#\n" +
+	"\rconfig_sha256\x18\x06 \x01(\fR\fconfigSha256\"\xc2\x02\n" +
+	"\n" +
+	"ViewEntity\x12\x1b\n" +
+	"\tentity_id\x18\x01 \x01(\tR\bentityId\x12\x1b\n" +
+	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12%\n" +
+	"\x0eoriginal_alias\x18\x03 \x01(\tR\roriginalAlias\x12#\n" +
+	"\rcurrent_alias\x18\x04 \x01(\tR\fcurrentAlias\x12-\n" +
+	"\x12historical_aliases\x18\x05 \x03(\tR\x11historicalAliases\x12K\n" +
+	"\fcapabilities\x18\x06 \x03(\v2'.home.registry.v1.CapabilityDescriptionR\fcapabilities\x122\n" +
+	"\x05state\x18\a \x01(\v2\x1c.home.state.v1.ObservedStateR\x05state\"+\n" +
 	"\n" +
 	"ViewFilter\x12\x1d\n" +
 	"\n" +
 	"entity_ids\x18\x01 \x03(\tR\tentityIds\"a\n" +
 	"\x0fOpenViewRequest\x121\n" +
 	"\x06filter\x18\x01 \x01(\v2\x19.home.state.v1.ViewFilterR\x06filter\x12\x1b\n" +
-	"\tpage_size\x18\x02 \x01(\rR\bpageSize\"\xd2\x02\n" +
+	"\tpage_size\x18\x02 \x01(\rR\bpageSize\"\x89\x03\n" +
 	"\x10OpenViewResponse\x12%\n" +
 	"\x0esnapshot_token\x18\x01 \x01(\tR\rsnapshotToken\x121\n" +
 	"\x06cursor\x18\x02 \x01(\v2\x19.home.state.v1.ViewCursorR\x06cursor\x124\n" +
@@ -1164,7 +1283,8 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\fcapabilities\x18\x04 \x03(\v2'.home.registry.v1.CapabilityDescriptionR\fcapabilities\x12&\n" +
 	"\x0fnext_page_token\x18\x05 \x01(\tR\rnextPageToken\x129\n" +
 	"\n" +
-	"expires_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"W\n" +
+	"expires_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x125\n" +
+	"\bentities\x18\a \x03(\v2\x19.home.state.v1.ViewEntityR\bentities\"W\n" +
 	"\x0fReadPageRequest\x12%\n" +
 	"\x0esnapshot_token\x18\x01 \x01(\tR\rsnapshotToken\x12\x1d\n" +
 	"\n" +
@@ -1225,7 +1345,7 @@ func file_home_state_v1_state_proto_rawDescGZIP() []byte {
 }
 
 var file_home_state_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_home_state_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_home_state_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_home_state_v1_state_proto_goTypes = []any{
 	(Availability)(0),                // 0: home.state.v1.Availability
 	(Freshness)(0),                   // 1: home.state.v1.Freshness
@@ -1235,54 +1355,58 @@ var file_home_state_v1_state_proto_goTypes = []any{
 	(*Measurement)(nil),              // 5: home.state.v1.Measurement
 	(*ObservedState)(nil),            // 6: home.state.v1.ObservedState
 	(*ViewCursor)(nil),               // 7: home.state.v1.ViewCursor
-	(*ViewFilter)(nil),               // 8: home.state.v1.ViewFilter
-	(*OpenViewRequest)(nil),          // 9: home.state.v1.OpenViewRequest
-	(*OpenViewResponse)(nil),         // 10: home.state.v1.OpenViewResponse
-	(*ReadPageRequest)(nil),          // 11: home.state.v1.ReadPageRequest
-	(*ReadPageResponse)(nil),         // 12: home.state.v1.ReadPageResponse
-	(*WatchViewRequest)(nil),         // 13: home.state.v1.WatchViewRequest
-	(*StateDelta)(nil),               // 14: home.state.v1.StateDelta
-	(*ResyncRequired)(nil),           // 15: home.state.v1.ResyncRequired
-	(*WatchViewResponse)(nil),        // 16: home.state.v1.WatchViewResponse
-	(*v1.EntityRef)(nil),             // 17: home.registry.v1.EntityRef
-	(*timestamppb.Timestamp)(nil),    // 18: google.protobuf.Timestamp
-	(*v1.CapabilityDescription)(nil), // 19: home.registry.v1.CapabilityDescription
+	(*ViewEntity)(nil),               // 8: home.state.v1.ViewEntity
+	(*ViewFilter)(nil),               // 9: home.state.v1.ViewFilter
+	(*OpenViewRequest)(nil),          // 10: home.state.v1.OpenViewRequest
+	(*OpenViewResponse)(nil),         // 11: home.state.v1.OpenViewResponse
+	(*ReadPageRequest)(nil),          // 12: home.state.v1.ReadPageRequest
+	(*ReadPageResponse)(nil),         // 13: home.state.v1.ReadPageResponse
+	(*WatchViewRequest)(nil),         // 14: home.state.v1.WatchViewRequest
+	(*StateDelta)(nil),               // 15: home.state.v1.StateDelta
+	(*ResyncRequired)(nil),           // 16: home.state.v1.ResyncRequired
+	(*WatchViewResponse)(nil),        // 17: home.state.v1.WatchViewResponse
+	(*v1.EntityRef)(nil),             // 18: home.registry.v1.EntityRef
+	(*timestamppb.Timestamp)(nil),    // 19: google.protobuf.Timestamp
+	(*v1.CapabilityDescription)(nil), // 20: home.registry.v1.CapabilityDescription
 }
 var file_home_state_v1_state_proto_depIdxs = []int32{
 	0,  // 0: home.state.v1.Quality.availability:type_name -> home.state.v1.Availability
 	1,  // 1: home.state.v1.Quality.freshness:type_name -> home.state.v1.Freshness
 	2,  // 2: home.state.v1.Quality.provenance:type_name -> home.state.v1.Provenance
-	17, // 3: home.state.v1.ObservedState.entity:type_name -> home.registry.v1.EntityRef
+	18, // 3: home.state.v1.ObservedState.entity:type_name -> home.registry.v1.EntityRef
 	4,  // 4: home.state.v1.ObservedState.quality:type_name -> home.state.v1.Quality
-	18, // 5: home.state.v1.ObservedState.observed_at:type_name -> google.protobuf.Timestamp
-	18, // 6: home.state.v1.ObservedState.received_at:type_name -> google.protobuf.Timestamp
-	18, // 7: home.state.v1.ObservedState.last_changed:type_name -> google.protobuf.Timestamp
-	18, // 8: home.state.v1.ObservedState.last_updated:type_name -> google.protobuf.Timestamp
-	18, // 9: home.state.v1.ObservedState.last_reported:type_name -> google.protobuf.Timestamp
+	19, // 5: home.state.v1.ObservedState.observed_at:type_name -> google.protobuf.Timestamp
+	19, // 6: home.state.v1.ObservedState.received_at:type_name -> google.protobuf.Timestamp
+	19, // 7: home.state.v1.ObservedState.last_changed:type_name -> google.protobuf.Timestamp
+	19, // 8: home.state.v1.ObservedState.last_updated:type_name -> google.protobuf.Timestamp
+	19, // 9: home.state.v1.ObservedState.last_reported:type_name -> google.protobuf.Timestamp
 	5,  // 10: home.state.v1.ObservedState.measurement:type_name -> home.state.v1.Measurement
-	8,  // 11: home.state.v1.OpenViewRequest.filter:type_name -> home.state.v1.ViewFilter
-	7,  // 12: home.state.v1.OpenViewResponse.cursor:type_name -> home.state.v1.ViewCursor
-	6,  // 13: home.state.v1.OpenViewResponse.states:type_name -> home.state.v1.ObservedState
-	19, // 14: home.state.v1.OpenViewResponse.capabilities:type_name -> home.registry.v1.CapabilityDescription
-	18, // 15: home.state.v1.OpenViewResponse.expires_at:type_name -> google.protobuf.Timestamp
-	10, // 16: home.state.v1.ReadPageResponse.page:type_name -> home.state.v1.OpenViewResponse
-	7,  // 17: home.state.v1.WatchViewRequest.cursor:type_name -> home.state.v1.ViewCursor
-	6,  // 18: home.state.v1.StateDelta.states:type_name -> home.state.v1.ObservedState
-	3,  // 19: home.state.v1.ResyncRequired.reason:type_name -> home.state.v1.ResyncReason
-	7,  // 20: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
-	14, // 21: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
-	15, // 22: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
-	9,  // 23: home.state.v1.StateService.OpenView:input_type -> home.state.v1.OpenViewRequest
-	11, // 24: home.state.v1.StateService.ReadPage:input_type -> home.state.v1.ReadPageRequest
-	13, // 25: home.state.v1.StateService.WatchView:input_type -> home.state.v1.WatchViewRequest
-	10, // 26: home.state.v1.StateService.OpenView:output_type -> home.state.v1.OpenViewResponse
-	12, // 27: home.state.v1.StateService.ReadPage:output_type -> home.state.v1.ReadPageResponse
-	16, // 28: home.state.v1.StateService.WatchView:output_type -> home.state.v1.WatchViewResponse
-	26, // [26:29] is the sub-list for method output_type
-	23, // [23:26] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	20, // 11: home.state.v1.ViewEntity.capabilities:type_name -> home.registry.v1.CapabilityDescription
+	6,  // 12: home.state.v1.ViewEntity.state:type_name -> home.state.v1.ObservedState
+	9,  // 13: home.state.v1.OpenViewRequest.filter:type_name -> home.state.v1.ViewFilter
+	7,  // 14: home.state.v1.OpenViewResponse.cursor:type_name -> home.state.v1.ViewCursor
+	6,  // 15: home.state.v1.OpenViewResponse.states:type_name -> home.state.v1.ObservedState
+	20, // 16: home.state.v1.OpenViewResponse.capabilities:type_name -> home.registry.v1.CapabilityDescription
+	19, // 17: home.state.v1.OpenViewResponse.expires_at:type_name -> google.protobuf.Timestamp
+	8,  // 18: home.state.v1.OpenViewResponse.entities:type_name -> home.state.v1.ViewEntity
+	11, // 19: home.state.v1.ReadPageResponse.page:type_name -> home.state.v1.OpenViewResponse
+	7,  // 20: home.state.v1.WatchViewRequest.cursor:type_name -> home.state.v1.ViewCursor
+	6,  // 21: home.state.v1.StateDelta.states:type_name -> home.state.v1.ObservedState
+	3,  // 22: home.state.v1.ResyncRequired.reason:type_name -> home.state.v1.ResyncReason
+	7,  // 23: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
+	15, // 24: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
+	16, // 25: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
+	10, // 26: home.state.v1.StateService.OpenView:input_type -> home.state.v1.OpenViewRequest
+	12, // 27: home.state.v1.StateService.ReadPage:input_type -> home.state.v1.ReadPageRequest
+	14, // 28: home.state.v1.StateService.WatchView:input_type -> home.state.v1.WatchViewRequest
+	11, // 29: home.state.v1.StateService.OpenView:output_type -> home.state.v1.OpenViewResponse
+	13, // 30: home.state.v1.StateService.ReadPage:output_type -> home.state.v1.ReadPageResponse
+	17, // 31: home.state.v1.StateService.WatchView:output_type -> home.state.v1.WatchViewResponse
+	29, // [29:32] is the sub-list for method output_type
+	26, // [26:29] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_home_state_v1_state_proto_init() }
@@ -1295,7 +1419,7 @@ func file_home_state_v1_state_proto_init() {
 		(*ObservedState_SwitchOn)(nil),
 		(*ObservedState_Measurement)(nil),
 	}
-	file_home_state_v1_state_proto_msgTypes[12].OneofWrappers = []any{
+	file_home_state_v1_state_proto_msgTypes[13].OneofWrappers = []any{
 		(*WatchViewResponse_Delta)(nil),
 		(*WatchViewResponse_ResyncRequired)(nil),
 	}
@@ -1305,7 +1429,7 @@ func file_home_state_v1_state_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_state_v1_state_proto_rawDesc), len(file_home_state_v1_state_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   13,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

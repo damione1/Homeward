@@ -3,6 +3,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -133,30 +134,55 @@ func (s *Store) Close() {
 
 // InTransaction commits only after fn succeeds. A callback error rolls back.
 func (s *Store) InTransaction(ctx context.Context, fn func(pgx.Tx) error) error {
+	_, err := s.InTransactionOutcome(ctx, fn)
+	return err
+}
+
+// TransactionOutcome distinguishes a callback rollback from a commit whose
+// result cannot be proven after a connection or context failure.
+type TransactionOutcome uint8
+
+const (
+	TransactionOutcomeUnspecified TransactionOutcome = iota
+	TransactionNotCommitted
+	TransactionCommitted
+	TransactionIndeterminate
+)
+
+func (s *Store) InTransactionOutcome(ctx context.Context, fn func(pgx.Tx) error) (TransactionOutcome, error) {
 	if ctx == nil {
-		return &Error{kind: InvalidContext}
+		return TransactionNotCommitted, &Error{kind: InvalidContext}
 	}
 	if s == nil || s.pool == nil || fn == nil {
-		return &Error{kind: InvalidSettings}
+		return TransactionNotCommitted, &Error{kind: InvalidSettings}
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return TransactionNotCommitted, ctx.Err()
 		}
-		return &Error{kind: Unavailable}
+		return TransactionNotCommitted, &Error{kind: Unavailable}
 	}
 	defer rollback(tx)
 	if err := fn(tx); err != nil {
-		return &Error{kind: TransactionFailed, cause: err}
+		return TransactionNotCommitted, &Error{kind: TransactionFailed, cause: err}
 	}
 	if err := tx.Commit(ctx); err != nil {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		return &Error{kind: TransactionFailed}
+		return failedCommit(ctx, err)
 	}
-	return nil
+	return TransactionCommitted, nil
+}
+
+func failedCommit(ctx context.Context, err error) (TransactionOutcome, error) {
+	// pgx reports a server ROLLBACK explicitly when an aborted transaction
+	// cannot commit. Other commit errors cannot establish the server outcome.
+	if errors.Is(err, pgx.ErrTxCommitRollback) {
+		return TransactionNotCommitted, &Error{kind: TransactionFailed, cause: err}
+	}
+	if ctx.Err() != nil {
+		return TransactionIndeterminate, ctx.Err()
+	}
+	return TransactionIndeterminate, &Error{kind: TransactionFailed, cause: err}
 }
 
 func rollback(tx pgx.Tx) {
