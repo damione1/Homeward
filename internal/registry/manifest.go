@@ -8,6 +8,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/damione1/Homeward/internal/domain"
 )
@@ -23,9 +24,22 @@ func ParseHAAlias(value string) (HAAlias, error) {
 	return domain.ParseHAAlias(value)
 }
 
+// SourceName is open provenance from the frozen selection, not an integration kind.
+// An alias-only Manifest has no source provenance to report.
+type SourceName struct{ value string }
+
+func (s SourceName) Value() (string, bool) {
+	return s.value, s.value != "" && utf8.ValidString(s.value)
+}
+
 // Manifest is a parsed admission boundary. Its zero value grants no identities.
 // A later scope amendment must be parsed and supplied explicitly by composition.
-type Manifest struct{ aliases map[HAAlias]struct{} }
+type Manifest struct {
+	aliases map[HAAlias]struct{}
+	sources map[HAAlias]SourceName
+	digest  [sha256.Size]byte
+	parsed  bool
+}
 
 func ParseManifest(data []byte) (Manifest, error) {
 	var raw struct {
@@ -41,15 +55,17 @@ func ParseManifest(data []byte) (Manifest, error) {
 	}
 	ids := make([]string, 0, len(raw.Entities))
 	known := make(map[HAAlias]struct{}, len(raw.Entities))
+	sources := make(map[HAAlias]SourceName, len(raw.Entities))
 	for _, item := range raw.Entities {
 		alias, err := ParseHAAlias(item.ID)
-		if err != nil || item.Source == "" {
+		if err != nil || item.Source == "" || !utf8.ValidString(item.Source) {
 			return Manifest{}, ErrInvalidManifest
 		}
 		if _, exists := known[alias]; exists {
 			return Manifest{}, ErrInvalidManifest
 		}
 		known[alias] = struct{}{}
+		sources[alias] = SourceName{value: item.Source}
 		ids = append(ids, item.ID)
 	}
 	sort.Strings(ids)
@@ -57,8 +73,22 @@ func ParseManifest(data []byte) (Manifest, error) {
 	if hex.EncodeToString(digest[:]) != raw.Digest {
 		return Manifest{}, ErrInvalidManifest
 	}
-	return Manifest{aliases: known}, nil
+	return Manifest{aliases: known, sources: sources, digest: digest, parsed: true}, nil
 }
+
+// SourceFor reports only provenance supplied by ParseManifest. It does not infer
+// a provider from an alias or make an alias-only Manifest appear sourced.
+func (m Manifest) SourceFor(alias HAAlias) (SourceName, bool) {
+	if _, err := alias.Value(); err != nil {
+		return SourceName{}, false
+	}
+	source, ok := m.sources[alias]
+	return source, ok
+}
+
+// Digest is absent on zero or alias-only manifests. The digest is of the
+// selected ID set validated by ParseManifest, not of the JSON representation.
+func (m Manifest) Digest() ([sha256.Size]byte, bool) { return m.digest, m.parsed }
 
 func (m Manifest) permits(alias HAAlias) bool {
 	_, ok := m.aliases[alias]

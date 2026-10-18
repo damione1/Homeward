@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "manifest_ids_sha256": "4cdcd750642c903a58195e404717042b9c7e2fa045799132f38f73291e069d31",
+  "policy": {
+    "hilo_mvp_actions": "denied",
+    "heating_owner": "neviweb130",
+    "energy_relation": "independent"
+  },
+  "candidates": [
+    {
+      "kind": "thermostat",
+      "hilo_alias": "climate.chambre_eugenie",
+      "neviweb_alias": "climate.neviweb130_climate_chambre_eugenie",
+      "relation": {"kind": "unproven", "reason": "neviweb_stable_identity_absent"},
+      "source_refs": ["Projects/New Home Assistant/Entités - climate.md", "Projects/New Home Assistant/Architecture/Matrice des intégrations.md"]
+    },
+    {
+      "kind": "thermostat",
+      "hilo_alias": "climate.chambre_principale",
+      "neviweb_alias": "climate.neviweb130_climate_chambre_principale",
+      "relation": {"kind": "unproven", "reason": "neviweb_stable_identity_absent"},
+      "source_refs": ["Projects/New Home Assistant/Entités - climate.md", "Projects/New Home Assistant/Architecture/Matrice des intégrations.md"]
+    },
+    {
+      "kind": "thermostat",
+      "hilo_alias": "climate.chambre_sous_sol",
+      "neviweb_alias": "climate.neviweb130_climate_chambre_sous_sol",
+      "relation": {"kind": "unproven", "reason": "neviweb_stable_identity_absent"},
+      "source_refs": ["Projects/New Home Assistant/Entités - climate.md", "Projects/New Home Assistant/Architecture/Matrice des intégrations.md"]
+    },
+    {
+      "kind": "thermostat",
+      "hilo_alias": "climate.living_room",
+      "neviweb_alias": "climate.neviweb130_climate_living_room",
+      "relation": {"kind": "unproven", "reason": "neviweb_stable_identity_absent"},
+      "source_refs": ["Projects/New Home Assistant/Entités - climate.md", "Projects/New Home Assistant/Architecture/Matrice des intégrations.md"]
+    },
+    {
+      "kind": "thermostat",
+      "hilo_alias": "climate.plancher_cuisine",
+      "neviweb_alias": "climate.neviweb130_climate_plancher_cuisine",
+      "relation": {"kind": "unproven", "reason": "neviweb_stable_identity_absent"},
+      "source_refs": ["Projects/New Home Assistant/Entités - climate.md", "Projects/New Home Assistant/Architecture/Matrice des intégrations.md"]
+    },
+    {
+      "kind": "thermostat",
+      "hilo_alias": "climate.salle_a_manger",
+      "neviweb_alias": "climate.neviweb130_climate_salle_a_manger",
+      "relation": {"kind": "unproven", "reason": "neviweb_stable_identity_absent"},
+      "source_refs": ["Projects/New Home Assistant/Entités - climate.md", "Projects/New Home Assistant/Architecture/Matrice des intégrations.md"]
+    },
+    {
+      "kind": "thermostat",
+      "hilo_alias": "climate.salle_de_bain",
+      "neviweb_alias": "climate.neviweb130_climate_salle_de_bain",
+      "relation": {"kind": "unproven", "reason": "neviweb_stable_identity_absent"},
+      "source_refs": ["Projects/New Home Assistant/Entités - climate.md", "Projects/New Home Assistant/Architecture/Matrice des intégrations.md"]
+    },
+    {
+      "kind": "thermostat",
+      "hilo_alias": "climate.sous_sol",
+      "neviweb_alias": "climate.neviweb130_climate_sous_sol",
+      "relation": {"kind": "unproven", "reason": "neviweb_stable_identity_absent"},
+      "source_refs": ["Projects/New Home Assistant/Entités - climate.md", "Projects/New Home Assistant/Architecture/Matrice des intégrations.md"]
+    },
+    {
+      "kind": "water_heater",
+      "hilo_alias": "switch.chauffe_eau",
+      "neviweb_alias": "switch.neviweb130_switch_chauffe_eau",
+      "relation": {"kind": "unproven", "reason": "neviweb_stable_identity_absent"},
+      "source_refs": ["scope/manifest.json", "Projects/New Home Assistant/Architecture/Matrice des intégrations.md"]
+    }
+  ]
+}

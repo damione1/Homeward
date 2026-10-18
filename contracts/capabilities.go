@@ -37,6 +37,7 @@ var extensionSchema = regexp.MustCompile(`^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*\.v[
 
 var (
 	ErrInvalidCapability     = errors.New("invalid capability declaration")
+	ErrActionableCapability  = errors.New("capability offers an action")
 	ErrUnknownExtensionCodec = errors.New("extension action codec is not registered")
 	ErrUninitializedCatalog  = errors.New("capability catalogue is not initialized")
 )
@@ -174,6 +175,40 @@ func (c *CapabilityCatalog) AdmitDriverCapability(d *registry.CapabilityDescript
 		}
 	}
 	return nil
+}
+
+// AdmitReadOnlyDriverCapability applies the catalogue's action semantics to a
+// source that must publish observations only. It never edits the declaration:
+// a driver must correct an actionable or unknown description before discovery.
+func (c *CapabilityCatalog) AdmitReadOnlyDriverCapability(d *registry.CapabilityDescription) error {
+	if err := c.AdmitDriverCapability(d); err != nil {
+		return err
+	}
+	switch constraints := d.Constraints.(type) {
+	case *registry.CapabilityDescription_Switch:
+		if !constraints.Switch.SetOn {
+			return nil
+		}
+	case *registry.CapabilityDescription_Light:
+		// SetLight currently accepts On even without SetOn, so every valid
+		// light declaration is actionable at the catalogue boundary.
+	case *registry.CapabilityDescription_Fan:
+		if !constraints.Fan.SetOn && len(constraints.Fan.SpeedOptions) == 0 {
+			return nil
+		}
+	case *registry.CapabilityDescription_Climate:
+		if constraints.Climate.SetpointCelsius == nil && len(constraints.Climate.ModeOptions) == 0 {
+			return nil
+		}
+	case *registry.CapabilityDescription_Measurement, *registry.CapabilityDescription_Binary:
+		return nil
+	case *registry.CapabilityDescription_Extension:
+		// Even an extension without an advertised action is outside the
+		// closed set of observation contracts admitted for this policy.
+	default:
+		// Future constraint branches remain closed until reviewed here.
+	}
+	return ErrActionableCapability
 }
 
 // DriverCapabilityRegistration is a Host-resolved entity and one admitted
