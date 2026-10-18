@@ -31,6 +31,7 @@ const (
 	componentSwitch
 	componentSensor
 	componentLight
+	componentAction
 )
 
 type availabilityMode uint8
@@ -189,6 +190,7 @@ var discoveryAliases = map[string]string{
 	"dev": "device", "dev_cla": "device_class", "en": "enabled_by_default", "ent_cat": "entity_category",
 	"fx_list": "effect_list", "max_mirs": "max_mireds", "min_mirs": "min_mireds", "o": "origin",
 	"p": "platform", "pl_avail": "payload_available", "pl_not_avail": "payload_not_available", "pl_off": "payload_off", "pl_on": "payload_on",
+	"atype":    "automation_type",
 	"stat_cla": "state_class", "stat_t": "state_topic", "sup_clrm": "supported_color_modes", "t": "topic",
 	"uniq_id": "unique_id", "unit_of_meas": "unit_of_measurement", "val_tpl": "value_template",
 }
@@ -201,6 +203,7 @@ var discoveryFields = map[string]struct{}{
 	"payload_available": {}, "payload_not_available": {}, "payload_off": {}, "payload_on": {},
 	"schema": {}, "state_class": {}, "state_topic": {}, "supported_color_modes": {}, "topic": {},
 	"unique_id": {}, "unit_of_measurement": {}, "value_template": {}, "~": {},
+	"automation_type": {}, "type": {}, "subtype": {}, "payload": {},
 }
 
 func normalizeDiscovery(object map[string]any) (map[string]any, error) {
@@ -302,6 +305,8 @@ func parseDiscoveryTopic(topic Topic) (componentKind, bool, error) {
 		return componentSensor, false, nil
 	case "light":
 		return componentLight, false, nil
+	case "device_automation":
+		return componentAction, false, nil
 	default:
 		return componentUnspecified, false, errDiscoveryProfile
 	}
@@ -403,6 +408,8 @@ func validateComponentFields(object map[string]any, kind componentKind) error {
 	for key := range object {
 		switch key {
 		case "components":
+			return errDiscoveryProfile
+		case "automation_type", "type", "subtype", "payload", "topic":
 			return errDiscoveryProfile
 		case "schema", "brightness", "brightness_scale", "supported_color_modes", "min_mireds", "max_mireds", "effect", "effect_list":
 			if kind != componentLight {
@@ -757,40 +764,55 @@ func excludedPlatform(name string) bool {
 	}
 }
 
-func parseDiscoveryDocument(topic Topic, payload []byte) ([]discoveryComponent, []string, error) {
+func parseDiscoveryDocument(topic Topic, payload []byte) ([]discoveryComponent, []actionDeclaration, []string, error) {
 	kind, deviceBased, err := parseDiscoveryTopic(topic)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	root, err := decodeDiscoveryJSON(payload)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	normalized, err := normalizeDiscovery(root)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if !deviceBased {
+		if kind == componentAction {
+			action, err := parseActionDeclaration(normalized, nil, nil, actionTopic)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			return nil, []actionDeclaration{action}, nil, nil
+		}
+		if kind == componentSensor && isLegacyActionSensor(normalized) {
+			action, err := parseActionDeclaration(normalized, nil, nil, actionJSON)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			return nil, []actionDeclaration{action}, nil, nil
+		}
 		component, err := parseDiscoveryComponent(normalized, kind, nil, nil)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		return []discoveryComponent{component}, nil, nil
+		return []discoveryComponent{component}, nil, nil, nil
 	}
 	if _, present := normalized["origin"]; !present {
-		return nil, nil, errDiscoveryProfile
+		return nil, nil, nil, errDiscoveryProfile
 	}
 	if err := validateOrigin(normalized["origin"]); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if _, err := parseIdentifiers(normalized["device"]); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	components, ok := normalized["components"].(map[string]any)
 	if !ok || len(components) == 0 || len(components) > 64 {
-		return nil, nil, errDiscoveryProfile
+		return nil, nil, nil, errDiscoveryProfile
 	}
 	result := make([]discoveryComponent, 0, len(components))
+	actions := make([]actionDeclaration, 0)
 	excluded := make([]string, 0)
 	seen := make(map[string]struct{})
 	ids := make([]string, 0, len(components))
@@ -801,19 +823,31 @@ func parseDiscoveryDocument(topic Topic, payload []byte) ([]discoveryComponent, 
 	for _, id := range ids {
 		raw := components[id]
 		if id == "" || len(id) > 128 {
-			return nil, nil, errDiscoveryProfile
+			return nil, nil, nil, errDiscoveryProfile
 		}
 		object, ok := raw.(map[string]any)
 		if !ok {
-			return nil, nil, discoveryComponentError{key: id}
+			return nil, nil, nil, discoveryComponentError{key: id}
 		}
 		platform, ok := object["platform"].(string)
 		if !ok {
 			if abbreviated, has := object["p"].(string); has {
 				platform = abbreviated
 			} else {
-				return nil, nil, discoveryComponentError{key: id}
+				return nil, nil, nil, discoveryComponentError{key: id}
 			}
+		}
+		if platform == "device_automation" || platform == "sensor" && isLegacyActionSensor(object) {
+			kind := actionTopic
+			if platform == "sensor" {
+				kind = actionJSON
+			}
+			action, err := parseActionDeclaration(object, normalized["device"], normalized, kind)
+			if err != nil {
+				return nil, nil, nil, discoveryComponentError{key: id}
+			}
+			actions = append(actions, action)
+			continue
 		}
 		if excludedPlatform(platform) {
 			// Excluded neighbors have no capability route. Their identity still
@@ -823,10 +857,10 @@ func parseDiscoveryDocument(topic Topic, payload []byte) ([]discoveryComponent, 
 				unique, err = stringField(object, "uniq_id", true)
 			}
 			if err != nil || unique == "" || len(unique) > 256 {
-				return nil, nil, discoveryComponentError{key: id}
+				return nil, nil, nil, discoveryComponentError{key: id}
 			}
 			if _, duplicate := seen[unique]; duplicate {
-				return nil, nil, discoveryComponentError{key: id}
+				return nil, nil, nil, discoveryComponentError{key: id}
 			}
 			seen[unique] = struct{}{}
 			excluded = append(excluded, id)
@@ -834,13 +868,13 @@ func parseDiscoveryDocument(topic Topic, payload []byte) ([]discoveryComponent, 
 		}
 		component, err := parseDiscoveryComponent(object, componentUnspecified, normalized["device"], normalized)
 		if err != nil {
-			return nil, nil, discoveryComponentError{key: id}
+			return nil, nil, nil, discoveryComponentError{key: id}
 		}
 		if _, duplicate := seen[component.uniqueID]; duplicate {
-			return nil, nil, discoveryComponentError{key: id}
+			return nil, nil, nil, discoveryComponentError{key: id}
 		}
 		seen[component.uniqueID] = struct{}{}
 		result = append(result, component)
 	}
-	return result, excluded, nil
+	return result, actions, excluded, nil
 }

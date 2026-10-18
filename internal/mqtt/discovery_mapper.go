@@ -44,6 +44,10 @@ const (
 	DiagnosticAvailability
 	DiagnosticRetirement
 	DiagnosticSnapshotOverflow
+	DiagnosticUnconfiguredActionAnchor
+	DiagnosticAmbiguousActionDevice
+	DiagnosticActionOverflow
+	DiagnosticInvalidAction
 )
 
 func (d DiscoveryDiagnostic) String() string {
@@ -66,6 +70,14 @@ func (d DiscoveryDiagnostic) String() string {
 		return "retirement_failure"
 	case DiagnosticSnapshotOverflow:
 		return "snapshot_overflow"
+	case DiagnosticUnconfiguredActionAnchor:
+		return "unconfigured_action_anchor"
+	case DiagnosticAmbiguousActionDevice:
+		return "ambiguous_action_device"
+	case DiagnosticActionOverflow:
+		return "action_overflow"
+	case DiagnosticInvalidAction:
+		return "invalid_action"
 	default:
 		return "unspecified"
 	}
@@ -115,6 +127,9 @@ type DiscoveryMapper struct {
 	states          map[Topic][]*componentRuntime
 	availabilities  map[Topic][]*componentRuntime
 	entities        map[domain.EntityID]*componentRuntime
+	actionDocuments map[Topic][]actionDeclaration
+	actionDevices   map[domain.DeviceID]*actionDevice
+	actionRoutes    map[Topic][]actionRoute
 	diagnostics     []DiscoveryDiagnosticRecord
 }
 
@@ -125,7 +140,7 @@ func newDiscoveryMapper(settings Settings, repository discoveryRegistry, logger 
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &DiscoveryMapper{instance: settings.instance, mode: settings.mode, commands: append([]TopicFilter(nil), settings.commands...), repository: repository, logger: logger, documents: make(map[Topic][]*componentRuntime), documentDigests: make(map[Topic][sha256.Size]byte), snapshots: make(map[Topic]cachedSnapshot), states: make(map[Topic][]*componentRuntime), availabilities: make(map[Topic][]*componentRuntime), entities: make(map[domain.EntityID]*componentRuntime)}, nil
+	return &DiscoveryMapper{instance: settings.instance, mode: settings.mode, commands: append([]TopicFilter(nil), settings.commands...), repository: repository, logger: logger, documents: make(map[Topic][]*componentRuntime), documentDigests: make(map[Topic][sha256.Size]byte), snapshots: make(map[Topic]cachedSnapshot), states: make(map[Topic][]*componentRuntime), availabilities: make(map[Topic][]*componentRuntime), entities: make(map[domain.EntityID]*componentRuntime), actionDocuments: make(map[Topic][]actionDeclaration), actionDevices: make(map[domain.DeviceID]*actionDevice), actionRoutes: make(map[Topic][]actionRoute)}, nil
 }
 
 func (m *DiscoveryMapper) cacheSnapshot(topic Topic, payload []byte, quality domain.Quality) error {
@@ -214,7 +229,7 @@ func (m *DiscoveryMapper) rebuild() error {
 		}
 	}
 	m.states, m.availabilities, m.entities = states, availability, entities
-	return nil
+	return m.rebuildActionRoutes()
 }
 
 func (m *DiscoveryMapper) Observe(ctx context.Context, host integrations.SessionHost, observation Observation) error {
@@ -232,18 +247,24 @@ func (m *DiscoveryMapper) Observe(ctx context.Context, host integrations.Session
 	defer m.mu.Unlock()
 	if _, _, err := parseDiscoveryTopic(topic); err == nil {
 		if len(payload) == 0 {
+			if err := m.setActionDocument(topic, nil); err != nil {
+				return err
+			}
 			return m.retireTopic(ctx, host, topic, nil)
 		}
 		return m.discover(ctx, host, topic, payload)
 	}
 	if topicText, err := topic.Value(); err == nil && strings.HasPrefix(topicText, "homeassistant/") {
 		parts := strings.Split(topicText, "/")
-		if len(parts) < 2 || (parts[1] != "device" && parts[1] != "binary_sensor" && parts[1] != "sensor" && parts[1] != "switch" && parts[1] != "light") {
+		if len(parts) < 2 || (parts[1] != "device" && parts[1] != "device_automation" && parts[1] != "binary_sensor" && parts[1] != "sensor" && parts[1] != "switch" && parts[1] != "light") {
 			m.diagnose(DiagnosticUnknownDiscovery, topic, "")
 		} else {
 			m.diagnose(DiagnosticInvalidDiscovery, topic, "")
 		}
 		return nil
+	}
+	if handled, err := m.observeAction(ctx, host, observation, topic, payload); handled || err != nil {
+		return err
 	}
 	if err := m.cacheSnapshot(topic, payload, quality); err != nil {
 		return err
@@ -272,7 +293,7 @@ func (m *DiscoveryMapper) Observe(ctx context.Context, host integrations.Session
 }
 
 func (m *DiscoveryMapper) discover(ctx context.Context, host integrations.SessionHost, topic Topic, payload []byte) error {
-	parsed, excluded, err := parseDiscoveryDocument(topic, payload)
+	parsed, actions, excluded, err := parseDiscoveryDocument(topic, payload)
 	if err != nil {
 		var component discoveryComponentError
 		if errors.As(err, &component) {
@@ -287,7 +308,7 @@ func (m *DiscoveryMapper) discover(ctx context.Context, host integrations.Sessio
 	}
 	digest := sha256.Sum256(payload)
 	if prior, exists := m.documentDigests[topic]; exists && prior == digest {
-		return nil
+		return m.setActionDocument(topic, actions)
 	}
 	previousRuntime := make(map[integrations.SourceKey]*componentRuntime)
 	for _, existing := range m.documents[topic] {
@@ -298,7 +319,10 @@ func (m *DiscoveryMapper) discover(ctx context.Context, host integrations.Sessio
 		return nil
 	}
 	if len(parsed) == 0 {
-		return m.retireTopic(ctx, host, topic, nil)
+		if err := m.retireTopic(ctx, host, topic, nil); err != nil {
+			return err
+		}
+		return m.setActionDocument(topic, actions)
 	}
 	candidates := make([]integrations.Candidate, 0, len(parsed))
 	runtimes := make([]*componentRuntime, 0, len(parsed))
@@ -439,9 +463,11 @@ func (m *DiscoveryMapper) discover(ctx context.Context, host integrations.Sessio
 		}
 	}
 	if len(removed) != 0 {
-		return m.retireTopic(ctx, host, topic, removed)
+		if err := m.retireTopic(ctx, host, topic, removed); err != nil {
+			return err
+		}
 	}
-	return nil
+	return m.setActionDocument(topic, actions)
 }
 
 func (m *DiscoveryMapper) retireTopic(ctx context.Context, host integrations.SessionHost, topic Topic, selected []integrations.SourceKey) error {
