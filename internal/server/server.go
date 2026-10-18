@@ -1,5 +1,5 @@
-// Package server composes the cancellable bootstrap runtime and configured
-// supervised pilots. The public action API belongs to a later ticket.
+// Package server composes the cancellable runtime, supervised pilots, and one
+// public HTTP transport. Business API handlers belong to later tickets.
 package server
 
 import (
@@ -39,6 +39,7 @@ type RuntimePlan struct {
 	Identity  integrations.IdentityAuthority
 	Pilots    []integrations.PilotSpec
 	Configure func(context.Context, *integrations.Manager, *storage.Store) error
+	Public    *PublicPlan
 }
 
 // RuntimeFactory is trusted server composition. The default runtime has no
@@ -59,6 +60,10 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		return err
 	}
 	if _, err := c.ListenEndpoint(); err != nil {
+		return err
+	}
+	publicSettings, err := c.PublicTransport()
+	if err != nil {
 		return err
 	}
 	dataDir, err := c.DataDir()
@@ -130,6 +135,10 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	if err := ctx.Err(); err != nil {
 		return closePreparedRuntime(host, store, err)
 	}
+	public, err := compilePublicPlan(plan.Public, publicSettings)
+	if err != nil {
+		return closePreparedRuntime(host, store, err)
+	}
 	supervisor, err := integrations.NewSupervisor(host, plan.Pilots, integrations.DefaultRetryPolicy(), integrations.RealTimer{}, integrations.RandomJitter{})
 	if err != nil {
 		return closePreparedRuntime(host, store, err)
@@ -150,7 +159,7 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		case <-watchStop:
 		}
 	}()
-	listenerErr := runListener(lifecycleCtx, c, listen, ready)
+	publicDone, listenerErr := runPublicListener(lifecycleCtx, c, listen, ready, public, publicSettings)
 	_ = host.CloseAdmissions()
 	close(watchStop)
 	<-watchDone
@@ -158,13 +167,24 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	stopErr := supervisor.Stop(stopCtx)
 	cancel()
-	if stopErr != nil {
-		// Retain PostgreSQL until the last cooperative or delayed pilot exits.
-		go func() { <-supervisor.Done(); store.Close() }()
-		return errors.Join(listenerErr, stopErr)
+	select {
+	case <-publicDone:
+		select {
+		case <-supervisor.Done():
+			store.Close()
+		default:
+			go func() { <-supervisor.Done(); store.Close() }()
+		}
+	default:
+		// A timed-out public handler may still be unwinding. Retain PostgreSQL
+		// until both transport and durable pilot drain have actually completed.
+		go func() {
+			<-publicDone
+			<-supervisor.Done()
+			store.Close()
+		}()
 	}
-	store.Close()
-	return listenerErr
+	return errors.Join(listenerErr, stopErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured
@@ -239,41 +259,14 @@ func closePreparedRuntime(host *integrations.Manager, store *storage.Store, caus
 }
 
 func runListener(ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr)) error {
-	endpoint, err := c.ListenEndpoint()
+	settings, err := c.PublicTransport()
 	if err != nil {
 		return err
 	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	l, err := listen(ctx, "tcp", endpoint.String())
+	public, err := compilePublicPlan(nil, settings)
 	if err != nil {
 		return err
 	}
-	defer l.Close()
-	// Close interrupts Accept; defer joins this goroutine even on unexpected listener failure.
-	stop := make(chan struct{})
-	joined := make(chan struct{})
-	go func() {
-		defer close(joined)
-		select {
-		case <-ctx.Done():
-			_ = l.Close()
-		case <-stop:
-		}
-	}()
-	defer func() { close(stop); <-joined }()
-	if ready != nil {
-		ready(l.Addr())
-	}
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
-				return nil
-			}
-			return err
-		}
-		_ = conn.Close()
-	}
+	_, err = runPublicListener(ctx, c, listen, ready, public, settings)
+	return err
 }

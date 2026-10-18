@@ -1,4 +1,11 @@
 listen: "127.0.0.1:8787"
+public:
+  url: "http://127.0.0.1:8787"
+  max_request_bytes: 4194304
+  max_concurrent_requests: 64
+  request_timeout: "30s"
+  stream_timeout: "5m"
+  shutdown_timeout: "6s"
 data_dir: "/var/lib/homeward/data"
 postgres:
   host: "127.0.0.1"

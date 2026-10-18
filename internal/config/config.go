@@ -24,6 +24,7 @@ type Config struct {
 	dataDir  string
 	mqtt     *mqtt.Settings
 	workers  []worker.Config
+	public   PublicSettings
 }
 
 var ErrUninitialized = errors.New("configuration: uninitialized")
@@ -38,6 +39,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		Postgres storage.ConnectionInput `yaml:"postgres"`
 		DataDir  string                  `yaml:"data_dir"`
 		MQTT     *mqtt.Input             `yaml:"mqtt"`
+		Public   *publicInput            `yaml:"public"`
 		Workers  []struct {
 			Instance    string   `yaml:"instance"`
 			Executable  string   `yaml:"executable"`
@@ -72,6 +74,11 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		return Config{}, fmt.Errorf("configuration: data_dir must be an absolute normalized persistent directory")
 	}
 	result := Config{listen: endpoint, postgres: postgres, dataDir: raw.DataDir}
+	public, err := parsePublicSettings(raw.Public)
+	if err != nil {
+		return Config{}, fmt.Errorf("configuration: %w", err)
+	}
+	result.public = public
 	if raw.MQTT != nil {
 		settings, err := mqtt.ParseSettings(*raw.MQTT)
 		if err != nil {
@@ -110,6 +117,13 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 }
 
 func (c Config) ExternalWorkers() []worker.Config { return append([]worker.Config(nil), c.workers...) }
+
+func (c Config) PublicTransport() (PublicSettings, error) {
+	if !c.public.valid {
+		return PublicSettings{}, ErrUninitialized
+	}
+	return c.public, nil
+}
 
 func (c Config) MQTTSettings() (mqtt.Settings, bool) {
 	if c.mqtt == nil {
