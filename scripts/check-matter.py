@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pure documentary evidence gate. Never contacts any network or device."""
+"""Pure qualification-fixture gate. Never contacts any network or device."""
 import json,pathlib
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 def assess(e):
@@ -14,7 +14,7 @@ def assess(e):
     available=e["observed_nodes"] if e["commissioning_proven"] and e["end_to_end_proven"] else 0
     return dict(tbr_qualified=eligible and e["ipv6_mdns_proven"] and e["thread_route_proven"],available_nodes=available,matter_ready=not blockers and available>0),blockers
 if __name__=="__main__":
-    e=json.loads((ROOT/"docs/matter/assessment.json").read_text());out,blockers=assess(e)
+    e=json.loads((ROOT/"compat/matter/assessment.json").read_text());out,blockers=assess(e)
     assert out==e["expected"] and len(blockers)==8,(out,blockers)
     assert assess(dict(e,apple_tv_variant="4k-gen3-wifi-only"))[0]["tbr_qualified"] is False
     assert assess(dict(e,apple_tv_variant="4k-gen3-wifi-ethernet"))[0]["tbr_qualified"] is False
