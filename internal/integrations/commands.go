@@ -168,6 +168,15 @@ func (r *CommandRouter) Dispatch(ctx context.Context, actor domain.ActorID, requ
 	if ledger != nil {
 		return ledger.dispatch(r, ctx, actor, request)
 	}
+	if request != nil {
+		if id, err := domain.ParseCommandID(request.CommandId); err == nil {
+			if _, actorErr := actor.Value(); actorErr == nil {
+				if err := r.host.claimCommandPolicy(id, commandPolicyVolatile); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
 	return r.dispatchOnce(ctx, actor, request)
 }
 

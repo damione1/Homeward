@@ -364,6 +364,7 @@ type Manager struct {
 	inflight                   map[commandEndpointSlot]bool
 	volatile                   *volatileCommandLedger
 	unprotectedCommandDispatch bool
+	commandPolicies            map[domain.CommandID]commandPolicy
 }
 
 type Session struct {
@@ -379,7 +380,7 @@ func NewHost(authority IdentityAuthority, sink Sink, catalog *contracts.Capabili
 	if nilInterface(authority) || nilInterface(sink) || !catalog.Ready() {
 		return nil, ErrInvalidInput
 	}
-	return &Manager{authority: authority, sink: sink, catalog: catalog, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool)}, nil
+	return &Manager{authority: authority, sink: sink, catalog: catalog, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy)}, nil
 }
 
 // Capabilities returns the admitted declarations for a bound Host entity. It

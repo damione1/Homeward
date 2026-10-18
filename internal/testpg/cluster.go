@@ -8,12 +8,24 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
 const password = "NHA027_canary_password"
 
-type Cluster struct{ Port int }
+type Cluster struct {
+	Port int
+	stop func() error
+}
+
+// Stop ends only this disposable cluster. Cleanup remains idempotent.
+func (c Cluster) Stop() error {
+	if c.stop == nil {
+		return fmt.Errorf("temporary postgres cluster is not initialized")
+	}
+	return c.stop()
+}
 
 func Start(t *testing.T) Cluster {
 	t.Helper()
@@ -39,13 +51,23 @@ func Start(t *testing.T) Cluster {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("pg_ctl start: %v: %s", err, output)
 	}
+	var once sync.Once
+	var stopErr error
+	stop := func() error {
+		once.Do(func() {
+			cmd := exec.Command("pg_ctl", "-D", data, "-m", "immediate", "-w", "stop")
+			if output, err := cmd.CombinedOutput(); err != nil {
+				stopErr = fmt.Errorf("pg_ctl stop: %w: %s", err, output)
+			}
+		})
+		return stopErr
+	}
 	t.Cleanup(func() {
-		cmd := exec.Command("pg_ctl", "-D", data, "-m", "immediate", "-w", "stop")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			t.Errorf("pg_ctl stop: %v: %s", err, output)
+		if err := stop(); err != nil {
+			t.Error(err)
 		}
 	})
-	return Cluster{Port: port}
+	return Cluster{Port: port, stop: stop}
 }
 
 func Password() string { return password }

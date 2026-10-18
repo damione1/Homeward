@@ -23,6 +23,7 @@ const (
 	InconsistentSchema
 	MigrationFailed
 	TransactionFailed
+	CommandRuntimeBusy
 )
 
 // Error deliberately excludes driver and connection details from its diagnostic.
@@ -52,6 +53,8 @@ func (e *Error) Error() string {
 		return "postgres: migration failed and rolled back"
 	case TransactionFailed:
 		return "postgres: transaction failed and rolled back"
+	case CommandRuntimeBusy:
+		return "postgres: durable command runtime already active"
 	default:
 		return "postgres: unknown storage failure"
 	}
@@ -99,6 +102,23 @@ CREATE TABLE public.registry_aliases (
 );
 CREATE UNIQUE INDEX registry_one_current_alias_per_entity
     ON public.registry_aliases(entity_id) WHERE current
+`}, {version: Version{3}, sql: `
+CREATE TYPE public.command_intent_state AS ENUM ('accepted', 'dispatching', 'result', 'indeterminate');
+CREATE TYPE public.command_result_error AS ENUM ('none', 'route_busy', 'route_unavailable', 'canceled', 'deadline', 'unknown', 'indeterminate');
+CREATE TABLE public.command_intents (
+    command_id text PRIMARY KEY CHECK (command_id <> ''),
+    actor_id text NOT NULL CHECK (actor_id <> ''),
+    admission_epoch text NOT NULL CHECK (admission_epoch <> ''),
+    fingerprint bytea NOT NULL CHECK (octet_length(fingerprint) > 0),
+    state public.command_intent_state NOT NULL,
+    result_error public.command_result_error NOT NULL DEFAULT 'none',
+    response bytea,
+    accepted_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CHECK ((state IN ('accepted', 'dispatching') AND response IS NULL AND result_error = 'none') OR
+           (state IN ('result', 'indeterminate') AND response IS NOT NULL))
+);
+CREATE INDEX command_intents_dispatching ON public.command_intents(state)
 `}}
 
 var latestVersion = migrations[len(migrations)-1].version

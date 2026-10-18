@@ -188,17 +188,15 @@ func (l *volatileCommandLedger) dispatch(router *CommandRouter, ctx context.Cont
 	if err != nil {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "actor"), nil
 	}
-	encoded, err := (proto.MarshalOptions{Deterministic: true}).Marshal(wire)
+	fingerprint, err := commandFingerprint(actorText, wire)
 	if err != nil {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "command"), nil
 	}
-	// The length prefix keeps actor and wire boundaries unambiguous. The wire
-	// retains the original alias/ID oneof and optional-field presence.
-	fingerprint := binary.AppendUvarint(nil, uint64(len(actorText)))
-	fingerprint = append(fingerprint, actorText...)
-	fingerprint = append(fingerprint, encoded...)
 	cost := len(fingerprint) + len(wire.CommandId) + volatileResponseReserve + volatileEntryOverhead
 	validDeadline := wire.ExpiresAt != nil && wire.ExpiresAt.CheckValid() == nil && wire.ExpiresAt.AsTime().After(router.clock.Now())
+	if err := router.host.claimCommandPolicy(id, commandPolicyVolatile); err != nil {
+		return nil, err
+	}
 	l.mu.Lock()
 	if entry := l.entries[id]; entry != nil {
 		if !bytes.Equal(entry.fingerprint, fingerprint) {
@@ -238,6 +236,18 @@ func (l *volatileCommandLedger) dispatch(router *CommandRouter, ctx context.Cont
 	l.mu.Unlock()
 
 	return l.runFirst(entry, router, ctx, actor, wire)
+}
+
+// commandFingerprint is shared by volatile and durable admission. It uses the
+// original request, including oneof and optional presence, and the trusted actor.
+func commandFingerprint(actorText string, wire *actions.CommandRequest) ([]byte, error) {
+	encoded, err := (proto.MarshalOptions{Deterministic: true}).Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	fingerprint := binary.AppendUvarint(nil, uint64(len(actorText)))
+	fingerprint = append(fingerprint, actorText...)
+	return append(fingerprint, encoded...), nil
 }
 
 func (l *volatileCommandLedger) runFirst(entry *volatileEntry, router *CommandRouter, ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest) (response *actions.CommandResponse, dispatchErr error) {
