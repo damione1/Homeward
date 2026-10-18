@@ -269,6 +269,14 @@ const (
 	authActionListInvitations
 	authActionRevokeInvitation
 	authActionTransport
+	authActionLoginDenied
+	authActionLoginLimited
+	authActionChallengeIssued
+	authActionChallengeDenied
+	authActionSessionCreate
+	authActionSessionRefresh
+	authActionSessionReplay
+	authActionSessionRevoke
 )
 
 const authOutcomeAdmitted int16 = 1
@@ -368,7 +376,7 @@ func insertAccountAudit(ctx context.Context, tx pgx.Tx, event accountAudit, outc
 	if err != nil {
 		return err
 	}
-	if event.action < authActionBootstrap || event.action > authActionTransport || (outcome != authOutcomeAdmitted && outcome != authOutcomeDenied) {
+	if event.action < authActionBootstrap || event.action > authActionSessionRevoke || (outcome != authOutcomeAdmitted && outcome != authOutcomeDenied) {
 		return ErrAccountInvalid
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO public.auth_audit(actor_account_id, target_account_id, invitation_id, action, outcome)
@@ -651,6 +659,14 @@ func (s *Store) RecoverAccount(ctx context.Context, id contracts.AccountID, veri
 		if _, err := lockAuthSingleton(ctx, tx); err != nil {
 			return AccountRecord{}, err
 		}
+		current, err := accountByID(ctx, tx, id)
+		if err != nil {
+			return AccountRecord{}, err
+		}
+		login, err := current.Login()
+		if err != nil {
+			return AccountRecord{}, err
+		}
 		command, err := tx.Exec(ctx, `UPDATE public.auth_accounts SET password_profile=$2,password_salt=$3,password_digest=$4,
             revocation_revision=revocation_revision+1,updated_at=now() WHERE id=$1`, accountValue, profile, salt[:], digest[:])
 		if err != nil {
@@ -658,6 +674,9 @@ func (s *Store) RecoverAccount(ctx context.Context, id contracts.AccountID, veri
 		}
 		if command.RowsAffected() != 1 {
 			return AccountRecord{}, ErrAccountNotFound
+		}
+		if err := clearLoginAttempts(ctx, tx, login); err != nil {
+			return AccountRecord{}, err
 		}
 		return accountByID(ctx, tx, id)
 	})

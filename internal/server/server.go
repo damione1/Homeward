@@ -201,7 +201,8 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	if err := ctx.Err(); err != nil {
 		return closePreparedRuntime(host, authorization, store, err)
 	}
-	plan.Public, err = registerAccountRoutes(plan.Public, store)
+	var sessions *sessionCoordinator
+	plan.Public, sessions, err = composeLocalSessions(plan.Public, store)
 	if err != nil {
 		return closePreparedRuntime(host, authorization, store, err)
 	}
@@ -241,7 +242,7 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		case <-watchStop:
 		}
 	}()
-	operator, operatorStartErr := startOperatorListener(lifecycleCtx, dataDir, store)
+	operator, operatorStartErr := startOperatorListener(lifecycleCtx, dataDir, store, sessions)
 	publicDone := closedPublicDone()
 	listenerErr := operatorStartErr
 	if operatorStartErr == nil {

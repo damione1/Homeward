@@ -437,14 +437,18 @@ func TestNHA049DefaultRunSocketRestartAndFailClosed(t *testing.T) {
 	defer publicHTTP.CloseIdleConnections()
 	public := authv1connect.NewAccountServiceClient(publicHTTP, "https://"+address.String())
 	_, err = public.CreateAccount(context.Background(), nha049Request(&authv1.CreateAccountRequest{LoginName: "Closed Route", DisplayName: "Closed Route", Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: "NHA049 closed route password"}, "admin"))
-	nha049Code(t, err, connect.CodeUnavailable)
+	nha049Code(t, err, connect.CodeUnauthenticated)
 	storeSettings, _ := settings.PostgresSettings()
 	store, err := storage.Open(context.Background(), storeSettings)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := startOperatorListener(context.Background(), dataDir, store); !errors.Is(err, ErrOperatorSocketInUse) {
+	coordinator, err := newSessionCoordinator(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := startOperatorListener(context.Background(), dataDir, store, coordinator); !errors.Is(err, ErrOperatorSocketInUse) {
 		t.Fatalf("second server stole active socket: %v", err)
 	}
 	operatorHTTP := &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -484,7 +488,7 @@ func TestNHA049DefaultRunSocketRestartAndFailClosed(t *testing.T) {
 	nha049Code(t, err, connect.CodeFailedPrecondition)
 	stop(cancel, done)
 	longDir := filepath.Join(dataDir, strings.Repeat("x", operatorSocketPathLimit))
-	if _, err := startOperatorListener(context.Background(), longDir, store); !errors.Is(err, ErrOperatorSocketPathTooLong) {
+	if _, err := startOperatorListener(context.Background(), longDir, store, coordinator); !errors.Is(err, ErrOperatorSocketPathTooLong) {
 		t.Fatalf("long socket path was not typed: %v", err)
 	}
 }

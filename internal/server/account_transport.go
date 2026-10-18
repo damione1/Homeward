@@ -32,7 +32,10 @@ func (a accountTransportAudit) Record(ctx context.Context, event AuditEvent) err
 	return a.store.RecordAuthTransportAudit(ctx, actor, event.Route.Path(), event.Outcome == AuditOutcomeAdmitted)
 }
 
-func registerAccountRoutes(plan *PublicPlan, store *storage.Store) (*PublicPlan, error) {
+func registerAccountRoutes(plan *PublicPlan, store *storage.Store, coordinator *sessionCoordinator) (*PublicPlan, error) {
+	if store == nil || coordinator == nil {
+		return nil, ErrInvalidPublicPlan
+	}
 	var err error
 	if plan == nil {
 		plan, err = NewPublicPlan(nil, nil, accountTransportAudit{store: store})
@@ -40,7 +43,7 @@ func registerAccountRoutes(plan *PublicPlan, store *storage.Store) (*PublicPlan,
 			return nil, err
 		}
 	}
-	handler := &accountHandler{store: store}
+	handler := &accountHandler{store: store, coordinator: coordinator}
 	err = plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
 		return authv1connect.NewAccountServiceHandler(handler, options...)
 	},

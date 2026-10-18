@@ -798,6 +798,30 @@ func TestNHA139PlanAdmissionAndMissingProviderCloseRoutes(t *testing.T) {
 	if _, err := compilePublicPlan(badPrefix, publicSettings); !errors.Is(err, ErrInvalidPublicPlan) {
 		t.Fatalf("generated service prefix mismatch: %v", err)
 	}
+	compiled, err := compilePublicPlan(plan, publicSettings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A raw plan without providers still fails closed at the actual handler.
+	// Run now composes its session provider, so that case is distinct below.
+	missingProvider := httptest.NewServer(compiled.handler(publicSettings, newPublicAdmissions()))
+	for _, route := range []string{"/media/closed", "/mcp/anonymous"} {
+		status, body, major := nha139Raw(t, missingProvider.Client(), http.MethodGet, missingProvider.URL+route, "Bearer fixture", "")
+		if status != http.StatusServiceUnavailable || !strings.Contains(body, "unavailable") || major != 1 {
+			t.Fatalf("missing provider %s: status=%d body=%s HTTP/%d", route, status, body, major)
+		}
+	}
+	missingProvider.Close()
+	if handlerCalls.Load() != 0 {
+		t.Fatal("missing provider reached protected or anonymous handler")
+	}
+	runPlan, err := NewPublicPlan(nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runPlan.Register(RouteKindMedia, RouteMethodGet, "/media/closed", RouteAccessProtected, RouteFlowUnary, RouteTransportOptionalTLS, handler); err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	ready := make(chan net.Addr, 1)
@@ -805,37 +829,22 @@ func TestNHA139PlanAdmissionAndMissingProviderCloseRoutes(t *testing.T) {
 	var lc net.ListenConfig
 	go func() {
 		done <- RunWithFactory(ctx, settings, lc.Listen, func(address net.Addr) { ready <- address }, func(context.Context, *storage.Store) (RuntimePlan, error) {
-			return RuntimePlan{Identity: unconfiguredIdentity{}, Public: plan}, nil
+			return RuntimePlan{Identity: unconfiguredIdentity{}, Public: runPlan}, nil
 		})
 	}()
 	var address net.Addr
 	select {
 	case address = <-ready:
+		t.Fatalf("Run exposed OptionalTLS route with builtin session provider: %s", address)
 	case err := <-done:
-		t.Fatalf("Run before ready: %v", err)
+		if !errors.Is(err, ErrInvalidPublicPlan) {
+			t.Fatalf("Run accepted incompatible session transport plan: %v", err)
+		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("missing-provider fixture did not start")
+		t.Fatal("incompatible session transport plan did not fail before ready")
 	}
 	direct, transport := nha139DirectClient()
 	defer transport.CloseIdleConnections()
-	for _, route := range []string{"/media/closed", "/mcp/anonymous"} {
-		status, body, major := nha139Raw(t, direct, http.MethodGet, "http://"+address.String()+route, "Bearer fixture", "")
-		if status != http.StatusServiceUnavailable || !strings.Contains(body, "unavailable") || major != 2 {
-			t.Fatalf("missing provider %s: status=%d body=%s HTTP/%d", route, status, body, major)
-		}
-	}
-	if handlerCalls.Load() != 0 {
-		t.Fatal("missing provider reached protected or anonymous handler")
-	}
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatal(err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("missing-provider server did not stop")
-	}
 	defaultCtx, cancelDefault := context.WithCancel(context.Background())
 	defer cancelDefault()
 	defaultReady := make(chan net.Addr, 1)
