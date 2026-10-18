@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"sync"
@@ -87,6 +88,10 @@ type CloudAuthorizationAttempt struct {
 	done         chan struct{}
 	jar          cloudAuthorizationJar
 }
+
+func (a *CloudAuthorizationAttempt) String() string               { return "[REDACTED CLOUD AUTHORIZATION ATTEMPT]" }
+func (a *CloudAuthorizationAttempt) GoString() string             { return a.String() }
+func (a *CloudAuthorizationAttempt) MarshalJSON() ([]byte, error) { return json.Marshal(a.String()) }
 
 func (o *CloudAuthorizationOwner) Begin(ctx context.Context) (*CloudAuthorizationAttempt, error) {
 	if o == nil || o.client == nil || nilInterface(ctx) {

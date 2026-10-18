@@ -103,6 +103,20 @@ func TestNHA177FiniteExchangeCookiesAndOneShot(t *testing.T) {
 			t.Fatal("response diagnostic leaked secret")
 		}
 	}
+	for _, object := range []any{attempt, exchanger} {
+		encoded, err := json.Marshal(object)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, diagnostic := range []string{fmt.Sprintf("%v", object), fmt.Sprintf("%+v", object), fmt.Sprintf("%#v", object), string(encoded)} {
+			if strings.Contains(diagnostic, "private-cookie") {
+				t.Fatal("authorization capability diagnostic exposed cookie")
+			}
+			if !strings.Contains(diagnostic, "REDACTED") {
+				t.Fatal("authorization capability diagnostic lost its redaction marker")
+			}
+		}
+	}
 	_, err = exchanger.Exchange(context.Background(), nha177ExchangeRequest(t, "authorize", server.URL+"/auth", integrations.CloudAuthorizationExpectedRedirect))
 	nha096Kind(t, err, integrations.CloudInvalid)
 	if requests.Load() != 1 || admission.count.Load() != 1 || callback.Load() != 0 {

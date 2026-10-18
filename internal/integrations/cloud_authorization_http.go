@@ -3,6 +3,7 @@ package integrations
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -23,6 +24,14 @@ const (
 )
 
 type cloudAuthorizationExchangeView struct{ attempt *CloudAuthorizationAttempt }
+
+func (v cloudAuthorizationExchangeView) String() string {
+	return "[REDACTED CLOUD AUTHORIZATION EXCHANGER]"
+}
+func (v cloudAuthorizationExchangeView) GoString() string { return v.String() }
+func (v cloudAuthorizationExchangeView) MarshalJSON() ([]byte, error) {
+	return json.Marshal(v.String())
+}
 
 func (v cloudAuthorizationExchangeView) Exchange(ctx context.Context, request CloudAuthorizationRequest) (CloudAuthorizationResponse, error) {
 	if v.attempt == nil {
