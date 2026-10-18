@@ -11,10 +11,13 @@ import (
 	"reflect"
 	"sync"
 	"time"
+	"unsafe"
 
+	"github.com/damione1/Homeward/contracts"
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -30,6 +33,8 @@ var (
 const MaxJournalCapacity = 65536
 const MaxProjectedEntities = 4096
 const MaxHealthInstances = 1024
+const JournalWindow = 120 * time.Second
+const MaxJournalBytes = 32 << 20
 
 // Clock.Now must be bounded and free of SQL, network calls, and Host callbacks.
 // RealClock reads the local wall clock; source observed_at never orders admission.
@@ -37,6 +42,14 @@ type Clock interface{ Now() time.Time }
 type RealClock struct{}
 
 func (RealClock) Now() time.Time { return time.Now() }
+
+var monotonicOrigin = time.Now()
+
+func (RealClock) MonoNow() time.Duration { return time.Since(monotonicOrigin) }
+
+// MonotonicClock is an optional test seam. The value must be a process-local,
+// nondecreasing elapsed duration; it never appears as a wall-clock timestamp.
+type MonotonicClock interface{ MonoNow() time.Duration }
 
 type Cursor struct {
 	epoch [16]byte
@@ -48,6 +61,25 @@ func (c Cursor) Components() (string, uint64, error) {
 		return "", 0, ErrInvalidInput
 	}
 	return hex.EncodeToString(c.epoch[:]), c.seq, nil
+}
+
+// ParseCursor admits the transport representation; possession of this value
+// alone grants no replay authority. The view layer verifies its signed proof.
+func ParseCursor(epoch string, sequence uint64) (Cursor, error) {
+	if len(epoch) != 32 {
+		return Cursor{}, ErrInvalidInput
+	}
+	decoded, err := hex.DecodeString(epoch)
+	if err != nil {
+		return Cursor{}, ErrInvalidInput
+	}
+	var id [16]byte
+	copy(id[:], decoded)
+	cursor := Cursor{epoch: id, seq: sequence}
+	if _, _, err := cursor.Components(); err != nil {
+		return Cursor{}, err
+	}
+	return cursor, nil
 }
 
 type Kind uint8
@@ -64,24 +96,27 @@ const (
 // Entry is an immutable value returned from the journal. Only the matching
 // accessor succeeds for its kind; the payload cannot be mutated by a reader.
 type Entry struct {
-	cursor       Cursor
-	kind         Kind
-	instance     domain.IntegrationInstanceID
-	entity       domain.EntityID
-	source       domain.SourceStamp
-	causality    domain.Causality
-	receivedAt   time.Time
-	state        domain.ObservedState
-	transition   domain.StateTransition
-	event        integrations.DeviceEvent
-	health       integrations.HealthReport
-	registry     []integrations.RegistryRecord
-	capabilities []integrations.DiscoveryDeclaration
+	cursor         Cursor
+	kind           Kind
+	instance       domain.IntegrationInstanceID
+	entity         domain.EntityID
+	source         domain.SourceStamp
+	causality      domain.Causality
+	receivedAt     time.Time
+	admittedTick   time.Duration
+	estimatedBytes int
+	state          domain.ObservedState
+	transition     domain.StateTransition
+	event          integrations.DeviceEvent
+	health         integrations.HealthReport
+	registry       []integrations.RegistryRecord
+	capabilities   []integrations.DiscoveryDeclaration
 }
 
-func (e Entry) Cursor() Cursor        { return e.cursor }
-func (e Entry) Kind() Kind            { return e.kind }
-func (e Entry) ReceivedAt() time.Time { return e.receivedAt }
+func (e Entry) Cursor() Cursor               { return e.cursor }
+func (e Entry) Kind() Kind                   { return e.kind }
+func (e Entry) ReceivedAt() time.Time        { return e.receivedAt }
+func (e Entry) AdmissionTick() time.Duration { return e.admittedTick }
 
 // Origin is present only for reports admitted from an integration session.
 // Registry and capability publications carry no integration-report origin.
@@ -127,14 +162,19 @@ type Snapshot struct {
 	Registry      map[domain.EntityID]integrations.RegistryRecord
 	Capabilities  map[domain.EntityID][]*wireregistry.CapabilityDescription
 	RegistryReady bool
+	CapturedTick  time.Duration
 }
 
 type Sequencer struct {
 	mu            sync.Mutex
 	clock         Clock
+	started       time.Time
+	lastTick      time.Duration
 	epoch         [16]byte
 	seq           uint64
 	journal       []Entry
+	journalSizes  []int
+	journalBytes  int
 	count         int
 	states        map[domain.EntityID]domain.ObservedState
 	health        map[domain.IntegrationInstanceID]integrations.HealthReport
@@ -160,7 +200,7 @@ func NewWithLimits(clock Clock, journalCapacity int, limits QueueLimits) (*Seque
 			return nil, ErrInvalidInput
 		}
 	}
-	s := &Sequencer{clock: clock, journal: make([]Entry, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), registry: make(map[domain.EntityID]integrations.RegistryRecord), capabilities: make(map[domain.EntityID][]*wireregistry.CapabilityDescription), limits: limits, subs: make(map[*Subscription]struct{})}
+	s := &Sequencer{clock: clock, started: time.Now(), journal: make([]Entry, journalCapacity), journalSizes: make([]int, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), registry: make(map[domain.EntityID]integrations.RegistryRecord), capabilities: make(map[domain.EntityID][]*wireregistry.CapabilityDescription), limits: limits, subs: make(map[*Subscription]struct{})}
 	if _, err := rand.Read(s.epoch[:]); err != nil {
 		return nil, err
 	}
@@ -191,13 +231,112 @@ func (s *Sequencer) nextTime(ctx context.Context) (time.Time, error) {
 	return at.UTC(), nil
 }
 
-func (s *Sequencer) append(entry Entry) {
+func (s *Sequencer) append(entry Entry) Entry {
+	tick := s.MonotonicNow()
+	if tick < s.lastTick {
+		tick = s.lastTick
+	}
+	s.lastTick = tick
 	s.seq++
 	entry.cursor = Cursor{epoch: s.epoch, seq: s.seq}
-	s.journal[(s.seq-1)%uint64(len(s.journal))] = entry
+	entry.admittedTick = tick
+	index := (s.seq - 1) % uint64(len(s.journal))
+	s.journalBytes -= s.journalSizes[index]
+	entry.estimatedBytes = retainedBytes(entry)
+	s.journal[index] = entry
+	s.journalSizes[index] = entry.estimatedBytes
+	s.journalBytes += s.journalSizes[index]
 	if s.count < len(s.journal) {
 		s.count++
 	}
+	s.pruneJournal(tick)
+	return entry
+}
+
+// retainedBytes is a conservative memory estimate, including the fixed Entry
+// body, owned strings, slices and encoded declarations. The projection has a
+// separate budget to qualify in NHA-165.
+func retainedBytes(entry Entry) int {
+	size := int(unsafe.Sizeof(Entry{})) + 256
+	instance, source, _, present := entry.Origin()
+	if present {
+		name, _ := instance.Value()
+		session, _, _ := source.Components()
+		size += len(name) + len(session)
+	}
+	switch entry.kind {
+	case KindState:
+		id, state, _, _ := entry.State()
+		name, _ := id.Value()
+		size += len(name)
+		wire, err := contracts.EncodeObservedState(state)
+		if err != nil {
+			return MaxJournalBytes + 1
+		}
+		size += proto.Size(wire) * 4
+	case KindEvent:
+		id, _, _ := entry.Event()
+		name, _ := id.Value()
+		size += len(name) + 1024
+	case KindHealth:
+		size += 1024
+	case KindRegistry:
+		for _, record := range entry.registry {
+			device, entity, _ := record.IDs()
+			d, _ := device.Value()
+			e, _ := entity.Value()
+			instance, key, _ := record.Source()
+			i, _ := instance.Value()
+			kd, ke, _ := key.Components()
+			size += 512 + len(d) + len(e) + len(i) + len(kd) + len(ke)
+			_, _, aliases, _ := record.Aliases()
+			for _, alias := range aliases {
+				a, _ := alias.Value()
+				size += len(a) + 32
+			}
+		}
+	case KindCapabilities:
+		for _, declaration := range entry.capabilities {
+			_, id, _, _, _ := declaration.Identity()
+			name, _ := id.Value()
+			size += 512 + len(name)
+			for _, description := range declaration.Descriptions() {
+				size += proto.Size(description)*4 + 128
+			}
+		}
+	case KindUnspecified:
+		return MaxJournalBytes + 1
+	default:
+		return MaxJournalBytes + 1
+	}
+	return size
+}
+
+// pruneJournal keeps a contiguous suffix. A consumer behind that suffix gets
+// ErrCursorExpired; admission and live subscriber queues remain independent.
+func (s *Sequencer) pruneJournal(now time.Duration) {
+	for s.count > 0 {
+		oldest := s.seq - uint64(s.count) + 1
+		index := (oldest - 1) % uint64(len(s.journal))
+		entry := s.journal[index]
+		if s.journalBytes <= MaxJournalBytes && now >= entry.admittedTick && now-entry.admittedTick <= JournalWindow {
+			break
+		}
+		s.journalBytes -= s.journalSizes[index]
+		s.journalSizes[index] = 0
+		s.journal[index] = Entry{}
+		s.count--
+	}
+}
+
+func (s *Sequencer) MonotonicNow() time.Duration {
+	if s == nil || s.journal == nil {
+		return -1
+	}
+	if clock, ok := s.clock.(MonotonicClock); ok {
+		return clock.MonoNow()
+	}
+	return time.Since(s.started)
 }
 
 // AcceptState is called synchronously under the Host's session lock. The
@@ -248,8 +387,7 @@ func (s *Sequencer) AcceptState(ctx context.Context, entity domain.EntityID, acc
 		return err
 	}
 	s.states[entity] = next
-	s.append(Entry{kind: KindState, instance: instance, entity: entity, source: source, causality: causality, receivedAt: at, state: next, transition: transition})
-	s.publish(s.journal[(s.seq-1)%uint64(len(s.journal))])
+	s.publish(s.append(Entry{kind: KindState, instance: instance, entity: entity, source: source, causality: causality, receivedAt: at, state: next, transition: transition}))
 	return nil
 }
 
@@ -273,8 +411,7 @@ func (s *Sequencer) AcceptEvent(ctx context.Context, entity domain.EntityID, acc
 	if err := s.admitIdentity(entity, instance); err != nil {
 		return err
 	}
-	s.append(Entry{kind: KindEvent, instance: instance, entity: entity, source: accepted.Source, causality: causality, receivedAt: at, event: accepted.Event})
-	s.publish(s.journal[(s.seq-1)%uint64(len(s.journal))])
+	s.publish(s.append(Entry{kind: KindEvent, instance: instance, entity: entity, source: accepted.Source, causality: causality, receivedAt: at, event: accepted.Event}))
 	return nil
 }
 
@@ -299,8 +436,7 @@ func (s *Sequencer) AcceptHealth(ctx context.Context, instance domain.Integratio
 		return ErrProjectionFull
 	}
 	s.health[instance] = report
-	s.append(Entry{kind: KindHealth, instance: instance, source: source, causality: causality, receivedAt: at, health: report})
-	s.publish(s.journal[(s.seq-1)%uint64(len(s.journal))])
+	s.publish(s.append(Entry{kind: KindHealth, instance: instance, source: source, causality: causality, receivedAt: at, health: report}))
 	return nil
 }
 
@@ -329,7 +465,7 @@ func (s *Sequencer) Capture() (Snapshot, error) {
 	for id, descriptions := range s.capabilities {
 		capabilities[id] = cloneDescriptions(descriptions)
 	}
-	return Snapshot{Cursor: Cursor{epoch: s.epoch, seq: s.seq}, States: states, Health: health, Registry: registry, Capabilities: capabilities, RegistryReady: s.registryState == registryReady}, nil
+	return Snapshot{Cursor: Cursor{epoch: s.epoch, seq: s.seq}, States: states, Health: health, Registry: registry, Capabilities: capabilities, RegistryReady: s.registryState == registryReady, CapturedTick: s.MonotonicNow()}, nil
 }
 
 func (s *Sequencer) State(entity domain.EntityID) (domain.ObservedState, bool, error) {
@@ -356,6 +492,7 @@ func (s *Sequencer) ReadAfter(cursor Cursor, limit int) ([]Entry, Cursor, error)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.pruneJournal(s.MonotonicNow())
 	if cursor.epoch != s.epoch {
 		return nil, Cursor{}, ErrEpochMismatch
 	}

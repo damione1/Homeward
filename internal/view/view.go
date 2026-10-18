@@ -91,7 +91,9 @@ func NewGrant(actor ActorID, revision uint64, allowed []domain.EntityID) (Grant,
 	return Grant{actor, revision, set, hashIDs(1, set)}, nil
 }
 func (g Grant) validFor(actor ActorID) bool {
-	return g.actor == actor && g.revision > 0 && g.allowed != nil && g.digest == hashIDs(1, g.allowed)
+	// NewGrant copied the private set and established its digest. No getter
+	// exposes the map, so rehashing it on every streamed frame is unnecessary.
+	return g.actor == actor && g.revision > 0 && g.allowed != nil && g.digest != ([32]byte{})
 }
 
 // Authorizer receives only the actor from the trusted server auth boundary.
@@ -184,6 +186,8 @@ type Cursor struct {
 	config                ConfigStamp
 	authorizationRevision uint64
 	filterHash            [32]byte
+	grantDigest           [32]byte
+	proof                 [40]byte
 }
 
 func (c Cursor) Components() (sequencer.Cursor, ConfigStamp, uint64, [32]byte, error) {
@@ -240,14 +244,16 @@ type pageSpan struct {
 	next       string
 }
 type Service struct {
-	mu        sync.Mutex
-	source    *sequencer.Sequencer
-	auth      Authorizer
-	config    Configuration
-	clock     sequencer.Clock
-	captures  map[string]*capture
-	used      int
-	preparing chan struct{}
+	mu          sync.Mutex
+	source      *sequencer.Sequencer
+	auth        Authorizer
+	config      Configuration
+	clock       sequencer.Clock
+	captures    map[string]*capture
+	used        int
+	preparing   chan struct{}
+	replaySlots chan struct{}
+	proofKey    [32]byte
 }
 
 func NewService(source *sequencer.Sequencer, auth Authorizer, config Configuration, clock sequencer.Clock) (*Service, error) {
@@ -257,7 +263,14 @@ func NewService(source *sequencer.Sequencer, auth Authorizer, config Configurati
 	if _, err := source.Capture(); err != nil {
 		return nil, err
 	}
-	return &Service{source: source, auth: auth, config: config, clock: clock, captures: make(map[string]*capture), preparing: make(chan struct{}, MaxPreparations)}, nil
+	s := &Service{source: source, auth: auth, config: config, clock: clock, captures: make(map[string]*capture), preparing: make(chan struct{}, MaxPreparations), replaySlots: make(chan struct{}, MaxConcurrentReplays)}
+	if _, err := rand.Read(s.proofKey[:]); err != nil {
+		return nil, err
+	}
+	if s.proofKey == ([32]byte{}) {
+		return nil, ErrInvalidInput
+	}
+	return s, nil
 }
 
 func nilInterface(value any) bool {
@@ -274,7 +287,7 @@ func nilInterface(value any) bool {
 }
 
 func (s *Service) ready() bool {
-	return s != nil && s.source != nil && !nilInterface(s.auth) && !nilInterface(s.config) && !nilInterface(s.clock) && s.captures != nil && s.preparing != nil
+	return s != nil && s.source != nil && !nilInterface(s.auth) && !nilInterface(s.config) && !nilInterface(s.clock) && s.captures != nil && s.preparing != nil && s.replaySlots != nil && s.proofKey != ([32]byte{})
 }
 
 func randomToken() (string, error) {
@@ -392,7 +405,10 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 	if now.IsZero() {
 		return Page{}, ErrInvalidInput
 	}
-	cursor := Cursor{sequence: snapshot.Cursor, config: lastConfig, authorizationRevision: lastGrant.revision, filterHash: filter.hash}
+	cursor := Cursor{sequence: snapshot.Cursor, config: lastConfig, authorizationRevision: lastGrant.revision, filterHash: filter.hash, grantDigest: lastGrant.digest}
+	if err := s.signCursorAt(&cursor, actor, lastGrant, snapshot.CapturedTick); err != nil {
+		return Page{}, err
+	}
 	c := &capture{actor: actor, grantRevision: lastGrant.revision, grantDigest: lastGrant.digest, config: lastConfig, cursor: cursor, items: items, pageSize: pageSize, served: make(map[string]pageSpan), expires: now.Add(SnapshotTTL), bytes: bytes}
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -217,6 +217,12 @@ pub enum ResyncReason {
     RESYNC_REASON_CONFIGURATION_CHANGED = 3i32,
     RESYNC_REASON_AUTHORIZATION_CHANGED = 4i32,
     RESYNC_REASON_FILTER_CHANGED = 5i32,
+    RESYNC_REASON_INVALID_CURSOR = 6i32,
+    RESYNC_REASON_CLIENT_SLOW = 7i32,
+    RESYNC_REASON_REGISTRY_CHANGED = 8i32,
+    RESYNC_REASON_CAPABILITIES_CHANGED = 9i32,
+    RESYNC_REASON_REGISTRY_UNAVAILABLE = 10i32,
+    RESYNC_REASON_FRAME_TOO_LARGE = 11i32,
 }
 impl ResyncReason {
     ///Idiomatic alias for [`Self::RESYNC_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -237,6 +243,24 @@ impl ResyncReason {
     ///Idiomatic alias for [`Self::RESYNC_REASON_FILTER_CHANGED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const FilterChanged: Self = Self::RESYNC_REASON_FILTER_CHANGED;
+    ///Idiomatic alias for [`Self::RESYNC_REASON_INVALID_CURSOR`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const InvalidCursor: Self = Self::RESYNC_REASON_INVALID_CURSOR;
+    ///Idiomatic alias for [`Self::RESYNC_REASON_CLIENT_SLOW`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ClientSlow: Self = Self::RESYNC_REASON_CLIENT_SLOW;
+    ///Idiomatic alias for [`Self::RESYNC_REASON_REGISTRY_CHANGED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RegistryChanged: Self = Self::RESYNC_REASON_REGISTRY_CHANGED;
+    ///Idiomatic alias for [`Self::RESYNC_REASON_CAPABILITIES_CHANGED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const CapabilitiesChanged: Self = Self::RESYNC_REASON_CAPABILITIES_CHANGED;
+    ///Idiomatic alias for [`Self::RESYNC_REASON_REGISTRY_UNAVAILABLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RegistryUnavailable: Self = Self::RESYNC_REASON_REGISTRY_UNAVAILABLE;
+    ///Idiomatic alias for [`Self::RESYNC_REASON_FRAME_TOO_LARGE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FrameTooLarge: Self = Self::RESYNC_REASON_FRAME_TOO_LARGE;
 }
 impl ::core::default::Default for ResyncReason {
     fn default() -> Self {
@@ -256,6 +280,16 @@ impl ::buffa::Enumeration for ResyncReason {
                 ::core::option::Option::Some(Self::RESYNC_REASON_AUTHORIZATION_CHANGED)
             }
             5i32 => ::core::option::Option::Some(Self::RESYNC_REASON_FILTER_CHANGED),
+            6i32 => ::core::option::Option::Some(Self::RESYNC_REASON_INVALID_CURSOR),
+            7i32 => ::core::option::Option::Some(Self::RESYNC_REASON_CLIENT_SLOW),
+            8i32 => ::core::option::Option::Some(Self::RESYNC_REASON_REGISTRY_CHANGED),
+            9i32 => {
+                ::core::option::Option::Some(Self::RESYNC_REASON_CAPABILITIES_CHANGED)
+            }
+            10i32 => {
+                ::core::option::Option::Some(Self::RESYNC_REASON_REGISTRY_UNAVAILABLE)
+            }
+            11i32 => ::core::option::Option::Some(Self::RESYNC_REASON_FRAME_TOO_LARGE),
             _ => ::core::option::Option::None,
         }
     }
@@ -274,6 +308,16 @@ impl ::buffa::Enumeration for ResyncReason {
                 "RESYNC_REASON_AUTHORIZATION_CHANGED"
             }
             Self::RESYNC_REASON_FILTER_CHANGED => "RESYNC_REASON_FILTER_CHANGED",
+            Self::RESYNC_REASON_INVALID_CURSOR => "RESYNC_REASON_INVALID_CURSOR",
+            Self::RESYNC_REASON_CLIENT_SLOW => "RESYNC_REASON_CLIENT_SLOW",
+            Self::RESYNC_REASON_REGISTRY_CHANGED => "RESYNC_REASON_REGISTRY_CHANGED",
+            Self::RESYNC_REASON_CAPABILITIES_CHANGED => {
+                "RESYNC_REASON_CAPABILITIES_CHANGED"
+            }
+            Self::RESYNC_REASON_REGISTRY_UNAVAILABLE => {
+                "RESYNC_REASON_REGISTRY_UNAVAILABLE"
+            }
+            Self::RESYNC_REASON_FRAME_TOO_LARGE => "RESYNC_REASON_FRAME_TOO_LARGE",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -296,6 +340,24 @@ impl ::buffa::Enumeration for ResyncReason {
             "RESYNC_REASON_FILTER_CHANGED" => {
                 ::core::option::Option::Some(Self::RESYNC_REASON_FILTER_CHANGED)
             }
+            "RESYNC_REASON_INVALID_CURSOR" => {
+                ::core::option::Option::Some(Self::RESYNC_REASON_INVALID_CURSOR)
+            }
+            "RESYNC_REASON_CLIENT_SLOW" => {
+                ::core::option::Option::Some(Self::RESYNC_REASON_CLIENT_SLOW)
+            }
+            "RESYNC_REASON_REGISTRY_CHANGED" => {
+                ::core::option::Option::Some(Self::RESYNC_REASON_REGISTRY_CHANGED)
+            }
+            "RESYNC_REASON_CAPABILITIES_CHANGED" => {
+                ::core::option::Option::Some(Self::RESYNC_REASON_CAPABILITIES_CHANGED)
+            }
+            "RESYNC_REASON_REGISTRY_UNAVAILABLE" => {
+                ::core::option::Option::Some(Self::RESYNC_REASON_REGISTRY_UNAVAILABLE)
+            }
+            "RESYNC_REASON_FRAME_TOO_LARGE" => {
+                ::core::option::Option::Some(Self::RESYNC_REASON_FRAME_TOO_LARGE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -307,6 +369,12 @@ impl ::buffa::Enumeration for ResyncReason {
             Self::RESYNC_REASON_CONFIGURATION_CHANGED,
             Self::RESYNC_REASON_AUTHORIZATION_CHANGED,
             Self::RESYNC_REASON_FILTER_CHANGED,
+            Self::RESYNC_REASON_INVALID_CURSOR,
+            Self::RESYNC_REASON_CLIENT_SLOW,
+            Self::RESYNC_REASON_REGISTRY_CHANGED,
+            Self::RESYNC_REASON_CAPABILITIES_CHANGED,
+            Self::RESYNC_REASON_REGISTRY_UNAVAILABLE,
+            Self::RESYNC_REASON_FRAME_TOO_LARGE,
         ]
     }
 }
@@ -1083,6 +1151,12 @@ pub struct ViewCursor {
     pub filter_sha256: ::buffa::alloc::vec::Vec<u8>,
     /// Field 6: `config_sha256`
     pub config_sha256: ::buffa::alloc::vec::Vec<u8>,
+    /// Opaque, process-local proof binding actor, grant, filter and issue time.
+    ///
+    /// Field 7: `admission_proof`
+    pub admission_proof: ::buffa::alloc::vec::Vec<u8>,
+    /// Field 8: `grant_sha256`
+    pub grant_sha256: ::buffa::alloc::vec::Vec<u8>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -1095,6 +1169,8 @@ impl ::core::fmt::Debug for ViewCursor {
             .field("authorization_revision", &self.authorization_revision)
             .field("filter_sha256", &self.filter_sha256)
             .field("config_sha256", &self.config_sha256)
+            .field("admission_proof", &self.admission_proof)
+            .field("grant_sha256", &self.grant_sha256)
             .finish()
     }
 }
@@ -1150,6 +1226,14 @@ impl ::buffa::Message for ViewCursor {
         if !self.config_sha256.is_empty() {
             size += 1u64 + ::buffa::types::bytes_encoded_len(&self.config_sha256) as u64;
         }
+        if !self.admission_proof.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.admission_proof) as u64;
+        }
+        if !self.grant_sha256.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.grant_sha256) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1177,6 +1261,12 @@ impl ::buffa::Message for ViewCursor {
         }
         if !self.config_sha256.is_empty() {
             ::buffa::types::put_shared_bytes_field(6u32, &self.config_sha256, buf);
+        }
+        if !self.admission_proof.is_empty() {
+            ::buffa::types::put_shared_bytes_field(7u32, &self.admission_proof, buf);
+        }
+        if !self.grant_sha256.is_empty() {
+            ::buffa::types::put_shared_bytes_field(8u32, &self.grant_sha256, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1233,6 +1323,20 @@ impl ::buffa::Message for ViewCursor {
                 )?;
                 ::buffa::types::merge_bytes(&mut self.config_sha256, buf)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.admission_proof, buf)?;
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.grant_sha256, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1247,6 +1351,8 @@ impl ::buffa::Message for ViewCursor {
         self.authorization_revision = 0u64;
         self.filter_sha256.clear();
         self.config_sha256.clear();
+        self.admission_proof.clear();
+        self.grant_sha256.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2240,12 +2346,19 @@ impl ::buffa::ExtensionSet for ReadPageResponse {
 pub struct WatchViewRequest {
     /// Field 1: `cursor`
     pub cursor: ::buffa::MessageField<ViewCursor, ::buffa::Inline<ViewCursor>>,
+    /// Complete filter; the digest in cursor is only a comparison value.
+    ///
+    /// Field 2: `filter`
+    pub filter: ::buffa::MessageField<ViewFilter, ::buffa::Inline<ViewFilter>>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for WatchViewRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("WatchViewRequest").field("cursor", &self.cursor).finish()
+        f.debug_struct("WatchViewRequest")
+            .field("cursor", &self.cursor)
+            .field("filter", &self.filter)
+            .finish()
     }
 }
 impl WatchViewRequest {
@@ -2283,6 +2396,14 @@ impl ::buffa::Message for WatchViewRequest {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.filter.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.filter.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2300,6 +2421,14 @@ impl ::buffa::Message for WatchViewRequest {
                 buf,
             );
             self.cursor.write_to(__cache, buf);
+        }
+        if self.filter.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.filter.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2325,6 +2454,17 @@ impl ::buffa::Message for WatchViewRequest {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.filter.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2334,6 +2474,7 @@ impl ::buffa::Message for WatchViewRequest {
     }
     fn clear(&mut self) {
         self.cursor = ::buffa::MessageField::none();
+        self.filter = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4247,6 +4388,12 @@ pub mod __buffa {
             pub filter_sha256: &'a [u8],
             /// Field 6: `config_sha256`
             pub config_sha256: &'a [u8],
+            /// Opaque, process-local proof binding actor, grant, filter and issue time.
+            ///
+            /// Field 7: `admission_proof`
+            pub admission_proof: &'a [u8],
+            /// Field 8: `grant_sha256`
+            pub grant_sha256: &'a [u8],
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for ViewCursorView<'a> {
@@ -4329,6 +4476,20 @@ pub mod __buffa {
                         )?;
                         view.config_sha256 = ::buffa::types::borrow_bytes(&mut cur)?;
                     }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.admission_proof = ::buffa::types::borrow_bytes(&mut cur)?;
+                    }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.grant_sha256 = ::buffa::types::borrow_bytes(&mut cur)?;
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -4358,6 +4519,8 @@ pub mod __buffa {
                     authorization_revision: self.authorization_revision,
                     filter_sha256: (self.filter_sha256).to_vec(),
                     config_sha256: (self.config_sha256).to_vec(),
+                    admission_proof: (self.admission_proof).to_vec(),
+                    grant_sha256: (self.grant_sha256).to_vec(),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -4407,6 +4570,18 @@ pub mod __buffa {
                             + ::buffa::types::bytes_encoded_len(&self.config_sha256)
                                 as u64;
                 }
+                if !self.admission_proof.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::bytes_encoded_len(&self.admission_proof)
+                                as u64;
+                }
+                if !self.grant_sha256.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::bytes_encoded_len(&self.grant_sha256)
+                                as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -4445,6 +4620,20 @@ pub mod __buffa {
                     ::buffa::types::put_shared_bytes_field(
                         6u32,
                         &self.config_sha256,
+                        buf,
+                    );
+                }
+                if !self.admission_proof.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(
+                        7u32,
+                        &self.admission_proof,
+                        buf,
+                    );
+                }
+                if !self.grant_sha256.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(
+                        8u32,
+                        &self.grant_sha256,
                         buf,
                     );
                 }
@@ -4570,6 +4759,18 @@ pub mod __buffa {
             #[must_use]
             pub fn config_sha256(&self) -> &'_ [u8] {
                 self.0.reborrow().config_sha256
+            }
+            /// Opaque, process-local proof binding actor, grant, filter and issue time.
+            ///
+            /// Field 7: `admission_proof`
+            #[must_use]
+            pub fn admission_proof(&self) -> &'_ [u8] {
+                self.0.reborrow().admission_proof
+            }
+            /// Field 8: `grant_sha256`
+            #[must_use]
+            pub fn grant_sha256(&self) -> &'_ [u8] {
+                self.0.reborrow().grant_sha256
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<ViewCursorView<'static>>>
@@ -6671,6 +6872,12 @@ pub mod __buffa {
             pub cursor: ::buffa::MessageFieldView<
                 super::super::__buffa::view::ViewCursorView<'a>,
             >,
+            /// Complete filter; the digest in cursor is only a comparison value.
+            ///
+            /// Field 2: `filter`
+            pub filter: ::buffa::MessageFieldView<
+                super::super::__buffa::view::ViewFilterView<'a>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for WatchViewRequestView<'a> {
@@ -6734,6 +6941,31 @@ pub mod __buffa {
                             }
                         }
                     }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.filter.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.filter = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::ViewFilterView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -6772,6 +7004,15 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    filter: match self.filter.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::ViewFilter,
+                                ::buffa::Inline<super::super::ViewFilter>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -6789,6 +7030,14 @@ pub mod __buffa {
                 if self.cursor.is_set() {
                     let __slot = __cache.reserve();
                     let inner_size = self.cursor.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.filter.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.filter.compute_size(__cache);
                     __cache.set(__slot, inner_size);
                     size
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -6812,6 +7061,14 @@ pub mod __buffa {
                         buf,
                     );
                     self.cursor.write_to(__cache, buf);
+                }
+                if self.filter.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.filter.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -6916,6 +7173,17 @@ pub mod __buffa {
                 super::super::__buffa::view::ViewCursorView<'_>,
             > {
                 &self.0.reborrow().cursor
+            }
+            /// Complete filter; the digest in cursor is only a comparison value.
+            ///
+            /// Field 2: `filter`
+            #[must_use]
+            pub fn filter(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::ViewFilterView<'_>,
+            > {
+                &self.0.reborrow().filter
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<WatchViewRequestView<'static>>>

@@ -6,15 +6,18 @@ import (
 )
 
 var (
-	ErrSubscriptionClosed = errors.New("subscription is closed")
-	ErrSubscriptionFull   = errors.New("subscription limit reached")
-	ErrCursorInvalidated  = errors.New("subscription cursor requires resynchronization")
-	ErrEdgeOverflow       = errors.New("edge subscription overflowed")
-	ErrRecorderGap        = errors.New("recorder history has a gap")
+	ErrSubscriptionClosed    = errors.New("subscription is closed")
+	ErrSubscriptionFull      = errors.New("subscription limit reached")
+	ErrCursorInvalidated     = errors.New("subscription cursor requires resynchronization")
+	ErrEdgeOverflow          = errors.New("edge subscription overflowed")
+	ErrRecorderGap           = errors.New("recorder history has a gap")
+	ErrViewOverflow          = errors.New("view subscriber is too slow; resynchronize")
+	ErrProjectionInvalidated = errors.New("registry projection was invalidated; resynchronize")
 )
 
 const MaxSubscriptions = 64
 const MaxQueueCapacity = 4096
+const MaxViewQueueBytes = 4 << 20
 
 // QueueLimits is constructed as a whole so each class has an explicit,
 // independent capacity. The defaults are provisional; final quotas are a
@@ -59,6 +62,7 @@ const (
 	SubscriptionUI
 	SubscriptionEdge
 	SubscriptionRecorder
+	SubscriptionView
 )
 
 type LossReason uint8
@@ -68,6 +72,8 @@ const (
 	LossUIResync
 	LossEdgeOverflow
 	LossRecorderOverflow
+	LossViewOverflow
+	LossRegistryUnavailable
 )
 
 // Loss spans the admission positions affected by a bounded queue. Count is
@@ -107,6 +113,7 @@ type SubscriptionStatus struct {
 	Class       SubscriptionClass
 	Capacity    int
 	Queued      int
+	QueuedBytes int
 	Lost        uint64
 	Coalesced   uint64
 	ReplayValid bool
@@ -122,6 +129,7 @@ type Subscription struct {
 	class       SubscriptionClass
 	capacity    int
 	queue       []Entry
+	queueBytes  int
 	wake        chan struct{}
 	closed      bool
 	degraded    bool
@@ -141,6 +149,45 @@ func (s *Sequencer) SubscribeRecorder() (*Subscription, Cursor, error) {
 	return s.subscribe(SubscriptionRecorder)
 }
 
+// SubscribeViewAfter copies the retained suffix and attaches a dedicated,
+// lossless live mailbox under one lock. There is no replay/live gap. A caller
+// must close the subscription if it rejects the copied suffix on time/bytes.
+func (s *Sequencer) SubscribeViewAfter(cursor Cursor, maxEntries int) (*Subscription, []Entry, Cursor, error) {
+	if s == nil || s.journal == nil || maxEntries < 1 || maxEntries > MaxJournalCapacity {
+		return nil, nil, Cursor{}, ErrInvalidInput
+	}
+	if _, _, err := cursor.Components(); err != nil {
+		return nil, nil, Cursor{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pruneJournal(s.MonotonicNow())
+	if s.registryState == registryUnavailable {
+		return nil, nil, Cursor{}, ErrRegistryUnavailable
+	}
+	if cursor.epoch != s.epoch {
+		return nil, nil, Cursor{}, ErrEpochMismatch
+	}
+	if cursor.seq > s.seq {
+		return nil, nil, Cursor{}, ErrInvalidInput
+	}
+	available := s.seq - cursor.seq
+	if available > uint64(s.count) || available > uint64(maxEntries) {
+		return nil, nil, Cursor{}, ErrCursorExpired
+	}
+	if len(s.subs) >= MaxSubscriptions {
+		return nil, nil, Cursor{}, ErrSubscriptionFull
+	}
+	replay := make([]Entry, 0, available)
+	for i := uint64(0); i < available; i++ {
+		seq := cursor.seq + i + 1
+		replay = append(replay, s.journal[(seq-1)%uint64(len(s.journal))])
+	}
+	sub := &Subscription{owner: s, class: SubscriptionView, capacity: s.limits.ui, queue: make([]Entry, 0, s.limits.ui), wake: make(chan struct{}), replayValid: true}
+	s.subs[sub] = struct{}{}
+	return sub, replay, Cursor{epoch: s.epoch, seq: s.seq}, nil
+}
+
 func (s *Sequencer) subscribe(class SubscriptionClass) (*Subscription, Cursor, error) {
 	if s == nil || s.journal == nil {
 		return nil, Cursor{}, ErrInvalidInput
@@ -158,6 +205,8 @@ func (s *Sequencer) subscribe(class SubscriptionClass) (*Subscription, Cursor, e
 		capacity = s.limits.edge
 	case SubscriptionRecorder:
 		capacity = s.limits.recorder
+	case SubscriptionView:
+		capacity = s.limits.ui
 	case SubscriptionUnspecified:
 		return nil, Cursor{}, ErrInvalidInput
 	default:
@@ -240,6 +289,23 @@ func (s *Sequencer) publish(entry Entry) {
 			}
 			sub.queue = append(sub.queue, entry)
 			sub.signal()
+		case SubscriptionView:
+			if sub.degraded {
+				sub.addLoss(entry, LossViewOverflow)
+			} else if len(sub.queue) == sub.capacity || entry.estimatedBytes > MaxViewQueueBytes-sub.queueBytes {
+				for _, queued := range sub.queue {
+					sub.addLoss(queued, LossViewOverflow)
+				}
+				sub.addLoss(entry, LossViewOverflow)
+				clear(sub.queue)
+				sub.queue = sub.queue[:0]
+				sub.queueBytes = 0
+				sub.degraded = true
+			} else {
+				sub.queue = append(sub.queue, entry)
+				sub.queueBytes += entry.estimatedBytes
+			}
+			sub.signal()
 		case SubscriptionUnspecified:
 			panic("invalid subscription class")
 		default:
@@ -274,6 +340,10 @@ func (sub *Subscription) Next(ctx context.Context) (Delivery, error) {
 				return Delivery{kind: DeliveryLoss, loss: loss}, ErrEdgeOverflow
 			case LossRecorderOverflow:
 				return Delivery{kind: DeliveryLoss, loss: loss}, ErrRecorderGap
+			case LossViewOverflow:
+				return Delivery{kind: DeliveryLoss, loss: loss}, ErrViewOverflow
+			case LossRegistryUnavailable:
+				return Delivery{kind: DeliveryLoss, loss: loss}, ErrProjectionInvalidated
 			case LossUnspecified:
 				return Delivery{}, ErrInvalidInput
 			default:
@@ -282,6 +352,9 @@ func (sub *Subscription) Next(ctx context.Context) (Delivery, error) {
 		}
 		if len(sub.queue) > 0 {
 			entry := sub.queue[0]
+			if sub.class == SubscriptionView {
+				sub.queueBytes -= entry.estimatedBytes
+			}
 			copy(sub.queue, sub.queue[1:])
 			sub.queue[len(sub.queue)-1] = Entry{}
 			sub.queue = sub.queue[:len(sub.queue)-1]
@@ -299,13 +372,46 @@ func (sub *Subscription) Next(ctx context.Context) (Delivery, error) {
 	}
 }
 
+// Poll gives view consumers either one delivery or the channel that will wake
+// them. Both the queue check and channel read occur under the same lock.
+func (sub *Subscription) Poll() (Delivery, <-chan struct{}, error) {
+	if sub == nil || sub.owner == nil || sub.class != SubscriptionView {
+		return Delivery{}, nil, ErrInvalidInput
+	}
+	sub.owner.mu.Lock()
+	defer sub.owner.mu.Unlock()
+	if sub.closed {
+		return Delivery{}, nil, ErrSubscriptionClosed
+	}
+	if sub.loss != nil {
+		loss := *sub.loss
+		switch loss.Reason {
+		case LossViewOverflow:
+			return Delivery{kind: DeliveryLoss, loss: loss}, nil, ErrViewOverflow
+		case LossRegistryUnavailable:
+			return Delivery{kind: DeliveryLoss, loss: loss}, nil, ErrProjectionInvalidated
+		default:
+			return Delivery{}, nil, ErrInvalidInput
+		}
+	}
+	if len(sub.queue) == 0 {
+		return Delivery{}, sub.wake, nil
+	}
+	entry := sub.queue[0]
+	sub.queueBytes -= entry.estimatedBytes
+	copy(sub.queue, sub.queue[1:])
+	sub.queue[len(sub.queue)-1] = Entry{}
+	sub.queue = sub.queue[:len(sub.queue)-1]
+	return Delivery{kind: DeliveryEntry, entry: entry, replayValid: sub.replayValid}, nil, nil
+}
+
 func (sub *Subscription) Status() (SubscriptionStatus, error) {
 	if sub == nil || sub.owner == nil {
 		return SubscriptionStatus{}, ErrInvalidInput
 	}
 	sub.owner.mu.Lock()
 	defer sub.owner.mu.Unlock()
-	status := SubscriptionStatus{Class: sub.class, Capacity: sub.capacity, Queued: len(sub.queue), Lost: sub.lost, Coalesced: sub.coalesced, ReplayValid: sub.replayValid, Degraded: sub.degraded, Closed: sub.closed}
+	status := SubscriptionStatus{Class: sub.class, Capacity: sub.capacity, Queued: len(sub.queue), QueuedBytes: sub.queueBytes, Lost: sub.lost, Coalesced: sub.coalesced, ReplayValid: sub.replayValid, Degraded: sub.degraded, Closed: sub.closed}
 	if sub.loss != nil {
 		loss := *sub.loss
 		status.PendingLoss = &loss
@@ -324,6 +430,7 @@ func (sub *Subscription) Close() error {
 	}
 	sub.closed = true
 	sub.queue = nil
+	sub.queueBytes = 0
 	delete(sub.owner.subs, sub)
 	sub.signal()
 	return nil

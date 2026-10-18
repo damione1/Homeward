@@ -185,17 +185,29 @@ const (
 	ResyncReason_RESYNC_REASON_CONFIGURATION_CHANGED ResyncReason = 3
 	ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED ResyncReason = 4
 	ResyncReason_RESYNC_REASON_FILTER_CHANGED        ResyncReason = 5
+	ResyncReason_RESYNC_REASON_INVALID_CURSOR        ResyncReason = 6
+	ResyncReason_RESYNC_REASON_CLIENT_SLOW           ResyncReason = 7
+	ResyncReason_RESYNC_REASON_REGISTRY_CHANGED      ResyncReason = 8
+	ResyncReason_RESYNC_REASON_CAPABILITIES_CHANGED  ResyncReason = 9
+	ResyncReason_RESYNC_REASON_REGISTRY_UNAVAILABLE  ResyncReason = 10
+	ResyncReason_RESYNC_REASON_FRAME_TOO_LARGE       ResyncReason = 11
 )
 
 // Enum value maps for ResyncReason.
 var (
 	ResyncReason_name = map[int32]string{
-		0: "RESYNC_REASON_UNSPECIFIED",
-		1: "RESYNC_REASON_EPOCH_CHANGED",
-		2: "RESYNC_REASON_REPLAY_EXPIRED",
-		3: "RESYNC_REASON_CONFIGURATION_CHANGED",
-		4: "RESYNC_REASON_AUTHORIZATION_CHANGED",
-		5: "RESYNC_REASON_FILTER_CHANGED",
+		0:  "RESYNC_REASON_UNSPECIFIED",
+		1:  "RESYNC_REASON_EPOCH_CHANGED",
+		2:  "RESYNC_REASON_REPLAY_EXPIRED",
+		3:  "RESYNC_REASON_CONFIGURATION_CHANGED",
+		4:  "RESYNC_REASON_AUTHORIZATION_CHANGED",
+		5:  "RESYNC_REASON_FILTER_CHANGED",
+		6:  "RESYNC_REASON_INVALID_CURSOR",
+		7:  "RESYNC_REASON_CLIENT_SLOW",
+		8:  "RESYNC_REASON_REGISTRY_CHANGED",
+		9:  "RESYNC_REASON_CAPABILITIES_CHANGED",
+		10: "RESYNC_REASON_REGISTRY_UNAVAILABLE",
+		11: "RESYNC_REASON_FRAME_TOO_LARGE",
 	}
 	ResyncReason_value = map[string]int32{
 		"RESYNC_REASON_UNSPECIFIED":           0,
@@ -204,6 +216,12 @@ var (
 		"RESYNC_REASON_CONFIGURATION_CHANGED": 3,
 		"RESYNC_REASON_AUTHORIZATION_CHANGED": 4,
 		"RESYNC_REASON_FILTER_CHANGED":        5,
+		"RESYNC_REASON_INVALID_CURSOR":        6,
+		"RESYNC_REASON_CLIENT_SLOW":           7,
+		"RESYNC_REASON_REGISTRY_CHANGED":      8,
+		"RESYNC_REASON_CAPABILITIES_CHANGED":  9,
+		"RESYNC_REASON_REGISTRY_UNAVAILABLE":  10,
+		"RESYNC_REASON_FRAME_TOO_LARGE":       11,
 	}
 )
 
@@ -526,8 +544,11 @@ type ViewCursor struct {
 	AuthorizationRevision uint64                 `protobuf:"varint,4,opt,name=authorization_revision,json=authorizationRevision,proto3" json:"authorization_revision,omitempty"`
 	FilterSha256          []byte                 `protobuf:"bytes,5,opt,name=filter_sha256,json=filterSha256,proto3" json:"filter_sha256,omitempty"`
 	ConfigSha256          []byte                 `protobuf:"bytes,6,opt,name=config_sha256,json=configSha256,proto3" json:"config_sha256,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Opaque, process-local proof binding actor, grant, filter and issue time.
+	AdmissionProof []byte `protobuf:"bytes,7,opt,name=admission_proof,json=admissionProof,proto3" json:"admission_proof,omitempty"`
+	GrantSha256    []byte `protobuf:"bytes,8,opt,name=grant_sha256,json=grantSha256,proto3" json:"grant_sha256,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ViewCursor) Reset() {
@@ -598,6 +619,20 @@ func (x *ViewCursor) GetFilterSha256() []byte {
 func (x *ViewCursor) GetConfigSha256() []byte {
 	if x != nil {
 		return x.ConfigSha256
+	}
+	return nil
+}
+
+func (x *ViewCursor) GetAdmissionProof() []byte {
+	if x != nil {
+		return x.AdmissionProof
+	}
+	return nil
+}
+
+func (x *ViewCursor) GetGrantSha256() []byte {
+	if x != nil {
+		return x.GrantSha256
 	}
 	return nil
 }
@@ -980,8 +1015,10 @@ func (x *ReadPageResponse) GetPage() *OpenViewResponse {
 }
 
 type WatchViewRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Cursor        *ViewCursor            `protobuf:"bytes,1,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Cursor *ViewCursor            `protobuf:"bytes,1,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	// Complete filter; the digest in cursor is only a comparison value.
+	Filter        *ViewFilter `protobuf:"bytes,2,opt,name=filter,proto3" json:"filter,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1019,6 +1056,13 @@ func (*WatchViewRequest) Descriptor() ([]byte, []int) {
 func (x *WatchViewRequest) GetCursor() *ViewCursor {
 	if x != nil {
 		return x.Cursor
+	}
+	return nil
+}
+
+func (x *WatchViewRequest) GetFilter() *ViewFilter {
+	if x != nil {
+		return x.Filter
 	}
 	return nil
 }
@@ -1251,7 +1295,7 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\tswitch_on\x18\v \x01(\bH\x00R\bswitchOn\x12>\n" +
 	"\vmeasurement\x18\f \x01(\v2\x1a.home.state.v1.MeasurementH\x00R\vmeasurementB\a\n" +
 	"\x05valueB\r\n" +
-	"\v_source_seq\"\xf5\x01\n" +
+	"\v_source_seq\"\xc1\x02\n" +
 	"\n" +
 	"ViewCursor\x12\x14\n" +
 	"\x05epoch\x18\x01 \x01(\tR\x05epoch\x12'\n" +
@@ -1259,7 +1303,9 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\x0fconfig_revision\x18\x03 \x01(\x04R\x0econfigRevision\x125\n" +
 	"\x16authorization_revision\x18\x04 \x01(\x04R\x15authorizationRevision\x12#\n" +
 	"\rfilter_sha256\x18\x05 \x01(\fR\ffilterSha256\x12#\n" +
-	"\rconfig_sha256\x18\x06 \x01(\fR\fconfigSha256\"\xc2\x02\n" +
+	"\rconfig_sha256\x18\x06 \x01(\fR\fconfigSha256\x12'\n" +
+	"\x0fadmission_proof\x18\a \x01(\fR\x0eadmissionProof\x12!\n" +
+	"\fgrant_sha256\x18\b \x01(\fR\vgrantSha256\"\xc2\x02\n" +
 	"\n" +
 	"ViewEntity\x12\x1b\n" +
 	"\tentity_id\x18\x01 \x01(\tR\bentityId\x12\x1b\n" +
@@ -1290,9 +1336,10 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"G\n" +
 	"\x10ReadPageResponse\x123\n" +
-	"\x04page\x18\x01 \x01(\v2\x1f.home.state.v1.OpenViewResponseR\x04page\"E\n" +
+	"\x04page\x18\x01 \x01(\v2\x1f.home.state.v1.OpenViewResponseR\x04page\"x\n" +
 	"\x10WatchViewRequest\x121\n" +
-	"\x06cursor\x18\x01 \x01(\v2\x19.home.state.v1.ViewCursorR\x06cursor\"B\n" +
+	"\x06cursor\x18\x01 \x01(\v2\x19.home.state.v1.ViewCursorR\x06cursor\x121\n" +
+	"\x06filter\x18\x02 \x01(\v2\x19.home.state.v1.ViewFilterR\x06filter\"B\n" +
 	"\n" +
 	"StateDelta\x124\n" +
 	"\x06states\x18\x01 \x03(\v2\x1c.home.state.v1.ObservedStateR\x06states\"_\n" +
@@ -1319,14 +1366,21 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\x16PROVENANCE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13PROVENANCE_OBSERVED\x10\x01\x12\x17\n" +
 	"\x13PROVENANCE_RESTORED\x10\x02\x12\x18\n" +
-	"\x14PROVENANCE_ESTIMATED\x10\x03*\xe4\x01\n" +
+	"\x14PROVENANCE_ESTIMATED\x10\x03*\xbc\x03\n" +
 	"\fResyncReason\x12\x1d\n" +
 	"\x19RESYNC_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bRESYNC_REASON_EPOCH_CHANGED\x10\x01\x12 \n" +
 	"\x1cRESYNC_REASON_REPLAY_EXPIRED\x10\x02\x12'\n" +
 	"#RESYNC_REASON_CONFIGURATION_CHANGED\x10\x03\x12'\n" +
 	"#RESYNC_REASON_AUTHORIZATION_CHANGED\x10\x04\x12 \n" +
-	"\x1cRESYNC_REASON_FILTER_CHANGED\x10\x052\xfa\x01\n" +
+	"\x1cRESYNC_REASON_FILTER_CHANGED\x10\x05\x12 \n" +
+	"\x1cRESYNC_REASON_INVALID_CURSOR\x10\x06\x12\x1d\n" +
+	"\x19RESYNC_REASON_CLIENT_SLOW\x10\a\x12\"\n" +
+	"\x1eRESYNC_REASON_REGISTRY_CHANGED\x10\b\x12&\n" +
+	"\"RESYNC_REASON_CAPABILITIES_CHANGED\x10\t\x12&\n" +
+	"\"RESYNC_REASON_REGISTRY_UNAVAILABLE\x10\n" +
+	"\x12!\n" +
+	"\x1dRESYNC_REASON_FRAME_TOO_LARGE\x10\v2\xfa\x01\n" +
 	"\fStateService\x12K\n" +
 	"\bOpenView\x12\x1e.home.state.v1.OpenViewRequest\x1a\x1f.home.state.v1.OpenViewResponse\x12K\n" +
 	"\bReadPage\x12\x1e.home.state.v1.ReadPageRequest\x1a\x1f.home.state.v1.ReadPageResponse\x12P\n" +
@@ -1391,22 +1445,23 @@ var file_home_state_v1_state_proto_depIdxs = []int32{
 	8,  // 18: home.state.v1.OpenViewResponse.entities:type_name -> home.state.v1.ViewEntity
 	11, // 19: home.state.v1.ReadPageResponse.page:type_name -> home.state.v1.OpenViewResponse
 	7,  // 20: home.state.v1.WatchViewRequest.cursor:type_name -> home.state.v1.ViewCursor
-	6,  // 21: home.state.v1.StateDelta.states:type_name -> home.state.v1.ObservedState
-	3,  // 22: home.state.v1.ResyncRequired.reason:type_name -> home.state.v1.ResyncReason
-	7,  // 23: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
-	15, // 24: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
-	16, // 25: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
-	10, // 26: home.state.v1.StateService.OpenView:input_type -> home.state.v1.OpenViewRequest
-	12, // 27: home.state.v1.StateService.ReadPage:input_type -> home.state.v1.ReadPageRequest
-	14, // 28: home.state.v1.StateService.WatchView:input_type -> home.state.v1.WatchViewRequest
-	11, // 29: home.state.v1.StateService.OpenView:output_type -> home.state.v1.OpenViewResponse
-	13, // 30: home.state.v1.StateService.ReadPage:output_type -> home.state.v1.ReadPageResponse
-	17, // 31: home.state.v1.StateService.WatchView:output_type -> home.state.v1.WatchViewResponse
-	29, // [29:32] is the sub-list for method output_type
-	26, // [26:29] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	9,  // 21: home.state.v1.WatchViewRequest.filter:type_name -> home.state.v1.ViewFilter
+	6,  // 22: home.state.v1.StateDelta.states:type_name -> home.state.v1.ObservedState
+	3,  // 23: home.state.v1.ResyncRequired.reason:type_name -> home.state.v1.ResyncReason
+	7,  // 24: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
+	15, // 25: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
+	16, // 26: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
+	10, // 27: home.state.v1.StateService.OpenView:input_type -> home.state.v1.OpenViewRequest
+	12, // 28: home.state.v1.StateService.ReadPage:input_type -> home.state.v1.ReadPageRequest
+	14, // 29: home.state.v1.StateService.WatchView:input_type -> home.state.v1.WatchViewRequest
+	11, // 30: home.state.v1.StateService.OpenView:output_type -> home.state.v1.OpenViewResponse
+	13, // 31: home.state.v1.StateService.ReadPage:output_type -> home.state.v1.ReadPageResponse
+	17, // 32: home.state.v1.StateService.WatchView:output_type -> home.state.v1.WatchViewResponse
+	30, // [30:33] is the sub-list for method output_type
+	27, // [27:30] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_home_state_v1_state_proto_init() }

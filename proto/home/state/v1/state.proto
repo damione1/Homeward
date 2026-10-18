@@ -59,6 +59,9 @@ message ViewCursor {
   uint64 authorization_revision = 4;
   bytes filter_sha256 = 5;
   bytes config_sha256 = 6;
+  // Opaque, process-local proof binding actor, grant, filter and issue time.
+  bytes admission_proof = 7;
+  bytes grant_sha256 = 8;
 }
 // One registry identity and its declarations/state from the same capture.
 message ViewEntity {
@@ -95,6 +98,8 @@ message ReadPageResponse {
 }
 message WatchViewRequest {
   ViewCursor cursor = 1;
+  // Complete filter; the digest in cursor is only a comparison value.
+  ViewFilter filter = 2;
 }
 message StateDelta {
   repeated ObservedState states = 1;
@@ -106,6 +111,12 @@ enum ResyncReason {
   RESYNC_REASON_CONFIGURATION_CHANGED = 3;
   RESYNC_REASON_AUTHORIZATION_CHANGED = 4;
   RESYNC_REASON_FILTER_CHANGED = 5;
+  RESYNC_REASON_INVALID_CURSOR = 6;
+  RESYNC_REASON_CLIENT_SLOW = 7;
+  RESYNC_REASON_REGISTRY_CHANGED = 8;
+  RESYNC_REASON_CAPABILITIES_CHANGED = 9;
+  RESYNC_REASON_REGISTRY_UNAVAILABLE = 10;
+  RESYNC_REASON_FRAME_TOO_LARGE = 11;
 }
 message ResyncRequired {
   ResyncReason reason = 1;

@@ -79,8 +79,7 @@ func (s *Sequencer) PublishRegistry(ctx context.Context, records []integrations.
 	}
 	s.registry = next
 	s.registryState = registryReady
-	s.append(Entry{kind: KindRegistry, receivedAt: at, registry: changed})
-	s.publish(s.journal[(s.seq-1)%uint64(len(s.journal))])
+	s.publish(s.append(Entry{kind: KindRegistry, receivedAt: at, registry: changed}))
 	return nil
 }
 
@@ -93,6 +92,18 @@ func (s *Sequencer) InvalidateRegistry() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.registryState = registryUnavailable
+	for sub := range s.subs {
+		if sub.class == SubscriptionView && !sub.closed {
+			cursor := Cursor{epoch: s.epoch, seq: s.seq}
+			sub.loss = &Loss{From: cursor, To: cursor, Reason: LossRegistryUnavailable}
+			sub.degraded = true
+			sub.replayValid = false
+			clear(sub.queue)
+			sub.queue = sub.queue[:0]
+			sub.queueBytes = 0
+			sub.signal()
+		}
+	}
 }
 
 func (s *Sequencer) admitIdentity(entity domain.EntityID, instance domain.IntegrationInstanceID) error {
@@ -167,7 +178,6 @@ func (s *Sequencer) AcceptDiscovery(ctx context.Context, declarations []integrat
 	for entity, descriptions := range staged {
 		s.capabilities[entity] = descriptions
 	}
-	s.append(Entry{kind: KindCapabilities, receivedAt: at, capabilities: append([]integrations.DiscoveryDeclaration(nil), declarations...)})
-	s.publish(s.journal[(s.seq-1)%uint64(len(s.journal))])
+	s.publish(s.append(Entry{kind: KindCapabilities, receivedAt: at, capabilities: append([]integrations.DiscoveryDeclaration(nil), declarations...)}))
 	return nil
 }

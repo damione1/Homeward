@@ -29,21 +29,13 @@ func EncodePage(page Page) (*statewire.OpenViewResponse, error) {
 			return nil, ErrInvalidInput
 		}
 	}
-	sequence, config, authorizationRevision, filterHash, err := page.Cursor.Components()
-	if err != nil {
-		return nil, err
-	}
-	epoch, seq, err := sequence.Components()
-	if err != nil {
-		return nil, err
-	}
-	configRevision, configHash, err := config.Components()
+	wire, err := wireCursor(page.Cursor)
 	if err != nil {
 		return nil, err
 	}
 	response := &statewire.OpenViewResponse{
 		SnapshotToken: page.SnapshotToken,
-		Cursor:        &statewire.ViewCursor{Epoch: epoch, GlobalSequence: seq, ConfigRevision: configRevision, AuthorizationRevision: authorizationRevision, FilterSha256: filterHash[:], ConfigSha256: configHash[:]},
+		Cursor:        wire,
 		NextPageToken: page.NextPageToken,
 		ExpiresAt:     timestamppb.New(page.ExpiresAt.UTC()),
 		Entities:      make([]*statewire.ViewEntity, 0, len(page.Items)),
