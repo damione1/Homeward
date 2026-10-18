@@ -1,0 +1,1269 @@
+{
+  "go": [
+    {
+      "id": "nha006-01-undefined",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "fallback"
+        },
+        "text": "fallback"
+      }
+    },
+    {
+      "id": "nha006-02-none",
+      "raw": {
+        "native": {
+          "type": "none",
+          "value": null
+        },
+        "text": "None"
+      }
+    },
+    {
+      "id": "nha006-03-truthiness",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "fallback"
+        },
+        "text": "fallback"
+      }
+    },
+    {
+      "id": "nha006-04-float-default",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 0
+        },
+        "text": "0"
+      }
+    },
+    {
+      "id": "nha006-05-states",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 22.5
+        },
+        "text": "22.5"
+      }
+    },
+    {
+      "id": "nha006-06-is-state",
+      "raw": {
+        "native": {
+          "type": "bool",
+          "value": true
+        },
+        "text": "True"
+      }
+    },
+    {
+      "id": "nha006-07-state-attr",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 21.5
+        },
+        "text": "21.5"
+      }
+    },
+    {
+      "id": "nha006-08-expand",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "['binary_sensor.nha_motion', 'sensor.nha_temperature']",
+          "type": "list",
+          "value": [
+            {
+              "type": "str",
+              "value": "binary_sensor.nha_motion"
+            },
+            {
+              "type": "str",
+              "value": "sensor.nha_temperature"
+            }
+          ]
+        },
+        "text": "['binary_sensor.nha_motion', 'sensor.nha_temperature']"
+      }
+    },
+    {
+      "id": "nha006-09-now-date",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2026-03-07"
+        },
+        "text": "2026-03-07"
+      }
+    },
+    {
+      "id": "nha006-10-string-methods",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "living_room"
+        },
+        "text": "living_room"
+      }
+    },
+    {
+      "id": "nha043-01-missing-state",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "unknown"
+        },
+        "text": "unknown"
+      }
+    },
+    {
+      "id": "nha043-02-missing-attribute",
+      "raw": {
+        "native": {
+          "type": "none",
+          "value": null
+        },
+        "text": "None"
+      }
+    },
+    {
+      "id": "nha043-03-as-datetime-date",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2024-03-09"
+        },
+        "text": "2024-03-09"
+      }
+    },
+    {
+      "id": "nha043-04-date-days",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 728
+        },
+        "text": "728"
+      }
+    },
+    {
+      "id": "nha043-05-dst-days",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 1
+        },
+        "text": "1"
+      }
+    },
+    {
+      "id": "nha043-06-now",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2026-03-07 23:30:00-05:00"
+        },
+        "text": "2026-03-07 23:30:00-05:00"
+      }
+    },
+    {
+      "id": "nha043-07-as-datetime",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2024-03-09 00:00:00"
+        },
+        "text": "2024-03-09 00:00:00"
+      }
+    },
+    {
+      "id": "nha043-08-json-dot",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "on"
+        },
+        "text": "on"
+      }
+    },
+    {
+      "id": "nha043-09-json-battery",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 0
+        },
+        "text": "0"
+      }
+    },
+    {
+      "id": "nha043-10-json-energy",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 12.5
+        },
+        "text": "12.5"
+      }
+    },
+    {
+      "id": "nha043-11-json-illuminance",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 1
+        },
+        "text": "1"
+      }
+    },
+    {
+      "id": "nha043-12-json-occupancy",
+      "raw": {
+        "native": {
+          "type": "bool",
+          "value": false
+        },
+        "text": "False"
+      }
+    },
+    {
+      "id": "nha043-13-json-power",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 0
+        },
+        "text": "0"
+      }
+    },
+    {
+      "id": "nha043-14-json-state",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "on"
+        },
+        "text": "on"
+      }
+    },
+    {
+      "id": "nha043-15-json-water-leak",
+      "raw": {
+        "native": {
+          "type": "none",
+          "value": null
+        },
+        "text": "None"
+      }
+    },
+    {
+      "id": "nha043-16-trim-expression",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 1
+        },
+        "text": "1"
+      }
+    },
+    {
+      "id": "nha043-17-trim-static",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "hi"
+        },
+        "text": "hi"
+      }
+    },
+    {
+      "id": "nha043-18-quoted-scalar",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "'hello'"
+        },
+        "text": "'hello'"
+      }
+    },
+    {
+      "id": "nha043-19-dot-five",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 0.5
+        },
+        "text": ".5"
+      }
+    },
+    {
+      "id": "nha043-20-scientific-text",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e3"
+        },
+        "text": "1e3"
+      }
+    },
+    {
+      "id": "nha043-21-leading-zero",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "001"
+        },
+        "text": "001"
+      }
+    },
+    {
+      "id": "nha043-22-bool-float",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 1
+        },
+        "text": "1.0"
+      }
+    },
+    {
+      "id": "nha043-23-small-float",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e-07"
+        },
+        "text": "1e-07"
+      }
+    },
+    {
+      "id": "nha043-24-large-float",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e+20"
+        },
+        "text": "1e+20"
+      }
+    },
+    {
+      "id": "nha043-25-list-quote",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "[\"a'b\", 'c\\\\d']",
+          "type": "list",
+          "value": [
+            {
+              "type": "str",
+              "value": "a'b"
+            },
+            {
+              "type": "str",
+              "value": "c\\d"
+            }
+          ]
+        },
+        "text": "[\"a'b\", 'c\\\\d']"
+      }
+    },
+    {
+      "id": "nha043-26-list-numeric",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "[1.2, 2]",
+          "type": "list",
+          "value": [
+            {
+              "type": "float",
+              "value": 1.2
+            },
+            {
+              "type": "int",
+              "value": 2
+            }
+          ]
+        },
+        "text": "[1.2, 2]"
+      }
+    },
+    {
+      "id": "nha043-27-list-from-text",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "[1, 2]",
+          "type": "list",
+          "value": [
+            {
+              "type": "int",
+              "value": 1
+            },
+            {
+              "type": "int",
+              "value": 2
+            }
+          ]
+        },
+        "text": "[1, 2]"
+      }
+    },
+    {
+      "id": "nha043-28-negative-duration",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "-1 day, 0:00:00"
+        },
+        "text": "-1 day, 0:00:00"
+      }
+    },
+    {
+      "id": "nha043-29-zero-duration",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "0:00:00"
+        },
+        "text": "0:00:00"
+      }
+    },
+    {
+      "id": "nha043-30-microseconds",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2024-03-09 12:34:56.123456+00:00"
+        },
+        "text": "2024-03-09 12:34:56.123456+00:00"
+      }
+    },
+    {
+      "id": "nha043-31-mixed-list",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "[True, None, 0, 0.0]",
+          "type": "list",
+          "value": [
+            {
+              "type": "bool",
+              "value": true
+            },
+            {
+              "type": "none",
+              "value": null
+            },
+            {
+              "type": "int",
+              "value": 0
+            },
+            {
+              "type": "float",
+              "value": 0
+            }
+          ]
+        },
+        "text": "[True, None, 0, 0.0]"
+      }
+    },
+    {
+      "id": "nha043-32-million-float",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 1000000
+        },
+        "text": "1000000.0"
+      }
+    },
+    {
+      "id": "nha043-33-quadrillion-float",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 1000000000000000
+        },
+        "text": "1000000000000000.0"
+      }
+    },
+    {
+      "id": "nha043-34-exponent-threshold",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e+16"
+        },
+        "text": "1e+16"
+      }
+    },
+    {
+      "id": "nha043-35-small-decimal-threshold",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 0.0001
+        },
+        "text": "0.0001"
+      }
+    },
+    {
+      "id": "nha043-36-small-exponent-threshold",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e-05"
+        },
+        "text": "1e-05"
+      }
+    },
+    {
+      "id": "nha043-37-smaller-exponent",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e-06"
+        },
+        "text": "1e-06"
+      }
+    },
+    {
+      "id": "nha043-38-scientific-list",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "[1e+20]",
+          "type": "list",
+          "value": [
+            {
+              "type": "float",
+              "value": 100000000000000000000
+            }
+          ]
+        },
+        "text": "[1e+20]"
+      }
+    },
+    {
+      "id": "nha043-39-dst-spring",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 1
+        },
+        "text": "1"
+      }
+    },
+    {
+      "id": "nha043-40-dst-fall",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 1
+        },
+        "text": "1"
+      }
+    },
+    {
+      "id": "nha043-41-list-u0080",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "['\\x80']",
+          "type": "list",
+          "value": [
+            {
+              "type": "str",
+              "value": "\u0080"
+            }
+          ]
+        },
+        "text": "['\\x80']"
+      }
+    },
+    {
+      "id": "nha043-42-list-u00a0",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "['\\xa0']",
+          "type": "list",
+          "value": [
+            {
+              "type": "str",
+              "value": "\u00a0"
+            }
+          ]
+        },
+        "text": "['\\xa0']"
+      }
+    },
+    {
+      "id": "nha043-43-list-u2028",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "['\\u2028']",
+          "type": "list",
+          "value": [
+            {
+              "type": "str",
+              "value": "\u2028"
+            }
+          ]
+        },
+        "text": "['\\u2028']"
+      }
+    }
+  ],
+  "go_runtime": {
+    "go": "go1.25.2",
+    "gonja_module": "github.com/nikolalohinski/gonja/v2",
+    "gonja_sum": "h1:ZDG0zYs5oR3fsqQFAlkaWiWYxPOBrCUK9k2IsRZhMa8=",
+    "gonja_version": "v2.9.1"
+  },
+  "ha": [
+    {
+      "id": "nha006-01-undefined",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "fallback"
+        },
+        "text": "fallback"
+      }
+    },
+    {
+      "id": "nha006-02-none",
+      "raw": {
+        "native": {
+          "type": "none",
+          "value": null
+        },
+        "text": "None"
+      }
+    },
+    {
+      "id": "nha006-03-truthiness",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "fallback"
+        },
+        "text": "fallback"
+      }
+    },
+    {
+      "id": "nha006-04-float-default",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 0
+        },
+        "text": "0"
+      }
+    },
+    {
+      "id": "nha006-05-states",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 22.5
+        },
+        "text": "22.5"
+      }
+    },
+    {
+      "id": "nha006-06-is-state",
+      "raw": {
+        "native": {
+          "type": "bool",
+          "value": true
+        },
+        "text": "True"
+      }
+    },
+    {
+      "id": "nha006-07-state-attr",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 21.5
+        },
+        "text": "21.5"
+      }
+    },
+    {
+      "id": "nha006-08-expand",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "['binary_sensor.nha_motion', 'sensor.nha_temperature']",
+          "type": "Wrapper",
+          "value": [
+            {
+              "type": "str",
+              "value": "binary_sensor.nha_motion"
+            },
+            {
+              "type": "str",
+              "value": "sensor.nha_temperature"
+            }
+          ]
+        },
+        "text": "['binary_sensor.nha_motion', 'sensor.nha_temperature']"
+      }
+    },
+    {
+      "id": "nha006-09-now-date",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2026-03-07"
+        },
+        "text": "2026-03-07"
+      }
+    },
+    {
+      "id": "nha006-10-string-methods",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "living_room"
+        },
+        "text": "living_room"
+      }
+    },
+    {
+      "id": "nha043-01-missing-state",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "unknown"
+        },
+        "text": "unknown"
+      }
+    },
+    {
+      "id": "nha043-02-missing-attribute",
+      "raw": {
+        "native": {
+          "type": "none",
+          "value": null
+        },
+        "text": "None"
+      }
+    },
+    {
+      "id": "nha043-03-as-datetime-date",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2024-03-09"
+        },
+        "text": "2024-03-09"
+      }
+    },
+    {
+      "id": "nha043-04-date-days",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 728
+        },
+        "text": "728"
+      }
+    },
+    {
+      "id": "nha043-05-dst-days",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 1
+        },
+        "text": "1"
+      }
+    },
+    {
+      "id": "nha043-06-now",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2026-03-07 23:30:00-05:00"
+        },
+        "text": "2026-03-07 23:30:00-05:00"
+      }
+    },
+    {
+      "id": "nha043-07-as-datetime",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2024-03-09 00:00:00"
+        },
+        "text": "2024-03-09 00:00:00"
+      }
+    },
+    {
+      "id": "nha043-08-json-dot",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "on"
+        },
+        "text": "on"
+      }
+    },
+    {
+      "id": "nha043-09-json-battery",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 0
+        },
+        "text": "0"
+      }
+    },
+    {
+      "id": "nha043-10-json-energy",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 12.5
+        },
+        "text": "12.5"
+      }
+    },
+    {
+      "id": "nha043-11-json-illuminance",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 1
+        },
+        "text": "1"
+      }
+    },
+    {
+      "id": "nha043-12-json-occupancy",
+      "raw": {
+        "native": {
+          "type": "bool",
+          "value": false
+        },
+        "text": "False"
+      }
+    },
+    {
+      "id": "nha043-13-json-power",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 0
+        },
+        "text": "0"
+      }
+    },
+    {
+      "id": "nha043-14-json-state",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "on"
+        },
+        "text": "on"
+      }
+    },
+    {
+      "id": "nha043-15-json-water-leak",
+      "raw": {
+        "native": {
+          "type": "none",
+          "value": null
+        },
+        "text": "None"
+      }
+    },
+    {
+      "id": "nha043-16-trim-expression",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 1
+        },
+        "text": "1"
+      }
+    },
+    {
+      "id": "nha043-17-trim-static",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "hi"
+        },
+        "text": "hi"
+      }
+    },
+    {
+      "id": "nha043-18-quoted-scalar",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "'hello'"
+        },
+        "text": "'hello'"
+      }
+    },
+    {
+      "id": "nha043-19-dot-five",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 0.5
+        },
+        "text": ".5"
+      }
+    },
+    {
+      "id": "nha043-20-scientific-text",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e3"
+        },
+        "text": "1e3"
+      }
+    },
+    {
+      "id": "nha043-21-leading-zero",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "001"
+        },
+        "text": "001"
+      }
+    },
+    {
+      "id": "nha043-22-bool-float",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 1.0
+        },
+        "text": "1.0"
+      }
+    },
+    {
+      "id": "nha043-23-small-float",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e-07"
+        },
+        "text": "1e-07"
+      }
+    },
+    {
+      "id": "nha043-24-large-float",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e+20"
+        },
+        "text": "1e+20"
+      }
+    },
+    {
+      "id": "nha043-25-list-quote",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "[\"a'b\", 'c\\\\d']",
+          "type": "Wrapper",
+          "value": [
+            {
+              "type": "str",
+              "value": "a'b"
+            },
+            {
+              "type": "str",
+              "value": "c\\d"
+            }
+          ]
+        },
+        "text": "[\"a'b\", 'c\\\\d']"
+      }
+    },
+    {
+      "id": "nha043-26-list-numeric",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "[1.2, 2]",
+          "type": "Wrapper",
+          "value": [
+            {
+              "type": "float",
+              "value": 1.2
+            },
+            {
+              "type": "int",
+              "value": 2
+            }
+          ]
+        },
+        "text": "[1.2, 2]"
+      }
+    },
+    {
+      "id": "nha043-27-list-from-text",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "[1, 2]",
+          "type": "Wrapper",
+          "value": [
+            {
+              "type": "int",
+              "value": 1
+            },
+            {
+              "type": "int",
+              "value": 2
+            }
+          ]
+        },
+        "text": "[1, 2]"
+      }
+    },
+    {
+      "id": "nha043-28-negative-duration",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "-1 day, 0:00:00"
+        },
+        "text": "-1 day, 0:00:00"
+      }
+    },
+    {
+      "id": "nha043-29-zero-duration",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "0:00:00"
+        },
+        "text": "0:00:00"
+      }
+    },
+    {
+      "id": "nha043-30-microseconds",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2024-03-09 12:34:56.123456+00:00"
+        },
+        "text": "2024-03-09 12:34:56.123456+00:00"
+      }
+    },
+    {
+      "id": "nha043-31-mixed-list",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "[True, None, 0, 0.0]",
+          "type": "Wrapper",
+          "value": [
+            {
+              "type": "bool",
+              "value": true
+            },
+            {
+              "type": "none",
+              "value": null
+            },
+            {
+              "type": "int",
+              "value": 0
+            },
+            {
+              "type": "float",
+              "value": 0.0
+            }
+          ]
+        },
+        "text": "[True, None, 0, 0.0]"
+      }
+    },
+    {
+      "id": "nha043-32-million-float",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 1000000.0
+        },
+        "text": "1000000.0"
+      }
+    },
+    {
+      "id": "nha043-33-quadrillion-float",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 1000000000000000.0
+        },
+        "text": "1000000000000000.0"
+      }
+    },
+    {
+      "id": "nha043-34-exponent-threshold",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e+16"
+        },
+        "text": "1e+16"
+      }
+    },
+    {
+      "id": "nha043-35-small-decimal-threshold",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 0.0001
+        },
+        "text": "0.0001"
+      }
+    },
+    {
+      "id": "nha043-36-small-exponent-threshold",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e-05"
+        },
+        "text": "1e-05"
+      }
+    },
+    {
+      "id": "nha043-37-smaller-exponent",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "1e-06"
+        },
+        "text": "1e-06"
+      }
+    },
+    {
+      "id": "nha043-38-scientific-list",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "[1e+20]",
+          "type": "Wrapper",
+          "value": [
+            {
+              "type": "float",
+              "value": 1e+20
+            }
+          ]
+        },
+        "text": "[1e+20]"
+      }
+    },
+    {
+      "id": "nha043-39-dst-spring",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 1
+        },
+        "text": "1"
+      }
+    },
+    {
+      "id": "nha043-40-dst-fall",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 1
+        },
+        "text": "1"
+      }
+    },
+    {
+      "id": "nha043-41-list-u0080",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "['\\x80']",
+          "type": "Wrapper",
+          "value": [
+            {
+              "type": "str",
+              "value": "\u0080"
+            }
+          ]
+        },
+        "text": "['\\x80']"
+      }
+    },
+    {
+      "id": "nha043-42-list-u00a0",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "['\\xa0']",
+          "type": "Wrapper",
+          "value": [
+            {
+              "type": "str",
+              "value": "\u00a0"
+            }
+          ]
+        },
+        "text": "['\\xa0']"
+      }
+    },
+    {
+      "id": "nha043-43-list-u2028",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "['\\u2028']",
+          "type": "Wrapper",
+          "value": [
+            {
+              "type": "str",
+              "value": "\u2028"
+            }
+          ]
+        },
+        "text": "['\\u2028']"
+      }
+    }
+  ],
+  "inputs": {
+    "nha006_cases_sha256": "0dde0013850b6de724e156f55bca346bfa5903799db2a4b3b18edb4b2f2ad0c8",
+    "nha043_extra_sha256": "240e9dd7d537830275827e6e84ea6cdc38bc8fbe704a85b19275c01695a1d5ab",
+    "nha043_worker_sha256": "a01c9b4194f857a76b49beee197efe2982ae8edb916a5d8f7e9c9b4b70fb1cd7"
+  },
+  "reference": {
+    "image_index": "sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0",
+    "image_manifest": "sha256:17100609af8bb79bf5390f5d514b9aaeb00d184ce758f37769cd80c450851db7",
+    "platform": "linux/arm64",
+    "runtime": {
+      "homeassistant": "2026.10.1",
+      "jinja2": "3.1.6",
+      "python": "3.14.6"
+    }
+  }
+}
