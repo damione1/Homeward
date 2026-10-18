@@ -95,7 +95,7 @@ func (c AdmittedCommand) ReadyForTransport() bool {
 // admission only if the driver's current discovery profile is the same one.
 // The driver still calls ReadyForTransport immediately before writing.
 func (c AdmittedCommand) MQTTLightEmission(current LightEncoding) (uint32, bool, error) {
-	if c.light.profile == nil || !validLightEncoding(current) || c.light.profile.encoding != current {
+	if c.light.profile == nil || c.light.profile.kind != lightProfileMQTT || !validLightEncoding(current) || c.light.profile.encoding != current {
 		return 0, false, ErrCommandRouteUnavailable
 	}
 	return c.light.brightness, c.light.hasBrightness, nil
@@ -259,11 +259,14 @@ func (r *CommandRouter) Dispatch(ctx context.Context, actor domain.ActorID, requ
 			}
 		}
 	}
-	return r.dispatchOnce(ctx, actor, request)
+	return r.dispatchOnce(ctx, actor, request, nil)
 }
 
-func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest) (*actions.CommandResponse, error) {
+func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedLightRoute) (*actions.CommandResponse, error) {
 	if r == nil || r.host == nil || ctx == nil || request == nil {
+		return nil, ErrInvalidInput
+	}
+	if preparedRoute != nil && (preparedRoute.capture.router != r || preparedRoute.actor != actor || preparedRoute.request == nil || !proto.Equal(preparedRoute.request, request)) {
 		return nil, ErrInvalidInput
 	}
 	wire := proto.Clone(request).(*actions.CommandRequest)
@@ -395,9 +398,21 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 			var target lightTarget
 			if description.SchemaId == contracts.LightSchema {
 				profile := h.lightProfiles[entity]
-				if profile != nil && profile.endpoint == description.Endpoint {
+				if preparedRoute != nil {
+					capture := preparedRoute.capture
+					if alias == nil || *alias != capture.alias || capture.entity != entity ||
+						capture.binding != binding || capture.profile == nil || profile != capture.profile ||
+						profile.endpoint != description.Endpoint || !proto.Equal(description, capture.description) ||
+						capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision ||
+						preparedRoute.target.profile != profile {
+						return ErrCommandRouteUnavailable
+					}
+					target = preparedRoute.target
+				} else if profile != nil && profile.endpoint == description.Endpoint {
 					target = targetForLight(resolved, profile)
 				}
+			} else if preparedRoute != nil {
+				return ErrCommandRouteUnavailable
 			}
 			admitted = AdmittedCommand{id: id, actor: actor, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding, light: target}
 			// Slot lease is reserved before the Host lock is released.

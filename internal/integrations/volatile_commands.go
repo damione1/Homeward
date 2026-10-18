@@ -148,7 +148,37 @@ func (s *VolatileCommandService) Dispatch(ctx context.Context, actor domain.Acto
 	return s.router.Dispatch(ctx, actor, request)
 }
 
+func (s *VolatileCommandService) CaptureLight(ctx context.Context, alias domain.HAAlias) (LightCapture, error) {
+	if s == nil || s.router == nil {
+		return LightCapture{}, ErrInvalidInput
+	}
+	return s.router.CaptureLight(ctx, alias)
+}
+
+// DispatchPrepared keeps the original actor and wire in the same Host ledger.
+// Only a first admission reaches the route fence and consumes the private q.
+func (s *VolatileCommandService) DispatchPrepared(ctx context.Context, prepared PreparedLight) (*actions.CommandResponse, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, ErrInvalidInput
+	}
+	s.router.host.mu.Lock()
+	ledger := s.router.host.volatile
+	s.router.host.mu.Unlock()
+	if ledger == nil {
+		return nil, ErrInvalidInput
+	}
+	return ledger.dispatchWithPrepared(s.router, ctx, prepared.actor, wire, prepared.route)
+}
+
 func (l *volatileCommandLedger) dispatch(router *CommandRouter, ctx context.Context, actor domain.ActorID, request *actions.CommandRequest) (*actions.CommandResponse, error) {
+	return l.dispatchWithPrepared(router, ctx, actor, request, nil)
+}
+
+func (l *volatileCommandLedger) dispatchWithPrepared(router *CommandRouter, ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedLightRoute) (*actions.CommandResponse, error) {
 	if ctx == nil || request == nil {
 		return nil, ErrInvalidInput
 	}
@@ -235,7 +265,7 @@ func (l *volatileCommandLedger) dispatch(router *CommandRouter, ctx context.Cont
 	l.retained += cost
 	l.mu.Unlock()
 
-	return l.runFirst(entry, router, ctx, actor, wire)
+	return l.runFirst(entry, router, ctx, actor, wire, preparedRoute)
 }
 
 // commandFingerprint is shared by volatile and durable admission. It uses the
@@ -250,7 +280,7 @@ func commandFingerprint(actorText string, wire *actions.CommandRequest) ([]byte,
 	return append(fingerprint, encoded...), nil
 }
 
-func (l *volatileCommandLedger) runFirst(entry *volatileEntry, router *CommandRouter, ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest) (response *actions.CommandResponse, dispatchErr error) {
+func (l *volatileCommandLedger) runFirst(entry *volatileEntry, router *CommandRouter, ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest, preparedRoute *preparedLightRoute) (response *actions.CommandResponse, dispatchErr error) {
 	// Completion is guaranteed even if an extension codec or pilot panics. A
 	// panic is conservatively indeterminate; the original panic then propagates.
 	defer func() {
@@ -275,7 +305,7 @@ func (l *volatileCommandLedger) runFirst(entry *volatileEntry, router *CommandRo
 			panic(panicValue)
 		}
 	}()
-	return router.dispatchOnce(ctx, actor, wire)
+	return router.dispatchOnce(ctx, actor, wire, preparedRoute)
 }
 
 func cloneVolatileResult(entry *volatileEntry) (*actions.CommandResponse, error) {

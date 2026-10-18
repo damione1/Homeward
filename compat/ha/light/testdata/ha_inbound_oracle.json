@@ -1,0 +1,2563 @@
+{
+  "homeassistant": "2026.10.1",
+  "path": "mqtt/light/schema_json.py:_state_received -> util/color.py:value_to_brightness",
+  "table": [
+    {
+      "ha_brightness": null,
+      "raw": 0,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 1,
+      "raw": 1,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 2,
+      "raw": 2,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 3,
+      "raw": 3,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 4,
+      "raw": 4,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 5,
+      "raw": 5,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 6,
+      "raw": 6,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 7,
+      "raw": 7,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 8,
+      "raw": 8,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 9,
+      "raw": 9,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 10,
+      "raw": 10,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 11,
+      "raw": 11,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 12,
+      "raw": 12,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 13,
+      "raw": 13,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 14,
+      "raw": 14,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 15,
+      "raw": 15,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 16,
+      "raw": 16,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 17,
+      "raw": 17,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 18,
+      "raw": 18,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 19,
+      "raw": 19,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 20,
+      "raw": 20,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 21,
+      "raw": 21,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 22,
+      "raw": 22,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 23,
+      "raw": 23,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 24,
+      "raw": 24,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 25,
+      "raw": 25,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 26,
+      "raw": 26,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 27,
+      "raw": 27,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 28,
+      "raw": 28,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 29,
+      "raw": 29,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 30,
+      "raw": 30,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 31,
+      "raw": 31,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 32,
+      "raw": 32,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 33,
+      "raw": 33,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 34,
+      "raw": 34,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 35,
+      "raw": 35,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 36,
+      "raw": 36,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 37,
+      "raw": 37,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 38,
+      "raw": 38,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 39,
+      "raw": 39,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 40,
+      "raw": 40,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 41,
+      "raw": 41,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 42,
+      "raw": 42,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 43,
+      "raw": 43,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 44,
+      "raw": 44,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 45,
+      "raw": 45,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 46,
+      "raw": 46,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 47,
+      "raw": 47,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 48,
+      "raw": 48,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 49,
+      "raw": 49,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 50,
+      "raw": 50,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 51,
+      "raw": 51,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 52,
+      "raw": 52,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 53,
+      "raw": 53,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 54,
+      "raw": 54,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 55,
+      "raw": 55,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 56,
+      "raw": 56,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 57,
+      "raw": 57,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 58,
+      "raw": 58,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 59,
+      "raw": 59,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 60,
+      "raw": 60,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 61,
+      "raw": 61,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 62,
+      "raw": 62,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 63,
+      "raw": 63,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 64,
+      "raw": 64,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 65,
+      "raw": 65,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 66,
+      "raw": 66,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 67,
+      "raw": 67,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 68,
+      "raw": 68,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 69,
+      "raw": 69,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 70,
+      "raw": 70,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 71,
+      "raw": 71,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 72,
+      "raw": 72,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 73,
+      "raw": 73,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 74,
+      "raw": 74,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 75,
+      "raw": 75,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 76,
+      "raw": 76,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 77,
+      "raw": 77,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 78,
+      "raw": 78,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 79,
+      "raw": 79,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 80,
+      "raw": 80,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 81,
+      "raw": 81,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 82,
+      "raw": 82,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 83,
+      "raw": 83,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 84,
+      "raw": 84,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 85,
+      "raw": 85,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 86,
+      "raw": 86,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 87,
+      "raw": 87,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 88,
+      "raw": 88,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 89,
+      "raw": 89,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 90,
+      "raw": 90,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 91,
+      "raw": 91,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 92,
+      "raw": 92,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 93,
+      "raw": 93,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 94,
+      "raw": 94,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 95,
+      "raw": 95,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 96,
+      "raw": 96,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 97,
+      "raw": 97,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 98,
+      "raw": 98,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 99,
+      "raw": 99,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 100,
+      "raw": 100,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 101,
+      "raw": 101,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 102,
+      "raw": 102,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 103,
+      "raw": 103,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 104,
+      "raw": 104,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 105,
+      "raw": 105,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 106,
+      "raw": 106,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 107,
+      "raw": 107,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 108,
+      "raw": 108,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 109,
+      "raw": 109,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 110,
+      "raw": 110,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 111,
+      "raw": 111,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 112,
+      "raw": 112,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 113,
+      "raw": 113,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 114,
+      "raw": 114,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 115,
+      "raw": 115,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 116,
+      "raw": 116,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 117,
+      "raw": 117,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 118,
+      "raw": 118,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 119,
+      "raw": 119,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 120,
+      "raw": 120,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 121,
+      "raw": 121,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 122,
+      "raw": 122,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 123,
+      "raw": 123,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 124,
+      "raw": 124,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 125,
+      "raw": 125,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 126,
+      "raw": 126,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 128,
+      "raw": 127,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 129,
+      "raw": 128,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 130,
+      "raw": 129,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 131,
+      "raw": 130,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 132,
+      "raw": 131,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 133,
+      "raw": 132,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 134,
+      "raw": 133,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 135,
+      "raw": 134,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 136,
+      "raw": 135,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 137,
+      "raw": 136,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 138,
+      "raw": 137,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 139,
+      "raw": 138,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 140,
+      "raw": 139,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 141,
+      "raw": 140,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 142,
+      "raw": 141,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 143,
+      "raw": 142,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 144,
+      "raw": 143,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 145,
+      "raw": 144,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 146,
+      "raw": 145,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 147,
+      "raw": 146,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 148,
+      "raw": 147,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 149,
+      "raw": 148,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 150,
+      "raw": 149,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 151,
+      "raw": 150,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 152,
+      "raw": 151,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 153,
+      "raw": 152,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 154,
+      "raw": 153,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 155,
+      "raw": 154,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 156,
+      "raw": 155,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 157,
+      "raw": 156,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 158,
+      "raw": 157,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 159,
+      "raw": 158,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 160,
+      "raw": 159,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 161,
+      "raw": 160,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 162,
+      "raw": 161,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 163,
+      "raw": 162,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 164,
+      "raw": 163,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 165,
+      "raw": 164,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 166,
+      "raw": 165,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 167,
+      "raw": 166,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 168,
+      "raw": 167,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 169,
+      "raw": 168,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 170,
+      "raw": 169,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 171,
+      "raw": 170,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 172,
+      "raw": 171,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 173,
+      "raw": 172,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 174,
+      "raw": 173,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 175,
+      "raw": 174,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 176,
+      "raw": 175,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 177,
+      "raw": 176,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 178,
+      "raw": 177,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 179,
+      "raw": 178,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 180,
+      "raw": 179,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 181,
+      "raw": 180,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 182,
+      "raw": 181,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 183,
+      "raw": 182,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 184,
+      "raw": 183,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 185,
+      "raw": 184,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 186,
+      "raw": 185,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 187,
+      "raw": 186,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 188,
+      "raw": 187,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 189,
+      "raw": 188,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 190,
+      "raw": 189,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 191,
+      "raw": 190,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 192,
+      "raw": 191,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 193,
+      "raw": 192,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 194,
+      "raw": 193,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 195,
+      "raw": 194,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 196,
+      "raw": 195,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 197,
+      "raw": 196,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 198,
+      "raw": 197,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 199,
+      "raw": 198,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 200,
+      "raw": 199,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 201,
+      "raw": 200,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 202,
+      "raw": 201,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 203,
+      "raw": 202,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 204,
+      "raw": 203,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 205,
+      "raw": 204,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 206,
+      "raw": 205,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 207,
+      "raw": 206,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 208,
+      "raw": 207,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 209,
+      "raw": 208,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 210,
+      "raw": 209,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 211,
+      "raw": 210,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 212,
+      "raw": 211,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 213,
+      "raw": 212,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 214,
+      "raw": 213,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 215,
+      "raw": 214,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 216,
+      "raw": 215,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 217,
+      "raw": 216,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 218,
+      "raw": 217,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 219,
+      "raw": 218,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 220,
+      "raw": 219,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 221,
+      "raw": 220,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 222,
+      "raw": 221,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 223,
+      "raw": 222,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 224,
+      "raw": 223,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 225,
+      "raw": 224,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 226,
+      "raw": 225,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 227,
+      "raw": 226,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 228,
+      "raw": 227,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 229,
+      "raw": 228,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 230,
+      "raw": 229,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 231,
+      "raw": 230,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 232,
+      "raw": 231,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 233,
+      "raw": 232,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 234,
+      "raw": 233,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 235,
+      "raw": 234,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 236,
+      "raw": 235,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 237,
+      "raw": 236,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 238,
+      "raw": 237,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 239,
+      "raw": 238,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 240,
+      "raw": 239,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 241,
+      "raw": 240,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 242,
+      "raw": 241,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 243,
+      "raw": 242,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 244,
+      "raw": 243,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 245,
+      "raw": 244,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 246,
+      "raw": 245,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 247,
+      "raw": 246,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 248,
+      "raw": 247,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 249,
+      "raw": 248,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 250,
+      "raw": 249,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 251,
+      "raw": 250,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 252,
+      "raw": 251,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 253,
+      "raw": 252,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 254,
+      "raw": 253,
+      "scale": 254
+    },
+    {
+      "ha_brightness": 255,
+      "raw": 254,
+      "scale": 254
+    },
+    {
+      "ha_brightness": null,
+      "raw": 0,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 1,
+      "raw": 1,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 2,
+      "raw": 2,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 3,
+      "raw": 3,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 4,
+      "raw": 4,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 5,
+      "raw": 5,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 6,
+      "raw": 6,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 7,
+      "raw": 7,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 8,
+      "raw": 8,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 9,
+      "raw": 9,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 10,
+      "raw": 10,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 11,
+      "raw": 11,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 12,
+      "raw": 12,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 13,
+      "raw": 13,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 14,
+      "raw": 14,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 15,
+      "raw": 15,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 16,
+      "raw": 16,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 17,
+      "raw": 17,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 18,
+      "raw": 18,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 19,
+      "raw": 19,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 20,
+      "raw": 20,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 21,
+      "raw": 21,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 22,
+      "raw": 22,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 23,
+      "raw": 23,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 24,
+      "raw": 24,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 25,
+      "raw": 25,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 26,
+      "raw": 26,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 27,
+      "raw": 27,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 28,
+      "raw": 28,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 29,
+      "raw": 29,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 30,
+      "raw": 30,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 31,
+      "raw": 31,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 32,
+      "raw": 32,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 33,
+      "raw": 33,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 34,
+      "raw": 34,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 35,
+      "raw": 35,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 36,
+      "raw": 36,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 37,
+      "raw": 37,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 38,
+      "raw": 38,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 39,
+      "raw": 39,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 40,
+      "raw": 40,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 41,
+      "raw": 41,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 42,
+      "raw": 42,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 43,
+      "raw": 43,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 44,
+      "raw": 44,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 45,
+      "raw": 45,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 46,
+      "raw": 46,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 47,
+      "raw": 47,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 48,
+      "raw": 48,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 49,
+      "raw": 49,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 50,
+      "raw": 50,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 51,
+      "raw": 51,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 52,
+      "raw": 52,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 53,
+      "raw": 53,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 54,
+      "raw": 54,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 55,
+      "raw": 55,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 56,
+      "raw": 56,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 57,
+      "raw": 57,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 58,
+      "raw": 58,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 59,
+      "raw": 59,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 60,
+      "raw": 60,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 61,
+      "raw": 61,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 62,
+      "raw": 62,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 63,
+      "raw": 63,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 64,
+      "raw": 64,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 65,
+      "raw": 65,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 66,
+      "raw": 66,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 67,
+      "raw": 67,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 68,
+      "raw": 68,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 69,
+      "raw": 69,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 70,
+      "raw": 70,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 71,
+      "raw": 71,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 72,
+      "raw": 72,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 73,
+      "raw": 73,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 74,
+      "raw": 74,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 75,
+      "raw": 75,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 76,
+      "raw": 76,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 77,
+      "raw": 77,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 78,
+      "raw": 78,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 79,
+      "raw": 79,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 80,
+      "raw": 80,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 81,
+      "raw": 81,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 82,
+      "raw": 82,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 83,
+      "raw": 83,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 84,
+      "raw": 84,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 85,
+      "raw": 85,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 86,
+      "raw": 86,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 87,
+      "raw": 87,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 88,
+      "raw": 88,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 89,
+      "raw": 89,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 90,
+      "raw": 90,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 91,
+      "raw": 91,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 92,
+      "raw": 92,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 93,
+      "raw": 93,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 94,
+      "raw": 94,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 95,
+      "raw": 95,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 96,
+      "raw": 96,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 97,
+      "raw": 97,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 98,
+      "raw": 98,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 99,
+      "raw": 99,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 100,
+      "raw": 100,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 101,
+      "raw": 101,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 102,
+      "raw": 102,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 103,
+      "raw": 103,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 104,
+      "raw": 104,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 105,
+      "raw": 105,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 106,
+      "raw": 106,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 107,
+      "raw": 107,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 108,
+      "raw": 108,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 109,
+      "raw": 109,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 110,
+      "raw": 110,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 111,
+      "raw": 111,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 112,
+      "raw": 112,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 113,
+      "raw": 113,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 114,
+      "raw": 114,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 115,
+      "raw": 115,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 116,
+      "raw": 116,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 117,
+      "raw": 117,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 118,
+      "raw": 118,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 119,
+      "raw": 119,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 120,
+      "raw": 120,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 121,
+      "raw": 121,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 122,
+      "raw": 122,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 123,
+      "raw": 123,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 124,
+      "raw": 124,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 125,
+      "raw": 125,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 126,
+      "raw": 126,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 127,
+      "raw": 127,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 128,
+      "raw": 128,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 129,
+      "raw": 129,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 130,
+      "raw": 130,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 131,
+      "raw": 131,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 132,
+      "raw": 132,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 133,
+      "raw": 133,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 134,
+      "raw": 134,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 135,
+      "raw": 135,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 136,
+      "raw": 136,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 137,
+      "raw": 137,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 138,
+      "raw": 138,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 139,
+      "raw": 139,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 140,
+      "raw": 140,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 141,
+      "raw": 141,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 142,
+      "raw": 142,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 143,
+      "raw": 143,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 144,
+      "raw": 144,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 145,
+      "raw": 145,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 146,
+      "raw": 146,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 147,
+      "raw": 147,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 148,
+      "raw": 148,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 149,
+      "raw": 149,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 150,
+      "raw": 150,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 151,
+      "raw": 151,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 152,
+      "raw": 152,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 153,
+      "raw": 153,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 154,
+      "raw": 154,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 155,
+      "raw": 155,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 156,
+      "raw": 156,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 157,
+      "raw": 157,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 158,
+      "raw": 158,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 159,
+      "raw": 159,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 160,
+      "raw": 160,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 161,
+      "raw": 161,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 162,
+      "raw": 162,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 163,
+      "raw": 163,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 164,
+      "raw": 164,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 165,
+      "raw": 165,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 166,
+      "raw": 166,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 167,
+      "raw": 167,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 168,
+      "raw": 168,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 169,
+      "raw": 169,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 170,
+      "raw": 170,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 171,
+      "raw": 171,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 172,
+      "raw": 172,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 173,
+      "raw": 173,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 174,
+      "raw": 174,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 175,
+      "raw": 175,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 176,
+      "raw": 176,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 177,
+      "raw": 177,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 178,
+      "raw": 178,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 179,
+      "raw": 179,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 180,
+      "raw": 180,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 181,
+      "raw": 181,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 182,
+      "raw": 182,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 183,
+      "raw": 183,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 184,
+      "raw": 184,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 185,
+      "raw": 185,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 186,
+      "raw": 186,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 187,
+      "raw": 187,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 188,
+      "raw": 188,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 189,
+      "raw": 189,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 190,
+      "raw": 190,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 191,
+      "raw": 191,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 192,
+      "raw": 192,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 193,
+      "raw": 193,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 194,
+      "raw": 194,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 195,
+      "raw": 195,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 196,
+      "raw": 196,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 197,
+      "raw": 197,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 198,
+      "raw": 198,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 199,
+      "raw": 199,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 200,
+      "raw": 200,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 201,
+      "raw": 201,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 202,
+      "raw": 202,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 203,
+      "raw": 203,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 204,
+      "raw": 204,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 205,
+      "raw": 205,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 206,
+      "raw": 206,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 207,
+      "raw": 207,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 208,
+      "raw": 208,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 209,
+      "raw": 209,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 210,
+      "raw": 210,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 211,
+      "raw": 211,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 212,
+      "raw": 212,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 213,
+      "raw": 213,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 214,
+      "raw": 214,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 215,
+      "raw": 215,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 216,
+      "raw": 216,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 217,
+      "raw": 217,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 218,
+      "raw": 218,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 219,
+      "raw": 219,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 220,
+      "raw": 220,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 221,
+      "raw": 221,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 222,
+      "raw": 222,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 223,
+      "raw": 223,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 224,
+      "raw": 224,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 225,
+      "raw": 225,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 226,
+      "raw": 226,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 227,
+      "raw": 227,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 228,
+      "raw": 228,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 229,
+      "raw": 229,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 230,
+      "raw": 230,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 231,
+      "raw": 231,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 232,
+      "raw": 232,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 233,
+      "raw": 233,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 234,
+      "raw": 234,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 235,
+      "raw": 235,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 236,
+      "raw": 236,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 237,
+      "raw": 237,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 238,
+      "raw": 238,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 239,
+      "raw": 239,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 240,
+      "raw": 240,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 241,
+      "raw": 241,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 242,
+      "raw": 242,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 243,
+      "raw": 243,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 244,
+      "raw": 244,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 245,
+      "raw": 245,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 246,
+      "raw": 246,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 247,
+      "raw": 247,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 248,
+      "raw": 248,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 249,
+      "raw": 249,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 250,
+      "raw": 250,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 251,
+      "raw": 251,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 252,
+      "raw": 252,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 253,
+      "raw": 253,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 254,
+      "raw": 254,
+      "scale": 255
+    },
+    {
+      "ha_brightness": 255,
+      "raw": 255,
+      "scale": 255
+    }
+  ],
+  "table_sha256": "96d8c265d5a3101ebf9a5adf6995587ebf02ef1399f92e91c24d711e37fd0768",
+  "zero": "ignored_by_schema_json"
+}

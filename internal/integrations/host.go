@@ -67,6 +67,7 @@ type Candidate struct {
 	key           SourceKey
 	descriptions  []*registry.CapabilityDescription
 	lightEncoding LightEncoding
+	casetaAlias   domain.HAAlias
 }
 
 func NewCandidate(key SourceKey, descriptions []*registry.CapabilityDescription) (Candidate, error) {
@@ -768,8 +769,9 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 		if _, err := NewCandidate(candidate.key, candidate.descriptions); err != nil {
 			return nil, ErrInvalidInput
 		}
-		if candidate.lightEncoding.valid && (!validLightEncoding(candidate.lightEncoding) || len(candidate.descriptions) != 1 || candidate.descriptions[0].SchemaId != contracts.LightSchema) ||
-			!candidate.lightEncoding.valid && candidate.lightEncoding != (LightEncoding{}) {
+		if candidate.lightEncoding.valid && (!validLightEncoding(candidate.lightEncoding) || len(candidate.descriptions) != 1 || candidate.descriptions[0].SchemaId != contracts.LightSchema || candidate.casetaAlias != (domain.HAAlias{})) ||
+			!candidate.lightEncoding.valid && candidate.lightEncoding != (LightEncoding{}) ||
+			candidate.casetaAlias != (domain.HAAlias{}) && (candidate.lightEncoding != (LightEncoding{}) || !validCasetaHA100V1Description(candidate.descriptions)) {
 			return nil, ErrInvalidInput
 		}
 		if seenKeys[candidate.key] {
@@ -849,6 +851,23 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 		}
 		bindings[i] = Binding{key: keys[i], device: identity.Device, entity: identity.Entity, instance: s.instance, session: s.id}
 	}
+	// A configured Caseta profile is joined to the resolved SourceKey, exact
+	// alias and qualified light descriptor before either projection commits.
+	// The Host lock also makes this snapshot publication atomic for capture.
+	for i, binding := range bindings {
+		alias := candidates[i].casetaAlias
+		if alias == (domain.HAAlias{}) {
+			continue
+		}
+		projection, ok := h.sink.(CommandProjection)
+		if !ok || nilInterface(projection) {
+			return nil, ErrInvalidInput
+		}
+		entity, err := projection.ResolveCommandAlias(alias)
+		if err != nil || entity != binding.entity {
+			return nil, ErrIdentityConflict
+		}
+	}
 	registrations := make([]contracts.DriverCapabilityRegistration, 0)
 	declarations := make([]DiscoveryDeclaration, 0, len(bindings))
 	for i, binding := range bindings {
@@ -872,13 +891,21 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 	for i, binding := range bindings {
 		s.bindings[binding.entity] = binding
 		h.owners[binding.entity] = binding
-		if encoding := candidates[i].lightEncoding; encoding.valid {
-			endpoint := candidates[i].descriptions[0].Endpoint
+		if encoding := candidates[i].lightEncoding; encoding.valid || candidates[i].casetaAlias != (domain.HAAlias{}) {
+			kind := lightProfileMQTT
+			if !encoding.valid {
+				kind = lightProfileCasetaHA100V1
+			}
+			description := candidates[i].descriptions[0]
 			old := h.lightProfiles[binding.entity]
-			if old == nil || old.encoding != encoding || old.endpoint != endpoint {
-				// Preserve a command's local fence only for the same canonical
-				// discovery and converter policy. No unrelated light is affected.
-				h.lightProfiles[binding.entity] = &lightEncodingSnapshot{encoding: encoding, endpoint: endpoint}
+			if !old.sameDiscovery(kind, encoding, binding, candidates[i].casetaAlias, description) {
+				// Preserve a prepared command only for the same session, source,
+				// alias, descriptor and private conversion policy.
+				h.lightProfiles[binding.entity] = &lightEncodingSnapshot{
+					kind: kind, encoding: encoding, endpoint: description.Endpoint,
+					binding: binding, casetaAlias: candidates[i].casetaAlias,
+					description: proto.Clone(description).(*registry.CapabilityDescription),
+				}
 			}
 		} else {
 			delete(h.lightProfiles, binding.entity)

@@ -51,9 +51,10 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 			Args        []string `yaml:"args"`
 			SecretNames []string `yaml:"secret_names"`
 			Bindings    []struct {
-				Device string `yaml:"device"`
-				Entity string `yaml:"entity"`
-				Alias  string `yaml:"alias"`
+				Device         string    `yaml:"device"`
+				Entity         string    `yaml:"entity"`
+				Alias          string    `yaml:"alias"`
+				HALightProfile yaml.Node `yaml:"ha_light_profile"`
 			} `yaml:"bindings"`
 		} `yaml:"external_workers"`
 	}
@@ -120,6 +121,15 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 			binding, err := worker.NewConfiguredBinding(item.Device, item.Entity, item.Alias)
 			if err != nil {
 				return Config{}, fmt.Errorf("configuration: %w", err)
+			}
+			if item.HALightProfile.Kind != 0 {
+				if item.HALightProfile.Kind != yaml.ScalarNode || item.HALightProfile.Tag != "!!str" || item.HALightProfile.Value != "caseta_ha_100_v1" {
+					return Config{}, ErrInvalidYAML
+				}
+				binding, err = binding.WithCasetaHA100V1()
+				if err != nil {
+					return Config{}, fmt.Errorf("configuration: %w", err)
+				}
 			}
 			bindings = append(bindings, binding)
 		}

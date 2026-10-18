@@ -209,6 +209,28 @@ func (s *DurableCommandService) Status(ctx context.Context, id domain.CommandID)
 }
 
 func (s *DurableCommandService) Dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest) (*actions.CommandResponse, error) {
+	return s.dispatch(ctx, actor, request, nil)
+}
+
+func (s *DurableCommandService) CaptureLight(ctx context.Context, alias domain.HAAlias) (LightCapture, error) {
+	if s == nil || s.router == nil {
+		return LightCapture{}, ErrInvalidInput
+	}
+	return s.router.CaptureLight(ctx, alias)
+}
+
+func (s *DurableCommandService) DispatchPrepared(ctx context.Context, prepared PreparedLight) (*actions.CommandResponse, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, ErrInvalidInput
+	}
+	return s.dispatch(ctx, prepared.actor, wire, prepared.route)
+}
+
+func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedLightRoute) (*actions.CommandResponse, error) {
 	if s == nil || ctx == nil || request == nil {
 		return nil, ErrInvalidInput
 	}
@@ -289,7 +311,7 @@ func (s *DurableCommandService) Dispatch(ctx context.Context, actor domain.Actor
 	if err := runtime.Ping(ctx); err != nil {
 		return nil, ErrDurableLedgerUnavailable
 	}
-	response, dispatchErr := s.router.dispatchOnce(ctx, actor, wire)
+	response, dispatchErr := s.router.dispatchOnce(ctx, actor, wire, preparedRoute)
 	if response == nil {
 		response = commandFailure(actions.ErrorCode_ERROR_CODE_UNSPECIFIED, "command")
 		response.CommandId = wire.CommandId
