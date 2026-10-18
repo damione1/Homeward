@@ -2,9 +2,33 @@
 // Its source tree is syntax, not an executable configuration or runtime IR.
 package parser
 
-import "fmt"
+import (
+	"crypto/sha256"
+	"fmt"
+)
 
 const Profile = "ha-2026.10/core-1"
+const DeclarativeProfile = "ha-2026.10/declarative-1"
+
+// SyntaxProfile selects a closed grammar for the common YAML loader.
+type SyntaxProfile uint8
+
+const (
+	SyntaxProfileInvalid SyntaxProfile = iota
+	SyntaxProfileCore
+	SyntaxProfileDeclarative
+)
+
+func (p SyntaxProfile) String() string {
+	switch p {
+	case SyntaxProfileCore:
+		return Profile
+	case SyntaxProfileDeclarative:
+		return DeclarativeProfile
+	default:
+		return ""
+	}
+}
 
 // Kind is the closed set of syntax values exposed by this parser.
 type Kind uint8
@@ -128,7 +152,23 @@ func (n Node) SecretKey() (string, bool) {
 	return n.secretKey, true
 }
 
-type Document struct{ root Node }
+// SourceFile contains the exact bytes used by the parser. Bytes always returns
+// a copy; a snapshot can be persisted and later passed to LoadSources.
+type SourceFile struct {
+	path string
+	data []byte
+	hash [sha256.Size]byte
+}
+
+func (s SourceFile) Path() string              { return s.path }
+func (s SourceFile) Bytes() []byte             { return append([]byte(nil), s.data...) }
+func (s SourceFile) SHA256() [sha256.Size]byte { return s.hash }
+
+type Document struct {
+	root    Node
+	profile SyntaxProfile
+	sources []SourceFile
+}
 
 func (d *Document) Root() Node {
 	if d == nil {
@@ -136,7 +176,19 @@ func (d *Document) Root() Node {
 	}
 	return d.root
 }
-func (d *Document) Profile() string { return Profile }
+func (d *Document) Profile() string {
+	if d == nil {
+		return ""
+	}
+	return d.profile.String()
+}
+
+func (d *Document) Sources() []SourceFile {
+	if d == nil {
+		return nil
+	}
+	return append([]SourceFile(nil), d.sources...)
+}
 
 // Code is the closed diagnostic vocabulary. A caller must branch on Code,
 // never parse an error message. String is its stable external spelling.

@@ -16,7 +16,7 @@ func scalar() *rule                         { return &rule{kind: KindScalar} }
 func mapping(fields map[string]*rule) *rule { return &rule{kind: KindMapping, fields: fields} }
 func sequence(item *rule) *rule             { return &rule{kind: KindSequence, item: item} }
 
-func profileRule() *rule {
+func profileRule(profile SyntaxProfile) *rule {
 	openSyntax := &rule{open: true}
 	mode := &rule{kind: KindScalar, values: map[string]bool{"single": true, "restart": true, "queued": true}}
 	target := mapping(map[string]*rule{"entity_id": scalar(), "device_id": scalar(), "area_id": scalar()})
@@ -41,19 +41,30 @@ func profileRule() *rule {
 		"mode": mode,
 		"max":  scalar(),
 	})
-	boolHelper := mapping(map[string]*rule{"initial": scalar(), "name": scalar(), "icon": scalar()})
-	numberHelper := mapping(map[string]*rule{"initial": scalar(), "min": scalar(), "max": scalar(), "step": scalar(), "name": scalar(), "icon": scalar(), "unit_of_measurement": scalar()})
-	counterHelper := mapping(map[string]*rule{"initial": scalar(), "minimum": scalar(), "maximum": scalar(), "step": scalar(), "name": scalar(), "icon": scalar()})
-	return mapping(map[string]*rule{
-		"automation":    sequence(automation),
-		"script":        {kind: KindMapping, dynamic: script},
-		"input_boolean": {kind: KindMapping, dynamic: boolHelper},
-		"input_number":  {kind: KindMapping, dynamic: numberHelper},
-		"counter":       {kind: KindMapping, dynamic: counterHelper},
+	boolHelper := mapping(map[string]*rule{FieldInitial.Key(): scalar(), FieldName.Key(): scalar(), FieldIcon.Key(): scalar()})
+	numberHelper := mapping(map[string]*rule{FieldInitial.Key(): scalar(), FieldMin.Key(): scalar(), FieldMax.Key(): scalar(), FieldStep.Key(): scalar(), FieldName.Key(): scalar(), FieldIcon.Key(): scalar(), FieldUnitOfMeasurement.Key(): scalar()})
+	counterHelper := mapping(map[string]*rule{FieldInitial.Key(): scalar(), FieldMinimum.Key(): scalar(), FieldMaximum.Key(): scalar(), FieldStep.Key(): scalar(), FieldName.Key(): scalar(), FieldIcon.Key(): scalar()})
+	root := mapping(map[string]*rule{
+		FamilyAutomation.Key():   sequence(automation),
+		FamilyScript.Key():       {kind: KindMapping, dynamic: script},
+		FamilyInputBoolean.Key(): {kind: KindMapping, dynamic: boolHelper},
+		FamilyInputNumber.Key():  {kind: KindMapping, dynamic: numberHelper},
+		FamilyCounter.Key():      {kind: KindMapping, dynamic: counterHelper},
 	})
+	if profile == SyntaxProfileDeclarative {
+		root.fields[FamilyInputNumber.Key()].dynamic.fields[FieldMode.Key()] = scalar()
+		group := mapping(map[string]*rule{
+			FieldName.Key(): scalar(), FieldEntities.Key(): sequence(scalar()),
+			FieldAll.Key(): scalar(), FieldIcon.Key(): scalar(),
+		})
+		root.fields[FamilyGroup.Key()] = &rule{kind: KindMapping, dynamic: group}
+	}
+	return root
 }
 
-func validateProfile(root Node) *Diagnostic { return validate(root, profileRule()) }
+func validateProfile(root Node, profile SyntaxProfile) *Diagnostic {
+	return validate(root, profileRule(profile))
+}
 
 func validate(n Node, r *rule) *Diagnostic {
 	if r.open {
