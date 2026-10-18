@@ -1,0 +1,55 @@
+id: '1735448498283'
+alias: IKEA Kitchen Lights Remote
+description: ''
+use_blueprint:
+  path: damru/ikea_E2201-E2213_ZHA-Z2M_control-anything.yaml
+  input:
+    remote_device: d62b707af38cb402d504ae8696d0f0f5
+    on_press_action:
+    - action: light.turn_on
+      metadata: {}
+      data:
+        transition: 1
+        brightness_pct: 50
+      target:
+        entity_id: light.kitchen_lights
+    off_press_action:
+    - action: light.turn_off
+      metadata: {}
+      data:
+        transition: 2
+      target:
+        entity_id: light.kitchen_lights
+    on_hold_action:
+    - action: light.turn_on
+      metadata: {}
+      data:
+        transition: 1
+        brightness_step_pct: 15
+      target:
+        entity_id: light.kitchen_lights
+    off_hold_action:
+    - action: light.turn_on
+      metadata: {}
+      data:
+        brightness_step_pct: -15
+        transition: 1
+      target:
+        entity_id: light.kitchen_lights
+    on_double_press_exposed: true
+    off_double_press_exposed: true
+    on_double_press_action:
+    - action: scene.turn_on
+      metadata: {}
+      data:
+        transition: 2
+      target:
+        entity_id: scene.kitchen_cooking_mode
+    off_double_press_action:
+    - action: scene.turn_on
+      metadata: {}
+      data:
+        transition: 10
+      target:
+        entity_id: scene.night_mode
+category: 01JG7H60SFJ4QGTAPXHMVKCW8M

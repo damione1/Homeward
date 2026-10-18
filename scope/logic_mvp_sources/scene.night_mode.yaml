@@ -1,0 +1,43 @@
+id: '1736046050387'
+name: 'Kitchen: Night Mode'
+entities:
+  light.kitchen_lights:
+    effect_list:
+    - blink
+    - breathe
+    - okay
+    - channel_change
+    - finish_effect
+    - stop_effect
+    supported_color_modes:
+    - brightness
+    effect: null
+    color_mode: brightness
+    brightness: 3
+    icon: mdi:led-strip-variant
+    friendly_name: Kitchen Countertop Lights
+    supported_features: 44
+    state: 'on'
+  light.kitchen_main_lights:
+    supported_color_modes:
+    - brightness
+    icon: mdi:wall-sconce-flat
+    friendly_name: Kitchen Main Lights
+    supported_features: 32
+    color_mode: null
+    brightness: null
+    device_id: '6'
+    zone_id: '4'
+    state: 'off'
+  light.kitchen_sink_light:
+    supported_color_modes:
+    - brightness
+    color_mode: null
+    brightness: null
+    device_id: '13'
+    zone_id: '8'
+    friendly_name: Kitchen Sink Light
+    supported_features: 32
+    state: 'off'
+icon: mdi:weather-night
+metadata: {}

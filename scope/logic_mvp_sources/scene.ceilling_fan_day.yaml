@@ -1,0 +1,17 @@
+id: '1736969435994'
+name: Ceilling Fan Day
+entities:
+  fan.living_room_ceiling_fan:
+    preset_modes: null
+    percentage: 75
+    percentage_step: 25
+    preset_mode: null
+    device_id: '2'
+    zone_id: '1'
+    friendly_name: Living Room Ceiling Fan
+    supported_features: 49
+    state: 'on'
+icon: mdi:ceiling-fan
+metadata:
+  fan.living_room_ceiling_fan:
+    entity_only: true

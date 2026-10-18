@@ -1,0 +1,17 @@
+id: '1735410757955'
+alias: 'Turn on lights at sunset '
+description: ''
+triggers:
+- trigger: sun
+  event: sunset
+  offset: -01:00:00
+conditions: []
+actions:
+- action: switch.turn_on
+  metadata: {}
+  data: {}
+  target:
+    entity_id:
+    - switch.basement_relay
+mode: single
+category: 01JG7H4WWG7445J8NSRA951WF0
