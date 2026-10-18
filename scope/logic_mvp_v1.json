@@ -1,0 +1,503 @@
+{
+  "version": 1,
+  "baseline_logic_sha256": "97d7b24d42330273aa1b60d3f0c8c4864f07f7af9d47ff688eaa1ab7ac73aa33",
+  "manifest_ids_sha256": "4cdcd750642c903a58195e404717042b9c7e2fa045799132f38f73291e069d31",
+  "decision_document": {
+    "file": "MVP serveur - décisions et questions.md",
+    "sha256": "3ed39a08603defe358ca6e2fa299e22a8c4ce27e37298d3052ecb7ea06a1bf04"
+  },
+  "source_documents": [
+    {
+      "file": "Automatisations.md",
+      "sha256": "fffce72af21710694df36c9ea89a74c66cbee17ec666fed4e298d3400868ba17"
+    },
+    {
+      "file": "Scripts et scènes.md",
+      "sha256": "0cef3cb2421f48d9c98e2d98df2764cd049aa2888a73920a7f38a009d40d0871"
+    }
+  ],
+  "retained": [
+    {
+      "entity_id": "automation.heat_the_office_on_work_day",
+      "active": false,
+      "decision_ref": "Q33",
+      "definition": {
+        "path": "scope/logic_mvp_sources/automation.heat_the_office_on_work_day.yaml",
+        "sha256": "c079272a8f64b18898544aa5a44f5ddfcf499f7fd68a1465e35e2018aa15d9cd",
+        "source_document": "Automatisations.md",
+        "source_section": "automation.heat_the_office_on_work_day"
+      }
+    },
+    {
+      "entity_id": "automation.ikea_kitchen_lights_remote",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/automation.ikea_kitchen_lights_remote.yaml",
+        "sha256": "cc6aada5ee9a4ae1060b173efa94ceb865c0853a4821c10c6b521e8f15e2688c",
+        "source_document": "Automatisations.md",
+        "source_section": "automation.ikea_kitchen_lights_remote"
+      }
+    },
+    {
+      "entity_id": "automation.turn_off_basement_climate_the_evening",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/automation.turn_off_basement_climate_the_evening.yaml",
+        "sha256": "65ed417be15a8d273a1e3931909bb8f804a23bcd40fe77e58964193887e37758",
+        "source_document": "Automatisations.md",
+        "source_section": "automation.turn_off_basement_climate_the_evening"
+      }
+    },
+    {
+      "entity_id": "automation.turn_off_heating_in_guest_bedroom_the_day",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/automation.turn_off_heating_in_guest_bedroom_the_day.yaml",
+        "sha256": "d8331d1980a18871594609b7ff135a2c892942a99a2dfe4ab307b1ef62b624c4",
+        "source_document": "Automatisations.md",
+        "source_section": "automation.turn_off_heating_in_guest_bedroom_the_day"
+      }
+    },
+    {
+      "entity_id": "automation.turn_on_lights_at_sunset",
+      "active": false,
+      "decision_ref": "Q34",
+      "definition": {
+        "path": "scope/logic_mvp_sources/automation.turn_on_lights_at_sunset.yaml",
+        "sha256": "407b3caf6cefd3ff14eff74e78f4071b1a9c2436b861f5d2b19c569d79bff606",
+        "source_document": "Automatisations.md",
+        "source_section": "automation.turn_on_lights_at_sunset"
+      }
+    },
+    {
+      "entity_id": "scene.ceilling_fan_day",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.ceilling_fan_day.yaml",
+        "sha256": "394de3e169158b0c68287d4a59b9298e4fc53ec4fb5623d6866e82d77909562b",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.ceilling_fan_day"
+      }
+    },
+    {
+      "entity_id": "scene.ceilling_fan_night",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.ceilling_fan_night.yaml",
+        "sha256": "c40066969b2f4a5d3daa722402d716a19de6d63a18e8344474b9fc9060cfe308",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.ceilling_fan_night"
+      }
+    },
+    {
+      "entity_id": "scene.climate_day_temperature",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.climate_day_temperature.yaml",
+        "sha256": "602502db5ba3fe0bef92e14ad6a7ddbf7119a566e91aa2c0e796ca876a0e6c72",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.climate_day_temperature"
+      }
+    },
+    {
+      "entity_id": "scene.climate_night_temperature",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.climate_night_temperature.yaml",
+        "sha256": "27a1fd308dcbc9deb2d73b6c764b06700151784c38e2b72f582f090273c10816",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.climate_night_temperature"
+      }
+    },
+    {
+      "entity_id": "scene.cosy",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.cosy.yaml",
+        "sha256": "c84b04af8608d831566a7479f87db5634526123ff1bb7c210efdec69fa976459",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.cosy"
+      }
+    },
+    {
+      "entity_id": "scene.kitchen_cooking_mode",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.kitchen_cooking_mode.yaml",
+        "sha256": "5e56f4bf8bdb4fa914d79d32586677ee7c317688acb99da641920cb37c4b20a3",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.kitchen_cooking_mode"
+      }
+    },
+    {
+      "entity_id": "scene.kitchen_cosy_mode",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.kitchen_cosy_mode.yaml",
+        "sha256": "a67cf5c19877082eba7a74266d692709042b8c63d694c027dc5067a3ee220232",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.kitchen_cosy_mode"
+      }
+    },
+    {
+      "entity_id": "scene.living_room_daylight",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.living_room_daylight.yaml",
+        "sha256": "134d5608e0eb10e51503d320680847f3bddffc6b64b9e1dd47f9f609b867e898",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.living_room_daylight"
+      }
+    },
+    {
+      "entity_id": "scene.living_room_in_between",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.living_room_in_between.yaml",
+        "sha256": "9d629122b085d5dead3c4455088774baea845ce0e88c79ce16cb53dedffce613",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.living_room_in_between"
+      }
+    },
+    {
+      "entity_id": "scene.night_mode",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.night_mode.yaml",
+        "sha256": "0fa60e99361bb915acff574338789a87f073dc7fbb69adb8a8b6801be31fcda0",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.night_mode"
+      }
+    },
+    {
+      "entity_id": "scene.turn_off_living_room",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.turn_off_living_room.yaml",
+        "sha256": "922901fcbc22b9e6c203fab7acbe9d37971fc25f16d6d6ae4f09114797641e66",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.turn_off_living_room"
+      }
+    },
+    {
+      "entity_id": "scene.turn_off_main_floor",
+      "active": false,
+      "decision_ref": "Q32",
+      "definition": {
+        "path": "scope/logic_mvp_sources/scene.turn_off_main_floor.yaml",
+        "sha256": "8e97513f886bbe0d9eac9f91cbb680d339cbf86ba88b3b9f7e081951c86ba915",
+        "source_document": "Scripts et scènes.md",
+        "source_section": "scene.turn_off_main_floor"
+      }
+    }
+  ],
+  "deferred": [
+    {
+      "entity_id": "automation.arrosage_germination_gazon",
+      "active": false
+    },
+    {
+      "entity_id": "automation.automatic_morning_routine",
+      "active": false
+    },
+    {
+      "entity_id": "automation.backyard_light_on_person_detected",
+      "active": false
+    },
+    {
+      "entity_id": "automation.basement_lights_link",
+      "active": false
+    },
+    {
+      "entity_id": "automation.colis_detecte_notification",
+      "active": false
+    },
+    {
+      "entity_id": "automation.cosy_mode_when_plex_start",
+      "active": false
+    },
+    {
+      "entity_id": "automation.defi_hilo_prechauffage",
+      "active": false
+    },
+    {
+      "entity_id": "automation.desk_switch",
+      "active": false
+    },
+    {
+      "entity_id": "automation.doorbell_shield_tv_notification",
+      "active": false
+    },
+    {
+      "entity_id": "automation.fin_cycle_germination_gazon",
+      "active": false
+    },
+    {
+      "entity_id": "automation.garage_door_shield_tv_notification_oubli",
+      "active": false
+    },
+    {
+      "entity_id": "automation.garage_door_shield_tv_notification_ouverture",
+      "active": false
+    },
+    {
+      "entity_id": "automation.good_morning_work_day",
+      "active": false
+    },
+    {
+      "entity_id": "automation.guest_bedroom_remote",
+      "active": false
+    },
+    {
+      "entity_id": "automation.irina_turn_on_guest_mode_2",
+      "active": false
+    },
+    {
+      "entity_id": "automation.kiosk_day_mode",
+      "active": false
+    },
+    {
+      "entity_id": "automation.kitchen_sonos_remote",
+      "active": false
+    },
+    {
+      "entity_id": "automation.lights_christmas_turn_off_the_evening",
+      "active": false
+    },
+    {
+      "entity_id": "automation.lock_the_garage_door",
+      "active": false
+    },
+    {
+      "entity_id": "automation.morning_routine",
+      "active": false
+    },
+    {
+      "entity_id": "automation.occupancy_bathroom_1",
+      "active": false
+    },
+    {
+      "entity_id": "automation.porch_light_on_person_detected",
+      "active": false
+    },
+    {
+      "entity_id": "automation.poubelle_tracker_presence_journaliere",
+      "active": false
+    },
+    {
+      "entity_id": "automation.poubelles_shield_tv_notification_dimanche",
+      "active": false
+    },
+    {
+      "entity_id": "automation.rappel_poubelles_22h",
+      "active": false
+    },
+    {
+      "entity_id": "automation.rappel_rentrer_poubelle_lundi_soir",
+      "active": false
+    },
+    {
+      "entity_id": "automation.refresh_calendar",
+      "active": false
+    },
+    {
+      "entity_id": "automation.reset_the_house_new_day",
+      "active": false
+    },
+    {
+      "entity_id": "automation.side_entrance_light_on_person_detected",
+      "active": false
+    },
+    {
+      "entity_id": "automation.sonos_bathroom_remote",
+      "active": false
+    },
+    {
+      "entity_id": "automation.start_sprinklers",
+      "active": false
+    },
+    {
+      "entity_id": "automation.stop_gazebo_music_the_evening",
+      "active": false
+    },
+    {
+      "entity_id": "automation.stop_kitchen_music_the_evening",
+      "active": false
+    },
+    {
+      "entity_id": "automation.stop_kitchen_music_the_evening_3",
+      "active": false
+    },
+    {
+      "entity_id": "automation.tablette_kiosk_restart_nocturne_de_fully",
+      "active": false
+    },
+    {
+      "entity_id": "automation.trash_out_reminder",
+      "active": false
+    },
+    {
+      "entity_id": "automation.turn_off_entrance_lights_at_23h",
+      "active": false
+    },
+    {
+      "entity_id": "automation.turn_off_guest_bedroom_heating",
+      "active": false
+    },
+    {
+      "entity_id": "automation.turn_off_hvac",
+      "active": false
+    },
+    {
+      "entity_id": "automation.turn_on_entrance_lights_the_evenig",
+      "active": false
+    },
+    {
+      "entity_id": "automation.turn_on_heating_in_guest_bedroom_the_evening",
+      "active": false
+    },
+    {
+      "entity_id": "automation.turn_on_hvac",
+      "active": false
+    },
+    {
+      "entity_id": "automation.unlock_garage_the_morning",
+      "active": false
+    },
+    {
+      "entity_id": "automation.washing_machine_cycle_detection",
+      "active": false
+    },
+    {
+      "entity_id": "automation.water_leak_notification_2",
+      "active": false
+    },
+    {
+      "entity_id": "scene.basement_work_mode",
+      "active": false
+    },
+    {
+      "entity_id": "scene.kiosk_day",
+      "active": false
+    },
+    {
+      "entity_id": "scene.kiosk_night",
+      "active": false
+    },
+    {
+      "entity_id": "scene.turn_off_all_lights",
+      "active": false
+    },
+    {
+      "entity_id": "scene.turn_off_basement",
+      "active": false
+    },
+    {
+      "entity_id": "script.baby_monitor_toggle",
+      "active": false
+    },
+    {
+      "entity_id": "script.dashcast_overview",
+      "active": false
+    },
+    {
+      "entity_id": "script.dodo",
+      "active": false
+    },
+    {
+      "entity_id": "script.gazon_nouveau_semis",
+      "active": false
+    },
+    {
+      "entity_id": "script.gazon_terminer_germination",
+      "active": false
+    },
+    {
+      "entity_id": "script.kiosk_day_mode",
+      "active": false
+    },
+    {
+      "entity_id": "script.kiosk_night_mode",
+      "active": false
+    },
+    {
+      "entity_id": "script.morning_routine_weekend",
+      "active": false
+    },
+    {
+      "entity_id": "script.morning_routine_work_day",
+      "active": false
+    },
+    {
+      "entity_id": "script.pause_radon",
+      "active": false
+    },
+    {
+      "entity_id": "script.quickbars_baby_monitor_camera_pip",
+      "active": false
+    },
+    {
+      "entity_id": "script.quickbars_colis_detecte",
+      "active": false
+    },
+    {
+      "entity_id": "script.quickbars_doorbell_notification",
+      "active": false
+    },
+    {
+      "entity_id": "script.quickbars_porte_garage_ouverte_duplicate",
+      "active": false
+    },
+    {
+      "entity_id": "script.quickbars_porte_garage_ouverte_oubli",
+      "active": false
+    },
+    {
+      "entity_id": "script.quickbars_poubelles",
+      "active": false
+    },
+    {
+      "entity_id": "script.quickbars_washing_machine_done",
+      "active": false
+    },
+    {
+      "entity_id": "script.quickbars_water_leak",
+      "active": false
+    },
+    {
+      "entity_id": "script.run_40s_junction_on_kitchen",
+      "active": false
+    },
+    {
+      "entity_id": "script.run_classical_for_sleep_on_kitchen",
+      "active": false
+    },
+    {
+      "entity_id": "script.run_lo_fi_coffee_on_kitchen",
+      "active": false
+    },
+    {
+      "entity_id": "script.run_symfony_hall_on_kitchen",
+      "active": false
+    }
+  ],
+  "deferred_decision_ref": "Q37",
+  "lot_document": {
+    "file": "MVP serveur - premier lot de logique proposé.md",
+    "sha256": "9dd896d79ca883298a7484aa9e4617d6232351e71f477e8ecee19ca1685a41b7"
+  }
+}

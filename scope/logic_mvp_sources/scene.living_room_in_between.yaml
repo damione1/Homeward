@@ -1,0 +1,105 @@
+id: '1736717084543'
+name: 'Living room: Evening'
+entities:
+  light.living_room_stairs:
+    supported_color_modes:
+    - brightness
+    color_mode: brightness
+    brightness: 76
+    device_id: '5'
+    zone_id: '3'
+    icon: mdi:wall-sconce
+    friendly_name: Living Room Stairs
+    supported_features: 32
+    state: 'on'
+  light.living_room_lights:
+    supported_color_modes:
+    - brightness
+    color_mode: brightness
+    brightness: 89
+    device_id: '4'
+    zone_id: '2'
+    icon: mdi:wall-sconce
+    friendly_name: Living room lights
+    supported_features: 32
+    state: 'on'
+  switch.design_lamp_relay:
+    icon: mdi:floor-lamp
+    friendly_name: DESIGN-LAMP-RELAY
+    state: 'on'
+  light.table_lamp:
+    min_color_temp_kelvin: 2202
+    max_color_temp_kelvin: 4000
+    min_mireds: 250
+    max_mireds: 454
+    effect_list:
+    - blink
+    - breathe
+    - okay
+    - channel_change
+    - finish_effect
+    - stop_effect
+    supported_color_modes:
+    - color_temp
+    effect: null
+    color_mode: color_temp
+    brightness: 76
+    color_temp_kelvin: 2610
+    color_temp: 383
+    hs_color:
+    - 28.6
+    - 68.678
+    rgb_color:
+    - 255
+    - 163
+    - 80
+    xy_color:
+    - 0.535
+    - 0.388
+    friendly_name: Table lamp
+    supported_features: 44
+    state: 'on'
+  light.library_lamp:
+    min_color_temp_kelvin: 2202
+    max_color_temp_kelvin: 4000
+    min_mireds: 250
+    max_mireds: 454
+    effect_list:
+    - blink
+    - breathe
+    - okay
+    - channel_change
+    - finish_effect
+    - stop_effect
+    supported_color_modes:
+    - color_temp
+    effect: null
+    color_mode: color_temp
+    brightness: 153
+    color_temp_kelvin: 2801
+    color_temp: 357
+    hs_color:
+    - 28.185
+    - 62.588
+    rgb_color:
+    - 255
+    - 170
+    - 95
+    xy_color:
+    - 0.516
+    - 0.386
+    friendly_name: Library lamp
+    supported_features: 44
+    state: 'on'
+icon: mdi:clouds
+metadata:
+  light.living_room_stairs:
+    entity_only: true
+  light.living_room_lights:
+    entity_only: true
+  switch.design_lamp_relay:
+    entity_only: true
+  light.table_lamp:
+    entity_only: true
+  light.library_lamp:
+    entity_only: true

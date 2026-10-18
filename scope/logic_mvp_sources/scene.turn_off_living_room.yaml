@@ -1,0 +1,91 @@
+id: '1736639527532'
+name: Turn off living room
+entities:
+  light.living_room_lights:
+    supported_color_modes:
+    - brightness
+    color_mode: null
+    brightness: null
+    device_id: '4'
+    zone_id: '2'
+    icon: mdi:wall-sconce
+    friendly_name: Living room lights
+    supported_features: 32
+    state: 'off'
+  light.living_room_stairs:
+    supported_color_modes:
+    - brightness
+    color_mode: null
+    brightness: null
+    device_id: '5'
+    zone_id: '3'
+    icon: mdi:wall-sconce
+    friendly_name: Living Room Stairs
+    supported_features: 32
+    state: 'off'
+  switch.design_lamp_relay:
+    icon: mdi:floor-lamp
+    friendly_name: DESIGN-LAMP-RELAY
+    state: 'off'
+  light.library_lamp:
+    min_color_temp_kelvin: 2202
+    max_color_temp_kelvin: 4000
+    min_mireds: 250
+    max_mireds: 454
+    effect_list:
+    - blink
+    - breathe
+    - okay
+    - channel_change
+    - finish_effect
+    - stop_effect
+    supported_color_modes:
+    - color_temp
+    effect: null
+    color_mode: null
+    brightness: null
+    color_temp_kelvin: null
+    color_temp: null
+    hs_color: null
+    rgb_color: null
+    xy_color: null
+    friendly_name: Library lamp
+    supported_features: 44
+    state: 'off'
+  light.table_lamp:
+    min_color_temp_kelvin: 2202
+    max_color_temp_kelvin: 4000
+    min_mireds: 250
+    max_mireds: 454
+    effect_list:
+    - blink
+    - breathe
+    - okay
+    - channel_change
+    - finish_effect
+    - stop_effect
+    supported_color_modes:
+    - color_temp
+    effect: null
+    color_mode: null
+    brightness: null
+    color_temp_kelvin: null
+    color_temp: null
+    hs_color: null
+    rgb_color: null
+    xy_color: null
+    friendly_name: Table lamp
+    supported_features: 44
+    state: 'off'
+icon: mdi:lightbulb-off
+metadata:
+  light.living_room_lights:
+    entity_only: true
+  light.living_room_stairs:
+    entity_only: true
+  switch.design_lamp_relay:
+    entity_only: true
+  light.library_lamp:
+    entity_only: true
+  light.table_lamp:
+    entity_only: true

@@ -1,0 +1,84 @@
+id: '1736776648904'
+name: Climate day temperature
+entities:
+  climate.home:
+    hvac_modes:
+    - 'off'
+    - heat
+    - cool
+    - heat_cool
+    min_temp: 7.2
+    max_temp: 29.8
+    min_humidity: 20
+    max_humidity: 50
+    fan_modes:
+    - 'on'
+    - auto
+    current_temperature: 20.9
+    temperature: 20
+    target_temp_high: null
+    target_temp_low: null
+    current_humidity: 43
+    humidity: 40
+    fan_mode: auto
+    hvac_action: idle
+    friendly_name: Home
+    supported_features: 399
+    state: heat
+  climate.neviweb130_climate_living_room:
+    hvac_modes:
+    - heat
+    - 'off'
+    min_temp: 5
+    max_temp: 30
+    preset_modes:
+    - away
+    - none
+    current_temperature: 19.9
+    temperature: 20
+    hvac_action: heating
+    preset_mode: none
+    wattage: 2000
+    cycle_length: 15
+    error_code: null
+    heat_level: 100
+    pi_heating_demand: 100
+    temp_display_value: 20
+    second_display: default
+    keypad: Unlocked
+    backlight: always
+    time_format: 24h
+    temperature_format: celsius
+    setpoint_max: 30
+    setpoint_min: 5
+    eco_status: 'off'
+    eco_optOut: 'off'
+    eco_setpoint: 'off'
+    eco_power_relative: 'off'
+    eco_power_absolute: 'off'
+    eco_setpoint_status: 'off'
+    eco_setpoint_delta: 0
+    hourly_kwh_count: 7885.252
+    daily_kwh_count: 7877.127
+    monthly_kwh_count: 7630.257
+    hourly_kwh: 1.702
+    daily_kwh: 9.827
+    monthly_kwh: 256.697
+    rssi: -63
+    sku: TH1123ZB
+    device_model: '1123'
+    device_model_cfg: 0
+    firmware: 0.6.9
+    activation: true
+    id: '201436'
+    unit_of_measurement: °C
+    device_class: temperature
+    friendly_name: Living Room Heater
+    supported_features: 401
+    state: heat
+icon: mdi:home-thermometer-outline
+metadata:
+  climate.home:
+    entity_only: true
+  climate.neviweb130_climate_living_room:
+    entity_only: true
