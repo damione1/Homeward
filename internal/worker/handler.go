@@ -106,6 +106,11 @@ func (p *pilot) Handshake(_ context.Context, r *connect.Request[wire.HandshakeRe
 	if len(granted) == 0 {
 		return nil, rpcInvalid()
 	}
+	for _, binding := range p.config.bindings {
+		if binding.lightProfile == configuredLightProfileCasetaHA100V1 && msg.HostMinor != 3 {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
+		}
+	}
 	response := &wire.HandshakeResponse{HostMajor: hostMajor, HostMinor: msg.HostMinor,
 		DriverMajor: driverMajor, DriverMinor: msg.DriverMinor, SchemaSha256: digest, MaxFrameBytes: limit,
 		Capabilities: granted, HeartbeatSeconds: uint32(heartbeatInterval / time.Second),
@@ -152,6 +157,19 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 		candidate, err := integrations.NewCandidate(key, input.Descriptions)
 		if err != nil {
 			return nil, rpcInvalid()
+		}
+		for _, configured := range p.config.bindings {
+			if configured.key != key || configured.lightProfile != configuredLightProfileCasetaHA100V1 {
+				continue
+			}
+			if p.hostMinor != 3 {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
+			}
+			candidate, err = candidate.WithCasetaHA100V1(configured.alias)
+			if err != nil {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
+			}
+			break
 		}
 		if p.hostMinor == 0 {
 			for _, description := range input.Descriptions {

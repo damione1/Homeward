@@ -18,6 +18,7 @@ var ErrCapacity = errors.New("worker: session capacity exhausted")
 var ErrWorkerExit = errors.New("worker: process exited")
 var ErrHeartbeat = errors.New("worker: heartbeat lease expired")
 var ErrCommandFailed = errors.New("worker: command failed")
+var ErrCasetaHAProfileUnavailable = errors.New("worker: configured Caseta HA light profile requires Host 1.3 and its qualified light descriptor")
 var ErrJoinTimeout = errors.New("worker: process join timed out")
 
 type Config struct {
@@ -31,9 +32,19 @@ type Config struct {
 // ConfiguredBinding is an operator-supplied source-to-manifest mapping. The
 // registry remains the sole identity authority and persists it idempotently.
 type ConfiguredBinding struct {
-	key   integrations.SourceKey
-	alias domain.HAAlias
+	key          integrations.SourceKey
+	alias        domain.HAAlias
+	lightProfile configuredLightProfile
 }
+
+// Only profiles explicitly configured for a binding may cross the worker/Host
+// boundary. The executable path and arguments are not profile evidence.
+type configuredLightProfile uint8
+
+const (
+	configuredLightProfileNone configuredLightProfile = iota
+	configuredLightProfileCasetaHA100V1
+)
 
 func NewConfiguredBinding(device, entity, alias string) (ConfiguredBinding, error) {
 	key, err := integrations.NewSourceKey(device, entity)
@@ -52,10 +63,25 @@ func (b ConfiguredBinding) Components() (integrations.SourceKey, string, error) 
 		return integrations.SourceKey{}, "", ErrInvalidConfig
 	}
 	alias, err := b.alias.Value()
-	if err != nil {
+	if err != nil || b.lightProfile > configuredLightProfileCasetaHA100V1 {
 		return integrations.SourceKey{}, "", ErrInvalidConfig
 	}
 	return b.key, alias, nil
+}
+
+// WithCasetaHA100V1 opts this exact SourceKey and alias into the pinned HA
+// Caseta percentage projection. Host 1.3 is checked after worker handshake.
+func (b ConfiguredBinding) WithCasetaHA100V1() (ConfiguredBinding, error) {
+	_, alias, err := b.Components()
+	if err != nil || b.lightProfile != configuredLightProfileNone || !strings.HasPrefix(alias, "light.") {
+		return ConfiguredBinding{}, ErrInvalidConfig
+	}
+	b.lightProfile = configuredLightProfileCasetaHA100V1
+	return b, nil
+}
+
+func (b ConfiguredBinding) CasetaHA100V1() bool {
+	return b.lightProfile == configuredLightProfileCasetaHA100V1
 }
 
 func (c Config) WithBindings(bindings []ConfiguredBinding) (Config, error) {

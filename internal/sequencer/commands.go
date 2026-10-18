@@ -98,6 +98,29 @@ func (s *Sequencer) AdmitCommandRoute(route integrations.CommandRoute) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.admitCommandRouteLocked(route)
+}
+
+// CaptureLightRoute applies the same route checks as command admission and
+// copies the observed state under their sequencer lock. The caller holds the
+// existing generation, Host and catalogue fences around this call.
+func (s *Sequencer) CaptureLightRoute(route integrations.CommandRoute) (domain.ObservedState, bool, error) {
+	if s == nil || s.journal == nil || route.Description == nil {
+		return domain.ObservedState{}, false, integrations.ErrCommandRouteUnavailable
+	}
+	if _, err := route.Entity.Value(); err != nil {
+		return domain.ObservedState{}, false, integrations.ErrCommandRouteUnavailable
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.admitCommandRouteLocked(route); err != nil {
+		return domain.ObservedState{}, false, err
+	}
+	state, exists := s.states[route.Entity]
+	return state, exists, nil
+}
+
+func (s *Sequencer) admitCommandRouteLocked(route integrations.CommandRoute) error {
 	if s.registryState != registryReady || route.Epoch == "" {
 		return integrations.ErrCommandRouteUnavailable
 	}
