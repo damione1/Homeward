@@ -1,0 +1,28 @@
+{
+  "counter": {
+    "nha_fixture": {
+      "initial": 0
+    }
+  },
+  "automation": [
+    {
+      "id": "nha_synthetic",
+      "triggers": [
+        {
+          "trigger": "mqtt",
+          "topic": "nha-fixture/button",
+          "payload": "press"
+        }
+      ],
+      "actions": [
+        {
+          "action": "counter.increment",
+          "target": {
+            "entity_id": "counter.nha_fixture"
+          }
+        }
+      ],
+      "mode": "queued"
+    }
+  ]
+}

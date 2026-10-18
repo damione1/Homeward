@@ -1,0 +1,58 @@
+{
+  "id": "02-queued",
+  "kind": "runs",
+  "synthetic": true,
+  "ha_reference_executed": false,
+  "inputs": {
+    "triggers": [
+      {
+        "at": 0,
+        "run": "a"
+      },
+      {
+        "at": 1,
+        "run": "b"
+      },
+      {
+        "at": 2,
+        "run": "c"
+      }
+    ],
+    "until": 11
+  },
+  "expected": [
+    {
+      "at": 0,
+      "event": "start",
+      "run": "a"
+    },
+    {
+      "at": 1,
+      "event": "enqueue",
+      "run": "b"
+    },
+    {
+      "at": 2,
+      "event": "reject_full",
+      "run": "c"
+    },
+    {
+      "at": 5,
+      "event": "action",
+      "run": "a"
+    },
+    {
+      "at": 5,
+      "event": "start",
+      "run": "b"
+    },
+    {
+      "at": 10,
+      "event": "action",
+      "run": "b"
+    }
+  ],
+  "observed_sources": [
+    "Automatisations.md#automation.guest_bedroom_remote"
+  ]
+}

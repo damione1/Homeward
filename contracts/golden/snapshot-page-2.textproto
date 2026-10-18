@@ -1,0 +1,1 @@
+page { snapshot_token: "snapshot-a" cursor { epoch: "epoch-a" global_sequence: 100 config_revision: 9007199254740993 authorization_revision: 4 filter_sha256: "synthetic-filter-a" } states { entity { entity_id: "synthetic-two" } switch_on: false } expires_at { seconds: 1790000060 } }

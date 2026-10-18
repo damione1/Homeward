@@ -1,0 +1,1 @@
+command_id: "synthetic-extension" admission_epoch: "epoch-a" config_revision: 9007199254740993 target { ha_alias: "switch.nha_fixture" } capability_schema_id: "vendor.synthetic.v1" arguments { extension { schema_id: "vendor.synthetic.v1" major: 1 descriptor_sha256: "synthetic" protobuf_payload: "\010\001" } }

@@ -1,0 +1,17 @@
+{
+  "id": "10-template-default",
+  "kind": "default",
+  "synthetic": true,
+  "ha_reference_executed": false,
+  "inputs": {
+    "state": "unknown"
+  },
+  "expected": {
+    "value": 0,
+    "migration_quality": "unknown/stale remains a separate business decision"
+  },
+  "observed_sources": [
+    "Configuration YAML.md#configuration.yaml",
+    "Architecture/Compatibilité Home Assistant.md#Dépendances retirées et fonctions bloquées"
+  ]
+}

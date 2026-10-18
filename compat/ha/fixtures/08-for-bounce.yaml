@@ -1,0 +1,32 @@
+{
+  "input_boolean": {
+    "nha_fixture": {
+      "initial": false
+    },
+    "nha_source": {
+      "initial": false
+    }
+  },
+  "automation": [
+    {
+      "id": "nha_synthetic",
+      "triggers": [
+        {
+          "trigger": "state",
+          "entity_id": "input_boolean.nha_source",
+          "to": "on",
+          "for": 5
+        }
+      ],
+      "actions": [
+        {
+          "action": "input_boolean.turn_on",
+          "target": {
+            "entity_id": "input_boolean.nha_fixture"
+          }
+        }
+      ],
+      "mode": "single"
+    }
+  ]
+}

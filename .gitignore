@@ -1,0 +1,5 @@
+/target/
+/.tools/
+/homed
+*.local.yaml
+__pycache__/

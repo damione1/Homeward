@@ -1,0 +1,3 @@
+[workspace]
+members = ["client/model", "client/wire"]
+resolver = "2"

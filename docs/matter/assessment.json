@@ -1,0 +1,17 @@
+{
+  "as_of": "2026-10-17",
+  "apple_tv_variant": "unknown",
+  "observed_nodes": 0,
+  "ipv6_mdns_proven": false,
+  "server_image_digest": null,
+  "commissioning_proven": false,
+  "expected": {
+    "tbr_qualified": false,
+    "available_nodes": 0,
+    "matter_ready": false
+  },
+  "thread_route_proven": false,
+  "fabric_ownership_proven": false,
+  "end_to_end_proven": false,
+  "recovery_proven": false
+}

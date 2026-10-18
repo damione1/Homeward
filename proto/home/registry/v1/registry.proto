@@ -1,0 +1,25 @@
+syntax = "proto3";
+package home.registry.v1;
+
+option go_package = "github.com/damione1/new-home-assistant/gen/home/registry/v1;registryv1";
+message EntityId {
+  string value = 1;
+}
+message EntityRef {
+  reserved 3;
+  reserved "legacy_name";
+  oneof reference {
+    string entity_id = 1;
+    string ha_alias = 2;
+  }
+}
+
+// Description is renderable even when the local codec is unknown. No executable code.
+message CapabilityDescription {
+  string schema_id = 1;
+  uint32 major = 2;
+  string display_name = 3;
+  string endpoint = 4;
+  bytes descriptor_set = 5;
+  bytes descriptor_sha256 = 6;
+}

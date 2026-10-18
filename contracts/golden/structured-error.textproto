@@ -1,0 +1,1 @@
+code: ERROR_CODE_STALE_CONFIGURATION field_path: "config_revision" message: "configuration changed" detail { reason: "refresh_snapshot" current_revision: 9007199254740994 }

@@ -1,0 +1,539 @@
+{
+  "version": 1,
+  "objects": [
+    {
+      "entity_id": "automation.arrosage_germination_gazon",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.automatic_morning_routine",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.backyard_light_on_person_detected",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.basement_lights_link",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.colis_detecte_notification",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.cosy_mode_when_plex_start",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.defi_hilo_prechauffage",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.desk_switch",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.doorbell_shield_tv_notification",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.fin_cycle_germination_gazon",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.garage_door_shield_tv_notification_oubli",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.garage_door_shield_tv_notification_ouverture",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.good_morning_work_day",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.guest_bedroom_remote",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.heat_the_office_on_work_day",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.ikea_kitchen_lights_remote",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.irina_turn_on_guest_mode_2",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.kiosk_day_mode",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.kitchen_sonos_remote",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.lights_christmas_turn_off_the_evening",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.lock_the_garage_door",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.morning_routine",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.occupancy_bathroom_1",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.porch_light_on_person_detected",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.poubelle_tracker_presence_journaliere",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.poubelles_shield_tv_notification_dimanche",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.rappel_poubelles_22h",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.rappel_rentrer_poubelle_lundi_soir",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.refresh_calendar",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.reset_the_house_new_day",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.side_entrance_light_on_person_detected",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.sonos_bathroom_remote",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.start_sprinklers",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.stop_gazebo_music_the_evening",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.stop_kitchen_music_the_evening",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.stop_kitchen_music_the_evening_3",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.tablette_kiosk_restart_nocturne_de_fully",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.trash_out_reminder",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.turn_off_basement_climate_the_evening",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.turn_off_entrance_lights_at_23h",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.turn_off_guest_bedroom_heating",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.turn_off_heating_in_guest_bedroom_the_day",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.turn_off_hvac",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.turn_on_entrance_lights_the_evenig",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.turn_on_heating_in_guest_bedroom_the_evening",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.turn_on_hvac",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.turn_on_lights_at_sunset",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.unlock_garage_the_morning",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.washing_machine_cycle_detection",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "automation.water_leak_notification_2",
+      "source": "automation",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.basement_work_mode",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.ceilling_fan_day",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.ceilling_fan_night",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.climate_day_temperature",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.climate_night_temperature",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.cosy",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.kiosk_day",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.kiosk_night",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.kitchen_cooking_mode",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.kitchen_cosy_mode",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.living_room_daylight",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.living_room_in_between",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.night_mode",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.turn_off_all_lights",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.turn_off_basement",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.turn_off_living_room",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "scene.turn_off_main_floor",
+      "source": "homeassistant",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.baby_monitor_toggle",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.dashcast_overview",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.dodo",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.gazon_nouveau_semis",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.gazon_terminer_germination",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.kiosk_day_mode",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.kiosk_night_mode",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.morning_routine_weekend",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.morning_routine_work_day",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.pause_radon",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.quickbars_baby_monitor_camera_pip",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.quickbars_colis_detecte",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.quickbars_doorbell_notification",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.quickbars_porte_garage_ouverte_duplicate",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.quickbars_porte_garage_ouverte_oubli",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.quickbars_poubelles",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.quickbars_washing_machine_done",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.quickbars_water_leak",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.run_40s_junction_on_kitchen",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.run_classical_for_sleep_on_kitchen",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.run_lo_fi_coffee_on_kitchen",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    },
+    {
+      "entity_id": "script.run_symfony_hall_on_kitchen",
+      "source": "script",
+      "active": false,
+      "decision": "pending"
+    }
+  ]
+}

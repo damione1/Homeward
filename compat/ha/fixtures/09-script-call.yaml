@@ -1,0 +1,45 @@
+{
+  "input_boolean": {
+    "nha_fixture": {
+      "initial": false
+    }
+  },
+  "script": {
+    "nha_child": {
+      "sequence": [
+        {
+          "delay": 5
+        },
+        {
+          "action": "input_boolean.turn_on",
+          "target": {
+            "entity_id": "input_boolean.nha_fixture"
+          }
+        }
+      ]
+    },
+    "nha_direct": {
+      "sequence": [
+        {
+          "action": "script.nha_child"
+        },
+        {
+          "event": "nha_after"
+        }
+      ]
+    },
+    "nha_detached": {
+      "sequence": [
+        {
+          "action": "script.turn_on",
+          "target": {
+            "entity_id": "script.nha_child"
+          }
+        },
+        {
+          "event": "nha_after"
+        }
+      ]
+    }
+  }
+}

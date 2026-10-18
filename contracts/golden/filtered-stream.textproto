@@ -1,0 +1,1 @@
+stream_sequence: 1 cursor { epoch: "epoch-a" global_sequence: 108 config_revision: 9007199254740993 authorization_revision: 4 filter_sha256: "synthetic-filter-a" } delta { states { entity { entity_id: "synthetic-one" } switch_on: false revision: 9 } }
