@@ -685,6 +685,167 @@ impl ::buffa::ExtensionSet for Measurement {
     }
 }
 #[derive(Clone, PartialEq, Default)]
+pub struct LightValue {
+    /// Field 1: `on`
+    pub on: ::core::option::Option<bool>,
+    /// Field 2: `brightness_percent`
+    pub brightness_percent: ::core::option::Option<f64>,
+    /// Field 3: `color_temp_mireds`
+    pub color_temp_mireds: ::core::option::Option<u32>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for LightValue {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("LightValue")
+            .field("on", &self.on)
+            .field("brightness_percent", &self.brightness_percent)
+            .field("color_temp_mireds", &self.color_temp_mireds)
+            .finish()
+    }
+}
+impl LightValue {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.LightValue";
+}
+impl LightValue {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::on`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_on(mut self, value: bool) -> Self {
+        self.on = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::brightness_percent`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_brightness_percent(mut self, value: f64) -> Self {
+        self.brightness_percent = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::color_temp_mireds`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_color_temp_mireds(mut self, value: u32) -> Self {
+        self.color_temp_mireds = Some(value);
+        self
+    }
+}
+::buffa::impl_default_instance!(LightValue);
+impl ::buffa::MessageName for LightValue {
+    const PACKAGE: &'static str = "home.state.v1";
+    const NAME: &'static str = "LightValue";
+    const FULL_NAME: &'static str = "home.state.v1.LightValue";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.LightValue";
+}
+impl ::buffa::Message for LightValue {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.on.is_some() {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.brightness_percent.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(v) = self.color_temp_mireds {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if let Some(v) = self.on {
+            ::buffa::types::put_bool_field(1u32, v, buf);
+        }
+        if let Some(v) = self.brightness_percent {
+            ::buffa::types::put_double_field(2u32, v, buf);
+        }
+        if let Some(v) = self.color_temp_mireds {
+            ::buffa::types::put_uint32_field(3u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.on = ::core::option::Option::Some(
+                    ::buffa::types::decode_bool(buf)?,
+                );
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.brightness_percent = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.color_temp_mireds = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.on = ::core::option::Option::None;
+        self.brightness_percent = ::core::option::Option::None;
+        self.color_temp_mireds = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for LightValue {
+    const PROTO_FQN: &'static str = "home.state.v1.LightValue";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
 pub struct ObservedState {
     /// Field 1: `entity`
     pub entity: ::buffa::MessageField<
@@ -861,6 +1022,14 @@ impl ::buffa::Message for ObservedState {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::observed_state::Value::Light(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -946,6 +1115,14 @@ impl ::buffa::Message for ObservedState {
                 __buffa::oneof::observed_state::Value::Measurement(x) => {
                     ::buffa::types::put_len_delimited_header(
                         12u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::observed_state::Value::Light(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        13u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -1092,6 +1269,26 @@ impl ::buffa::Message for ObservedState {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.value = ::core::option::Option::Some(
                         __buffa::oneof::observed_state::Value::Measurement(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::observed_state::Value::Light(ref mut existing),
+                ) = self.value
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.value = ::core::option::Option::Some(
+                        __buffa::oneof::observed_state::Value::Light(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -3530,6 +3727,277 @@ pub mod __buffa {
             type ViewHandle = MeasurementOwnedView;
         }
         #[derive(Clone, Debug, Default)]
+        pub struct LightValueView<'a> {
+            /// Field 1: `on`
+            pub on: ::core::option::Option<bool>,
+            /// Field 2: `brightness_percent`
+            pub brightness_percent: ::core::option::Option<f64>,
+            /// Field 3: `color_temp_mireds`
+            pub color_temp_mireds: ::core::option::Option<u32>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for LightValueView<'a> {
+            type Owned = super::super::LightValue;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.on = Some(::buffa::types::decode_bool(&mut cur)?);
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.brightness_percent = Some(
+                            ::buffa::types::decode_double(&mut cur)?,
+                        );
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.color_temp_mireds = Some(
+                            ::buffa::types::decode_uint32(&mut cur)?,
+                        );
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<super::super::LightValue, ::buffa::DecodeError> {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<super::super::LightValue, ::buffa::DecodeError> {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::LightValue {
+                    on: self.on,
+                    brightness_percent: self.brightness_percent,
+                    color_temp_mireds: self.color_temp_mireds,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for LightValueView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.on.is_some() {
+                    size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
+                if self.brightness_percent.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
+                if let Some(v) = self.color_temp_mireds {
+                    size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if let Some(v) = self.on {
+                    ::buffa::types::put_bool_field(1u32, v, buf);
+                }
+                if let Some(v) = self.brightness_percent {
+                    ::buffa::types::put_double_field(2u32, v, buf);
+                }
+                if let Some(v) = self.color_temp_mireds {
+                    ::buffa::types::put_uint32_field(3u32, v, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for LightValueView<'a> {
+            const PACKAGE: &'static str = "home.state.v1";
+            const NAME: &'static str = "LightValue";
+            const FULL_NAME: &'static str = "home.state.v1.LightValue";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.LightValue";
+        }
+        ::buffa::impl_default_view_instance!(LightValueView);
+        ::buffa::impl_view_reborrow!(LightValueView);
+        /** Self-contained, `'static` owned view of a `LightValue` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`LightValueView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`LightValueView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct LightValueOwnedView(::buffa::OwnedView<LightValueView<'static>>);
+        impl LightValueOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    LightValueOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    LightValueOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::LightValue,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    LightValueOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`LightValueView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &LightValueView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::LightValue {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `on`
+            #[must_use]
+            pub fn on(&self) -> ::core::option::Option<bool> {
+                self.0.reborrow().on
+            }
+            /// Field 2: `brightness_percent`
+            #[must_use]
+            pub fn brightness_percent(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().brightness_percent
+            }
+            /// Field 3: `color_temp_mireds`
+            #[must_use]
+            pub fn color_temp_mireds(&self) -> ::core::option::Option<u32> {
+                self.0.reborrow().color_temp_mireds
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<LightValueView<'static>>>
+        for LightValueOwnedView {
+            fn from(inner: ::buffa::OwnedView<LightValueView<'static>>) -> Self {
+                LightValueOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<LightValueOwnedView>
+        for ::buffa::OwnedView<LightValueView<'static>> {
+            fn from(wrapper: LightValueOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<LightValueView<'static>>>
+        for LightValueOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<LightValueView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::LightValue {
+            type View<'a> = LightValueView<'a>;
+            type ViewHandle = LightValueOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
         pub struct ObservedStateView<'a> {
             /// Field 1: `entity`
             pub entity: ::buffa::MessageFieldView<
@@ -3846,6 +4314,37 @@ pub mod __buffa {
                             );
                         }
                     }
+                    13u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::observed_state::Value::Light(
+                                ref mut existing,
+                            ),
+                        ) = view.value
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.value = Some(
+                                super::super::__buffa::view::oneof::observed_state::Value::Light(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::LightValueView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -3963,6 +4462,15 @@ pub mod __buffa {
                                             ),
                                         )
                                     }
+                                    super::super::__buffa::view::oneof::observed_state::Value::Light(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::observed_state::Value::Light(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
                                 },
                             )
                         }
@@ -4069,6 +4577,16 @@ pub mod __buffa {
                                 += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                                     + inner as u64;
                         }
+                        super::super::__buffa::view::oneof::observed_state::Value::Light(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
                     }
                 }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -4159,6 +4677,16 @@ pub mod __buffa {
                         ) => {
                             ::buffa::types::put_len_delimited_header(
                                 12u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::observed_state::Value::Light(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                13u32,
                                 u64::from(__cache.consume_next()),
                                 buf,
                             );
@@ -8196,6 +8724,11 @@ pub mod __buffa {
                             >,
                         >,
                     ),
+                    Light(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::LightValueView<'a>,
+                        >,
+                    ),
                 }
             }
             pub mod watch_view_response {
@@ -8231,6 +8764,7 @@ pub mod __buffa {
                 Measurement(
                     ::buffa::alloc::boxed::Box<super::super::super::Measurement>,
                 ),
+                Light(::buffa::alloc::boxed::Box<super::super::super::LightValue>),
             }
             impl ::buffa::Oneof for Value {}
             impl From<super::super::super::Measurement> for Value {
@@ -8241,6 +8775,17 @@ pub mod __buffa {
             impl From<super::super::super::Measurement>
             for ::core::option::Option<Value> {
                 fn from(v: super::super::super::Measurement) -> Self {
+                    Self::Some(Value::from(v))
+                }
+            }
+            impl From<super::super::super::LightValue> for Value {
+                fn from(v: super::super::super::LightValue) -> Self {
+                    Self::Light(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::LightValue>
+            for ::core::option::Option<Value> {
+                fn from(v: super::super::super::LightValue) -> Self {
                     Self::Some(Value::from(v))
                 }
             }
@@ -8289,6 +8834,10 @@ pub use self::__buffa::view::QualityOwnedView;
 pub use self::__buffa::view::MeasurementView;
 #[doc(inline)]
 pub use self::__buffa::view::MeasurementOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LightValueView;
+#[doc(inline)]
+pub use self::__buffa::view::LightValueOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ObservedStateView;
 #[doc(inline)]

@@ -25,6 +25,10 @@ type Pilot interface {
 	Stop(context.Context) error
 }
 
+// A supervised pilot may expose its own session-bound command driver. The
+// supervisor attaches that exact instance before starting any pilot work.
+type SupervisedCommandPilot interface{ CommandDriver() CommandDriver }
+
 type Task func(context.Context) error
 
 type Tasks interface{ Go(Task) error }
@@ -390,6 +394,18 @@ func (s *Supervisor) run(run *pilotRun) {
 			s.set(run, PilotDegraded)
 			return
 		}
+		if driver, driverErr := supervisedCommandDriver(pilot); driverErr != nil || driver != nil {
+			if driverErr == nil {
+				driverErr = s.host.AttachCommandDriver(session, driver)
+			}
+			if driverErr != nil {
+				cancel()
+				_ = s.host.RevokeWithHealth(session, HealthDegraded, "command driver attachment failed")
+				s.record(driverErr)
+				s.set(run, PilotDegraded)
+				return
+			}
+		}
 		started := make(chan error, 1)
 		startErr := group.Go(func(ctx context.Context) error {
 			err := pilot.Start(ctx, session, pilotTaskView{group: group})
@@ -510,6 +526,23 @@ func constructPilot(factory PilotFactory) (pilot Pilot, err error) {
 		return nil, ErrPilotFactory
 	}
 	return pilot, nil
+}
+
+func supervisedCommandDriver(pilot Pilot) (driver CommandDriver, err error) {
+	provider, ok := pilot.(SupervisedCommandPilot)
+	if !ok {
+		return nil, nil
+	}
+	defer func() {
+		if recover() != nil {
+			driver, err = nil, ErrPilotFactory
+		}
+	}()
+	driver = provider.CommandDriver()
+	if driver != nil && nilInterface(driver) {
+		return nil, ErrPilotFactory
+	}
+	return driver, nil
 }
 
 func (s *Supervisor) delay(attempt int) time.Duration {

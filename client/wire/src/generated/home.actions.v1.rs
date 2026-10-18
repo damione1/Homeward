@@ -314,6 +314,8 @@ pub struct SetLight {
     pub on: ::core::option::Option<bool>,
     /// Field 2: `brightness_percent`
     pub brightness_percent: ::core::option::Option<f64>,
+    /// Field 3: `color_temp_mireds`
+    pub color_temp_mireds: ::core::option::Option<u32>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -322,6 +324,7 @@ impl ::core::fmt::Debug for SetLight {
         f.debug_struct("SetLight")
             .field("on", &self.on)
             .field("brightness_percent", &self.brightness_percent)
+            .field("color_temp_mireds", &self.color_temp_mireds)
             .finish()
     }
 }
@@ -345,6 +348,13 @@ impl SetLight {
     ///Sets [`Self::brightness_percent`] to `Some(value)`, consuming and returning `self`.
     pub fn with_brightness_percent(mut self, value: f64) -> Self {
         self.brightness_percent = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::color_temp_mireds`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_color_temp_mireds(mut self, value: u32) -> Self {
+        self.color_temp_mireds = Some(value);
         self
     }
 }
@@ -374,6 +384,9 @@ impl ::buffa::Message for SetLight {
         if self.brightness_percent.is_some() {
             size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
         }
+        if let Some(v) = self.color_temp_mireds {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -389,6 +402,9 @@ impl ::buffa::Message for SetLight {
         }
         if let Some(v) = self.brightness_percent {
             ::buffa::types::put_double_field(2u32, v, buf);
+        }
+        if let Some(v) = self.color_temp_mireds {
+            ::buffa::types::put_uint32_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -421,6 +437,15 @@ impl ::buffa::Message for SetLight {
                     ::buffa::types::decode_double(buf)?,
                 );
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.color_temp_mireds = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -431,6 +456,7 @@ impl ::buffa::Message for SetLight {
     fn clear(&mut self) {
         self.on = ::core::option::Option::None;
         self.brightness_percent = ::core::option::Option::None;
+        self.color_temp_mireds = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2152,6 +2178,8 @@ pub mod __buffa {
             pub on: ::core::option::Option<bool>,
             /// Field 2: `brightness_percent`
             pub brightness_percent: ::core::option::Option<f64>,
+            /// Field 3: `color_temp_mireds`
+            pub color_temp_mireds: ::core::option::Option<u32>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SetLightView<'a> {
@@ -2206,6 +2234,15 @@ pub mod __buffa {
                             ::buffa::types::decode_double(&mut cur)?,
                         );
                     }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.color_temp_mireds = Some(
+                            ::buffa::types::decode_uint32(&mut cur)?,
+                        );
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -2231,6 +2268,7 @@ pub mod __buffa {
                 ::core::result::Result::Ok(super::super::SetLight {
                     on: self.on,
                     brightness_percent: self.brightness_percent,
+                    color_temp_mireds: self.color_temp_mireds,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -2251,6 +2289,9 @@ pub mod __buffa {
                 if self.brightness_percent.is_some() {
                     size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
                 }
+                if let Some(v) = self.color_temp_mireds {
+                    size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -2267,6 +2308,9 @@ pub mod __buffa {
                 }
                 if let Some(v) = self.brightness_percent {
                     ::buffa::types::put_double_field(2u32, v, buf);
+                }
+                if let Some(v) = self.color_temp_mireds {
+                    ::buffa::types::put_uint32_field(3u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -2370,6 +2414,11 @@ pub mod __buffa {
             #[must_use]
             pub fn brightness_percent(&self) -> ::core::option::Option<f64> {
                 self.0.reborrow().brightness_percent
+            }
+            /// Field 3: `color_temp_mireds`
+            #[must_use]
+            pub fn color_temp_mireds(&self) -> ::core::option::Option<u32> {
+                self.0.reborrow().color_temp_mireds
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<SetLightView<'static>>>

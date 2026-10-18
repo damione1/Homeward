@@ -74,7 +74,9 @@ func (c AdmittedCommand) ConfirmProtocol(qualifier ProtocolConfirmation) error {
 // replaced owner may no longer issue new acknowledgements or confirmations.
 func (c AdmittedCommand) liveOwner() bool {
 	session := c.host.active[c.binding.instance]
-	return session != nil && session.live() && session.id == c.binding.session && session.bindings[c.entity] == c.binding && c.host.owners[c.entity] == c.binding
+	_, sourceRetiring := c.host.retiringSources[retiringSource{c.binding.instance, c.binding.key}]
+	_, entityRetiring := c.host.retiring[c.entity]
+	return !c.host.retirementExhausted && !sourceRetiring && !entityRetiring && session != nil && session.live() && session.id == c.binding.session && session.bindings[c.entity] == c.binding && c.host.owners[c.entity] == c.binding
 }
 
 func (c AdmittedCommand) Identity() (domain.CommandID, domain.ActorID, domain.EntityID, error) {
@@ -321,7 +323,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		h := r.host
 		h.mu.Lock()
 		defer h.mu.Unlock()
-		if h.admission != admissionOpen {
+		if h.admission != admissionOpen || h.retirementExhausted {
 			return ErrAdmissionsClosed
 		}
 		if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
@@ -330,6 +332,14 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		}
 		binding, exists := h.owners[entity]
 		if !exists {
+			rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
+			return nil
+		}
+		if _, fenced := h.retiringSources[retiringSource{binding.instance, binding.key}]; fenced {
+			rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
+			return nil
+		}
+		if _, fenced := h.retiring[entity]; fenced {
 			rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
 			return nil
 		}

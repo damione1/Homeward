@@ -1298,6 +1298,11 @@ pub struct LightConstraints {
         NumberBounds,
         ::buffa::Inline<NumberBounds>,
     >,
+    /// Field 3: `color_temp_mireds`
+    pub color_temp_mireds: ::buffa::MessageField<
+        NumberBounds,
+        ::buffa::Inline<NumberBounds>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -1306,6 +1311,7 @@ impl ::core::fmt::Debug for LightConstraints {
         f.debug_struct("LightConstraints")
             .field("set_on", &self.set_on)
             .field("brightness_percent", &self.brightness_percent)
+            .field("color_temp_mireds", &self.color_temp_mireds)
             .finish()
     }
 }
@@ -1347,6 +1353,14 @@ impl ::buffa::Message for LightConstraints {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.color_temp_mireds.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.color_temp_mireds.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1367,6 +1381,14 @@ impl ::buffa::Message for LightConstraints {
                 buf,
             );
             self.brightness_percent.write_to(__cache, buf);
+        }
+        if self.color_temp_mireds.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.color_temp_mireds.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1399,6 +1421,17 @@ impl ::buffa::Message for LightConstraints {
                     ctx,
                 )?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.color_temp_mireds.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1409,6 +1442,7 @@ impl ::buffa::Message for LightConstraints {
     fn clear(&mut self) {
         self.set_on = false;
         self.brightness_percent = ::buffa::MessageField::none();
+        self.color_temp_mireds = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4065,6 +4099,10 @@ pub mod __buffa {
             pub brightness_percent: ::buffa::MessageFieldView<
                 super::super::__buffa::view::NumberBoundsView<'a>,
             >,
+            /// Field 3: `color_temp_mireds`
+            pub color_temp_mireds: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'a>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for LightConstraintsView<'a> {
@@ -4135,6 +4173,31 @@ pub mod __buffa {
                             }
                         }
                     }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.color_temp_mireds.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.color_temp_mireds = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NumberBoundsView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -4174,6 +4237,15 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    color_temp_mireds: match self.color_temp_mireds.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NumberBounds,
+                                ::buffa::Inline<super::super::NumberBounds>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -4194,6 +4266,14 @@ pub mod __buffa {
                 if self.brightness_percent.is_set() {
                     let __slot = __cache.reserve();
                     let inner_size = self.brightness_percent.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.color_temp_mireds.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.color_temp_mireds.compute_size(__cache);
                     __cache.set(__slot, inner_size);
                     size
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -4220,6 +4300,14 @@ pub mod __buffa {
                         buf,
                     );
                     self.brightness_percent.write_to(__cache, buf);
+                }
+                if self.color_temp_mireds.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        3u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.color_temp_mireds.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -4329,6 +4417,15 @@ pub mod __buffa {
                 super::super::__buffa::view::NumberBoundsView<'_>,
             > {
                 &self.0.reborrow().brightness_percent
+            }
+            /// Field 3: `color_temp_mireds`
+            #[must_use]
+            pub fn color_temp_mireds(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'_>,
+            > {
+                &self.0.reborrow().color_temp_mireds
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<LightConstraintsView<'static>>>

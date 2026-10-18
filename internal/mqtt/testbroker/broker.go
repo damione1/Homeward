@@ -69,9 +69,9 @@ func Start(t *testing.T) *Broker {
 	}
 	s := mochi.New(&mochi.Options{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	ledger := &auth.Ledger{Users: auth.Users{
-		PilotUser:    {Password: PilotPassword, ACL: auth.Filters{"nha068/state/#": auth.ReadOnly, "nha068/presence/pilot": auth.WriteOnly, "nha068/command/#": auth.WriteOnly}},
-		ProducerUser: {Password: ProducerPassword, ACL: auth.Filters{"nha068/state/#": auth.WriteOnly}},
-		ObserverUser: {Password: ObserverPassword, ACL: auth.Filters{"nha068/presence/#": auth.ReadOnly, "nha068/command/#": auth.ReadOnly}},
+		PilotUser:    {Password: PilotPassword, ACL: auth.Filters{"nha068/state/#": auth.ReadOnly, "nha068/presence/pilot": auth.WriteOnly, "nha068/command/#": auth.WriteOnly, "homeassistant/#": auth.ReadOnly, "zigbee2mqtt/#": auth.ReadWrite}},
+		ProducerUser: {Password: ProducerPassword, ACL: auth.Filters{"nha068/state/#": auth.WriteOnly, "homeassistant/#": auth.WriteOnly, "zigbee2mqtt/#": auth.WriteOnly}},
+		ObserverUser: {Password: ObserverPassword, ACL: auth.Filters{"nha068/presence/#": auth.ReadOnly, "nha068/command/#": auth.ReadOnly, "zigbee2mqtt/#": auth.ReadOnly}},
 	}, ACL: auth.ACLRules{{Filters: auth.Filters{"#": auth.Deny}}}}
 	if err := s.AddHook(new(auth.Hook), &auth.Options{Ledger: ledger}); err != nil {
 		_ = ln.Close()

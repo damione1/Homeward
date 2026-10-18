@@ -356,6 +356,18 @@ type SessionHost interface {
 	Secrets() (SecretProvider, error)
 }
 
+// BindingWithdrawal is implemented by a live Session. It fences one entity
+// without revoking its neighbors or mutating the durable registry.
+type BindingWithdrawal interface {
+	Withdraw(context.Context, Binding) error
+}
+
+// ConfiguredSourceWithdrawal fences a registry-resolved source even when a
+// retained deletion arrives before its discovery after a cold restart.
+type ConfiguredSourceWithdrawal interface {
+	FenceSource(context.Context, SourceKey) (domain.EntityID, error)
+}
+
 // SecretProvider is a session-bound capability. Its caller cannot select the
 // requesting instance; a handle's target is checked on every read.
 type SecretProvider interface {
@@ -367,6 +379,11 @@ type Driver interface {
 	Stop(context.Context) error
 }
 
+type retiringSource struct {
+	instance domain.IntegrationInstanceID
+	key      SourceKey
+}
+
 type Manager struct {
 	mu                         sync.Mutex
 	admission                  admissionPhase
@@ -375,6 +392,9 @@ type Manager struct {
 	catalog                    *contracts.CapabilityCatalog
 	active                     map[domain.IntegrationInstanceID]*Session
 	owners                     map[domain.EntityID]Binding
+	retiring                   map[domain.EntityID]struct{}
+	retiringSources            map[retiringSource]struct{}
+	retirementExhausted        bool
 	commandOwners              map[commandOwnerSlot]domain.EntityID
 	inflight                   map[commandEndpointSlot]bool
 	volatile                   *volatileCommandLedger
@@ -430,7 +450,7 @@ func NewHost(authority IdentityAuthority, sink Sink, catalog *contracts.Capabili
 	if nilInterface(authority) || nilInterface(sink) || !catalog.Ready() {
 		return nil, ErrInvalidInput
 	}
-	return &Manager{authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: newActionTracker(realActionClock{})}, nil
+	return &Manager{authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: newActionTracker(realActionClock{})}, nil
 }
 
 // CloseAdmissions linearizes shutdown with both command-policy claims and the
@@ -739,6 +759,16 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 		h.mu.Unlock()
 		return nil, ErrInactiveSession
 	}
+	if h.retirementExhausted {
+		h.mu.Unlock()
+		return nil, ErrAdmissionsClosed
+	}
+	for _, key := range keys {
+		if _, fenced := h.retiringSources[retiringSource{s.instance, key}]; fenced {
+			h.mu.Unlock()
+			return nil, ErrInactiveSession
+		}
+	}
 	h.mu.Unlock()
 	resolved, err := h.authority.Resolve(ctx, s.instance, keys)
 	if err != nil {
@@ -748,6 +778,14 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 	defer h.mu.Unlock()
 	if !s.live() {
 		return nil, ErrInactiveSession
+	}
+	if h.retirementExhausted {
+		return nil, ErrAdmissionsClosed
+	}
+	for _, key := range keys {
+		if _, fenced := h.retiringSources[retiringSource{s.instance, key}]; fenced {
+			return nil, ErrInactiveSession
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -766,6 +804,9 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 		}
 		if seenEntities[identity.Entity] {
 			return nil, ErrIdentityConflict
+		}
+		if _, fenced := h.retiring[identity.Entity]; fenced {
+			return nil, ErrInactiveSession
 		}
 		seenEntities[identity.Entity] = true
 		if previous, exists := h.owners[identity.Entity]; exists && (previous.key != keys[i] || previous.device != identity.Device || previous.instance != s.instance) {
@@ -804,6 +845,9 @@ func (s *Session) owned(binding Binding) error {
 	if !s.live() {
 		return ErrInactiveSession
 	}
+	if s.host.retirementExhausted {
+		return ErrAdmissionsClosed
+	}
 	if _, _, err := binding.IDs(); err != nil {
 		return ErrForeignBinding
 	}
@@ -811,7 +855,143 @@ func (s *Session) owned(binding Binding) error {
 	if !ok || current != binding || s.host.owners[binding.entity] != binding {
 		return ErrForeignBinding
 	}
+	if _, fenced := s.host.retiringSources[retiringSource{s.instance, binding.key}]; fenced {
+		return ErrInactiveSession
+	}
+	if _, fenced := s.host.retiring[binding.entity]; fenced {
+		return ErrInactiveSession
+	}
 	return nil
+}
+
+func (s *Session) Withdraw(ctx context.Context, binding Binding) error {
+	if s == nil || s.host == nil || ctx == nil {
+		return ErrInvalidInput
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.withdrawFenced(ctx, binding)
+}
+
+func (s *Session) withdrawFenced(ctx context.Context, binding Binding) error {
+	h := s.host
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !s.live() {
+		return ErrInactiveSession
+	}
+	if _, _, err := binding.IDs(); err != nil || s.bindings[binding.entity] != binding || h.owners[binding.entity] != binding {
+		return ErrForeignBinding
+	}
+	// Fence before any callback. An admitted command still in its driver is
+	// historically in flight; later admission and publication see no owner.
+	// Never evict a retirement fence. If the bounded set fills, all future
+	// discovery closes; that is safer than re-admitting any retired identity.
+	h.fenceRetirementLocked(s.instance, binding.key, binding.entity)
+	delete(s.bindings, binding.entity)
+	delete(h.owners, binding.entity)
+	for slot, entity := range h.commandOwners {
+		if entity == binding.entity {
+			delete(h.commandOwners, slot)
+		}
+	}
+	background := context.WithoutCancel(ctx)
+	err := h.catalog.WithdrawDriverCapabilities(binding.entity, func() error {
+		if projection, ok := h.sink.(DiscoveryWithdrawalSink); ok {
+			return projection.WithdrawDiscovery(background, binding.entity)
+		}
+		return nil
+	})
+	if err != nil {
+		if projection, ok := h.sink.(ProjectionSink); ok {
+			projection.InvalidateRegistry()
+		}
+		return err
+	}
+	quality, _ := domain.NewQuality(domain.AvailabilityUnavailable, domain.FreshnessStale, domain.ProvenanceObserved)
+	observation, _ := NewStateObservation("discovery", quality, nil, nil, time.Now(), nil)
+	source, _ := domain.NewSourceStamp(s.id, nil)
+	return h.sink.AcceptState(background, binding.entity, AcceptedState{observation: observation, source: source, instance: s.instance, retirement: true})
+}
+
+func (h *Manager) fenceRetirementLocked(instance domain.IntegrationInstanceID, key SourceKey, entity domain.EntityID) {
+	additions := 0
+	if _, exists := h.retiringSources[retiringSource{instance, key}]; !exists {
+		additions++
+	}
+	if _, err := entity.Value(); err == nil {
+		if _, exists := h.retiring[entity]; !exists {
+			additions++
+		}
+	}
+	if len(h.retiring)+len(h.retiringSources)+additions > 16384 {
+		h.retirementExhausted = true
+		return
+	}
+	h.retiringSources[retiringSource{instance, key}] = struct{}{}
+	if _, err := entity.Value(); err == nil {
+		h.retiring[entity] = struct{}{}
+	}
+}
+
+func (s *Session) FenceSource(ctx context.Context, key SourceKey) (domain.EntityID, error) {
+	if s == nil || s.host == nil || ctx == nil {
+		return domain.EntityID{}, ErrInvalidInput
+	}
+	if _, _, err := key.Components(); err != nil {
+		return domain.EntityID{}, err
+	}
+	h := s.host
+	h.mu.Lock()
+	if !s.live() {
+		h.mu.Unlock()
+		return domain.EntityID{}, ErrInactiveSession
+	}
+	h.fenceRetirementLocked(s.instance, key, domain.EntityID{})
+	var current Binding
+	for _, binding := range s.bindings {
+		if binding.key == key {
+			current = binding
+			break
+		}
+	}
+	h.mu.Unlock()
+	if _, _, err := current.IDs(); err == nil {
+		entity := current.entity
+		if err := s.withdrawFenced(context.WithoutCancel(ctx), current); err != nil {
+			return entity, err
+		}
+		return entity, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return domain.EntityID{}, err
+	}
+	resolved, err := h.authority.Resolve(ctx, s.instance, []SourceKey{key})
+	if err != nil {
+		return domain.EntityID{}, err
+	}
+	if len(resolved) != 1 {
+		return domain.EntityID{}, ErrIdentityConflict
+	}
+	entity := resolved[0].Entity
+	if _, err := entity.Value(); err != nil {
+		return domain.EntityID{}, ErrIdentityConflict
+	}
+	h.mu.Lock()
+	if !s.live() {
+		h.mu.Unlock()
+		return domain.EntityID{}, ErrInactiveSession
+	}
+	h.fenceRetirementLocked(s.instance, key, entity)
+	binding, owned := s.bindings[entity]
+	h.mu.Unlock()
+	if owned {
+		if err := s.withdrawFenced(context.WithoutCancel(ctx), binding); err != nil {
+			return entity, err
+		}
+	}
+	return entity, nil
 }
 
 func (s *Session) Publish(ctx context.Context, binding Binding, observation StateObservation) error {
@@ -871,6 +1051,17 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 					return ErrInvalidInput
 				}
 				if err := h.catalog.AdmitDomainMeasurement(binding.entity, observation.endpoint, measurement); err != nil {
+					return err
+				}
+				matched = true
+			}
+		case domain.ValueLight:
+			if description.SchemaId == contracts.LightSchema {
+				light, ok := observation.value.Light()
+				if !ok {
+					return ErrInvalidInput
+				}
+				if err := h.catalog.AdmitDomainLight(binding.entity, observation.endpoint, light); err != nil {
 					return err
 				}
 				matched = true

@@ -691,6 +691,7 @@ type LightConstraints struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	SetOn             bool                   `protobuf:"varint,1,opt,name=set_on,json=setOn,proto3" json:"set_on,omitempty"`
 	BrightnessPercent *NumberBounds          `protobuf:"bytes,2,opt,name=brightness_percent,json=brightnessPercent,proto3" json:"brightness_percent,omitempty"`
+	ColorTempMireds   *NumberBounds          `protobuf:"bytes,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3" json:"color_temp_mireds,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -735,6 +736,13 @@ func (x *LightConstraints) GetSetOn() bool {
 func (x *LightConstraints) GetBrightnessPercent() *NumberBounds {
 	if x != nil {
 		return x.BrightnessPercent
+	}
+	return nil
+}
+
+func (x *LightConstraints) GetColorTempMireds() *NumberBounds {
+	if x != nil {
+		return x.ColorTempMireds
 	}
 	return nil
 }
@@ -1049,10 +1057,11 @@ const file_home_registry_v1_registry_proto_rawDesc = "" +
 	"\x04step\x18\x03 \x01(\x01H\x00R\x04step\x88\x01\x01B\a\n" +
 	"\x05_step\"*\n" +
 	"\x11SwitchConstraints\x12\x15\n" +
-	"\x06set_on\x18\x01 \x01(\bR\x05setOn\"x\n" +
+	"\x06set_on\x18\x01 \x01(\bR\x05setOn\"\xc4\x01\n" +
 	"\x10LightConstraints\x12\x15\n" +
 	"\x06set_on\x18\x01 \x01(\bR\x05setOn\x12M\n" +
-	"\x12brightness_percent\x18\x02 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x11brightnessPercent\"L\n" +
+	"\x12brightness_percent\x18\x02 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x11brightnessPercent\x12J\n" +
+	"\x11color_temp_mireds\x18\x03 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x0fcolorTempMireds\"L\n" +
 	"\x0eFanConstraints\x12\x15\n" +
 	"\x06set_on\x18\x01 \x01(\bR\x05setOn\x12#\n" +
 	"\rspeed_options\x18\x02 \x03(\tR\fspeedOptions\"\xef\x01\n" +
@@ -1138,17 +1147,18 @@ var file_home_registry_v1_registry_proto_depIdxs = []int32{
 	13, // 5: home.registry.v1.CapabilityDescription.binary:type_name -> home.registry.v1.BinaryConstraints
 	14, // 6: home.registry.v1.CapabilityDescription.extension:type_name -> home.registry.v1.ExtensionConstraints
 	7,  // 7: home.registry.v1.LightConstraints.brightness_percent:type_name -> home.registry.v1.NumberBounds
-	7,  // 8: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
-	0,  // 9: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
-	1,  // 10: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
-	2,  // 11: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
-	3,  // 12: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
-	7,  // 13: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
-	14, // [14:14] is the sub-list for method output_type
-	14, // [14:14] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	7,  // 8: home.registry.v1.LightConstraints.color_temp_mireds:type_name -> home.registry.v1.NumberBounds
+	7,  // 9: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
+	0,  // 10: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
+	1,  // 11: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
+	2,  // 12: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
+	3,  // 13: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
+	7,  // 14: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_home_registry_v1_registry_proto_init() }

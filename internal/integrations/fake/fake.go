@@ -117,6 +117,13 @@ func (f *Fixture) AcceptDiscovery(ctx context.Context, declarations []integratio
 	return f.sequence.AcceptDiscovery(ctx, declarations)
 }
 
+func (f *Fixture) WithdrawDiscovery(ctx context.Context, entity domain.EntityID) error {
+	if f == nil || f.sequence == nil {
+		return integrations.ErrInvalidInput
+	}
+	return f.sequence.WithdrawDiscovery(ctx, entity)
+}
+
 func (f *Fixture) InvalidateRegistry() {
 	if f != nil && f.sequence != nil {
 		f.sequence.InvalidateRegistry()

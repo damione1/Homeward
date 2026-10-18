@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"math"
 	"sync"
 	"time"
 	"unsafe"
@@ -113,11 +114,17 @@ type actionProofKind uint8
 const (
 	proofUnavailable actionProofKind = iota
 	proofSwitch
+	proofLight
 )
 
 type actionPredicate struct {
-	kind actionProofKind
-	on   bool
+	kind          actionProofKind
+	on            bool
+	hasOn         bool
+	brightness    float64
+	hasBrightness bool
+	colorTemp     uint32
+	hasColorTemp  bool
 }
 
 func predicateFor(request *actions.CommandRequest) actionPredicate {
@@ -127,15 +134,31 @@ func predicateFor(request *actions.CommandRequest) actionPredicate {
 	switch arg := request.Arguments.Arguments.(type) {
 	case *actions.ActionArgs_SetSwitch:
 		if request.CapabilitySchemaId == contracts.SwitchSchema && arg != nil && arg.SetSwitch != nil {
-			return actionPredicate{proofSwitch, arg.SetSwitch.On}
+			return actionPredicate{kind: proofSwitch, on: arg.SetSwitch.On}
 		}
 	case *actions.ActionArgs_SetLight:
-		if request.CapabilitySchemaId == contracts.LightSchema && arg != nil && arg.SetLight != nil && arg.SetLight.On != nil && arg.SetLight.BrightnessPercent == nil {
-			return actionPredicate{proofSwitch, *arg.SetLight.On}
+		if request.CapabilitySchemaId == contracts.LightSchema && arg != nil && arg.SetLight != nil {
+			light := arg.SetLight
+			if light.On != nil && light.BrightnessPercent == nil && light.ColorTempMireds == nil {
+				return actionPredicate{kind: proofSwitch, on: *light.On}
+			}
+			if light.On != nil || light.BrightnessPercent != nil || light.ColorTempMireds != nil {
+				predicate := actionPredicate{kind: proofLight}
+				if light.On != nil {
+					predicate.on, predicate.hasOn = *light.On, true
+				}
+				if light.BrightnessPercent != nil {
+					predicate.brightness, predicate.hasBrightness = *light.BrightnessPercent, true
+				}
+				if light.ColorTempMireds != nil {
+					predicate.colorTemp, predicate.hasColorTemp = *light.ColorTempMireds, true
+				}
+				return predicate
+			}
 		}
 	case *actions.ActionArgs_SetFan:
 		if request.CapabilitySchemaId == contracts.FanSchema && arg != nil && arg.SetFan != nil && arg.SetFan.On != nil && arg.SetFan.Speed == nil {
-			return actionPredicate{proofSwitch, *arg.SetFan.On}
+			return actionPredicate{kind: proofSwitch, on: *arg.SetFan.On}
 		}
 	case *actions.ActionArgs_SetClimate, *actions.ActionArgs_Extension:
 		return actionPredicate{}
@@ -381,10 +404,29 @@ func (t *actionTracker) observe(binding Binding, endpoint, schema string, receip
 	switch e.predicate.kind {
 	case proofSwitch:
 		on, isSwitch := value.Switch()
+		if !isSwitch && e.schema == contracts.LightSchema {
+			if light, isLight := value.Light(); isLight {
+				on, _, _, err = light.Components()
+				isSwitch = err == nil
+			}
+		}
 		if isSwitch && on == e.predicate.on {
 			t.expire(e)
 			t.advance(e, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
 		}
+	case proofLight:
+		light, isLight := value.Light()
+		if !isLight {
+			return
+		}
+		on, brightness, colorTemp, err := light.Components()
+		if err != nil || (e.predicate.hasOn && on != e.predicate.on) ||
+			(e.predicate.hasBrightness && (brightness == nil || math.Abs(*brightness-e.predicate.brightness) > 1e-6)) ||
+			(e.predicate.hasColorTemp && (colorTemp == nil || *colorTemp != e.predicate.colorTemp)) {
+			return
+		}
+		t.expire(e)
+		t.advance(e, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
 	case proofUnavailable:
 	default:
 	}
@@ -552,6 +594,5 @@ func (s *ActionSubscription) Close() {
 	}
 }
 
-// The core state projection currently has only Boolean switch values. These
-// three complete predicates can confirm; brightness, speed, climate and
-// extensions require an explicit complete proof before they may do so.
+// A correlated structured light observation can prove exactly the requested
+// fields. Other actions still require a complete, qualified proof.

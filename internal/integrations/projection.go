@@ -165,3 +165,9 @@ type ProjectionSink interface {
 	AcceptDiscovery(context.Context, []DiscoveryDeclaration) error
 	InvalidateRegistry()
 }
+
+// DiscoveryWithdrawalSink is the optional live-capability retirement boundary.
+// The registry remains the durable identity authority.
+type DiscoveryWithdrawalSink interface {
+	WithdrawDiscovery(context.Context, domain.EntityID) error
+}

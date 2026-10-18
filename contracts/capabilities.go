@@ -236,6 +236,26 @@ func (c *CapabilityCatalog) WithDriverCapabilitiesBatch(registrations []DriverCa
 	return nil
 }
 
+// WithdrawDriverCapabilities removes one admitted entity at the same catalogue
+// boundary used for discovery. The callback updates the sequencer projection
+// before readers can observe the new catalogue image.
+func (c *CapabilityCatalog) WithdrawDriverCapabilities(entity domain.EntityID, admit func() error) error {
+	if !c.ready() || admit == nil {
+		return ErrUninitializedCatalog
+	}
+	id, err := entity.Value()
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := admit(); err != nil {
+		return err
+	}
+	delete(c.instances, id)
+	return nil
+}
+
 func (c *CapabilityCatalog) Descriptions(entity domain.EntityID) ([]*registry.CapabilityDescription, error) {
 	if !c.ready() {
 		return nil, ErrUninitializedCatalog
@@ -287,6 +307,9 @@ func (c *CapabilityCatalog) validateDescription(d *registry.CapabilityDescriptio
 		}
 		if b := constraints.Light.BrightnessPercent; b != nil && (!validBounds(b) || b.Minimum < 0 || b.Maximum > 100) {
 			return errors.New("invalid brightness bounds")
+		}
+		if b := constraints.Light.ColorTempMireds; b != nil && (!validBounds(b) || b.Minimum < 1 || b.Maximum > 1000) {
+			return errors.New("invalid color temperature bounds")
 		}
 	case *registry.CapabilityDescription_Fan:
 		if constraints == nil || d.SchemaId != FanSchema || constraints.Fan == nil || !uniqueOptions(constraints.Fan.SpeedOptions) {
@@ -440,6 +463,36 @@ func (c *CapabilityCatalog) AdmitMeasurement(entity domain.EntityID, endpoint st
 	return AdmitWireMeasurement(wire, c.units, int(constraints.Precision), semantic, aggregation)
 }
 
+// AdmitDomainLight applies the same declared field bounds to driver and wire
+// observations. A field omitted by the capability cannot appear in a state.
+func (c *CapabilityCatalog) AdmitDomainLight(entity domain.EntityID, endpoint string, light domain.LightValue) error {
+	if !c.ready() || endpoint == "" {
+		return ErrUninitializedCatalog
+	}
+	id, err := entity.Value()
+	if err != nil {
+		return err
+	}
+	_, brightness, colorTemp, err := light.Components()
+	if err != nil {
+		return err
+	}
+	c.mu.RLock()
+	d := c.instances[id][capabilityKey(LightSchema, endpoint)]
+	c.mu.RUnlock()
+	if d == nil || d.GetLight() == nil {
+		return errors.New("light capability is not advertised")
+	}
+	constraints := d.GetLight()
+	if brightness != nil && !withinBounds(*brightness, constraints.BrightnessPercent) {
+		return errors.New("brightness is outside advertised instance constraints")
+	}
+	if colorTemp != nil && !withinBounds(float64(*colorTemp), constraints.ColorTempMireds) {
+		return errors.New("color temperature is outside advertised instance constraints")
+	}
+	return nil
+}
+
 // AdmitDomainMeasurement checks a driver-produced typed measurement against
 // the same per-instance constraints as a wire observation. The comparison also
 // rejects mismatched semantic class, aggregation, and decimal precision.
@@ -547,13 +600,13 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 		}
 	case *registry.CapabilityDescription_Light:
 		arg := cmd.Arguments.GetSetLight()
-		if arg == nil || (arg.On == nil && arg.BrightnessPercent == nil) {
-			break
-		}
-		if arg.On != nil && !constraints.Light.SetOn {
+		if arg == nil || (arg.On == nil && arg.BrightnessPercent == nil && arg.ColorTempMireds == nil) {
 			break
 		}
 		if arg.BrightnessPercent != nil && !withinBounds(*arg.BrightnessPercent, constraints.Light.BrightnessPercent) {
+			break
+		}
+		if arg.ColorTempMireds != nil && !withinBounds(float64(*arg.ColorTempMireds), constraints.Light.ColorTempMireds) {
 			break
 		}
 		return nil

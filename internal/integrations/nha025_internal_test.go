@@ -13,6 +13,9 @@ import (
 func TestNHA025StructuredProjectionIsNotCompleteProof(t *testing.T) {
 	on := true
 	brightness := 50.0
+	colorTemp := uint32(300)
+	zero := 0.0
+	off := false
 	speed := "medium"
 	cases := []struct {
 		name    string
@@ -20,7 +23,11 @@ func TestNHA025StructuredProjectionIsNotCompleteProof(t *testing.T) {
 		want    actionProofKind
 	}{
 		{"light on only", &actions.CommandRequest{CapabilitySchemaId: contracts.LightSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{On: &on}}}}, proofSwitch},
-		{"light with brightness", &actions.CommandRequest{CapabilitySchemaId: contracts.LightSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{On: &on, BrightnessPercent: &brightness}}}}, proofUnavailable},
+		{"light with brightness", &actions.CommandRequest{CapabilitySchemaId: contracts.LightSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{On: &on, BrightnessPercent: &brightness}}}}, proofLight},
+		{"light with color temperature", &actions.CommandRequest{CapabilitySchemaId: contracts.LightSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{On: &on, ColorTempMireds: &colorTemp}}}}, proofLight},
+		{"light color temperature without on", &actions.CommandRequest{CapabilitySchemaId: contracts.LightSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{ColorTempMireds: &colorTemp}}}}, proofLight},
+		{"light off with present zero brightness", &actions.CommandRequest{CapabilitySchemaId: contracts.LightSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{On: &off, BrightnessPercent: &zero}}}}, proofLight},
+		{"light without fields", &actions.CommandRequest{CapabilitySchemaId: contracts.LightSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{}}}}, proofUnavailable},
 		{"fan on only", &actions.CommandRequest{CapabilitySchemaId: contracts.FanSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{On: &on}}}}, proofSwitch},
 		{"fan with speed", &actions.CommandRequest{CapabilitySchemaId: contracts.FanSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{On: &on, Speed: &speed}}}}, proofUnavailable},
 		{"climate has no Boolean proof", &actions.CommandRequest{CapabilitySchemaId: contracts.ClimateSchema, Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetClimate{SetClimate: &actions.SetClimate{}}}}, proofUnavailable},

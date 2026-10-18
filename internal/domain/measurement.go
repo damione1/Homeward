@@ -25,11 +25,12 @@ const (
 	DimensionEnergy
 	DimensionTemperature
 	DimensionRatio
+	DimensionIlluminance
 )
 
 func (d Dimension) valid() bool {
 	switch d {
-	case DimensionPower, DimensionEnergy, DimensionTemperature, DimensionRatio:
+	case DimensionPower, DimensionEnergy, DimensionTemperature, DimensionRatio, DimensionIlluminance:
 		return true
 	case DimensionUnspecified:
 		return false
@@ -133,6 +134,7 @@ func NewUnitCatalog() *UnitCatalog {
 		{symbol: "kWh", canonical: "kW.h", dimension: DimensionEnergy, scale: 3600000},
 		{symbol: "Cel", canonical: "Cel", dimension: DimensionTemperature, scale: 1, offset: 273.15},
 		{symbol: "%", canonical: "%", dimension: DimensionRatio, scale: 0.01},
+		{symbol: "lx", canonical: "lx", dimension: DimensionIlluminance, scale: 1},
 	} {
 		c.entries[u.symbol] = u
 	}

@@ -13,8 +13,10 @@ import (
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/mqtt"
+	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
+	"github.com/damione1/Homeward/scope"
 )
 
 type ListenFunc func(context.Context, string, string) (net.Listener, error)
@@ -96,22 +98,11 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			return err
 		}
 	} else if mqttSettings, enabled := c.MQTTSettings(); enabled {
-		instance, err := mqttSettings.Instance()
+		plan, err = defaultMQTTRuntimePlan(mqttSettings, store, sequence)
 		if err != nil {
 			store.Close()
 			return err
 		}
-		pilotFactory, err := mqtt.NewPilotFactory(mqttSettings, mqtt.UnmappedObservations{})
-		if err != nil {
-			store.Close()
-			return err
-		}
-		spec, err := integrations.NewPilotSpec(instance, pilotFactory)
-		if err != nil {
-			store.Close()
-			return err
-		}
-		plan.Pilots = []integrations.PilotSpec{spec}
 	}
 	if err := ctx.Err(); err != nil {
 		store.Close()
@@ -169,6 +160,35 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	}
 	store.Close()
 	return listenerErr
+}
+
+// defaultMQTTRuntimePlan is the sole composition used by Run's configured
+// MQTT path. It never configures identities from discovery; the repository
+// resolves only bindings explicitly persisted by an operator.
+func defaultMQTTRuntimePlan(settings mqtt.Settings, store *storage.Store, sequence *sequencer.Sequencer) (RuntimePlan, error) {
+	instance, err := settings.Instance()
+	if err != nil {
+		return RuntimePlan{}, err
+	}
+	manifest, err := registry.ParseManifest(scope.ManifestV1())
+	if err != nil {
+		return RuntimePlan{}, err
+	}
+	repository, err := registry.NewRepository(store, manifest)
+	if err != nil {
+		return RuntimePlan{}, err
+	}
+	pilotFactory, err := mqtt.NewDiscoveryPilotFactory(settings, repository)
+	if err != nil {
+		return RuntimePlan{}, err
+	}
+	spec, err := integrations.NewPilotSpec(instance, pilotFactory)
+	if err != nil {
+		return RuntimePlan{}, err
+	}
+	return RuntimePlan{Identity: repository, Pilots: []integrations.PilotSpec{spec}, Configure: func(ctx context.Context, _ *integrations.Manager, _ *storage.Store) error {
+		return repository.AttachProjection(ctx, sequence)
+	}}, nil
 }
 
 func closePreparedRuntime(host *integrations.Manager, store *storage.Store, cause error) error {

@@ -13,12 +13,15 @@ import (
 
 var ErrInvalidWireState = errors.New("invalid wire state")
 
-// StateMeasurementAdmission supplies the capability context missing from the
-// state wire's measurement payload. It is needed only for measurement values.
-type StateMeasurementAdmission struct {
+// StateCapabilityAdmission supplies the capability context missing from state
+// wire values carrying per-instance measurement or light constraints.
+type StateCapabilityAdmission struct {
 	Catalog  *CapabilityCatalog
 	Endpoint string
 }
+
+// StateMeasurementAdmission remains the previous source-compatible spelling.
+type StateMeasurementAdmission = StateCapabilityAdmission
 
 func admitQuality(wire *state.Quality) (domain.Quality, error) {
 	if wire == nil || len(wire.ProtoReflect().GetUnknown()) != 0 {
@@ -128,7 +131,7 @@ func admitTimestamp(at *timestamppb.Timestamp, required bool) (*time.Time, error
 // clocks. Snapshots can skip intermediate reports, so no transition is inferred
 // from the optional previous snapshot. Unknown wire fields remain decodable by
 // generated bindings but are not admitted to the operational domain.
-func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, measurement *StateMeasurementAdmission) (domain.ObservedState, error) {
+func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, measurement *StateCapabilityAdmission) (domain.ObservedState, error) {
 	if wire == nil || len(wire.ProtoReflect().GetUnknown()) != 0 || wire.Entity == nil {
 		return domain.ObservedState{}, ErrInvalidWireState
 	}
@@ -186,6 +189,25 @@ func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, m
 		}
 		v, err := domain.NewMeasurementValue(m)
 		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &v
+	case *state.ObservedState_Light:
+		if item == nil || item.Light == nil || item.Light.On == nil || len(item.Light.ProtoReflect().GetUnknown()) != 0 {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		light, err := domain.NewLightValue(*item.Light.On, item.Light.BrightnessPercent, item.Light.ColorTempMireds)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		v, err := domain.NewLightStateValue(light)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		if measurement == nil || measurement.Catalog == nil || measurement.Endpoint == "" {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		if err := measurement.Catalog.AdmitDomainLight(entity, measurement.Endpoint, light); err != nil {
 			return domain.ObservedState{}, err
 		}
 		value = &v
@@ -257,6 +279,13 @@ func EncodeObservedState(observed domain.ObservedState) (*state.ObservedState, e
 				return nil, err
 			}
 			w.Value = &state.ObservedState_Measurement{Measurement: &state.Measurement{Value: parts.Value, Unit: unit}}
+		case domain.ValueLight:
+			light, _ := value.Light()
+			on, brightness, colorTemp, err := light.Components()
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_Light{Light: &state.LightValue{On: &on, BrightnessPercent: brightness, ColorTempMireds: colorTemp}}
 		case domain.ValueUnspecified:
 			return nil, ErrInvalidWireState
 		default:

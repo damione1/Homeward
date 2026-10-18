@@ -419,6 +419,21 @@ CREATE TABLE public.secret_access_audit (
     reason public.secret_audit_reason NOT NULL,
     recorded_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
+`}, {version: Version{6}, sql: `
+-- A discovery topic is only provenance for an already configured source key.
+-- It never creates an identity and remains after retirement so a retained
+-- empty payload can be understood after a cold restart.
+CREATE TABLE public.registry_mqtt_discovery_topics (
+    instance_id text NOT NULL CHECK (instance_id <> ''),
+    discovery_topic text NOT NULL CHECK (discovery_topic <> '' AND octet_length(discovery_topic) <= 256),
+    source_device text NOT NULL CHECK (source_device <> ''),
+    source_entity text NOT NULL CHECK (source_entity <> ''),
+    PRIMARY KEY (instance_id, source_device, source_entity),
+    FOREIGN KEY (instance_id, source_device, source_entity)
+        REFERENCES public.registry_source_bindings(instance_id, source_device, source_entity)
+);
+CREATE INDEX registry_mqtt_discovery_by_topic
+    ON public.registry_mqtt_discovery_topics(instance_id, discovery_topic);
 `}}
 
 var latestVersion = migrations[len(migrations)-1].version

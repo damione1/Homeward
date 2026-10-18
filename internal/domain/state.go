@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"math"
 	"time"
 	"unicode/utf8"
 )
@@ -99,7 +100,62 @@ const (
 	ValueUnspecified ValueKind = iota
 	ValueSwitch
 	ValueMeasurement
+	ValueLight
 )
+
+// LightValue preserves each observed field independently. Off is a present
+// value; absent brightness and color temperature are never filled from zero.
+type LightValue struct {
+	valid           bool
+	on              bool
+	brightness      float64
+	hasBrightness   bool
+	colorTempMireds uint32
+	hasColorTemp    bool
+}
+
+func NewLightValue(on bool, brightness *float64, colorTempMireds *uint32) (LightValue, error) {
+	v := LightValue{valid: true, on: on}
+	if brightness != nil {
+		if math.IsNaN(*brightness) || math.IsInf(*brightness, 0) || *brightness < 0 || *brightness > 100 {
+			return LightValue{}, ErrInvalidState
+		}
+		v.brightness, v.hasBrightness = *brightness, true
+	}
+	if colorTempMireds != nil {
+		if *colorTempMireds == 0 || *colorTempMireds > 1000 {
+			return LightValue{}, ErrInvalidState
+		}
+		v.colorTempMireds, v.hasColorTemp = *colorTempMireds, true
+	}
+	return v, nil
+}
+
+func (v LightValue) Components() (bool, *float64, *uint32, error) {
+	if !v.valid {
+		return false, nil, nil, ErrInvalidState
+	}
+	var brightness *float64
+	var colorTemp *uint32
+	if v.hasBrightness {
+		brightness = &v.brightness
+	}
+	if v.hasColorTemp {
+		colorTemp = &v.colorTempMireds
+	}
+	if _, err := NewLightValue(v.on, brightness, colorTemp); err != nil {
+		return false, nil, nil, err
+	}
+	if brightness != nil {
+		copyValue := *brightness
+		brightness = &copyValue
+	}
+	if colorTemp != nil {
+		copyValue := *colorTemp
+		colorTemp = &copyValue
+	}
+	return v.on, brightness, colorTemp, nil
+}
 
 // StateValue is a closed sum. Its zero value cannot be published. False and
 // numeric zero are ordinary present values, distinct from an absent value.
@@ -107,6 +163,7 @@ type StateValue struct {
 	kind        ValueKind
 	switchOn    bool
 	measurement Measurement
+	light       LightValue
 }
 
 func NewSwitchValue(on bool) StateValue { return StateValue{kind: ValueSwitch, switchOn: on} }
@@ -118,6 +175,13 @@ func NewMeasurementValue(measurement Measurement) (StateValue, error) {
 	return StateValue{kind: ValueMeasurement, measurement: measurement}, nil
 }
 
+func NewLightStateValue(light LightValue) (StateValue, error) {
+	if _, _, _, err := light.Components(); err != nil {
+		return StateValue{}, err
+	}
+	return StateValue{kind: ValueLight, light: light}, nil
+}
+
 func (v StateValue) Kind() (ValueKind, error) {
 	switch v.kind {
 	case ValueSwitch:
@@ -125,6 +189,10 @@ func (v StateValue) Kind() (ValueKind, error) {
 	case ValueMeasurement:
 		if _, err := v.measurement.Components(); err == nil {
 			return ValueMeasurement, nil
+		}
+	case ValueLight:
+		if _, _, _, err := v.light.Components(); err == nil {
+			return ValueLight, nil
 		}
 	case ValueUnspecified:
 	default:
@@ -137,6 +205,8 @@ func (v StateValue) Switch() (bool, bool) { return v.switchOn, v.kind == ValueSw
 func (v StateValue) Measurement() (Measurement, bool) {
 	return v.measurement, v.kind == ValueMeasurement
 }
+
+func (v StateValue) Light() (LightValue, bool) { return v.light, v.kind == ValueLight }
 
 // SourceStamp records a driver's session and optional source sequence. Their
 // ordering policy belongs to the later host sequencer; revision is supplied by

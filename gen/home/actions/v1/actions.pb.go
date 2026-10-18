@@ -193,6 +193,7 @@ type SetLight struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	On                *bool                  `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
 	BrightnessPercent *float64               `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
+	ColorTempMireds   *uint32                `protobuf:"varint,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -237,6 +238,13 @@ func (x *SetLight) GetOn() bool {
 func (x *SetLight) GetBrightnessPercent() float64 {
 	if x != nil && x.BrightnessPercent != nil {
 		return *x.BrightnessPercent
+	}
+	return 0
+}
+
+func (x *SetLight) GetColorTempMireds() uint32 {
+	if x != nil && x.ColorTempMireds != nil {
+		return *x.ColorTempMireds
 	}
 	return 0
 }
@@ -839,12 +847,14 @@ const file_home_actions_v1_actions_proto_rawDesc = "" +
 	"\n" +
 	"\x1dhome/actions/v1/actions.proto\x12\x0fhome.actions.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fhome/registry/v1/registry.proto\"\x1b\n" +
 	"\tSetSwitch\x12\x0e\n" +
-	"\x02on\x18\x01 \x01(\bR\x02on\"q\n" +
+	"\x02on\x18\x01 \x01(\bR\x02on\"\xb8\x01\n" +
 	"\bSetLight\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x122\n" +
-	"\x12brightness_percent\x18\x02 \x01(\x01H\x01R\x11brightnessPercent\x88\x01\x01B\x05\n" +
+	"\x12brightness_percent\x18\x02 \x01(\x01H\x01R\x11brightnessPercent\x88\x01\x01\x12/\n" +
+	"\x11color_temp_mireds\x18\x03 \x01(\rH\x02R\x0fcolorTempMireds\x88\x01\x01B\x05\n" +
 	"\x03_onB\x15\n" +
-	"\x13_brightness_percent\"I\n" +
+	"\x13_brightness_percentB\x14\n" +
+	"\x12_color_temp_mireds\"I\n" +
 	"\x06SetFan\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x12\x19\n" +
 	"\x05speed\x18\x02 \x01(\tH\x01R\x05speed\x88\x01\x01B\x05\n" +

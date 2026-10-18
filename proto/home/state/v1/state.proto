@@ -34,6 +34,11 @@ message Measurement {
   string unit = 2;
   optional string decimal_value = 3;
 }
+message LightValue {
+  optional bool on = 1;
+  optional double brightness_percent = 2;
+  optional uint32 color_temp_mireds = 3;
+}
 message ObservedState {
   home.registry.v1.EntityRef entity = 1;
   Quality quality = 2;
@@ -48,6 +53,7 @@ message ObservedState {
   oneof value {
     bool switch_on = 11;
     Measurement measurement = 12;
+    LightValue light = 13;
   }
 }
 

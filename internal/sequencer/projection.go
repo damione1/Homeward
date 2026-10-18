@@ -183,3 +183,24 @@ func (s *Sequencer) AcceptDiscovery(ctx context.Context, declarations []integrat
 	s.publish(s.append(Entry{kind: KindCapabilities, receivedAt: at, capabilities: append([]integrations.DiscoveryDeclaration(nil), declarations...)}))
 	return nil
 }
+
+// WithdrawDiscovery removes one live capability set and invalidates command
+// routes. Registry identity and historical state remain in the projection.
+func (s *Sequencer) WithdrawDiscovery(ctx context.Context, entity domain.EntityID) error {
+	if s == nil || s.journal == nil || ctx == nil {
+		return ErrInvalidInput
+	}
+	if _, err := entity.Value(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	at, err := s.nextTime(ctx)
+	if err != nil {
+		return err
+	}
+	delete(s.capabilities, entity)
+	s.rebuildCommandRoutes()
+	s.publish(s.append(Entry{kind: KindCapabilities, receivedAt: at}))
+	return nil
+}
