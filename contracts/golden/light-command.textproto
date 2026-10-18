@@ -1,0 +1,7 @@
+command_id: "synthetic-light"
+admission_epoch: "epoch-a"
+config_revision: 1
+target { entity_id: "Host:synthetic/lamp" }
+capability_schema_id: "core.light.v1"
+endpoint: "lamp"
+arguments { set_light { on: false brightness_percent: 0 } }

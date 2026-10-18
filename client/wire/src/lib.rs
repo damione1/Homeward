@@ -54,6 +54,10 @@ pub fn validate_command(
     }
     match &c.arguments.arguments {
         Some(Arguments::SetSwitch(_)) => Ok(()),
-        Some(Arguments::Extension(_)) | None => Err(fail(ErrorCode::InvalidArgument, "arguments")),
+        Some(Arguments::Extension(_))
+        | Some(Arguments::SetLight(_))
+        | Some(Arguments::SetFan(_))
+        | Some(Arguments::SetClimate(_))
+        | None => Err(fail(ErrorCode::InvalidArgument, "arguments")),
     }
 }

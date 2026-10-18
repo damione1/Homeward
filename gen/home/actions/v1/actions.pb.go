@@ -189,6 +189,162 @@ func (x *SetSwitch) GetOn() bool {
 	return false
 }
 
+type SetLight struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	On                *bool                  `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
+	BrightnessPercent *float64               `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *SetLight) Reset() {
+	*x = SetLight{}
+	mi := &file_home_actions_v1_actions_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetLight) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetLight) ProtoMessage() {}
+
+func (x *SetLight) ProtoReflect() protoreflect.Message {
+	mi := &file_home_actions_v1_actions_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetLight.ProtoReflect.Descriptor instead.
+func (*SetLight) Descriptor() ([]byte, []int) {
+	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SetLight) GetOn() bool {
+	if x != nil && x.On != nil {
+		return *x.On
+	}
+	return false
+}
+
+func (x *SetLight) GetBrightnessPercent() float64 {
+	if x != nil && x.BrightnessPercent != nil {
+		return *x.BrightnessPercent
+	}
+	return 0
+}
+
+type SetFan struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	On            *bool                  `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
+	Speed         *string                `protobuf:"bytes,2,opt,name=speed,proto3,oneof" json:"speed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetFan) Reset() {
+	*x = SetFan{}
+	mi := &file_home_actions_v1_actions_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetFan) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetFan) ProtoMessage() {}
+
+func (x *SetFan) ProtoReflect() protoreflect.Message {
+	mi := &file_home_actions_v1_actions_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetFan.ProtoReflect.Descriptor instead.
+func (*SetFan) Descriptor() ([]byte, []int) {
+	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SetFan) GetOn() bool {
+	if x != nil && x.On != nil {
+		return *x.On
+	}
+	return false
+}
+
+func (x *SetFan) GetSpeed() string {
+	if x != nil && x.Speed != nil {
+		return *x.Speed
+	}
+	return ""
+}
+
+type SetClimate struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	SetpointCelsius *float64               `protobuf:"fixed64,1,opt,name=setpoint_celsius,json=setpointCelsius,proto3,oneof" json:"setpoint_celsius,omitempty"`
+	Mode            *v1.ClimateMode        `protobuf:"varint,2,opt,name=mode,proto3,enum=home.registry.v1.ClimateMode,oneof" json:"mode,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SetClimate) Reset() {
+	*x = SetClimate{}
+	mi := &file_home_actions_v1_actions_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetClimate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetClimate) ProtoMessage() {}
+
+func (x *SetClimate) ProtoReflect() protoreflect.Message {
+	mi := &file_home_actions_v1_actions_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetClimate.ProtoReflect.Descriptor instead.
+func (*SetClimate) Descriptor() ([]byte, []int) {
+	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SetClimate) GetSetpointCelsius() float64 {
+	if x != nil && x.SetpointCelsius != nil {
+		return *x.SetpointCelsius
+	}
+	return 0
+}
+
+func (x *SetClimate) GetMode() v1.ClimateMode {
+	if x != nil && x.Mode != nil {
+		return *x.Mode
+	}
+	return v1.ClimateMode(0)
+}
+
 // An extension is a typed/versioned envelope. Validation requires a registered codec
 // matching schema_id, major and descriptor hash, then authorization; never execute a raw blob.
 type ExtensionPayload struct {
@@ -203,7 +359,7 @@ type ExtensionPayload struct {
 
 func (x *ExtensionPayload) Reset() {
 	*x = ExtensionPayload{}
-	mi := &file_home_actions_v1_actions_proto_msgTypes[1]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -215,7 +371,7 @@ func (x *ExtensionPayload) String() string {
 func (*ExtensionPayload) ProtoMessage() {}
 
 func (x *ExtensionPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_home_actions_v1_actions_proto_msgTypes[1]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -228,7 +384,7 @@ func (x *ExtensionPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtensionPayload.ProtoReflect.Descriptor instead.
 func (*ExtensionPayload) Descriptor() ([]byte, []int) {
-	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{1}
+	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ExtensionPayload) GetSchemaId() string {
@@ -265,6 +421,9 @@ type ActionArgs struct {
 	//
 	//	*ActionArgs_SetSwitch
 	//	*ActionArgs_Extension
+	//	*ActionArgs_SetLight
+	//	*ActionArgs_SetFan
+	//	*ActionArgs_SetClimate
 	Arguments     isActionArgs_Arguments `protobuf_oneof:"arguments"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -272,7 +431,7 @@ type ActionArgs struct {
 
 func (x *ActionArgs) Reset() {
 	*x = ActionArgs{}
-	mi := &file_home_actions_v1_actions_proto_msgTypes[2]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -284,7 +443,7 @@ func (x *ActionArgs) String() string {
 func (*ActionArgs) ProtoMessage() {}
 
 func (x *ActionArgs) ProtoReflect() protoreflect.Message {
-	mi := &file_home_actions_v1_actions_proto_msgTypes[2]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -297,7 +456,7 @@ func (x *ActionArgs) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionArgs.ProtoReflect.Descriptor instead.
 func (*ActionArgs) Descriptor() ([]byte, []int) {
-	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{2}
+	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ActionArgs) GetArguments() isActionArgs_Arguments {
@@ -325,6 +484,33 @@ func (x *ActionArgs) GetExtension() *ExtensionPayload {
 	return nil
 }
 
+func (x *ActionArgs) GetSetLight() *SetLight {
+	if x != nil {
+		if x, ok := x.Arguments.(*ActionArgs_SetLight); ok {
+			return x.SetLight
+		}
+	}
+	return nil
+}
+
+func (x *ActionArgs) GetSetFan() *SetFan {
+	if x != nil {
+		if x, ok := x.Arguments.(*ActionArgs_SetFan); ok {
+			return x.SetFan
+		}
+	}
+	return nil
+}
+
+func (x *ActionArgs) GetSetClimate() *SetClimate {
+	if x != nil {
+		if x, ok := x.Arguments.(*ActionArgs_SetClimate); ok {
+			return x.SetClimate
+		}
+	}
+	return nil
+}
+
 type isActionArgs_Arguments interface {
 	isActionArgs_Arguments()
 }
@@ -337,9 +523,27 @@ type ActionArgs_Extension struct {
 	Extension *ExtensionPayload `protobuf:"bytes,2,opt,name=extension,proto3,oneof"`
 }
 
+type ActionArgs_SetLight struct {
+	SetLight *SetLight `protobuf:"bytes,3,opt,name=set_light,json=setLight,proto3,oneof"`
+}
+
+type ActionArgs_SetFan struct {
+	SetFan *SetFan `protobuf:"bytes,4,opt,name=set_fan,json=setFan,proto3,oneof"`
+}
+
+type ActionArgs_SetClimate struct {
+	SetClimate *SetClimate `protobuf:"bytes,5,opt,name=set_climate,json=setClimate,proto3,oneof"`
+}
+
 func (*ActionArgs_SetSwitch) isActionArgs_Arguments() {}
 
 func (*ActionArgs_Extension) isActionArgs_Arguments() {}
+
+func (*ActionArgs_SetLight) isActionArgs_Arguments() {}
+
+func (*ActionArgs_SetFan) isActionArgs_Arguments() {}
+
+func (*ActionArgs_SetClimate) isActionArgs_Arguments() {}
 
 type CommandRequest struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
@@ -358,7 +562,7 @@ type CommandRequest struct {
 
 func (x *CommandRequest) Reset() {
 	*x = CommandRequest{}
-	mi := &file_home_actions_v1_actions_proto_msgTypes[3]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -370,7 +574,7 @@ func (x *CommandRequest) String() string {
 func (*CommandRequest) ProtoMessage() {}
 
 func (x *CommandRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_actions_v1_actions_proto_msgTypes[3]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -383,7 +587,7 @@ func (x *CommandRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandRequest.ProtoReflect.Descriptor instead.
 func (*CommandRequest) Descriptor() ([]byte, []int) {
-	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{3}
+	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CommandRequest) GetCommandId() string {
@@ -459,7 +663,7 @@ type ErrorDetail struct {
 
 func (x *ErrorDetail) Reset() {
 	*x = ErrorDetail{}
-	mi := &file_home_actions_v1_actions_proto_msgTypes[4]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -471,7 +675,7 @@ func (x *ErrorDetail) String() string {
 func (*ErrorDetail) ProtoMessage() {}
 
 func (x *ErrorDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_home_actions_v1_actions_proto_msgTypes[4]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -484,7 +688,7 @@ func (x *ErrorDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ErrorDetail.ProtoReflect.Descriptor instead.
 func (*ErrorDetail) Descriptor() ([]byte, []int) {
-	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{4}
+	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ErrorDetail) GetReason() string {
@@ -513,7 +717,7 @@ type ContractError struct {
 
 func (x *ContractError) Reset() {
 	*x = ContractError{}
-	mi := &file_home_actions_v1_actions_proto_msgTypes[5]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -525,7 +729,7 @@ func (x *ContractError) String() string {
 func (*ContractError) ProtoMessage() {}
 
 func (x *ContractError) ProtoReflect() protoreflect.Message {
-	mi := &file_home_actions_v1_actions_proto_msgTypes[5]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -538,7 +742,7 @@ func (x *ContractError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContractError.ProtoReflect.Descriptor instead.
 func (*ContractError) Descriptor() ([]byte, []int) {
-	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{5}
+	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ContractError) GetCode() ErrorCode {
@@ -580,7 +784,7 @@ type CommandResponse struct {
 
 func (x *CommandResponse) Reset() {
 	*x = CommandResponse{}
-	mi := &file_home_actions_v1_actions_proto_msgTypes[6]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -592,7 +796,7 @@ func (x *CommandResponse) String() string {
 func (*CommandResponse) ProtoMessage() {}
 
 func (x *CommandResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_actions_v1_actions_proto_msgTypes[6]
+	mi := &file_home_actions_v1_actions_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -605,7 +809,7 @@ func (x *CommandResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandResponse.ProtoReflect.Descriptor instead.
 func (*CommandResponse) Descriptor() ([]byte, []int) {
-	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{6}
+	return file_home_actions_v1_actions_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CommandResponse) GetCommandId() string {
@@ -635,17 +839,37 @@ const file_home_actions_v1_actions_proto_rawDesc = "" +
 	"\n" +
 	"\x1dhome/actions/v1/actions.proto\x12\x0fhome.actions.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fhome/registry/v1/registry.proto\"\x1b\n" +
 	"\tSetSwitch\x12\x0e\n" +
-	"\x02on\x18\x01 \x01(\bR\x02on\"\x9d\x01\n" +
+	"\x02on\x18\x01 \x01(\bR\x02on\"q\n" +
+	"\bSetLight\x12\x13\n" +
+	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x122\n" +
+	"\x12brightness_percent\x18\x02 \x01(\x01H\x01R\x11brightnessPercent\x88\x01\x01B\x05\n" +
+	"\x03_onB\x15\n" +
+	"\x13_brightness_percent\"I\n" +
+	"\x06SetFan\x12\x13\n" +
+	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x12\x19\n" +
+	"\x05speed\x18\x02 \x01(\tH\x01R\x05speed\x88\x01\x01B\x05\n" +
+	"\x03_onB\b\n" +
+	"\x06_speed\"\x92\x01\n" +
+	"\n" +
+	"SetClimate\x12.\n" +
+	"\x10setpoint_celsius\x18\x01 \x01(\x01H\x00R\x0fsetpointCelsius\x88\x01\x01\x126\n" +
+	"\x04mode\x18\x02 \x01(\x0e2\x1d.home.registry.v1.ClimateModeH\x01R\x04mode\x88\x01\x01B\x13\n" +
+	"\x11_setpoint_celsiusB\a\n" +
+	"\x05_mode\"\x9d\x01\n" +
 	"\x10ExtensionPayload\x12\x1b\n" +
 	"\tschema_id\x18\x01 \x01(\tR\bschemaId\x12\x14\n" +
 	"\x05major\x18\x02 \x01(\rR\x05major\x12+\n" +
 	"\x11descriptor_sha256\x18\x03 \x01(\fR\x10descriptorSha256\x12)\n" +
-	"\x10protobuf_payload\x18\x04 \x01(\fR\x0fprotobufPayload\"\x99\x01\n" +
+	"\x10protobuf_payload\x18\x04 \x01(\fR\x0fprotobufPayload\"\xc7\x02\n" +
 	"\n" +
 	"ActionArgs\x12;\n" +
 	"\n" +
 	"set_switch\x18\x01 \x01(\v2\x1a.home.actions.v1.SetSwitchH\x00R\tsetSwitch\x12A\n" +
-	"\textension\x18\x02 \x01(\v2!.home.actions.v1.ExtensionPayloadH\x00R\textensionB\v\n" +
+	"\textension\x18\x02 \x01(\v2!.home.actions.v1.ExtensionPayloadH\x00R\textension\x128\n" +
+	"\tset_light\x18\x03 \x01(\v2\x19.home.actions.v1.SetLightH\x00R\bsetLight\x122\n" +
+	"\aset_fan\x18\x04 \x01(\v2\x17.home.actions.v1.SetFanH\x00R\x06setFan\x12>\n" +
+	"\vset_climate\x18\x05 \x01(\v2\x1b.home.actions.v1.SetClimateH\x00R\n" +
+	"setClimateB\v\n" +
 	"\targuments\"\xdd\x03\n" +
 	"\x0eCommandRequest\x12\x1d\n" +
 	"\n" +
@@ -706,35 +930,43 @@ func file_home_actions_v1_actions_proto_rawDescGZIP() []byte {
 }
 
 var file_home_actions_v1_actions_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_home_actions_v1_actions_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_home_actions_v1_actions_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_home_actions_v1_actions_proto_goTypes = []any{
 	(ErrorCode)(0),                // 0: home.actions.v1.ErrorCode
 	(ActionStatus)(0),             // 1: home.actions.v1.ActionStatus
 	(*SetSwitch)(nil),             // 2: home.actions.v1.SetSwitch
-	(*ExtensionPayload)(nil),      // 3: home.actions.v1.ExtensionPayload
-	(*ActionArgs)(nil),            // 4: home.actions.v1.ActionArgs
-	(*CommandRequest)(nil),        // 5: home.actions.v1.CommandRequest
-	(*ErrorDetail)(nil),           // 6: home.actions.v1.ErrorDetail
-	(*ContractError)(nil),         // 7: home.actions.v1.ContractError
-	(*CommandResponse)(nil),       // 8: home.actions.v1.CommandResponse
-	(*v1.EntityRef)(nil),          // 9: home.registry.v1.EntityRef
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(*SetLight)(nil),              // 3: home.actions.v1.SetLight
+	(*SetFan)(nil),                // 4: home.actions.v1.SetFan
+	(*SetClimate)(nil),            // 5: home.actions.v1.SetClimate
+	(*ExtensionPayload)(nil),      // 6: home.actions.v1.ExtensionPayload
+	(*ActionArgs)(nil),            // 7: home.actions.v1.ActionArgs
+	(*CommandRequest)(nil),        // 8: home.actions.v1.CommandRequest
+	(*ErrorDetail)(nil),           // 9: home.actions.v1.ErrorDetail
+	(*ContractError)(nil),         // 10: home.actions.v1.ContractError
+	(*CommandResponse)(nil),       // 11: home.actions.v1.CommandResponse
+	(v1.ClimateMode)(0),           // 12: home.registry.v1.ClimateMode
+	(*v1.EntityRef)(nil),          // 13: home.registry.v1.EntityRef
+	(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
 }
 var file_home_actions_v1_actions_proto_depIdxs = []int32{
-	2,  // 0: home.actions.v1.ActionArgs.set_switch:type_name -> home.actions.v1.SetSwitch
-	3,  // 1: home.actions.v1.ActionArgs.extension:type_name -> home.actions.v1.ExtensionPayload
-	9,  // 2: home.actions.v1.CommandRequest.target:type_name -> home.registry.v1.EntityRef
-	4,  // 3: home.actions.v1.CommandRequest.arguments:type_name -> home.actions.v1.ActionArgs
-	10, // 4: home.actions.v1.CommandRequest.expires_at:type_name -> google.protobuf.Timestamp
-	0,  // 5: home.actions.v1.ContractError.code:type_name -> home.actions.v1.ErrorCode
-	6,  // 6: home.actions.v1.ContractError.detail:type_name -> home.actions.v1.ErrorDetail
-	1,  // 7: home.actions.v1.CommandResponse.status:type_name -> home.actions.v1.ActionStatus
-	7,  // 8: home.actions.v1.CommandResponse.error:type_name -> home.actions.v1.ContractError
-	9,  // [9:9] is the sub-list for method output_type
-	9,  // [9:9] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	12, // 0: home.actions.v1.SetClimate.mode:type_name -> home.registry.v1.ClimateMode
+	2,  // 1: home.actions.v1.ActionArgs.set_switch:type_name -> home.actions.v1.SetSwitch
+	6,  // 2: home.actions.v1.ActionArgs.extension:type_name -> home.actions.v1.ExtensionPayload
+	3,  // 3: home.actions.v1.ActionArgs.set_light:type_name -> home.actions.v1.SetLight
+	4,  // 4: home.actions.v1.ActionArgs.set_fan:type_name -> home.actions.v1.SetFan
+	5,  // 5: home.actions.v1.ActionArgs.set_climate:type_name -> home.actions.v1.SetClimate
+	13, // 6: home.actions.v1.CommandRequest.target:type_name -> home.registry.v1.EntityRef
+	7,  // 7: home.actions.v1.CommandRequest.arguments:type_name -> home.actions.v1.ActionArgs
+	14, // 8: home.actions.v1.CommandRequest.expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 9: home.actions.v1.ContractError.code:type_name -> home.actions.v1.ErrorCode
+	9,  // 10: home.actions.v1.ContractError.detail:type_name -> home.actions.v1.ErrorDetail
+	1,  // 11: home.actions.v1.CommandResponse.status:type_name -> home.actions.v1.ActionStatus
+	10, // 12: home.actions.v1.CommandResponse.error:type_name -> home.actions.v1.ContractError
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_home_actions_v1_actions_proto_init() }
@@ -742,19 +974,25 @@ func file_home_actions_v1_actions_proto_init() {
 	if File_home_actions_v1_actions_proto != nil {
 		return
 	}
-	file_home_actions_v1_actions_proto_msgTypes[2].OneofWrappers = []any{
+	file_home_actions_v1_actions_proto_msgTypes[1].OneofWrappers = []any{}
+	file_home_actions_v1_actions_proto_msgTypes[2].OneofWrappers = []any{}
+	file_home_actions_v1_actions_proto_msgTypes[3].OneofWrappers = []any{}
+	file_home_actions_v1_actions_proto_msgTypes[5].OneofWrappers = []any{
 		(*ActionArgs_SetSwitch)(nil),
 		(*ActionArgs_Extension)(nil),
+		(*ActionArgs_SetLight)(nil),
+		(*ActionArgs_SetFan)(nil),
+		(*ActionArgs_SetClimate)(nil),
 	}
-	file_home_actions_v1_actions_proto_msgTypes[3].OneofWrappers = []any{}
-	file_home_actions_v1_actions_proto_msgTypes[4].OneofWrappers = []any{}
+	file_home_actions_v1_actions_proto_msgTypes[6].OneofWrappers = []any{}
+	file_home_actions_v1_actions_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_actions_v1_actions_proto_rawDesc), len(file_home_actions_v1_actions_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   7,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

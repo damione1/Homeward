@@ -11,8 +11,25 @@ import (
 // ValidateCommand demonstrates admission requirements. Authentication/authorization,
 // expiry, identity resolution and physical execution remain responsibilities of later services.
 func ValidateCommand(c *actions.CommandRequest, epoch string, revision uint64) *actions.ContractError {
+	if err := validateEnvelope(c, epoch, revision); err != nil {
+		return err
+	}
+	if c.CapabilitySchemaId != SwitchSchema {
+		return commandError(actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY, "capability_schema_id", "command rejected by contract")
+	}
+	if !validArguments(c.Arguments) {
+		return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments", "command rejected by contract")
+	}
+	return nil
+}
+
+func commandError(code actions.ErrorCode, path, message string) *actions.ContractError {
+	return &actions.ContractError{Code: code, FieldPath: path, Message: message}
+}
+
+func validateEnvelope(c *actions.CommandRequest, epoch string, revision uint64) *actions.ContractError {
 	fail := func(code actions.ErrorCode, path string) *actions.ContractError {
-		return &actions.ContractError{Code: code, FieldPath: path, Message: "command rejected by contract"}
+		return commandError(code, path, "command rejected by contract")
 	}
 	if c == nil || c.CommandId == "" {
 		return fail(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "command_id")
@@ -29,12 +46,6 @@ func ValidateCommand(c *actions.CommandRequest, epoch string, revision uint64) *
 	if !validTarget(c.Target) {
 		return fail(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target")
 	}
-	if c.CapabilitySchemaId != "core.switch.v1" {
-		return fail(actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY, "capability_schema_id")
-	}
-	if !validArguments(c.Arguments) {
-		return fail(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments")
-	}
 	return nil
 }
 
@@ -46,6 +57,8 @@ func validArguments(args *actions.ActionArgs) bool {
 	case *actions.ActionArgs_SetSwitch:
 		return value != nil && value.SetSwitch != nil
 	case *actions.ActionArgs_Extension:
+		return false
+	case *actions.ActionArgs_SetLight, *actions.ActionArgs_SetFan, *actions.ActionArgs_SetClimate:
 		return false
 	default:
 		return false

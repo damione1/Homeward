@@ -22,4 +22,73 @@ message CapabilityDescription {
   string endpoint = 4;
   bytes descriptor_set = 5;
   bytes descriptor_sha256 = 6;
+  // Exactly one constraints branch is required at domain admission.
+  oneof constraints {
+    SwitchConstraints switch = 7;
+    LightConstraints light = 8;
+    FanConstraints fan = 9;
+    ClimateConstraints climate = 10;
+    MeasurementConstraints measurement = 11;
+    BinaryConstraints binary = 12;
+    ExtensionConstraints extension = 13;
+  }
 }
+
+message NumberBounds {
+  double minimum = 1;
+  double maximum = 2;
+  optional double step = 3;
+}
+message SwitchConstraints { bool set_on = 1; }
+message LightConstraints {
+  bool set_on = 1;
+  NumberBounds brightness_percent = 2;
+}
+message FanConstraints {
+  bool set_on = 1;
+  repeated string speed_options = 2;
+}
+enum ClimateMode {
+  CLIMATE_MODE_UNSPECIFIED = 0;
+  CLIMATE_MODE_OFF = 1;
+  CLIMATE_MODE_HEAT = 2;
+  CLIMATE_MODE_COOL = 3;
+  CLIMATE_MODE_AUTO = 4;
+  CLIMATE_MODE_DRY = 5;
+  CLIMATE_MODE_FAN_ONLY = 6;
+}
+enum ClimateActivity {
+  CLIMATE_ACTIVITY_UNSPECIFIED = 0;
+  CLIMATE_ACTIVITY_IDLE = 1;
+  CLIMATE_ACTIVITY_HEATING = 2;
+  CLIMATE_ACTIVITY_COOLING = 3;
+  CLIMATE_ACTIVITY_DRYING = 4;
+  CLIMATE_ACTIVITY_FAN_ONLY = 5;
+}
+message ClimateConstraints {
+  NumberBounds setpoint_celsius = 1;
+  repeated ClimateMode mode_options = 2;
+  repeated ClimateActivity activity_options = 3; // Observations only.
+}
+enum MeasurementSemantic {
+  MEASUREMENT_SEMANTIC_UNSPECIFIED = 0;
+  MEASUREMENT_SEMANTIC_MEASUREMENT = 1;
+  MEASUREMENT_SEMANTIC_TOTAL = 2;
+  MEASUREMENT_SEMANTIC_TOTAL_INCREASING = 3;
+}
+enum MeasurementAggregation {
+  MEASUREMENT_AGGREGATION_UNSPECIFIED = 0;
+  MEASUREMENT_AGGREGATION_CURRENT = 1;
+  MEASUREMENT_AGGREGATION_SUM = 2;
+  MEASUREMENT_AGGREGATION_MEAN = 3;
+}
+message MeasurementConstraints {
+  string unit = 1;
+  uint32 precision = 2;
+  MeasurementSemantic semantic = 3;
+  MeasurementAggregation aggregation = 4;
+  NumberBounds value = 5;
+}
+message BinaryConstraints { optional string device_class = 1; }
+// The descriptor_set must contain action_message when commands are offered.
+message ExtensionConstraints { optional string action_message = 1; }

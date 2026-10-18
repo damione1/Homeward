@@ -21,6 +21,229 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type ClimateMode int32
+
+const (
+	ClimateMode_CLIMATE_MODE_UNSPECIFIED ClimateMode = 0
+	ClimateMode_CLIMATE_MODE_OFF         ClimateMode = 1
+	ClimateMode_CLIMATE_MODE_HEAT        ClimateMode = 2
+	ClimateMode_CLIMATE_MODE_COOL        ClimateMode = 3
+	ClimateMode_CLIMATE_MODE_AUTO        ClimateMode = 4
+	ClimateMode_CLIMATE_MODE_DRY         ClimateMode = 5
+	ClimateMode_CLIMATE_MODE_FAN_ONLY    ClimateMode = 6
+)
+
+// Enum value maps for ClimateMode.
+var (
+	ClimateMode_name = map[int32]string{
+		0: "CLIMATE_MODE_UNSPECIFIED",
+		1: "CLIMATE_MODE_OFF",
+		2: "CLIMATE_MODE_HEAT",
+		3: "CLIMATE_MODE_COOL",
+		4: "CLIMATE_MODE_AUTO",
+		5: "CLIMATE_MODE_DRY",
+		6: "CLIMATE_MODE_FAN_ONLY",
+	}
+	ClimateMode_value = map[string]int32{
+		"CLIMATE_MODE_UNSPECIFIED": 0,
+		"CLIMATE_MODE_OFF":         1,
+		"CLIMATE_MODE_HEAT":        2,
+		"CLIMATE_MODE_COOL":        3,
+		"CLIMATE_MODE_AUTO":        4,
+		"CLIMATE_MODE_DRY":         5,
+		"CLIMATE_MODE_FAN_ONLY":    6,
+	}
+)
+
+func (x ClimateMode) Enum() *ClimateMode {
+	p := new(ClimateMode)
+	*p = x
+	return p
+}
+
+func (x ClimateMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ClimateMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_registry_v1_registry_proto_enumTypes[0].Descriptor()
+}
+
+func (ClimateMode) Type() protoreflect.EnumType {
+	return &file_home_registry_v1_registry_proto_enumTypes[0]
+}
+
+func (x ClimateMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ClimateMode.Descriptor instead.
+func (ClimateMode) EnumDescriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{0}
+}
+
+type ClimateActivity int32
+
+const (
+	ClimateActivity_CLIMATE_ACTIVITY_UNSPECIFIED ClimateActivity = 0
+	ClimateActivity_CLIMATE_ACTIVITY_IDLE        ClimateActivity = 1
+	ClimateActivity_CLIMATE_ACTIVITY_HEATING     ClimateActivity = 2
+	ClimateActivity_CLIMATE_ACTIVITY_COOLING     ClimateActivity = 3
+	ClimateActivity_CLIMATE_ACTIVITY_DRYING      ClimateActivity = 4
+	ClimateActivity_CLIMATE_ACTIVITY_FAN_ONLY    ClimateActivity = 5
+)
+
+// Enum value maps for ClimateActivity.
+var (
+	ClimateActivity_name = map[int32]string{
+		0: "CLIMATE_ACTIVITY_UNSPECIFIED",
+		1: "CLIMATE_ACTIVITY_IDLE",
+		2: "CLIMATE_ACTIVITY_HEATING",
+		3: "CLIMATE_ACTIVITY_COOLING",
+		4: "CLIMATE_ACTIVITY_DRYING",
+		5: "CLIMATE_ACTIVITY_FAN_ONLY",
+	}
+	ClimateActivity_value = map[string]int32{
+		"CLIMATE_ACTIVITY_UNSPECIFIED": 0,
+		"CLIMATE_ACTIVITY_IDLE":        1,
+		"CLIMATE_ACTIVITY_HEATING":     2,
+		"CLIMATE_ACTIVITY_COOLING":     3,
+		"CLIMATE_ACTIVITY_DRYING":      4,
+		"CLIMATE_ACTIVITY_FAN_ONLY":    5,
+	}
+)
+
+func (x ClimateActivity) Enum() *ClimateActivity {
+	p := new(ClimateActivity)
+	*p = x
+	return p
+}
+
+func (x ClimateActivity) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ClimateActivity) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_registry_v1_registry_proto_enumTypes[1].Descriptor()
+}
+
+func (ClimateActivity) Type() protoreflect.EnumType {
+	return &file_home_registry_v1_registry_proto_enumTypes[1]
+}
+
+func (x ClimateActivity) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ClimateActivity.Descriptor instead.
+func (ClimateActivity) EnumDescriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{1}
+}
+
+type MeasurementSemantic int32
+
+const (
+	MeasurementSemantic_MEASUREMENT_SEMANTIC_UNSPECIFIED      MeasurementSemantic = 0
+	MeasurementSemantic_MEASUREMENT_SEMANTIC_MEASUREMENT      MeasurementSemantic = 1
+	MeasurementSemantic_MEASUREMENT_SEMANTIC_TOTAL            MeasurementSemantic = 2
+	MeasurementSemantic_MEASUREMENT_SEMANTIC_TOTAL_INCREASING MeasurementSemantic = 3
+)
+
+// Enum value maps for MeasurementSemantic.
+var (
+	MeasurementSemantic_name = map[int32]string{
+		0: "MEASUREMENT_SEMANTIC_UNSPECIFIED",
+		1: "MEASUREMENT_SEMANTIC_MEASUREMENT",
+		2: "MEASUREMENT_SEMANTIC_TOTAL",
+		3: "MEASUREMENT_SEMANTIC_TOTAL_INCREASING",
+	}
+	MeasurementSemantic_value = map[string]int32{
+		"MEASUREMENT_SEMANTIC_UNSPECIFIED":      0,
+		"MEASUREMENT_SEMANTIC_MEASUREMENT":      1,
+		"MEASUREMENT_SEMANTIC_TOTAL":            2,
+		"MEASUREMENT_SEMANTIC_TOTAL_INCREASING": 3,
+	}
+)
+
+func (x MeasurementSemantic) Enum() *MeasurementSemantic {
+	p := new(MeasurementSemantic)
+	*p = x
+	return p
+}
+
+func (x MeasurementSemantic) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MeasurementSemantic) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_registry_v1_registry_proto_enumTypes[2].Descriptor()
+}
+
+func (MeasurementSemantic) Type() protoreflect.EnumType {
+	return &file_home_registry_v1_registry_proto_enumTypes[2]
+}
+
+func (x MeasurementSemantic) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MeasurementSemantic.Descriptor instead.
+func (MeasurementSemantic) EnumDescriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{2}
+}
+
+type MeasurementAggregation int32
+
+const (
+	MeasurementAggregation_MEASUREMENT_AGGREGATION_UNSPECIFIED MeasurementAggregation = 0
+	MeasurementAggregation_MEASUREMENT_AGGREGATION_CURRENT     MeasurementAggregation = 1
+	MeasurementAggregation_MEASUREMENT_AGGREGATION_SUM         MeasurementAggregation = 2
+	MeasurementAggregation_MEASUREMENT_AGGREGATION_MEAN        MeasurementAggregation = 3
+)
+
+// Enum value maps for MeasurementAggregation.
+var (
+	MeasurementAggregation_name = map[int32]string{
+		0: "MEASUREMENT_AGGREGATION_UNSPECIFIED",
+		1: "MEASUREMENT_AGGREGATION_CURRENT",
+		2: "MEASUREMENT_AGGREGATION_SUM",
+		3: "MEASUREMENT_AGGREGATION_MEAN",
+	}
+	MeasurementAggregation_value = map[string]int32{
+		"MEASUREMENT_AGGREGATION_UNSPECIFIED": 0,
+		"MEASUREMENT_AGGREGATION_CURRENT":     1,
+		"MEASUREMENT_AGGREGATION_SUM":         2,
+		"MEASUREMENT_AGGREGATION_MEAN":        3,
+	}
+)
+
+func (x MeasurementAggregation) Enum() *MeasurementAggregation {
+	p := new(MeasurementAggregation)
+	*p = x
+	return p
+}
+
+func (x MeasurementAggregation) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MeasurementAggregation) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_registry_v1_registry_proto_enumTypes[3].Descriptor()
+}
+
+func (MeasurementAggregation) Type() protoreflect.EnumType {
+	return &file_home_registry_v1_registry_proto_enumTypes[3]
+}
+
+func (x MeasurementAggregation) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MeasurementAggregation.Descriptor instead.
+func (MeasurementAggregation) EnumDescriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{3}
+}
+
 type EntityId struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Value         string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
@@ -156,8 +379,20 @@ type CapabilityDescription struct {
 	Endpoint         string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
 	DescriptorSet    []byte                 `protobuf:"bytes,5,opt,name=descriptor_set,json=descriptorSet,proto3" json:"descriptor_set,omitempty"`
 	DescriptorSha256 []byte                 `protobuf:"bytes,6,opt,name=descriptor_sha256,json=descriptorSha256,proto3" json:"descriptor_sha256,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Exactly one constraints branch is required at domain admission.
+	//
+	// Types that are valid to be assigned to Constraints:
+	//
+	//	*CapabilityDescription_Switch
+	//	*CapabilityDescription_Light
+	//	*CapabilityDescription_Fan
+	//	*CapabilityDescription_Climate
+	//	*CapabilityDescription_Measurement
+	//	*CapabilityDescription_Binary
+	//	*CapabilityDescription_Extension
+	Constraints   isCapabilityDescription_Constraints `protobuf_oneof:"constraints"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CapabilityDescription) Reset() {
@@ -232,6 +467,555 @@ func (x *CapabilityDescription) GetDescriptorSha256() []byte {
 	return nil
 }
 
+func (x *CapabilityDescription) GetConstraints() isCapabilityDescription_Constraints {
+	if x != nil {
+		return x.Constraints
+	}
+	return nil
+}
+
+func (x *CapabilityDescription) GetSwitch() *SwitchConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_Switch); ok {
+			return x.Switch
+		}
+	}
+	return nil
+}
+
+func (x *CapabilityDescription) GetLight() *LightConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_Light); ok {
+			return x.Light
+		}
+	}
+	return nil
+}
+
+func (x *CapabilityDescription) GetFan() *FanConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_Fan); ok {
+			return x.Fan
+		}
+	}
+	return nil
+}
+
+func (x *CapabilityDescription) GetClimate() *ClimateConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_Climate); ok {
+			return x.Climate
+		}
+	}
+	return nil
+}
+
+func (x *CapabilityDescription) GetMeasurement() *MeasurementConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_Measurement); ok {
+			return x.Measurement
+		}
+	}
+	return nil
+}
+
+func (x *CapabilityDescription) GetBinary() *BinaryConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_Binary); ok {
+			return x.Binary
+		}
+	}
+	return nil
+}
+
+func (x *CapabilityDescription) GetExtension() *ExtensionConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_Extension); ok {
+			return x.Extension
+		}
+	}
+	return nil
+}
+
+type isCapabilityDescription_Constraints interface {
+	isCapabilityDescription_Constraints()
+}
+
+type CapabilityDescription_Switch struct {
+	Switch *SwitchConstraints `protobuf:"bytes,7,opt,name=switch,proto3,oneof"`
+}
+
+type CapabilityDescription_Light struct {
+	Light *LightConstraints `protobuf:"bytes,8,opt,name=light,proto3,oneof"`
+}
+
+type CapabilityDescription_Fan struct {
+	Fan *FanConstraints `protobuf:"bytes,9,opt,name=fan,proto3,oneof"`
+}
+
+type CapabilityDescription_Climate struct {
+	Climate *ClimateConstraints `protobuf:"bytes,10,opt,name=climate,proto3,oneof"`
+}
+
+type CapabilityDescription_Measurement struct {
+	Measurement *MeasurementConstraints `protobuf:"bytes,11,opt,name=measurement,proto3,oneof"`
+}
+
+type CapabilityDescription_Binary struct {
+	Binary *BinaryConstraints `protobuf:"bytes,12,opt,name=binary,proto3,oneof"`
+}
+
+type CapabilityDescription_Extension struct {
+	Extension *ExtensionConstraints `protobuf:"bytes,13,opt,name=extension,proto3,oneof"`
+}
+
+func (*CapabilityDescription_Switch) isCapabilityDescription_Constraints() {}
+
+func (*CapabilityDescription_Light) isCapabilityDescription_Constraints() {}
+
+func (*CapabilityDescription_Fan) isCapabilityDescription_Constraints() {}
+
+func (*CapabilityDescription_Climate) isCapabilityDescription_Constraints() {}
+
+func (*CapabilityDescription_Measurement) isCapabilityDescription_Constraints() {}
+
+func (*CapabilityDescription_Binary) isCapabilityDescription_Constraints() {}
+
+func (*CapabilityDescription_Extension) isCapabilityDescription_Constraints() {}
+
+type NumberBounds struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Minimum       float64                `protobuf:"fixed64,1,opt,name=minimum,proto3" json:"minimum,omitempty"`
+	Maximum       float64                `protobuf:"fixed64,2,opt,name=maximum,proto3" json:"maximum,omitempty"`
+	Step          *float64               `protobuf:"fixed64,3,opt,name=step,proto3,oneof" json:"step,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NumberBounds) Reset() {
+	*x = NumberBounds{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NumberBounds) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NumberBounds) ProtoMessage() {}
+
+func (x *NumberBounds) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NumberBounds.ProtoReflect.Descriptor instead.
+func (*NumberBounds) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *NumberBounds) GetMinimum() float64 {
+	if x != nil {
+		return x.Minimum
+	}
+	return 0
+}
+
+func (x *NumberBounds) GetMaximum() float64 {
+	if x != nil {
+		return x.Maximum
+	}
+	return 0
+}
+
+func (x *NumberBounds) GetStep() float64 {
+	if x != nil && x.Step != nil {
+		return *x.Step
+	}
+	return 0
+}
+
+type SwitchConstraints struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SetOn         bool                   `protobuf:"varint,1,opt,name=set_on,json=setOn,proto3" json:"set_on,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SwitchConstraints) Reset() {
+	*x = SwitchConstraints{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SwitchConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SwitchConstraints) ProtoMessage() {}
+
+func (x *SwitchConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SwitchConstraints.ProtoReflect.Descriptor instead.
+func (*SwitchConstraints) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *SwitchConstraints) GetSetOn() bool {
+	if x != nil {
+		return x.SetOn
+	}
+	return false
+}
+
+type LightConstraints struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SetOn             bool                   `protobuf:"varint,1,opt,name=set_on,json=setOn,proto3" json:"set_on,omitempty"`
+	BrightnessPercent *NumberBounds          `protobuf:"bytes,2,opt,name=brightness_percent,json=brightnessPercent,proto3" json:"brightness_percent,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *LightConstraints) Reset() {
+	*x = LightConstraints{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LightConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LightConstraints) ProtoMessage() {}
+
+func (x *LightConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LightConstraints.ProtoReflect.Descriptor instead.
+func (*LightConstraints) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *LightConstraints) GetSetOn() bool {
+	if x != nil {
+		return x.SetOn
+	}
+	return false
+}
+
+func (x *LightConstraints) GetBrightnessPercent() *NumberBounds {
+	if x != nil {
+		return x.BrightnessPercent
+	}
+	return nil
+}
+
+type FanConstraints struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SetOn         bool                   `protobuf:"varint,1,opt,name=set_on,json=setOn,proto3" json:"set_on,omitempty"`
+	SpeedOptions  []string               `protobuf:"bytes,2,rep,name=speed_options,json=speedOptions,proto3" json:"speed_options,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FanConstraints) Reset() {
+	*x = FanConstraints{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FanConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FanConstraints) ProtoMessage() {}
+
+func (x *FanConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FanConstraints.ProtoReflect.Descriptor instead.
+func (*FanConstraints) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *FanConstraints) GetSetOn() bool {
+	if x != nil {
+		return x.SetOn
+	}
+	return false
+}
+
+func (x *FanConstraints) GetSpeedOptions() []string {
+	if x != nil {
+		return x.SpeedOptions
+	}
+	return nil
+}
+
+type ClimateConstraints struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	SetpointCelsius *NumberBounds          `protobuf:"bytes,1,opt,name=setpoint_celsius,json=setpointCelsius,proto3" json:"setpoint_celsius,omitempty"`
+	ModeOptions     []ClimateMode          `protobuf:"varint,2,rep,packed,name=mode_options,json=modeOptions,proto3,enum=home.registry.v1.ClimateMode" json:"mode_options,omitempty"`
+	ActivityOptions []ClimateActivity      `protobuf:"varint,3,rep,packed,name=activity_options,json=activityOptions,proto3,enum=home.registry.v1.ClimateActivity" json:"activity_options,omitempty"` // Observations only.
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ClimateConstraints) Reset() {
+	*x = ClimateConstraints{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClimateConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClimateConstraints) ProtoMessage() {}
+
+func (x *ClimateConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClimateConstraints.ProtoReflect.Descriptor instead.
+func (*ClimateConstraints) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ClimateConstraints) GetSetpointCelsius() *NumberBounds {
+	if x != nil {
+		return x.SetpointCelsius
+	}
+	return nil
+}
+
+func (x *ClimateConstraints) GetModeOptions() []ClimateMode {
+	if x != nil {
+		return x.ModeOptions
+	}
+	return nil
+}
+
+func (x *ClimateConstraints) GetActivityOptions() []ClimateActivity {
+	if x != nil {
+		return x.ActivityOptions
+	}
+	return nil
+}
+
+type MeasurementConstraints struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Unit          string                 `protobuf:"bytes,1,opt,name=unit,proto3" json:"unit,omitempty"`
+	Precision     uint32                 `protobuf:"varint,2,opt,name=precision,proto3" json:"precision,omitempty"`
+	Semantic      MeasurementSemantic    `protobuf:"varint,3,opt,name=semantic,proto3,enum=home.registry.v1.MeasurementSemantic" json:"semantic,omitempty"`
+	Aggregation   MeasurementAggregation `protobuf:"varint,4,opt,name=aggregation,proto3,enum=home.registry.v1.MeasurementAggregation" json:"aggregation,omitempty"`
+	Value         *NumberBounds          `protobuf:"bytes,5,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MeasurementConstraints) Reset() {
+	*x = MeasurementConstraints{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MeasurementConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MeasurementConstraints) ProtoMessage() {}
+
+func (x *MeasurementConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MeasurementConstraints.ProtoReflect.Descriptor instead.
+func (*MeasurementConstraints) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *MeasurementConstraints) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+func (x *MeasurementConstraints) GetPrecision() uint32 {
+	if x != nil {
+		return x.Precision
+	}
+	return 0
+}
+
+func (x *MeasurementConstraints) GetSemantic() MeasurementSemantic {
+	if x != nil {
+		return x.Semantic
+	}
+	return MeasurementSemantic_MEASUREMENT_SEMANTIC_UNSPECIFIED
+}
+
+func (x *MeasurementConstraints) GetAggregation() MeasurementAggregation {
+	if x != nil {
+		return x.Aggregation
+	}
+	return MeasurementAggregation_MEASUREMENT_AGGREGATION_UNSPECIFIED
+}
+
+func (x *MeasurementConstraints) GetValue() *NumberBounds {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+type BinaryConstraints struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DeviceClass   *string                `protobuf:"bytes,1,opt,name=device_class,json=deviceClass,proto3,oneof" json:"device_class,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BinaryConstraints) Reset() {
+	*x = BinaryConstraints{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BinaryConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BinaryConstraints) ProtoMessage() {}
+
+func (x *BinaryConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BinaryConstraints.ProtoReflect.Descriptor instead.
+func (*BinaryConstraints) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *BinaryConstraints) GetDeviceClass() string {
+	if x != nil && x.DeviceClass != nil {
+		return *x.DeviceClass
+	}
+	return ""
+}
+
+// The descriptor_set must contain action_message when commands are offered.
+type ExtensionConstraints struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ActionMessage *string                `protobuf:"bytes,1,opt,name=action_message,json=actionMessage,proto3,oneof" json:"action_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExtensionConstraints) Reset() {
+	*x = ExtensionConstraints{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExtensionConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExtensionConstraints) ProtoMessage() {}
+
+func (x *ExtensionConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExtensionConstraints.ProtoReflect.Descriptor instead.
+func (*ExtensionConstraints) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ExtensionConstraints) GetActionMessage() string {
+	if x != nil && x.ActionMessage != nil {
+		return *x.ActionMessage
+	}
+	return ""
+}
+
 var File_home_registry_v1_registry_proto protoreflect.FileDescriptor
 
 const file_home_registry_v1_registry_proto_rawDesc = "" +
@@ -242,14 +1026,77 @@ const file_home_registry_v1_registry_proto_rawDesc = "" +
 	"\tEntityRef\x12\x1d\n" +
 	"\tentity_id\x18\x01 \x01(\tH\x00R\bentityId\x12\x1b\n" +
 	"\bha_alias\x18\x02 \x01(\tH\x00R\ahaAliasB\v\n" +
-	"\treferenceJ\x04\b\x03\x10\x04R\vlegacy_name\"\xdd\x01\n" +
+	"\treferenceJ\x04\b\x03\x10\x04R\vlegacy_name\"\xb4\x05\n" +
 	"\x15CapabilityDescription\x12\x1b\n" +
 	"\tschema_id\x18\x01 \x01(\tR\bschemaId\x12\x14\n" +
 	"\x05major\x18\x02 \x01(\rR\x05major\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12\x1a\n" +
 	"\bendpoint\x18\x04 \x01(\tR\bendpoint\x12%\n" +
 	"\x0edescriptor_set\x18\x05 \x01(\fR\rdescriptorSet\x12+\n" +
-	"\x11descriptor_sha256\x18\x06 \x01(\fR\x10descriptorSha256B>Z<github.com/damione1/Homeward/gen/home/registry/v1;registryv1b\x06proto3"
+	"\x11descriptor_sha256\x18\x06 \x01(\fR\x10descriptorSha256\x12=\n" +
+	"\x06switch\x18\a \x01(\v2#.home.registry.v1.SwitchConstraintsH\x00R\x06switch\x12:\n" +
+	"\x05light\x18\b \x01(\v2\".home.registry.v1.LightConstraintsH\x00R\x05light\x124\n" +
+	"\x03fan\x18\t \x01(\v2 .home.registry.v1.FanConstraintsH\x00R\x03fan\x12@\n" +
+	"\aclimate\x18\n" +
+	" \x01(\v2$.home.registry.v1.ClimateConstraintsH\x00R\aclimate\x12L\n" +
+	"\vmeasurement\x18\v \x01(\v2(.home.registry.v1.MeasurementConstraintsH\x00R\vmeasurement\x12=\n" +
+	"\x06binary\x18\f \x01(\v2#.home.registry.v1.BinaryConstraintsH\x00R\x06binary\x12F\n" +
+	"\textension\x18\r \x01(\v2&.home.registry.v1.ExtensionConstraintsH\x00R\textensionB\r\n" +
+	"\vconstraints\"d\n" +
+	"\fNumberBounds\x12\x18\n" +
+	"\aminimum\x18\x01 \x01(\x01R\aminimum\x12\x18\n" +
+	"\amaximum\x18\x02 \x01(\x01R\amaximum\x12\x17\n" +
+	"\x04step\x18\x03 \x01(\x01H\x00R\x04step\x88\x01\x01B\a\n" +
+	"\x05_step\"*\n" +
+	"\x11SwitchConstraints\x12\x15\n" +
+	"\x06set_on\x18\x01 \x01(\bR\x05setOn\"x\n" +
+	"\x10LightConstraints\x12\x15\n" +
+	"\x06set_on\x18\x01 \x01(\bR\x05setOn\x12M\n" +
+	"\x12brightness_percent\x18\x02 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x11brightnessPercent\"L\n" +
+	"\x0eFanConstraints\x12\x15\n" +
+	"\x06set_on\x18\x01 \x01(\bR\x05setOn\x12#\n" +
+	"\rspeed_options\x18\x02 \x03(\tR\fspeedOptions\"\xef\x01\n" +
+	"\x12ClimateConstraints\x12I\n" +
+	"\x10setpoint_celsius\x18\x01 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x0fsetpointCelsius\x12@\n" +
+	"\fmode_options\x18\x02 \x03(\x0e2\x1d.home.registry.v1.ClimateModeR\vmodeOptions\x12L\n" +
+	"\x10activity_options\x18\x03 \x03(\x0e2!.home.registry.v1.ClimateActivityR\x0factivityOptions\"\x8f\x02\n" +
+	"\x16MeasurementConstraints\x12\x12\n" +
+	"\x04unit\x18\x01 \x01(\tR\x04unit\x12\x1c\n" +
+	"\tprecision\x18\x02 \x01(\rR\tprecision\x12A\n" +
+	"\bsemantic\x18\x03 \x01(\x0e2%.home.registry.v1.MeasurementSemanticR\bsemantic\x12J\n" +
+	"\vaggregation\x18\x04 \x01(\x0e2(.home.registry.v1.MeasurementAggregationR\vaggregation\x124\n" +
+	"\x05value\x18\x05 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x05value\"L\n" +
+	"\x11BinaryConstraints\x12&\n" +
+	"\fdevice_class\x18\x01 \x01(\tH\x00R\vdeviceClass\x88\x01\x01B\x0f\n" +
+	"\r_device_class\"U\n" +
+	"\x14ExtensionConstraints\x12*\n" +
+	"\x0eaction_message\x18\x01 \x01(\tH\x00R\ractionMessage\x88\x01\x01B\x11\n" +
+	"\x0f_action_message*\xb7\x01\n" +
+	"\vClimateMode\x12\x1c\n" +
+	"\x18CLIMATE_MODE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10CLIMATE_MODE_OFF\x10\x01\x12\x15\n" +
+	"\x11CLIMATE_MODE_HEAT\x10\x02\x12\x15\n" +
+	"\x11CLIMATE_MODE_COOL\x10\x03\x12\x15\n" +
+	"\x11CLIMATE_MODE_AUTO\x10\x04\x12\x14\n" +
+	"\x10CLIMATE_MODE_DRY\x10\x05\x12\x19\n" +
+	"\x15CLIMATE_MODE_FAN_ONLY\x10\x06*\xc6\x01\n" +
+	"\x0fClimateActivity\x12 \n" +
+	"\x1cCLIMATE_ACTIVITY_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15CLIMATE_ACTIVITY_IDLE\x10\x01\x12\x1c\n" +
+	"\x18CLIMATE_ACTIVITY_HEATING\x10\x02\x12\x1c\n" +
+	"\x18CLIMATE_ACTIVITY_COOLING\x10\x03\x12\x1b\n" +
+	"\x17CLIMATE_ACTIVITY_DRYING\x10\x04\x12\x1d\n" +
+	"\x19CLIMATE_ACTIVITY_FAN_ONLY\x10\x05*\xac\x01\n" +
+	"\x13MeasurementSemantic\x12$\n" +
+	" MEASUREMENT_SEMANTIC_UNSPECIFIED\x10\x00\x12$\n" +
+	" MEASUREMENT_SEMANTIC_MEASUREMENT\x10\x01\x12\x1e\n" +
+	"\x1aMEASUREMENT_SEMANTIC_TOTAL\x10\x02\x12)\n" +
+	"%MEASUREMENT_SEMANTIC_TOTAL_INCREASING\x10\x03*\xa9\x01\n" +
+	"\x16MeasurementAggregation\x12'\n" +
+	"#MEASUREMENT_AGGREGATION_UNSPECIFIED\x10\x00\x12#\n" +
+	"\x1fMEASUREMENT_AGGREGATION_CURRENT\x10\x01\x12\x1f\n" +
+	"\x1bMEASUREMENT_AGGREGATION_SUM\x10\x02\x12 \n" +
+	"\x1cMEASUREMENT_AGGREGATION_MEAN\x10\x03B>Z<github.com/damione1/Homeward/gen/home/registry/v1;registryv1b\x06proto3"
 
 var (
 	file_home_registry_v1_registry_proto_rawDescOnce sync.Once
@@ -263,18 +1110,45 @@ func file_home_registry_v1_registry_proto_rawDescGZIP() []byte {
 	return file_home_registry_v1_registry_proto_rawDescData
 }
 
-var file_home_registry_v1_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_home_registry_v1_registry_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_home_registry_v1_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_home_registry_v1_registry_proto_goTypes = []any{
-	(*EntityId)(nil),              // 0: home.registry.v1.EntityId
-	(*EntityRef)(nil),             // 1: home.registry.v1.EntityRef
-	(*CapabilityDescription)(nil), // 2: home.registry.v1.CapabilityDescription
+	(ClimateMode)(0),               // 0: home.registry.v1.ClimateMode
+	(ClimateActivity)(0),           // 1: home.registry.v1.ClimateActivity
+	(MeasurementSemantic)(0),       // 2: home.registry.v1.MeasurementSemantic
+	(MeasurementAggregation)(0),    // 3: home.registry.v1.MeasurementAggregation
+	(*EntityId)(nil),               // 4: home.registry.v1.EntityId
+	(*EntityRef)(nil),              // 5: home.registry.v1.EntityRef
+	(*CapabilityDescription)(nil),  // 6: home.registry.v1.CapabilityDescription
+	(*NumberBounds)(nil),           // 7: home.registry.v1.NumberBounds
+	(*SwitchConstraints)(nil),      // 8: home.registry.v1.SwitchConstraints
+	(*LightConstraints)(nil),       // 9: home.registry.v1.LightConstraints
+	(*FanConstraints)(nil),         // 10: home.registry.v1.FanConstraints
+	(*ClimateConstraints)(nil),     // 11: home.registry.v1.ClimateConstraints
+	(*MeasurementConstraints)(nil), // 12: home.registry.v1.MeasurementConstraints
+	(*BinaryConstraints)(nil),      // 13: home.registry.v1.BinaryConstraints
+	(*ExtensionConstraints)(nil),   // 14: home.registry.v1.ExtensionConstraints
 }
 var file_home_registry_v1_registry_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	8,  // 0: home.registry.v1.CapabilityDescription.switch:type_name -> home.registry.v1.SwitchConstraints
+	9,  // 1: home.registry.v1.CapabilityDescription.light:type_name -> home.registry.v1.LightConstraints
+	10, // 2: home.registry.v1.CapabilityDescription.fan:type_name -> home.registry.v1.FanConstraints
+	11, // 3: home.registry.v1.CapabilityDescription.climate:type_name -> home.registry.v1.ClimateConstraints
+	12, // 4: home.registry.v1.CapabilityDescription.measurement:type_name -> home.registry.v1.MeasurementConstraints
+	13, // 5: home.registry.v1.CapabilityDescription.binary:type_name -> home.registry.v1.BinaryConstraints
+	14, // 6: home.registry.v1.CapabilityDescription.extension:type_name -> home.registry.v1.ExtensionConstraints
+	7,  // 7: home.registry.v1.LightConstraints.brightness_percent:type_name -> home.registry.v1.NumberBounds
+	7,  // 8: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
+	0,  // 9: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
+	1,  // 10: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
+	2,  // 11: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
+	3,  // 12: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
+	7,  // 13: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_home_registry_v1_registry_proto_init() }
@@ -286,18 +1160,31 @@ func file_home_registry_v1_registry_proto_init() {
 		(*EntityRef_EntityId)(nil),
 		(*EntityRef_HaAlias)(nil),
 	}
+	file_home_registry_v1_registry_proto_msgTypes[2].OneofWrappers = []any{
+		(*CapabilityDescription_Switch)(nil),
+		(*CapabilityDescription_Light)(nil),
+		(*CapabilityDescription_Fan)(nil),
+		(*CapabilityDescription_Climate)(nil),
+		(*CapabilityDescription_Measurement)(nil),
+		(*CapabilityDescription_Binary)(nil),
+		(*CapabilityDescription_Extension)(nil),
+	}
+	file_home_registry_v1_registry_proto_msgTypes[3].OneofWrappers = []any{}
+	file_home_registry_v1_registry_proto_msgTypes[9].OneofWrappers = []any{}
+	file_home_registry_v1_registry_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_registry_v1_registry_proto_rawDesc), len(file_home_registry_v1_registry_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      4,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_home_registry_v1_registry_proto_goTypes,
 		DependencyIndexes: file_home_registry_v1_registry_proto_depIdxs,
+		EnumInfos:         file_home_registry_v1_registry_proto_enumTypes,
 		MessageInfos:      file_home_registry_v1_registry_proto_msgTypes,
 	}.Build()
 	File_home_registry_v1_registry_proto = out.File

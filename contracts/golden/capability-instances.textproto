@@ -1,0 +1,54 @@
+capabilities {
+  schema_id: "core.switch.v1"
+  major: 1
+  display_name: "Relay"
+  endpoint: "relay"
+  switch { set_on: true }
+}
+capabilities {
+  schema_id: "core.light.v1"
+  major: 1
+  display_name: "Desk lamp"
+  endpoint: "lamp"
+  light { set_on: true brightness_percent { minimum: 0 maximum: 100 step: 1 } }
+}
+capabilities {
+  schema_id: "core.fan.v1"
+  major: 1
+  display_name: "Bedroom fan"
+  endpoint: "fan"
+  fan { speed_options: "low" speed_options: "high" }
+}
+capabilities {
+  schema_id: "core.climate.v1"
+  major: 1
+  display_name: "Thermostat"
+  endpoint: "climate"
+  climate {
+    setpoint_celsius { minimum: 16 maximum: 30 step: 0.5 }
+    mode_options: CLIMATE_MODE_OFF
+    mode_options: CLIMATE_MODE_HEAT
+    activity_options: CLIMATE_ACTIVITY_IDLE
+    activity_options: CLIMATE_ACTIVITY_HEATING
+  }
+}
+capabilities {
+  schema_id: "core.measurement.v1"
+  major: 1
+  display_name: "Power"
+  endpoint: "power"
+  measurement {
+    unit: "W"
+    precision: 1
+    semantic: MEASUREMENT_SEMANTIC_MEASUREMENT
+    aggregation: MEASUREMENT_AGGREGATION_CURRENT
+    value { minimum: 0 maximum: 2000 }
+  }
+}
+capabilities {
+  schema_id: "core.binary.v1"
+  major: 1
+  display_name: "Contact"
+  endpoint: "contact"
+  binary {}
+}

@@ -21,10 +21,13 @@ func TestCommandAdmissionBoundaries(t *testing.T) {
 		{"missing target", func(c *actions.CommandRequest) { c.Target = nil }, actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target"},
 		{"typed nil target", func(c *actions.CommandRequest) { c.Target.Reference = (*registry.EntityRef_EntityId)(nil) }, actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target"},
 		{"unknown target branch", func(c *actions.CommandRequest) {
-			wire := []byte{0x1a, 0}
+			wire := []byte{0x9a, 0x06, 0}
 			c.Target = new(registry.EntityRef)
 			if err := proto.Unmarshal(wire, c.Target); err != nil {
 				t.Fatal(err)
+			}
+			if c.Target.Reference != nil || len(c.Target.ProtoReflect().GetUnknown()) == 0 {
+				t.Fatal("future target branch is no longer unknown")
 			}
 			encoded, err := proto.Marshal(c.Target)
 			if err != nil || !bytes.Equal(encoded, wire) {
@@ -42,10 +45,13 @@ func TestCommandAdmissionBoundaries(t *testing.T) {
 			c.Arguments.Arguments = &actions.ActionArgs_Extension{Extension: &actions.ExtensionPayload{}}
 		}, actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments"},
 		{"unknown args branch", func(c *actions.CommandRequest) {
-			wire := []byte{0x1a, 0}
+			wire := []byte{0x9a, 0x06, 0}
 			c.Arguments = &actions.ActionArgs{}
 			if err := proto.Unmarshal(wire, c.Arguments); err != nil {
 				t.Fatal(err)
+			}
+			if c.Arguments.Arguments != nil || len(c.Arguments.ProtoReflect().GetUnknown()) == 0 {
+				t.Fatal("future arguments branch is no longer unknown")
 			}
 			encoded, err := proto.Marshal(c.Arguments)
 			if err != nil || !bytes.Equal(encoded, wire) {
@@ -97,7 +103,7 @@ func TestAdmissionOneofCoverage(t *testing.T) {
 		names   []protoreflect.Name
 	}{
 		{&registry.EntityRef{}, "reference", []protoreflect.Name{"entity_id", "ha_alias"}},
-		{&actions.ActionArgs{}, "arguments", []protoreflect.Name{"set_switch", "extension"}},
+		{&actions.ActionArgs{}, "arguments", []protoreflect.Name{"set_switch", "extension", "set_light", "set_fan", "set_climate"}},
 	}
 	for _, tt := range tests {
 		fields := tt.message.ProtoReflect().Descriptor().Oneofs().ByName(tt.oneof).Fields()

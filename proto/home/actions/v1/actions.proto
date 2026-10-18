@@ -8,6 +8,18 @@ option go_package = "github.com/damione1/Homeward/gen/home/actions/v1;actionsv1"
 message SetSwitch {
   bool on = 1;
 }
+message SetLight {
+  optional bool on = 1;
+  optional double brightness_percent = 2;
+}
+message SetFan {
+  optional bool on = 1;
+  optional string speed = 2;
+}
+message SetClimate {
+  optional double setpoint_celsius = 1;
+  optional home.registry.v1.ClimateMode mode = 2;
+}
 
 // An extension is a typed/versioned envelope. Validation requires a registered codec
 // matching schema_id, major and descriptor hash, then authorization; never execute a raw blob.
@@ -21,6 +33,9 @@ message ActionArgs {
   oneof arguments {
     SetSwitch set_switch = 1;
     ExtensionPayload extension = 2;
+    SetLight set_light = 3;
+    SetFan set_fan = 4;
+    SetClimate set_climate = 5;
   }
 }
 message CommandRequest {

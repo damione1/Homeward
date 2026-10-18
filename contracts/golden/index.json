@@ -46,5 +46,17 @@
   "absent-target": {
     "message": "home.actions.v1.CommandRequest",
     "schema": "home/actions/v1/actions.proto"
+  },
+  "capability-instances": {
+    "message": "home.state.v1.OpenViewResponse",
+    "schema": "home/state/v1/state.proto"
+  },
+  "light-command": {
+    "message": "home.actions.v1.CommandRequest",
+    "schema": "home/actions/v1/actions.proto"
+  },
+  "extension-description": {
+    "message": "home.registry.v1.CapabilityDescription",
+    "schema": "home/registry/v1/registry.proto"
   }
 }

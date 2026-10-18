@@ -15,4 +15,4 @@ with tempfile.TemporaryDirectory(prefix="nha004-breaking-") as directory:
     result=subprocess.run(["buf","breaking",str(temp),"--against",str(ROOT/".compat/baseline")],capture_output=True,text=True)
     assert result.returncode!=0 and 'target' in result.stdout+result.stderr and '4' in result.stdout+result.stderr,result.stdout+result.stderr
     print("negative compatibility probe rejected unreserved deletion of CommandRequest.target #4")
-print("twelve golden messages reproduced; Buf baseline compatible")
+print(f"{len(index)} golden messages reproduced; Buf baseline compatible")
