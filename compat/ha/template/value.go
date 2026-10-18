@@ -236,6 +236,8 @@ func cloneValue(v Value) Value {
 	return v
 }
 
+func (v Value) Copy() Value { return cloneValue(v) }
+
 // DecodeJSON admits bounded JSON without putting an untyped map in the domain.
 func DecodeJSON(input []byte) (Value, error) {
 	if len(input) == 0 || len(input) > maxValueBytes {
@@ -357,6 +359,7 @@ func NewState(alias domain.HAAlias, text string, attrs []Binding) (State, error)
 // Inputs owns copies of every supplied value. Time and zone are injected.
 type Inputs struct {
 	states map[string]State
+	view   *ReadView
 	vars   map[string]Value
 	now    time.Time
 	zone   *time.Location

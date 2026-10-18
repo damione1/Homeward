@@ -25,6 +25,10 @@ const (
 type Limits struct{ steps, output int }
 
 func DefaultLimits() Limits { return Limits{steps: defaultSteps, output: defaultOutput} }
+func (l Limits) Steps() int { return l.steps }
+func (l Limits) WithSteps(steps int) (Limits, error) {
+	return NewLimits(steps, l.output)
+}
 
 func NewLimits(steps, output int) (Limits, error) {
 	if steps < 1 || steps > defaultSteps || output < 1 || output > defaultOutput {
@@ -39,14 +43,19 @@ type Result struct {
 	native Value
 }
 
-func (r Result) Text() string  { return r.text }
-func (r Result) Native() Value { return cloneValue(r.native) }
+func (r Result) Text() string   { return r.text }
+func (r Result) Native() Value  { return cloneValue(r.native) }
+func (r Result) WorkUnits() int { return len(r.text) + approximateValueBytes(r.native) }
+func (r Result) Equal(other Result) bool {
+	return r.text == other.text && reflect.DeepEqual(r.native, other.native)
+}
 
 type evaluator struct {
 	ctx    context.Context
 	in     Inputs
 	steps  int
 	output int
+	trace  *traceRecorder
 }
 
 func (e *evaluator) charge(cost int) error {
@@ -67,6 +76,10 @@ func Evaluate(ctx context.Context, program Program, input Inputs, limits Limits)
 		return Result{}, ErrInvalidInput
 	}
 	e := evaluator{ctx: ctx, in: input, steps: limits.steps, output: limits.output}
+	return e.evaluate(program)
+}
+
+func (e *evaluator) evaluate(program Program) (Result, error) {
 	var out strings.Builder
 	var sole Value
 	soleExpression := len(program.segments) == 1 && program.segments[0].expr != nil
@@ -349,6 +362,9 @@ func (e *evaluator) call(x expression) (Value, error) {
 		if len(args) != 0 {
 			return Value{}, ErrEvaluation
 		}
+		if err := e.record(Dependency{kind: DependencyMinute}); err != nil {
+			return Value{}, err
+		}
 		return Value{kind: valueDateTime, time: e.in.now.In(e.in.zone)}, nil
 	case builtinAsDatetime:
 		if len(args) != 1 {
@@ -377,9 +393,12 @@ func (e *evaluator) call(x expression) (Value, error) {
 		if err != nil {
 			return Value{}, err
 		}
-		state, exists := e.in.states[alias]
 		switch x.builtin {
 		case builtinStates:
+			state, exists, err := e.read(alias, DependencyState, "")
+			if err != nil {
+				return Value{}, err
+			}
 			if !exists {
 				return Value{kind: valueString, s: "unknown"}, nil
 			}
@@ -388,6 +407,10 @@ func (e *evaluator) call(x expression) (Value, error) {
 			key, err := stringArg(args[1])
 			if err != nil || validKey(key) != nil {
 				return Value{}, ErrEvaluation
+			}
+			state, exists, err := e.read(alias, DependencyAttribute, key)
+			if err != nil {
+				return Value{}, err
 			}
 			if !exists {
 				return None(), nil
@@ -398,6 +421,10 @@ func (e *evaluator) call(x expression) (Value, error) {
 			return None(), nil
 		case builtinIsState:
 			want, err := stringArg(args[1])
+			if err != nil {
+				return Value{}, err
+			}
+			state, exists, err := e.read(alias, DependencyState, "")
 			if err != nil {
 				return Value{}, err
 			}
@@ -432,7 +459,35 @@ func (e *evaluator) expand(alias string, ids map[string]struct{}, depth int) err
 	if err := e.charge(1); err != nil {
 		return err
 	}
-	state, exists := e.in.states[alias]
+	if strings.HasPrefix(alias, "group.") && e.in.view != nil {
+		dep, depErr := newAliasDependency(DependencyMembership, alias, "")
+		if depErr != nil {
+			return depErr
+		}
+		if err := e.record(dep); err != nil {
+			return err
+		}
+		members, ok := e.in.view.groups[alias]
+		if e.trace != nil {
+			e.trace.reads = append(e.trace.reads, Read{dependency: dep, present: ok})
+			if len(e.trace.reads) > maxItems {
+				return ErrBudget
+			}
+		}
+		if !ok {
+			return nil
+		}
+		for _, id := range members {
+			if err := e.expand(id, ids, depth+1); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	state, exists, err := e.read(alias, DependencyState, "")
+	if err != nil {
+		return err
+	}
 	if !exists {
 		return nil
 	}

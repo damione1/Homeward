@@ -113,8 +113,12 @@ type Entry struct {
 	capabilities   []integrations.DiscoveryDeclaration
 }
 
-func (e Entry) Cursor() Cursor               { return e.cursor }
-func (e Entry) Kind() Kind                   { return e.kind }
+func (e Entry) Cursor() Cursor { return e.cursor }
+func (e Entry) Kind() Kind     { return e.kind }
+
+// EstimatedBytes is the journal's admitted accounting charge for this entry,
+// not its physical allocation or wire length.
+func (e Entry) EstimatedBytes() int          { return e.estimatedBytes }
 func (e Entry) ReceivedAt() time.Time        { return e.receivedAt }
 func (e Entry) AdmissionTick() time.Duration { return e.admittedTick }
 

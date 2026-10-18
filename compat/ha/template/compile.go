@@ -122,6 +122,8 @@ type segment struct {
 // Program is an immutable admitted program. Its zero value cannot evaluate.
 type Program struct{ segments []segment }
 
+func (p Program) Valid() bool { return len(p.segments) != 0 }
+
 // Compile admits only bounded output expressions. No block, include, import,
 // macro, loop, general test, reflection, or dynamic function invocation reaches eval.
 func Compile(source string) (Program, error) {
