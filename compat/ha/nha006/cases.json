@@ -1,0 +1,32 @@
+{
+  "clock_utc": "2026-03-08T04:30:00+00:00",
+  "timezone": "America/Toronto",
+  "states": [
+    {"entity_id": "sensor.nha_ups_load", "state": "unknown", "attributes": {}},
+    {"entity_id": "sensor.nha_temperature", "state": "22.5", "attributes": {}},
+    {"entity_id": "binary_sensor.nha_motion", "state": "on", "attributes": {}},
+    {"entity_id": "sensor.nha_thermostat", "state": "idle", "attributes": {"target": 21.5}},
+    {"entity_id": "sensor.nha_label", "state": "Living Room", "attributes": {}},
+    {"entity_id": "group.nha_rooms", "state": "on", "attributes": {"entity_id": ["sensor.nha_temperature", "binary_sensor.nha_motion"]}}
+  ],
+  "cases": [
+    {"id": "nha006-01-undefined", "template": "{{ missing | default('fallback') }}"},
+    {"id": "nha006-02-none", "template": "{{ none }}"},
+    {"id": "nha006-03-truthiness", "template": "{{ [] or 0 or false or 'fallback' }}"},
+    {"id": "nha006-04-float-default", "template": "{{ states('sensor.nha_ups_load') | float(0) }}", "diagnostics": [
+      {"mode": "literal", "template": "{{ 'unknown' | float(0) }}"}
+    ]},
+    {"id": "nha006-05-states", "template": "{{ states('sensor.nha_temperature') }}"},
+    {"id": "nha006-06-is-state", "template": "{{ is_state('binary_sensor.nha_motion', 'on') }}"},
+    {"id": "nha006-07-state-attr", "template": "{{ state_attr('sensor.nha_thermostat', 'target') }}"},
+    {"id": "nha006-08-expand", "template": "{{ expand('group.nha_rooms') | map(attribute='entity_id') | list }}"},
+    {"id": "nha006-09-now-date", "template": "{{ now().date() }}", "diagnostics": [
+      {"mode": "clock", "template": "{{ now().date() }}"}
+    ]},
+    {"id": "nha006-10-string-methods", "template": "{{ 'Living Room'.lower().replace(' ', '_') }}", "diagnostics": [
+      {"mode": "literal", "template": "{{ 'Living Room'.lower() }}"},
+      {"mode": "literal", "template": "{{ 'Living Room'.replace(' ', '_', -1) }}"},
+      {"mode": "literal", "template": "{{ 'Living Room'.lower().replace(' ', '_', -1) }}"}
+    ]}
+  ]
+}

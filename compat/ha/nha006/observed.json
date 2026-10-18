@@ -1,0 +1,331 @@
+{
+  "gonja": {
+    "cases": [
+      {
+        "id": "nha006-01-undefined",
+        "raw": {
+          "kind": "ok",
+          "text": "fallback"
+        }
+      },
+      {
+        "id": "nha006-02-none",
+        "raw": {
+          "kind": "ok",
+          "text": ""
+        }
+      },
+      {
+        "id": "nha006-03-truthiness",
+        "raw": {
+          "kind": "ok",
+          "text": "fallback"
+        }
+      },
+      {
+        "diagnostics": [
+          {
+            "mode": "literal",
+            "outcome": {
+              "kind": "ok",
+              "text": "0"
+            },
+            "template": "{{ 'unknown' | float(0) }}"
+          }
+        ],
+        "id": "nha006-04-float-default",
+        "raw": {
+          "error": "unable to execute template: Unable to render expression at line 1: filtered_expression(call(['sensor.nha_ups_load'], map[])): unable to evaluate filter &{<Token[Name] Val='float' Pos=35 Line=1 Col=36> float [0] map[]}: invalid call to filter 'float': states is not callable",
+          "kind": "render_error",
+          "text": ""
+        }
+      },
+      {
+        "id": "nha006-05-states",
+        "raw": {
+          "error": "unable to execute template: Unable to render expression at line 1: call(['sensor.nha_temperature'], map[]): states is not callable",
+          "kind": "render_error",
+          "text": ""
+        }
+      },
+      {
+        "id": "nha006-06-is-state",
+        "raw": {
+          "error": "unable to execute template: Unable to render expression at line 1: call(['binary_sensor.nha_motion' 'on'], map[]): is_state is not callable",
+          "kind": "render_error",
+          "text": ""
+        }
+      },
+      {
+        "id": "nha006-07-state-attr",
+        "raw": {
+          "error": "unable to execute template: Unable to render expression at line 1: call(['sensor.nha_thermostat' 'target'], map[]): state_attr is not callable",
+          "kind": "render_error",
+          "text": ""
+        }
+      },
+      {
+        "id": "nha006-08-expand",
+        "raw": {
+          "error": "unable to execute template: Unable to render expression at line 1: filtered_expression(call(['group.nha_rooms'], map[])): unable to evaluate filter &{<Token[Name] Val='map' Pos=31 Line=1 Col=32> map [] map[attribute:'entity_id']}: invalid call to filter 'map': expand is not callable",
+          "kind": "render_error",
+          "text": ""
+        }
+      },
+      {
+        "diagnostics": [
+          {
+            "mode": "clock",
+            "outcome": {
+              "error": "unable to execute template: Unable to render expression at line 1: call([], map[]): invalid call to method 'date' of 2026-03-07 23:30:00 -0500 EST: 'date' is not callable on ",
+              "kind": "render_error",
+              "text": ""
+            },
+            "template": "{{ now().date() }}"
+          }
+        ],
+        "id": "nha006-09-now-date",
+        "raw": {
+          "error": "unable to execute template: Unable to render expression at line 1: call([], map[]): unable to evaluate 'call([], map[])': now is not callable",
+          "kind": "render_error",
+          "text": ""
+        }
+      },
+      {
+        "diagnostics": [
+          {
+            "mode": "literal",
+            "outcome": {
+              "kind": "ok",
+              "text": "living room"
+            },
+            "template": "{{ 'Living Room'.lower() }}"
+          },
+          {
+            "mode": "literal",
+            "outcome": {
+              "kind": "ok",
+              "text": "Living_Room"
+            },
+            "template": "{{ 'Living Room'.replace(' ', '_', -1) }}"
+          },
+          {
+            "mode": "literal",
+            "outcome": {
+              "kind": "ok",
+              "text": "living_room"
+            },
+            "template": "{{ 'Living Room'.lower().replace(' ', '_', -1) }}"
+          }
+        ],
+        "id": "nha006-10-string-methods",
+        "raw": {
+          "error": "unable to execute template: Unable to render expression at line 1: call([' ' '_'], map[]): invalid call to method 'replace' of living room: missing required 3rd positional argument 'count'",
+          "kind": "render_error",
+          "text": ""
+        }
+      }
+    ],
+    "runtime": {
+      "go": "go1.25.2",
+      "module": "github.com/nikolalohinski/gonja/v2",
+      "sum": "h1:ZDG0zYs5oR3fsqQFAlkaWiWYxPOBrCUK9k2IsRZhMa8=",
+      "version": "v2.9.1"
+    }
+  },
+  "ha": [
+    {
+      "diagnostics": [],
+      "id": "nha006-01-undefined",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "fallback"
+        },
+        "text": "fallback"
+      }
+    },
+    {
+      "diagnostics": [],
+      "id": "nha006-02-none",
+      "raw": {
+        "native": {
+          "type": "none",
+          "value": null
+        },
+        "text": "None"
+      }
+    },
+    {
+      "diagnostics": [],
+      "id": "nha006-03-truthiness",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "fallback"
+        },
+        "text": "fallback"
+      }
+    },
+    {
+      "diagnostics": [
+        {
+          "mode": "literal",
+          "outcome": {
+            "native": {
+              "type": "int",
+              "value": 0
+            },
+            "text": "0"
+          },
+          "template": "{{ 'unknown' | float(0) }}"
+        }
+      ],
+      "id": "nha006-04-float-default",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 0
+        },
+        "text": "0"
+      }
+    },
+    {
+      "diagnostics": [],
+      "id": "nha006-05-states",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 22.5
+        },
+        "text": "22.5"
+      }
+    },
+    {
+      "diagnostics": [],
+      "id": "nha006-06-is-state",
+      "raw": {
+        "native": {
+          "type": "bool",
+          "value": true
+        },
+        "text": "True"
+      }
+    },
+    {
+      "diagnostics": [],
+      "id": "nha006-07-state-attr",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 21.5
+        },
+        "text": "21.5"
+      }
+    },
+    {
+      "diagnostics": [],
+      "id": "nha006-08-expand",
+      "raw": {
+        "native": {
+          "category": "list",
+          "render_result": "['binary_sensor.nha_motion', 'sensor.nha_temperature']",
+          "type": "Wrapper",
+          "value": [
+            {
+              "type": "str",
+              "value": "binary_sensor.nha_motion"
+            },
+            {
+              "type": "str",
+              "value": "sensor.nha_temperature"
+            }
+          ]
+        },
+        "text": "['binary_sensor.nha_motion', 'sensor.nha_temperature']"
+      }
+    },
+    {
+      "diagnostics": [
+        {
+          "mode": "clock",
+          "outcome": {
+            "native": {
+              "type": "str",
+              "value": "2026-03-07"
+            },
+            "text": "2026-03-07"
+          },
+          "template": "{{ now().date() }}"
+        }
+      ],
+      "id": "nha006-09-now-date",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "2026-03-07"
+        },
+        "text": "2026-03-07"
+      }
+    },
+    {
+      "diagnostics": [
+        {
+          "mode": "literal",
+          "outcome": {
+            "native": {
+              "type": "str",
+              "value": "living room"
+            },
+            "text": "living room"
+          },
+          "template": "{{ 'Living Room'.lower() }}"
+        },
+        {
+          "mode": "literal",
+          "outcome": {
+            "native": {
+              "type": "str",
+              "value": "Living_Room"
+            },
+            "text": "Living_Room"
+          },
+          "template": "{{ 'Living Room'.replace(' ', '_', -1) }}"
+        },
+        {
+          "mode": "literal",
+          "outcome": {
+            "native": {
+              "type": "str",
+              "value": "living_room"
+            },
+            "text": "living_room"
+          },
+          "template": "{{ 'Living Room'.lower().replace(' ', '_', -1) }}"
+        }
+      ],
+      "id": "nha006-10-string-methods",
+      "raw": {
+        "native": {
+          "type": "str",
+          "value": "living_room"
+        },
+        "text": "living_room"
+      }
+    }
+  ],
+  "inputs": {
+    "cases_sha256": "0dde0013850b6de724e156f55bca346bfa5903799db2a4b3b18edb4b2f2ad0c8",
+    "ha_worker_sha256": "e0726bc84890be72c9537e28381bcb800f7e9e0e36f83547d581156f35fa4f26"
+  },
+  "reference": {
+    "image_index": "sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0",
+    "image_manifest": "sha256:17100609af8bb79bf5390f5d514b9aaeb00d184ce758f37769cd80c450851db7",
+    "platform": "linux/arm64",
+    "runtime": {
+      "homeassistant": "2026.10.1",
+      "jinja2": "3.1.6",
+      "python": "3.14.6"
+    }
+  }
+}
