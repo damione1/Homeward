@@ -31,6 +31,7 @@ type AdmittedCommand struct {
 	tracker  *actionTracker
 	host     *Manager
 	binding  Binding
+	light    lightTarget
 }
 
 // Causality is a command-scoped token. A driver attaches it to a subsequent
@@ -87,7 +88,17 @@ func (c AdmittedCommand) ReadyForTransport() bool {
 	}
 	c.host.mu.Lock()
 	defer c.host.mu.Unlock()
-	return c.host.admission == admissionOpen && c.liveOwner()
+	return c.host.admission == admissionOpen && c.liveOwner() && (c.light.profile == nil || c.host.lightProfiles[c.entity] == c.light.profile)
+}
+
+// MQTTLightEmission returns the encoded brightness captured during route
+// admission only if the driver's current discovery profile is the same one.
+// The driver still calls ReadyForTransport immediately before writing.
+func (c AdmittedCommand) MQTTLightEmission(current LightEncoding) (uint32, bool, error) {
+	if c.light.profile == nil || !validLightEncoding(current) || c.light.profile.encoding != current {
+		return 0, false, ErrCommandRouteUnavailable
+	}
+	return c.light.brightness, c.light.hasBrightness, nil
 }
 
 func (c AdmittedCommand) Identity() (domain.CommandID, domain.ActorID, domain.EntityID, error) {
@@ -381,7 +392,14 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 			if pointErr != nil {
 				return pointErr
 			}
-			admitted = AdmittedCommand{id: id, actor: actor, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding}
+			var target lightTarget
+			if description.SchemaId == contracts.LightSchema {
+				profile := h.lightProfiles[entity]
+				if profile != nil && profile.endpoint == description.Endpoint {
+					target = targetForLight(resolved, profile)
+				}
+			}
+			admitted = AdmittedCommand{id: id, actor: actor, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding, light: target}
 			// Slot lease is reserved before the Host lock is released.
 			h.inflight[endpointSlot] = true
 			leased = endpointSlot
@@ -430,7 +448,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at"), nil
 	}
-	progress, err := r.host.actions.accept(id, entity, admitted.binding, wire, actionPoint, correlation, wire.ExpiresAt.AsTime().Sub(r.clock.Now()))
+	progress, err := r.host.actions.acceptTarget(id, entity, admitted.binding, wire, admitted.light, actionPoint, correlation, wire.ExpiresAt.AsTime().Sub(r.clock.Now()))
 	if err != nil {
 		return nil, err
 	}
