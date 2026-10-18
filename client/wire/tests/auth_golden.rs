@@ -3,11 +3,18 @@ use buffa_types::google::protobuf::{Duration, Timestamp};
 use home_wire_contract::{auth_contract, home::auth::v1 as auth};
 
 fn fixture(name: &str) -> Vec<u8> {
-    std::fs::read(format!(
-        "{}/../../contracts/auth_golden/{name}.bin",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
+    fixture_bytes(&format!("{name}.bin"))
+}
+fn fixture_bytes(name: &str) -> Vec<u8> {
+    let cwd = std::env::current_dir().expect("cannot locate auth fixture: no current directory");
+    let path = cwd.join("../../contracts/auth_golden").join(name);
+    std::fs::read(&path).unwrap_or_else(|error| {
+        panic!(
+            "cannot read auth fixture {} from test cwd {} (expected client/wire): {error}",
+            path.display(),
+            cwd.display()
+        )
+    })
 }
 fn roundtrip<M: Message + Default>(name: &str) -> M {
     let bytes = fixture(name);
@@ -24,7 +31,8 @@ fn now() -> Timestamp {
 
 #[test]
 fn nha146_cross_language_fixtures() {
-    let index = include_str!("../../../contracts/auth_golden/index.tsv");
+    let index =
+        String::from_utf8(fixture_bytes("index.tsv")).expect("auth fixture index.tsv is not UTF-8");
     let mut count = 0;
     for line in index
         .lines()
