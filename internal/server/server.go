@@ -98,12 +98,19 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		store.Close()
 		return err
 	}
-	catalog, err := contracts.NewCapabilityCatalog(domain.NewUnitCatalog())
+	hiloSettings, hiloEnabled := c.HiloSettings()
+	units, err := newRunUnitCatalog(hiloEnabled)
+	if err != nil {
+		store.Close()
+		return err
+	}
+	catalog, err := contracts.NewCapabilityCatalog(units)
 	if err != nil {
 		store.Close()
 		return err
 	}
 	plan := RuntimePlan{Identity: unconfiguredIdentity{}}
+	var hiloRun *hiloComposition
 	if factory != nil {
 		plan, err = factory(ctx, store)
 		if err != nil {
@@ -114,7 +121,7 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		mqttSettings, mqttEnabled := c.MQTTSettings()
 		neviwebSettings, neviwebEnabled := c.NeviwebSettings()
 		workers := c.ExternalWorkers()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled || len(c.EnergyBindings()) != 0 {
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
@@ -132,6 +139,22 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			if err != nil {
 				store.Close()
 				return err
+			}
+			if hiloEnabled {
+				repository, ok := plan.Identity.(*registry.Repository)
+				if !ok {
+					store.Close()
+					return ErrIdentityNotConfigured
+				}
+				hiloRun, err = newHiloComposition(hiloSettings, store, sequence, catalog, repository)
+				if err != nil {
+					store.Close()
+					return err
+				}
+				if err := hiloRun.augment(&plan); err != nil {
+					store.Close()
+					return err
+				}
 			}
 		}
 	}
@@ -167,6 +190,13 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		return closePreparedRuntime(host, authorization, store, err)
 	}
 	plan.Pilots = append(plan.Pilots, energySpecs...)
+	if hiloRun != nil {
+		hiloEnergy, err := hiloRun.energySpec(ctx)
+		if err != nil {
+			return closePreparedRuntime(host, authorization, store, err)
+		}
+		plan.Pilots = append(plan.Pilots, hiloEnergy)
+	}
 	authorization.freeze()
 	if err := ctx.Err(); err != nil {
 		return closePreparedRuntime(host, authorization, store, err)
