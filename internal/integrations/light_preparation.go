@@ -260,6 +260,13 @@ func (p PreparedLight) MQTTTarget() (uint32, bool) {
 // captured route. relative records the observed revision in the original wire.
 // Every retry must reuse the returned PreparedLight, including its actor/ID.
 func (c LightCapture) PrepareHA(actor domain.ActorID, id domain.CommandID, expiresAt time.Time, on bool, brightness *uint8, transition *float64, relative bool) (PreparedLight, error) {
+	return c.PrepareHAWithCT(actor, id, expiresAt, on, brightness, nil, transition, relative)
+}
+
+// PrepareHAWithCT keeps the HA brightness and operative CT in one immutable
+// intention, target and route token. CT is a mired value already obtained by
+// HA's floor(1e6/K) rule; the live capability still has to admit it.
+func (c LightCapture) PrepareHAWithCT(actor domain.ActorID, id domain.CommandID, expiresAt time.Time, on bool, brightness *uint8, ctMireds *uint32, transition *float64, relative bool) (PreparedLight, error) {
 	if c.router == nil || c.profile == nil || c.description == nil || expiresAt.IsZero() || !expiresAt.After(c.router.clock.Now()) {
 		return PreparedLight{}, ErrInvalidInput
 	}
@@ -283,6 +290,14 @@ func (c LightCapture) PrepareHA(actor domain.ActorID, id domain.CommandID, expir
 		return PreparedLight{}, ErrInvalidInput
 	}
 	arg := &actions.SetLight{On: &on}
+	if ctMireds != nil {
+		if !on || c.description.GetLight() == nil || c.description.GetLight().ColorTempMireds == nil ||
+			(c.profile.kind == lightProfileMQTT && c.profile.encoding.ikea30W && transition != nil) {
+			return PreparedLight{}, ErrLightPreparationUnsupported
+		}
+		ct := *ctMireds
+		arg.ColorTempMireds = &ct
+	}
 	var target lightTarget
 	if brightness != nil && source > 0 {
 		if c.description.GetLight() == nil || c.description.GetLight().BrightnessPercent == nil {
@@ -342,6 +357,78 @@ func (c LightCapture) PrepareHA(actor domain.ActorID, id domain.CommandID, expir
 	}
 	if arg.BrightnessPercent != nil {
 		bound.nativePercent, bound.hasNative = *arg.BrightnessPercent, true
+	}
+	return PreparedLight{actor: actor, request: owned, route: bound}, nil
+}
+
+// PrepareNative is for observed Homeward snapshots, whose brightness is
+// already a native percentage. It never round-trips through HA 0..255.
+func (c LightCapture) PrepareNative(actor domain.ActorID, id domain.CommandID, expiresAt time.Time, on bool, percent *float64, ctMireds *uint32, transition *float64) (PreparedLight, error) {
+	if c.router == nil || c.profile == nil || c.description == nil || expiresAt.IsZero() || !expiresAt.After(c.router.clock.Now()) {
+		return PreparedLight{}, ErrInvalidInput
+	}
+	if _, err := actor.Value(); err != nil {
+		return PreparedLight{}, ErrInvalidInput
+	}
+	idText, err := id.Value()
+	if err != nil {
+		return PreparedLight{}, ErrInvalidInput
+	}
+	_, revision, err := c.criticalRevision()
+	if err != nil {
+		return PreparedLight{}, err
+	}
+	if on && percent == nil {
+		return PreparedLight{}, ErrLightPreparationUnsupported
+	}
+	if !on && (percent != nil || ctMireds != nil) {
+		return PreparedLight{}, ErrInvalidInput
+	}
+	if ctMireds != nil && (c.description.GetLight() == nil || c.description.GetLight().ColorTempMireds == nil ||
+		(c.profile.kind == lightProfileMQTT && c.profile.encoding.ikea30W && transition != nil)) {
+		return PreparedLight{}, ErrLightPreparationUnsupported
+	}
+	arg := &actions.SetLight{On: &on}
+	if percent != nil {
+		value := *percent
+		if math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 || value > 100 {
+			return PreparedLight{}, ErrInvalidInput
+		}
+		arg.BrightnessPercent = &value
+	}
+	if ctMireds != nil {
+		ct := *ctMireds
+		arg.ColorTempMireds = &ct
+	}
+	if transition != nil {
+		seconds := *transition
+		arg.TransitionSeconds = &seconds
+	}
+	aliasText, _ := c.alias.Value()
+	wire := &actions.CommandRequest{
+		CommandId: idText, AdmissionEpoch: c.epoch, ConfigRevision: c.configRevision,
+		Target:             &wireregistry.EntityRef{Reference: &wireregistry.EntityRef_HaAlias{HaAlias: aliasText}},
+		CapabilitySchemaId: contracts.LightSchema, Endpoint: c.description.Endpoint,
+		Arguments:        &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: arg}},
+		ExpectedRevision: &revision, ExpiresAt: timestamppb.New(expiresAt),
+	}
+	if wire.ExpiresAt.CheckValid() != nil {
+		return PreparedLight{}, ErrInvalidInput
+	}
+	resolved := proto.Clone(wire).(*actions.CommandRequest)
+	entityText, _ := c.entity.Value()
+	resolved.Target = &wireregistry.EntityRef{Reference: &wireregistry.EntityRef_EntityId{EntityId: entityText}}
+	if _, contractErr := c.router.host.catalog.PrepareCapabilityCommand(resolved); contractErr != nil {
+		return PreparedLight{}, ErrLightPreparationUnsupported
+	}
+	target := targetForLight(resolved, c.profile)
+	if !target.proofAvailable {
+		return PreparedLight{}, ErrLightPreparationUnsupported
+	}
+	owned := proto.Clone(wire).(*actions.CommandRequest)
+	bound := &preparedLightRoute{capture: c, actor: actor, request: proto.Clone(owned).(*actions.CommandRequest), target: target}
+	if percent != nil {
+		bound.nativePercent, bound.hasNative = *percent, true
 	}
 	return PreparedLight{actor: actor, request: owned, route: bound}, nil
 }

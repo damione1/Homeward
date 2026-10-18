@@ -227,10 +227,111 @@ func (s *DurableCommandService) DispatchPrepared(ctx context.Context, prepared P
 	if err != nil || prepared.actor != prepared.route.actor {
 		return nil, ErrInvalidInput
 	}
-	return s.dispatch(ctx, prepared.actor, wire, prepared.route)
+	return s.dispatch(ctx, prepared.actor, wire, preparedLightCommand(prepared.route))
 }
 
-func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedLightRoute) (*actions.CommandResponse, error) {
+func (s *DurableCommandService) CaptureFan(ctx context.Context, alias domain.HAAlias) (FanCapture, error) {
+	if s == nil || s.router == nil {
+		return FanCapture{}, ErrInvalidInput
+	}
+	return s.router.CaptureFan(ctx, alias)
+}
+
+func (s *DurableCommandService) CaptureDirect(ctx context.Context, alias domain.HAAlias, kind DirectKind) (DirectCapture, error) {
+	if s == nil || s.router == nil {
+		return DirectCapture{}, ErrInvalidInput
+	}
+	return s.router.CaptureDirect(ctx, alias, kind)
+}
+
+func (s *DurableCommandService) DispatchPreparedDirect(ctx context.Context, prepared PreparedDirect) (*actions.CommandResponse, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, ErrInvalidInput
+	}
+	return s.dispatch(ctx, prepared.actor, wire, preparedDirectCommand(prepared.route))
+}
+
+func (s *DurableCommandService) DispatchPreparedFan(ctx context.Context, prepared PreparedFan) (*actions.CommandResponse, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, ErrInvalidInput
+	}
+	return s.dispatch(ctx, prepared.actor, wire, preparedFanCommand(prepared.route))
+}
+
+// RecordedPrepared* consult the exact prepared envelope without claiming an
+// ID or admitting a new effect. They remain usable after scene invalidation.
+func (s *DurableCommandService) RecordedPreparedLight(ctx context.Context, prepared PreparedLight) (*actions.CommandResponse, bool, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, false, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, false, ErrInvalidInput
+	}
+	return s.recordedPrepared(ctx, prepared.actor, wire)
+}
+
+func (s *DurableCommandService) RecordedPreparedFan(ctx context.Context, prepared PreparedFan) (*actions.CommandResponse, bool, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, false, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, false, ErrInvalidInput
+	}
+	return s.recordedPrepared(ctx, prepared.actor, wire)
+}
+
+func (s *DurableCommandService) RecordedPreparedDirect(ctx context.Context, prepared PreparedDirect) (*actions.CommandResponse, bool, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, false, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, false, ErrInvalidInput
+	}
+	return s.recordedPrepared(ctx, prepared.actor, wire)
+}
+
+func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest) (*actions.CommandResponse, bool, error) {
+	if s == nil || ctx == nil || wire == nil || s.store == nil {
+		return nil, false, ErrInvalidInput
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	id, err := domain.ParseCommandID(wire.CommandId)
+	if err != nil {
+		return nil, false, ErrInvalidInput
+	}
+	actorText, err := actor.Value()
+	if err != nil {
+		return nil, false, ErrInvalidInput
+	}
+	fingerprint, err := commandFingerprint(actorText, wire)
+	if err != nil {
+		return nil, false, ErrInvalidInput
+	}
+	record, found, err := s.store.CommandIntent(ctx, id)
+	if err != nil {
+		return nil, false, ErrDurableLedgerUnavailable
+	}
+	if !found {
+		return nil, false, nil
+	}
+	response, err := replayDurable(id, record, fingerprint)
+	return response, true, err
+}
+
+func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedCommandRoute) (*actions.CommandResponse, error) {
 	if s == nil || ctx == nil || request == nil {
 		return nil, ErrInvalidInput
 	}

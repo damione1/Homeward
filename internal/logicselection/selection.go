@@ -65,12 +65,14 @@ const (
 // exact, embedded source YAML block; callers receive values, not mutable data.
 type Definition struct {
 	id             domain.HAAlias
+	path           string
 	digest         [sha256.Size]byte
 	sourceDocument string
 	decision       DecisionRef
 }
 
 func (d Definition) ID() domain.HAAlias        { return d.id }
+func (d Definition) Path() string              { return d.path }
 func (d Definition) Digest() [sha256.Size]byte { return d.digest }
 func (d Definition) SourceDocument() string    { return d.sourceDocument }
 func (d Definition) Decision() DecisionRef     { return d.decision }
@@ -334,7 +336,7 @@ func admitDefinition(raw rawDefinition, alias string, kind sourceKind, docs map[
 	if !bytes.Equal(digest, actual[:]) {
 		return Definition{}, ErrDefinitionProvenance
 	}
-	return Definition{digest: actual, sourceDocument: raw.SourceDocument}, nil
+	return Definition{path: raw.Path, digest: actual, sourceDocument: raw.SourceDocument}, nil
 }
 
 func parseSource(value, alias string) sourceKind {

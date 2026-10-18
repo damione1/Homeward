@@ -58,6 +58,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 				Entity         string    `yaml:"entity"`
 				Alias          string    `yaml:"alias"`
 				HALightProfile yaml.Node `yaml:"ha_light_profile"`
+				HAFanProfile   yaml.Node `yaml:"ha_fan_profile"`
 			} `yaml:"bindings"`
 		} `yaml:"external_workers"`
 	}
@@ -137,6 +138,15 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 					return Config{}, ErrInvalidYAML
 				}
 				binding, err = binding.WithCasetaHA100V1()
+				if err != nil {
+					return Config{}, fmt.Errorf("configuration: %w", err)
+				}
+			}
+			if item.HAFanProfile.Kind != 0 {
+				if item.HAFanProfile.Kind != yaml.ScalarNode || item.HAFanProfile.Tag != "!!str" || item.HAFanProfile.Value != "caseta_ha_fan_4_v1" {
+					return Config{}, ErrInvalidYAML
+				}
+				binding, err = binding.WithCasetaHAFan4V1()
 				if err != nil {
 					return Config{}, fmt.Errorf("configuration: %w", err)
 				}

@@ -110,6 +110,9 @@ func (p *pilot) Handshake(_ context.Context, r *connect.Request[wire.HandshakeRe
 		if binding.lightProfile == configuredLightProfileCasetaHA100V1 && msg.HostMinor != 3 {
 			return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
 		}
+		if binding.fanProfile == configuredFanProfileCasetaHA4V1 && msg.HostMinor != 1 && msg.HostMinor != 3 {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAFanProfileUnavailable)
+		}
 	}
 	response := &wire.HandshakeResponse{HostMajor: hostMajor, HostMinor: msg.HostMinor,
 		DriverMajor: driverMajor, DriverMinor: msg.DriverMinor, SchemaSha256: digest, MaxFrameBytes: limit,
@@ -159,15 +162,26 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 			return nil, rpcInvalid()
 		}
 		for _, configured := range p.config.bindings {
-			if configured.key != key || configured.lightProfile != configuredLightProfileCasetaHA100V1 {
+			if configured.key != key {
 				continue
 			}
-			if p.hostMinor != 3 {
-				return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
-			}
-			candidate, err = candidate.WithCasetaHA100V1(configured.alias)
-			if err != nil {
-				return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
+			switch {
+			case configured.lightProfile == configuredLightProfileCasetaHA100V1:
+				if p.hostMinor != 3 {
+					return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
+				}
+				candidate, err = candidate.WithCasetaHA100V1(configured.alias)
+				if err != nil {
+					return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
+				}
+			case configured.fanProfile == configuredFanProfileCasetaHA4V1:
+				if p.hostMinor != 1 && p.hostMinor != 3 {
+					return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAFanProfileUnavailable)
+				}
+				candidate, err = candidate.WithCasetaHAFan4V1(configured.alias)
+				if err != nil {
+					return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAFanProfileUnavailable)
+				}
 			}
 			break
 		}

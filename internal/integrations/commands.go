@@ -32,6 +32,7 @@ type AdmittedCommand struct {
 	host     *Manager
 	binding  Binding
 	light    lightTarget
+	fan      *fanProfileSnapshot
 }
 
 // Causality is a command-scoped token. A driver attaches it to a subsequent
@@ -88,7 +89,9 @@ func (c AdmittedCommand) ReadyForTransport() bool {
 	}
 	c.host.mu.Lock()
 	defer c.host.mu.Unlock()
-	return c.host.admission == admissionOpen && c.liveOwner() && (c.light.profile == nil || c.host.lightProfiles[c.entity] == c.light.profile)
+	return c.host.admission == admissionOpen && c.liveOwner() &&
+		(c.light.profile == nil || c.host.lightProfiles[c.entity] == c.light.profile) &&
+		(c.fan == nil || c.host.fanProfiles[c.entity] == c.fan)
 }
 
 // MQTTLightEmission returns the encoded brightness captured during route
@@ -262,11 +265,11 @@ func (r *CommandRouter) Dispatch(ctx context.Context, actor domain.ActorID, requ
 	return r.dispatchOnce(ctx, actor, request, nil)
 }
 
-func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedLightRoute) (*actions.CommandResponse, error) {
+func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedCommandRoute) (*actions.CommandResponse, error) {
 	if r == nil || r.host == nil || ctx == nil || request == nil {
 		return nil, ErrInvalidInput
 	}
-	if preparedRoute != nil && (preparedRoute.capture.router != r || preparedRoute.actor != actor || preparedRoute.request == nil || !proto.Equal(preparedRoute.request, request)) {
+	if preparedRoute != nil && !preparedRoute.matches(r, actor, request) {
 		return nil, ErrInvalidInput
 	}
 	wire := proto.Clone(request).(*actions.CommandRequest)
@@ -396,25 +399,47 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 				return pointErr
 			}
 			var target lightTarget
+			var fan *fanProfileSnapshot
 			if description.SchemaId == contracts.LightSchema {
 				profile := h.lightProfiles[entity]
 				if preparedRoute != nil {
-					capture := preparedRoute.capture
+					if preparedRoute.kind != preparedCommandLight {
+						return ErrCommandRouteUnavailable
+					}
+					light := preparedRoute.light
+					capture := light.capture
 					if alias == nil || *alias != capture.alias || capture.entity != entity ||
 						capture.binding != binding || capture.profile == nil || profile != capture.profile ||
 						profile.endpoint != description.Endpoint || !proto.Equal(description, capture.description) ||
 						capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision ||
-						preparedRoute.target.profile != profile {
+						light.target.profile != profile {
 						return ErrCommandRouteUnavailable
 					}
-					target = preparedRoute.target
+					target = light.target
 				} else if profile != nil && profile.endpoint == description.Endpoint {
 					target = targetForLight(resolved, profile)
+				}
+			} else if description.SchemaId == contracts.FanSchema && preparedRoute != nil && preparedRoute.kind == preparedCommandFan {
+				capture := preparedRoute.fan.capture
+				profile := h.fanProfiles[entity]
+				if alias == nil || *alias != capture.alias || capture.entity != entity ||
+					capture.binding != binding || capture.profile == nil || profile != capture.profile ||
+					!proto.Equal(description, capture.description) || profile.alias != capture.alias ||
+					capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision {
+					return ErrCommandRouteUnavailable
+				}
+				fan = profile
+			} else if preparedRoute != nil && preparedRoute.kind == preparedCommandDirect {
+				capture := preparedRoute.direct.capture
+				if alias == nil || *alias != capture.alias || capture.entity != entity ||
+					capture.binding != binding || !proto.Equal(description, capture.description) ||
+					capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision {
+					return ErrCommandRouteUnavailable
 				}
 			} else if preparedRoute != nil {
 				return ErrCommandRouteUnavailable
 			}
-			admitted = AdmittedCommand{id: id, actor: actor, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding, light: target}
+			admitted = AdmittedCommand{id: id, actor: actor, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding, light: target, fan: fan}
 			// Slot lease is reserved before the Host lock is released.
 			h.inflight[endpointSlot] = true
 			leased = endpointSlot

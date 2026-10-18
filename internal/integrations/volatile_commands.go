@@ -155,6 +155,54 @@ func (s *VolatileCommandService) CaptureLight(ctx context.Context, alias domain.
 	return s.router.CaptureLight(ctx, alias)
 }
 
+func (s *VolatileCommandService) CaptureFan(ctx context.Context, alias domain.HAAlias) (FanCapture, error) {
+	if s == nil || s.router == nil {
+		return FanCapture{}, ErrInvalidInput
+	}
+	return s.router.CaptureFan(ctx, alias)
+}
+
+func (s *VolatileCommandService) CaptureDirect(ctx context.Context, alias domain.HAAlias, kind DirectKind) (DirectCapture, error) {
+	if s == nil || s.router == nil {
+		return DirectCapture{}, ErrInvalidInput
+	}
+	return s.router.CaptureDirect(ctx, alias, kind)
+}
+
+func (s *VolatileCommandService) DispatchPreparedDirect(ctx context.Context, prepared PreparedDirect) (*actions.CommandResponse, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, ErrInvalidInput
+	}
+	s.router.host.mu.Lock()
+	ledger := s.router.host.volatile
+	s.router.host.mu.Unlock()
+	if ledger == nil {
+		return nil, ErrInvalidInput
+	}
+	return ledger.dispatchWithPrepared(s.router, ctx, prepared.actor, wire, preparedDirectCommand(prepared.route))
+}
+
+func (s *VolatileCommandService) DispatchPreparedFan(ctx context.Context, prepared PreparedFan) (*actions.CommandResponse, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, ErrInvalidInput
+	}
+	s.router.host.mu.Lock()
+	ledger := s.router.host.volatile
+	s.router.host.mu.Unlock()
+	if ledger == nil {
+		return nil, ErrInvalidInput
+	}
+	return ledger.dispatchWithPrepared(s.router, ctx, prepared.actor, wire, preparedFanCommand(prepared.route))
+}
+
 // DispatchPrepared keeps the original actor and wire in the same Host ledger.
 // Only a first admission reaches the route fence and consumes the private q.
 func (s *VolatileCommandService) DispatchPrepared(ctx context.Context, prepared PreparedLight) (*actions.CommandResponse, error) {
@@ -171,14 +219,90 @@ func (s *VolatileCommandService) DispatchPrepared(ctx context.Context, prepared 
 	if ledger == nil {
 		return nil, ErrInvalidInput
 	}
-	return ledger.dispatchWithPrepared(s.router, ctx, prepared.actor, wire, prepared.route)
+	return ledger.dispatchWithPrepared(s.router, ctx, prepared.actor, wire, preparedLightCommand(prepared.route))
+}
+
+// RecordedPreparedLight only reads an already admitted intention. Scene
+// invalidation must never turn a missing record into a first dispatch.
+func (s *VolatileCommandService) RecordedPreparedLight(ctx context.Context, prepared PreparedLight) (*actions.CommandResponse, bool, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, false, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, false, ErrInvalidInput
+	}
+	return s.recordedPrepared(ctx, prepared.actor, wire)
+}
+
+func (s *VolatileCommandService) RecordedPreparedFan(ctx context.Context, prepared PreparedFan) (*actions.CommandResponse, bool, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, false, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, false, ErrInvalidInput
+	}
+	return s.recordedPrepared(ctx, prepared.actor, wire)
+}
+
+func (s *VolatileCommandService) RecordedPreparedDirect(ctx context.Context, prepared PreparedDirect) (*actions.CommandResponse, bool, error) {
+	if s == nil || s.router == nil || prepared.route == nil || prepared.route.capture.router != s.router {
+		return nil, false, ErrInvalidInput
+	}
+	wire, err := prepared.Request()
+	if err != nil || prepared.actor != prepared.route.actor {
+		return nil, false, ErrInvalidInput
+	}
+	return s.recordedPrepared(ctx, prepared.actor, wire)
+}
+
+func (s *VolatileCommandService) recordedPrepared(ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest) (*actions.CommandResponse, bool, error) {
+	if ctx == nil || wire == nil {
+		return nil, false, ErrInvalidInput
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	id, err := domain.ParseCommandID(wire.CommandId)
+	if err != nil {
+		return nil, false, ErrInvalidInput
+	}
+	actorText, err := actor.Value()
+	if err != nil {
+		return nil, false, ErrInvalidInput
+	}
+	fingerprint, err := commandFingerprint(actorText, wire)
+	if err != nil {
+		return nil, false, ErrInvalidInput
+	}
+	s.router.host.mu.Lock()
+	ledger := s.router.host.volatile
+	s.router.host.mu.Unlock()
+	if ledger == nil {
+		return nil, false, ErrInvalidInput
+	}
+	ledger.mu.Lock()
+	defer ledger.mu.Unlock()
+	entry := ledger.entries[id]
+	if entry == nil {
+		return nil, false, nil
+	}
+	if !bytes.Equal(entry.fingerprint, fingerprint) {
+		return nil, true, ErrCommandIDConflict
+	}
+	if entry.state == volatilePending {
+		return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}, true, ErrCommandOutcomeIndeterminate
+	}
+	response, err := cloneVolatileResult(entry)
+	return response, true, err
 }
 
 func (l *volatileCommandLedger) dispatch(router *CommandRouter, ctx context.Context, actor domain.ActorID, request *actions.CommandRequest) (*actions.CommandResponse, error) {
 	return l.dispatchWithPrepared(router, ctx, actor, request, nil)
 }
 
-func (l *volatileCommandLedger) dispatchWithPrepared(router *CommandRouter, ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedLightRoute) (*actions.CommandResponse, error) {
+func (l *volatileCommandLedger) dispatchWithPrepared(router *CommandRouter, ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedCommandRoute) (*actions.CommandResponse, error) {
 	if ctx == nil || request == nil {
 		return nil, ErrInvalidInput
 	}
@@ -280,7 +404,7 @@ func commandFingerprint(actorText string, wire *actions.CommandRequest) ([]byte,
 	return append(fingerprint, encoded...), nil
 }
 
-func (l *volatileCommandLedger) runFirst(entry *volatileEntry, router *CommandRouter, ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest, preparedRoute *preparedLightRoute) (response *actions.CommandResponse, dispatchErr error) {
+func (l *volatileCommandLedger) runFirst(entry *volatileEntry, router *CommandRouter, ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest, preparedRoute *preparedCommandRoute) (response *actions.CommandResponse, dispatchErr error) {
 	// Completion is guaranteed even if an extension codec or pilot panics. A
 	// panic is conservatively indeterminate; the original panic then propagates.
 	defer func() {

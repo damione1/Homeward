@@ -64,10 +64,11 @@ func (k SourceKey) Components() (string, string, error) {
 // encoding metadata. The Host admits them through CapabilityCatalog before
 // publishing bindings.
 type Candidate struct {
-	key           SourceKey
-	descriptions  []*registry.CapabilityDescription
-	lightEncoding LightEncoding
-	casetaAlias   domain.HAAlias
+	key            SourceKey
+	descriptions   []*registry.CapabilityDescription
+	lightEncoding  LightEncoding
+	casetaAlias    domain.HAAlias
+	casetaFanAlias domain.HAAlias
 }
 
 func NewCandidate(key SourceKey, descriptions []*registry.CapabilityDescription) (Candidate, error) {
@@ -423,6 +424,7 @@ type Manager struct {
 	active                     map[domain.IntegrationInstanceID]*Session
 	owners                     map[domain.EntityID]Binding
 	lightProfiles              map[domain.EntityID]*lightEncodingSnapshot
+	fanProfiles                map[domain.EntityID]*fanProfileSnapshot
 	retiring                   map[domain.EntityID]struct{}
 	retiringSources            map[retiringSource]struct{}
 	retirementExhausted        bool
@@ -481,7 +483,7 @@ func NewHost(authority IdentityAuthority, sink Sink, catalog *contracts.Capabili
 	if nilInterface(authority) || nilInterface(sink) || !catalog.Ready() {
 		return nil, ErrInvalidInput
 	}
-	return &Manager{authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), lightProfiles: make(map[domain.EntityID]*lightEncodingSnapshot), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: newActionTracker(realActionClock{})}, nil
+	return &Manager{authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), lightProfiles: make(map[domain.EntityID]*lightEncodingSnapshot), fanProfiles: make(map[domain.EntityID]*fanProfileSnapshot), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: newActionTracker(realActionClock{})}, nil
 }
 
 // CloseAdmissions linearizes shutdown with both command-policy claims and the
@@ -692,6 +694,7 @@ func (h *Manager) retireLocked(s *Session, status HealthStatus, detail string) e
 		if h.owners[entity] == binding {
 			delete(h.owners, entity)
 			delete(h.lightProfiles, entity)
+			delete(h.fanProfiles, entity)
 			observation, err := NewStateObservation("session", quality, nil, nil, time.Now(), nil)
 			if err == nil {
 				err = h.sink.AcceptState(context.Background(), entity, AcceptedState{observation: observation, source: source, instance: s.instance, retirement: true})
@@ -769,9 +772,10 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 		if _, err := NewCandidate(candidate.key, candidate.descriptions); err != nil {
 			return nil, ErrInvalidInput
 		}
-		if candidate.lightEncoding.valid && (!validLightEncoding(candidate.lightEncoding) || len(candidate.descriptions) != 1 || candidate.descriptions[0].SchemaId != contracts.LightSchema || candidate.casetaAlias != (domain.HAAlias{})) ||
+		if candidate.lightEncoding.valid && (!validLightEncoding(candidate.lightEncoding) || len(candidate.descriptions) != 1 || candidate.descriptions[0].SchemaId != contracts.LightSchema || candidate.casetaAlias != (domain.HAAlias{}) || candidate.casetaFanAlias != (domain.HAAlias{})) ||
 			!candidate.lightEncoding.valid && candidate.lightEncoding != (LightEncoding{}) ||
-			candidate.casetaAlias != (domain.HAAlias{}) && (candidate.lightEncoding != (LightEncoding{}) || !validCasetaHA100V1Description(candidate.descriptions)) {
+			candidate.casetaAlias != (domain.HAAlias{}) && (candidate.lightEncoding != (LightEncoding{}) || candidate.casetaFanAlias != (domain.HAAlias{}) || !validCasetaHA100V1Description(candidate.descriptions)) ||
+			candidate.casetaFanAlias != (domain.HAAlias{}) && (candidate.lightEncoding != (LightEncoding{}) || candidate.casetaAlias != (domain.HAAlias{}) || !validCasetaHAFan4V1Description(candidate.descriptions)) {
 			return nil, ErrInvalidInput
 		}
 		if seenKeys[candidate.key] {
@@ -857,6 +861,9 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 	for i, binding := range bindings {
 		alias := candidates[i].casetaAlias
 		if alias == (domain.HAAlias{}) {
+			alias = candidates[i].casetaFanAlias
+		}
+		if alias == (domain.HAAlias{}) {
 			continue
 		}
 		projection, ok := h.sink.(CommandProjection)
@@ -909,6 +916,16 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 			}
 		} else {
 			delete(h.lightProfiles, binding.entity)
+		}
+		if alias := candidates[i].casetaFanAlias; alias != (domain.HAAlias{}) {
+			description := candidates[i].descriptions[0]
+			old := h.fanProfiles[binding.entity]
+			if !old.sameDiscovery(binding, alias, description) {
+				h.fanProfiles[binding.entity] = &fanProfileSnapshot{binding: binding, alias: alias,
+					description: proto.Clone(description).(*registry.CapabilityDescription)}
+			}
+		} else {
+			delete(h.fanProfiles, binding.entity)
 		}
 	}
 	return bindings, nil
@@ -965,6 +982,7 @@ func (s *Session) withdrawFenced(ctx context.Context, binding Binding) error {
 	delete(s.bindings, binding.entity)
 	delete(h.owners, binding.entity)
 	delete(h.lightProfiles, binding.entity)
+	delete(h.fanProfiles, binding.entity)
 	for slot, entity := range h.commandOwners {
 		if entity == binding.entity {
 			delete(h.commandOwners, slot)
