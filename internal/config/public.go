@@ -26,19 +26,48 @@ const (
 var ErrInvalidPublicSettings = errors.New("invalid public transport settings")
 
 type publicInput struct {
-	URL                   *string `yaml:"url"`
-	MaxRequestBytes       *int64  `yaml:"max_request_bytes"`
-	MaxConcurrentRequests *int    `yaml:"max_concurrent_requests"`
-	RequestTimeout        *string `yaml:"request_timeout"`
-	StreamTimeout         *string `yaml:"stream_timeout"`
-	ShutdownTimeout       *string `yaml:"shutdown_timeout"`
+	URL                   *string         `yaml:"url"`
+	Transport             *string         `yaml:"transport"`
+	TLS                   *publicTLSInput `yaml:"tls"`
+	MaxRequestBytes       *int64          `yaml:"max_request_bytes"`
+	MaxConcurrentRequests *int            `yaml:"max_concurrent_requests"`
+	RequestTimeout        *string         `yaml:"request_timeout"`
+	StreamTimeout         *string         `yaml:"stream_timeout"`
+	ShutdownTimeout       *string         `yaml:"shutdown_timeout"`
 }
+
+type publicTLSInput struct {
+	CertificateFile *string `yaml:"certificate_file"`
+	PrivateKeyFile  *string `yaml:"private_key_file"`
+}
+
+// PublicTransportMode is a closed set admitted at the configuration boundary.
+// Its zero value is never a serving mode.
+type PublicTransportMode uint8
+
+const (
+	PublicTransportUnspecified PublicTransportMode = iota
+	PublicTransportH2C
+	PublicTransportTLS
+)
+
+// PublicTLSFiles names two files within the private data directory. Callers
+// cannot replace either half of an admitted pair.
+type PublicTLSFiles struct {
+	certificateFile string
+	privateKeyFile  string
+}
+
+func (f PublicTLSFiles) CertificateFile() string { return f.certificateFile }
+func (f PublicTLSFiles) PrivateKeyFile() string  { return f.privateKeyFile }
 
 // PublicSettings is parsed once at the YAML boundary. The canonical URL is
 // metadata for clients and proxy configuration; it never proves peer origin.
 type PublicSettings struct {
 	canonicalURL          url.URL
 	hasCanonicalURL       bool
+	transport             PublicTransportMode
+	tlsFiles              PublicTLSFiles
 	maxRequestBytes       int64
 	maxConcurrentRequests int
 	requestTimeout        time.Duration
@@ -50,6 +79,10 @@ type PublicSettings struct {
 func (s PublicSettings) CanonicalURL() (url.URL, bool) {
 	return s.canonicalURL, s.valid && s.hasCanonicalURL
 }
+func (s PublicSettings) Transport() PublicTransportMode { return s.transport }
+func (s PublicSettings) TLSFiles() (PublicTLSFiles, bool) {
+	return s.tlsFiles, s.valid && s.transport == PublicTransportTLS
+}
 func (s PublicSettings) MaxRequestBytes() int64         { return s.maxRequestBytes }
 func (s PublicSettings) MaxConcurrentRequests() int     { return s.maxConcurrentRequests }
 func (s PublicSettings) RequestTimeout() time.Duration  { return s.requestTimeout }
@@ -58,6 +91,7 @@ func (s PublicSettings) ShutdownTimeout() time.Duration { return s.shutdownTimeo
 
 func parsePublicSettings(input *publicInput) (PublicSettings, error) {
 	result := PublicSettings{
+		transport:       PublicTransportH2C,
 		maxRequestBytes: defaultMaxRequestBytes, maxConcurrentRequests: defaultMaxConcurrentRequests,
 		requestTimeout: defaultRequestTimeout, streamTimeout: defaultStreamTimeout,
 		shutdownTimeout: defaultShutdownTimeout, valid: true,
@@ -71,6 +105,29 @@ func parsePublicSettings(input *publicInput) (PublicSettings, error) {
 			return PublicSettings{}, err
 		}
 		result.canonicalURL, result.hasCanonicalURL = parsed, true
+	}
+	if input.Transport != nil {
+		switch *input.Transport {
+		case "h2c":
+			result.transport = PublicTransportH2C
+		case "tls":
+			result.transport = PublicTransportTLS
+		default:
+			return PublicSettings{}, fmt.Errorf("%w: transport", ErrInvalidPublicSettings)
+		}
+	}
+	if result.transport == PublicTransportTLS && result.hasCanonicalURL && result.canonicalURL.Scheme != "https" {
+		return PublicSettings{}, fmt.Errorf("%w: tls requires an https url", ErrInvalidPublicSettings)
+	}
+	if result.transport == PublicTransportTLS {
+		if input.TLS == nil || input.TLS.CertificateFile == nil || input.TLS.PrivateKeyFile == nil ||
+			!validPublicTLSFileName(*input.TLS.CertificateFile) || !validPublicTLSFileName(*input.TLS.PrivateKeyFile) ||
+			*input.TLS.CertificateFile == *input.TLS.PrivateKeyFile {
+			return PublicSettings{}, fmt.Errorf("%w: tls", ErrInvalidPublicSettings)
+		}
+		result.tlsFiles = PublicTLSFiles{certificateFile: *input.TLS.CertificateFile, privateKeyFile: *input.TLS.PrivateKeyFile}
+	} else if input.TLS != nil {
+		return PublicSettings{}, fmt.Errorf("%w: tls requires transport tls", ErrInvalidPublicSettings)
 	}
 	if input.MaxRequestBytes != nil {
 		if *input.MaxRequestBytes < 1 || *input.MaxRequestBytes > maxMaxRequestBytes {
@@ -95,6 +152,23 @@ func parsePublicSettings(input *publicInput) (PublicSettings, error) {
 		return PublicSettings{}, fmt.Errorf("%w: shutdown_timeout", ErrInvalidPublicSettings)
 	}
 	return result, nil
+}
+
+func validPublicTLSFileName(name string) bool {
+	if len(name) < 1 || len(name) > 128 {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' {
+			continue
+		}
+		if i > 0 && (c == '_' || c == '-' || c == '.') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func parseBoundedDuration(raw *string, fallback, ceiling time.Duration) (time.Duration, error) {

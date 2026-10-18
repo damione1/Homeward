@@ -44,15 +44,15 @@ func registerAccountRoutes(plan *PublicPlan, store *storage.Store) (*PublicPlan,
 	err = plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
 		return authv1connect.NewAccountServiceHandler(handler, options...)
 	},
-		ConnectProcedure{Path: authv1connect.AccountServiceCreateAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
-		ConnectProcedure{Path: authv1connect.AccountServiceGetAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
-		ConnectProcedure{Path: authv1connect.AccountServiceListAccountsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
-		ConnectProcedure{Path: authv1connect.AccountServiceUpdateAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
-		ConnectProcedure{Path: authv1connect.AccountServiceDeleteAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
-		ConnectProcedure{Path: authv1connect.AccountServiceCreateInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
-		ConnectProcedure{Path: authv1connect.AccountServiceAcceptInvitationProcedure, Access: RouteAccessAnonymous, Flow: RouteFlowUnary},
-		ConnectProcedure{Path: authv1connect.AccountServiceListInvitationsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
-		ConnectProcedure{Path: authv1connect.AccountServiceRevokeInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
+		ConnectProcedure{Path: authv1connect.AccountServiceCreateAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AccountServiceGetAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AccountServiceListAccountsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AccountServiceUpdateAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AccountServiceDeleteAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AccountServiceCreateInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AccountServiceAcceptInvitationProcedure, Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AccountServiceListInvitationsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AccountServiceRevokeInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 	)
 	return plan, err
 }

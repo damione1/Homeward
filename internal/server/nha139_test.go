@@ -261,8 +261,8 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 				nha139StateFixture{streamEnded: streamEnded, streamFail: streamFail, delay: delayRPC, openCalls: openCalls}, opts...,
 			)
 		},
-		ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
-		ConnectProcedure{Path: statev1connect.StateServiceWatchViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream},
+		ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
+		ConnectProcedure{Path: statev1connect.StateServiceWatchViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportOptionalTLS},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -330,7 +330,7 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 			}
 		})},
 	} {
-		if err := plan.Register(item.kind, item.method, item.path, item.access, item.flow, item.handler); err != nil {
+		if err := plan.Register(item.kind, item.method, item.path, item.access, item.flow, RouteTransportOptionalTLS, item.handler); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -369,7 +369,7 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 	if listeners.Load() != 1 {
 		t.Fatalf("public listener count=%d", listeners.Load())
 	}
-	if err := plan.Register(RouteKindMCP, RouteMethodGet, "/mcp/late", RouteAccessAnonymous, RouteFlowUnary, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})); !errors.Is(err, ErrPublicPlanFrozen) {
+	if err := plan.Register(RouteKindMCP, RouteMethodGet, "/mcp/late", RouteAccessAnonymous, RouteFlowUnary, RouteTransportOptionalTLS, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})); !errors.Is(err, ErrPublicPlanFrozen) {
 		t.Fatalf("route plan mutable after serving: %v", err)
 	}
 	base := "http://" + address.String()
@@ -747,35 +747,35 @@ func TestNHA139PlanAdmissionAndMissingProviderCloseRoutes(t *testing.T) {
 		func(...connect.HandlerOption) (string, http.Handler) {
 			return "/home.auth.v1.OperatorAccountService/", handler
 		},
-		ConnectProcedure{Path: "/home.auth.v1.OperatorAccountService/BootstrapAdmin", Access: RouteAccessAnonymous, Flow: RouteFlowUnary},
+		ConnectProcedure{Path: "/home.auth.v1.OperatorAccountService/BootstrapAdmin", Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
 	); !errors.Is(err, ErrInvalidPublicPlan) {
 		t.Fatalf("public operator service registration: %v", err)
 	}
-	if err := plan.Register(RouteKindMedia, RouteMethodGet, "/media/closed", RouteAccessProtected, RouteFlowUnary, handler); err != nil {
+	if err := plan.Register(RouteKindMedia, RouteMethodGet, "/media/closed", RouteAccessProtected, RouteFlowUnary, RouteTransportOptionalTLS, handler); err != nil {
 		t.Fatal(err)
 	}
-	if err := plan.Register(RouteKindMedia, RouteMethodGet, "/media/closed", RouteAccessProtected, RouteFlowUnary, handler); !errors.Is(err, ErrPublicRouteConflict) {
+	if err := plan.Register(RouteKindMedia, RouteMethodGet, "/media/closed", RouteAccessProtected, RouteFlowUnary, RouteTransportOptionalTLS, handler); !errors.Is(err, ErrPublicRouteConflict) {
 		t.Fatalf("route conflict: %v", err)
 	}
-	if err := plan.Register(RouteKindMCP, RouteMethodGet, "/mcp/anonymous", RouteAccessAnonymous, RouteFlowUnary, handler); err != nil {
+	if err := plan.Register(RouteKindMCP, RouteMethodGet, "/mcp/anonymous", RouteAccessAnonymous, RouteFlowUnary, RouteTransportOptionalTLS, handler); err != nil {
 		t.Fatal(err)
 	}
-	if err := (&PublicPlan{}).Register(RouteKindMCP, RouteMethodGet, "/mcp/zero", RouteAccessAnonymous, RouteFlowUnary, handler); !errors.Is(err, ErrInvalidPublicPlan) {
+	if err := (&PublicPlan{}).Register(RouteKindMCP, RouteMethodGet, "/mcp/zero", RouteAccessAnonymous, RouteFlowUnary, RouteTransportOptionalTLS, handler); !errors.Is(err, ErrInvalidPublicPlan) {
 		t.Fatalf("zero plan registered route: %v", err)
 	}
-	if err := plan.Register(RouteKindConnect, RouteMethodPost, statev1connect.StateServiceOpenViewProcedure, RouteAccessProtected, RouteFlowUnary, handler); !errors.Is(err, ErrInvalidPublicPlan) {
+	if err := plan.Register(RouteKindConnect, RouteMethodPost, statev1connect.StateServiceOpenViewProcedure, RouteAccessProtected, RouteFlowUnary, RouteTransportOptionalTLS, handler); !errors.Is(err, ErrInvalidPublicPlan) {
 		t.Fatalf("opaque Connect handler bypassed common read bound: %v", err)
 	}
 	collision, err := NewPublicPlan(nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := collision.Register(RouteKindMCP, RouteMethodPost, statev1connect.StateServiceOpenViewProcedure, RouteAccessAnonymous, RouteFlowUnary, handler); err != nil {
+	if err := collision.Register(RouteKindMCP, RouteMethodPost, statev1connect.StateServiceOpenViewProcedure, RouteAccessAnonymous, RouteFlowUnary, RouteTransportOptionalTLS, handler); err != nil {
 		t.Fatal(err)
 	}
 	if err := collision.RegisterConnect(
 		func(...connect.HandlerOption) (string, http.Handler) { return "/home.state.v1.StateService/", handler },
-		ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
+		ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
 	); !errors.Is(err, ErrPublicRouteConflict) {
 		t.Fatalf("Connect procedure route collision: %v", err)
 	}
@@ -787,7 +787,7 @@ func TestNHA139PlanAdmissionAndMissingProviderCloseRoutes(t *testing.T) {
 	}
 	if err := badPrefix.RegisterConnect(
 		func(...connect.HandlerOption) (string, http.Handler) { return "/other.Service/", handler },
-		ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary},
+		ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
 	); err != nil {
 		t.Fatal(err)
 	}
