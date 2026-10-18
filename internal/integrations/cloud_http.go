@@ -200,6 +200,11 @@ func NewCloudClient(host SessionHost, policy *CloudPolicy, transport *http.Trans
 		transport = base
 	}
 	ownedTransport := transport.Clone()
+	// Authorization uses this same carrier. Bound raw response headers before
+	// net/http allocates them; preserve a stricter injected transport limit.
+	if ownedTransport.MaxResponseHeaderBytes <= 0 || ownedTransport.MaxResponseHeaderBytes > cloudAuthorizationHeaderLimit {
+		ownedTransport.MaxResponseHeaderBytes = cloudAuthorizationHeaderLimit
+	}
 	// net/http can replay an idempotent-looking request on a reused connection.
 	// Method and headers do not grant that authority to a cloud action, so use
 	// fresh connections for every policy attempt, including GET actions.

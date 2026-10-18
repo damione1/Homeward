@@ -38,10 +38,11 @@ func (unconfiguredIdentity) Resolve(context.Context, domain.IntegrationInstanceI
 // server owns those services until Supervisor.Start succeeds; then the
 // supervisor drains them before PostgreSQL closes.
 type RuntimePlan struct {
-	Identity  integrations.IdentityAuthority
-	Pilots    []integrations.PilotSpec
-	Configure func(context.Context, *integrations.Manager, *storage.Store) error
-	Public    *PublicPlan
+	Identity                    integrations.IdentityAuthority
+	Pilots                      []integrations.PilotSpec
+	Configure                   func(context.Context, *integrations.Manager, *storage.Store) error
+	ConfigureCloudAuthorization func(context.Context, CloudAuthorizationComposition) error
+	Public                      *PublicPlan
 }
 
 // RuntimeFactory is trusted server composition. The default runtime has no
@@ -143,30 +144,51 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		store.Close()
 		return err
 	}
+	authorization, err := newCloudAuthorizationCoordinator(ctx, host, integrations.DefaultCloudAuthorizationLimits())
+	if err != nil {
+		return closePreparedRuntime(host, nil, store, err)
+	}
 	if plan.Configure != nil {
 		if err := plan.Configure(ctx, host, store); err != nil {
-			return closePreparedRuntime(host, store, err)
+			return closePreparedRuntime(host, authorization, store, err)
 		}
 	}
+	if plan.ConfigureCloudAuthorization != nil {
+		if err := plan.ConfigureCloudAuthorization(ctx, authorization.composition()); err != nil {
+			return closePreparedRuntime(host, authorization, store, err)
+		}
+	}
+	authorization.freeze()
 	if err := ctx.Err(); err != nil {
-		return closePreparedRuntime(host, store, err)
+		return closePreparedRuntime(host, authorization, store, err)
 	}
 	plan.Public, err = registerAccountRoutes(plan.Public, store)
 	if err != nil {
-		return closePreparedRuntime(host, store, err)
+		return closePreparedRuntime(host, authorization, store, err)
 	}
 	public, err := compilePublicPlan(plan.Public, publicSettings)
 	if err != nil {
-		return closePreparedRuntime(host, store, err)
+		return closePreparedRuntime(host, authorization, store, err)
 	}
 	supervisor, err := integrations.NewSupervisor(host, plan.Pilots, integrations.DefaultRetryPolicy(), integrations.RealTimer{}, integrations.RandomJitter{})
 	if err != nil {
-		return closePreparedRuntime(host, store, err)
+		return closePreparedRuntime(host, authorization, store, err)
 	}
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
 	if err := supervisor.Start(ctx); err != nil {
 		lifecycleCancel()
-		return closePreparedRuntime(host, store, err)
+		return closePreparedRuntime(host, authorization, store, err)
+	}
+	if err := authorization.openAdmissions(); err != nil {
+		lifecycleCancel()
+		_ = host.CloseAdmissions()
+		authorization.CloseAdmissions()
+		stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		stopErr := supervisor.Stop(stopCtx)
+		authorizationErr := authorization.Close(stopCtx)
+		cancel()
+		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done())
+		return errors.Join(err, stopErr, authorizationErr)
 	}
 	watchStop := make(chan struct{})
 	watchDone := make(chan struct{})
@@ -175,6 +197,7 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		select {
 		case <-ctx.Done():
 			_ = host.CloseAdmissions()
+			authorization.CloseAdmissions()
 			lifecycleCancel()
 		case <-watchStop:
 		}
@@ -186,32 +209,19 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		publicDone, listenerErr = runPublicListener(lifecycleCtx, c, listen, ready, public, publicSettings)
 	}
 	_ = host.CloseAdmissions()
+	authorization.CloseAdmissions()
 	close(watchStop)
 	<-watchDone
 	lifecycleCancel()
 	stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	authorizationStop := make(chan error, 1)
+	go func() { authorizationStop <- authorization.Close(stopCtx) }()
 	operatorDone, operatorErr := operator.stop(stopCtx)
 	stopErr := supervisor.Stop(stopCtx)
+	authorizationErr := <-authorizationStop
 	cancel()
-	select {
-	case <-joinPublicDrains(publicDone, operatorDone):
-		select {
-		case <-supervisor.Done():
-			store.Close()
-		default:
-			go func() { <-supervisor.Done(); store.Close() }()
-		}
-	default:
-		// Timed-out handlers may still be unwinding. Retain PostgreSQL until
-		// both transports and durable pilots have actually drained.
-		go func() {
-			<-publicDone
-			<-operatorDone
-			<-supervisor.Done()
-			store.Close()
-		}()
-	}
-	return errors.Join(listenerErr, operatorErr, stopErr)
+	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done())
+	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured
@@ -335,16 +345,55 @@ func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, 
 	}}, nil
 }
 
-func closePreparedRuntime(host *integrations.Manager, store *storage.Store, cause error) error {
+func closePreparedRuntime(host *integrations.Manager, authorization *cloudAuthorizationCoordinator, store *storage.Store, cause error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
-	done, closeErr := host.ClosePreparedRuntime(ctx)
-	cancel()
-	if closeErr != nil && done != nil {
-		go func() { <-done; store.Close() }()
-		return errors.Join(cause, closeErr)
+	if authorization != nil {
+		authorization.CloseAdmissions()
 	}
-	store.Close()
-	return errors.Join(cause, closeErr)
+	authorizationStop := make(chan error, 1)
+	if authorization != nil {
+		go func() { authorizationStop <- authorization.Close(ctx) }()
+	}
+	done, closeErr := host.ClosePreparedRuntime(ctx)
+	var authorizationErr error
+	if authorization != nil {
+		authorizationErr = <-authorizationStop
+	}
+	cancel()
+	if authorization != nil {
+		retainStoreUntilDrained(store, done, authorization.Done())
+	} else {
+		retainStoreUntilDrained(store, done)
+	}
+	return errors.Join(cause, closeErr, authorizationErr)
+}
+
+// A timed-out drain keeps PostgreSQL until every owner really finishes. A nil
+// Done means that preparation never created that owner.
+func retainStoreUntilDrained(store *storage.Store, drains ...<-chan struct{}) {
+	allDone := true
+	for _, done := range drains {
+		if done == nil {
+			continue
+		}
+		select {
+		case <-done:
+		default:
+			allDone = false
+		}
+	}
+	if allDone {
+		store.Close()
+		return
+	}
+	go func() {
+		for _, done := range drains {
+			if done != nil {
+				<-done
+			}
+		}
+		store.Close()
+	}()
 }
 
 func runListener(ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr)) error {
