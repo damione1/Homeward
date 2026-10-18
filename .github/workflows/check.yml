@@ -20,6 +20,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql
           echo "$(pg_config --bindir)" >> "$GITHUB_PATH"
+      - name: Record PostgreSQL test environment
+        run: |
+          id
+          umask
+          pg_ctl --version
+          postgres --version
       - run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
       - uses: bufbuild/buf-setup-action@v1
         with:

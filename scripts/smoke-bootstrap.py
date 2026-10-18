@@ -15,6 +15,36 @@ def run(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True)
 
 
+def start_postgres(data, log, options):
+    try:
+        run("pg_ctl", "-D", str(data), "-l", str(log), "-o", options, "-w", "start")
+    except subprocess.CalledProcessError as exc:
+        detail = f"pg_ctl start: {exc}; stdout: {(exc.stdout or '')[-8192:]}; stderr: {(exc.stderr or '')[-8192:]}"
+        try:
+            with log.open("rb") as server_log:
+                server_log.seek(0, os.SEEK_END)
+                server_log.seek(max(0, server_log.tell() - 8192))
+                tail_bytes = server_log.read(8192)
+                tail = tail_bytes.decode(errors="replace")
+            if tail:
+                detail += f"; postgres.log (last {len(tail_bytes)} bytes): {tail}"
+        except FileNotFoundError:
+            pass
+        except OSError as log_error:
+            detail += f"; postgres.log read: {log_error}"
+        try:
+            status = subprocess.run(["pg_ctl", "-D", str(data), "status"], capture_output=True, text=True)
+            if status.returncode == 0:
+                stopped = subprocess.run(["pg_ctl", "-D", str(data), "-m", "immediate", "-w", "stop"], capture_output=True, text=True)
+                if stopped.returncode != 0:
+                    detail += f"; cleanup: pg_ctl stop exited {stopped.returncode}: {stopped.stderr[-8192:]}"
+            elif status.returncode != 3:
+                detail += f"; cleanup: pg_ctl status exited {status.returncode}: {status.stderr[-8192:]}"
+        except OSError as status_error:
+            detail += f"; cleanup: pg_ctl status: {status_error}"
+        raise RuntimeError(detail) from exc
+
+
 with tempfile.TemporaryDirectory(prefix="nha027-bootstrap-") as directory:
     root = pathlib.Path(directory)
     binary = root / "homed"
@@ -29,8 +59,8 @@ with tempfile.TemporaryDirectory(prefix="nha027-bootstrap-") as directory:
         sock.bind(("127.0.0.1", 0))
         pg_port = sock.getsockname()[1]
     log = root / "postgres.log"
-    pg_options = f"-h 127.0.0.1 -p {pg_port}"
-    run("pg_ctl", "-D", str(data), "-l", str(log), "-o", pg_options, "-w", "start")
+    pg_options = f"-h 127.0.0.1 -p {pg_port} -c unix_socket_directories=''"
+    start_postgres(data, log, pg_options)
     try:
         cfg = root / "config.yaml"
         settings = ("listen: '127.0.0.1:0'\n"
