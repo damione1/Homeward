@@ -45,6 +45,7 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 	}
 	profile := runtime.profile
 	var payload []byte
+	lightCommand := false
 	switch profile.kind {
 	case componentSwitch:
 		if request.GetCapabilitySchemaId() != contracts.SwitchSchema || request.GetArguments().GetSetSwitch() == nil {
@@ -56,8 +57,17 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 			payload = scalarBytes(profile.payloadOff)
 		}
 	case componentLight:
+		lightCommand = true
 		if request.GetCapabilitySchemaId() != contracts.LightSchema || request.GetArguments().GetSetLight() == nil {
 			return integrations.ErrCommandRouteUnavailable
+		}
+		encoding, err := lightEncodingFor(profile)
+		if err != nil {
+			return integrations.ErrCommandRouteUnavailable
+		}
+		brightness, hasBrightness, err := command.MQTTLightEmission(encoding)
+		if err != nil {
+			return err
 		}
 		arg := request.GetArguments().GetSetLight()
 		fields := make(map[string]any, 4)
@@ -80,10 +90,12 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 			}
 		}
 		if arg.BrightnessPercent != nil {
-			if !profile.brightness {
+			if !profile.brightness || !hasBrightness {
 				return integrations.ErrCommandRouteUnavailable
 			}
-			fields["brightness"] = uint32(math.Round(*arg.BrightnessPercent * profile.brightnessScale / 100))
+			fields["brightness"] = brightness
+		} else if hasBrightness {
+			return integrations.ErrCommandRouteUnavailable
 		}
 		if arg.ColorTempMireds != nil {
 			if !profile.colorTemp || *arg.ColorTempMireds < profile.minMireds || *arg.ColorTempMireds > profile.maxMireds {
@@ -107,6 +119,9 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if lightCommand && !command.ReadyForTransport() {
+		return integrations.ErrCommandRouteUnavailable
 	}
 	writeErr := p.Pilot.WriteCommand(ctx, publication)
 	if errors.Is(writeErr, ErrCommandWriteUncertain) {

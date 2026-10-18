@@ -161,6 +161,14 @@ func (m *DiscoveryMapper) admitTransition(key integrations.SourceKey, c discover
 	return transitionUnspecified
 }
 
+func lightEncodingFor(c discoveryComponent) (integrations.LightEncoding, error) {
+	if c.kind != componentLight || !c.hasCommand || math.IsNaN(c.brightnessScale) || math.IsInf(c.brightnessScale, 0) ||
+		c.brightnessScale < 1 || c.brightnessScale > 65535 || math.Trunc(c.brightnessScale) != c.brightnessScale {
+		return integrations.LightEncoding{}, errDiscoveryProfile
+	}
+	return integrations.NewMQTTLightEncoding(uint32(c.brightnessScale), c.fingerprint, c.admittedTransition == transitionIkeaDriver30W)
+}
+
 func (m *DiscoveryMapper) cacheSnapshot(topic Topic, payload []byte, quality domain.Quality) error {
 	if old, exists := m.snapshots[topic]; exists {
 		m.snapshotBytes -= len(old.payload)
@@ -377,6 +385,18 @@ func (m *DiscoveryMapper) discover(ctx context.Context, host integrations.Sessio
 		if err != nil {
 			m.diagnose(DiagnosticInvalidDiscovery, topic, profile.uniqueID)
 			return nil
+		}
+		if m.mode == ModeActive && profile.kind == componentLight && profile.hasCommand {
+			encoding, encodingErr := lightEncodingFor(profile)
+			if encodingErr != nil {
+				m.diagnose(DiagnosticInvalidDiscovery, topic, profile.uniqueID)
+				return nil
+			}
+			candidate, err = candidate.WithLightEncoding(encoding)
+			if err != nil {
+				m.diagnose(DiagnosticInvalidDiscovery, topic, profile.uniqueID)
+				return nil
+			}
 		}
 		candidates = append(candidates, candidate)
 		runtimes = append(runtimes, &componentRuntime{profile: profile, key: key, latest: -1, availability: make([]domain.Availability, len(profile.availability))})

@@ -60,11 +60,13 @@ func (k SourceKey) Components() (string, string, error) {
 	return k.device, k.entity, nil
 }
 
-// Candidate owns cloned transport descriptions only at the adapter boundary.
-// The Host admits them through CapabilityCatalog before publishing bindings.
+// Candidate owns cloned transport descriptions and optional private light
+// encoding metadata. The Host admits them through CapabilityCatalog before
+// publishing bindings.
 type Candidate struct {
-	key          SourceKey
-	descriptions []*registry.CapabilityDescription
+	key           SourceKey
+	descriptions  []*registry.CapabilityDescription
+	lightEncoding LightEncoding
 }
 
 func NewCandidate(key SourceKey, descriptions []*registry.CapabilityDescription) (Candidate, error) {
@@ -78,7 +80,7 @@ func NewCandidate(key SourceKey, descriptions []*registry.CapabilityDescription)
 		}
 		copyDescriptions[i] = proto.Clone(description).(*registry.CapabilityDescription)
 	}
-	return Candidate{key, copyDescriptions}, nil
+	return Candidate{key: key, descriptions: copyDescriptions}, nil
 }
 
 // ResolvedIdentity is assigned by IdentityAuthority, never by a driver.
@@ -419,6 +421,7 @@ type Manager struct {
 	catalog                    *contracts.CapabilityCatalog
 	active                     map[domain.IntegrationInstanceID]*Session
 	owners                     map[domain.EntityID]Binding
+	lightProfiles              map[domain.EntityID]*lightEncodingSnapshot
 	retiring                   map[domain.EntityID]struct{}
 	retiringSources            map[retiringSource]struct{}
 	retirementExhausted        bool
@@ -477,7 +480,7 @@ func NewHost(authority IdentityAuthority, sink Sink, catalog *contracts.Capabili
 	if nilInterface(authority) || nilInterface(sink) || !catalog.Ready() {
 		return nil, ErrInvalidInput
 	}
-	return &Manager{authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: newActionTracker(realActionClock{})}, nil
+	return &Manager{authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), lightProfiles: make(map[domain.EntityID]*lightEncodingSnapshot), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: newActionTracker(realActionClock{})}, nil
 }
 
 // CloseAdmissions linearizes shutdown with both command-policy claims and the
@@ -687,6 +690,7 @@ func (h *Manager) retireLocked(s *Session, status HealthStatus, detail string) e
 		binding := s.bindings[entity]
 		if h.owners[entity] == binding {
 			delete(h.owners, entity)
+			delete(h.lightProfiles, entity)
 			observation, err := NewStateObservation("session", quality, nil, nil, time.Now(), nil)
 			if err == nil {
 				err = h.sink.AcceptState(context.Background(), entity, AcceptedState{observation: observation, source: source, instance: s.instance, retirement: true})
@@ -762,6 +766,10 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 	seenKeys := make(map[SourceKey]bool, len(candidates))
 	for i, candidate := range candidates {
 		if _, err := NewCandidate(candidate.key, candidate.descriptions); err != nil {
+			return nil, ErrInvalidInput
+		}
+		if candidate.lightEncoding.valid && (!validLightEncoding(candidate.lightEncoding) || len(candidate.descriptions) != 1 || candidate.descriptions[0].SchemaId != contracts.LightSchema) ||
+			!candidate.lightEncoding.valid && candidate.lightEncoding != (LightEncoding{}) {
 			return nil, ErrInvalidInput
 		}
 		if seenKeys[candidate.key] {
@@ -861,9 +869,20 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 	}); err != nil {
 		return nil, err
 	}
-	for _, binding := range bindings {
+	for i, binding := range bindings {
 		s.bindings[binding.entity] = binding
 		h.owners[binding.entity] = binding
+		if encoding := candidates[i].lightEncoding; encoding.valid {
+			endpoint := candidates[i].descriptions[0].Endpoint
+			old := h.lightProfiles[binding.entity]
+			if old == nil || old.encoding != encoding || old.endpoint != endpoint {
+				// Preserve a command's local fence only for the same canonical
+				// discovery and converter policy. No unrelated light is affected.
+				h.lightProfiles[binding.entity] = &lightEncodingSnapshot{encoding: encoding, endpoint: endpoint}
+			}
+		} else {
+			delete(h.lightProfiles, binding.entity)
+		}
 	}
 	return bindings, nil
 }
@@ -918,6 +937,7 @@ func (s *Session) withdrawFenced(ctx context.Context, binding Binding) error {
 	h.fenceRetirementLocked(s.instance, binding.key, binding.entity)
 	delete(s.bindings, binding.entity)
 	delete(h.owners, binding.entity)
+	delete(h.lightProfiles, binding.entity)
 	for slot, entity := range h.commandOwners {
 		if entity == binding.entity {
 			delete(h.commandOwners, slot)
@@ -1140,7 +1160,7 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 		}
 		// The sequencer lock is released. Host still fences session ownership.
 		if !proofAmbiguous {
-			h.actions.observe(binding, observation.endpoint, proofSchema, receipt)
+			h.actions.observe(binding, observation.endpoint, proofSchema, h.lightProfiles[binding.entity], receipt)
 		}
 		return nil
 	}

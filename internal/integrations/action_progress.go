@@ -183,6 +183,24 @@ func predicateFor(request *actions.CommandRequest) actionPredicate {
 	return actionPredicate{}
 }
 
+func predicateForTarget(request *actions.CommandRequest, target lightTarget) actionPredicate {
+	predicate := predicateFor(request)
+	if target.profile == nil || !target.hasBrightness {
+		return predicate
+	}
+	if !target.proofAvailable {
+		return actionPredicate{}
+	}
+	if predicate.kind != proofLight || !predicate.hasBrightness {
+		return actionPredicate{}
+	}
+	predicate.brightness = target.effective
+	if target.hasInferredOn {
+		predicate.on, predicate.hasOn = target.inferredOn, true
+	}
+	return predicate
+}
+
 // A protocol qualifier is supplied by a trusted driver and must examine its
 // actual response semantics. A capability description or nil Dispatch result
 // is never a protocol confirmation.
@@ -200,6 +218,7 @@ type actionEntry struct {
 	entered          bool
 	cancelDispatch   context.CancelFunc
 	predicate        actionPredicate
+	light            *lightEncodingSnapshot
 	subs             map[*ActionSubscription]struct{}
 }
 type actionTracker struct {
@@ -240,6 +259,10 @@ func newActionCorrelation() (domain.CorrelationID, error) {
 }
 
 func (t *actionTracker) accept(id domain.CommandID, entity domain.EntityID, binding Binding, request *actions.CommandRequest, point ActionPoint, correlation domain.CorrelationID, remaining time.Duration) (*actionEntry, error) {
+	return t.acceptTarget(id, entity, binding, request, lightTarget{}, point, correlation, remaining)
+}
+
+func (t *actionTracker) acceptTarget(id domain.CommandID, entity domain.EntityID, binding Binding, request *actions.CommandRequest, target lightTarget, point ActionPoint, correlation domain.CorrelationID, remaining time.Duration) (*actionEntry, error) {
 	if t == nil || request == nil || !point.valid || remaining <= 0 || request.Endpoint == "" || request.CapabilitySchemaId == "" {
 		return nil, ErrInvalidInput
 	}
@@ -273,7 +296,7 @@ func (t *actionTracker) accept(id domain.CommandID, entity domain.EntityID, bind
 	if len(t.entries) >= maxVolatileEntries || cost > 128<<20-t.retained {
 		return nil, ErrActionProgressFull
 	}
-	entry := &actionEntry{snapshot: ActionSnapshot{Command: id, Status: actions.ActionStatus_ACTION_STATUS_ACCEPTED, Sequence: 1, ConfigRevision: request.ConfigRevision}, entity: entity, instance: binding.instance, session: binding.session, endpoint: request.Endpoint, schema: request.CapabilitySchemaId, correlation: correlation, point: point, deadline: t.clock.MonoNow() + remaining, predicate: predicateFor(request), subs: make(map[*ActionSubscription]struct{})}
+	entry := &actionEntry{snapshot: ActionSnapshot{Command: id, Status: actions.ActionStatus_ACTION_STATUS_ACCEPTED, Sequence: 1, ConfigRevision: request.ConfigRevision}, entity: entity, instance: binding.instance, session: binding.session, endpoint: request.Endpoint, schema: request.CapabilitySchemaId, correlation: correlation, point: point, deadline: t.clock.MonoNow() + remaining, predicate: predicateForTarget(request, target), light: target.profile, subs: make(map[*ActionSubscription]struct{})}
 	t.entries[id] = entry
 	t.byCorrelation[correlation] = entry
 	t.retained += cost
@@ -390,7 +413,7 @@ func (t *actionTracker) protocol(e *actionEntry) error {
 	return nil
 }
 
-func (t *actionTracker) observe(binding Binding, endpoint, schema string, receipt ActionReceipt) {
+func (t *actionTracker) observe(binding Binding, endpoint, schema string, currentLight *lightEncodingSnapshot, receipt ActionReceipt) {
 	if !receipt.valid || endpoint == "" || schema == "" {
 		return
 	}
@@ -401,7 +424,7 @@ func (t *actionTracker) observe(binding Binding, endpoint, schema string, receip
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	e := t.byCorrelation[*correlation]
-	if e == nil || !e.entered || terminalAction(e.snapshot.Status) || e.entity != binding.entity || e.instance != binding.instance || e.session != binding.session || e.endpoint != endpoint || e.schema != schema || e.point.sequence >= receipt.point.sequence || e.point.revision >= receipt.point.revision || e.point.tick > receipt.point.tick || receipt.instance != binding.instance {
+	if e == nil || !e.entered || terminalAction(e.snapshot.Status) || e.entity != binding.entity || e.instance != binding.instance || e.session != binding.session || e.endpoint != endpoint || e.schema != schema || schema == contracts.LightSchema && e.light != currentLight || e.point.sequence >= receipt.point.sequence || e.point.revision >= receipt.point.revision || e.point.tick > receipt.point.tick || receipt.instance != binding.instance {
 		return
 	}
 	stateEntity, _, _, _, _, stateErr := receipt.state.Components()
