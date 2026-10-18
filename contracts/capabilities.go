@@ -77,6 +77,9 @@ func (c *CapabilityCatalog) ready() bool {
 	return c != nil && c.units != nil && c.instances != nil && c.extensions != nil
 }
 
+// Ready reports whether the catalog can be injected into a Host boundary.
+func (c *CapabilityCatalog) Ready() bool { return c.ready() }
+
 func capabilityKey(schema, endpoint string) string { return schema + "\x00" + endpoint }
 
 // RegisterExtensionCodec binds a namespaced schema and digest to a descriptor
@@ -144,6 +147,82 @@ func (c *CapabilityCatalog) RegisterDriverCapability(entity domain.EntityID, d *
 		return errors.New("capability instance already registered")
 	}
 	c.instances[id][key] = proto.Clone(d).(*registry.CapabilityDescription)
+	return nil
+}
+
+// AdmitDriverCapability checks a declaration against the same unit and
+// extension-codec authority used by registration, without mutating the catalog.
+// A Host can validate a discovery batch before asking its identity registry to
+// bind source keys.
+func (c *CapabilityCatalog) AdmitDriverCapability(d *registry.CapabilityDescription) error {
+	if !c.ready() {
+		return ErrUninitializedCatalog
+	}
+	if d == nil {
+		return fmt.Errorf("%w: description is required", ErrInvalidCapability)
+	}
+	if err := c.validateDescription(d); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidCapability, err)
+	}
+	if ext := d.GetExtension(); ext != nil && ext.ActionMessage != nil {
+		key := capabilityKey(d.SchemaId, d.Endpoint)
+		c.mu.RLock()
+		registered, ok := c.extensions[key]
+		c.mu.RUnlock()
+		if !ok || !equalDigest(registered.hash, d.DescriptorSha256) {
+			return ErrUnknownExtensionCodec
+		}
+	}
+	return nil
+}
+
+// DriverCapabilityRegistration is a Host-resolved entity and one admitted
+// declaration. A driver cannot supply the EntityID to the Host discovery API.
+type DriverCapabilityRegistration struct {
+	Entity      domain.EntityID
+	Description *registry.CapabilityDescription
+}
+
+// ReplaceDriverCapabilitiesBatch atomically replaces all declarations for each
+// entity in a discovery batch. Reconnection can refresh advertised limits, while
+// a bad later declaration leaves every previous entity unchanged.
+func (c *CapabilityCatalog) ReplaceDriverCapabilitiesBatch(registrations []DriverCapabilityRegistration) error {
+	if !c.ready() || len(registrations) == 0 {
+		return ErrUninitializedCatalog
+	}
+	staged := make(map[string]map[string]*registry.CapabilityDescription)
+	for _, registration := range registrations {
+		entity, err := registration.Entity.Value()
+		if err != nil {
+			return err
+		}
+		if err := c.AdmitDriverCapability(registration.Description); err != nil {
+			return err
+		}
+		if staged[entity] == nil {
+			staged[entity] = make(map[string]*registry.CapabilityDescription)
+		}
+		key := capabilityKey(registration.Description.SchemaId, registration.Description.Endpoint)
+		if _, exists := staged[entity][key]; exists {
+			return ErrInvalidCapability
+		}
+		staged[entity][key] = proto.Clone(registration.Description).(*registry.CapabilityDescription)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, descriptions := range staged {
+		for key, description := range descriptions {
+			if ext := description.GetExtension(); ext != nil && ext.ActionMessage != nil {
+				registered, ok := c.extensions[key]
+				if !ok || !equalDigest(registered.hash, description.DescriptorSha256) {
+					return ErrUnknownExtensionCodec
+				}
+			}
+		}
+	}
+	for entity, descriptions := range staged {
+		c.instances[entity] = descriptions
+	}
 	return nil
 }
 
@@ -349,6 +428,28 @@ func (c *CapabilityCatalog) AdmitMeasurement(entity domain.EntityID, endpoint st
 		return domain.Measurement{}, errors.New("measurement is outside advertised instance constraints")
 	}
 	return AdmitWireMeasurement(wire, c.units, int(constraints.Precision), semantic, aggregation)
+}
+
+// AdmitDomainMeasurement checks a driver-produced typed measurement against
+// the same per-instance constraints as a wire observation. The comparison also
+// rejects mismatched semantic class, aggregation, and decimal precision.
+func (c *CapabilityCatalog) AdmitDomainMeasurement(entity domain.EntityID, endpoint string, measurement domain.Measurement) error {
+	components, err := measurement.Components()
+	if err != nil {
+		return err
+	}
+	unit, err := components.Unit.Symbol()
+	if err != nil {
+		return err
+	}
+	admitted, err := c.AdmitMeasurement(entity, endpoint, &state.Measurement{Value: components.Value, Unit: unit})
+	if err != nil {
+		return err
+	}
+	if admitted != measurement {
+		return ErrInvalidCapability
+	}
+	return nil
 }
 
 func extensionMessage(d *registry.CapabilityDescription) (protoreflect.MessageDescriptor, error) {
