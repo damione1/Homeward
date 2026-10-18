@@ -354,14 +354,16 @@ type Driver interface {
 }
 
 type Manager struct {
-	mu            sync.Mutex
-	authority     IdentityAuthority
-	sink          Sink
-	catalog       *contracts.CapabilityCatalog
-	active        map[domain.IntegrationInstanceID]*Session
-	owners        map[domain.EntityID]Binding
-	commandOwners map[commandOwnerSlot]domain.EntityID
-	inflight      map[commandEndpointSlot]bool
+	mu                         sync.Mutex
+	authority                  IdentityAuthority
+	sink                       Sink
+	catalog                    *contracts.CapabilityCatalog
+	active                     map[domain.IntegrationInstanceID]*Session
+	owners                     map[domain.EntityID]Binding
+	commandOwners              map[commandOwnerSlot]domain.EntityID
+	inflight                   map[commandEndpointSlot]bool
+	volatile                   *volatileCommandLedger
+	unprotectedCommandDispatch bool
 }
 
 type Session struct {

@@ -7,6 +7,16 @@ import (
 )
 
 var _ integrations.CommandProjection = (*Sequencer)(nil)
+var _ integrations.CommandEpochAuthority = (*Sequencer)(nil)
+
+func (s *Sequencer) CurrentAdmissionEpoch() (string, error) {
+	start, err := s.Start()
+	if err != nil {
+		return "", err
+	}
+	epoch, _, err := start.Components()
+	return epoch, err
+}
 
 type commandRouteSlot struct {
 	device   domain.DeviceID

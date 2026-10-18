@@ -33,3 +33,10 @@ type CommandProjection interface {
 	ResolveCommandAlias(domain.HAAlias) (domain.EntityID, error)
 	AdmitCommandRoute(CommandRoute) error
 }
+
+// CommandEpochAuthority exposes the server-generated epoch of the same
+// projection used for route admission. A client-supplied epoch is never an
+// authority for a volatile ledger.
+type CommandEpochAuthority interface {
+	CurrentAdmissionEpoch() (string, error)
+}

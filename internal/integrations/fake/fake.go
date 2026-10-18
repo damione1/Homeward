@@ -137,6 +137,13 @@ func (f *Fixture) AdmitCommandRoute(route integrations.CommandRoute) error {
 	return f.sequence.AdmitCommandRoute(route)
 }
 
+func (f *Fixture) CurrentAdmissionEpoch() (string, error) {
+	if f == nil || f.sequence == nil {
+		return "", integrations.ErrInvalidInput
+	}
+	return f.sequence.CurrentAdmissionEpoch()
+}
+
 func (f *Fixture) Resolve(ctx context.Context, instance domain.IntegrationInstanceID, keys []integrations.SourceKey) ([]integrations.ResolvedIdentity, error) {
 	if f == nil || ctx == nil || len(keys) == 0 || len(keys) > maxEntities {
 		return nil, integrations.ErrInvalidInput

@@ -155,6 +155,23 @@ func commandFailure(code actions.ErrorCode, path string) *actions.CommandRespons
 }
 
 func (r *CommandRouter) Dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest) (*actions.CommandResponse, error) {
+	if r == nil || r.host == nil {
+		return nil, ErrInvalidInput
+	}
+	r.host.mu.Lock()
+	ledger := r.host.volatile
+	if ledger == nil {
+		// A service cannot be attached after an unledgered dispatch started.
+		r.host.unprotectedCommandDispatch = true
+	}
+	r.host.mu.Unlock()
+	if ledger != nil {
+		return ledger.dispatch(r, ctx, actor, request)
+	}
+	return r.dispatchOnce(ctx, actor, request)
+}
+
+func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest) (*actions.CommandResponse, error) {
 	if r == nil || r.host == nil || ctx == nil || request == nil {
 		return nil, ErrInvalidInput
 	}
