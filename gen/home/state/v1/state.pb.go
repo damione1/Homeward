@@ -7,7 +7,7 @@
 package statev1
 
 import (
-	v1 "github.com/damione1/new-home-assistant/gen/home/registry/v1"
+	v1 "github.com/damione1/Homeward/gen/home/registry/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -1210,7 +1210,7 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\fStateService\x12K\n" +
 	"\bOpenView\x12\x1e.home.state.v1.OpenViewRequest\x1a\x1f.home.state.v1.OpenViewResponse\x12K\n" +
 	"\bReadPage\x12\x1e.home.state.v1.ReadPageRequest\x1a\x1f.home.state.v1.ReadPageResponse\x12P\n" +
-	"\tWatchView\x12\x1f.home.state.v1.WatchViewRequest\x1a .home.state.v1.WatchViewResponse0\x01BBZ@github.com/damione1/new-home-assistant/gen/home/state/v1;statev1b\x06proto3"
+	"\tWatchView\x12\x1f.home.state.v1.WatchViewRequest\x1a .home.state.v1.WatchViewResponse0\x01B8Z6github.com/damione1/Homeward/gen/home/state/v1;statev1b\x06proto3"
 
 var (
 	file_home_state_v1_state_proto_rawDescOnce sync.Once

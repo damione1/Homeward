@@ -1,4 +1,4 @@
-module github.com/damione1/new-home-assistant
+module github.com/damione1/Homeward
 
 go 1.25.2
 

@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/damione1/new-home-assistant/internal/config"
-	"github.com/damione1/new-home-assistant/internal/server"
+	"github.com/damione1/Homeward/internal/config"
+	"github.com/damione1/Homeward/internal/server"
 	"log"
 	"net"
 	"os"

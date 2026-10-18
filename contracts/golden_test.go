@@ -2,9 +2,9 @@ package contracts
 
 import (
 	"bytes"
-	actions "github.com/damione1/new-home-assistant/gen/home/actions/v1"
-	registry "github.com/damione1/new-home-assistant/gen/home/registry/v1"
-	state "github.com/damione1/new-home-assistant/gen/home/state/v1"
+	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	registry "github.com/damione1/Homeward/gen/home/registry/v1"
+	state "github.com/damione1/Homeward/gen/home/state/v1"
 	"google.golang.org/protobuf/proto"
 	"os"
 	"path/filepath"

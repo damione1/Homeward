@@ -4,7 +4,7 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/damione1/new-home-assistant/internal/config"
+	"github.com/damione1/Homeward/internal/config"
 	"net"
 )
 

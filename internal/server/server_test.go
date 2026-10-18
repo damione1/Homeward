@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"github.com/damione1/new-home-assistant/internal/config"
+	"github.com/damione1/Homeward/internal/config"
 	"net"
 	"testing"
 	"time"

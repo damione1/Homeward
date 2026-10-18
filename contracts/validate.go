@@ -2,7 +2,7 @@
 package contracts
 
 import (
-	actions "github.com/damione1/new-home-assistant/gen/home/actions/v1"
+	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 )
 
 // ValidateCommand demonstrates admission requirements. Authentication/authorization,

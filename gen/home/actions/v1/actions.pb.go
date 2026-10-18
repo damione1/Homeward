@@ -7,7 +7,7 @@
 package actionsv1
 
 import (
-	v1 "github.com/damione1/new-home-assistant/gen/home/registry/v1"
+	v1 "github.com/damione1/Homeward/gen/home/registry/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -691,7 +691,7 @@ const file_home_actions_v1_actions_proto_rawDesc = "" +
 	"\x17ACTION_STATUS_CONFIRMED\x10\x04\x12\x18\n" +
 	"\x14ACTION_STATUS_FAILED\x10\x05\x12\x1b\n" +
 	"\x17ACTION_STATUS_CANCELLED\x10\x06\x12\x1f\n" +
-	"\x1bACTION_STATUS_INDETERMINATE\x10\aBFZDgithub.com/damione1/new-home-assistant/gen/home/actions/v1;actionsv1b\x06proto3"
+	"\x1bACTION_STATUS_INDETERMINATE\x10\aB<Z:github.com/damione1/Homeward/gen/home/actions/v1;actionsv1b\x06proto3"
 
 var (
 	file_home_actions_v1_actions_proto_rawDescOnce sync.Once

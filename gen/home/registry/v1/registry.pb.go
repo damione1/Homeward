@@ -249,7 +249,7 @@ const file_home_registry_v1_registry_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12\x1a\n" +
 	"\bendpoint\x18\x04 \x01(\tR\bendpoint\x12%\n" +
 	"\x0edescriptor_set\x18\x05 \x01(\fR\rdescriptorSet\x12+\n" +
-	"\x11descriptor_sha256\x18\x06 \x01(\fR\x10descriptorSha256BHZFgithub.com/damione1/new-home-assistant/gen/home/registry/v1;registryv1b\x06proto3"
+	"\x11descriptor_sha256\x18\x06 \x01(\fR\x10descriptorSha256B>Z<github.com/damione1/Homeward/gen/home/registry/v1;registryv1b\x06proto3"
 
 var (
 	file_home_registry_v1_registry_proto_rawDescOnce sync.Once
