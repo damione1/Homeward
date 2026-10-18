@@ -11,6 +11,7 @@ const Profile = "ha-2026.10/core-1"
 const DeclarativeProfile = "ha-2026.10/declarative-1"
 const BlueprintInstanceProfile = "ha-2026.10/blueprint-instance-1"
 const BlueprintDefinitionProfile = "ha-2026.10/blueprint-definition-1"
+const LogicProfile = "ha-2026.10/logic-1"
 
 // SyntaxProfile selects a closed grammar for the common YAML loader.
 type SyntaxProfile uint8
@@ -21,6 +22,7 @@ const (
 	SyntaxProfileDeclarative
 	SyntaxProfileBlueprintInstance
 	SyntaxProfileBlueprintDefinition
+	SyntaxProfileLogic
 )
 
 func (p SyntaxProfile) String() string {
@@ -33,6 +35,8 @@ func (p SyntaxProfile) String() string {
 		return BlueprintInstanceProfile
 	case SyntaxProfileBlueprintDefinition:
 		return BlueprintDefinitionProfile
+	case SyntaxProfileLogic:
+		return LogicProfile
 	default:
 		return ""
 	}

@@ -25,6 +25,9 @@ func profileRule(profile SyntaxProfile) *rule {
 	if profile == SyntaxProfileBlueprintDefinition {
 		return blueprintDefinitionRule()
 	}
+	if profile == SyntaxProfileLogic {
+		return logicRule()
+	}
 	openSyntax := &rule{open: true}
 	mode := &rule{kind: KindScalar, values: map[string]bool{"single": true, "restart": true, "queued": true}}
 	target := mapping(map[string]*rule{"entity_id": scalar(), "device_id": scalar(), "area_id": scalar()})
