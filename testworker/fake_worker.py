@@ -125,6 +125,7 @@ def main():
     parser.add_argument("--mode", choices=("normal", "new", "new_hold", "incompatible", "incompatible_host_major", "incompatible_host_minor", "incompatible_driver_major", "incompatible_digest", "incompatible_version_pair", "incompatible_new_digest", "silent", "crash", "fail", "hold", "many_hold", "stubborn", "orphan_child", "small_frame", "large_frame", "no_command", "secret", "conformance"), default="normal")
     parser.add_argument("--marker")
     parser.add_argument("--control-socket")
+    parser.add_argument("--command-gate")
     parser.add_argument("--child-stubborn", action="store_true")
     args = parser.parse_args()
     if args.child_stubborn:
@@ -136,12 +137,12 @@ def main():
             signal.signal(signal.SIGTERM, signal.SIG_IGN)
         child = subprocess.Popen([sys.executable, __file__, "--child-stubborn"])
         mark(args.marker, f"child:{child.pid}")
-    socket = os.environ["HOMEWARD_HOST_SOCKET"]
+    host_socket = os.environ["HOMEWARD_HOST_SOCKET"]
     fd = int(os.environ["HOMEWARD_HOST_TOKEN_FD"])
     token = os.read(fd, 128).decode("ascii")
     os.close(fd)
     metadata = (("authorization", "Bearer " + token),)
-    with grpc.insecure_channel("unix:" + socket, options=[("grpc.max_receive_message_length", 1 << 20), ("grpc.max_send_message_length", 1 << 20)]) as channel:
+    with grpc.insecure_channel("unix:" + host_socket, options=[("grpc.max_receive_message_length", 1 << 20), ("grpc.max_send_message_length", 1 << 20)]) as channel:
         grpc.channel_ready_future(channel).result(timeout=5)
         stub = host_pb2_grpc.HostServiceStub(channel)
         try:
@@ -267,6 +268,13 @@ def main():
         if args.mode == "no_command":
             while True:
                 time.sleep(1)
+        if args.command_gate:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as gate:
+                gate.connect(args.command_gate)
+                mark(args.marker, "command_gate_waiting")
+                gate.sendall(b"\x00")
+                assert gate.recv(1) == b"\x01"
+                mark(args.marker, "command_gate_released")
         commands = stub.Commands(host_pb2.CommandsRequest(), metadata=metadata)
         try:
             next(stub.Commands(host_pb2.CommandsRequest(), metadata=metadata, timeout=2))
@@ -284,13 +292,13 @@ def main():
                 time.sleep(1)
         try:
             for frame in commands:
-                if args.mode == "crash":
-                    mark(args.marker, "crash_on_command")
-                    os._exit(17)
                 assert frame.request.command_id
                 assert frame.binding_handle in handles
                 number = handles.index(frame.binding_handle) + 1
                 mark(args.marker, f"command:{number}:{frame.request.command_id}")
+                if args.mode == "crash":
+                    mark(args.marker, f"crash_on_command:{frame.request.command_id}")
+                    os._exit(17)
                 if args.mode == "fail":
                     stub.CompleteCommand(host_pb2.CompleteCommandRequest(
                         command_id=frame.request.command_id,

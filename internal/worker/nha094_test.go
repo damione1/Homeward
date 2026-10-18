@@ -34,7 +34,7 @@ func (fixedGeneration) WithCurrent(ctx context.Context, fn func(uint64) error) e
 	return fn(7)
 }
 
-func pythonConfig(t *testing.T, instance, mode, marker string) Config {
+func pythonConfig(t *testing.T, instance, mode, marker string, extraArgs ...string) Config {
 	t.Helper()
 	root, err := filepath.Abs("../..")
 	if err != nil {
@@ -44,17 +44,22 @@ func pythonConfig(t *testing.T, instance, mode, marker string) Config {
 	if err != nil {
 		t.Fatalf("run scripts/ensure-worker-python.sh before tests: %v", err)
 	}
-	config, err := NewConfig(instance, strings.TrimSpace(string(path)),
-		[]string{filepath.Join(root, "testworker/fake_worker.py"), "--mode=" + mode, "--marker", marker}, nil)
+	args := []string{filepath.Join(root, "testworker/fake_worker.py"), "--mode=" + mode, "--marker", marker}
+	args = append(args, extraArgs...)
+	config, err := NewConfig(instance, strings.TrimSpace(string(path)), args, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return config
 }
 
-func waitMarker(t *testing.T, marker, text string, timeout time.Duration) string {
+func waitMarker(t *testing.T, marker, text string, timeout time.Duration, onWaiting ...func()) string {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
+	var reportWaiting func()
+	if len(onWaiting) != 0 {
+		reportWaiting = onWaiting[0]
+	}
 	for {
 		bytes, err := os.ReadFile(marker)
 		if err == nil && strings.Contains(string(bytes), text) {
@@ -62,6 +67,10 @@ func waitMarker(t *testing.T, marker, text string, timeout time.Duration) string
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("worker marker %q absent: %s (%v)", text, bytes, err)
+		}
+		if reportWaiting != nil {
+			reportWaiting()
+			reportWaiting = nil
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -97,6 +106,10 @@ func startWorkerRig(t *testing.T, mode string) workerRig {
 }
 
 func startWorkerRigWithCapture(t *testing.T, mode string, capture bool) workerRig {
+	return startWorkerRigWithGate(t, mode, capture, "", "", nil)
+}
+
+func startWorkerRigWithGate(t *testing.T, mode string, capture bool, commandGate, marker string, onWaiting func()) workerRig {
 	t.Helper()
 	ctx := context.Background()
 	host, fixture, err := fake.NewCommandFixture()
@@ -141,8 +154,14 @@ func startWorkerRigWithCapture(t *testing.T, mode string, capture bool) workerRi
 	if err != nil {
 		t.Fatal(err)
 	}
-	marker := filepath.Join(t.TempDir(), "worker.log")
-	config := pythonConfig(t, "nha094-synthetic-worker", mode, marker)
+	if marker == "" {
+		marker = filepath.Join(t.TempDir(), "worker.log")
+	}
+	var extraArgs []string
+	if commandGate != "" {
+		extraArgs = []string{"--command-gate", commandGate}
+	}
+	config := pythonConfig(t, "nha094-synthetic-worker", mode, marker, extraArgs...)
 	var spec integrations.PilotSpec
 	var launched *pilot
 	var admitted chan integrations.AdmittedCommand
@@ -177,6 +196,19 @@ func startWorkerRigWithCapture(t *testing.T, mode string, capture bool) workerRi
 	})
 	if !strings.HasPrefix(mode, "incompatible") {
 		waitMarker(t, marker, fmt.Sprintf("initial:%d", count), 6*time.Second)
+	}
+	switch mode {
+	case "normal", "new", "new_hold", "crash", "fail", "hold", "many_hold", "stubborn", "orphan_child",
+		"small_frame", "large_frame", "secret":
+		// The rejected probe proves that the first Commands RPC reached the
+		// server: an idle stream cannot provide response headers as a barrier.
+		waitMarker(t, marker, "second_stream_rejected", 5*time.Second, onWaiting)
+	case "incompatible", "incompatible_host_major", "incompatible_host_minor", "incompatible_driver_major",
+		"incompatible_digest", "incompatible_version_pair", "incompatible_new_digest",
+		"silent", "no_command":
+		// These workers intentionally never open a command stream.
+	default:
+		t.Fatalf("unexpected synthetic worker mode %q", mode)
 	}
 	entities := make([]domain.EntityID, count)
 	for i := range ids {
@@ -362,12 +394,18 @@ func TestNHA094FullSessionQueueKeepsRouterOutcomeIndeterminate(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	done := make(chan struct{}, maxPending)
+	type heldOutcome struct {
+		id       string
+		response *actions.CommandResponse
+		err      error
+	}
+	done := make(chan heldOutcome, maxPending)
 	for index := 0; index < maxPending; index++ {
-		request := commandRequest(t, rig.fixture, rig.entities[index], fmt.Sprintf("nha094-held-%d", index))
+		id := fmt.Sprintf("nha094-held-%d", index)
+		request := commandRequest(t, rig.fixture, rig.entities[index], id)
 		go func() {
-			_, _ = rig.service.Dispatch(ctx, actor, request)
-			done <- struct{}{}
+			response, err := rig.service.Dispatch(ctx, actor, request)
+			done <- heldOutcome{id: id, response: response, err: err}
 		}()
 	}
 	deadline := time.Now().Add(5 * time.Second)
@@ -392,7 +430,11 @@ func TestNHA094FullSessionQueueKeepsRouterOutcomeIndeterminate(t *testing.T) {
 	cancel()
 	for range maxPending {
 		select {
-		case <-done:
+		case outcome := <-done:
+			if !errors.Is(outcome.err, integrations.ErrCommandOutcomeIndeterminate) || outcome.response == nil ||
+				outcome.response.Status != actions.ActionStatus_ACTION_STATUS_INDETERMINATE {
+				t.Fatalf("held dispatch %s outcome: %v %v", outcome.id, outcome.response, outcome.err)
+			}
 		case <-time.After(5 * time.Second):
 			t.Fatal("held router dispatch did not join after cancel")
 		}
@@ -638,6 +680,14 @@ func TestNHA094WorkerFailureAndRevokedLateResponse(t *testing.T) {
 		t.Fatalf("worker failure misclassified: %v %v", response, err)
 	}
 	waitMarker(t, failed.marker, "failed:nha094-failed-command", 5*time.Second)
+	marker, err := os.ReadFile(failed.marker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(marker), "command:1:nha094-failed-command\n") != 1 ||
+		strings.Count(string(marker), "failed:nha094-failed-command\n") != 1 {
+		t.Fatalf("failed command was not received and completed exactly once: %s", marker)
+	}
 	state, present := failed.fixture.State(failed.entities[0])
 	if !present {
 		t.Fatal("pre-command state missing")
