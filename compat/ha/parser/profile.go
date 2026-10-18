@@ -4,12 +4,14 @@ package parser
 // Unknown fields at every closed grammar level are errors. Service data is
 // open syntax: every entry is retained for the later semantic compiler.
 type rule struct {
-	kind    Kind
-	fields  map[string]*rule
-	dynamic *rule
-	item    *rule
-	open    bool
-	values  map[string]bool
+	kind         Kind
+	fields       map[string]*rule
+	dynamic      *rule
+	item         *rule
+	open         bool
+	values       map[string]bool
+	input        bool
+	alternatives []*rule
 }
 
 func scalar() *rule                         { return &rule{kind: KindScalar} }
@@ -17,6 +19,12 @@ func mapping(fields map[string]*rule) *rule { return &rule{kind: KindMapping, fi
 func sequence(item *rule) *rule             { return &rule{kind: KindSequence, item: item} }
 
 func profileRule(profile SyntaxProfile) *rule {
+	if profile == SyntaxProfileBlueprintInstance {
+		return blueprintInstanceRule()
+	}
+	if profile == SyntaxProfileBlueprintDefinition {
+		return blueprintDefinitionRule()
+	}
 	openSyntax := &rule{open: true}
 	mode := &rule{kind: KindScalar, values: map[string]bool{"single": true, "restart": true, "queued": true}}
 	target := mapping(map[string]*rule{"entity_id": scalar(), "device_id": scalar(), "area_id": scalar()})
@@ -67,6 +75,17 @@ func validateProfile(root Node, profile SyntaxProfile) *Diagnostic {
 }
 
 func validate(n Node, r *rule) *Diagnostic {
+	if n.kind == KindInputRef && r.input {
+		return nil
+	}
+	if len(r.alternatives) != 0 {
+		for _, variant := range r.alternatives {
+			if n.kind == variant.kind || (n.kind == KindSecretRef && variant.kind == KindScalar) {
+				return validate(n, variant)
+			}
+		}
+		return diagnostic(CodeUnsupportedForm, n.source, n.path, "YAML shape outside profile")
+	}
 	if r.open {
 		return nil // preserved in full; no field was consumed or dropped
 	}

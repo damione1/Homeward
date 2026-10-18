@@ -1,0 +1,34 @@
+id: laboratory-fixture
+alias: Original laboratory procedure
+description: Synthetic syntax only
+use_blueprint:
+  path: homeward/laboratory.yaml
+  input:
+    controller: synthetic-panel
+    tick: 0
+    confirm: false
+    begin:
+    - action: example.prepare
+      metadata: {}
+      data:
+        label: ''
+      target:
+        entity_id: example.test_bench
+    sample:
+    - action: example.capture
+      data:
+        samples: 4
+        nullable: null
+    - action: example.record
+      data:
+        increment: -3
+    recover:
+    - action: example.recover
+      data:
+        delay: 9
+    finish:
+    - action: example.report
+      data:
+        format: laboratory
+    abort: []
+category: synthetic-laboratory

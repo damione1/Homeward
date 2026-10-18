@@ -29,14 +29,16 @@ const (
 )
 
 type loader struct {
-	root     *os.Root
-	sources  map[string]SourceFile
-	used     []string
-	profile  SyntaxProfile
-	bytes    int64
-	nodes    int
-	retained int64
-	active   map[string]bool
+	root              *os.Root
+	sources           map[string]SourceFile
+	used              []string
+	profile           SyntaxProfile
+	bytes             int64
+	nodes             int
+	retained          int64
+	active            map[string]bool
+	trace             *[]string
+	prechargedSources bool
 }
 
 // Load parses a single YAML document inside bundleRoot. The entry and every
@@ -77,6 +79,21 @@ func NewSourceFile(path string, data []byte) (SourceFile, error) {
 // LoadSources recompiles persisted exact bytes through the same grammar and
 // include expansion. It never accesses the filesystem.
 func LoadSources(entry string, files []SourceFile, profile SyntaxProfile) (*Document, error) {
+	l, err := snapshotLoader(entry, files, profile)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := l.load(entry)
+	if err != nil {
+		return nil, err
+	}
+	if len(doc.sources) != len(files) {
+		return nil, diagnostic(CodeUnsupportedForm, Position{File: entry, Line: 1, Column: 1}, "$", "source snapshot contains unused files")
+	}
+	return doc, nil
+}
+
+func snapshotLoader(entry string, files []SourceFile, profile SyntaxProfile) (*loader, error) {
 	if !safeName(entry) {
 		return nil, diagnostic(CodeInvalidEntry, Position{File: entry, Line: 1, Column: 1}, "$", "entry must be a local YAML file")
 	}
@@ -86,7 +103,7 @@ func LoadSources(entry string, files []SourceFile, profile SyntaxProfile) (*Docu
 	if len(files) > maxSourceFiles {
 		return nil, diagnostic(CodeSizeLimit, Position{File: entry, Line: 1, Column: 1}, "$", "source snapshot file limit exceeded")
 	}
-	l := loader{sources: make(map[string]SourceFile, len(files)), profile: profile, active: make(map[string]bool)}
+	l := &loader{sources: make(map[string]SourceFile, len(files)), profile: profile, active: make(map[string]bool)}
 	var totalBytes int64
 	var retainedInput int64
 	for _, file := range files {
@@ -111,14 +128,7 @@ func LoadSources(entry string, files []SourceFile, profile SyntaxProfile) (*Docu
 		// caller-owned input, so a value copy is an immutable snapshot.
 		l.sources[file.path] = file
 	}
-	doc, err := l.load(entry)
-	if err != nil {
-		return nil, err
-	}
-	if len(doc.sources) != len(files) {
-		return nil, diagnostic(CodeUnsupportedForm, Position{File: entry, Line: 1, Column: 1}, "$", "source snapshot contains unused files")
-	}
-	return doc, nil
+	return l, nil
 }
 
 func (l *loader) load(entry string) (*Document, error) {
@@ -145,6 +155,9 @@ func safeName(name string) bool {
 }
 
 func (l *loader) parseFile(name, path string, refs []Reference, depth, syntaxDepth int, site Position) (Node, *Diagnostic) {
+	if l.trace != nil && !containsString(*l.trace, name) {
+		*l.trace = append(*l.trace, name)
+	}
 	if depth > maxIncludeDepth {
 		return Node{}, diagnostic(CodeIncludeDepth, site, path, "include depth limit exceeded")
 	}
@@ -175,7 +188,9 @@ func (l *loader) parseFile(name, path string, refs []Reference, depth, syntaxDep
 		}
 	} else if l.root == nil && !containsString(l.used, name) {
 		l.used = append(l.used, name)
-		l.retained += int64(len(file.data) + len(name) + 128)
+		if !l.prechargedSources {
+			l.retained += int64(len(file.data) + len(name) + 128)
+		}
 		if l.retained > maxRetainedBytes {
 			return Node{}, diagnostic(CodeSyntaxLimit, site, path, "retained syntax and source budget exceeded")
 		}
@@ -308,6 +323,13 @@ func (l *loader) build(raw *yaml.Node, file, path string, refs []Reference, incl
 		return l.parseFile(name, path, includeRefs, includeDepth+1, syntaxDepth+1, pos)
 	}
 	n := Node{source: pos, path: path, references: append([]Reference(nil), refs...)}
+	if raw.Tag == "!input" && l.profile == SyntaxProfileBlueprintDefinition {
+		if raw.Kind != yaml.ScalarNode || !validInputName(raw.Value) {
+			return Node{}, diagnostic(CodeBlueprintInputReference, pos, path, "input reference requires a nonempty bounded name")
+		}
+		n.kind, n.scalar = KindInputRef, Scalar{kind: ScalarString, text: raw.Value}
+		return n, nil
+	}
 	if raw.Tag == "!secret" {
 		if raw.Kind != yaml.ScalarNode || strings.TrimSpace(raw.Value) == "" {
 			return Node{}, diagnostic(CodeUnsupportedForm, pos, path, "secret requires a reference name")
