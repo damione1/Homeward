@@ -1,8 +1,12 @@
 #!/bin/sh
 set -eu
 mkdir -p .tools/bin
-GOBIN="$PWD/.tools/bin" go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
-cargo install protoc-gen-buffa --version 0.9.2 --locked --root "$PWD/.tools"
+if [ "$(.tools/bin/protoc-gen-go --version 2>/dev/null || true)" != "protoc-gen-go v1.36.11" ]; then
+  GOBIN="$PWD/.tools/bin" go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+fi
+if [ "$(.tools/bin/protoc-gen-buffa --version 2>/dev/null || true)" != "protoc-gen-buffa 0.9.2" ]; then
+  cargo install protoc-gen-buffa --version 0.9.2 --locked --root "$PWD/.tools"
+fi
 contract_temp="$(mktemp -d)"
 trap 'rm -rf "$contract_temp"' EXIT HUP INT TERM
 cat > "$contract_temp/buf.gen.yaml" <<EOF

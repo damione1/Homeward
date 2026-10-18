@@ -41,17 +41,23 @@ fn unknown_values_remain_readable_and_extension_execution_is_refused() {
     let c: actions::CommandRequest = roundtrip("unknown-extension");
     assert_eq!(
         home_wire_contract::validate_command(&c, "epoch-a", c.config_revision),
-        Err("unsupported_capability")
+        Err(rejection(
+            actions::ErrorCode::UnsupportedCapability,
+            "capability_schema_id"
+        ))
     );
     let c: actions::CommandRequest = roundtrip("command");
     assert!(home_wire_contract::validate_command(&c, "epoch-a", c.config_revision).is_ok());
     assert_eq!(
         home_wire_contract::validate_command(&c, "epoch-b", c.config_revision),
-        Err("stale_epoch")
+        Err(rejection(actions::ErrorCode::StaleEpoch, "admission_epoch"))
     );
     assert_eq!(
         home_wire_contract::validate_command(&c, "epoch-a", c.config_revision + 1),
-        Err("stale_configuration")
+        Err(rejection(
+            actions::ErrorCode::StaleConfiguration,
+            "config_revision"
+        ))
     );
 }
 #[test]
@@ -80,7 +86,77 @@ fn empty_and_absent_references_are_rejected() {
         let c: actions::CommandRequest = roundtrip(name);
         assert_eq!(
             home_wire_contract::validate_command(&c, "epoch-a", c.config_revision),
-            Err("invalid_target")
+            Err(rejection(actions::ErrorCode::InvalidArgument, "target"))
         );
+    }
+}
+
+fn rejection(code: actions::ErrorCode, path: &str) -> Box<actions::ContractError> {
+    Box::new(actions::ContractError {
+        code: code.into(),
+        field_path: path.into(),
+        message: "command rejected by contract".into(),
+        ..Default::default()
+    })
+}
+
+#[test]
+fn admission_rejects_missing_and_unknown_branches_without_weakening_wire_decode() {
+    use actions::action_args::Arguments;
+    use registry::entity_ref::Reference;
+    let original: actions::CommandRequest = roundtrip("command");
+    let mut cases = Vec::new();
+    let mut c = original.clone();
+    c.command_id.clear();
+    cases.push((c, "command_id"));
+    let mut c = original.clone();
+    c.admission_epoch.clear();
+    cases.push((c, "admission_epoch"));
+    let mut c = original.clone();
+    c.target = Default::default();
+    cases.push((c, "target"));
+    let mut c = original.clone();
+    c.arguments = Default::default();
+    cases.push((c, "arguments"));
+    let mut c = original.clone();
+    // Unknown future oneof branch remains decodable and round-trippable.
+    let args = actions::ActionArgs::decode_from_slice(&[0x1a, 0]).unwrap();
+    assert_eq!(args.encode_to_vec(), [0x1a, 0]);
+    c.arguments = args.into();
+    cases.push((c, "arguments"));
+    let mut c = original.clone();
+    c.arguments = actions::ActionArgs {
+        arguments: Some(Arguments::Extension(Box::default())),
+        ..Default::default()
+    }
+    .into();
+    cases.push((c, "arguments"));
+    for (c, path) in cases {
+        assert_eq!(
+            home_wire_contract::validate_command(&c, "epoch-a", c.config_revision),
+            Err(rejection(actions::ErrorCode::InvalidArgument, path))
+        );
+    }
+    let mut c = original.clone();
+    c.admission_epoch.clear();
+    assert_eq!(
+        home_wire_contract::validate_command(&c, "", c.config_revision),
+        Err(rejection(
+            actions::ErrorCode::InvalidArgument,
+            "admission_epoch"
+        ))
+    );
+    for reference in [
+        Reference::EntityId("Host:opaque/É-42".into()),
+        Reference::HaAlias("switch.synthetic".into()),
+    ] {
+        let mut c = original.clone();
+        c.target = registry::EntityRef {
+            reference: Some(reference),
+            ..Default::default()
+        }
+        .into();
+        c.config_revision = 0;
+        assert!(home_wire_contract::validate_command(&c, "epoch-a", 0).is_ok());
     }
 }
