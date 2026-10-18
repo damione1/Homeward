@@ -125,6 +125,10 @@ func discoveryDescription(c discoveryComponent, mode Mode, commands []TopicFilte
 		if c.colorTemp {
 			light.ColorTempMireds = &wire.NumberBounds{Minimum: float64(c.minMireds), Maximum: float64(c.maxMireds)}
 		}
+		if canCommand && c.admittedTransition == transitionIkeaDriver30W {
+			step := 0.1
+			light.TransitionSeconds = &wire.NumberBounds{Minimum: 0, Maximum: 6553, Step: &step}
+		}
 		d.Constraints = &wire.CapabilityDescription_Light{Light: light}
 	default:
 		return nil, errDiscoveryProfile

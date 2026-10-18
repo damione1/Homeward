@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/storage"
 )
 
@@ -44,16 +45,34 @@ const (
 
 // Input is the untrusted YAML representation; only ParseSettings admits it.
 type Input struct {
-	Profile        string     `yaml:"profile"`
-	Broker         string     `yaml:"broker"`
-	Instance       string     `yaml:"instance"`
-	Mode           string     `yaml:"mode"`
-	UsernameSecret string     `yaml:"username_secret"`
-	PasswordSecret string     `yaml:"password_secret"`
-	Subscriptions  []string   `yaml:"subscriptions"`
-	CommandTopics  []string   `yaml:"command_topics"`
-	Will           *WillInput `yaml:"will"`
+	Profile          string                 `yaml:"profile"`
+	Broker           string                 `yaml:"broker"`
+	Instance         string                 `yaml:"instance"`
+	Mode             string                 `yaml:"mode"`
+	UsernameSecret   string                 `yaml:"username_secret"`
+	PasswordSecret   string                 `yaml:"password_secret"`
+	Subscriptions    []string               `yaml:"subscriptions"`
+	CommandTopics    []string               `yaml:"command_topics"`
+	TransitionLights []TransitionLightInput `yaml:"transition_lights"`
+	Will             *WillInput             `yaml:"will"`
 }
+
+// TransitionLightInput opts one already configured source into one pinned
+// converter profile. Discovery must still prove the exact physical model.
+type TransitionLightInput struct {
+	SourceDevice string `yaml:"source_device"`
+	SourceEntity string `yaml:"source_entity"`
+	Profile      string `yaml:"profile"`
+}
+
+type transitionProfile uint8
+
+const (
+	transitionUnspecified transitionProfile = iota
+	transitionIkeaDriver30W
+)
+
+const ikeaDriver30WProfile = "z2m-2.14.1-converters-26.105.0-ikea-driver-30w"
 
 type WillInput struct {
 	Topic   string `yaml:"topic"`
@@ -130,18 +149,19 @@ func (f TopicFilter) Matches(t Topic) bool {
 }
 
 type Settings struct {
-	profile       Profile
-	mode          Mode
-	address       string
-	tls           bool
-	instance      domain.IntegrationInstanceID
-	clientID      string
-	username      storage.SecretHandle
-	password      storage.SecretHandle
-	subscriptions []TopicFilter
-	commands      []TopicFilter
-	willTopic     Topic
-	willPayload   []byte
+	profile          Profile
+	mode             Mode
+	address          string
+	tls              bool
+	instance         domain.IntegrationInstanceID
+	clientID         string
+	username         storage.SecretHandle
+	password         storage.SecretHandle
+	subscriptions    []TopicFilter
+	commands         []TopicFilter
+	transitionLights map[integrations.SourceKey]transitionProfile
+	willTopic        Topic
+	willPayload      []byte
 }
 
 func ParseSettings(raw Input) (Settings, error) {
@@ -222,6 +242,20 @@ func ParseSettings(raw Input) (Settings, error) {
 		}
 		seen[filter] = true
 		s.commands = append(s.commands, filter)
+	}
+	if len(raw.TransitionLights) > 16 || mode != ModeActive && len(raw.TransitionLights) != 0 {
+		return Settings{}, ErrInvalidSettings
+	}
+	s.transitionLights = make(map[integrations.SourceKey]transitionProfile, len(raw.TransitionLights))
+	for _, entry := range raw.TransitionLights {
+		key, err := integrations.NewSourceKey(entry.SourceDevice, entry.SourceEntity)
+		if err != nil || entry.Profile != ikeaDriver30WProfile {
+			return Settings{}, ErrInvalidSettings
+		}
+		if _, duplicate := s.transitionLights[key]; duplicate {
+			return Settings{}, ErrInvalidSettings
+		}
+		s.transitionLights[key] = transitionIkeaDriver30W
 	}
 	if mode == ModePassive {
 		if raw.Will != nil || len(s.commands) != 0 {

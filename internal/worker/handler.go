@@ -65,6 +65,8 @@ func (p *pilot) Handshake(_ context.Context, r *connect.Request[wire.HandshakeRe
 		expected = schemaDigestV11Hex
 	case msg.HostMajor == hostMajor && msg.HostMinor == 2 && msg.DriverMajor == driverMajor && msg.DriverMinor == 2:
 		expected = schemaDigestV12Hex
+	case msg.HostMajor == hostMajor && msg.HostMinor == 3 && msg.DriverMajor == driverMajor && msg.DriverMinor == 3:
+		expected = schemaDigestV13Hex
 	default:
 		return nil, connect.NewError(connect.CodeFailedPrecondition, ErrInvalidConfig)
 	}
@@ -162,6 +164,15 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 			for _, description := range input.Descriptions {
 				if description != nil {
 					if climate := description.GetClimate(); climate != nil && (climate.ObservedTemperatureCelsius != nil || climate.ObservedSetpointCelsius != nil || climate.ObservedSetpointRangeCelsius != nil || len(climate.ObservedModeOptions) != 0 || climate.ObservesFanActivity) {
+						return nil, rpcInvalid()
+					}
+				}
+			}
+		}
+		if p.hostMinor < 3 {
+			for _, description := range input.Descriptions {
+				if description != nil {
+					if light := description.GetLight(); light != nil && light.TransitionSeconds != nil {
 						return nil, rpcInvalid()
 					}
 				}

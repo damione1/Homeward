@@ -194,6 +194,7 @@ type SetLight struct {
 	On                *bool                  `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
 	BrightnessPercent *float64               `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
 	ColorTempMireds   *uint32                `protobuf:"varint,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
+	TransitionSeconds *float64               `protobuf:"fixed64,4,opt,name=transition_seconds,json=transitionSeconds,proto3,oneof" json:"transition_seconds,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -245,6 +246,13 @@ func (x *SetLight) GetBrightnessPercent() float64 {
 func (x *SetLight) GetColorTempMireds() uint32 {
 	if x != nil && x.ColorTempMireds != nil {
 		return *x.ColorTempMireds
+	}
+	return 0
+}
+
+func (x *SetLight) GetTransitionSeconds() float64 {
+	if x != nil && x.TransitionSeconds != nil {
+		return *x.TransitionSeconds
 	}
 	return 0
 }
@@ -847,14 +855,16 @@ const file_home_actions_v1_actions_proto_rawDesc = "" +
 	"\n" +
 	"\x1dhome/actions/v1/actions.proto\x12\x0fhome.actions.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fhome/registry/v1/registry.proto\"\x1b\n" +
 	"\tSetSwitch\x12\x0e\n" +
-	"\x02on\x18\x01 \x01(\bR\x02on\"\xb8\x01\n" +
+	"\x02on\x18\x01 \x01(\bR\x02on\"\x83\x02\n" +
 	"\bSetLight\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x122\n" +
 	"\x12brightness_percent\x18\x02 \x01(\x01H\x01R\x11brightnessPercent\x88\x01\x01\x12/\n" +
-	"\x11color_temp_mireds\x18\x03 \x01(\rH\x02R\x0fcolorTempMireds\x88\x01\x01B\x05\n" +
+	"\x11color_temp_mireds\x18\x03 \x01(\rH\x02R\x0fcolorTempMireds\x88\x01\x01\x122\n" +
+	"\x12transition_seconds\x18\x04 \x01(\x01H\x03R\x11transitionSeconds\x88\x01\x01B\x05\n" +
 	"\x03_onB\x15\n" +
 	"\x13_brightness_percentB\x14\n" +
-	"\x12_color_temp_mireds\"I\n" +
+	"\x12_color_temp_miredsB\x15\n" +
+	"\x13_transition_seconds\"I\n" +
 	"\x06SetFan\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x12\x19\n" +
 	"\x05speed\x18\x02 \x01(\tH\x01R\x05speed\x88\x01\x01B\x05\n" +

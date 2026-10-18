@@ -316,6 +316,8 @@ pub struct SetLight {
     pub brightness_percent: ::core::option::Option<f64>,
     /// Field 3: `color_temp_mireds`
     pub color_temp_mireds: ::core::option::Option<u32>,
+    /// Field 4: `transition_seconds`
+    pub transition_seconds: ::core::option::Option<f64>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -325,6 +327,7 @@ impl ::core::fmt::Debug for SetLight {
             .field("on", &self.on)
             .field("brightness_percent", &self.brightness_percent)
             .field("color_temp_mireds", &self.color_temp_mireds)
+            .field("transition_seconds", &self.transition_seconds)
             .finish()
     }
 }
@@ -357,6 +360,13 @@ impl SetLight {
         self.color_temp_mireds = Some(value);
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::transition_seconds`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_transition_seconds(mut self, value: f64) -> Self {
+        self.transition_seconds = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(SetLight);
 impl ::buffa::MessageName for SetLight {
@@ -387,6 +397,9 @@ impl ::buffa::Message for SetLight {
         if let Some(v) = self.color_temp_mireds {
             size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
+        if self.transition_seconds.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -405,6 +418,9 @@ impl ::buffa::Message for SetLight {
         }
         if let Some(v) = self.color_temp_mireds {
             ::buffa::types::put_uint32_field(3u32, v, buf);
+        }
+        if let Some(v) = self.transition_seconds {
+            ::buffa::types::put_double_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -446,6 +462,15 @@ impl ::buffa::Message for SetLight {
                     ::buffa::types::decode_uint32(buf)?,
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.transition_seconds = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -457,6 +482,7 @@ impl ::buffa::Message for SetLight {
         self.on = ::core::option::Option::None;
         self.brightness_percent = ::core::option::Option::None;
         self.color_temp_mireds = ::core::option::Option::None;
+        self.transition_seconds = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2180,6 +2206,8 @@ pub mod __buffa {
             pub brightness_percent: ::core::option::Option<f64>,
             /// Field 3: `color_temp_mireds`
             pub color_temp_mireds: ::core::option::Option<u32>,
+            /// Field 4: `transition_seconds`
+            pub transition_seconds: ::core::option::Option<f64>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SetLightView<'a> {
@@ -2243,6 +2271,15 @@ pub mod __buffa {
                             ::buffa::types::decode_uint32(&mut cur)?,
                         );
                     }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.transition_seconds = Some(
+                            ::buffa::types::decode_double(&mut cur)?,
+                        );
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -2269,6 +2306,7 @@ pub mod __buffa {
                     on: self.on,
                     brightness_percent: self.brightness_percent,
                     color_temp_mireds: self.color_temp_mireds,
+                    transition_seconds: self.transition_seconds,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -2292,6 +2330,9 @@ pub mod __buffa {
                 if let Some(v) = self.color_temp_mireds {
                     size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
                 }
+                if self.transition_seconds.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -2311,6 +2352,9 @@ pub mod __buffa {
                 }
                 if let Some(v) = self.color_temp_mireds {
                     ::buffa::types::put_uint32_field(3u32, v, buf);
+                }
+                if let Some(v) = self.transition_seconds {
+                    ::buffa::types::put_double_field(4u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -2419,6 +2463,11 @@ pub mod __buffa {
             #[must_use]
             pub fn color_temp_mireds(&self) -> ::core::option::Option<u32> {
                 self.0.reborrow().color_temp_mireds
+            }
+            /// Field 4: `transition_seconds`
+            #[must_use]
+            pub fn transition_seconds(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().transition_seconds
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<SetLightView<'static>>>

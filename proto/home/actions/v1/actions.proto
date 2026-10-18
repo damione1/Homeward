@@ -12,6 +12,7 @@ message SetLight {
   optional bool on = 1;
   optional double brightness_percent = 2;
   optional uint32 color_temp_mireds = 3;
+  optional double transition_seconds = 4;
 }
 message SetFan {
   optional bool on = 1;

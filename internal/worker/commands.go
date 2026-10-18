@@ -67,6 +67,12 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 		p.mu.Unlock()
 		return ErrUnavailable
 	}
+	if p.hostMinor < 3 {
+		if light := request.GetArguments().GetSetLight(); light != nil && light.TransitionSeconds != nil {
+			p.mu.Unlock()
+			return ErrUnavailable
+		}
+	}
 	handle := p.entityHandles[entityText]
 	if len(handle) != 32 {
 		p.mu.Unlock()

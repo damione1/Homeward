@@ -25,8 +25,9 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Exact v1.0, v1.1 and v1.2 profiles are admitted. Fan requires v1.1;
-// climate observations and their declarations require v1.2.
+// Exact v1.0, v1.1, v1.2 and v1.3 profiles are admitted. Fan requires v1.1;
+// climate observations and their declarations require v1.2; light transitions
+// require v1.3.
 type Capability int32
 
 const (
