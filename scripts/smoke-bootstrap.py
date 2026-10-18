@@ -75,9 +75,12 @@ with tempfile.TemporaryDirectory(prefix="nha027-bootstrap-") as directory:
         cfg.write_text(settings)
         pg_env = env.copy()
         pg_env["PGPASSWORD"] = password
-        subprocess.run(["psql", "-h", "127.0.0.1", "-p", str(pg_port), "-U", "homeward_test", "-d", "postgres", "-X", "-q", "-c", "INSERT INTO public.homeward_schema_migrations(version) VALUES (2)"], check=True, capture_output=True, text=True, env=pg_env)
+        psql = ["psql", "-h", "127.0.0.1", "-p", str(pg_port), "-U", "homeward_test", "-d", "postgres", "-X", "-A", "-t"]
+        current = int(subprocess.run(psql + ["-c", "SELECT max(version) FROM public.homeward_schema_migrations"], check=True, capture_output=True, text=True, env=pg_env).stdout.strip())
+        future_version = current + 1
+        subprocess.run(psql + ["-c", f"INSERT INTO public.homeward_schema_migrations(version) VALUES ({future_version})"], check=True, capture_output=True, text=True, env=pg_env)
         future = subprocess.run([str(binary), "-config", str(cfg)], capture_output=True, text=True, timeout=10, env=env)
-        assert future.returncode != 0 and "schema version 2 is newer" in future.stderr
+        assert future.returncode != 0 and f"schema version {future_version} is newer" in future.stderr
         assert "bootstrap ready" not in future.stderr and password not in future.stderr
     finally:
         run("pg_ctl", "-D", str(root / "data"), "-m", "immediate", "-w", "stop")

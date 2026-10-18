@@ -67,7 +67,39 @@ var migrations = []migration{{version: Version{1}, sql: `
 CREATE TABLE public.homeward_schema_migrations (
     version integer PRIMARY KEY CHECK (version > 0),
     applied_at timestamptz NOT NULL DEFAULT now()
-)`}}
+)`}, {version: Version{2}, sql: `
+CREATE TABLE public.registry_devices (
+    id text PRIMARY KEY CHECK (id <> '')
+);
+CREATE TABLE public.registry_device_sources (
+    instance_id text NOT NULL CHECK (instance_id <> ''),
+    source_device text NOT NULL CHECK (source_device <> ''),
+    device_id text NOT NULL UNIQUE REFERENCES public.registry_devices(id),
+    PRIMARY KEY (instance_id, source_device)
+);
+CREATE TABLE public.registry_entities (
+    id text PRIMARY KEY CHECK (id <> ''),
+    device_id text NOT NULL REFERENCES public.registry_devices(id),
+    manifest_alias text NOT NULL UNIQUE CHECK (manifest_alias <> ''),
+    tombstoned boolean NOT NULL DEFAULT false
+);
+CREATE TABLE public.registry_source_bindings (
+    instance_id text NOT NULL CHECK (instance_id <> ''),
+    source_device text NOT NULL CHECK (source_device <> ''),
+    source_entity text NOT NULL CHECK (source_entity <> ''),
+    entity_id text NOT NULL UNIQUE REFERENCES public.registry_entities(id),
+    PRIMARY KEY (instance_id, source_device, source_entity),
+    FOREIGN KEY (instance_id, source_device)
+        REFERENCES public.registry_device_sources(instance_id, source_device)
+);
+CREATE TABLE public.registry_aliases (
+    alias text PRIMARY KEY CHECK (alias <> ''),
+    entity_id text NOT NULL REFERENCES public.registry_entities(id),
+    current boolean NOT NULL
+);
+CREATE UNIQUE INDEX registry_one_current_alias_per_entity
+    ON public.registry_aliases(entity_id) WHERE current
+`}}
 
 var latestVersion = migrations[len(migrations)-1].version
 

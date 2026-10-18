@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -22,34 +22,7 @@ type secretError string
 func (e secretError) Error() string { return string(e) }
 
 func testCluster(t *testing.T) int {
-	t.Helper()
-	portListener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	port := portListener.Addr().(*net.TCPAddr).Port
-	portListener.Close()
-	root := t.TempDir()
-	passwordFile := filepath.Join(root, "password")
-	if err := os.WriteFile(passwordFile, []byte(testPassword+"\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	data := filepath.Join(root, "data")
-	cmd := exec.Command("initdb", "-D", data, "--username=homeward_test", "--auth-host=scram-sha-256", "--auth-local=trust", "--pwfile="+passwordFile, "--no-instructions")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("initdb: %v: %s", err, output)
-	}
-	cmd = exec.Command("pg_ctl", "-D", data, "-l", filepath.Join(root, "postgres.log"), "-o", fmt.Sprintf("-h 127.0.0.1 -p %d", port), "-w", "start")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("pg_ctl start: %v: %s", err, output)
-	}
-	t.Cleanup(func() {
-		cmd := exec.Command("pg_ctl", "-D", data, "-m", "immediate", "-w", "stop")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			t.Errorf("pg_ctl stop: %v: %s", err, output)
-		}
-	})
-	return port
+	return testpg.Start(t).Port
 }
 
 func testSettings(t *testing.T, port int) Settings {
@@ -58,7 +31,7 @@ func testSettings(t *testing.T, port int) Settings {
 		if key != "HOMEWARD_TEST_PASSWORD" {
 			t.Fatalf("unexpected secret lookup %s", key)
 		}
-		return testPassword, true
+		return testpg.Password(), true
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -75,13 +48,17 @@ func TestNHA027MigrationsAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	first, err := store.Migrate(ctx)
-	if err != nil || first.Number() != 1 {
-		t.Fatalf("first migration: %v %v", first, err)
+	base, err := store.migrate(ctx, migrations[:1])
+	if err != nil || base.Number() != 1 {
+		t.Fatalf("original migration: %v %v", base, err)
 	}
 	var applied time.Time
 	if err := store.pool.QueryRow(ctx, `SELECT applied_at FROM public.homeward_schema_migrations WHERE version=1`).Scan(&applied); err != nil {
 		t.Fatal(err)
+	}
+	first, err := store.Migrate(ctx)
+	if err != nil || first != CurrentVersion() {
+		t.Fatalf("upgrade from original migration: %v %v", first, err)
 	}
 	second, err := store.Migrate(ctx)
 	if err != nil || second != first {
@@ -92,7 +69,7 @@ func TestNHA027MigrationsAndRollback(t *testing.T) {
 	if err := store.pool.QueryRow(ctx, `SELECT count(*), min(applied_at) FROM public.homeward_schema_migrations`).Scan(&count, &appliedAgain); err != nil {
 		t.Fatal(err)
 	}
-	if count != 1 || !applied.Equal(appliedAgain) {
+	if count != int(CurrentVersion().Number()) || !applied.Equal(appliedAgain) {
 		t.Fatal("second pass modified migration history")
 	}
 	if _, err := store.pool.Exec(ctx, `CREATE TABLE public.nha027_fixture(value integer NOT NULL)`); err != nil {
@@ -101,12 +78,13 @@ func TestNHA027MigrationsAndRollback(t *testing.T) {
 	if _, err := store.pool.Exec(ctx, `INSERT INTO public.nha027_fixture VALUES (1)`); err != nil {
 		t.Fatal(err)
 	}
-	_, err = store.migrate(ctx, []migration{
-		migrations[0],
-		{version: Version{2}, sql: `INSERT INTO public.nha027_fixture VALUES (2)`},
-		{version: Version{3}, sql: `CREATE TABLE public.nha027_rolled_back(value integer)`},
-		{version: Version{4}, sql: `INSERT INTO public.missing_relation VALUES (1)`},
-	})
+	plan := append([]migration(nil), migrations...)
+	plan = append(plan,
+		migration{version: Version{CurrentVersion().Number() + 1}, sql: `INSERT INTO public.nha027_fixture VALUES (2)`},
+		migration{version: Version{CurrentVersion().Number() + 2}, sql: `CREATE TABLE public.nha027_rolled_back(value integer)`},
+		migration{version: Version{CurrentVersion().Number() + 3}, sql: `INSERT INTO public.missing_relation VALUES (1)`},
+	)
+	_, err = store.migrate(ctx, plan)
 	var storageErr *Error
 	if !errors.As(err, &storageErr) || storageErr.Kind() != MigrationFailed {
 		t.Fatalf("failure classification: %v", err)
@@ -122,17 +100,18 @@ func TestNHA027MigrationsAndRollback(t *testing.T) {
 	if err := store.pool.QueryRow(ctx, `SELECT to_regclass('public.nha027_rolled_back') IS NULL`).Scan(&rolledBack); err != nil {
 		t.Fatal(err)
 	}
-	if fixtureCount != 1 || versionCount != 1 || !rolledBack {
+	if fixtureCount != 1 || versionCount != int(CurrentVersion().Number()) || !rolledBack {
 		t.Fatalf("rollback incomplete: data=%d versions=%d ddl=%t", fixtureCount, versionCount, rolledBack)
 	}
-	if _, err := store.pool.Exec(ctx, `INSERT INTO public.homeward_schema_migrations(version) VALUES (2)`); err != nil {
+	futureVersion := CurrentVersion().Number() + 1
+	if _, err := store.pool.Exec(ctx, `INSERT INTO public.homeward_schema_migrations(version) VALUES ($1)`, futureVersion); err != nil {
 		t.Fatal(err)
 	}
 	_, err = store.Migrate(ctx)
-	if !errors.As(err, &storageErr) || storageErr.Kind() != FutureSchema || storageErr.FoundVersion().Number() != 2 {
+	if !errors.As(err, &storageErr) || storageErr.Kind() != FutureSchema || storageErr.FoundVersion().Number() != futureVersion {
 		t.Fatalf("future schema: %v", err)
 	}
-	if countErr := store.pool.QueryRow(ctx, `SELECT count(*) FROM public.homeward_schema_migrations`).Scan(&versionCount); countErr != nil || versionCount != 2 {
+	if countErr := store.pool.QueryRow(ctx, `SELECT count(*) FROM public.homeward_schema_migrations`).Scan(&versionCount); countErr != nil || versionCount != int(futureVersion) {
 		t.Fatalf("future schema modified database: %d %v", versionCount, countErr)
 	}
 }
