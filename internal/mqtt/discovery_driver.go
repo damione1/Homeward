@@ -60,7 +60,18 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 			return integrations.ErrCommandRouteUnavailable
 		}
 		arg := request.GetArguments().GetSetLight()
-		fields := make(map[string]any, 3)
+		fields := make(map[string]any, 4)
+		if arg.TransitionSeconds != nil {
+			seconds := *arg.TransitionSeconds
+			if profile.admittedTransition != transitionIkeaDriver30W ||
+				arg.On == nil && arg.BrightnessPercent == nil && arg.ColorTempMireds == nil ||
+				math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds < 0 || seconds > 6553 ||
+				math.Abs(seconds*10-math.Round(seconds*10)) > 1e-9 ||
+				arg.ColorTempMireds != nil || arg.On != nil && !*arg.On && arg.BrightnessPercent != nil {
+				return integrations.ErrCommandRouteUnavailable
+			}
+			fields["transition"] = seconds
+		}
 		if arg.On != nil {
 			if *arg.On {
 				fields["state"] = "ON"

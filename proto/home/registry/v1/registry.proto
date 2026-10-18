@@ -44,6 +44,7 @@ message LightConstraints {
   bool set_on = 1;
   NumberBounds brightness_percent = 2;
   NumberBounds color_temp_mireds = 3;
+  NumberBounds transition_seconds = 4;
 }
 message FanConstraints {
   bool set_on = 1;

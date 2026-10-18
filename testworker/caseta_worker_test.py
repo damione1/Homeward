@@ -10,6 +10,7 @@ import os
 import ssl
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 from pathlib import Path
 
@@ -20,7 +21,11 @@ from cryptography.x509.oid import NameOID
 
 from drivers.caseta.bridge import BridgeFault, StrictSmartbridge, open_pinned_tls
 from drivers.caseta.config import Settings, _manifest_aliases, load_settings
-from drivers.caseta.worker import FanSpeed, FanState, LightLevel, SwitchState, read_value, validate_inventory
+from drivers.caseta.worker import (FanSpeed, FanState, FadingLightLevel, HostProfile,
+                                   LightLevel, SwitchState, UnsupportedCommand, apply,
+                                   description, read_value, requested_effect,
+                                   validate_inventory)
+from home.actions.v1 import actions_pb2
 from testworker.caseta_fake_bridge import FakeBridge
 
 
@@ -172,6 +177,65 @@ class CasetaTLS(unittest.IsolatedAsyncioTestCase):
                                          if value == "Press" else None)
             await self.fake.control({"op": "pico", "event": "Press"})
             await asyncio.wait_for(event.wait(), 2)
+        finally:
+            await bridge.close_joined()
+
+    async def test_nha178_opt_in_exact_fade_and_legacy_wire(self):
+        light = next(f for f in self.settings.functions if f.kind == "light")
+        self.assertFalse(description(light).light.HasField("transition_seconds"))
+        self.assertEqual(description(light, HostProfile.V13).light.transition_seconds.step, 1)
+
+        def frame(**fields):
+            request = actions_pb2.CommandRequest(
+                capability_schema_id="core.light.v1", endpoint="level",
+                arguments=actions_pb2.ActionArgs(
+                    set_light=actions_pb2.SetLight(**fields)))
+            return SimpleNamespace(request=request)
+
+        old = requested_effect(frame(brightness_percent=42), light)
+        self.assertEqual(old, LightLevel(42))
+        with self.assertRaises(UnsupportedCommand):
+            requested_effect(frame(brightness_percent=42, transition_seconds=2), light)
+        fade = requested_effect(frame(brightness_percent=42, transition_seconds=2),
+                                light, HostProfile.V13)
+        self.assertEqual(fade, FadingLightLevel(LightLevel(42), 2))
+        zero = requested_effect(frame(on=True, transition_seconds=0),
+                                light, HostProfile.V13)
+        one = requested_effect(frame(on=True, transition_seconds=1),
+                               light, HostProfile.V13)
+        self.assertEqual(zero, FadingLightLevel(LightLevel(100), 0))
+        self.assertEqual(one, FadingLightLevel(LightLevel(100), 1))
+        off = requested_effect(frame(on=False, transition_seconds=10),
+                               light, HostProfile.V13)
+        self.assertEqual(off, FadingLightLevel(LightLevel(0), 10))
+        for invalid in (dict(on=True, transition_seconds=.5),
+                        dict(on=True, transition_seconds=float("nan")),
+                        dict(on=True, transition_seconds=6554),
+                        dict(transition_seconds=0),
+                        dict(on=False, brightness_percent=0, transition_seconds=1),
+                        dict(on=True, color_temp_mireds=300, transition_seconds=1)):
+            with self.subTest(invalid=invalid), self.assertRaises(UnsupportedCommand):
+                requested_effect(frame(**invalid), light, HostProfile.V13)
+
+        bridge = await self.connect()
+        try:
+            validate_inventory(bridge, self.settings)
+            before = len(self.fake.requests)
+            await apply(bridge, light, old)
+            await apply(bridge, light, zero)
+            await apply(bridge, light, one)
+            await apply(bridge, light, fade)
+            await apply(bridge, light, off)
+            writes = [body for kind, url, body in self.fake.requests[before:]
+                      if kind == "CreateRequest" and url.endswith("/commandprocessor")]
+            self.assertEqual([body["Command"]["CommandType"] for body in writes],
+                             ["GoToLevel", "GoToDimmedLevel", "GoToDimmedLevel",
+                              "GoToDimmedLevel", "GoToDimmedLevel"])
+            self.assertEqual([body["Command"]["DimmedLevelParameters"] for body in writes[1:]],
+                             [{"Level": 100, "FadeTime": "00:00:00"},
+                              {"Level": 100, "FadeTime": "00:00:01"},
+                              {"Level": 42, "FadeTime": "00:00:02"},
+                              {"Level": 0, "FadeTime": "00:00:10"}])
         finally:
             await bridge.close_joined()
 

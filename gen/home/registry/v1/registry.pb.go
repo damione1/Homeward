@@ -692,6 +692,7 @@ type LightConstraints struct {
 	SetOn             bool                   `protobuf:"varint,1,opt,name=set_on,json=setOn,proto3" json:"set_on,omitempty"`
 	BrightnessPercent *NumberBounds          `protobuf:"bytes,2,opt,name=brightness_percent,json=brightnessPercent,proto3" json:"brightness_percent,omitempty"`
 	ColorTempMireds   *NumberBounds          `protobuf:"bytes,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3" json:"color_temp_mireds,omitempty"`
+	TransitionSeconds *NumberBounds          `protobuf:"bytes,4,opt,name=transition_seconds,json=transitionSeconds,proto3" json:"transition_seconds,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -743,6 +744,13 @@ func (x *LightConstraints) GetBrightnessPercent() *NumberBounds {
 func (x *LightConstraints) GetColorTempMireds() *NumberBounds {
 	if x != nil {
 		return x.ColorTempMireds
+	}
+	return nil
+}
+
+func (x *LightConstraints) GetTransitionSeconds() *NumberBounds {
+	if x != nil {
+		return x.TransitionSeconds
 	}
 	return nil
 }
@@ -1212,11 +1220,12 @@ const file_home_registry_v1_registry_proto_rawDesc = "" +
 	"\x04step\x18\x03 \x01(\x01H\x00R\x04step\x88\x01\x01B\a\n" +
 	"\x05_step\"*\n" +
 	"\x11SwitchConstraints\x12\x15\n" +
-	"\x06set_on\x18\x01 \x01(\bR\x05setOn\"\xc4\x01\n" +
+	"\x06set_on\x18\x01 \x01(\bR\x05setOn\"\x93\x02\n" +
 	"\x10LightConstraints\x12\x15\n" +
 	"\x06set_on\x18\x01 \x01(\bR\x05setOn\x12M\n" +
 	"\x12brightness_percent\x18\x02 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x11brightnessPercent\x12J\n" +
-	"\x11color_temp_mireds\x18\x03 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x0fcolorTempMireds\"L\n" +
+	"\x11color_temp_mireds\x18\x03 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x0fcolorTempMireds\x12M\n" +
+	"\x12transition_seconds\x18\x04 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x11transitionSeconds\"L\n" +
 	"\x0eFanConstraints\x12\x15\n" +
 	"\x06set_on\x18\x01 \x01(\bR\x05setOn\x12#\n" +
 	"\rspeed_options\x18\x02 \x03(\tR\fspeedOptions\"\xd0\x05\n" +
@@ -1320,24 +1329,25 @@ var file_home_registry_v1_registry_proto_depIdxs = []int32{
 	16, // 6: home.registry.v1.CapabilityDescription.extension:type_name -> home.registry.v1.ExtensionConstraints
 	7,  // 7: home.registry.v1.LightConstraints.brightness_percent:type_name -> home.registry.v1.NumberBounds
 	7,  // 8: home.registry.v1.LightConstraints.color_temp_mireds:type_name -> home.registry.v1.NumberBounds
-	7,  // 9: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
-	0,  // 10: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
-	1,  // 11: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
-	12, // 12: home.registry.v1.ClimateConstraints.observed_temperature_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
-	12, // 13: home.registry.v1.ClimateConstraints.observed_setpoint_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
-	13, // 14: home.registry.v1.ClimateConstraints.observed_setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
-	0,  // 15: home.registry.v1.ClimateConstraints.observed_mode_options:type_name -> home.registry.v1.ClimateMode
-	7,  // 16: home.registry.v1.ClimateTemperatureObservation.bounds:type_name -> home.registry.v1.NumberBounds
-	7,  // 17: home.registry.v1.ClimateSetpointRangeConstraints.low_celsius:type_name -> home.registry.v1.NumberBounds
-	7,  // 18: home.registry.v1.ClimateSetpointRangeConstraints.high_celsius:type_name -> home.registry.v1.NumberBounds
-	2,  // 19: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
-	3,  // 20: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
-	7,  // 21: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	7,  // 9: home.registry.v1.LightConstraints.transition_seconds:type_name -> home.registry.v1.NumberBounds
+	7,  // 10: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
+	0,  // 11: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
+	1,  // 12: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
+	12, // 13: home.registry.v1.ClimateConstraints.observed_temperature_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
+	12, // 14: home.registry.v1.ClimateConstraints.observed_setpoint_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
+	13, // 15: home.registry.v1.ClimateConstraints.observed_setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
+	0,  // 16: home.registry.v1.ClimateConstraints.observed_mode_options:type_name -> home.registry.v1.ClimateMode
+	7,  // 17: home.registry.v1.ClimateTemperatureObservation.bounds:type_name -> home.registry.v1.NumberBounds
+	7,  // 18: home.registry.v1.ClimateSetpointRangeConstraints.low_celsius:type_name -> home.registry.v1.NumberBounds
+	7,  // 19: home.registry.v1.ClimateSetpointRangeConstraints.high_celsius:type_name -> home.registry.v1.NumberBounds
+	2,  // 20: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
+	3,  // 21: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
+	7,  // 22: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
+	23, // [23:23] is the sub-list for method output_type
+	23, // [23:23] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_home_registry_v1_registry_proto_init() }

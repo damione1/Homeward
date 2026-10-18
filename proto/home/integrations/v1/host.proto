@@ -8,8 +8,9 @@ import "home/state/v1/state.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/integrations/v1;integrationsv1";
 
-// Exact v1.0, v1.1 and v1.2 profiles are admitted. Fan requires v1.1;
-// climate observations and their declarations require v1.2.
+// Exact v1.0, v1.1, v1.2 and v1.3 profiles are admitted. Fan requires v1.1;
+// climate observations and their declarations require v1.2; light transitions
+// require v1.3.
 enum Capability {
   CAPABILITY_UNSPECIFIED = 0;
   CAPABILITY_DISCOVER = 1;

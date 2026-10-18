@@ -70,6 +70,8 @@ func nha174Profile(t *testing.T, minor uint32) (*pilot, *fake.Fixture, *nha077Co
 		expected = schemaDigestV11Hex
 	case 2:
 		expected = schemaDigestV12Hex
+	case 3:
+		expected = schemaDigestV13Hex
 	default:
 		t.Fatal("invalid test profile")
 	}

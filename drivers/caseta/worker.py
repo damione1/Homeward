@@ -10,6 +10,7 @@ import os
 import signal
 import sys
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
 import grpc
@@ -24,7 +25,18 @@ from drivers.caseta.config import FunctionKind, load_settings
 from home.integrations.v1 import host_pb2, host_pb2_grpc
 from home.registry.v1 import registry_pb2
 from home.state.v1 import state_pb2
-from testworker.schema_digest import SCHEMA_DIGEST_HEX
+from testworker.schema_digest import SCHEMA_DIGEST_HEX, SCHEMA_DIGEST_V13_HEX
+
+
+class HostProfile(enum.IntEnum):
+    V11 = 1
+    V13 = 3
+
+
+PROFILE_DIGEST = {
+    HostProfile.V11: SCHEMA_DIGEST_HEX,
+    HostProfile.V13: SCHEMA_DIGEST_V13_HEX,
+}
 
 
 class FanSpeed(str, enum.Enum):
@@ -53,6 +65,17 @@ class LightLevel:
         if type(self.value) not in (int, float) or not math.isfinite(self.value) or \
                 not 0 <= self.value <= 100:
             raise ValueError("invalid light level")
+
+
+@dataclasses.dataclass(frozen=True)
+class FadingLightLevel:
+    level: LightLevel
+    seconds: int
+
+    def __post_init__(self):
+        if type(self.level) is not LightLevel or type(self.seconds) is not int or \
+                not 0 <= self.seconds <= 6553:
+            raise ValueError("invalid light fade")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -114,14 +137,20 @@ def timestamp():
     return value
 
 
-def description(function):
+def description(function, profile=HostProfile.V11):
+    if type(profile) is not HostProfile:
+        raise ValueError("invalid Host profile")
     base = dict(schema_id=SCHEMAS[function.kind], major=1,
                 endpoint=ENDPOINTS[function.kind], display_name=function.alias)
     if function.kind is FunctionKind.LIGHT:
+        light = registry_pb2.LightConstraints(
+            set_on=True,
+            brightness_percent=registry_pb2.NumberBounds(minimum=0, maximum=100))
+        if profile is HostProfile.V13:
+            light.transition_seconds.CopyFrom(
+                registry_pb2.NumberBounds(minimum=0, maximum=6553, step=1))
         return registry_pb2.CapabilityDescription(**base,
-            light=registry_pb2.LightConstraints(
-                set_on=True,
-                brightness_percent=registry_pb2.NumberBounds(minimum=0, maximum=100)))
+            light=light)
     if function.kind is FunctionKind.FAN:
         return registry_pb2.CapabilityDescription(**base,
             fan=registry_pb2.FanConstraints(set_on=False,
@@ -131,7 +160,10 @@ def description(function):
 
 
 class Host:
-    def __init__(self, channel, token):
+    def __init__(self, channel, token, profile=HostProfile.V11):
+        if type(profile) is not HostProfile:
+            raise ValueError("invalid Host profile")
+        self.profile = profile
         self.stub = host_pb2_grpc.HostServiceStub(channel)
         self.metadata = (("authorization", "Bearer " + token),)
         self.handles = {}
@@ -145,13 +177,16 @@ class Host:
         capabilities = [host_pb2.CAPABILITY_DISCOVER, host_pb2.CAPABILITY_PUBLISH,
                         host_pb2.CAPABILITY_EMIT, host_pb2.CAPABILITY_HEALTH,
                         host_pb2.CAPABILITY_COMMAND, host_pb2.CAPABILITY_SECRET_READ]
+        digest = bytes.fromhex(PROFILE_DIGEST[self.profile])
         response = await self.call("Handshake", host_pb2.HandshakeRequest(
-            host_major=1, host_minor=1, driver_major=1, driver_minor=1,
-            schema_sha256=bytes.fromhex(SCHEMA_DIGEST_HEX),
+            host_major=1, host_minor=int(self.profile), driver_major=1,
+            driver_minor=int(self.profile),
+            schema_sha256=digest,
             max_frame_bytes=65536, capabilities=capabilities))
         if (response.host_major, response.host_minor,
-            response.driver_major, response.driver_minor) != (1, 1, 1, 1) or \
-                response.schema_sha256 != bytes.fromhex(SCHEMA_DIGEST_HEX) or \
+            response.driver_major, response.driver_minor) != \
+                (1, int(self.profile), 1, int(self.profile)) or \
+                response.schema_sha256 != digest or \
                 set(response.capabilities) != set(capabilities) or \
                 not 1024 <= response.max_frame_bytes <= 65536:
             raise BridgeFault("Host profile mismatch")
@@ -160,7 +195,7 @@ class Host:
         candidates = [host_pb2.Candidate(
             source=host_pb2.SourceKey(device=f.source_device,
                                       entity=f.source_entity),
-            descriptions=[description(f)]) for f in functions]
+            descriptions=[description(f, self.profile)]) for f in functions]
         response = await self.call("Discover",
                                    host_pb2.DiscoverRequest(candidates=candidates))
         if len(response.bindings) != len(functions) or any(
@@ -247,7 +282,9 @@ async def read_value(bridge, function):
     return LightLevel(float(level)) if function.kind is FunctionKind.LIGHT else SwitchState(level > 0)
 
 
-def requested_effect(frame, function):
+def requested_effect(frame, function, profile=HostProfile.V11):
+    if type(profile) is not HostProfile:
+        raise UnsupportedCommand("invalid Host profile")
     request = frame.request
     if request.capability_schema_id != SCHEMAS[function.kind] or \
             request.endpoint != ENDPOINTS[function.kind]:
@@ -257,14 +294,27 @@ def requested_effect(frame, function):
         if which != "set_light" or request.arguments.set_light.HasField("color_temp_mireds"):
             raise UnsupportedCommand("unsupported dimmer command")
         arg = request.arguments.set_light
+        fading = arg.HasField("transition_seconds")
+        if fading and profile is not HostProfile.V13:
+            raise UnsupportedCommand("Host profile does not admit fades")
+        if fading and arg.HasField("on") and not arg.on and arg.HasField("brightness_percent"):
+            raise UnsupportedCommand("off fade cannot carry brightness")
         if arg.HasField("brightness_percent"):
             level = arg.brightness_percent
             if not math.isfinite(level) or not 0 <= level <= 100 or \
                     arg.HasField("on") and arg.on != (level > 0):
                 raise UnsupportedCommand("inconsistent light command")
-            return LightLevel(float(level))
-        if arg.HasField("on"):
-            return LightLevel(100.0 if arg.on else 0.0)
+            effect = LightLevel(float(level))
+        elif arg.HasField("on"):
+            effect = LightLevel(100.0 if arg.on else 0.0)
+        else:
+            raise UnsupportedCommand("fade needs a light target")
+        if fading:
+            seconds = arg.transition_seconds
+            if not math.isfinite(seconds) or not 0 <= seconds <= 6553 or not seconds.is_integer():
+                raise UnsupportedCommand("fade must be whole seconds in range")
+            return FadingLightLevel(effect, int(seconds))
+        return effect
     elif function.kind is FunctionKind.FAN:
         arg = request.arguments.set_fan
         if which == "set_fan" and not arg.HasField("on") and \
@@ -287,6 +337,9 @@ async def apply(bridge, function, effect):
             await bridge.activate_smart_away()
         else:
             await bridge.deactivate_smart_away()
+    elif function.kind is FunctionKind.LIGHT and type(effect) is FadingLightLevel:
+        await bridge.set_value(function.device_id, effect.level.value,
+                               fade_time=timedelta(seconds=effect.seconds))
     elif function.kind is FunctionKind.LIGHT and type(effect) is LightLevel:
         await bridge.set_value(function.device_id, effect.value)
     elif function.kind is FunctionKind.SWITCH and type(effect) is SwitchState:
@@ -318,7 +371,7 @@ async def commands(host, bridge_box, settings, ready):
         if bridge is None:
             raise BridgeFault("LEAP session is not ready")
         try:
-            effect = requested_effect(frame, function)
+            effect = requested_effect(frame, function, host.profile)
         except UnsupportedCommand:
             await host.call("CompleteCommand", host_pb2.CompleteCommandRequest(
                 command_id=frame.request.command_id,
@@ -348,7 +401,7 @@ async def _write_secret(path, contents):
         raise
 
 
-async def run(settings):
+async def run(settings, profile=HostProfile.V11):
     socket = os.environ["HOMEWARD_HOST_SOCKET"]
     fd = int(os.environ["HOMEWARD_HOST_TOKEN_FD"])
     try:
@@ -368,7 +421,7 @@ async def run(settings):
     bridge_box = {}
     tasks = []
     ready = asyncio.Event()
-    host = Host(channel, token)
+    host = Host(channel, token, profile)
     try:
         await asyncio.wait_for(channel.channel_ready(), 5)
         await host.handshake()
@@ -472,10 +525,12 @@ async def run(settings):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, type=Path)
+    parser.add_argument("--host-profile", choices=("1.1", "1.3"), default="1.1")
     args = parser.parse_args()
     logging.disable(logging.CRITICAL)
     try:
-        asyncio.run(run(load_settings(args.config)))
+        profile = HostProfile.V13 if args.host_profile == "1.3" else HostProfile.V11
+        asyncio.run(run(load_settings(args.config), profile))
     except asyncio.CancelledError:
         return 0
     except (Exception, KeyboardInterrupt) as error:

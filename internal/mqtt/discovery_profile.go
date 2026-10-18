@@ -85,7 +85,12 @@ type discoveryComponent struct {
 	unit                  string
 	brightness            bool
 	brightnessScale       float64
+	brightnessOnly        bool
 	colorTemp             bool
+	manufacturer          string
+	modelID               string
+	transitionAdvertised  *bool
+	admittedTransition    transitionProfile
 	minMireds             uint32
 	maxMireds             uint32
 	unsupportedEffects    bool
@@ -202,7 +207,7 @@ var discoveryFields = map[string]struct{}{
 	"icon": {}, "max_mireds": {}, "min_mireds": {}, "name": {}, "object_id": {}, "origin": {}, "platform": {},
 	"payload_available": {}, "payload_not_available": {}, "payload_off": {}, "payload_on": {},
 	"schema": {}, "state_class": {}, "state_topic": {}, "supported_color_modes": {}, "topic": {},
-	"unique_id": {}, "unit_of_measurement": {}, "value_template": {}, "~": {},
+	"unique_id": {}, "unit_of_measurement": {}, "value_template": {}, "transition": {}, "~": {},
 	"automation_type": {}, "type": {}, "subtype": {}, "payload": {},
 }
 
@@ -411,7 +416,7 @@ func validateComponentFields(object map[string]any, kind componentKind) error {
 			return errDiscoveryProfile
 		case "automation_type", "type", "subtype", "payload", "topic":
 			return errDiscoveryProfile
-		case "schema", "brightness", "brightness_scale", "supported_color_modes", "min_mireds", "max_mireds", "effect", "effect_list":
+		case "schema", "brightness", "brightness_scale", "supported_color_modes", "min_mireds", "max_mireds", "effect", "effect_list", "transition":
 			if kind != componentLight {
 				return errDiscoveryProfile
 			}
@@ -626,6 +631,10 @@ func parseDiscoveryComponent(raw map[string]any, inheritedKind componentKind, sh
 		return discoveryComponent{}, err
 	}
 	component := discoveryComponent{kind: kind, uniqueID: uniqueID, identifiers: identifiers, stateTopic: stateTopic, brightnessScale: 255}
+	if device, ok := object["device"].(map[string]any); ok {
+		component.manufacturer, _ = device["manufacturer"].(string)
+		component.modelID, _ = device["model_id"].(string)
+	}
 	component.fingerprint = sha256.Sum256(canonical)
 	component.name, err = stringField(object, "name", false)
 	if err != nil {
@@ -678,6 +687,13 @@ func parseDiscoveryComponent(raw map[string]any, inheritedKind componentKind, sh
 		return discoveryComponent{}, errDiscoveryProfile
 	}
 	if kind == componentLight {
+		if value, exists := object["transition"]; exists {
+			advertised, ok := value.(bool)
+			if !ok {
+				return discoveryComponent{}, errDiscoveryProfile
+			}
+			component.transitionAdvertised = &advertised
+		}
 		if schema, err := stringField(object, "schema", true); err != nil || schema != "json" {
 			return discoveryComponent{}, errDiscoveryProfile
 		}
@@ -699,6 +715,7 @@ func parseDiscoveryComponent(raw map[string]any, inheritedKind componentKind, sh
 				return discoveryComponent{}, errDiscoveryProfile
 			}
 			seenModes := make(map[string]struct{}, len(modes))
+			component.brightnessOnly = len(modes) == 1
 			for _, mode := range modes {
 				text, ok := mode.(string)
 				if !ok {
@@ -711,8 +728,12 @@ func parseDiscoveryComponent(raw map[string]any, inheritedKind componentKind, sh
 				switch text {
 				case "color_temp":
 					component.colorTemp = true
-				case "brightness", "onoff":
+					component.brightnessOnly = false
+				case "brightness":
+				case "onoff":
+					component.brightnessOnly = false
 				case "hs", "rgb", "rgbw", "rgbww", "xy", "white":
+					component.brightnessOnly = false
 					component.unsupportedColorModes = true
 				default:
 					return discoveryComponent{}, errDiscoveryProfile

@@ -113,24 +113,25 @@ type cachedSnapshot struct {
 // DiscoveryMapper is bound to one supervised pilot session. Its bounded graph
 // is rebuilt from fully admitted documents; it grants no identity itself.
 type DiscoveryMapper struct {
-	mu              sync.Mutex
-	instance        domain.IntegrationInstanceID
-	mode            Mode
-	commands        []TopicFilter
-	repository      discoveryRegistry
-	logger          *slog.Logger
-	documents       map[Topic][]*componentRuntime
-	documentDigests map[Topic][sha256.Size]byte
-	snapshots       map[Topic]cachedSnapshot
-	snapshotBytes   int
-	arrival         uint64
-	states          map[Topic][]*componentRuntime
-	availabilities  map[Topic][]*componentRuntime
-	entities        map[domain.EntityID]*componentRuntime
-	actionDocuments map[Topic][]actionDeclaration
-	actionDevices   map[domain.DeviceID]*actionDevice
-	actionRoutes    map[Topic][]actionRoute
-	diagnostics     []DiscoveryDiagnosticRecord
+	mu               sync.Mutex
+	instance         domain.IntegrationInstanceID
+	mode             Mode
+	commands         []TopicFilter
+	transitionLights map[integrations.SourceKey]transitionProfile
+	repository       discoveryRegistry
+	logger           *slog.Logger
+	documents        map[Topic][]*componentRuntime
+	documentDigests  map[Topic][sha256.Size]byte
+	snapshots        map[Topic]cachedSnapshot
+	snapshotBytes    int
+	arrival          uint64
+	states           map[Topic][]*componentRuntime
+	availabilities   map[Topic][]*componentRuntime
+	entities         map[domain.EntityID]*componentRuntime
+	actionDocuments  map[Topic][]actionDeclaration
+	actionDevices    map[domain.DeviceID]*actionDevice
+	actionRoutes     map[Topic][]actionRoute
+	diagnostics      []DiscoveryDiagnosticRecord
 }
 
 func newDiscoveryMapper(settings Settings, repository discoveryRegistry, logger *slog.Logger) (*DiscoveryMapper, error) {
@@ -140,7 +141,24 @@ func newDiscoveryMapper(settings Settings, repository discoveryRegistry, logger 
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &DiscoveryMapper{instance: settings.instance, mode: settings.mode, commands: append([]TopicFilter(nil), settings.commands...), repository: repository, logger: logger, documents: make(map[Topic][]*componentRuntime), documentDigests: make(map[Topic][sha256.Size]byte), snapshots: make(map[Topic]cachedSnapshot), states: make(map[Topic][]*componentRuntime), availabilities: make(map[Topic][]*componentRuntime), entities: make(map[domain.EntityID]*componentRuntime), actionDocuments: make(map[Topic][]actionDeclaration), actionDevices: make(map[domain.DeviceID]*actionDevice), actionRoutes: make(map[Topic][]actionRoute)}, nil
+	optIn := make(map[integrations.SourceKey]transitionProfile, len(settings.transitionLights))
+	for key, profile := range settings.transitionLights {
+		optIn[key] = profile
+	}
+	return &DiscoveryMapper{instance: settings.instance, mode: settings.mode, commands: append([]TopicFilter(nil), settings.commands...), transitionLights: optIn, repository: repository, logger: logger, documents: make(map[Topic][]*componentRuntime), documentDigests: make(map[Topic][sha256.Size]byte), snapshots: make(map[Topic]cachedSnapshot), states: make(map[Topic][]*componentRuntime), availabilities: make(map[Topic][]*componentRuntime), entities: make(map[domain.EntityID]*componentRuntime), actionDocuments: make(map[Topic][]actionDeclaration), actionDevices: make(map[domain.DeviceID]*actionDevice), actionRoutes: make(map[Topic][]actionRoute)}, nil
+}
+
+func (m *DiscoveryMapper) admitTransition(key integrations.SourceKey, c discoveryComponent) transitionProfile {
+	if m.mode != ModeActive || c.kind != componentLight || !c.hasCommand ||
+		!c.brightness || !c.brightnessOnly || c.colorTemp || c.brightnessScale != 254 ||
+		c.manufacturer != "IKEA" || c.modelID != "ICPSHC24-30EU-IL-1/ICPSHC24-10EU-IL-2" ||
+		c.transitionAdvertised != nil && !*c.transitionAdvertised {
+		return transitionUnspecified
+	}
+	if m.transitionLights[key] == transitionIkeaDriver30W {
+		return transitionIkeaDriver30W
+	}
+	return transitionUnspecified
 }
 
 func (m *DiscoveryMapper) cacheSnapshot(topic Topic, payload []byte, quality domain.Quality) error {
@@ -338,6 +356,7 @@ func (m *DiscoveryMapper) discover(ctx context.Context, host integrations.Sessio
 			return nil
 		}
 		newKeys[key] = struct{}{}
+		profile.admittedTransition = m.admitTransition(key, profile)
 		for otherTopic, existing := range m.documents {
 			if otherTopic == topic {
 				continue

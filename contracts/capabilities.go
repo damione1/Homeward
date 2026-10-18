@@ -316,6 +316,8 @@ func (c *CapabilityCatalog) Descriptions(entity domain.EntityID) ([]*registry.Ca
 
 func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
 
+const maxLightTransitionSeconds = 6553
+
 func validBounds(b *registry.NumberBounds) bool {
 	return b != nil && finite(b.Minimum) && finite(b.Maximum) && b.Minimum <= b.Maximum &&
 		(b.Step == nil || (finite(*b.Step) && *b.Step > 0))
@@ -345,6 +347,9 @@ func (c *CapabilityCatalog) validateDescription(d *registry.CapabilityDescriptio
 		}
 		if b := constraints.Light.ColorTempMireds; b != nil && (!validBounds(b) || b.Minimum < 1 || b.Maximum > 1000) {
 			return errors.New("invalid color temperature bounds")
+		}
+		if b := constraints.Light.TransitionSeconds; b != nil && (!validBounds(b) || b.Minimum < 0 || b.Maximum > maxLightTransitionSeconds) {
+			return errors.New("invalid light transition bounds")
 		}
 	case *registry.CapabilityDescription_Fan:
 		if constraints == nil || d.SchemaId != FanSchema || constraints.Fan == nil || !uniqueOptions(constraints.Fan.SpeedOptions) {
@@ -655,6 +660,23 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 		}
 	case *registry.CapabilityDescription_Light:
 		arg := cmd.Arguments.GetSetLight()
+		if arg != nil && arg.TransitionSeconds != nil {
+			if arg.On == nil && arg.BrightnessPercent == nil && arg.ColorTempMireds == nil {
+				return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.set_light.transition_seconds", "transition needs an on, brightness or color temperature target")
+			}
+			if !finite(*arg.TransitionSeconds) || *arg.TransitionSeconds < 0 || *arg.TransitionSeconds > maxLightTransitionSeconds {
+				return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.set_light.transition_seconds", "transition is outside admitted seconds")
+			}
+			if constraints.Light.TransitionSeconds == nil {
+				return commandError(actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY, "arguments.set_light.transition_seconds", "light transition is not advertised")
+			}
+			if !withinBounds(*arg.TransitionSeconds, constraints.Light.TransitionSeconds) {
+				return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.set_light.transition_seconds", "transition is outside advertised bounds or step")
+			}
+			if arg.On != nil && !*arg.On && (arg.BrightnessPercent != nil || arg.ColorTempMireds != nil) {
+				return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.set_light", "off transition cannot carry brightness or color temperature")
+			}
+		}
 		if arg == nil || (arg.On == nil && arg.BrightnessPercent == nil && arg.ColorTempMireds == nil) {
 			break
 		}
