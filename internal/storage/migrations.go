@@ -36,6 +36,7 @@ const (
 	SecretIntegrity
 	SecretNotFound
 	SecretCommitUnknown
+	SecretConflict
 )
 
 // Error deliberately excludes driver and connection details from its diagnostic.
@@ -109,6 +110,8 @@ func (e *Error) Error() string {
 		return "secrets: handle not found"
 	case SecretCommitUnknown:
 		return "secrets: commit outcome unknown"
+	case SecretConflict:
+		return "secrets: credential changed since it was read"
 	default:
 		return "postgres: unknown storage failure"
 	}
