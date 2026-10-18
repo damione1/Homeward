@@ -53,8 +53,8 @@ func TestNHA049StoreBootstrapInvitationAdminAndRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if version, err := store.Migrate(ctx); err != nil || version.Number() != 8 {
-		t.Fatalf("v8 migration: %v %v", version, err)
+	if version, err := store.Migrate(ctx); err != nil || version != CurrentVersion() {
+		t.Fatalf("account schema migration: %v %v", version, err)
 	}
 
 	first := nha049AccountInput(t, "Administrator One", authv1.AccountRole_ACCOUNT_ROLE_ADMIN)

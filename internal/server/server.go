@@ -110,7 +110,7 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		mqttSettings, mqttEnabled := c.MQTTSettings()
 		neviwebSettings, neviwebEnabled := c.NeviwebSettings()
 		workers := c.ExternalWorkers()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled {
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || len(c.EnergyBindings()) != 0 {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
@@ -158,6 +158,11 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			return closePreparedRuntime(host, authorization, store, err)
 		}
 	}
+	energySpecs, err := configuredEnergySpecs(ctx, c, store, sequence)
+	if err != nil {
+		return closePreparedRuntime(host, authorization, store, err)
+	}
+	plan.Pilots = append(plan.Pilots, energySpecs...)
 	authorization.freeze()
 	if err := ctx.Err(); err != nil {
 		return closePreparedRuntime(host, authorization, store, err)

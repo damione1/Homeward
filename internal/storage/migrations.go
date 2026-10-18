@@ -507,6 +507,15 @@ CREATE TABLE public.auth_audit (
     route_path text CHECK (route_path IS NULL OR octet_length(route_path) <= 256)
 );
 CREATE INDEX auth_audit_by_time ON public.auth_audit(occurred_at DESC, id DESC);
+`}, {version: Version{9}, sql: `
+-- One CAS authority per energy output. The checkpoint and its pending Host
+-- projection are a single durable value; publication occurs after commit.
+CREATE TABLE public.energy_checkpoints (
+    output_entity_id text PRIMARY KEY CHECK (output_entity_id <> '' AND octet_length(output_entity_id) <= 512),
+    revision bigint NOT NULL CHECK (revision > 0),
+    generation bigint NOT NULL CHECK (generation > 0),
+    state jsonb NOT NULL CHECK (octet_length(state::text) <= 16384)
+);
 `}}
 
 var latestVersion = migrations[len(migrations)-1].version

@@ -26,6 +26,7 @@ type Config struct {
 	mqtt     *mqtt.Settings
 	neviweb  *neviweb.Settings
 	workers  []worker.Config
+	energy   []EnergyBinding
 	public   PublicSettings
 }
 
@@ -42,6 +43,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		DataDir  string                  `yaml:"data_dir"`
 		MQTT     *mqtt.Input             `yaml:"mqtt"`
 		Neviweb  *neviweb.Input          `yaml:"neviweb"`
+		Energy   []energyInput           `yaml:"energy"`
 		Public   *publicInput            `yaml:"public"`
 		Workers  []struct {
 			Instance    string   `yaml:"instance"`
@@ -77,6 +79,10 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		return Config{}, fmt.Errorf("configuration: data_dir must be an absolute normalized persistent directory")
 	}
 	result := Config{listen: endpoint, postgres: postgres, dataDir: raw.DataDir}
+	result.energy, err = parseEnergyBindings(raw.Energy)
+	if err != nil {
+		return Config{}, err
+	}
 	public, err := parsePublicSettings(raw.Public)
 	if err != nil {
 		return Config{}, fmt.Errorf("configuration: %w", err)
@@ -127,6 +133,8 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 }
 
 func (c Config) ExternalWorkers() []worker.Config { return append([]worker.Config(nil), c.workers...) }
+
+func (c Config) EnergyBindings() []EnergyBinding { return append([]EnergyBinding(nil), c.energy...) }
 
 func (c Config) PublicTransport() (PublicSettings, error) {
 	if !c.public.valid {
