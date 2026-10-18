@@ -3,9 +3,10 @@ check: export PYTHONDONTWRITEBYTECODE=1
 check:
 	sh scripts/ensure-worker-python.sh
 	PYTHONDONTWRITEBYTECODE=1 "$$(cat .tools/worker-python/python-path)" -m unittest -q testworker.caseta_worker_test
-	test -z "$$(gofmt -l cmd internal contracts compat sdk examples)"
+	test -z "$$(gofmt -l cmd internal contracts compat sdk examples qualification/fido2)"
 	go vet ./...
 	go test -race ./...
+	cd qualification/fido2 && go test -race -count=1 ./...
 	cd examples/conformance-consumer && go test -race -mod=readonly ./... -run '^TestNHA095' -count=1
 	cargo fmt --all -- --check
 	cargo clippy --locked --workspace --all-targets -- -D warnings
