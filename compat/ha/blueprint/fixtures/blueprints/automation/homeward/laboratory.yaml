@@ -1,0 +1,146 @@
+# Original Homeward regression fixture: a fictional laboratory procedure.
+blueprint:
+  name: Laboratory procedure syntax exercise
+  author: Homeward
+  description: Original syntax fixture with synthetic events and actions.
+  domain: automation
+  input:
+    controller:
+      name: Operator panel
+      default: []
+      selector:
+        device:
+          multiple: false
+          filter:
+          - integration: mqtt
+            manufacturer: Synthetic Laboratory
+            model: Test panel
+    begin:
+      default: []
+      selector:
+        action: {}
+    sample:
+      default: []
+      selector:
+        action: {}
+    recover:
+      default: []
+      selector:
+        action: {}
+    finish:
+      default: []
+      selector:
+        action: {}
+    log:
+      default: []
+      selector:
+        action: {}
+    pause:
+      default: []
+      selector:
+        action: {}
+    abort:
+      default: []
+      selector:
+        action: {}
+    timing:
+      name: Synthetic clock controls
+      collapsed: true
+      input:
+        tick:
+          default: 2
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 0.5
+              mode: slider
+              unit_of_measurement: milliseconds
+        loops:
+          default: 3
+          selector:
+            number:
+              min: 1
+              max: 30
+              mode: box
+        cooldown:
+          default: 10
+          selector:
+            number:
+              min: 0
+              max: 120
+    policies:
+      icon: mdi:test-tube
+      input:
+        confirm:
+          default: true
+          selector:
+            boolean: {}
+        allow_report:
+          default: false
+          selector:
+            boolean: {}
+mode: queued
+max: 4
+max_exceeded: warning
+variables:
+  panel: !input controller
+triggers:
+- trigger: event
+  event_type: laboratory.prepare
+  id: prepare
+- trigger: event
+  event_type: laboratory.finish
+  id: finish
+- trigger: device
+  domain: mqtt
+  device_id: !input controller
+  type: action
+  subtype: abort
+  id: abort
+actions:
+- variables:
+    confirm: !input confirm
+    allow_report: !input allow_report
+- sequence: !input begin
+- choose:
+  - conditions:
+    - condition: trigger
+      id:
+      - prepare
+    sequence:
+    - repeat:
+        count: !input loops
+        sequence:
+        - parallel:
+          - sequence: !input sample
+          - sequence:
+            - wait_for_trigger:
+              - trigger: event
+                event_type: laboratory.sample_ready
+              - trigger: device
+                domain: mqtt
+                device_id: !input controller
+                type: action
+                subtype: ready
+              timeout:
+                milliseconds: !input tick
+              continue_on_timeout: true
+            - if:
+              - condition: template
+                value_template: '{{ wait.trigger is defined }}'
+              then: !input log
+              else: !input recover
+  default: !input pause
+- if:
+  - condition: template
+    value_template: '{{ allow_report and not confirm }}'
+  then: !input finish
+  else: !input abort
+- wait_for_trigger:
+  - trigger: event
+    event_type: laboratory.finalized
+  timeout:
+    seconds: !input cooldown
+  continue_on_timeout: false
+- stop: training complete

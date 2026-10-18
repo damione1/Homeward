@@ -9,6 +9,8 @@ import (
 
 const Profile = "ha-2026.10/core-1"
 const DeclarativeProfile = "ha-2026.10/declarative-1"
+const BlueprintInstanceProfile = "ha-2026.10/blueprint-instance-1"
+const BlueprintDefinitionProfile = "ha-2026.10/blueprint-definition-1"
 
 // SyntaxProfile selects a closed grammar for the common YAML loader.
 type SyntaxProfile uint8
@@ -17,6 +19,8 @@ const (
 	SyntaxProfileInvalid SyntaxProfile = iota
 	SyntaxProfileCore
 	SyntaxProfileDeclarative
+	SyntaxProfileBlueprintInstance
+	SyntaxProfileBlueprintDefinition
 )
 
 func (p SyntaxProfile) String() string {
@@ -25,6 +29,10 @@ func (p SyntaxProfile) String() string {
 		return Profile
 	case SyntaxProfileDeclarative:
 		return DeclarativeProfile
+	case SyntaxProfileBlueprintInstance:
+		return BlueprintInstanceProfile
+	case SyntaxProfileBlueprintDefinition:
+		return BlueprintDefinitionProfile
 	default:
 		return ""
 	}
@@ -39,6 +47,7 @@ const (
 	KindSequence
 	KindScalar
 	KindSecretRef
+	KindInputRef
 )
 
 type ScalarKind uint8
@@ -91,14 +100,15 @@ type Entry struct {
 // Node has no exported mutable fields. Included and aliased values retain
 // their definition position and a chain of reference sites.
 type Node struct {
-	kind       Kind
-	scalar     Scalar
-	secretKey  string
-	entries    []Entry
-	items      []Node
-	source     Position
-	path       string
-	references []Reference
+	kind          Kind
+	scalar        Scalar
+	secretKey     string
+	entries       []Entry
+	items         []Node
+	source        Position
+	path          string
+	references    []Reference
+	substitutions []Substitution
 }
 
 func (n Node) Kind() Kind {
@@ -112,6 +122,19 @@ func (n Node) Path() string {
 }
 func (n Node) References() []Reference {
 	return append([]Reference(nil), n.references...)
+}
+
+// InputName identifies a structural placeholder, never template text.
+func (n Node) InputName() (InputName, bool) {
+	if n.kind != KindInputRef {
+		return InputName{}, false
+	}
+	return InputName{value: n.scalar.text}, true
+}
+
+// Substitutions links every injected descendant to its value and definition.
+func (n Node) Substitutions() []Substitution {
+	return append([]Substitution(nil), n.substitutions...)
 }
 func (n Node) Entries() []Entry {
 	if n.kind != KindMapping {
@@ -211,6 +234,12 @@ const (
 	CodeUnknownField
 	CodeUnsupportedForm
 	CodeSyntaxLimit
+	CodeBlueprintDefinition
+	CodeBlueprintInputMissing
+	CodeBlueprintInputUnknown
+	CodeBlueprintInputType
+	CodeBlueprintInputReference
+	CodeBlueprintInputCollision
 )
 
 func (c Code) String() string {
@@ -245,6 +274,18 @@ func (c Code) String() string {
 		return "HA_UNSUPPORTED_FORM"
 	case CodeSyntaxLimit:
 		return "HA_SYNTAX_LIMIT"
+	case CodeBlueprintDefinition:
+		return "HA_BLUEPRINT_DEFINITION"
+	case CodeBlueprintInputMissing:
+		return "HA_BLUEPRINT_INPUT_MISSING"
+	case CodeBlueprintInputUnknown:
+		return "HA_BLUEPRINT_INPUT_UNKNOWN"
+	case CodeBlueprintInputType:
+		return "HA_BLUEPRINT_INPUT_TYPE"
+	case CodeBlueprintInputReference:
+		return "HA_BLUEPRINT_INPUT_REFERENCE"
+	case CodeBlueprintInputCollision:
+		return "HA_BLUEPRINT_INPUT_COLLISION"
 	case CodeInvalid:
 		return "HA_INVALID"
 	default:
