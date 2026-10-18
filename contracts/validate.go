@@ -3,6 +3,9 @@ package contracts
 
 import (
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	registry "github.com/damione1/Homeward/gen/home/registry/v1"
+	"github.com/damione1/Homeward/internal/domain"
+	"unicode/utf8"
 )
 
 // ValidateCommand demonstrates admission requirements. Authentication/authorization,
@@ -14,20 +17,56 @@ func ValidateCommand(c *actions.CommandRequest, epoch string, revision uint64) *
 	if c == nil || c.CommandId == "" {
 		return fail(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "command_id")
 	}
+	if c.AdmissionEpoch == "" || epoch == "" {
+		return fail(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "admission_epoch")
+	}
 	if c.AdmissionEpoch != epoch {
 		return fail(actions.ErrorCode_ERROR_CODE_STALE_EPOCH, "admission_epoch")
 	}
 	if c.ConfigRevision != revision {
 		return fail(actions.ErrorCode_ERROR_CODE_STALE_CONFIGURATION, "config_revision")
 	}
-	if c.Target == nil || c.Target.Reference == nil || (c.Target.GetEntityId() == "" && c.Target.GetHaAlias() == "") {
+	if !validTarget(c.Target) {
 		return fail(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target")
 	}
 	if c.CapabilitySchemaId != "core.switch.v1" {
 		return fail(actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY, "capability_schema_id")
 	}
-	if c.Arguments == nil || c.Arguments.GetSetSwitch() == nil {
+	if !validArguments(c.Arguments) {
 		return fail(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments")
 	}
 	return nil
+}
+
+func validArguments(args *actions.ActionArgs) bool {
+	if args == nil {
+		return false
+	}
+	switch value := args.Arguments.(type) {
+	case *actions.ActionArgs_SetSwitch:
+		return value != nil && value.SetSwitch != nil
+	case *actions.ActionArgs_Extension:
+		return false
+	default:
+		return false
+	}
+}
+
+func validTarget(target *registry.EntityRef) bool {
+	if target == nil {
+		return false
+	}
+	switch ref := target.Reference.(type) {
+	case *registry.EntityRef_EntityId:
+		if ref == nil {
+			return false
+		}
+		_, err := domain.ParseEntityID(ref.EntityId)
+		return err == nil
+	case *registry.EntityRef_HaAlias:
+		return ref != nil && ref.HaAlias != "" && utf8.ValidString(ref.HaAlias)
+	default:
+		// Unknown wire branches remain decodable, but cannot be admitted here.
+		return false
+	}
 }
