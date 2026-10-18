@@ -206,11 +206,83 @@ func (e *evaluator) eval(x expression) (Value, error) {
 		return Value{}, fmt.Errorf("%w: attribute %s", ErrEvaluation, x.name)
 	case opFilter:
 		return e.filter(x)
+	case opDefined:
+		value, err := e.definedPath(x.children[0])
+		if err != nil {
+			return Value{}, err
+		}
+		return Bool(value.kind != valueUndefined), nil
 	case opInvalid:
 		return Value{}, ErrInvalidInput
 	default:
 		return Value{}, ErrInvalidInput
 	}
+}
+
+// definedPath follows Jinja's one-step lookup rule only while evaluating an
+// admitted "is defined" operand. A missing final lookup is Undefined; another
+// lookup through that Undefined is an error. Ordinary access keeps its profile.
+func (e *evaluator) definedPath(x expression) (Value, error) {
+	if err := e.charge(1); err != nil {
+		return Value{}, err
+	}
+	switch x.op {
+	case opName:
+		if value, ok := e.in.vars[x.name]; ok {
+			return value, nil
+		}
+		return Value{kind: valueUndefined}, nil
+	case opAttribute, opItem:
+		base, err := e.definedPath(x.children[0])
+		if err != nil {
+			return Value{}, err
+		}
+		switch base.kind {
+		case valueObject:
+			// Jinja dot lookup sees dict methods before keys; item lookup sees
+			// keys first. Refuse method names where that Python fallback matters.
+			if x.op == opAttribute && pythonMappingMethod(x.name) {
+				return Value{}, fmt.Errorf("%w: mapping method %s", ErrUnsupported, x.name)
+			}
+			if value, exists := base.obj[x.name]; exists {
+				return value, nil
+			}
+			if x.op == opItem && pythonMappingMethod(x.name) {
+				return Value{}, fmt.Errorf("%w: mapping method %s", ErrUnsupported, x.name)
+			}
+			return Value{kind: valueUndefined}, nil
+		case valueUndefined:
+			return Value{}, fmt.Errorf("%w: attribute %s on undefined", ErrEvaluation, x.name)
+		case valueNone:
+			return Value{kind: valueUndefined}, nil
+		case valueDuration:
+			if x.op == opAttribute && x.name == "days" {
+				return Int(base.i), nil
+			}
+			return Value{}, fmt.Errorf("%w: duration attribute %s", ErrUnsupported, x.name)
+		case valueBool, valueInt, valueFloat, valueString, valueList,
+			valueDate, valueDateTime, valueStateRef:
+			return Value{}, fmt.Errorf("%w: scalar attribute %s", ErrUnsupported, x.name)
+		case valueInvalid:
+			return Value{}, ErrInvalidInput
+		}
+	case opInvalid, opLiteral, opList, opOr, opSubtract, opNegate, opCall,
+		opMethod, opFilter, opDefined:
+		return Value{}, ErrInvalidInput
+	}
+	return Value{}, ErrInvalidInput
+}
+
+// Python mappings expose methods through dot syntax before a same-named key,
+// and through item syntax only when the key is absent. This object profile has
+// no callable values, so those cases cannot be represented by a Boolean result.
+func pythonMappingMethod(name string) bool {
+	switch name {
+	case "clear", "copy", "fromkeys", "get", "items", "keys", "pop",
+		"popitem", "setdefault", "update", "values":
+		return true
+	}
+	return false
 }
 
 func truthy(v Value) bool {

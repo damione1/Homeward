@@ -1,0 +1,637 @@
+{
+  "cases": [
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": false
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      },
+      "id": "missing-absent",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "missing-none",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "missing-false",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "missing-zero",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": false
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      },
+      "id": "wait-absent",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "wait-none",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "wait-false",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "wait-zero",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'wait' is undefined"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'wait' is undefined",
+        "status": "error"
+      },
+      "ha_text": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'wait' is undefined"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'wait' is undefined",
+        "status": "error"
+      },
+      "id": "trigger-absent",
+      "jinja_text": {
+        "cause": null,
+        "error": "jinja2.exceptions.UndefinedError",
+        "message": "'wait' is undefined",
+        "status": "error"
+      }
+    },
+    {
+      "ha_native": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'wait' is undefined"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'wait' is undefined",
+        "status": "error"
+      },
+      "ha_text": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'wait' is undefined"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'wait' is undefined",
+        "status": "error"
+      },
+      "id": "idx-absent",
+      "jinja_text": {
+        "cause": null,
+        "error": "jinja2.exceptions.UndefinedError",
+        "message": "'wait' is undefined",
+        "status": "error"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": false
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      },
+      "id": "trigger-wait-none",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      }
+    },
+    {
+      "ha_native": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'None' has no attribute 'trigger'"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'None' has no attribute 'trigger'",
+        "status": "error"
+      },
+      "ha_text": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'None' has no attribute 'trigger'"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'None' has no attribute 'trigger'",
+        "status": "error"
+      },
+      "id": "idx-wait-none",
+      "jinja_text": {
+        "cause": null,
+        "error": "jinja2.exceptions.UndefinedError",
+        "message": "'None' has no attribute 'trigger'",
+        "status": "error"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": false
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      },
+      "id": "trigger-wait-empty",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      }
+    },
+    {
+      "ha_native": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'dict object' has no attribute 'trigger'"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'dict object' has no attribute 'trigger'",
+        "status": "error"
+      },
+      "ha_text": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'dict object' has no attribute 'trigger'"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'dict object' has no attribute 'trigger'",
+        "status": "error"
+      },
+      "id": "idx-wait-empty",
+      "jinja_text": {
+        "cause": null,
+        "error": "jinja2.exceptions.UndefinedError",
+        "message": "'dict object' has no attribute 'trigger'",
+        "status": "error"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "trigger-trigger-none",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": false
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      },
+      "id": "idx-trigger-none",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "trigger-trigger-empty",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": false
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      },
+      "id": "idx-trigger-empty",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "False"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "trigger-idx-none",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "idx-idx-none",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "trigger-idx-false",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "idx-idx-false",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "trigger-idx-zero",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "idx-idx-zero",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "trigger-idx-one",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "bool",
+        "value": true
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      },
+      "id": "idx-idx-one",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": "True"
+      }
+    },
+    {
+      "ha_native": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'wait' is undefined"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'wait' is undefined",
+        "status": "error"
+      },
+      "ha_text": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'wait' is undefined"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'wait' is undefined",
+        "status": "error"
+      },
+      "id": "outside-absent",
+      "jinja_text": {
+        "cause": null,
+        "error": "jinja2.exceptions.UndefinedError",
+        "message": "'wait' is undefined",
+        "status": "error"
+      }
+    },
+    {
+      "ha_native": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'None' has no attribute 'trigger'"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'None' has no attribute 'trigger'",
+        "status": "error"
+      },
+      "ha_text": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'None' has no attribute 'trigger'"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'None' has no attribute 'trigger'",
+        "status": "error"
+      },
+      "id": "outside-wait-none",
+      "jinja_text": {
+        "cause": null,
+        "error": "jinja2.exceptions.UndefinedError",
+        "message": "'None' has no attribute 'trigger'",
+        "status": "error"
+      }
+    },
+    {
+      "ha_native": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'dict object' has no attribute 'trigger'"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'dict object' has no attribute 'trigger'",
+        "status": "error"
+      },
+      "ha_text": {
+        "cause": {
+          "error": "jinja2.exceptions.UndefinedError",
+          "message": "'dict object' has no attribute 'trigger'"
+        },
+        "error": "homeassistant.exceptions.TemplateError",
+        "message": "UndefinedError: 'dict object' has no attribute 'trigger'",
+        "status": "error"
+      },
+      "id": "outside-wait-empty",
+      "jinja_text": {
+        "cause": null,
+        "error": "jinja2.exceptions.UndefinedError",
+        "message": "'dict object' has no attribute 'trigger'",
+        "status": "error"
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "str",
+        "value": ""
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": ""
+      },
+      "id": "outside-trigger-none",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": ""
+      }
+    },
+    {
+      "ha_native": {
+        "status": "ok",
+        "type": "str",
+        "value": ""
+      },
+      "ha_text": {
+        "status": "ok",
+        "type": "str",
+        "value": ""
+      },
+      "id": "outside-trigger-empty",
+      "jinja_text": {
+        "status": "ok",
+        "type": "str",
+        "value": ""
+      }
+    }
+  ],
+  "reference": {
+    "fixtures_sha256": "4b3ddee70309944b9e42d06588a62e17267c74216aca93006810ef3ab0639574",
+    "image_index": "sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0",
+    "image_manifest": "sha256:17100609af8bb79bf5390f5d514b9aaeb00d184ce758f37769cd80c450851db7",
+    "platform": "linux/arm64",
+    "runtime": {
+      "homeassistant": "2026.10.1",
+      "jinja2": "3.1.6",
+      "python": "3.14.6"
+    },
+    "worker_sha256": "fe825b7891a4667da2f68dd0849d4724384412c15d8c5dbaf63a31c65e424d16"
+  }
+}

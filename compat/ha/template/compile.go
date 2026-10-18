@@ -34,6 +34,7 @@ const (
 	opAttribute
 	opItem
 	opFilter
+	opDefined
 )
 
 type builtin uint8
@@ -122,7 +123,7 @@ type segment struct {
 type Program struct{ segments []segment }
 
 // Compile admits only bounded output expressions. No block, include, import,
-// macro, loop, test, reflection, or dynamic function invocation reaches eval.
+// macro, loop, general test, reflection, or dynamic function invocation reaches eval.
 func Compile(source string) (Program, error) {
 	if source == "" || len(source) > maxSourceBytes || !utf8.ValidString(source) {
 		return Program{}, ErrInvalidInput
@@ -152,7 +153,7 @@ func Compile(source string) (Program, error) {
 			if nesting < 0 {
 				return Program{}, ErrInvalidInput
 			}
-		case tokens.Dot, tokens.Pipe, tokens.Or, tokens.And, tokens.Not,
+		case tokens.Dot, tokens.Pipe, tokens.Or, tokens.And, tokens.Not, tokens.Is,
 			tokens.Subtraction, tokens.Addition:
 			drivers++
 		}
@@ -173,7 +174,15 @@ func Compile(source string) (Program, error) {
 	if len(parsed.Nodes) == 0 || len(parsed.Nodes) > maxSegments {
 		return Program{}, ErrBudget
 	}
-	compiler := compiler{}
+	// Gonja also constructs TestExpression for comparisons and "in". Its AST
+	// discards the operator, so admission must retain the exact lexical "is".
+	definedTokens := make(map[*tokens.Token]struct{})
+	for i := 1; i < len(collected); i++ {
+		if collected[i-1].Type == tokens.Is && collected[i].Type == tokens.Name && collected[i].Val == "defined" {
+			definedTokens[collected[i]] = struct{}{}
+		}
+	}
+	compiler := compiler{definedTokens: definedTokens}
 	program := Program{segments: make([]segment, 0, len(parsed.Nodes))}
 	for _, node := range parsed.Nodes {
 		switch n := node.(type) {
@@ -195,7 +204,22 @@ func Compile(source string) (Program, error) {
 	return program, nil
 }
 
-type compiler struct{ count int }
+type compiler struct {
+	count         int
+	definedTokens map[*tokens.Token]struct{}
+}
+
+func definedPath(x expression) bool {
+	switch x.op {
+	case opName:
+		return true
+	case opAttribute, opItem:
+		return len(x.children) == 1 && definedPath(x.children[0])
+	case opInvalid, opLiteral, opList, opOr, opSubtract, opNegate, opCall, opMethod, opFilter, opDefined:
+		return false
+	}
+	return false
+}
 
 func (c *compiler) convert(node nodes.Node, depth int) (expression, error) {
 	c.count++
@@ -231,6 +255,21 @@ func (c *compiler) convert(node nodes.Node, depth int) (expression, error) {
 			}
 			return expression{op: opName, name: name}, nil
 		}
+	case *nodes.TestExpression:
+		if n.Test == nil || n.Test.Name != "defined" || len(n.Test.Args) != 0 || len(n.Test.Kwargs) != 0 {
+			return expression{}, fmt.Errorf("%w: test", ErrUnsupported)
+		}
+		if _, ok := c.definedTokens[n.Test.Token]; !ok {
+			return expression{}, fmt.Errorf("%w: test operator", ErrUnsupported)
+		}
+		operand, err := child(n.Expression)
+		if err != nil {
+			return expression{}, err
+		}
+		if !definedPath(operand) {
+			return expression{}, fmt.Errorf("%w: defined operand", ErrUnsupported)
+		}
+		return expression{op: opDefined, children: []expression{operand}}, nil
 	case *nodes.List:
 		if len(n.Val) > maxItems {
 			return expression{}, ErrBudget
