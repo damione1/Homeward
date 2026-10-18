@@ -41,6 +41,9 @@ func (h *Manager) claimCommandPolicy(id domain.CommandID, policy commandPolicy) 
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.admission != admissionOpen {
+		return ErrAdmissionsClosed
+	}
 	if prior, exists := h.commandPolicies[id]; exists {
 		if prior != policy {
 			return ErrCommandPolicyConflict

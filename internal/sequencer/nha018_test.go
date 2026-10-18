@@ -265,12 +265,12 @@ func TestNHA018ReconnectClockCausesAndCursorErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	after, _ := fixture.Sequencer().Capture()
-	if _, oldSeq, _ := before.Cursor.Components(); oldSeq+3 != func() uint64 { _, n, _ := after.Cursor.Components(); return n }() {
-		t.Fatal("reconnect did not admit exactly the current driver's three reports")
+	if _, oldSeq, _ := before.Cursor.Components(); oldSeq+5 != func() uint64 { _, n, _ := after.Cursor.Components(); return n }() {
+		t.Fatal("reconnect omitted session-loss state/health or current driver's three reports")
 	}
 	state := after.States[entity]
 	_, _, times, _, revision, err := state.Components()
-	if err != nil || revision != 2 || !times.LastReported.Equal(first.Add(-3*time.Hour)) || times.ObservedAt == nil || !times.ObservedAt.Equal(first.Add(-24*time.Hour)) {
+	if err != nil || revision != 3 || !times.LastReported.Equal(first.Add(-5*time.Hour)) || times.ObservedAt == nil || !times.ObservedAt.Equal(first.Add(-24*time.Hour)) {
 		t.Fatalf("admission/source clocks mixed: %+v rev=%d %v", times, revision, err)
 	}
 	if _, _, err := fixture.Sequencer().ReadAfter(sequencer.Cursor{}, 1); !errors.Is(err, sequencer.ErrInvalidInput) {

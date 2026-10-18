@@ -367,10 +367,24 @@ func (s *Sequencer) AcceptStateWithActionReceipt(ctx context.Context, entity dom
 	if err != nil {
 		return integrations.ActionReceipt{}, err
 	}
-	if err := s.admitIdentity(entity, instance); err != nil {
+	previous, exists := s.states[entity]
+	if accepted.Retirement() {
+		// Registry retirement can precede session loss. The Host owns this
+		// marker, and it may only end the old session's own projection.
+		if exists {
+			_, _, _, oldSource, _, err := previous.Components()
+			if err != nil {
+				return integrations.ActionReceipt{}, err
+			}
+			oldSession, _, _ := oldSource.Components()
+			retiringSession, _, _ := source.Components()
+			if oldSession != retiringSession {
+				return integrations.ActionReceipt{}, nil
+			}
+		}
+	} else if err := s.admitIdentity(entity, instance); err != nil {
 		return integrations.ActionReceipt{}, err
 	}
-	previous, exists := s.states[entity]
 	if !exists && len(s.states) >= MaxProjectedEntities {
 		return integrations.ActionReceipt{}, ErrProjectionFull
 	}

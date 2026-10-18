@@ -310,6 +310,9 @@ func boundedVolatileError(response *actions.CommandResponse, err error) error {
 	if err == nil {
 		return nil
 	}
+	if errors.Is(err, ErrSupervisedPilotPanic) {
+		return ErrSupervisedPilotPanic
+	}
 	if response != nil && response.Status == actions.ActionStatus_ACTION_STATUS_INDETERMINATE {
 		return ErrCommandOutcomeIndeterminate
 	}

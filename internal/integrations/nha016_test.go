@@ -147,6 +147,7 @@ func TestNHA016FakeDriverSessionOwnershipAndReconnect(t *testing.T) {
 	if err := host.Revoke(session); err != nil {
 		t.Fatal(err)
 	}
+	revokedState, _ := fixture.State(entity)
 	if err := session.Publish(ctx, binding, observation); !errors.Is(err, integrations.ErrInactiveSession) {
 		t.Fatalf("revoked state admitted: %v", err)
 	}
@@ -156,8 +157,12 @@ func TestNHA016FakeDriverSessionOwnershipAndReconnect(t *testing.T) {
 	if err := session.ReportHealth(ctx, mustNHA016Health(t)); !errors.Is(err, integrations.ErrInactiveSession) {
 		t.Fatalf("revoked health admitted: %v", err)
 	}
-	if got, _ := fixture.State(entity); got != state {
-		t.Fatal("revoked publish mutated state")
+	if got, _ := fixture.State(entity); got == state {
+		t.Fatal("revocation did not mark the old state unavailable")
+	} else if _, usable := got.CriticalValue(); usable {
+		t.Fatal("revoked state stayed usable for critical logic")
+	} else if got != revokedState {
+		t.Fatal("late revoked publish mutated the unavailable state")
 	}
 	if events, err := fixture.Events(); err != nil || len(events) != 1 {
 		t.Fatal("revoked emit mutated event log")
@@ -181,7 +186,7 @@ func TestNHA016FakeDriverSessionOwnershipAndReconnect(t *testing.T) {
 	}
 	newState, _ := fixture.State(entity)
 	_, _, times, newSource, revision, err := newState.Components()
-	if err != nil || revision != 2 || times.ObservedAt == nil || !times.ObservedAt.Equal(at.Add(-time.Second)) || times.LastReported.IsZero() {
+	if err != nil || revision != 3 || times.ObservedAt == nil || !times.ObservedAt.Equal(at.Add(-time.Second)) || times.LastReported.IsZero() {
 		t.Fatalf("reconnection revision/wall clock: %+v %d %v", times, revision, err)
 	}
 	newSessionID, _, _ := newSource.Components()
@@ -197,7 +202,7 @@ func TestNHA016FakeDriverSessionOwnershipAndReconnect(t *testing.T) {
 	final, _ := fixture.State(entity)
 	_, _, _, _, revision, _ = final.Components()
 	events, err = fixture.Events()
-	if revision != 3 || err != nil || len(events) != 2 {
+	if revision != 4 || err != nil || len(events) != 2 {
 		t.Fatal("current owner/state/event admission was not isolated")
 	}
 	replacement, err := host.OpenSession(instance)

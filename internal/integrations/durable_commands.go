@@ -45,6 +45,10 @@ func NewDurableCommandServiceWithClock(ctx context.Context, host *Manager, gener
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err := host.reserveDurable(); err != nil {
+		return nil, err
+	}
+	defer host.abortDurable()
 	router, err := NewCommandRouterWithClock(host, generation, clock)
 	if err != nil {
 		return nil, err
@@ -79,7 +83,21 @@ func NewDurableCommandServiceWithClock(ctx context.Context, host *Manager, gener
 		runtime.Close()
 		return nil, durableTransactionError(outcome)
 	}
-	return &DurableCommandService{router: router, store: store, runtime: runtime, epoch: epoch, closed: make(chan struct{})}, nil
+	service := &DurableCommandService{router: router, store: store, runtime: runtime, epoch: epoch, closed: make(chan struct{})}
+	if err := host.completeDurable(service); err != nil {
+		runtime.Close()
+		return nil, err
+	}
+	return service, nil
+}
+
+// Done closes only after active dispatches have recorded their final durable
+// result and the database-wide command runtime guard has been released.
+func (s *DurableCommandService) Done() <-chan struct{} {
+	if s == nil {
+		return nil
+	}
+	return s.closed
 }
 
 // Close rejects new admissions immediately and waits up to ctx's deadline.

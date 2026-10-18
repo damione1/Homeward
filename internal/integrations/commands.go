@@ -20,6 +20,8 @@ type CommandDriver interface {
 	Dispatch(context.Context, AdmittedCommand) error
 }
 
+var ErrSupervisedPilotPanic = errors.New("supervised pilot panicked during command dispatch")
+
 type AdmittedCommand struct {
 	id       domain.CommandID
 	actor    domain.ActorID
@@ -300,6 +302,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		return nil, err
 	}
 	var driver CommandDriver
+	var managed *taskGroup
 	var leased commandEndpointSlot
 	defer func() {
 		if leased.device == (domain.DeviceID{}) {
@@ -318,6 +321,9 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		h := r.host
 		h.mu.Lock()
 		defer h.mu.Unlock()
+		if h.admission != admissionOpen {
+			return ErrAdmissionsClosed
+		}
 		if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
 			rejected = commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at").Error
 			return nil
@@ -382,6 +388,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		// Lease linearization: route validation succeeded under Host→catalogue→
 		// sequencer locks. Later revocation cannot retroactively cancel it.
 		driver = session.commandDriver
+		managed = session.work
 		return nil
 	})
 	if err != nil {
@@ -407,8 +414,33 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		return nil, err
 	}
 	admitted.progress = progress
+	if managed != nil {
+		release, err := managed.AdmitCommand()
+		if err != nil {
+			r.host.actions.abort(progress)
+			return nil, err
+		}
+		defer release()
+	}
 	dispatchCtx, cancel := context.WithDeadline(ctx, wire.ExpiresAt.AsTime())
-	defer cancel()
+	if managed != nil {
+		hookDone := make(chan struct{})
+		go func() {
+			defer close(hookDone)
+			select {
+			case <-managed.ctx.Done():
+				cancel()
+			case <-dispatchCtx.Done():
+			}
+		}()
+		defer func() { cancel(); <-hookDone }()
+		if err := managed.ctx.Err(); err != nil {
+			r.host.actions.abort(progress)
+			return nil, err
+		}
+	} else {
+		defer cancel()
+	}
 	if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
 		r.host.actions.abort(progress)
 		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at"), nil
@@ -423,13 +455,32 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 			panic(panicValue)
 		}
 	}()
-	if err := driver.Dispatch(dispatchCtx, admitted); err != nil {
+	var dispatchErr error
+	if managed != nil {
+		dispatchErr = dispatchManaged(managed, driver, dispatchCtx, admitted)
+	} else {
+		dispatchErr = driver.Dispatch(dispatchCtx, admitted)
+	}
+	if dispatchErr != nil {
 		r.host.actions.uncertain(admitted.progress)
 		// Once the driver was called, a transport error cannot prove the absence
 		// of a physical effect. Keep the live progression indeterminate.
-		return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}, err
+		return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}, dispatchErr
 	}
 	return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_DISPATCHED}, nil
+}
+
+// This is the managed task boundary. An external RPC goroutine need not know
+// about pilot panics; the router preserves indeterminate progress and the
+// supervisor sees failure. Legacy unsupervised sessions retain repanic.
+func dispatchManaged(group *taskGroup, driver CommandDriver, ctx context.Context, command AdmittedCommand) (err error) {
+	defer func() {
+		if recover() != nil {
+			group.Fail()
+			err = ErrSupervisedPilotPanic
+		}
+	}()
+	return driver.Dispatch(ctx, command)
 }
 
 var errCommandExpired = errors.New("command deadline passed during admission")

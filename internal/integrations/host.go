@@ -10,6 +10,7 @@ import (
 	"errors"
 	"reflect"
 	"regexp"
+	"sort"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -25,6 +26,7 @@ var (
 	ErrInactiveSession  = errors.New("integration session is inactive")
 	ErrForeignBinding   = errors.New("binding is not owned by this session")
 	ErrIdentityConflict = errors.New("identity authority returned a conflicting binding")
+	ErrAdmissionsClosed = errors.New("integration command admissions are closed")
 )
 
 func nilInterface(value any) bool {
@@ -130,7 +132,11 @@ type AcceptedState struct {
 	observation StateObservation
 	source      domain.SourceStamp
 	instance    domain.IntegrationInstanceID
+	retirement  bool
 }
+
+// Retirement is set only by Host session revocation, never by a driver.
+func (s AcceptedState) Retirement() bool { return s.retirement }
 
 func (s AcceptedState) Report(revision uint64) (domain.StateReport, error) {
 	return domain.NewStateReport(s.observation.quality, s.observation.value, s.observation.observedAt, s.observation.receivedAt, s.source, revision)
@@ -355,6 +361,7 @@ type Driver interface {
 
 type Manager struct {
 	mu                         sync.Mutex
+	admission                  admissionPhase
 	authority                  IdentityAuthority
 	sink                       Sink
 	catalog                    *contracts.CapabilityCatalog
@@ -366,6 +373,10 @@ type Manager struct {
 	unprotectedCommandDispatch bool
 	commandPolicies            map[domain.CommandID]commandPolicy
 	actions                    *actionTracker
+	supervisor                 *Supervisor
+	durable                    *DurableCommandService
+	composition                compositionPhase
+	durableRegistration        durableRegistrationPhase
 }
 
 type Session struct {
@@ -373,15 +384,165 @@ type Session struct {
 	instance      domain.IntegrationInstanceID
 	id            string
 	active        bool
+	done          chan struct{}
+	retireErr     error
+	work          *taskGroup
+	cancelWork    context.CancelFunc
 	bindings      map[domain.EntityID]Binding
 	commandDriver CommandDriver
 }
+
+type admissionPhase uint8
+
+const (
+	admissionUnspecified admissionPhase = iota
+	admissionOpen
+	admissionClosed
+)
+
+type compositionPhase uint8
+
+const (
+	compositionUnspecified compositionPhase = iota
+	compositionOpen
+	compositionFrozen
+)
+
+type durableRegistrationPhase uint8
+
+const (
+	durableRegistrationUnspecified durableRegistrationPhase = iota
+	durableRegistrationFree
+	durableRegistrationBuilding
+	durableRegistrationReady
+)
 
 func NewHost(authority IdentityAuthority, sink Sink, catalog *contracts.CapabilityCatalog) (*Manager, error) {
 	if nilInterface(authority) || nilInterface(sink) || !catalog.Ready() {
 		return nil, ErrInvalidInput
 	}
-	return &Manager{authority: authority, sink: sink, catalog: catalog, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: newActionTracker(realActionClock{})}, nil
+	return &Manager{authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: newActionTracker(realActionClock{})}, nil
+}
+
+// CloseAdmissions linearizes shutdown with both command-policy claims and the
+// final route lease. Already leased effects keep their NHA-025 uncertainty.
+func (h *Manager) CloseAdmissions() error {
+	if h == nil || h.active == nil {
+		return ErrInvalidInput
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.admission = admissionClosed
+	return nil
+}
+
+func (h *Manager) AdmissionsOpen() bool {
+	if h == nil {
+		return false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.admission == admissionOpen
+}
+
+// reserveDurable linearizes construction against Supervisor.Start before any
+// SQL guard is acquired. A second constructor and a late constructor fail
+// without touching PostgreSQL.
+func (h *Manager) reserveDurable() error {
+	if h == nil || h.active == nil {
+		return ErrInvalidInput
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.admission != admissionOpen {
+		return ErrAdmissionsClosed
+	}
+	if h.composition != compositionOpen {
+		return ErrSupervisorState
+	}
+	if h.durableRegistration != durableRegistrationFree {
+		return ErrDurableRuntimeBusy
+	}
+	h.durableRegistration = durableRegistrationBuilding
+	return nil
+}
+
+func (h *Manager) abortDurable() {
+	h.mu.Lock()
+	if h.durableRegistration == durableRegistrationBuilding {
+		h.durableRegistration = durableRegistrationFree
+	}
+	h.mu.Unlock()
+}
+
+// completeDurable publishes only a fully recovered service. Closing it is
+// always performed outside Host's lock.
+func (h *Manager) completeDurable(service *DurableCommandService) error {
+	if service == nil {
+		return ErrInvalidInput
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.durableRegistration != durableRegistrationBuilding || h.composition != compositionOpen {
+		return ErrSupervisorState
+	}
+	if h.admission != admissionOpen {
+		return ErrAdmissionsClosed
+	}
+	h.durable = service
+	h.durableRegistration = durableRegistrationReady
+	return nil
+}
+
+func (h *Manager) startServing(supervisor *Supervisor) (*DurableCommandService, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.supervisor != supervisor || h.composition != compositionOpen || h.durableRegistration == durableRegistrationBuilding || h.admission != admissionOpen {
+		return nil, ErrSupervisorState
+	}
+	h.composition = compositionFrozen
+	return h.durable, nil
+}
+
+// ClosePreparedRuntime owns cleanup until Supervisor.Start freezes composition.
+// Configure must finish synchronously before this call; no service I/O runs
+// under Host's mutex. The returned channel closes after the durable guard is
+// physically released, including after a bounded Close times out.
+func (h *Manager) ClosePreparedRuntime(ctx context.Context) (<-chan struct{}, error) {
+	if h == nil || h.active == nil || ctx == nil {
+		return nil, ErrInvalidInput
+	}
+	h.mu.Lock()
+	if h.composition != compositionOpen || h.durableRegistration == durableRegistrationBuilding {
+		h.mu.Unlock()
+		return nil, ErrSupervisorState
+	}
+	h.admission = admissionClosed
+	service := h.durable
+	h.mu.Unlock()
+	if service == nil {
+		return nil, nil
+	}
+	return service.Done(), service.Close(ctx)
+}
+
+// ReportPilotDegraded records a failed factory before any session exists.
+// It refuses to overwrite the health of an independently opened owner.
+func (h *Manager) ReportPilotDegraded(instance domain.IntegrationInstanceID) error {
+	if h == nil || h.active == nil {
+		return ErrInvalidInput
+	}
+	if _, err := instance.Value(); err != nil {
+		return err
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.active[instance] != nil {
+		return ErrInactiveSession
+	}
+	report, _ := NewHealthReport(HealthDegraded, "pilot factory failed")
+	report.source, _ = domain.NewSourceStamp("supervisor", nil)
+	return h.sink.AcceptHealth(context.Background(), instance, report)
 }
 
 // Capabilities returns the admitted declarations for a bound Host entity. It
@@ -411,36 +572,116 @@ func (h *Manager) OpenSession(instance domain.IntegrationInstanceID) (*Session, 
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.admission != admissionOpen {
+		return nil, ErrAdmissionsClosed
+	}
 	if previous := h.active[instance]; previous != nil {
-		previous.active = false
-		for entity, binding := range previous.bindings {
-			if h.owners[entity] == binding {
-				delete(h.owners, entity)
-			}
+		if err := h.retireLocked(previous, HealthDegraded, "session replaced"); err != nil {
+			return nil, err
 		}
 	}
-	s := &Session{host: h, instance: instance, id: hex.EncodeToString(token[:]), active: true, bindings: make(map[domain.EntityID]Binding)}
+	s := &Session{host: h, instance: instance, id: hex.EncodeToString(token[:]), active: true, done: make(chan struct{}), bindings: make(map[domain.EntityID]Binding)}
 	h.active[instance] = s
 	return s, nil
 }
 
 func (h *Manager) Revoke(s *Session) error {
+	return h.RevokeWithHealth(s, HealthDegraded, "session revoked")
+}
+
+// RevokeWithHealth fences the session first, then reports unavailable states
+// and health through the same sequencer sink while the Host lock is held.
+func (h *Manager) RevokeWithHealth(s *Session, status HealthStatus, detail string) error {
 	if h == nil || s == nil || s.host != h {
 		return ErrInvalidInput
+	}
+	if status != HealthDegraded && status != HealthUnavailable {
+		return ErrInvalidInput
+	}
+	if _, err := NewHealthReport(status, detail); err != nil {
+		return err
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if !s.active || h.active[s.instance] != s {
 		return ErrInactiveSession
 	}
+	return h.retireLocked(s, status, detail)
+}
+
+func (h *Manager) retireLocked(s *Session, status HealthStatus, detail string) error {
 	s.active = false
 	delete(h.active, s.instance)
-	for entity, binding := range s.bindings {
+	if s.cancelWork != nil {
+		s.cancelWork()
+	}
+	quality, _ := domain.NewQuality(domain.AvailabilityUnavailable, domain.FreshnessStale, domain.ProvenanceObserved)
+	source, _ := domain.NewSourceStamp(s.id, nil)
+	var failures []error
+	entities := make([]domain.EntityID, 0, len(s.bindings))
+	for entity := range s.bindings {
+		entities = append(entities, entity)
+	}
+	sort.Slice(entities, func(i, j int) bool {
+		left, _ := entities[i].Value()
+		right, _ := entities[j].Value()
+		return left < right
+	})
+	for _, entity := range entities {
+		binding := s.bindings[entity]
 		if h.owners[entity] == binding {
 			delete(h.owners, entity)
+			observation, err := NewStateObservation("session", quality, nil, nil, time.Now(), nil)
+			if err == nil {
+				err = h.sink.AcceptState(context.Background(), entity, AcceptedState{observation: observation, source: source, instance: s.instance, retirement: true})
+			}
+			if err != nil {
+				failures = append(failures, err)
+			}
 		}
 	}
+	report, _ := NewHealthReport(status, detail)
+	report.source = source
+	if err := h.sink.AcceptHealth(context.Background(), s.instance, report); err != nil {
+		failures = append(failures, err)
+	}
+	s.retireErr = errors.Join(failures...)
+	close(s.done)
+	return s.retireErr
+}
+
+func (h *Manager) manageSession(s *Session, group *taskGroup, cancel context.CancelFunc) error {
+	if h == nil || s == nil || group == nil || cancel == nil {
+		return ErrInvalidInput
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !s.live() || s.work != nil {
+		return ErrInactiveSession
+	}
+	s.work, s.cancelWork = group, cancel
 	return nil
+}
+
+// Done closes at spontaneous replacement or revocation, without requiring a
+// later Publish call by the worker to notice that its lease was lost.
+func (s *Session) Done() <-chan struct{} {
+	if s == nil {
+		return nil
+	}
+	return s.done
+}
+
+func (s *Session) RetirementError() error {
+	if s == nil || s.host == nil {
+		return ErrInvalidInput
+	}
+	s.host.mu.Lock()
+	defer s.host.mu.Unlock()
+	if s.active {
+		return ErrSupervisorState
+	}
+	return s.retireErr
 }
 
 func (s *Session) live() bool {

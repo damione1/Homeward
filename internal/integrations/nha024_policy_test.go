@@ -9,7 +9,7 @@ import (
 )
 
 func TestNHA024CommandPolicyBudgetAndZeroIDs(t *testing.T) {
-	host := &Manager{commandPolicies: make(map[domain.CommandID]commandPolicy)}
+	host := &Manager{commandPolicies: make(map[domain.CommandID]commandPolicy), admission: admissionOpen}
 	if err := host.claimCommandPolicy(domain.CommandID{}, commandPolicyDurable); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("zero ID = %v", err)
 	}
