@@ -11,8 +11,10 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/heatingownership"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/mqtt"
+	"github.com/damione1/Homeward/internal/neviweb"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
@@ -105,9 +107,23 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		}
 	} else {
 		mqttSettings, mqttEnabled := c.MQTTSettings()
+		neviwebSettings, neviwebEnabled := c.NeviwebSettings()
 		workers := c.ExternalWorkers()
-		if mqttEnabled || len(workers) != 0 {
-			plan, err = defaultConfiguredRuntimePlan(mqttSettings, mqttEnabled, workers, store, sequence)
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled {
+			var cloud []neviwebComposition
+			if neviwebEnabled {
+				initial, e := neviweb.InitialSessionValue()
+				if e != nil {
+					store.Close()
+					return e
+				}
+				if _, e = secrets.InitializeCredentialIfAbsent(ctx, neviwebSettings.SessionHandle(), initial); e != nil {
+					store.Close()
+					return e
+				}
+				cloud = append(cloud, neviwebComposition{settings: neviwebSettings, catalog: catalog})
+			}
+			plan, err = defaultConfiguredRuntimePlan(mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
 			if err != nil {
 				store.Close()
 				return err
@@ -194,7 +210,15 @@ func defaultMQTTRuntimePlan(settings mqtt.Settings, store *storage.Store, sequen
 	return defaultConfiguredRuntimePlan(settings, true, nil, store, sequence)
 }
 
-func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, workers []worker.Config, store *storage.Store, sequence *sequencer.Sequencer) (RuntimePlan, error) {
+type neviwebComposition struct {
+	settings neviweb.Settings
+	catalog  *contracts.CapabilityCatalog
+}
+
+func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, workers []worker.Config, store *storage.Store, sequence *sequencer.Sequencer, cloud ...neviwebComposition) (RuntimePlan, error) {
+	if len(cloud) > 1 {
+		return RuntimePlan{}, integrations.ErrInvalidInput
+	}
 	manifest, err := registry.ParseManifest(scope.ManifestV1())
 	if err != nil {
 		return RuntimePlan{}, err
@@ -226,7 +250,61 @@ func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, 
 		}
 		specs = append(specs, spec)
 	}
+	if len(cloud) == 1 {
+		settings := cloud[0].settings
+		instance, e := settings.Instance()
+		if e != nil {
+			return RuntimePlan{}, e
+		}
+		decision, e := heatingownership.Parse(scope.HeatingOwnershipV1(), manifest)
+		if e != nil {
+			return RuntimePlan{}, e
+		}
+		limit, _, zone := settings.Budget()
+		quota, e := storage.NewCloudAttemptQuota(store, settings.AccountText(), limit, zone)
+		if e != nil {
+			return RuntimePlan{}, e
+		}
+		limits := integrations.DefaultCloudLimits().Input()
+		limits.MaxInFlight = 2
+		limits.ObservationAttempts = 2
+		limits.AttemptTimeout = 30 * time.Second
+		limits.TotalTimeout = 65 * time.Second
+		limits.RefreshBudget = 30 * time.Second
+		admitted, e := integrations.AdmitCloudLimits(limits)
+		if e != nil {
+			return RuntimePlan{}, e
+		}
+		accountBinding, e := integrations.NewCloudAccountBinding(instance, settings.Account())
+		if e != nil {
+			return RuntimePlan{}, e
+		}
+		policy, e := integrations.NewCloudPolicy(admitted, []integrations.CloudAccountBinding{accountBinding}, integrations.RealCloudClock{}, integrations.RealCloudTimer{}, integrations.RandomJitter{})
+		if e != nil {
+			return RuntimePlan{}, e
+		}
+		factory, e := neviweb.NewPilotFactory(settings, repository, decision, cloud[0].catalog, policy, quota)
+		if e != nil {
+			return RuntimePlan{}, e
+		}
+		spec, e := integrations.NewPilotSpec(instance, factory)
+		if e != nil {
+			return RuntimePlan{}, e
+		}
+		specs = append(specs, spec)
+	}
 	return RuntimePlan{Identity: repository, Pilots: specs, Configure: func(ctx context.Context, _ *integrations.Manager, _ *storage.Store) error {
+		if len(cloud) == 1 {
+			instance, e := cloud[0].settings.Instance()
+			if e != nil {
+				return e
+			}
+			for _, binding := range cloud[0].settings.Bindings() {
+				if _, e := repository.ConfigureBinding(ctx, instance, binding.SourceKey(), binding.Alias()); e != nil {
+					return e
+				}
+			}
+		}
 		for _, configured := range workers {
 			instance, err := configured.Instance()
 			if err != nil {

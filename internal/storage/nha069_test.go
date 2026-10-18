@@ -42,10 +42,14 @@ func TestNHA069UpgradeFromV5PreservesRegistryConfigSecretsAndReopens(t *testing.
 	if err := secrets.RotateCredential(ctx, handle, nha051Value(t, "isolated-v5-canary")); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := store.Migrate(ctx); err != nil || got.Number() != 6 {
+	latest := migrations[len(migrations)-1].version.Number()
+	if latest < 7 {
+		t.Fatal("current migration set omits the cloud quota table")
+	}
+	if got, err := store.Migrate(ctx); err != nil || got.Number() != latest {
 		t.Fatalf("upgrade: %v %v", got, err)
 	}
-	if got, err := store.Migrate(ctx); err != nil || got.Number() != 6 {
+	if got, err := store.Migrate(ctx); err != nil || got.Number() != latest {
 		t.Fatalf("idempotent migrate: %v %v", got, err)
 	}
 	var count int
@@ -57,6 +61,9 @@ func TestNHA069UpgradeFromV5PreservesRegistryConfigSecretsAndReopens(t *testing.
 	}
 	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM public.registry_mqtt_discovery_topics`).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("new table: %d %v", count, err)
+	}
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM public.cloud_request_reservations`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("quota table after upgrade: %d %v", count, err)
 	}
 	secret, err := secrets.Read(ctx, handle)
 	if err != nil {
@@ -72,8 +79,11 @@ func TestNHA069UpgradeFromV5PreservesRegistryConfigSecretsAndReopens(t *testing.
 		t.Fatal(err)
 	}
 	defer reopened.Close()
-	if got, err := reopened.Migrate(ctx); err != nil || got.Number() != 6 {
+	if got, err := reopened.Migrate(ctx); err != nil || got.Number() != latest {
 		t.Fatalf("reopen: %v %v", got, err)
+	}
+	if err := reopened.pool.QueryRow(ctx, `SELECT count(*) FROM public.cloud_request_reservations`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("quota table after reopen: %d %v", count, err)
 	}
 	if err := reopened.pool.QueryRow(ctx, `SELECT count(*) FROM public.registry_source_bindings WHERE entity_id='entity-v5'`).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("reopened registry: %d %v", count, err)

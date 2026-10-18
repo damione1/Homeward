@@ -455,7 +455,19 @@ func publishMasterFile(root *os.Root, key masterKey) error {
 
 // RotateCredential replaces only one handle and advances its authenticated revision.
 func (r *SecretRepository) RotateCredential(ctx context.Context, handle SecretHandle, value SecretValue) error {
-	return r.rotateCredential(ctx, handle, value, nil)
+	return r.rotateCredential(ctx, handle, value, nil, nil)
+}
+
+// InitializeCredentialIfAbsent is reserved for trusted server composition.
+// It creates one encrypted revision under the same advisory lock as rotation,
+// and never overwrites an existing credential during restart.
+func (r *SecretRepository) InitializeCredentialIfAbsent(ctx context.Context, handle SecretHandle, value SecretValue) (bool, error) {
+	inserted := false
+	err := r.rotateCredential(ctx, handle, value, nil, &inserted)
+	if err != nil {
+		return false, err
+	}
+	return inserted, nil
 }
 
 // RotateCredentialIfRevision refuses a stale refresh without overwriting a
@@ -465,10 +477,10 @@ func (r *SecretRepository) RotateCredentialIfRevision(ctx context.Context, handl
 	if !expected.validFor(handle) {
 		return &Error{kind: SecretInvalid}
 	}
-	return r.rotateCredential(ctx, handle, value, &expected)
+	return r.rotateCredential(ctx, handle, value, &expected, nil)
 }
 
-func (r *SecretRepository) rotateCredential(ctx context.Context, handle SecretHandle, value SecretValue, expected *SecretRevision) error {
+func (r *SecretRepository) rotateCredential(ctx context.Context, handle SecretHandle, value SecretValue, expected *SecretRevision, initialized *bool) error {
 	if ctx == nil || r == nil || r.store == nil || !r.key.valid() {
 		return &Error{kind: SecretInvalid}
 	}
@@ -508,6 +520,9 @@ func (r *SecretRepository) rotateCredential(ctx context.Context, handle SecretHa
 			callbackErr = e
 			return e
 		}
+		if initialized != nil && revision > 0 {
+			return nil
+		}
 		if expected != nil && revision != expected.number {
 			callbackErr = &Error{kind: SecretConflict}
 			return callbackErr
@@ -537,6 +552,9 @@ func (r *SecretRepository) rotateCredential(ctx context.Context, handle SecretHa
 		if e != nil {
 			callbackErr = &Error{kind: SecretUnavailable}
 			return callbackErr
+		}
+		if initialized != nil {
+			*initialized = true
 		}
 		return nil
 	})

@@ -22,6 +22,8 @@ const (
 	CloudQueueFull
 	CloudBudgetExhausted
 	CloudQuotaDeferred
+	CloudLocalQuotaExhausted
+	CloudQuotaStoreUnavailable
 	CloudTransportFailed
 	CloudHTTPFailed
 	CloudResponseTooLarge
@@ -33,9 +35,19 @@ const (
 )
 
 type CloudError struct {
-	kind      CloudFailureKind
-	retryAt   time.Time
-	retryable bool
+	kind         CloudFailureKind
+	retryAt      time.Time
+	retryable    bool
+	responseBody []byte
+}
+
+// ResponseBytes is an explicit bounded provider-decoding path for failed
+// HTTP responses. Error/String diagnostics never include these bytes.
+func (e *CloudError) ResponseBytes() []byte {
+	if e == nil {
+		return nil
+	}
+	return append([]byte(nil), e.responseBody...)
 }
 
 func (e *CloudError) Kind() CloudFailureKind {
@@ -67,6 +79,10 @@ func (e *CloudError) Error() string {
 		return "cloud: request budget exhausted"
 	case CloudQuotaDeferred:
 		return "cloud: quota deferred request"
+	case CloudLocalQuotaExhausted:
+		return "cloud: local account request budget exhausted"
+	case CloudQuotaStoreUnavailable:
+		return "cloud: local account request budget unavailable"
 	case CloudTransportFailed:
 		return "cloud: transport outcome uncertain"
 	case CloudHTTPFailed:
