@@ -1,8 +1,10 @@
 """Synthetic, device-free Host v1 worker using generated Python gRPC stubs."""
 import argparse
+import json
 import os
 import pathlib
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -24,10 +26,105 @@ def mark(path, text):
             output.write(text + "\n")
 
 
+def run_conformance(args, stub, metadata, handles, stop_heartbeat):
+    """Local simulator control only; every effect still crosses the real Host RPC."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as control:
+        control.connect(args.control_socket)
+        reader = control.makefile("r", encoding="utf-8")
+        writer = control.makefile("w", encoding="utf-8", buffering=1)
+        write_lock = threading.Lock()
+        frame_lock = threading.Lock()
+        frames = {}
+
+        def send(message):
+            with write_lock:
+                writer.write(json.dumps(message, separators=(",", ":")) + "\n")
+                writer.flush()
+
+        def receive_commands():
+            try:
+                stream = stub.Commands(host_pb2.CommandsRequest(), metadata=metadata)
+                # The first stream is admitted before this probe can receive
+                # ALREADY_EXISTS. A stream with no queued command has no
+                # response headers yet, so initial_metadata() is not a barrier.
+                try:
+                    next(stub.Commands(host_pb2.CommandsRequest(), metadata=metadata, timeout=5))
+                    raise AssertionError("second command stream was admitted")
+                except grpc.RpcError as error:
+                    assert error.code() == grpc.StatusCode.ALREADY_EXISTS
+                send({"event": "ready"})
+                for frame in stream:
+                    with frame_lock:
+                        frames[frame.request.command_id] = frame
+                    send({"event": "delivered", "id": frame.request.command_id})
+            except grpc.RpcError as error:
+                try:
+                    send({"event": "stream_error", "code": error.code().name})
+                except OSError:
+                    pass
+
+        threading.Thread(target=receive_commands, daemon=True).start()
+        try:
+            for line in reader:
+                instruction = json.loads(line)
+                if instruction.get("op") == "crash":
+                    mark(args.marker, "conformance_crash")
+                    os._exit(17)
+                command_id = instruction.get("id")
+                stimulus = instruction.get("stimulus")
+                with frame_lock:
+                    frame = frames.get(command_id)
+                if frame is None:
+                    send({"event": "error", "id": command_id, "reason": "unknown_command"})
+                    continue
+                if stimulus == "ack":
+                    stub.CompleteCommand(host_pb2.CompleteCommandRequest(
+                        command_id=command_id, kind=host_pb2.COMMAND_RESULT_KIND_ACCEPTED),
+                        metadata=metadata, timeout=5)
+                elif stimulus in ("uncorrelated", "wrong_correlation", "stale", "partial_light", "match"):
+                    quality = state_pb2.Quality(
+                        availability=state_pb2.AVAILABILITY_AVAILABLE,
+                        freshness=state_pb2.FRESHNESS_STALE if stimulus == "stale" else state_pb2.FRESHNESS_FRESH,
+                        provenance=state_pb2.PROVENANCE_OBSERVED)
+                    observation = host_pb2.Observation(
+                        binding_handle=frame.binding_handle,
+                        endpoint=frame.request.endpoint,
+                        quality=quality)
+                    if stimulus != "uncorrelated":
+                        observation.command_correlation = (
+                            "nha095-foreign-correlation" if stimulus == "wrong_correlation" else frame.correlation)
+                    if frame.request.capability_schema_id == "core.switch.v1":
+                        observation.switch_on = frame.request.arguments.set_switch.on
+                    elif frame.request.capability_schema_id == "core.light.v1":
+                        light = frame.request.arguments.set_light
+                        observation.light.on = light.on
+                        if stimulus != "partial_light":
+                            observation.light.brightness_percent = light.brightness_percent
+                        observation.light.color_temp_mireds = light.color_temp_mireds
+                    else:
+                        raise AssertionError("unexpected synthetic schema")
+                    try:
+                        stub.Publish(host_pb2.PublishRequest(observation=observation),
+                                     metadata=metadata, timeout=5)
+                    except grpc.RpcError as error:
+                        if stimulus == "wrong_correlation" and error.code() == grpc.StatusCode.PERMISSION_DENIED:
+                            send({"event": "applied", "id": command_id, "stimulus": stimulus,
+                                  "rejected": error.code().name})
+                            continue
+                        raise
+                else:
+                    send({"event": "error", "id": command_id, "reason": "invalid_stimulus"})
+                    continue
+                send({"event": "applied", "id": command_id, "stimulus": stimulus})
+        finally:
+            stop_heartbeat.set()
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("normal", "incompatible", "silent", "crash", "fail", "hold", "many_hold", "stubborn", "orphan_child", "small_frame", "large_frame", "no_command", "secret"), default="normal")
+    parser.add_argument("--mode", choices=("normal", "incompatible", "incompatible_host_major", "incompatible_host_minor", "incompatible_driver_major", "incompatible_digest", "silent", "crash", "fail", "hold", "many_hold", "stubborn", "orphan_child", "small_frame", "large_frame", "no_command", "secret", "conformance"), default="normal")
     parser.add_argument("--marker")
+    parser.add_argument("--control-socket")
     parser.add_argument("--child-stubborn", action="store_true")
     args = parser.parse_args()
     if args.child_stubborn:
@@ -49,9 +146,11 @@ def main():
         stub = host_pb2_grpc.HostServiceStub(channel)
         try:
             welcome = stub.Handshake(host_pb2.HandshakeRequest(
-                host_major=1, host_minor=0, driver_major=1,
+                host_major=2 if args.mode == "incompatible_host_major" else 1,
+                host_minor=1 if args.mode == "incompatible_host_minor" else 0,
+                driver_major=2 if args.mode == "incompatible_driver_major" else 1,
                 driver_minor=1 if args.mode == "incompatible" else 0,
-                schema_sha256=bytes.fromhex(SCHEMA_DIGEST_HEX),
+                schema_sha256=bytes(32) if args.mode == "incompatible_digest" else bytes.fromhex(SCHEMA_DIGEST_HEX),
                 max_frame_bytes=1024 if args.mode == "small_frame" else 2 << 20 if args.mode == "large_frame" else 65536,
                 capabilities=[host_pb2.CAPABILITY_DISCOVER, host_pb2.CAPABILITY_PUBLISH,
                               host_pb2.CAPABILITY_EMIT, host_pb2.CAPABILITY_HEALTH,
@@ -60,7 +159,7 @@ def main():
                                                                     host_pb2.CAPABILITY_PUBLISH]), metadata=metadata, timeout=5)
         except grpc.RpcError as error:
             mark(args.marker, "handshake_rejected:" + error.code().name)
-            if args.mode == "incompatible" and error.code() == grpc.StatusCode.FAILED_PRECONDITION:
+            if args.mode.startswith("incompatible") and error.code() == grpc.StatusCode.FAILED_PRECONDITION:
                 return
             raise
         assert welcome.driver_major == 1 and welcome.driver_minor == 0
@@ -86,11 +185,21 @@ def main():
         candidates = []
         numbers = range(1, 34) if args.mode == "many_hold" else range(1, 3)
         for number in numbers:
-            candidates.append(host_pb2.Candidate(
-                source=host_pb2.SourceKey(device=f"synthetic-device-{number}", entity=f"relay-{number}"),
-                descriptions=[registry_pb2.CapabilityDescription(
+            if args.mode == "conformance" and number == 2:
+                description = registry_pb2.CapabilityDescription(
+                    schema_id="core.light.v1", major=1, display_name="Synthetic light",
+                    endpoint="light", light=registry_pb2.LightConstraints(
+                        set_on=True,
+                        brightness_percent=registry_pb2.NumberBounds(minimum=0, maximum=100),
+                        color_temp_mireds=registry_pb2.NumberBounds(minimum=250, maximum=454)))
+            else:
+                description = registry_pb2.CapabilityDescription(
                     schema_id="core.switch.v1", major=1, display_name=f"Synthetic relay {number}",
-                    endpoint="relay", switch=registry_pb2.SwitchConstraints(set_on=True))]))
+                    endpoint="relay", switch=registry_pb2.SwitchConstraints(set_on=True))
+            candidates.append(host_pb2.Candidate(
+                source=host_pb2.SourceKey(device=f"synthetic-device-{number}",
+                                          entity="light-2" if args.mode == "conformance" and number == 2 else f"relay-{number}"),
+                descriptions=[description]))
         discovered = stub.Discover(host_pb2.DiscoverRequest(candidates=candidates), metadata=metadata, timeout=5)
         assert len(discovered.bindings) == len(candidates)
         handles = [binding.handle for binding in discovered.bindings]
@@ -108,12 +217,18 @@ def main():
                 assert error.code() == grpc.StatusCode.RESOURCE_EXHAUSTED
                 mark(args.marker, "frame_rejected")
         for number, handle in enumerate(handles, 1):
-            stub.Publish(host_pb2.PublishRequest(observation=host_pb2.Observation(
-                binding_handle=handle, endpoint="relay",
+            observation = host_pb2.Observation(
+                binding_handle=handle, endpoint="light" if args.mode == "conformance" and number == 2 else "relay",
                 quality=state_pb2.Quality(availability=state_pb2.AVAILABILITY_AVAILABLE,
                                           freshness=state_pb2.FRESHNESS_FRESH,
-                                          provenance=state_pb2.PROVENANCE_OBSERVED),
-                switch_on=False)), metadata=metadata, timeout=5)
+                                          provenance=state_pb2.PROVENANCE_OBSERVED))
+            if args.mode == "conformance" and number == 2:
+                observation.light.on = True
+                observation.light.brightness_percent = 50.0
+                observation.light.color_temp_mireds = 300
+            else:
+                observation.switch_on = False
+            stub.Publish(host_pb2.PublishRequest(observation=observation), metadata=metadata, timeout=5)
             mark(args.marker, f"initial:{number}")
         if args.mode not in ("small_frame", "large_frame", "no_command"):
             stamp = Timestamp()
@@ -132,6 +247,10 @@ def main():
 
         if args.mode not in ("silent", "incompatible"):
             threading.Thread(target=heartbeat, daemon=True).start()
+        if args.mode == "conformance":
+            assert args.control_socket
+            run_conformance(args, stub, metadata, handles, stop_heartbeat)
+            return
         if args.mode == "silent":
             time.sleep(9)
             try:

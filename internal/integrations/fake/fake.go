@@ -63,6 +63,12 @@ func NewCommandFixture() (*integrations.Manager, *Fixture, error) {
 	return newFixture(sequencer.RealClock{}, true)
 }
 
+// NewCommandFixtureWithClock keeps the command projection and sequencer on the
+// caller's clock. It is intended for device-free conformance tests.
+func NewCommandFixtureWithClock(clock sequencer.Clock) (*integrations.Manager, *Fixture, error) {
+	return newFixture(clock, true)
+}
+
 func newFixture(clock sequencer.Clock, commandProjection bool) (*integrations.Manager, *Fixture, error) {
 	sequence, err := sequencer.New(clock, 16384)
 	if err != nil {

@@ -1,9 +1,10 @@
 .PHONY: check
 check:
 	sh scripts/ensure-worker-python.sh
-	test -z "$$(gofmt -l cmd internal contracts compat)"
+	test -z "$$(gofmt -l cmd internal contracts compat sdk examples)"
 	go vet ./...
 	go test -race ./...
+	cd examples/conformance-consumer && go test -race -mod=readonly ./... -run '^TestNHA095' -count=1
 	cargo fmt --all -- --check
 	cargo clippy --locked --workspace --all-targets -- -D warnings
 	cargo test --locked --workspace

@@ -175,7 +175,7 @@ func startWorkerRigWithCapture(t *testing.T, mode string, capture bool) workerRi
 			t.Errorf("supervisor stop: %v", err)
 		}
 	})
-	if mode != "incompatible" {
+	if !strings.HasPrefix(mode, "incompatible") {
 		waitMarker(t, marker, fmt.Sprintf("initial:%d", count), 6*time.Second)
 	}
 	entities := make([]domain.EntityID, count)
