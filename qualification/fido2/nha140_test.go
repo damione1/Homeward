@@ -2,6 +2,7 @@ package fido2_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -19,16 +20,17 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
-	ctapcrypto "github.com/go-ctap/ctaphid/pkg/crypto"
-	"github.com/go-ctap/ctaphid/pkg/crypto/protocoltwo"
-	ctapclient "github.com/go-ctap/ctaphid/pkg/ctap"
-	"github.com/go-ctap/ctaphid/pkg/ctaphid"
-	"github.com/go-ctap/ctaphid/pkg/ctaptypes"
-	"github.com/go-ctap/ctaphid/pkg/webauthntypes"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/ldclabs/cose/iana"
-	coseecdh "github.com/ldclabs/cose/key/ecdh"
+	ctapclient "github.com/telesma-app/ctap/client"
+	"github.com/telesma-app/ctap/cose"
+	"github.com/telesma-app/ctap/credential"
+	ctapcrypto "github.com/telesma-app/ctap/crypto"
+	"github.com/telesma-app/ctap/crypto/protocoltwo"
+	"github.com/telesma-app/ctap/options"
+	ctapprotocol "github.com/telesma-app/ctap/protocol"
+	ctaptransport "github.com/telesma-app/ctap/transport"
+	"github.com/telesma-app/ctap/transport/ctaphid"
 )
 
 const (
@@ -49,27 +51,57 @@ const (
 )
 
 type fakeAuthenticator struct {
+	mu           sync.Mutex
 	condition    fakeCondition
 	cancelled    bool
 	request      []byte
 	want         int
 	command      ctaphid.Command
-	response     bytes.Buffer
+	reports      chan []byte
+	closed       chan struct{}
+	removed      chan struct{}
+	closeOnce    sync.Once
+	removeOnce   sync.Once
+	pendingOnce  sync.Once
+	readOnce     sync.Once
+	releaseOnce  sync.Once
 	credential   *ecdsa.PrivateKey
 	agreement    *ecdh.PrivateKey
 	credentialID []byte
 	token        []byte
 	counter      uint32
+	pending      chan struct{}
 	reading      chan struct{}
-	cancelSignal chan struct{}
-	cancelOnce   sync.Once
-	readStarted  bool
+	readRelease  chan struct{}
 }
 
 func (f *fakeAuthenticator) releasePending() {
-	if f.cancelSignal != nil {
-		f.cancelOnce.Do(func() { close(f.cancelSignal) })
+	f.removeOnce.Do(func() { close(f.removed) })
+	f.releaseRead()
+}
+
+func (f *fakeAuthenticator) releaseRead() {
+	f.releaseOnce.Do(func() { close(f.readRelease) })
+}
+
+func (f *fakeAuthenticator) setCondition(condition fakeCondition) {
+	f.mu.Lock()
+	f.condition = condition
+	f.mu.Unlock()
+	if condition == fakeRemoved {
+		f.releasePending()
 	}
+}
+
+func (f *fakeAuthenticator) wasCancelled() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.cancelled
+}
+
+func (f *fakeAuthenticator) Close() error {
+	f.closeOnce.Do(func() { close(f.closed) })
+	return nil
 }
 
 func newFake(t *testing.T) *fakeAuthenticator {
@@ -85,12 +117,34 @@ func newFake(t *testing.T) *fakeAuthenticator {
 	return &fakeAuthenticator{
 		condition: fakeReady, credential: credential, agreement: agreement,
 		credentialID: []byte("nha140-credential-001"), token: bytes.Repeat([]byte{0x72}, 32),
+		reports: make(chan []byte, 128), closed: make(chan struct{}), removed: make(chan struct{}),
+		pending: make(chan struct{}), reading: make(chan struct{}), readRelease: make(chan struct{}),
 	}
+}
+
+func newClient(t *testing.T, device *fakeAuthenticator) (*ctapclient.Client, *ctaphid.Transport) {
+	t.Helper()
+	transport := ctaphid.NewTransport(device, channelID)
+	client, err := ctapclient.NewClient(options.WithTransport(transport))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := transport.Close(); err != nil {
+			t.Errorf("close fake HID transport: %v", err)
+		}
+	})
+	return client, transport
 }
 
 // Each Write is one CTAPHID report. The fake parses wire framing rather than
 // returning client-layer structs, so real ctap.Client encoders and decoders run.
-func (f *fakeAuthenticator) Write(report []byte) (int, error) {
+func (f *fakeAuthenticator) Write(ctx context.Context, report []byte) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if len(report) < 6 || report[0] != 0 {
 		return 0, fmt.Errorf("invalid HID report")
 	}
@@ -113,13 +167,10 @@ func (f *fakeAuthenticator) Write(report []byte) (int, error) {
 	if f.command == ctaphid.CTAPHID_CANCEL {
 		f.cancelled = true
 		if f.condition == fakePendingTouch {
-			if f.cancelSignal == nil {
-				return 0, fmt.Errorf("pending transport has no cancellation signal")
-			}
-			if err := f.respond(ctaphid.CTAP2_ERR_KEEPALIVE_CANCEL, nil); err != nil {
+			if err := f.respond(ctaptransport.CTAP2_ERR_KEEPALIVE_CANCEL, nil); err != nil {
 				return 0, err
 			}
-			f.releasePending()
+			f.releaseRead()
 		}
 		return len(report), nil
 	}
@@ -129,7 +180,7 @@ func (f *fakeAuthenticator) Write(report []byte) (int, error) {
 	if len(request) == 0 {
 		return 0, fmt.Errorf("empty CTAP command")
 	}
-	status, body, err := f.handle(ctaptypes.Command(request[0]), request[1:])
+	status, body, err := f.handle(ctapprotocol.Command(request[0]), request[1:])
 	if err != nil {
 		return 0, err
 	}
@@ -137,91 +188,99 @@ func (f *fakeAuthenticator) Write(report []byte) (int, error) {
 		return len(report), nil
 	}
 	if f.condition == fakePendingTouch {
+		f.pendingOnce.Do(func() { close(f.pending) })
 		return len(report), nil
 	}
 	return len(report), f.respond(status, body)
 }
 
-func (f *fakeAuthenticator) respond(status ctaphid.StatusCode, body []byte) error {
+func (f *fakeAuthenticator) respond(status ctaptransport.StatusCode, body []byte) error {
 	msg, err := ctaphid.NewMessage(channelID, ctaphid.CTAPHID_CBOR, append([]byte{byte(status)}, body...))
 	if err != nil {
 		return err
 	}
-	_, err = msg.WriteTo(reportWriter{&f.response})
-	return err
+	for _, report := range msg.OutputReports() {
+		select {
+		case f.reports <- bytes.Clone(report[1:]):
+		default:
+			return fmt.Errorf("fake HID report queue full")
+		}
+	}
+	return nil
 }
 
-func (f *fakeAuthenticator) Read(dst []byte) (int, error) {
-	if f.condition == fakeRemoved {
+func (f *fakeAuthenticator) Read(ctx context.Context, dst []byte) (int, error) {
+	f.mu.Lock()
+	pending := f.condition == fakePendingTouch
+	f.mu.Unlock()
+	if pending {
+		f.readOnce.Do(func() { close(f.reading) })
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-f.closed:
+			return 0, io.ErrClosedPipe
+		case <-f.removed:
+			return 0, io.EOF
+		case <-f.readRelease:
+		}
+	}
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	case <-f.closed:
+		return 0, io.ErrClosedPipe
+	case <-f.removed:
 		return 0, io.EOF
+	case report := <-f.reports:
+		return copy(dst, report), nil
 	}
-	if f.condition == fakePendingTouch {
-		if f.reading == nil || f.cancelSignal == nil {
-			return 0, fmt.Errorf("pending transport missing lifecycle channels")
-		}
-		if !f.readStarted {
-			f.readStarted = true
-			close(f.reading)
-		}
-		<-f.cancelSignal
-	}
-	return f.response.Read(dst)
 }
 
-type reportWriter struct{ buffer *bytes.Buffer }
-
-func (w reportWriter) Write(report []byte) (int, error) {
-	if len(report) == 0 || report[0] != 0 {
-		return 0, fmt.Errorf("invalid generated report")
-	}
-	_, err := w.buffer.Write(report[1:])
-	return len(report), err
-}
-
-func (f *fakeAuthenticator) handle(command ctaptypes.Command, input []byte) (ctaphid.StatusCode, []byte, error) {
+func (f *fakeAuthenticator) handle(command ctapprotocol.Command, input []byte) (ctaptransport.StatusCode, []byte, error) {
 	if f.cancelled {
-		return ctaphid.CTAP2_ERR_KEEPALIVE_CANCEL, nil, nil
+		return ctaptransport.CTAP2_ERR_KEEPALIVE_CANCEL, nil, nil
 	}
 	switch command {
-	case ctaptypes.AuthenticatorClientPIN:
-		var req ctaptypes.AuthenticatorClientPINRequest
+	case ctapprotocol.AuthenticatorClientPIN:
+		var req ctapprotocol.AuthenticatorClientPINRequest
 		if err := cbor.Unmarshal(input, &req); err != nil {
 			return 0, nil, err
 		}
 		return f.clientPIN(req)
-	case ctaptypes.AuthenticatorMakeCredential:
-		var req ctaptypes.AuthenticatorMakeCredentialRequest
+	case ctapprotocol.AuthenticatorMakeCredential:
+		var req ctapprotocol.AuthenticatorMakeCredentialRequest
 		if err := cbor.Unmarshal(input, &req); err != nil {
 			return 0, nil, err
 		}
 		if len(req.PinUvAuthParam) == 0 {
-			return ctaphid.CTAP2_ERR_PUAT_REQUIRED, nil, nil
+			return ctaptransport.CTAP2_ERR_PUAT_REQUIRED, nil, nil
 		}
-		if req.RP.ID != rpID || !bytes.Equal(req.PinUvAuthParam, ctapcrypto.Authenticate(ctaptypes.PinUvAuthProtocolTwo, f.token, req.ClientDataHash)) {
-			return ctaphid.CTAP2_ERR_PIN_AUTH_INVALID, nil, nil
+		if req.RP.ID != rpID || !bytes.Equal(req.PinUvAuthParam, ctapcrypto.Authenticate(ctapprotocol.PinUvAuthProtocolTwo, f.token, req.ClientDataHash)) {
+			return ctaptransport.CTAP2_ERR_PIN_AUTH_INVALID, nil, nil
 		}
 		if f.condition == fakeNoTouch {
-			return ctaphid.CTAP2_ERR_USER_ACTION_TIMEOUT, nil, nil
+			return ctaptransport.CTAP2_ERR_USER_ACTION_TIMEOUT, nil, nil
 		}
 		data, err := f.authData(true)
 		if err != nil {
 			return 0, nil, err
 		}
 		body, err := cbor.Marshal(map[uint64]any{1: "none", 2: data, 3: map[string]any{}})
-		return ctaphid.CTAP2_OK, body, err
-	case ctaptypes.AuthenticatorGetAssertion:
-		var req ctaptypes.AuthenticatorGetAssertionRequest
+		return ctaptransport.CTAP2_OK, body, err
+	case ctapprotocol.AuthenticatorGetAssertion:
+		var req ctapprotocol.AuthenticatorGetAssertionRequest
 		if err := cbor.Unmarshal(input, &req); err != nil {
 			return 0, nil, err
 		}
-		if req.RPID != rpID || !bytes.Equal(req.PinUvAuthParam, ctapcrypto.Authenticate(ctaptypes.PinUvAuthProtocolTwo, f.token, req.ClientDataHash)) {
-			return ctaphid.CTAP2_ERR_PIN_AUTH_INVALID, nil, nil
+		if req.RPID != rpID || !bytes.Equal(req.PinUvAuthParam, ctapcrypto.Authenticate(ctapprotocol.PinUvAuthProtocolTwo, f.token, req.ClientDataHash)) {
+			return ctaptransport.CTAP2_ERR_PIN_AUTH_INVALID, nil, nil
 		}
 		if len(req.AllowList) != 1 || !bytes.Equal(req.AllowList[0].ID, f.credentialID) {
-			return ctaphid.CTAP2_ERR_NO_CREDENTIALS, nil, nil
+			return ctaptransport.CTAP2_ERR_NO_CREDENTIALS, nil, nil
 		}
 		if f.condition == fakeNoTouch {
-			return ctaphid.CTAP2_ERR_USER_ACTION_TIMEOUT, nil, nil
+			return ctaptransport.CTAP2_ERR_USER_ACTION_TIMEOUT, nil, nil
 		}
 		data, err := f.authData(false)
 		if err != nil {
@@ -233,28 +292,26 @@ func (f *fakeAuthenticator) handle(command ctaptypes.Command, input []byte) (cta
 			return 0, nil, err
 		}
 		body, err := cbor.Marshal(map[uint64]any{
-			1: webauthntypes.PublicKeyCredentialDescriptor{Type: webauthntypes.PublicKeyCredentialTypePublicKey, ID: f.credentialID},
+			1: credential.PublicKeyCredentialDescriptor{Type: credential.PublicKeyCredentialTypePublicKey, ID: f.credentialID},
 			2: data, 3: sig,
 		})
-		return ctaphid.CTAP2_OK, body, err
+		return ctaptransport.CTAP2_OK, body, err
 	default:
-		return ctaphid.CTAP1_ERR_INVALID_COMMAND, nil, nil
+		return ctaptransport.CTAP1_ERR_INVALID_COMMAND, nil, nil
 	}
 }
 
-func (f *fakeAuthenticator) clientPIN(req ctaptypes.AuthenticatorClientPINRequest) (ctaphid.StatusCode, []byte, error) {
+func (f *fakeAuthenticator) clientPIN(req ctapprotocol.AuthenticatorClientPINRequest) (ctaptransport.StatusCode, []byte, error) {
 	switch req.SubCommand {
-	case ctaptypes.ClientPINSubCommandGetKeyAgreement:
-		public, err := coseecdh.KeyFromPublic(f.agreement.PublicKey())
+	case ctapprotocol.ClientPINSubCommandGetKeyAgreement:
+		public, err := cose.KeyFromP256PublicKey(f.agreement.PublicKey())
 		if err != nil {
 			return 0, nil, err
 		}
-		delete(public, iana.KeyParameterKid)
-		public[iana.KeyParameterAlg] = -25
-		body, err := cbor.Marshal(ctaptypes.AuthenticatorClientPINResponse{KeyAgreement: public})
-		return ctaphid.CTAP2_OK, body, err
-	case ctaptypes.ClientPINSubCommandGetPinUvAuthTokenUsingPinWithPermissions:
-		peer, err := coseecdh.KeyToPublic(req.KeyAgreement)
+		body, err := cbor.Marshal(ctapprotocol.AuthenticatorClientPINResponse{KeyAgreement: public})
+		return ctaptransport.CTAP2_OK, body, err
+	case ctapprotocol.ClientPINSubCommandGetPinUvAuthTokenUsingPinWithPermissions:
+		peer, err := req.KeyAgreement.P256PublicKey()
 		if err != nil {
 			return 0, nil, err
 		}
@@ -272,19 +329,19 @@ func (f *fakeAuthenticator) clientPIN(req ctaptypes.AuthenticatorClientPINReques
 		}
 		wantHash := sha256.Sum256([]byte(pin))
 		if len(gotHash) < 16 || !bytes.Equal(gotHash[:16], wantHash[:16]) {
-			return ctaphid.CTAP2_ERR_PIN_INVALID, nil, nil
+			return ctaptransport.CTAP2_ERR_PIN_INVALID, nil, nil
 		}
-		if req.RPID != rpID || req.Permissions == ctaptypes.PermissionNone {
-			return ctaphid.CTAP2_ERR_UNAUTHORIZED_PERMISSION, nil, nil
+		if req.RPID != rpID || req.Permissions == ctapprotocol.PermissionNone {
+			return ctaptransport.CTAP2_ERR_UNAUTHORIZED_PERMISSION, nil, nil
 		}
 		encToken, err := protocoltwo.Encrypt(shared, f.token)
 		if err != nil {
 			return 0, nil, err
 		}
-		body, err := cbor.Marshal(ctaptypes.AuthenticatorClientPINResponse{PinUvAuthToken: encToken})
-		return ctaphid.CTAP2_OK, body, err
+		body, err := cbor.Marshal(ctapprotocol.AuthenticatorClientPINResponse{PinUvAuthToken: encToken})
+		return ctaptransport.CTAP2_OK, body, err
 	default:
-		return ctaphid.CTAP2_ERR_INVALID_SUBCOMMAND, nil, nil
+		return ctaptransport.CTAP2_ERR_INVALID_SUBCOMMAND, nil, nil
 	}
 }
 
@@ -347,13 +404,13 @@ func encodeClientData(t *testing.T, kind, challenge string) []byte {
 	return data
 }
 
-func pinToken(t *testing.T, client *ctapclient.Client, device *fakeAuthenticator, suppliedPIN string, permission ctaptypes.Permission) ([]byte, error) {
+func pinToken(t *testing.T, client *ctapclient.Client, suppliedPIN string, permission ctapprotocol.Permission) ([]byte, error) {
 	t.Helper()
-	agreement, err := client.GetKeyAgreement(device, channelID, ctaptypes.PinUvAuthProtocolTwo)
+	agreement, err := client.GetKeyAgreement(context.Background(), ctapprotocol.PinUvAuthProtocolTwo)
 	if err != nil {
 		return nil, err
 	}
-	return client.GetPinUvAuthTokenUsingPinWithPermissions(device, channelID, ctaptypes.PinUvAuthProtocolTwo, agreement, suppliedPIN, permission, rpID)
+	return client.GetPinUvAuthTokenUsingPinWithPermissions(context.Background(), ctapprotocol.PinUvAuthProtocolTwo, agreement, suppliedPIN, permission, rpID)
 }
 
 func registrationResponse(t *testing.T, clientDataJSON []byte, id, authData []byte) []byte {
@@ -441,31 +498,34 @@ func expectWebAuthnFailure(t *testing.T, err error, wantType, wantDetail string)
 	}
 }
 
-func firstAssertion(client *ctapclient.Client, device *fakeAuthenticator, token, clientDataJSON, credentialID []byte) (*ctaptypes.AuthenticatorGetAssertionResponse, error) {
-	for assertion, err := range client.GetAssertion(device, channelID, ctaptypes.PinUvAuthProtocolTwo, token, rpID, clientDataJSON,
-		[]webauthntypes.PublicKeyCredentialDescriptor{{Type: webauthntypes.PublicKeyCredentialTypePublicKey, ID: credentialID}}, nil,
-		map[ctaptypes.Option]bool{ctaptypes.OptionUserPresence: true, ctaptypes.OptionUserVerification: true}) {
-		return assertion, err
+func firstAssertion(ctx context.Context, client *ctapclient.Client, token, clientDataJSON, credentialID []byte) (*ctapprotocol.AuthenticatorGetAssertionResponse, error) {
+	hash := sha256.Sum256(clientDataJSON)
+	for assertion, err := range client.GetAssertion(ctx, ctapprotocol.PinUvAuthProtocolTwo, token, rpID, hash[:],
+		[]credential.PublicKeyCredentialDescriptor{{Type: credential.PublicKeyCredentialTypePublicKey, ID: credentialID}}, nil,
+		map[ctapprotocol.Option]bool{ctapprotocol.OptionUserPresence: true, ctapprotocol.OptionUserVerification: true}) {
+		return &assertion, err
 	}
 	return nil, fmt.Errorf("no assertion returned")
 }
 
-func TestNHA140CryptoRoundTripAndTampering(t *testing.T) {
-	server, user, client, device := newServer(t), &testUser{}, ctapclient.NewClient(), newFake(t)
+func TestNHA172CryptoRoundTripAndTampering(t *testing.T) {
+	server, user, device := newServer(t), &testUser{}, newFake(t)
+	client, _ := newClient(t, device)
 	_, registrationSession, err := server.BeginRegistration(user)
 	if err != nil {
 		t.Fatal(err)
 	}
 	registrationClientData := encodeClientData(t, "webauthn.create", registrationSession.Challenge)
-	token, err := pinToken(t, client, device, pin, ctaptypes.PermissionMakeCredential)
+	token, err := pinToken(t, client, pin, ctapprotocol.PermissionMakeCredential)
 	if err != nil {
 		t.Fatalf("correct PIN token: %v", err)
 	}
-	created, err := client.MakeCredential(device, channelID, ctaptypes.PinUvAuthProtocolTwo, token, registrationClientData,
-		webauthntypes.PublicKeyCredentialRpEntity{ID: rpID, Name: "Homeward"},
-		webauthntypes.PublicKeyCredentialUserEntity{ID: user.WebAuthnID(), Name: user.WebAuthnName(), DisplayName: user.WebAuthnDisplayName()},
-		[]webauthntypes.PublicKeyCredentialParameters{{Type: webauthntypes.PublicKeyCredentialTypePublicKey, Algorithm: -7}},
-		nil, nil, map[ctaptypes.Option]bool{ctaptypes.OptionUserPresence: true, ctaptypes.OptionUserVerification: true}, 0, nil)
+	registrationHash := sha256.Sum256(registrationClientData)
+	created, err := client.MakeCredential(context.Background(), ctapprotocol.PinUvAuthProtocolTwo, token, registrationHash[:],
+		credential.PublicKeyCredentialRpEntity{ID: rpID, Name: "Homeward"},
+		credential.PublicKeyCredentialUserEntity{ID: user.WebAuthnID(), Name: user.WebAuthnName(), DisplayName: user.WebAuthnDisplayName()},
+		[]credential.PublicKeyCredentialParameters{{Type: credential.PublicKeyCredentialTypePublicKey, Algorithm: cose.AlgorithmES256}},
+		nil, nil, map[ctapprotocol.Option]bool{ctapprotocol.OptionUserPresence: true, ctapprotocol.OptionUserVerification: true}, 0, nil)
 	if err != nil {
 		t.Fatalf("CTAP MakeCredential: %v", err)
 	}
@@ -483,11 +543,11 @@ func TestNHA140CryptoRoundTripAndTampering(t *testing.T) {
 		t.Fatal(err)
 	}
 	loginClientData := encodeClientData(t, "webauthn.get", loginSession.Challenge)
-	loginToken, err := pinToken(t, client, device, pin, ctaptypes.PermissionGetAssertion)
+	loginToken, err := pinToken(t, client, pin, ctapprotocol.PermissionGetAssertion)
 	if err != nil {
 		t.Fatalf("correct PIN login token: %v", err)
 	}
-	assertion, err := firstAssertion(client, device, loginToken, loginClientData, credential.ID)
+	assertion, err := firstAssertion(context.Background(), client, loginToken, loginClientData, credential.ID)
 	if err != nil {
 		t.Fatalf("CTAP GetAssertion: %v", err)
 	}
@@ -538,61 +598,114 @@ func TestNHA140CryptoRoundTripAndTampering(t *testing.T) {
 	}
 }
 
-func expectCTAPStatus(t *testing.T, err error, status ctaphid.StatusCode) {
+func expectCTAPStatus(t *testing.T, err error, status ctaptransport.StatusCode) {
 	t.Helper()
-	var typed *ctaphid.CTAPError
+	var typed *ctaptransport.CTAPError
 	if !errors.As(err, &typed) || typed.StatusCode != status {
 		t.Fatalf("wanted CTAP status %v, got %v", status, err)
 	}
 }
 
-func TestNHA140NativeFailureBranches(t *testing.T) {
+func TestNHA172NativeFailureBranches(t *testing.T) {
 	clientDataJSON := []byte(`{"type":"webauthn.get","challenge":"opaque-challenge","origin":"https://homeward.test"}`)
+	clientHash := sha256.Sum256(clientDataJSON)
 	t.Run("pin_required", func(t *testing.T) {
-		client, device := ctapclient.NewClient(), newFake(t)
-		_, err := client.MakeCredential(device, channelID, ctaptypes.PinUvAuthProtocolTwo, nil, clientDataJSON,
-			webauthntypes.PublicKeyCredentialRpEntity{ID: rpID}, webauthntypes.PublicKeyCredentialUserEntity{ID: []byte("user")}, nil, nil, nil, nil, 0, nil)
-		expectCTAPStatus(t, err, ctaphid.CTAP2_ERR_PUAT_REQUIRED)
+		device := newFake(t)
+		client, _ := newClient(t, device)
+		_, err := client.MakeCredential(context.Background(), ctapprotocol.PinUvAuthProtocolTwo, nil, clientHash[:],
+			credential.PublicKeyCredentialRpEntity{ID: rpID}, credential.PublicKeyCredentialUserEntity{ID: []byte("user")}, nil, nil, nil, nil, 0, nil)
+		expectCTAPStatus(t, err, ctaptransport.CTAP2_ERR_PUAT_REQUIRED)
 	})
 	t.Run("pin_incorrect", func(t *testing.T) {
-		client, device := ctapclient.NewClient(), newFake(t)
-		_, err := pinToken(t, client, device, "wrong-pin", ctaptypes.PermissionGetAssertion)
-		expectCTAPStatus(t, err, ctaphid.CTAP2_ERR_PIN_INVALID)
+		device := newFake(t)
+		client, _ := newClient(t, device)
+		_, err := pinToken(t, client, "wrong-pin", ctapprotocol.PermissionGetAssertion)
+		expectCTAPStatus(t, err, ctaptransport.CTAP2_ERR_PIN_INVALID)
 	})
 	for _, tc := range []struct {
 		name      string
 		condition fakeCondition
 		cancelled bool
-		want      ctaphid.StatusCode
+		want      ctaptransport.StatusCode
 	}{
-		{"touch_absent", fakeNoTouch, false, ctaphid.CTAP2_ERR_USER_ACTION_TIMEOUT},
-		{"cancelled", fakeReady, true, ctaphid.CTAP2_ERR_KEEPALIVE_CANCEL},
+		{"touch_absent", fakeNoTouch, false, ctaptransport.CTAP2_ERR_USER_ACTION_TIMEOUT},
+		{"cancelled_before_command", fakeReady, true, ctaptransport.CTAP2_ERR_KEEPALIVE_CANCEL},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			client, device := ctapclient.NewClient(), newFake(t)
-			device.condition = tc.condition
+			device := newFake(t)
+			client, transport := newClient(t, device)
+			device.setCondition(tc.condition)
 			if tc.cancelled {
-				if err := ctaphid.Cancel(device, channelID); err != nil {
+				if err := transport.Cancel(context.Background()); err != nil {
 					t.Fatal(err)
 				}
 			}
-			_, err := firstAssertion(client, device, device.token, clientDataJSON, device.credentialID)
+			_, err := firstAssertion(context.Background(), client, device.token, clientDataJSON, device.credentialID)
 			expectCTAPStatus(t, err, tc.want)
 		})
 	}
 	t.Run("transport_removed", func(t *testing.T) {
-		client, device := ctapclient.NewClient(), newFake(t)
-		device.condition = fakeRemoved
-		_, err := firstAssertion(client, device, device.token, clientDataJSON, device.credentialID)
+		device := newFake(t)
+		client, _ := newClient(t, device)
+		device.setCondition(fakeRemoved)
+		_, err := firstAssertion(context.Background(), client, device.token, clientDataJSON, device.credentialID)
 		if !errors.Is(err, io.EOF) {
 			t.Fatalf("expected disconnected transport EOF, got %v", err)
 		}
 	})
 	t.Run("cancel_in_flight", func(t *testing.T) {
-		client, device := ctapclient.NewClient(), newFake(t)
-		device.condition = fakePendingTouch
-		device.reading = make(chan struct{})
-		device.cancelSignal = make(chan struct{})
+		device := newFake(t)
+		device.setCondition(fakePendingTouch)
+		client, _ := newClient(t, device)
+		select {
+		case <-device.reading:
+		case <-time.After(5 * time.Second):
+			t.Fatal("fake HID did not block in Read")
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		result := make(chan error, 1)
+		done := make(chan struct{})
+		t.Cleanup(func() {
+			cancel()
+			device.releasePending()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Error("CTAP client goroutine did not finish during cleanup")
+			}
+		})
+		go func() {
+			defer close(done)
+			_, err := firstAssertion(ctx, client, device.token, clientDataJSON, device.credentialID)
+			result <- err
+		}()
+		select {
+		case <-device.pending:
+		case <-time.After(5 * time.Second):
+			t.Fatal("CTAP client did not enter the pending HID exchange")
+		}
+		cancel()
+		select {
+		case err := <-result:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("want context cancellation after CTAPHID_CANCEL, got %v", err)
+			}
+			if !device.wasCancelled() {
+				t.Fatal("client did not send CTAPHID_CANCEL")
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("CTAP client did not finish after cancellation")
+		}
+	})
+	t.Run("remove_in_flight", func(t *testing.T) {
+		device := newFake(t)
+		device.setCondition(fakePendingTouch)
+		client, _ := newClient(t, device)
+		select {
+		case <-device.reading:
+		case <-time.After(5 * time.Second):
+			t.Fatal("fake HID did not block in Read")
+		}
 		result := make(chan error, 1)
 		done := make(chan struct{})
 		t.Cleanup(func() {
@@ -605,22 +718,22 @@ func TestNHA140NativeFailureBranches(t *testing.T) {
 		})
 		go func() {
 			defer close(done)
-			_, err := firstAssertion(client, device, device.token, clientDataJSON, device.credentialID)
+			_, err := firstAssertion(context.Background(), client, device.token, clientDataJSON, device.credentialID)
 			result <- err
 		}()
 		select {
-		case <-device.reading:
+		case <-device.pending:
 		case <-time.After(5 * time.Second):
-			t.Fatal("CTAP client did not enter the transport read")
+			t.Fatal("CTAP client did not enter the pending HID exchange")
 		}
-		if err := ctaphid.Cancel(device, channelID); err != nil {
-			t.Fatalf("send CTAPHID_CANCEL: %v", err)
-		}
+		device.setCondition(fakeRemoved)
 		select {
 		case err := <-result:
-			expectCTAPStatus(t, err, ctaphid.CTAP2_ERR_KEEPALIVE_CANCEL)
+			if !errors.Is(err, io.EOF) {
+				t.Fatalf("want in-flight removal EOF, got %v", err)
+			}
 		case <-time.After(5 * time.Second):
-			t.Fatal("CTAP client did not finish after cancellation")
+			t.Fatal("CTAP client did not finish after removal")
 		}
 	})
 }

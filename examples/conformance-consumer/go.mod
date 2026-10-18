@@ -1,6 +1,6 @@
 module example.com/homeward-conformance-consumer
 
-go 1.25.2
+go 1.27.2
 
 require github.com/damione1/Homeward v0.0.0
 
