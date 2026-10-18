@@ -108,11 +108,14 @@ func TestNHA016FakeDriverSessionOwnershipAndReconnect(t *testing.T) {
 		t.Fatal("fake state changed")
 	}
 	firstSessionID, _, _ := firstSource.Components()
-	events := fixture.Events()
+	events, err := fixture.Events()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(events) != 1 || events[0].Entity != entity {
 		t.Fatalf("fake event count/identity: %+v", events)
 	}
-	eventSessionID, _, _ := events[0].Event.Source.Components()
+	eventSessionID, _, _ := events[0].Source.Components()
 	if firstSessionID != eventSessionID {
 		t.Fatal("state and event source sessions differ")
 	}
@@ -137,7 +140,7 @@ func TestNHA016FakeDriverSessionOwnershipAndReconnect(t *testing.T) {
 	if got, _ := fixture.State(entity); got != state {
 		t.Fatal("foreign publish mutated state")
 	}
-	if len(fixture.Events()) != 1 {
+	if events, err := fixture.Events(); err != nil || len(events) != 1 {
 		t.Fatal("foreign emit mutated event log")
 	}
 
@@ -156,7 +159,7 @@ func TestNHA016FakeDriverSessionOwnershipAndReconnect(t *testing.T) {
 	if got, _ := fixture.State(entity); got != state {
 		t.Fatal("revoked publish mutated state")
 	}
-	if len(fixture.Events()) != 1 {
+	if events, err := fixture.Events(); err != nil || len(events) != 1 {
 		t.Fatal("revoked emit mutated event log")
 	}
 
@@ -178,7 +181,7 @@ func TestNHA016FakeDriverSessionOwnershipAndReconnect(t *testing.T) {
 	}
 	newState, _ := fixture.State(entity)
 	_, _, times, newSource, revision, err := newState.Components()
-	if err != nil || revision != 2 || !times.LastReported.Equal(at.Add(-time.Second)) {
+	if err != nil || revision != 2 || times.ObservedAt == nil || !times.ObservedAt.Equal(at.Add(-time.Second)) || times.LastReported.IsZero() {
 		t.Fatalf("reconnection revision/wall clock: %+v %d %v", times, revision, err)
 	}
 	newSessionID, _, _ := newSource.Components()
@@ -193,7 +196,8 @@ func TestNHA016FakeDriverSessionOwnershipAndReconnect(t *testing.T) {
 	}
 	final, _ := fixture.State(entity)
 	_, _, _, _, revision, _ = final.Components()
-	if revision != 3 || len(fixture.Events()) != 2 {
+	events, err = fixture.Events()
+	if revision != 3 || err != nil || len(events) != 2 {
 		t.Fatal("current owner/state/event admission was not isolated")
 	}
 	replacement, err := host.OpenSession(instance)

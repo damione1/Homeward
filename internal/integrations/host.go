@@ -99,6 +99,7 @@ type StateObservation struct {
 	observedAt *time.Time
 	receivedAt time.Time
 	sequence   *uint64
+	causality  domain.Causality
 }
 
 func NewStateObservation(endpoint string, quality domain.Quality, value *domain.StateValue, observedAt *time.Time, receivedAt time.Time, sequence *uint64) (StateObservation, error) {
@@ -128,10 +129,47 @@ func NewStateObservation(endpoint string, quality domain.Quality, value *domain.
 type AcceptedState struct {
 	observation StateObservation
 	source      domain.SourceStamp
+	instance    domain.IntegrationInstanceID
 }
 
 func (s AcceptedState) Report(revision uint64) (domain.StateReport, error) {
 	return domain.NewStateReport(s.observation.quality, s.observation.value, s.observation.observedAt, s.observation.receivedAt, s.source, revision)
+}
+
+// ReportAt uses the sequencer's local admission clock. The observation's
+// receivedAt remains available to older direct Sink fixtures but is not the
+// authoritative receipt time for a sequenced mutation.
+func (s AcceptedState) ReportAt(revision uint64, receivedAt time.Time) (domain.StateReport, error) {
+	return domain.NewStateReport(s.observation.quality, s.observation.value, s.observation.observedAt, receivedAt, s.source, revision)
+}
+
+func (s StateObservation) WithCausality(causality domain.Causality) (StateObservation, error) {
+	if _, _, err := causality.Components(); err != nil {
+		return StateObservation{}, err
+	}
+	if _, err := domain.NewStateReport(s.quality, s.value, s.observedAt, s.receivedAt, mustProbeSource(), 1); err != nil {
+		return StateObservation{}, err
+	}
+	s.causality = causality
+	return s, nil
+}
+
+func (s AcceptedState) Metadata() (domain.IntegrationInstanceID, domain.SourceStamp, domain.Causality, error) {
+	if _, err := s.instance.Value(); err != nil {
+		return domain.IntegrationInstanceID{}, domain.SourceStamp{}, domain.Causality{}, err
+	}
+	if _, _, err := s.source.Components(); err != nil {
+		return domain.IntegrationInstanceID{}, domain.SourceStamp{}, domain.Causality{}, err
+	}
+	if _, _, err := s.observation.causality.Components(); err != nil {
+		return domain.IntegrationInstanceID{}, domain.SourceStamp{}, domain.Causality{}, err
+	}
+	return s.instance, s.source, s.observation.causality, nil
+}
+
+func mustProbeSource() domain.SourceStamp {
+	stamp, _ := domain.NewSourceStamp("host-admission-probe", nil)
+	return stamp
 }
 
 var eventCode = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,127}$`)
@@ -141,6 +179,7 @@ type DeviceEvent struct {
 	code       string
 	observedAt time.Time
 	sequence   *uint64
+	causality  domain.Causality
 }
 
 func NewDeviceEvent(code string, observedAt time.Time, sequence *uint64) (DeviceEvent, error) {
@@ -166,9 +205,37 @@ func (e DeviceEvent) Components() (string, time.Time, *uint64, error) {
 	return e.code, e.observedAt, nil, nil
 }
 
+func (e DeviceEvent) WithCausality(causality domain.Causality) (DeviceEvent, error) {
+	if _, _, _, err := e.Components(); err != nil {
+		return DeviceEvent{}, err
+	}
+	if _, _, err := causality.Components(); err != nil {
+		return DeviceEvent{}, err
+	}
+	e.causality = causality
+	return e, nil
+}
+
 type AcceptedEvent struct {
-	Event  DeviceEvent
-	Source domain.SourceStamp
+	Event    DeviceEvent
+	Source   domain.SourceStamp
+	instance domain.IntegrationInstanceID
+}
+
+func (e AcceptedEvent) Metadata() (domain.IntegrationInstanceID, domain.Causality, error) {
+	if _, err := e.instance.Value(); err != nil {
+		return domain.IntegrationInstanceID{}, domain.Causality{}, err
+	}
+	if _, _, _, err := e.Event.Components(); err != nil {
+		return domain.IntegrationInstanceID{}, domain.Causality{}, err
+	}
+	if _, _, err := e.Source.Components(); err != nil {
+		return domain.IntegrationInstanceID{}, domain.Causality{}, err
+	}
+	if _, _, err := e.Event.causality.Components(); err != nil {
+		return domain.IntegrationInstanceID{}, domain.Causality{}, err
+	}
+	return e.instance, e.Event.causality, nil
 }
 
 type HealthStatus uint8
@@ -181,20 +248,46 @@ const (
 )
 
 type HealthReport struct {
-	status HealthStatus
-	detail string
+	status    HealthStatus
+	detail    string
+	source    domain.SourceStamp
+	causality domain.Causality
 }
 
 func NewHealthReport(status HealthStatus, detail string) (HealthReport, error) {
 	switch status {
 	case HealthReady, HealthDegraded, HealthUnavailable:
 		if len(detail) <= 512 && utf8.ValidString(detail) {
-			return HealthReport{status, detail}, nil
+			return HealthReport{status: status, detail: detail}, nil
 		}
 	case HealthUnspecified:
 	default:
 	}
 	return HealthReport{}, ErrInvalidInput
+}
+
+func (h HealthReport) WithCausality(causality domain.Causality) (HealthReport, error) {
+	if _, _, err := h.Components(); err != nil {
+		return HealthReport{}, err
+	}
+	if _, _, err := causality.Components(); err != nil {
+		return HealthReport{}, err
+	}
+	h.causality = causality
+	return h, nil
+}
+
+func (h HealthReport) Metadata() (domain.SourceStamp, domain.Causality, error) {
+	if _, _, err := h.Components(); err != nil {
+		return domain.SourceStamp{}, domain.Causality{}, err
+	}
+	if _, _, err := h.source.Components(); err != nil {
+		return domain.SourceStamp{}, domain.Causality{}, err
+	}
+	if _, _, err := h.causality.Components(); err != nil {
+		return domain.SourceStamp{}, domain.Causality{}, err
+	}
+	return h.source, h.causality, nil
 }
 
 func (h HealthReport) Components() (HealthStatus, string, error) {
@@ -516,7 +609,10 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 	if !supported {
 		return ErrInvalidInput
 	}
-	return h.sink.AcceptState(ctx, binding.entity, AcceptedState{observation: observation, source: probe})
+	if _, _, err := observation.causality.Components(); err != nil {
+		return err
+	}
+	return h.sink.AcceptState(ctx, binding.entity, AcceptedState{observation: observation, source: probe, instance: s.instance})
 }
 
 func (s *Session) Emit(ctx context.Context, binding Binding, event DeviceEvent) error {
@@ -542,7 +638,10 @@ func (s *Session) Emit(ctx context.Context, binding Binding, event DeviceEvent) 
 	if err != nil {
 		return err
 	}
-	return h.sink.AcceptEvent(ctx, binding.entity, AcceptedEvent{Event: event, Source: source})
+	if _, _, err := event.causality.Components(); err != nil {
+		return err
+	}
+	return h.sink.AcceptEvent(ctx, binding.entity, AcceptedEvent{Event: event, Source: source, instance: s.instance})
 }
 
 func (s *Session) ReportHealth(ctx context.Context, report HealthReport) error {
@@ -564,5 +663,9 @@ func (s *Session) ReportHealth(ctx context.Context, report HealthReport) error {
 	if _, _, err := report.Components(); err != nil {
 		return err
 	}
+	if _, _, err := report.causality.Components(); err != nil {
+		return err
+	}
+	report.source, _ = domain.NewSourceStamp(s.id, nil)
 	return h.sink.AcceptHealth(ctx, s.instance, report)
 }

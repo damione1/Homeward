@@ -14,10 +14,10 @@ import (
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
+	"github.com/damione1/Homeward/internal/sequencer"
 )
 
 const maxEntities = 1024
-const maxEvents = 256
 
 var ErrFixtureFull = errors.New("fake Host fixture is full")
 
@@ -30,26 +30,35 @@ type entityKey struct {
 	source   integrations.SourceKey
 }
 
-// Fixture implements both injected Host seams for SDK tests only. Its local
-// per-entity revision is not a global sequence or production state store.
+// Fixture supplies in-memory identities and delegates every accepted mutation
+// to one sequencer. It has no parallel state or revision authority.
 type Fixture struct {
 	mu       sync.Mutex
 	devices  map[deviceKey]domain.DeviceID
 	entities map[entityKey]integrations.ResolvedIdentity
-	states   map[domain.EntityID]domain.ObservedState
-	events   []RecordedEvent
-	health   map[domain.IntegrationInstanceID]integrations.HealthReport
+	sequence *sequencer.Sequencer
 }
 
 type RecordedEvent struct {
-	Entity domain.EntityID
-	Event  integrations.AcceptedEvent
+	Entity    domain.EntityID
+	Event     integrations.DeviceEvent
+	Source    domain.SourceStamp
+	Instance  domain.IntegrationInstanceID
+	Causality domain.Causality
 }
 
 func NewFixture() (*integrations.Manager, *Fixture, error) {
+	return NewFixtureWithClock(sequencer.RealClock{})
+}
+
+func NewFixtureWithClock(clock sequencer.Clock) (*integrations.Manager, *Fixture, error) {
+	sequence, err := sequencer.New(clock, 16384)
+	if err != nil {
+		return nil, nil, err
+	}
 	fixture := &Fixture{
 		devices: make(map[deviceKey]domain.DeviceID), entities: make(map[entityKey]integrations.ResolvedIdentity),
-		states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport),
+		sequence: sequence,
 	}
 	catalog, err := contracts.NewCapabilityCatalog(domain.NewUnitCatalog())
 	if err != nil {
@@ -57,6 +66,13 @@ func NewFixture() (*integrations.Manager, *Fixture, error) {
 	}
 	host, err := integrations.NewHost(fixture, fixture, catalog)
 	return host, fixture, err
+}
+
+func (f *Fixture) Sequencer() *sequencer.Sequencer {
+	if f == nil {
+		return nil
+	}
+	return f.sequence
 }
 
 func (f *Fixture) Resolve(ctx context.Context, instance domain.IntegrationInstanceID, keys []integrations.SourceKey) ([]integrations.ResolvedIdentity, error) {
@@ -127,116 +143,67 @@ func (f *Fixture) Resolve(ctx context.Context, instance domain.IntegrationInstan
 }
 
 func (f *Fixture) AcceptState(ctx context.Context, entity domain.EntityID, state integrations.AcceptedState) error {
-	if f == nil || ctx == nil {
+	if f == nil || f.sequence == nil {
 		return integrations.ErrInvalidInput
 	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.states == nil {
-		return integrations.ErrInvalidInput
-	}
-	previous, exists := f.states[entity]
-	var prev *domain.ObservedState
-	var revision uint64 = 1
-	if exists {
-		prev = &previous
-		_, _, _, _, current, err := previous.Components()
-		if err != nil {
-			return err
-		}
-		revision = current + 1
-	}
-	report, err := state.Report(revision)
-	if err != nil {
-		return err
-	}
-	next, _, err := domain.ApplyStateReport(entity, prev, report)
-	if err != nil {
-		return err
-	}
-	f.states[entity] = next
-	return nil
+	return f.sequence.AcceptState(ctx, entity, state)
 }
 
 func (f *Fixture) AcceptEvent(ctx context.Context, entity domain.EntityID, event integrations.AcceptedEvent) error {
-	if f == nil || ctx == nil {
+	if f == nil || f.sequence == nil {
 		return integrations.ErrInvalidInput
 	}
-	if _, err := entity.Value(); err != nil {
-		return err
-	}
-	if _, _, _, err := event.Event.Components(); err != nil {
-		return err
-	}
-	if _, _, err := event.Source.Components(); err != nil {
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.entities == nil {
-		return integrations.ErrInvalidInput
-	}
-	if len(f.events) >= maxEvents {
-		return ErrFixtureFull
-	}
-	f.events = append(f.events, RecordedEvent{Entity: entity, Event: event})
-	return nil
+	return f.sequence.AcceptEvent(ctx, entity, event)
 }
 
 func (f *Fixture) AcceptHealth(ctx context.Context, instance domain.IntegrationInstanceID, report integrations.HealthReport) error {
-	if f == nil || ctx == nil {
+	if f == nil || f.sequence == nil {
 		return integrations.ErrInvalidInput
 	}
-	if _, err := instance.Value(); err != nil {
-		return err
-	}
-	if _, _, err := report.Components(); err != nil {
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.health == nil {
-		return integrations.ErrInvalidInput
-	}
-	f.health[instance] = report
-	return nil
+	return f.sequence.AcceptHealth(ctx, instance, report)
 }
 
 func (f *Fixture) State(entity domain.EntityID) (domain.ObservedState, bool) {
-	if f == nil {
+	if f == nil || f.sequence == nil {
 		return domain.ObservedState{}, false
 	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	state, ok := f.states[entity]
+	state, ok, _ := f.sequence.State(entity)
 	return state, ok
 }
 
-func (f *Fixture) Events() []RecordedEvent {
-	if f == nil {
-		return nil
+func (f *Fixture) Events() ([]RecordedEvent, error) {
+	if f == nil || f.sequence == nil {
+		return nil, integrations.ErrInvalidInput
 	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return append([]RecordedEvent(nil), f.events...)
+	start, err := f.sequence.Start()
+	if err != nil {
+		return nil, err
+	}
+	entries, _, err := f.sequence.ReadAfter(start, 16384)
+	if err != nil {
+		return nil, err
+	}
+	events := make([]RecordedEvent, 0)
+	for _, entry := range entries {
+		entity, event, ok := entry.Event()
+		if !ok {
+			continue
+		}
+		instance, source, causality := entry.Origin()
+		events = append(events, RecordedEvent{Entity: entity, Event: event, Source: source, Instance: instance, Causality: causality})
+	}
+	return events, nil
 }
 
 func (f *Fixture) Health(instance domain.IntegrationInstanceID) (integrations.HealthReport, bool) {
-	if f == nil {
+	if f == nil || f.sequence == nil {
 		return integrations.HealthReport{}, false
 	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	report, ok := f.health[instance]
+	snapshot, err := f.sequence.Capture()
+	if err != nil {
+		return integrations.HealthReport{}, false
+	}
+	report, ok := snapshot.Health[instance]
 	return report, ok
 }
 
