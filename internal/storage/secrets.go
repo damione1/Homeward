@@ -81,6 +81,28 @@ type SecretHandle struct {
 	name     SecretName
 }
 
+// SecretRevision is an opaque comparison token for one encrypted handle. It
+// cannot be constructed by a caller from a SQL revision or another handle.
+type SecretRevision struct {
+	handle SecretHandle
+	number int64
+}
+
+func (v SecretRevision) validFor(handle SecretHandle) bool {
+	return v.number > 0 && v.handle == handle
+}
+
+// NewerThan compares revisions only within the same authenticated handle.
+// It reveals ordering without exposing the SQL revision or allowing callers
+// to construct a comparison token.
+func (v SecretRevision) NewerThan(previous SecretRevision) bool {
+	return v.validFor(previous.handle) && previous.validFor(v.handle) && v.number > previous.number
+}
+
+func (v SecretRevision) String() string               { return "[REDACTED SECRET REVISION]" }
+func (v SecretRevision) GoString() string             { return v.String() }
+func (v SecretRevision) MarshalJSON() ([]byte, error) { return json.Marshal(v.String()) }
+
 func NewSecretHandle(instance domain.IntegrationInstanceID, name SecretName) (SecretHandle, error) {
 	if _, err := instance.Value(); err != nil {
 		return SecretHandle{}, &Error{kind: SecretInvalid}
@@ -433,6 +455,20 @@ func publishMasterFile(root *os.Root, key masterKey) error {
 
 // RotateCredential replaces only one handle and advances its authenticated revision.
 func (r *SecretRepository) RotateCredential(ctx context.Context, handle SecretHandle, value SecretValue) error {
+	return r.rotateCredential(ctx, handle, value, nil)
+}
+
+// RotateCredentialIfRevision refuses a stale refresh without overwriting a
+// newer manual rotation. A commit whose outcome is unknown is never reported
+// as a successful replacement.
+func (r *SecretRepository) RotateCredentialIfRevision(ctx context.Context, handle SecretHandle, expected SecretRevision, value SecretValue) error {
+	if !expected.validFor(handle) {
+		return &Error{kind: SecretInvalid}
+	}
+	return r.rotateCredential(ctx, handle, value, &expected)
+}
+
+func (r *SecretRepository) rotateCredential(ctx context.Context, handle SecretHandle, value SecretValue, expected *SecretRevision) error {
 	if ctx == nil || r == nil || r.store == nil || !r.key.valid() {
 		return &Error{kind: SecretInvalid}
 	}
@@ -471,6 +507,10 @@ func (r *SecretRepository) RotateCredential(ctx context.Context, handle SecretHa
 		} else if _, e = r.open(handle, revision, oldSalt, oldCiphertext); e != nil {
 			callbackErr = e
 			return e
+		}
+		if expected != nil && revision != expected.number {
+			callbackErr = &Error{kind: SecretConflict}
+			return callbackErr
 		}
 		if revision == int64(^uint64(0)>>1) {
 			callbackErr = &Error{kind: SecretInvalid}
@@ -513,12 +553,19 @@ func (r *SecretRepository) RotateCredential(ctx context.Context, handle SecretHa
 }
 
 func (r *SecretRepository) Read(ctx context.Context, handle SecretHandle) (SecretValue, error) {
+	value, _, err := r.ReadCredentialVersioned(ctx, handle)
+	return value, err
+}
+
+// ReadCredentialVersioned returns a secret and the authenticated revision
+// observed in the same SQL row. The version is valid only for this handle.
+func (r *SecretRepository) ReadCredentialVersioned(ctx context.Context, handle SecretHandle) (SecretValue, SecretRevision, error) {
 	if ctx == nil || r == nil || r.store == nil || !r.key.valid() {
-		return SecretValue{}, &Error{kind: SecretInvalid}
+		return SecretValue{}, SecretRevision{}, &Error{kind: SecretInvalid}
 	}
 	iID, nID, err := handle.Components()
 	if err != nil {
-		return SecretValue{}, err
+		return SecretValue{}, SecretRevision{}, err
 	}
 	i, _ := iID.Value()
 	n, _ := nID.Value()
@@ -527,20 +574,24 @@ func (r *SecretRepository) Read(ctx context.Context, handle SecretHandle) (Secre
 	var suite string
 	err = r.store.pool.QueryRow(ctx, `SELECT revision,key_id,suite,salt,ciphertext FROM public.integration_secrets WHERE instance_id=$1 AND secret_name=$2`, i, n).Scan(&revision, &keyID, &suite, &salt, &ciphertext)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return SecretValue{}, &Error{kind: SecretNotFound}
+		return SecretValue{}, SecretRevision{}, &Error{kind: SecretNotFound}
 	}
 	if err != nil {
-		return SecretValue{}, &Error{kind: SecretUnavailable}
+		return SecretValue{}, SecretRevision{}, &Error{kind: SecretUnavailable}
 	}
 	parsedSuite, parseErr := parseSecretCipherSuite(suite)
 	if revision < 1 || parseErr != nil || parsedSuite != secretCipherSuiteAES256GCMHKDFSHA256V1 || len(salt) != 32 || !equalKeyID(keyID, r.key.id[:]) {
-		return SecretValue{}, &Error{kind: SecretIntegrity}
+		return SecretValue{}, SecretRevision{}, &Error{kind: SecretIntegrity}
 	}
 	plain, err := r.open(handle, revision, salt, ciphertext)
 	if err != nil {
-		return SecretValue{}, err
+		return SecretValue{}, SecretRevision{}, err
 	}
-	return NewSecretValue(plain)
+	value, err := NewSecretValue(plain)
+	if err != nil {
+		return SecretValue{}, SecretRevision{}, err
+	}
+	return value, SecretRevision{handle: handle, number: revision}, nil
 }
 
 func (r *SecretRepository) seal(handle SecretHandle, revision int64, salt, plain []byte) ([]byte, error) {
