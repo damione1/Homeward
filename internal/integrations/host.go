@@ -316,6 +316,13 @@ type Binding struct {
 	session  string
 }
 
+func (b Binding) Source() (domain.IntegrationInstanceID, SourceKey, error) {
+	if _, _, err := b.IDs(); err != nil {
+		return domain.IntegrationInstanceID{}, SourceKey{}, err
+	}
+	return b.instance, b.key, nil
+}
+
 func (b Binding) IDs() (domain.DeviceID, domain.EntityID, error) {
 	if _, err := b.device.Value(); err != nil {
 		return domain.DeviceID{}, domain.EntityID{}, ErrInvalidInput
@@ -347,27 +354,30 @@ type Driver interface {
 }
 
 type Manager struct {
-	mu        sync.Mutex
-	authority IdentityAuthority
-	sink      Sink
-	catalog   *contracts.CapabilityCatalog
-	active    map[domain.IntegrationInstanceID]*Session
-	owners    map[domain.EntityID]Binding
+	mu            sync.Mutex
+	authority     IdentityAuthority
+	sink          Sink
+	catalog       *contracts.CapabilityCatalog
+	active        map[domain.IntegrationInstanceID]*Session
+	owners        map[domain.EntityID]Binding
+	commandOwners map[commandOwnerSlot]domain.EntityID
+	inflight      map[commandEndpointSlot]bool
 }
 
 type Session struct {
-	host     *Manager
-	instance domain.IntegrationInstanceID
-	id       string
-	active   bool
-	bindings map[domain.EntityID]Binding
+	host          *Manager
+	instance      domain.IntegrationInstanceID
+	id            string
+	active        bool
+	bindings      map[domain.EntityID]Binding
+	commandDriver CommandDriver
 }
 
 func NewHost(authority IdentityAuthority, sink Sink, catalog *contracts.CapabilityCatalog) (*Manager, error) {
 	if nilInterface(authority) || nilInterface(sink) || !catalog.Ready() {
 		return nil, ErrInvalidInput
 	}
-	return &Manager{authority: authority, sink: sink, catalog: catalog, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding)}, nil
+	return &Manager{authority: authority, sink: sink, catalog: catalog, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool)}, nil
 }
 
 // Capabilities returns the admitted declarations for a bound Host entity. It

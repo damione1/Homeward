@@ -34,6 +34,9 @@ func validateEnvelope(c *actions.CommandRequest, epoch string, revision uint64) 
 	if c == nil || c.CommandId == "" {
 		return fail(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "command_id")
 	}
+	if err := RejectUnknownCommandFields(c); err != nil {
+		return err
+	}
 	if c.AdmissionEpoch == "" || epoch == "" {
 		return fail(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "admission_epoch")
 	}
@@ -45,6 +48,27 @@ func validateEnvelope(c *actions.CommandRequest, epoch string, revision uint64) 
 	}
 	if !validTarget(c.Target) {
 		return fail(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target")
+	}
+	return nil
+}
+
+// RejectUnknownCommandFields keeps future wire fields decodable but denies
+// operational admission until this server understands their semantics.
+func RejectUnknownCommandFields(c *actions.CommandRequest) *actions.ContractError {
+	if c == nil {
+		return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "command", "unknown command field")
+	}
+	if len(c.ProtoReflect().GetUnknown()) != 0 {
+		return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "command", "unknown command field")
+	}
+	if c.Target != nil && !knownFieldsOnly(c.Target.ProtoReflect()) {
+		return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target", "unknown target field")
+	}
+	if c.Arguments != nil && !knownFieldsOnly(c.Arguments.ProtoReflect()) {
+		return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments", "unknown argument field")
+	}
+	if c.ExpiresAt != nil && !knownFieldsOnly(c.ExpiresAt.ProtoReflect()) {
+		return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at", "unknown timestamp field")
 	}
 	return nil
 }

@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
+	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/sequencer"
+	"google.golang.org/protobuf/proto"
 )
 
 const maxEntities = 1024
@@ -52,6 +54,16 @@ func NewFixture() (*integrations.Manager, *Fixture, error) {
 }
 
 func NewFixtureWithClock(clock sequencer.Clock) (*integrations.Manager, *Fixture, error) {
+	return newFixture(clock, false)
+}
+
+// NewCommandFixture enables the in-memory registry/capability projection used
+// by command tests. Legacy state fixtures keep their original three reports.
+func NewCommandFixture() (*integrations.Manager, *Fixture, error) {
+	return newFixture(sequencer.RealClock{}, true)
+}
+
+func newFixture(clock sequencer.Clock, commandProjection bool) (*integrations.Manager, *Fixture, error) {
 	sequence, err := sequencer.New(clock, 16384)
 	if err != nil {
 		return nil, nil, err
@@ -64,8 +76,24 @@ func NewFixtureWithClock(clock sequencer.Clock) (*integrations.Manager, *Fixture
 	if err != nil {
 		return nil, nil, err
 	}
-	host, err := integrations.NewHost(fixture, fixture, catalog)
+	var sink integrations.Sink = fixtureStateSink{fixture}
+	if commandProjection {
+		sink = fixture
+	}
+	host, err := integrations.NewHost(fixture, sink, catalog)
 	return host, fixture, err
+}
+
+type fixtureStateSink struct{ fixture *Fixture }
+
+func (s fixtureStateSink) AcceptState(ctx context.Context, entity domain.EntityID, state integrations.AcceptedState) error {
+	return s.fixture.AcceptState(ctx, entity, state)
+}
+func (s fixtureStateSink) AcceptEvent(ctx context.Context, entity domain.EntityID, event integrations.AcceptedEvent) error {
+	return s.fixture.AcceptEvent(ctx, entity, event)
+}
+func (s fixtureStateSink) AcceptHealth(ctx context.Context, instance domain.IntegrationInstanceID, health integrations.HealthReport) error {
+	return s.fixture.AcceptHealth(ctx, instance, health)
 }
 
 func (f *Fixture) Sequencer() *sequencer.Sequencer {
@@ -73,6 +101,40 @@ func (f *Fixture) Sequencer() *sequencer.Sequencer {
 		return nil
 	}
 	return f.sequence
+}
+
+func (f *Fixture) PublishRegistry(ctx context.Context, records []integrations.RegistryRecord) error {
+	if f == nil || f.sequence == nil {
+		return integrations.ErrInvalidInput
+	}
+	return f.sequence.PublishRegistry(ctx, records)
+}
+
+func (f *Fixture) AcceptDiscovery(ctx context.Context, declarations []integrations.DiscoveryDeclaration) error {
+	if f == nil || f.sequence == nil {
+		return integrations.ErrInvalidInput
+	}
+	return f.sequence.AcceptDiscovery(ctx, declarations)
+}
+
+func (f *Fixture) InvalidateRegistry() {
+	if f != nil && f.sequence != nil {
+		f.sequence.InvalidateRegistry()
+	}
+}
+
+func (f *Fixture) ResolveCommandAlias(alias domain.HAAlias) (domain.EntityID, error) {
+	if f == nil || f.sequence == nil {
+		return domain.EntityID{}, integrations.ErrInvalidInput
+	}
+	return f.sequence.ResolveCommandAlias(alias)
+}
+
+func (f *Fixture) AdmitCommandRoute(route integrations.CommandRoute) error {
+	if f == nil || f.sequence == nil {
+		return integrations.ErrInvalidInput
+	}
+	return f.sequence.AdmitCommandRoute(route)
 }
 
 func (f *Fixture) Resolve(ctx context.Context, instance domain.IntegrationInstanceID, keys []integrations.SourceKey) ([]integrations.ResolvedIdentity, error) {
@@ -140,6 +202,28 @@ func (f *Fixture) Resolve(ctx context.Context, instance domain.IntegrationInstan
 		f.entities[ek] = out[i]
 	}
 	return out, nil
+}
+
+// DeclareSharedDevice supplies an explicit physical identity in a fixture.
+// Tests use it for two distinct provider bindings; names imply no equivalence.
+func (f *Fixture) DeclareSharedDevice(instance domain.IntegrationInstanceID, sourceDevice string, device domain.DeviceID) error {
+	if f == nil || f.devices == nil || sourceDevice == "" {
+		return integrations.ErrInvalidInput
+	}
+	if _, err := instance.Value(); err != nil {
+		return err
+	}
+	if _, err := device.Value(); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := deviceKey{instance, sourceDevice}
+	if _, exists := f.devices[key]; exists {
+		return integrations.ErrIdentityConflict
+	}
+	f.devices[key] = device
+	return nil
 }
 
 func (f *Fixture) AcceptState(ctx context.Context, entity domain.EntityID, state integrations.AcceptedState) error {
@@ -211,8 +295,11 @@ func (f *Fixture) Health(instance domain.IntegrationInstanceID) (integrations.He
 }
 
 type Driver struct {
-	at      time.Time
-	binding integrations.Binding
+	mu         sync.Mutex
+	at         time.Time
+	binding    integrations.Binding
+	commands   []*actions.CommandRequest
+	actionable bool
 }
 
 func NewDriver(at time.Time) (*Driver, error) {
@@ -220,6 +307,15 @@ func NewDriver(at time.Time) (*Driver, error) {
 		return nil, integrations.ErrInvalidInput
 	}
 	return &Driver{at: at.UTC()}, nil
+}
+
+func NewActionDriver(at time.Time) (*Driver, error) {
+	driver, err := NewDriver(at)
+	if err != nil {
+		return nil, err
+	}
+	driver.actionable = true
+	return driver, nil
 }
 
 // Start performs one synchronous fixture lifecycle. It never opens a device or
@@ -234,7 +330,7 @@ func (d *Driver) Start(ctx context.Context, host integrations.SessionHost) error
 	}
 	candidate, err := integrations.NewCandidate(key, []*registry.CapabilityDescription{{
 		SchemaId: contracts.SwitchSchema, Major: 1, DisplayName: "Fake relay", Endpoint: "relay",
-		Constraints: &registry.CapabilityDescription_Switch{Switch: &registry.SwitchConstraints{SetOn: false}},
+		Constraints: &registry.CapabilityDescription_Switch{Switch: &registry.SwitchConstraints{SetOn: d.actionable}},
 	}})
 	if err != nil {
 		return err
@@ -288,4 +384,44 @@ func (d *Driver) Binding() (integrations.Binding, error) {
 		return integrations.Binding{}, err
 	}
 	return d.binding, nil
+}
+
+// Dispatch records a command in memory. It has no device, network, automation,
+// notification, or retained-message output.
+func (d *Driver) Dispatch(ctx context.Context, command integrations.AdmittedCommand) error {
+	if d == nil || ctx == nil {
+		return integrations.ErrInvalidInput
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	_, _, entity, err := command.Identity()
+	if err != nil {
+		return err
+	}
+	_, bound, err := d.binding.IDs()
+	if err != nil || bound != entity {
+		return integrations.ErrForeignBinding
+	}
+	request, err := command.Request()
+	if err != nil {
+		return err
+	}
+	d.mu.Lock()
+	d.commands = append(d.commands, request)
+	d.mu.Unlock()
+	return nil
+}
+
+func (d *Driver) Commands() []*actions.CommandRequest {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	out := make([]*actions.CommandRequest, len(d.commands))
+	for i, request := range d.commands {
+		out[i] = proto.Clone(request).(*actions.CommandRequest)
+	}
+	return out
 }

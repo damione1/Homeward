@@ -13,7 +13,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
@@ -38,17 +37,14 @@ const MaxTotalBytes = 128 << 20
 const MaxPreparations = 2
 const SnapshotTTL = 60 * time.Second
 
-type ActorID struct{ actor string }
+type ActorID = domain.ActorID
 
 func ParseActorID(value string) (ActorID, error) {
-	if value == "" || len(value) > 256 || !utf8.ValidString(value) {
+	actor, err := domain.ParseActorID(value)
+	if err != nil {
 		return ActorID{}, ErrInvalidInput
 	}
-	return ActorID{actor: value}, nil
-}
-func (a ActorID) Value() (string, error) {
-	parsed, err := ParseActorID(a.actor)
-	return parsed.actor, err
+	return actor, nil
 }
 
 // ConfigStamp must come from the trusted active-configuration authority.

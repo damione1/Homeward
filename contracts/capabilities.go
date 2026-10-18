@@ -606,6 +606,65 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 	return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments", "action is outside advertised instance constraints")
 }
 
+// PreparedCapabilityCommand carries a single immutable validation result.
+// Plugin validation is complete before Host acquires any route lock.
+type PreparedCapabilityCommand struct {
+	request     *actions.CommandRequest
+	entity      string
+	key         string
+	description *registry.CapabilityDescription
+}
+
+func (c *CapabilityCatalog) PrepareCapabilityCommand(cmd *actions.CommandRequest) (*PreparedCapabilityCommand, *actions.ContractError) {
+	if !c.ready() || cmd == nil || cmd.Target == nil {
+		return nil, commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target", "invalid command admission")
+	}
+	owned := proto.Clone(cmd).(*actions.CommandRequest)
+	if contractErr := RejectUnknownCommandFields(owned); contractErr != nil {
+		return nil, contractErr
+	}
+	ref, ok := owned.Target.Reference.(*registry.EntityRef_EntityId)
+	if !ok || ref == nil {
+		return nil, commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target", "target must be resolved")
+	}
+	entity, err := domain.ParseEntityID(ref.EntityId)
+	if err != nil {
+		return nil, commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target", "invalid entity")
+	}
+	id, _ := entity.Value()
+	key := capabilityKey(owned.CapabilitySchemaId, owned.Endpoint)
+	c.mu.RLock()
+	before := c.instances[id][key]
+	c.mu.RUnlock()
+	if contractErr := c.AdmitCapabilityCommand(owned, owned.AdmissionEpoch, owned.ConfigRevision); contractErr != nil {
+		return nil, contractErr
+	}
+	c.mu.RLock()
+	unchanged := before != nil && c.instances[id][key] == before
+	c.mu.RUnlock()
+	if !unchanged {
+		return nil, commandError(actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY, "capability_schema_id", "capability changed during admission")
+	}
+	return &PreparedCapabilityCommand{request: owned, entity: id, key: key, description: before}, nil
+}
+
+// CommitPreparedCapabilityCommand fences the already validated description
+// through a bounded in-memory projection callback. No plugin code runs here.
+func (c *CapabilityCatalog) CommitPreparedCapabilityCommand(prepared *PreparedCapabilityCommand, epoch string, revision uint64, admit func(*registry.CapabilityDescription) error) (*actions.ContractError, error) {
+	if !c.ready() || prepared == nil || prepared.request == nil || prepared.description == nil || admit == nil {
+		return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "capability_schema_id", "invalid prepared command"), nil
+	}
+	if contractErr := validateEnvelope(prepared.request, epoch, revision); contractErr != nil {
+		return contractErr, nil
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.instances[prepared.entity][prepared.key] != prepared.description {
+		return commandError(actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY, "capability_schema_id", "capability changed during admission"), nil
+	}
+	return nil, admit(proto.Clone(prepared.description).(*registry.CapabilityDescription))
+}
+
 func knownFieldsOnly(message protoreflect.Message) bool {
 	if len(message.GetUnknown()) != 0 {
 		return false

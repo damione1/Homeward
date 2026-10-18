@@ -79,6 +79,7 @@ func (s *Sequencer) PublishRegistry(ctx context.Context, records []integrations.
 	}
 	s.registry = next
 	s.registryState = registryReady
+	s.rebuildCommandRoutes()
 	s.publish(s.append(Entry{kind: KindRegistry, receivedAt: at, registry: changed}))
 	return nil
 }
@@ -178,6 +179,7 @@ func (s *Sequencer) AcceptDiscovery(ctx context.Context, declarations []integrat
 	for entity, descriptions := range staged {
 		s.capabilities[entity] = descriptions
 	}
+	s.rebuildCommandRoutes()
 	s.publish(s.append(Entry{kind: KindCapabilities, receivedAt: at, capabilities: append([]integrations.DiscoveryDeclaration(nil), declarations...)}))
 	return nil
 }

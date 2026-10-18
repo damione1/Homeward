@@ -166,23 +166,25 @@ type Snapshot struct {
 }
 
 type Sequencer struct {
-	mu            sync.Mutex
-	clock         Clock
-	started       time.Time
-	lastTick      time.Duration
-	epoch         [16]byte
-	seq           uint64
-	journal       []Entry
-	journalSizes  []int
-	journalBytes  int
-	count         int
-	states        map[domain.EntityID]domain.ObservedState
-	health        map[domain.IntegrationInstanceID]integrations.HealthReport
-	registry      map[domain.EntityID]integrations.RegistryRecord
-	capabilities  map[domain.EntityID][]*wireregistry.CapabilityDescription
-	registryState registryProjectionState
-	limits        QueueLimits
-	subs          map[*Subscription]struct{}
+	mu             sync.Mutex
+	clock          Clock
+	started        time.Time
+	lastTick       time.Duration
+	epoch          [16]byte
+	seq            uint64
+	journal        []Entry
+	journalSizes   []int
+	journalBytes   int
+	count          int
+	states         map[domain.EntityID]domain.ObservedState
+	health         map[domain.IntegrationInstanceID]integrations.HealthReport
+	registry       map[domain.EntityID]integrations.RegistryRecord
+	capabilities   map[domain.EntityID][]*wireregistry.CapabilityDescription
+	commandRoutes  map[commandRouteSlot]map[domain.EntityID]struct{}
+	commandAliases map[domain.HAAlias]domain.EntityID
+	registryState  registryProjectionState
+	limits         QueueLimits
+	subs           map[*Subscription]struct{}
 }
 
 func New(clock Clock, journalCapacity int) (*Sequencer, error) {
@@ -200,7 +202,7 @@ func NewWithLimits(clock Clock, journalCapacity int, limits QueueLimits) (*Seque
 			return nil, ErrInvalidInput
 		}
 	}
-	s := &Sequencer{clock: clock, started: time.Now(), journal: make([]Entry, journalCapacity), journalSizes: make([]int, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), registry: make(map[domain.EntityID]integrations.RegistryRecord), capabilities: make(map[domain.EntityID][]*wireregistry.CapabilityDescription), limits: limits, subs: make(map[*Subscription]struct{})}
+	s := &Sequencer{clock: clock, started: time.Now(), journal: make([]Entry, journalCapacity), journalSizes: make([]int, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), registry: make(map[domain.EntityID]integrations.RegistryRecord), capabilities: make(map[domain.EntityID][]*wireregistry.CapabilityDescription), commandRoutes: make(map[commandRouteSlot]map[domain.EntityID]struct{}), commandAliases: make(map[domain.HAAlias]domain.EntityID), limits: limits, subs: make(map[*Subscription]struct{})}
 	if _, err := rand.Read(s.epoch[:]); err != nil {
 		return nil, err
 	}
