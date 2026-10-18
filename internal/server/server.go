@@ -4,13 +4,42 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/damione1/Homeward/internal/config"
 	"net"
+
+	"github.com/damione1/Homeward/internal/config"
+	"github.com/damione1/Homeward/internal/storage"
 )
 
 type ListenFunc func(context.Context, string, string) (net.Listener, error)
 
+var ErrInvalidContext = errors.New("server: missing context")
+
 func Run(ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr)) error {
+	if ctx == nil {
+		return ErrInvalidContext
+	}
+	settings, err := c.PostgresSettings()
+	if err != nil {
+		return err
+	}
+	if _, err := c.ListenEndpoint(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	store, err := storage.Open(ctx, settings)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if _, err := store.Migrate(ctx); err != nil {
+		return err
+	}
+	return runListener(ctx, c, listen, ready)
+}
+
+func runListener(ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr)) error {
 	endpoint, err := c.ListenEndpoint()
 	if err != nil {
 		return err

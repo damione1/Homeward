@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/server"
@@ -27,6 +28,10 @@ func main() {
 	defer cancel()
 	var lc net.ListenConfig
 	if err := server.Run(ctx, c, lc.Listen, func(a net.Addr) { log.Printf("bootstrap ready %s", a) }); err != nil {
+		if errors.Is(err, context.Canceled) {
+			log.Print("shutdown complete")
+			return
+		}
 		log.Fatal(err)
 	}
 	log.Print("shutdown complete")

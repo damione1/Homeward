@@ -7,25 +7,33 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
+	"os"
+
+	"github.com/damione1/Homeward/internal/storage"
 
 	"go.yaml.in/yaml/v3"
 )
 
 type Config struct {
-	listen netip.AddrPort
+	listen   netip.AddrPort
+	postgres storage.Settings
 }
 
-var ErrUninitialized = errors.New("configuration: uninitialized listen endpoint")
+var ErrUninitialized = errors.New("configuration: uninitialized")
+var ErrInvalidYAML = errors.New("configuration: invalid YAML or unknown field")
 
-func Parse(data []byte) (Config, error) {
+func Parse(data []byte) (Config, error) { return ParseWithEnv(data, os.LookupEnv) }
+
+func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, error) {
 	// Keep the unconstrained YAML representation at the parsing boundary.
 	var raw struct {
-		Listen string `yaml:"listen"`
+		Listen   string                  `yaml:"listen"`
+		Postgres storage.ConnectionInput `yaml:"postgres"`
 	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&raw); err != nil {
-		return Config{}, fmt.Errorf("configuration: %w", err)
+		return Config{}, ErrInvalidYAML
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
@@ -36,7 +44,18 @@ func Parse(data []byte) (Config, error) {
 	if err != nil || endpoint.Addr().Zone() != "" {
 		return Config{}, fmt.Errorf("configuration: listen must be a numeric IP:port without a zone")
 	}
-	return Config{listen: endpoint}, nil
+	postgres, err := storage.ParseSettings(raw.Postgres, lookup)
+	if err != nil {
+		return Config{}, fmt.Errorf("configuration: %w", err)
+	}
+	return Config{listen: endpoint, postgres: postgres}, nil
+}
+
+func (c Config) PostgresSettings() (storage.Settings, error) {
+	if !c.postgres.Valid() {
+		return storage.Settings{}, ErrUninitialized
+	}
+	return c.postgres, nil
 }
 
 // ListenEndpoint returns a value copy. Only an uninitialized Config can fail;

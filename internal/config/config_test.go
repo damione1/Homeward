@@ -2,7 +2,9 @@ package config_test
 
 import (
 	"errors"
+	"fmt"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/damione1/Homeward/internal/config"
@@ -10,7 +12,7 @@ import (
 
 func TestEndpointParsingAndZero(t *testing.T) {
 	for _, address := range []string{"127.0.0.1:0", "0.0.0.0:65535", "[::1]:8787", "[::]:0"} {
-		c, err := config.Parse([]byte("listen: '" + address + "'"))
+		c, err := config.ParseWithEnv([]byte("listen: '"+address+"'\n"+testPostgres), testLookup)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -36,5 +38,32 @@ func TestEndpointParsingAndZero(t *testing.T) {
 	}
 	if _, err := (config.Config{}).ListenEndpoint(); !errors.Is(err, config.ErrUninitialized) {
 		t.Fatal("zero configuration accepted")
+	}
+}
+
+const testPostgres = "postgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable\n"
+
+func testLookup(string) (string, bool) { return "fake", true }
+
+func TestNHA027SecretReferenceAndZero(t *testing.T) {
+	const canary = "NHA027_private_canary"
+	c, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\n"+testPostgres), func(string) (string, bool) { return canary, true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings, err := c.PostgresSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rendered := range []string{fmt.Sprintf("%+v", settings), fmt.Sprintf("%#v", settings), fmt.Sprintf("%+v", c), fmt.Sprintf("%#v", c)} {
+		if strings.Contains(rendered, canary) {
+			t.Fatal("formatted config exposed secret")
+		}
+	}
+	if _, err := (config.Config{}).PostgresSettings(); !errors.Is(err, config.ErrUninitialized) {
+		t.Fatalf("zero config accepted: %v", err)
+	}
+	if _, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\n"+testPostgres), func(string) (string, bool) { return "", false }); err == nil || strings.Contains(err.Error(), canary) {
+		t.Fatalf("missing secret accepted/leaked: %v", err)
 	}
 }

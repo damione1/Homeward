@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"github.com/damione1/Homeward/internal/config"
 	"net"
 	"testing"
@@ -14,12 +15,12 @@ func TestNHA001Lifecycle(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var lc net.ListenConfig
-	c, err := config.Parse([]byte("listen: '127.0.0.1:0'"))
+	c, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable"), func(string) (string, bool) { return "fake", true })
 	if err != nil {
 		t.Fatal(err)
 	}
 	go func() {
-		done <- Run(ctx, c, lc.Listen, func(a net.Addr) { ready <- a })
+		done <- runListener(ctx, c, lc.Listen, func(a net.Addr) { ready <- a })
 	}()
 	var addr net.Addr
 	select {
@@ -40,6 +41,20 @@ func TestNHA001Lifecycle(t *testing.T) {
 	if err == nil {
 		conn.Close()
 		t.Fatal("port still open")
+	}
+}
+
+func TestNHA027CanceledBeforeAdmission(t *testing.T) {
+	c, err := config.ParseWithEnv([]byte("listen: '127.0.0.1:0'\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable"), func(string) (string, bool) { return "fake", true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	listened := false
+	err = Run(ctx, c, func(context.Context, string, string) (net.Listener, error) { listened = true; return nil, nil }, nil)
+	if !errors.Is(err, context.Canceled) || listened {
+		t.Fatalf("canceled startup admitted listener: %v", err)
 	}
 }
 func TestNHA001InvalidConfigurationNeverListens(t *testing.T) {

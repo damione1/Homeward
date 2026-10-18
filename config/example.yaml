@@ -1,1 +1,8 @@
 listen: "127.0.0.1:8787"
+postgres:
+  host: "127.0.0.1"
+  port: 5432
+  database: "homeward"
+  user: "homeward"
+  password_env: "HOMEWARD_POSTGRES_PASSWORD"
+  sslmode: "disable"
