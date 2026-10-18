@@ -42,6 +42,7 @@ type RuntimePlan struct {
 	Pilots                      []integrations.PilotSpec
 	Configure                   func(context.Context, *integrations.Manager, *storage.Store) error
 	ConfigureCloudAuthorization func(context.Context, CloudAuthorizationComposition) error
+	ReactiveTemplates           *ReactiveTemplateComposition
 	Public                      *PublicPlan
 }
 
@@ -173,62 +174,72 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	}
 	authorization, err := newCloudAuthorizationCoordinator(ctx, host, integrations.DefaultCloudAuthorizationLimits())
 	if err != nil {
-		return closePreparedRuntime(host, nil, store, err)
+		return closePreparedRuntime(host, nil, store, err, nil)
 	}
 	if plan.Configure != nil {
 		if err := plan.Configure(ctx, host, store); err != nil {
-			return closePreparedRuntime(host, authorization, store, err)
+			return closePreparedRuntime(host, authorization, store, err, nil)
 		}
 	}
 	if plan.ConfigureCloudAuthorization != nil {
 		if err := plan.ConfigureCloudAuthorization(ctx, authorization.composition()); err != nil {
-			return closePreparedRuntime(host, authorization, store, err)
+			return closePreparedRuntime(host, authorization, store, err, nil)
 		}
 	}
 	energySpecs, err := configuredEnergySpecs(ctx, c, store, sequence)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err)
+		return closePreparedRuntime(host, authorization, store, err, nil)
 	}
 	plan.Pilots = append(plan.Pilots, energySpecs...)
 	if hiloRun != nil {
 		hiloEnergy, err := hiloRun.energySpec(ctx)
 		if err != nil {
-			return closePreparedRuntime(host, authorization, store, err)
+			return closePreparedRuntime(host, authorization, store, err, nil)
 		}
 		plan.Pilots = append(plan.Pilots, hiloEnergy)
 	}
+	reactive, err := startReactiveTemplates(ctx, plan.Identity, host, sequence, plan.ReactiveTemplates)
+	if err != nil {
+		return closePreparedRuntime(host, authorization, store, err, nil)
+	}
 	authorization.freeze()
 	if err := ctx.Err(); err != nil {
-		return closePreparedRuntime(host, authorization, store, err)
+		return closePreparedRuntime(host, authorization, store, err, reactive)
 	}
 	var sessions *sessionCoordinator
 	plan.Public, sessions, err = composeLocalSessions(plan.Public, store)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err)
+		return closePreparedRuntime(host, authorization, store, err, reactive)
 	}
 	public, err := compilePublicPlan(plan.Public, publicSettings)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err)
+		return closePreparedRuntime(host, authorization, store, err, reactive)
 	}
 	supervisor, err := integrations.NewSupervisor(host, plan.Pilots, integrations.DefaultRetryPolicy(), integrations.RealTimer{}, integrations.RandomJitter{})
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err)
+		return closePreparedRuntime(host, authorization, store, err, reactive)
 	}
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
 	if err := supervisor.Start(ctx); err != nil {
 		lifecycleCancel()
-		return closePreparedRuntime(host, authorization, store, err)
+		return closePreparedRuntime(host, authorization, store, err, reactive)
 	}
 	if err := authorization.openAdmissions(); err != nil {
 		lifecycleCancel()
 		_ = host.CloseAdmissions()
 		authorization.CloseAdmissions()
+		reactive.CloseAdmissions()
 		stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		stopErr := supervisor.Stop(stopCtx)
 		authorizationErr := authorization.Close(stopCtx)
+		reactiveErr := reactive.Close(stopCtx)
 		cancel()
-		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done())
-		return errors.Join(err, stopErr, authorizationErr)
+		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done(), reactive.Done())
+		return errors.Join(err, stopErr, authorizationErr, reactiveErr)
+	}
+	var reactiveDone <-chan struct{}
+	if reactive != nil {
+		reactiveDone = reactive.Done()
 	}
 	watchStop := make(chan struct{})
 	watchDone := make(chan struct{})
@@ -236,6 +247,11 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		defer close(watchDone)
 		select {
 		case <-ctx.Done():
+			_ = host.CloseAdmissions()
+			authorization.CloseAdmissions()
+			reactive.CloseAdmissions()
+			lifecycleCancel()
+		case <-reactiveDone:
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
 			lifecycleCancel()
@@ -250,18 +266,22 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	}
 	_ = host.CloseAdmissions()
 	authorization.CloseAdmissions()
+	reactive.CloseAdmissions()
 	close(watchStop)
 	<-watchDone
 	lifecycleCancel()
 	stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	authorizationStop := make(chan error, 1)
 	go func() { authorizationStop <- authorization.Close(stopCtx) }()
+	reactiveStop := make(chan error, 1)
+	go func() { reactiveStop <- reactive.Close(stopCtx) }()
 	operatorDone, operatorErr := operator.stop(stopCtx)
 	stopErr := supervisor.Stop(stopCtx)
 	authorizationErr := <-authorizationStop
+	reactiveErr := <-reactiveStop
 	cancel()
-	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done())
-	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr)
+	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done())
+	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr, reactiveErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured
@@ -385,27 +405,36 @@ func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, 
 	}}, nil
 }
 
-func closePreparedRuntime(host *integrations.Manager, authorization *cloudAuthorizationCoordinator, store *storage.Store, cause error) error {
+func closePreparedRuntime(host *integrations.Manager, authorization *cloudAuthorizationCoordinator, store *storage.Store, cause error, templates *reactiveTemplateRuntime) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	if authorization != nil {
 		authorization.CloseAdmissions()
 	}
+	templates.CloseAdmissions()
 	authorizationStop := make(chan error, 1)
 	if authorization != nil {
 		go func() { authorizationStop <- authorization.Close(ctx) }()
+	}
+	reactiveStop := make(chan error, 1)
+	if templates != nil {
+		go func() { reactiveStop <- templates.Close(ctx) }()
 	}
 	done, closeErr := host.ClosePreparedRuntime(ctx)
 	var authorizationErr error
 	if authorization != nil {
 		authorizationErr = <-authorizationStop
 	}
+	var reactiveErr error
+	if templates != nil {
+		reactiveErr = <-reactiveStop
+	}
 	cancel()
 	if authorization != nil {
-		retainStoreUntilDrained(store, done, authorization.Done())
+		retainStoreUntilDrained(store, done, authorization.Done(), templates.Done())
 	} else {
-		retainStoreUntilDrained(store, done)
+		retainStoreUntilDrained(store, done, templates.Done())
 	}
-	return errors.Join(cause, closeErr, authorizationErr)
+	return errors.Join(cause, closeErr, authorizationErr, reactiveErr)
 }
 
 // A timed-out drain keeps PostgreSQL until every owner really finishes. A nil
