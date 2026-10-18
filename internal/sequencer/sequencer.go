@@ -106,10 +106,16 @@ type Sequencer struct {
 	count   int
 	states  map[domain.EntityID]domain.ObservedState
 	health  map[domain.IntegrationInstanceID]integrations.HealthReport
+	limits  QueueLimits
+	subs    map[*Subscription]struct{}
 }
 
 func New(clock Clock, journalCapacity int) (*Sequencer, error) {
-	if clock == nil || journalCapacity < 1 || journalCapacity > MaxJournalCapacity {
+	return NewWithLimits(clock, journalCapacity, DefaultQueueLimits())
+}
+
+func NewWithLimits(clock Clock, journalCapacity int, limits QueueLimits) (*Sequencer, error) {
+	if clock == nil || journalCapacity < 1 || journalCapacity > MaxJournalCapacity || !limits.valid() {
 		return nil, ErrInvalidInput
 	}
 	v := reflect.ValueOf(clock)
@@ -119,7 +125,7 @@ func New(clock Clock, journalCapacity int) (*Sequencer, error) {
 			return nil, ErrInvalidInput
 		}
 	}
-	s := &Sequencer{clock: clock, journal: make([]Entry, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport)}
+	s := &Sequencer{clock: clock, journal: make([]Entry, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), limits: limits, subs: make(map[*Subscription]struct{})}
 	if _, err := rand.Read(s.epoch[:]); err != nil {
 		return nil, err
 	}
@@ -205,6 +211,7 @@ func (s *Sequencer) AcceptState(ctx context.Context, entity domain.EntityID, acc
 	}
 	s.states[entity] = next
 	s.append(Entry{kind: KindState, instance: instance, entity: entity, source: source, causality: causality, receivedAt: at, state: next, transition: transition})
+	s.publish(s.journal[(s.seq-1)%uint64(len(s.journal))])
 	return nil
 }
 
@@ -226,6 +233,7 @@ func (s *Sequencer) AcceptEvent(ctx context.Context, entity domain.EntityID, acc
 		return err
 	}
 	s.append(Entry{kind: KindEvent, instance: instance, entity: entity, source: accepted.Source, causality: causality, receivedAt: at, event: accepted.Event})
+	s.publish(s.journal[(s.seq-1)%uint64(len(s.journal))])
 	return nil
 }
 
@@ -251,6 +259,7 @@ func (s *Sequencer) AcceptHealth(ctx context.Context, instance domain.Integratio
 	}
 	s.health[instance] = report
 	s.append(Entry{kind: KindHealth, instance: instance, source: source, causality: causality, receivedAt: at, health: report})
+	s.publish(s.journal[(s.seq-1)%uint64(len(s.journal))])
 	return nil
 }
 
