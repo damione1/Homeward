@@ -24,18 +24,19 @@ import (
 )
 
 type Config struct {
-	listen   netip.AddrPort
-	postgres storage.Settings
-	dataDir  string
-	mqtt     *mqtt.Settings
-	neviweb  *neviweb.Settings
-	hilo     *hilo.Settings
-	workers  []worker.Config
-	energy   []EnergyBinding
-	public   PublicSettings
-	recorder recorder.Limits
-	solar    *solar.Settings
-	workday  *workday.Settings
+	listen       netip.AddrPort
+	postgres     storage.Settings
+	dataDir      string
+	mqtt         *mqtt.Settings
+	neviweb      *neviweb.Settings
+	hilo         *hilo.Settings
+	workers      []worker.Config
+	energy       []EnergyBinding
+	derivedPower DerivedPowerProfile
+	public       PublicSettings
+	recorder     recorder.Limits
+	solar        *solar.Settings
+	workday      *workday.Settings
 }
 
 var ErrUninitialized = errors.New("configuration: uninitialized")
@@ -46,18 +47,19 @@ func Parse(data []byte) (Config, error) { return ParseWithEnv(data, os.LookupEnv
 func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, error) {
 	// Keep the unconstrained YAML representation at the parsing boundary.
 	var raw struct {
-		Listen   string                  `yaml:"listen"`
-		Postgres storage.ConnectionInput `yaml:"postgres"`
-		DataDir  string                  `yaml:"data_dir"`
-		MQTT     *mqtt.Input             `yaml:"mqtt"`
-		Neviweb  *neviweb.Input          `yaml:"neviweb"`
-		Hilo     *hilo.Input             `yaml:"hilo"`
-		Energy   []energyInput           `yaml:"energy"`
-		Public   *publicInput            `yaml:"public"`
-		Recorder *RecorderInput          `yaml:"recorder"`
-		Solar    yaml.Node               `yaml:"solar"`
-		Workday  yaml.Node               `yaml:"workday"`
-		Workers  []struct {
+		Listen       string                  `yaml:"listen"`
+		Postgres     storage.ConnectionInput `yaml:"postgres"`
+		DataDir      string                  `yaml:"data_dir"`
+		MQTT         *mqtt.Input             `yaml:"mqtt"`
+		Neviweb      *neviweb.Input          `yaml:"neviweb"`
+		Hilo         *hilo.Input             `yaml:"hilo"`
+		Energy       []energyInput           `yaml:"energy"`
+		DerivedPower yaml.Node               `yaml:"derived_power"`
+		Public       *publicInput            `yaml:"public"`
+		Recorder     *RecorderInput          `yaml:"recorder"`
+		Solar        yaml.Node               `yaml:"solar"`
+		Workday      yaml.Node               `yaml:"workday"`
+		Workers      []struct {
 			Instance    string   `yaml:"instance"`
 			Executable  string   `yaml:"executable"`
 			Args        []string `yaml:"args"`
@@ -106,6 +108,10 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		return Config{}, err
 	}
 	result.energy, err = parseEnergyBindings(raw.Energy)
+	if err != nil {
+		return Config{}, err
+	}
+	result.derivedPower, err = parseDerivedPowerInput(raw.DerivedPower)
 	if err != nil {
 		return Config{}, err
 	}

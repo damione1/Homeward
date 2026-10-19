@@ -351,19 +351,33 @@ func climateMode(mode domain.ClimateMode) (string, error) {
 	}
 }
 
+var climateActivities = [...]struct {
+	activity domain.ClimateActivity
+	label    string
+}{
+	{domain.ClimateActivityIdle, "idle"},
+	{domain.ClimateActivityHeating, "heating"},
+	{domain.ClimateActivityCooling, "cooling"},
+	{domain.ClimateActivityDrying, "drying"},
+	{domain.ClimateActivityFanOnly, "fan"},
+}
+
 func climateActivity(activity domain.ClimateActivity) (string, error) {
-	switch activity {
-	case domain.ClimateActivityIdle:
-		return "idle", nil
-	case domain.ClimateActivityHeating:
-		return "heating", nil
-	case domain.ClimateActivityCooling:
-		return "cooling", nil
-	case domain.ClimateActivityDrying:
-		return "drying", nil
-	case domain.ClimateActivityFanOnly:
-		return "fan", nil
-	default:
-		return "", ErrInvalidProjection
+	for _, admitted := range climateActivities {
+		if admitted.activity == activity {
+			return admitted.label, nil
+		}
 	}
+	return "", ErrInvalidProjection
+}
+
+// ParseClimateActivity is the inverse of the one HA activity vocabulary used
+// by the snapshot adapter. An unknown source string cannot become idle.
+func ParseClimateActivity(label string) (domain.ClimateActivity, bool) {
+	for _, admitted := range climateActivities {
+		if admitted.label == label {
+			return admitted.activity, true
+		}
+	}
+	return domain.ClimateActivityUnspecified, false
 }

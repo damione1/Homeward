@@ -118,9 +118,38 @@ func markGap(c *Checkpoint, reason Diagnostic, at time.Time) error {
 	c.hasPrevious = false
 	c.coverage = CoverageDegraded
 	c.diagnostic = reason
-	if c.hasEnergy {
-		return setPending(c, domain.FreshnessStale, at)
+	return setPendingMissing(c, at)
+}
+
+// MissingSource commits the initial or restored absence without changing the
+// durable total. It is also the restart bound when there is no live report.
+func MissingSource(original Checkpoint, at time.Time) (Checkpoint, error) {
+	if !original.valid() || original.revision >= 1<<63-1 || at.IsZero() {
+		return Checkpoint{}, ErrInvalidCheckpoint
 	}
+	c := original
+	c.revision++
+	if err := markGap(&c, DiagnosticUnavailable, at); err != nil {
+		return Checkpoint{}, err
+	}
+	if !original.hasEnergy && !original.hasReport {
+		// Coverage begins with the first actual power bound. Initial absence
+		// is observable but cannot create a historical interval gap.
+		c.coverage = CoverageContinuous
+		c.pending.coverage = CoverageContinuous
+	}
+	return c, nil
+}
+
+func setPendingMissing(c *Checkpoint, at time.Time) error {
+	if at.IsZero() {
+		return ErrInvalidCheckpoint
+	}
+	c.pending = PendingProjection{kind: PendingMissingSource, revision: c.revision, generation: c.generation,
+		precision: c.profile.precision, unit: c.profile.unit, semantic: c.profile.semantic,
+		coverage: c.coverage, freshness: domain.FreshnessStale, createdAt: at.UTC()}
+	c.currentKind = PendingMissingSource
+	c.hasPending = true
 	return nil
 }
 
@@ -136,9 +165,10 @@ func setPending(c *Checkpoint, freshness domain.Freshness, at time.Time) error {
 	if err != nil {
 		return err
 	}
-	c.pending = PendingProjection{revision: c.revision, generation: c.generation, quantized: q,
+	c.pending = PendingProjection{kind: PendingValue, revision: c.revision, generation: c.generation, quantized: q,
 		precision: c.profile.precision, unit: c.profile.unit, semantic: c.profile.semantic,
 		coverage: c.coverage, freshness: freshness, createdAt: at.UTC()}
+	c.currentKind = PendingValue
 	c.hasPending = true
 	return nil
 }
@@ -240,6 +270,9 @@ func addInterval(c *Checkpoint, previous point, currentPower *big.Rat, delta tim
 		return err
 	}
 	c.hasEnergy = true
+	if c.coverage == CoverageContinuous {
+		c.diagnostic = DiagnosticNone
+	}
 	return nil
 }
 
@@ -359,7 +392,14 @@ func AdvanceReport(profile Profile, original Checkpoint, entry sequencer.Entry, 
 		return Checkpoint{}, false, err
 	}
 	c.hasPrevious = true
-	if c.hasEnergy && (!c.hasPending || c.pending.revision != c.revision) {
+	if c.currentKind == PendingMissingSource && (!c.hasPending || c.pending.revision != c.revision) {
+		// A newly recovered power report is only the first bound of a new
+		// interval. Keep the old total durable but leave current energy absent
+		// until a second admitted report can integrate a real interval.
+		if err := setPendingMissing(&c, entry.ReceivedAt()); err != nil {
+			return Checkpoint{}, false, err
+		}
+	} else if c.hasEnergy && (!c.hasPending || c.pending.revision != c.revision) {
 		if err := setPending(&c, domain.FreshnessStale, entry.ReceivedAt()); err != nil {
 			return Checkpoint{}, false, err
 		}

@@ -1,0 +1,19 @@
+{
+  "clock_utc": "2026-10-19T12:00:00+00:00",
+  "timezone": "America/Toronto",
+  "states": [],
+  "cases": [
+    {
+      "id": "ups-legacy",
+      "template": "{{ (states('sensor.ups_load') | float(0)) / 100 * 900 }}"
+    },
+    {
+      "id": "floor-legacy",
+      "template": "{% if state_attr('climate.plancher_cuisine', 'hvac_action') == 'heating' %}1294{% else %}0{% endif %}"
+    },
+    {
+      "id": "hvac-legacy",
+      "template": "{% set action = state_attr('climate.home', 'hvac_action') %}\n  {% if action == 'heating' %}\n    15400\n  {% elif action == 'cooling' %}\n    3200\n  {% elif action == 'fan' %}\n    400\n  {% else %}\n    0\n  {% endif %}"
+    }
+  ]
+}

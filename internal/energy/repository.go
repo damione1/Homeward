@@ -69,6 +69,7 @@ type pointWire struct {
 	Tick                  bool       `json:"tick"`
 }
 type pendingWire struct {
+	Kind       *PendingKind         `json:"kind,omitempty"`
 	Revision   uint64               `json:"revision"`
 	Generation uint64               `json:"generation"`
 	Quantized  int64                `json:"quantized"`
@@ -92,6 +93,7 @@ type checkpointWire struct {
 	FenceCursor      uint64       `json:"fence_cursor,omitempty"`
 	Coverage         Coverage     `json:"coverage"`
 	Diagnostic       Diagnostic   `json:"diagnostic"`
+	CurrentKind      *PendingKind `json:"current_kind,omitempty"`
 	Pending          *pendingWire `json:"pending,omitempty"`
 	HasEnergy        bool         `json:"has_energy"`
 }
@@ -148,6 +150,10 @@ func (w reportWire) report() (ReportIdentity, error) {
 }
 func checkpointToWire(c Checkpoint) checkpointWire {
 	w := checkpointWire{Profile: profileToWire(c.profile), Revision: c.revision, Generation: c.generation, TotalNum: c.totalNum, TotalDen: c.totalDen, CaptureWatermark: c.captureWatermark, FenceEpoch: c.fenceEpoch, FenceCursor: c.fenceCursor, Coverage: c.coverage, Diagnostic: c.diagnostic, HasEnergy: c.hasEnergy}
+	if c.currentKind.valid() {
+		kind := c.currentKind
+		w.CurrentKind = &kind
+	}
 	if c.hasPrevious {
 		w.Previous = &pointWire{c.previous.at, c.previous.admissionTick.Nanoseconds(), c.previous.reportAdmissionTick.Nanoseconds(), c.previous.powerNum, c.previous.powerDen, reportToWire(c.previous.report), c.previous.tick}
 	}
@@ -157,7 +163,8 @@ func checkpointToWire(c Checkpoint) checkpointWire {
 	}
 	if c.hasPending {
 		unit, _ := c.pending.unit.Symbol()
-		w.Pending = &pendingWire{c.pending.revision, c.pending.generation, c.pending.quantized, c.pending.precision, unit, c.pending.semantic, c.pending.coverage, c.pending.freshness, c.pending.createdAt}
+		kind := c.pending.kind
+		w.Pending = &pendingWire{&kind, c.pending.revision, c.pending.generation, c.pending.quantized, c.pending.precision, unit, c.pending.semantic, c.pending.coverage, c.pending.freshness, c.pending.createdAt}
 	}
 	return w
 }
@@ -187,8 +194,28 @@ func (w checkpointWire) checkpoint() (Checkpoint, error) {
 		if e != nil {
 			return Checkpoint{}, ErrInvalidCheckpoint
 		}
-		c.pending = PendingProjection{w.Pending.Revision, w.Pending.Generation, w.Pending.Quantized, w.Pending.Precision, unit, w.Pending.Semantic, w.Pending.Coverage, w.Pending.Freshness, w.Pending.CreatedAt}
+		kind := PendingValue // v9 rows predate the explicit pending variant.
+		if w.Pending.Kind != nil {
+			kind = *w.Pending.Kind
+			if !kind.valid() {
+				return Checkpoint{}, ErrInvalidCheckpoint
+			}
+		}
+		c.pending = PendingProjection{kind, w.Pending.Revision, w.Pending.Generation, w.Pending.Quantized, w.Pending.Precision, unit, w.Pending.Semantic, w.Pending.Coverage, w.Pending.Freshness, w.Pending.CreatedAt}
 		c.hasPending = true
+	}
+	// Older checkpoints had no durable current-presence field. Their pending
+	// value was the only published variant; an acknowledged old total is
+	// value-bearing. Distinguish omitted legacy field from explicit zero.
+	if w.CurrentKind != nil {
+		c.currentKind = *w.CurrentKind
+		if !c.currentKind.valid() {
+			return Checkpoint{}, ErrInvalidCheckpoint
+		}
+	} else if c.hasPending {
+		c.currentKind = c.pending.kind
+	} else if c.hasEnergy {
+		c.currentKind = PendingValue
 	}
 	if !c.valid() {
 		return Checkpoint{}, ErrInvalidCheckpoint
@@ -200,6 +227,12 @@ func (c Checkpoint) valid() bool {
 		return false
 	}
 	if c.revision == 0 && (c.generation != 1 || c.hasReport || c.hasPrevious || c.hasPending || c.hasEnergy || !c.captureWatermark.IsZero() || c.fenceEpoch != "" || c.fenceCursor != 0) {
+		return false
+	}
+	if c.currentKind != PendingUnspecified && !c.currentKind.valid() ||
+		c.revision == 0 && c.currentKind != PendingUnspecified ||
+		c.currentKind == PendingValue && !c.hasEnergy ||
+		c.hasPending && c.currentKind != c.pending.kind {
 		return false
 	}
 	if c.profile.basis == TimeBasisReceipt && !c.captureWatermark.IsZero() ||
@@ -243,7 +276,9 @@ func (c Checkpoint) valid() bool {
 	}
 	if c.hasPending {
 		q, e := quantize(c.profile, total)
-		if e != nil || !c.hasEnergy || c.pending.revision != c.revision || c.pending.generation != c.generation || c.pending.quantized != q || c.pending.precision != c.profile.precision || c.pending.unit != c.profile.unit || c.pending.semantic != c.profile.semantic || !c.pending.coverage.valid() || c.pending.coverage != c.coverage || (c.pending.freshness != domain.FreshnessFresh && c.pending.freshness != domain.FreshnessStale) || c.pending.createdAt.IsZero() {
+		if e != nil || !c.pending.kind.valid() || c.pending.revision != c.revision || c.pending.generation != c.generation || c.pending.precision != c.profile.precision || c.pending.unit != c.profile.unit || c.pending.semantic != c.profile.semantic || !c.pending.coverage.valid() || c.pending.coverage != c.coverage || (c.pending.freshness != domain.FreshnessFresh && c.pending.freshness != domain.FreshnessStale) || c.pending.createdAt.IsZero() ||
+			(c.pending.kind == PendingValue && (!c.hasEnergy || c.pending.quantized != q)) ||
+			(c.pending.kind == PendingMissingSource && (c.pending.quantized != 0 || c.pending.freshness != domain.FreshnessStale || c.coverage == CoverageContinuous && c.hasEnergy)) {
 			return false
 		}
 	}

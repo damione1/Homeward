@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/damione1/Homeward/compat/ha/template"
 	"github.com/damione1/Homeward/internal/config/bundle"
@@ -110,10 +111,18 @@ func (s *Service) emit(updates []Update) error {
 	// Ephemeral readers consume their own result; the permanent output queue
 	// remains reserved for its one established publication consumer.
 	permanent := make([]Update, 0, len(updates))
+	newReadBytes := 0
 	for _, update := range updates {
+		if len(update.reads) > MaxReadsPerUpdate {
+			return ErrWorkBudget
+		}
 		if !s.routeWaitUpdate(update) {
+			newReadBytes += len(update.reads) * int(unsafe.Sizeof(template.Read{}))
 			permanent = append(permanent, update)
 		}
+	}
+	if newReadBytes > MaxQueuedReadBytes || len(permanent) > MaxPrograms {
+		return ErrWorkBudget
 	}
 	if len(permanent) > cap(s.updates)-len(s.updates) {
 		s.setError(ErrOutputFull)
@@ -293,6 +302,7 @@ func (e *engine) rebase() ([]Update, error) {
 func cloneOutputs(source map[ProgramID]Update) map[ProgramID]Update {
 	copyMap := make(map[ProgramID]Update, len(source))
 	for id, value := range source {
+		value.reads = append([]template.Read(nil), value.reads...)
 		copyMap[id] = value
 	}
 	return copyMap
@@ -636,7 +646,7 @@ func (e *engine) degrade(reason Diagnostic) []Update {
 			continue
 		}
 		quality := staleQuality(old.quality)
-		degraded := Update{id: definition.id, result: old.result, valid: old.valid, quality: quality, diagnostic: reason, cursor: e.snapshot.Cursor}
+		degraded := Update{id: definition.id, result: old.result, valid: old.valid, quality: quality, reads: append([]template.Read(nil), old.reads...), diagnostic: reason, cursor: e.snapshot.Cursor}
 		if !degraded.Equal(old) {
 			e.outputs[definition.id] = degraded
 			changes = append(changes, degraded)
@@ -658,14 +668,20 @@ type candidate struct {
 	result     template.Result
 	valid      bool
 	quality    domain.Quality
+	reads      []template.Read
 	deps       []template.Dependency
 	active     []template.Dependency
 	diagnostic Diagnostic
 }
 
 func equalCandidate(left, right candidate) bool {
-	if left.valid != right.valid || left.quality != right.quality || left.diagnostic != right.diagnostic || (left.valid && !left.result.Equal(right.result)) || len(left.deps) != len(right.deps) {
+	if left.valid != right.valid || left.quality != right.quality || left.diagnostic != right.diagnostic || (left.valid && !left.result.Equal(right.result)) || len(left.deps) != len(right.deps) || len(left.reads) != len(right.reads) {
 		return false
+	}
+	for i := range left.reads {
+		if left.reads[i] != right.reads[i] {
+			return false
+		}
 	}
 	for i := range left.deps {
 		if left.deps[i] != right.deps[i] {

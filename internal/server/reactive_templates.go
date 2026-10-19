@@ -26,6 +26,44 @@ type ReactiveTemplateComposition struct {
 	clock  reactivetemplate.Clock
 }
 
+type derivedReactiveOutput struct {
+	previous ReactiveTemplateOutput
+	derived  ReactiveTemplateOutput
+	priorIDs []reactivetemplate.ProgramID
+	newIDs   []reactivetemplate.ProgramID
+}
+
+func (o derivedReactiveOutput) PublishReactiveTemplate(ctx context.Context, host *integrations.Manager, update reactivetemplate.Update) error {
+	for _, id := range o.newIDs {
+		if update.ID() == id {
+			return o.derived.PublishReactiveTemplate(ctx, host, update)
+		}
+	}
+	for _, id := range o.priorIDs {
+		if update.ID() == id {
+			return o.previous.PublishReactiveTemplate(ctx, host, update)
+		}
+	}
+	return ErrReactiveTemplateComposition
+}
+
+// One service retains the caller's plan, groups, clock, and wait admissions.
+// A colliding permanent ProgramID is rejected by Plan.WithDefinitions.
+func composeDerivedReactiveTemplates(previous *ReactiveTemplateComposition, additions reactivetemplate.Plan, output ReactiveTemplateOutput) (*ReactiveTemplateComposition, error) {
+	if nilReactiveInterface(output) || !additions.Active() {
+		return nil, ErrReactiveTemplateComposition
+	}
+	if previous == nil {
+		return NewReactiveTemplateComposition(additions, output, reactivetemplate.RealClock{})
+	}
+	plan, err := previous.plan.WithPlan(additions)
+	if err != nil {
+		return nil, errors.Join(ErrReactiveTemplateComposition, err)
+	}
+	mux := derivedReactiveOutput{previous: previous.output, derived: output, priorIDs: previous.plan.ProgramIDs(), newIDs: additions.ProgramIDs()}
+	return NewReactiveTemplateComposition(plan, mux, previous.clock)
+}
+
 func NewReactiveTemplateComposition(plan reactivetemplate.Plan, output ReactiveTemplateOutput, clock reactivetemplate.Clock) (*ReactiveTemplateComposition, error) {
 	if !plan.Active() || nilReactiveInterface(output) || nilReactiveInterface(clock) {
 		return nil, ErrReactiveTemplateComposition
