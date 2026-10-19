@@ -1,0 +1,1 @@
+code: AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE field_path: "grants[0].scope"

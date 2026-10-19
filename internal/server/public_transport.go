@@ -14,6 +14,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 )
@@ -86,9 +87,10 @@ const (
 // RouteKey is a transport identity, not a business permission. Authorization
 // providers own the later mapping from an admitted route to actual rights.
 type RouteKey struct {
-	kind   RouteKind
-	method RouteMethod
-	path   string
+	kind       RouteKind
+	method     RouteMethod
+	path       string
+	permission authorization.Permission // explicit trusted binding; zero uses the finite built-in table
 }
 
 func (k RouteKey) Kind() RouteKind     { return k.kind }
@@ -344,7 +346,7 @@ func compilePublicPlan(plan *PublicPlan, settings config.PublicSettings) (*compi
 		result.routes[key] = route
 	}
 	for _, registration := range plan.connect {
-		servicePrefix, handler := registration.build(connect.WithReadMaxBytes(int(settings.MaxRequestBytes())))
+		servicePrefix, handler := registration.build(connect.WithReadMaxBytes(int(settings.MaxRequestBytes())), connect.WithInterceptors(authorizationTerminationInterceptor{}))
 		if !strings.HasPrefix(servicePrefix, "/") || !strings.HasSuffix(servicePrefix, "/") ||
 			strings.Count(servicePrefix, "/") != 2 ||
 			handler == nil || typedNilPublic(handler) {
@@ -575,6 +577,16 @@ func (p *compiledPublic) handler(settings config.PublicSettings, admissions *pub
 }
 
 func contextErrorCode(ctx context.Context, fallback PublicErrorCode) PublicErrorCode {
+	if terminal := authorizationTerminationError(ctx); terminal != nil {
+		switch terminal.Code() {
+		case connect.CodeUnauthenticated:
+			return PublicErrorUnauthenticated
+		case connect.CodePermissionDenied:
+			return PublicErrorPermissionDenied
+		default:
+			return PublicErrorUnavailable
+		}
+	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return PublicErrorDeadlineExceeded
 	}
@@ -605,7 +617,11 @@ func (p *compiledPublic) deny(w http.ResponseWriter, r *http.Request, route publ
 func (p *compiledPublic) sendError(w http.ResponseWriter, r *http.Request, route publicRoute, code PublicErrorCode) {
 	name, status, connectCode := code.wire()
 	if route.key.kind == RouteKindConnect {
-		_ = p.errorWriter.Write(w, r, connect.NewError(connectCode, errors.New(name)))
+		err := connect.NewError(connectCode, errors.New(name))
+		if terminal := authorizationTerminationError(r.Context()); terminal != nil {
+			err = terminal
+		}
+		_ = p.errorWriter.Write(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

@@ -9,6 +9,7 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/accounts"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -277,6 +278,9 @@ const (
 	authActionSessionRefresh
 	authActionSessionReplay
 	authActionSessionRevoke
+	authActionPolicyRead
+	authActionPolicyReplace
+	authActionPolicySeed
 )
 
 const authOutcomeAdmitted int16 = 1
@@ -376,7 +380,7 @@ func insertAccountAudit(ctx context.Context, tx pgx.Tx, event accountAudit, outc
 	if err != nil {
 		return err
 	}
-	if event.action < authActionBootstrap || event.action > authActionSessionRevoke || (outcome != authOutcomeAdmitted && outcome != authOutcomeDenied) {
+	if event.action < authActionBootstrap || event.action > authActionPolicySeed || (outcome != authOutcomeAdmitted && outcome != authOutcomeDenied) {
 		return ErrAccountInvalid
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO public.auth_audit(actor_account_id, target_account_id, invitation_id, action, outcome)
@@ -447,7 +451,8 @@ func classifyAccountError(err error) error {
 		return ErrAccountConflict
 	}
 	for _, known := range []error{ErrAccountInvalid, ErrAccountConflict, ErrAccountNotFound, ErrAccountPermission,
-		ErrBootstrapCompleted, ErrLastActiveAdmin, ErrInvitationNotFound, ErrInvitationExpired, ErrInvitationUnavailable, ErrAccountListTooLarge} {
+		ErrBootstrapCompleted, ErrLastActiveAdmin, ErrInvitationNotFound, ErrInvitationExpired, ErrInvitationUnavailable, ErrAccountListTooLarge,
+		ErrPolicyNotConfigured, authorization.ErrInvalid, authorization.ErrConflict} {
 		if errors.Is(err, known) {
 			return known
 		}
@@ -628,7 +633,7 @@ func (s *Store) BootstrapAdmin(ctx context.Context, input NewAccount) (AccountRe
 	if input.Role != authv1.AccountRole_ACCOUNT_ROLE_ADMIN {
 		return AccountRecord{}, ErrAccountInvalid
 	}
-	return accountTransaction(s, ctx, accountAudit{target: &input.ID, action: authActionBootstrap}, func(tx pgx.Tx) (AccountRecord, error) {
+	return accountConfigTransaction(s, ctx, accountAudit{target: &input.ID, action: authActionBootstrap}, func(tx pgx.Tx, config *ConfigTx) (AccountRecord, error) {
 		completed, err := lockAuthSingleton(ctx, tx)
 		if err != nil {
 			return AccountRecord{}, err
@@ -637,6 +642,9 @@ func (s *Store) BootstrapAdmin(ctx context.Context, input NewAccount) (AccountRe
 			return AccountRecord{}, ErrBootstrapCompleted
 		}
 		if err := insertAccount(ctx, tx, input); err != nil {
+			return AccountRecord{}, err
+		}
+		if err := seedAuthorizationPolicy(config, input.ID); err != nil {
 			return AccountRecord{}, err
 		}
 		if _, err := tx.Exec(ctx, `UPDATE public.auth_bootstrap SET completed=true WHERE singleton=true`); err != nil {

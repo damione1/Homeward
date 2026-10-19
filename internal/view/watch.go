@@ -526,7 +526,7 @@ func (w *Watch) Next(ctx context.Context) (*statewire.WatchViewResponse, error) 
 			if !w.filter.permits(id) {
 				continue
 			}
-			if _, allowed := grant.allowed[id]; !allowed {
+			if !grant.statePermitted(id) {
 				continue
 			}
 			wireState, err := contracts.EncodeObservedState(state)

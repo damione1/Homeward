@@ -7,7 +7,9 @@ import (
 
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -52,7 +54,16 @@ type DirectCapture struct {
 	configRevision uint64
 }
 
-func (r *CommandRouter) CaptureDirect(ctx context.Context, alias domain.HAAlias, kind DirectKind) (DirectCapture, error) {
+func (r *CommandRouter) CaptureDirect(ctx context.Context, alias domain.HAAlias, kind DirectKind) (result DirectCapture, resultErr error) {
+	defer func() {
+		if resultErr == nil {
+			resultErr = r.filterCapture(ctx, result.entity, result.description, &result.state, &result.hasState)
+		}
+		resultErr = r.captureError(resultErr)
+		if resultErr != nil {
+			result = DirectCapture{}
+		}
+	}()
 	if r == nil || r.host == nil || ctx == nil || kind.schema() == "" {
 		return DirectCapture{}, ErrInvalidInput
 	}
@@ -169,6 +180,16 @@ func (p PreparedDirect) ProveSwitchSatisfied(ctx context.Context) (bool, uint64,
 		return false, 0, ErrInvalidInput
 	}
 	original := p.route.capture
+	if original.router.host.commandAuthority() != nil {
+		bound := preparedAuthorizationContext(ctx, preparedDirectCommand(p.route))
+		target, ok := bound.Value(expectedAuthorizationTargetKey{}).(authorization.CommandTarget)
+		if !ok {
+			return false, 0, ErrCommandAuthorizationDenied
+		}
+		if err := original.router.authorizeRemembered(ctx, p.actor, target, authv1.ScopeOperation_SCOPE_OPERATION_WRITE); err != nil {
+			return false, 0, err
+		}
+	}
 	if p.request.ExpiresAt == nil || p.request.ExpiresAt.CheckValid() != nil ||
 		!p.request.ExpiresAt.AsTime().After(original.router.clock.Now()) {
 		return false, 0, ErrDirectProofExpired

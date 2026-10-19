@@ -17,6 +17,7 @@ import (
 
 	"github.com/damione1/Homeward/contracts"
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/proto"
@@ -419,6 +420,7 @@ type Manager struct {
 	mu                         sync.Mutex
 	admission                  admissionPhase
 	authority                  IdentityAuthority
+	authorizationAuthority     *authorization.Authority
 	sink                       Sink
 	catalog                    *contracts.CapabilityCatalog
 	active                     map[domain.IntegrationInstanceID]*Session

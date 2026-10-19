@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,18 +43,31 @@ type IntentRecord struct {
 	fingerprint []byte
 	response    []byte
 	errorKind   IntentError
+	target      *authorization.CommandTarget
 }
 
 func (r IntentRecord) State() IntentState     { return r.state }
 func (r IntentRecord) Fingerprint() []byte    { return bytes.Clone(r.fingerprint) }
 func (r IntentRecord) Response() []byte       { return bytes.Clone(r.response) }
 func (r IntentRecord) ErrorKind() IntentError { return r.errorKind }
+func (r IntentRecord) AuthorizationTarget() (authorization.CommandTarget, bool, error) {
+	if r.target == nil {
+		return authorization.CommandTarget{}, false, nil
+	}
+	if _, _, err := r.target.Values(); err != nil {
+		return authorization.CommandTarget{}, false, err
+	}
+	return *r.target, true, nil
+}
+
+const intentSelectColumns = `state::text,fingerprint,response,result_error::text,authorization_entity_id,authorization_schema_id,authorization_endpoint`
 
 func scanIntent(row pgx.Row) (IntentRecord, error) {
 	var state string
 	var errorText string
 	var fingerprint, response []byte
-	if err := row.Scan(&state, &fingerprint, &response, &errorText); err != nil {
+	var entityText, schema, endpoint *string
+	if err := row.Scan(&state, &fingerprint, &response, &errorText, &entityText, &schema, &endpoint); err != nil {
 		return IntentRecord{}, err
 	}
 	var parsed IntentState
@@ -88,7 +102,26 @@ func scanIntent(row pgx.Row) (IntentRecord, error) {
 	default:
 		return IntentRecord{}, &Error{kind: InconsistentSchema}
 	}
-	return IntentRecord{parsed, bytes.Clone(fingerprint), bytes.Clone(response), errorKind}, nil
+	var target *authorization.CommandTarget
+	if entityText != nil || schema != nil || endpoint != nil {
+		if entityText == nil || schema == nil || endpoint == nil {
+			return IntentRecord{}, &Error{kind: InconsistentSchema}
+		}
+		entity, err := domain.ParseEntityID(*entityText)
+		if err != nil {
+			return IntentRecord{}, &Error{kind: InconsistentSchema}
+		}
+		slot, err := authorization.NewCapabilitySlot(*schema, *endpoint)
+		if err != nil {
+			return IntentRecord{}, &Error{kind: InconsistentSchema}
+		}
+		value, err := authorization.NewCommandTarget(entity, slot)
+		if err != nil {
+			return IntentRecord{}, &Error{kind: InconsistentSchema}
+		}
+		target = &value
+	}
+	return IntentRecord{state: parsed, fingerprint: bytes.Clone(fingerprint), response: bytes.Clone(response), errorKind: errorKind, target: target}, nil
 }
 
 func (s *Store) CommandIntent(ctx context.Context, id domain.CommandID) (IntentRecord, bool, error) {
@@ -99,7 +132,7 @@ func (s *Store) CommandIntent(ctx context.Context, id domain.CommandID) (IntentR
 	if err != nil {
 		return IntentRecord{}, false, err
 	}
-	record, err := scanIntent(s.pool.QueryRow(ctx, `SELECT state::text, fingerprint, response, result_error::text FROM public.command_intents WHERE command_id=$1`, text))
+	record, err := scanIntent(s.pool.QueryRow(ctx, `SELECT `+intentSelectColumns+` FROM public.command_intents WHERE command_id=$1`, text))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return IntentRecord{}, false, nil
 	}
@@ -112,6 +145,15 @@ func (s *Store) CommandIntent(ctx context.Context, id domain.CommandID) (IntentR
 // AcceptCommandIntent serializes duplicate IDs through the primary key. A
 // successful new INSERT is committed before its caller may attempt dispatch.
 func (s *Store) AcceptCommandIntent(ctx context.Context, id domain.CommandID, actor domain.ActorID, epoch string, fingerprint []byte) (IntentRecord, bool, TransactionOutcome, error) {
+	return s.acceptCommandIntent(ctx, id, actor, epoch, fingerprint, nil)
+}
+func (s *Store) AcceptAuthorizedCommandIntent(ctx context.Context, id domain.CommandID, actor domain.ActorID, epoch string, fingerprint []byte, target authorization.CommandTarget) (IntentRecord, bool, TransactionOutcome, error) {
+	if _, _, err := target.Values(); err != nil {
+		return IntentRecord{}, false, TransactionNotCommitted, &Error{kind: InvalidSettings}
+	}
+	return s.acceptCommandIntent(ctx, id, actor, epoch, fingerprint, &target)
+}
+func (s *Store) acceptCommandIntent(ctx context.Context, id domain.CommandID, actor domain.ActorID, epoch string, fingerprint []byte, target *authorization.CommandTarget) (IntentRecord, bool, TransactionOutcome, error) {
 	idText, idErr := id.Value()
 	actorText, actorErr := actor.Value()
 	if idErr != nil || actorErr != nil || epoch == "" || len(fingerprint) == 0 {
@@ -119,18 +161,28 @@ func (s *Store) AcceptCommandIntent(ctx context.Context, id domain.CommandID, ac
 	}
 	var record IntentRecord
 	var created bool
+	var entityText, schema, endpoint *string
+	if target != nil {
+		entity, slot, err := target.Values()
+		if err != nil {
+			return IntentRecord{}, false, TransactionNotCommitted, err
+		}
+		e, _ := entity.Value()
+		s, p, _ := slot.Values()
+		entityText, schema, endpoint = &e, &s, &p
+	}
 	outcome, err := s.InTransactionOutcome(ctx, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `INSERT INTO public.command_intents(command_id,actor_id,admission_epoch,fingerprint,state)
-			VALUES ($1,$2,$3,$4,'accepted') ON CONFLICT (command_id) DO NOTHING`, idText, actorText, epoch, fingerprint)
+		tag, err := tx.Exec(ctx, `INSERT INTO public.command_intents(command_id,actor_id,admission_epoch,fingerprint,state,authorization_entity_id,authorization_schema_id,authorization_endpoint)
+			VALUES ($1,$2,$3,$4,'accepted',$5,$6,$7) ON CONFLICT (command_id) DO NOTHING`, idText, actorText, epoch, fingerprint, entityText, schema, endpoint)
 		if err != nil {
 			return err
 		}
 		if tag.RowsAffected() == 1 {
 			created = true
-			record = IntentRecord{state: IntentAccepted, fingerprint: bytes.Clone(fingerprint), errorKind: IntentNoError}
+			record = IntentRecord{state: IntentAccepted, fingerprint: bytes.Clone(fingerprint), errorKind: IntentNoError, target: target}
 			return nil
 		}
-		record, err = scanIntent(tx.QueryRow(ctx, `SELECT state::text,fingerprint,response,result_error::text FROM public.command_intents WHERE command_id=$1`, idText))
+		record, err = scanIntent(tx.QueryRow(ctx, `SELECT `+intentSelectColumns+` FROM public.command_intents WHERE command_id=$1`, idText))
 		return err
 	})
 	if outcome != TransactionCommitted || err != nil {

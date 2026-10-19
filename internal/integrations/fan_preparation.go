@@ -32,7 +32,16 @@ type FanCapture struct {
 // CaptureFan uses the same generation -> Host -> catalogue -> sequencer
 // order as light preparation, including the final sequencer route recheck.
 // CaptureLightRoute's implementation is schema-neutral despite its old name.
-func (r *CommandRouter) CaptureFan(ctx context.Context, alias domain.HAAlias) (FanCapture, error) {
+func (r *CommandRouter) CaptureFan(ctx context.Context, alias domain.HAAlias) (result FanCapture, resultErr error) {
+	defer func() {
+		if resultErr == nil {
+			resultErr = r.filterCapture(ctx, result.entity, result.description, &result.state, &result.hasState)
+		}
+		resultErr = r.captureError(resultErr)
+		if resultErr != nil {
+			result = FanCapture{}
+		}
+	}()
 	if r == nil || r.host == nil || ctx == nil {
 		return FanCapture{}, ErrInvalidInput
 	}

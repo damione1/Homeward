@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/accounts"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/storage"
 )
@@ -59,6 +61,15 @@ func (a *sessionAuth) AuthenticateWithLease(ctx context.Context, request *http.R
 	if err != nil {
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
+	if err := guard.refreshAuthorization(ctx); err != nil {
+		guard.quarantine()
+		guard.cancelLeases(ctx, nil)
+		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
+	}
+	principal, err := authorization.NativePrincipal(owner.Account, owner.Session)
+	if err != nil {
+		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
+	}
 	account, err := owner.Account.Value()
 	if err != nil {
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
@@ -75,7 +86,14 @@ func (a *sessionAuth) AuthenticateWithLease(ctx context.Context, request *http.R
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
 	leaseCtx, lease := guard.register(ctx, owner)
-	timer := a.coordinator.clock.At(deadline, lease.cancel)
+	leaseCtx, err = authorization.WithPrincipal(leaseCtx, principal)
+	if err != nil {
+		lease.release()
+		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
+	}
+	timer := a.coordinator.clock.At(deadline, func() {
+		lease.terminate(authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED)
+	})
 	if timer == nil || typedNilPublic(timer) || leaseCtx.Err() != nil {
 		if timer != nil && !typedNilPublic(timer) {
 			timer.Stop()
@@ -102,5 +120,27 @@ func (a *sessionAuth) Authorize(ctx context.Context, actor domain.ActorID, route
 	if err != nil || value != account {
 		return errSessionUnauthenticated
 	}
-	return nil
+	principal, err := authorization.PrincipalFromContext(ctx)
+	if err != nil {
+		return authorization.ErrDenied
+	}
+	principalActor, err := principal.Actor()
+	if err != nil || principalActor != actor {
+		return authorization.ErrDenied
+	}
+	current, err := a.coordinator.authority.Current(principal)
+	if err != nil {
+		return err
+	}
+	permission, self, known := nativeRoutePermission(route)
+	if !known {
+		return authorization.ErrDenied
+	}
+	if self {
+		if !principal.Native() {
+			return authorization.ErrDenied
+		}
+		return nil
+	}
+	return current.AdmitRoute(permission)
 }

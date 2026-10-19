@@ -1,12 +1,15 @@
 package server
 
 import (
+	"container/list"
 	"context"
 	"errors"
 	"sync"
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
+	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/storage"
 )
 
@@ -18,10 +21,12 @@ var errSessionCoordinatorBusy = errors.New("server: session admission capacity e
 // identity. Every admission still reads PostgreSQL while holding its account
 // gate. The single Go process serves public, MCP and operator transports.
 type sessionCoordinator struct {
-	store    *storage.Store
-	clock    sessionClock
-	mu       sync.Mutex
-	accounts map[string]*sessionAccountGate
+	store            *storage.Store
+	clock            sessionClock
+	mu               sync.Mutex
+	accounts         map[string]*sessionAccountGate
+	authority        *authorization.Authority
+	pendingCreations list.List // private queue of account keys, protected by mu
 }
 
 // One clock owns both admission time and expiry cancellation. Tests can
@@ -39,11 +44,12 @@ func (realSessionClock) At(deadline time.Time, f func()) sessionTimer {
 }
 
 type sessionAccountGate struct {
-	account     contracts.AccountID
-	permit      chan struct{}
-	refs        int // holders and waiters; leases are counted separately
-	quarantined bool
-	leases      map[*sessionLease]struct{}
+	account         contracts.AccountID
+	permit          chan struct{}
+	refs            int // holders and waiters; leases are counted separately
+	quarantined     bool
+	leases          map[*sessionLease]struct{}
+	pendingCreation *list.Element
 }
 
 type sessionGuard struct {
@@ -51,6 +57,9 @@ type sessionGuard struct {
 	key         string
 	gate        *sessionAccountGate
 	once        sync.Once
+	mutation    *authorization.Mutation
+	termination authv1.AuthorizationTerminationReason
+	creating    bool
 }
 
 type sessionLease struct {
@@ -58,6 +67,7 @@ type sessionLease struct {
 	gate        *sessionAccountGate
 	coordinator *sessionCoordinator
 	cancel      context.CancelFunc
+	cancelCause context.CancelCauseFunc
 	once        sync.Once
 }
 
@@ -71,7 +81,7 @@ func newSessionCoordinatorWithClock(store *storage.Store, clock sessionClock) (*
 	if store == nil || clock == nil || typedNilPublic(clock) {
 		return nil, storage.ErrSessionInvalid
 	}
-	return &sessionCoordinator{store: store, clock: clock, accounts: make(map[string]*sessionAccountGate)}, nil
+	return &sessionCoordinator{store: store, clock: clock, accounts: make(map[string]*sessionAccountGate), authority: authorization.NewAuthority()}, nil
 }
 
 func (c *sessionCoordinator) enter(ctx context.Context, account contracts.AccountID) (*sessionGuard, error) {
@@ -109,13 +119,10 @@ func (c *sessionCoordinator) enter(ctx context.Context, account contracts.Accoun
 	quarantined := gate.quarantined
 	c.mu.Unlock()
 	if quarantined {
-		if err := c.store.ConfirmAccountSettled(ctx, account); err != nil {
+		if err := guard.reconcilePrimary(ctx); err != nil {
 			guard.release()
 			return nil, err
 		}
-		c.mu.Lock()
-		gate.quarantined = false
-		c.mu.Unlock()
 	}
 	if err := ctx.Err(); err != nil {
 		guard.release()
@@ -135,6 +142,7 @@ func (g *sessionGuard) release() {
 		return
 	}
 	g.once.Do(func() {
+		g.mutation.Release()
 		g.gate.permit <- struct{}{}
 		c := g.coordinator
 		c.mu.Lock()
@@ -150,18 +158,30 @@ func (g *sessionGuard) quarantine() {
 	}
 	g.coordinator.mu.Lock()
 	g.gate.quarantined = true
+	if g.creating && g.gate.pendingCreation == nil {
+		g.gate.pendingCreation = g.coordinator.pendingCreations.PushBack(g.key)
+	}
 	g.coordinator.mu.Unlock()
+	g.termination = authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE
+	_ = g.coordinator.authority.QuarantineAccount(g.gate.account)
 }
 
 // register must run while the gate is held, after authoritative admission.
 // The derived context closes a stream immediately on local revocation.
 func (g *sessionGuard) register(ctx context.Context, owner storage.SessionOwner) (context.Context, *sessionLease) {
-	leaseCtx, cancel := context.WithCancel(ctx)
-	lease := &sessionLease{owner: owner, gate: g.gate, coordinator: g.coordinator, cancel: cancel}
+	leaseCtx, cancel := context.WithCancelCause(ctx)
+	lease := &sessionLease{owner: owner, gate: g.gate, coordinator: g.coordinator, cancel: func() { cancel(context.Canceled) }, cancelCause: cancel}
 	g.coordinator.mu.Lock()
 	g.gate.leases[lease] = struct{}{}
 	g.coordinator.mu.Unlock()
 	return context.WithValue(leaseCtx, sessionLeaseContextKey{}, lease), lease
+}
+
+func (l *sessionLease) terminate(reason authv1.AuthorizationTerminationReason) {
+	if l == nil || l.cancelCause == nil {
+		return
+	}
+	l.cancelCause(authorizationTerminationCause{reason: reason})
 }
 
 func (l *sessionLease) release() {
@@ -199,7 +219,11 @@ func (g *sessionGuard) cancelLeases(ctx context.Context, session *contracts.Sess
 		selected = append(selected, lease)
 	}
 	g.coordinator.mu.Unlock()
+	reason := g.termination
+	if reason == authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED {
+		reason = authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED
+	}
 	for _, lease := range selected {
-		lease.cancel()
+		lease.terminate(reason)
 	}
 }

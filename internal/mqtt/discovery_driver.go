@@ -45,7 +45,6 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 	}
 	profile := runtime.profile
 	var payload []byte
-	lightCommand := false
 	switch profile.kind {
 	case componentSwitch:
 		if request.GetCapabilitySchemaId() != contracts.SwitchSchema || request.GetArguments().GetSetSwitch() == nil {
@@ -57,7 +56,6 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 			payload = scalarBytes(profile.payloadOff)
 		}
 	case componentLight:
-		lightCommand = true
 		if request.GetCapabilitySchemaId() != contracts.LightSchema || request.GetArguments().GetSetLight() == nil {
 			return integrations.ErrCommandRouteUnavailable
 		}
@@ -120,7 +118,7 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if lightCommand && !command.ReadyForTransport() {
+	if !command.ReadyForTransport() {
 		return integrations.ErrCommandRouteUnavailable
 	}
 	writeErr := p.Pilot.WriteCommand(ctx, publication)

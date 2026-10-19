@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/compat/ha/parser"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -869,11 +870,11 @@ func TestNHA151SchemaEnumDrift(t *testing.T) {
 	s, ctx := nha151Store(t)
 	for _, tc := range []struct {
 		name string
-		want string
+		want []string
 	}{
-		{"config_document_kind", ConfigDocumentKindYAMLSource.String()},
-		{"config_schema_version", bundle.SchemaDeclarative1.String()},
-		{"config_syntax_profile", parser.SyntaxProfileDeclarative.String()},
+		{"config_document_kind", []string{ConfigDocumentKindYAMLSource.String(), ConfigDocumentKindAuthorizationPolicy.String()}},
+		{"config_schema_version", []string{bundle.SchemaDeclarative1.String(), authorization.Schema}},
+		{"config_syntax_profile", []string{parser.SyntaxProfileDeclarative.String(), authorization.SyntaxProfile}},
 	} {
 		rows, err := s.pool.Query(ctx, `SELECT e.enumlabel FROM pg_enum e
 			JOIN pg_type t ON t.oid=e.enumtypid
@@ -895,8 +896,13 @@ func TestNHA151SchemaEnumDrift(t *testing.T) {
 			t.Fatal(err)
 		}
 		rows.Close()
-		if len(labels) != 1 || labels[0] != tc.want {
-			t.Fatalf("SQL enum %s drifted from Go conversion: %v want %q", tc.name, labels, tc.want)
+		if len(labels) != len(tc.want) {
+			t.Fatalf("SQL enum %s drifted from Go conversion: %v want %v", tc.name, labels, tc.want)
+		}
+		for i := range labels {
+			if labels[i] != tc.want[i] {
+				t.Fatalf("SQL enum %s drifted from Go conversion: %v want %v", tc.name, labels, tc.want)
+			}
 		}
 	}
 	if kind, err := parseConfigDocumentKind(ConfigDocumentKindYAMLSource.String()); err != nil || kind != ConfigDocumentKindYAMLSource {

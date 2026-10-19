@@ -185,75 +185,91 @@ func (s *Service) CreateTemporary(ctx context.Context, id domain.HAAlias, explic
 	}
 	var result SceneRef
 	var omissions []Omission
-	err := s.generation.WithCurrent(ctx, func(revision uint64) error {
-		if revision == 0 {
-			return ErrSceneUnavailable
-		}
-		snapshot, err := s.capture.Capture()
-		if err != nil || !snapshot.RegistryReady {
-			return ErrSceneUnavailable
-		}
-		epoch, _, err := snapshot.Cursor.Components()
-		if err != nil {
-			return ErrSceneUnavailable
-		}
-		now := s.clock.Now()
-		if now.IsZero() {
-			return ErrInvalidScene
-		}
-		for _, alias := range captureAliases {
-			member, omission := captureMember(snapshot, alias)
-			if omission.code != OmissionInvalid {
-				omissions = append(omissions, omission)
-				members = append(members, memberSpec{alias: alias, omissionCode: omission.code, omissionReason: omission.reason})
-			} else {
-				members = append(members, member)
+	err := s.withSceneRead(ctx, func(access *integrations.SceneReadAccess) error {
+		return s.generation.WithCurrent(ctx, func(revision uint64) error {
+			if revision == 0 {
+				return ErrSceneUnavailable
 			}
-		}
-		admitted := 0
-		for _, member := range members {
-			if member.origin != originInvalid {
-				admitted++
+			snapshot, err := s.capture.Capture()
+			if err != nil || !snapshot.RegistryReady {
+				return ErrSceneUnavailable
 			}
-		}
-		if admitted == 0 {
-			return ErrSceneUnavailable
-		}
-		entry := &temporaryEntry{members: append([]memberSpec(nil), members...), epoch: epoch,
-			configRevision: revision, expiresAt: now.Add(ttl)}
-		for _, omission := range omissions {
-			entry.omissions = append(entry.omissions, MemberResult{alias: omission.alias, field: "capture", reason: omission.reason, outcome: OutcomeRefused})
-		}
-		entry.retainedBytes = temporaryBytes(id, entry)
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		if s.closed {
-			return ErrSceneClosed
-		}
-		s.purgeLocked(now, epoch, revision)
-		prior := s.temporary[id]
-		if prior == nil && expectedVersion != nil || prior != nil && (expectedVersion == nil || *expectedVersion != prior.ref.version) {
-			return ErrSceneConflict
-		}
-		if prior == nil && len(s.temporary) >= maxTemporaryScenes {
-			return ErrSceneCapacity
-		}
-		retained := s.retained + entry.retainedBytes
-		if prior != nil {
-			retained -= prior.retainedBytes
-		}
-		if retained > maxTemporaryBytes {
-			return ErrSceneCapacity
-		}
-		if s.nextVersion == ^uint64(0) {
-			return ErrSceneCapacity
-		}
-		s.nextVersion++
-		entry.ref = SceneRef{id: id, kind: SceneTemporary, version: s.nextVersion}
-		s.temporary[id] = entry
-		s.retained = retained
-		result = entry.ref
-		return nil
+			if access != nil && access.RequiresEntityAdmission() {
+				for alias := range seen {
+					entity, err := snapshotEntity(snapshot, alias)
+					if err != nil {
+						return integrations.ErrCommandAuthorizationDenied
+					}
+					if err := access.AdmitEntity(entity, snapshot.Capabilities[entity]); err != nil {
+						return integrations.ErrCommandAuthorizationDenied
+					}
+				}
+			}
+			epoch, _, err := snapshot.Cursor.Components()
+			if err != nil {
+				return ErrSceneUnavailable
+			}
+			now := s.clock.Now()
+			if now.IsZero() {
+				return ErrInvalidScene
+			}
+			for _, alias := range captureAliases {
+				member, omission := captureMember(snapshot, alias)
+				if entity, err := snapshotEntity(snapshot, alias); err == nil {
+					member.capturedEntity = entity
+				}
+				if omission.code != OmissionInvalid {
+					omissions = append(omissions, omission)
+					members = append(members, memberSpec{alias: alias, omissionCode: omission.code, omissionReason: omission.reason, capturedEntity: member.capturedEntity})
+				} else {
+					members = append(members, member)
+				}
+			}
+			admitted := 0
+			for _, member := range members {
+				if member.origin != originInvalid {
+					admitted++
+				}
+			}
+			if admitted == 0 {
+				return ErrSceneUnavailable
+			}
+			entry := &temporaryEntry{members: append([]memberSpec(nil), members...), epoch: epoch,
+				configRevision: revision, expiresAt: now.Add(ttl)}
+			for _, omission := range omissions {
+				entry.omissions = append(entry.omissions, MemberResult{alias: omission.alias, field: "capture", reason: omission.reason, outcome: OutcomeRefused})
+			}
+			entry.retainedBytes = temporaryBytes(id, entry)
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if s.closed {
+				return ErrSceneClosed
+			}
+			s.purgeLocked(now, epoch, revision)
+			prior := s.temporary[id]
+			if prior == nil && expectedVersion != nil || prior != nil && (expectedVersion == nil || *expectedVersion != prior.ref.version) {
+				return ErrSceneConflict
+			}
+			if prior == nil && len(s.temporary) >= maxTemporaryScenes {
+				return ErrSceneCapacity
+			}
+			retained := s.retained + entry.retainedBytes
+			if prior != nil {
+				retained -= prior.retainedBytes
+			}
+			if retained > maxTemporaryBytes {
+				return ErrSceneCapacity
+			}
+			if s.nextVersion == ^uint64(0) {
+				return ErrSceneCapacity
+			}
+			s.nextVersion++
+			entry.ref = SceneRef{id: id, kind: SceneTemporary, version: s.nextVersion}
+			s.temporary[id] = entry
+			s.retained = retained
+			result = entry.ref
+			return nil
+		})
 	})
 	if err != nil {
 		return SceneRef{}, append([]Omission(nil), omissions...), err
@@ -349,6 +365,9 @@ func temporaryBytes(id domain.HAAlias, entry *temporaryEntry) int {
 	for _, member := range entry.members {
 		alias, _ := member.alias.Value()
 		size += len(alias) + len(member.omissionReason)
+		if entity, err := member.capturedEntity.Value(); err == nil {
+			size += len(entity)
+		}
 	}
 	for _, omission := range entry.omissions {
 		alias, _ := omission.alias.Value()

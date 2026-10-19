@@ -9,6 +9,7 @@ import (
 
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/proto"
@@ -199,7 +200,17 @@ func (s *DurableCommandService) Status(ctx context.Context, id domain.CommandID)
 		return DurableCommandStatus{}, false, ErrDurableLedgerUnavailable
 	}
 	if !found {
+		if s.router.host.commandAuthority() != nil {
+			return DurableCommandStatus{}, false, ErrCommandAuthorizationDenied
+		}
 		return DurableCommandStatus{}, false, nil
+	}
+	target, present, targetErr := record.AuthorizationTarget()
+	if targetErr != nil {
+		return DurableCommandStatus{}, false, ErrCommandAuthorizationDenied
+	}
+	if err := s.router.authorizeStored(ctx, record.Fingerprint(), target, present); err != nil {
+		return DurableCommandStatus{}, false, err
 	}
 	response, err := storedCommandResponse(id, record)
 	if err != nil {
@@ -276,7 +287,7 @@ func (s *DurableCommandService) RecordedPreparedLight(ctx context.Context, prepa
 	if err != nil || prepared.actor != prepared.route.actor {
 		return nil, false, ErrInvalidInput
 	}
-	return s.recordedPrepared(ctx, prepared.actor, wire)
+	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedLightCommand(prepared.route)), prepared.actor, wire)
 }
 
 func (s *DurableCommandService) RecordedPreparedFan(ctx context.Context, prepared PreparedFan) (*actions.CommandResponse, bool, error) {
@@ -287,7 +298,7 @@ func (s *DurableCommandService) RecordedPreparedFan(ctx context.Context, prepare
 	if err != nil || prepared.actor != prepared.route.actor {
 		return nil, false, ErrInvalidInput
 	}
-	return s.recordedPrepared(ctx, prepared.actor, wire)
+	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedFanCommand(prepared.route)), prepared.actor, wire)
 }
 
 func (s *DurableCommandService) RecordedPreparedDirect(ctx context.Context, prepared PreparedDirect) (*actions.CommandResponse, bool, error) {
@@ -298,7 +309,7 @@ func (s *DurableCommandService) RecordedPreparedDirect(ctx context.Context, prep
 	if err != nil || prepared.actor != prepared.route.actor {
 		return nil, false, ErrInvalidInput
 	}
-	return s.recordedPrepared(ctx, prepared.actor, wire)
+	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedDirectCommand(prepared.route)), prepared.actor, wire)
 }
 
 func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest) (*actions.CommandResponse, bool, error) {
@@ -325,7 +336,17 @@ func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor doma
 		return nil, false, ErrDurableLedgerUnavailable
 	}
 	if !found {
+		if err := s.router.authorizeMissingRecord(ctx, actor, wire); err != nil {
+			return nil, false, err
+		}
 		return nil, false, nil
+	}
+	target, present, targetErr := record.AuthorizationTarget()
+	if targetErr != nil {
+		return nil, false, ErrCommandAuthorizationDenied
+	}
+	if err := s.router.authorizeStored(ctx, record.Fingerprint(), target, present); err != nil {
+		return nil, false, err
 	}
 	response, err := replayDurable(id, record, fingerprint)
 	return response, true, err
@@ -341,6 +362,11 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	}
 	defer s.end()
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	ctx = preparedAuthorizationContext(ctx, preparedRoute)
+	target, err := s.router.authorizeRequest(ctx, actor, request, authv1.ScopeOperation_SCOPE_OPERATION_WRITE)
+	if err != nil {
 		return nil, err
 	}
 	// Bound attacker-controlled wire size before cloning or deterministic
@@ -380,6 +406,13 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 		return nil, ErrDurableLedgerUnavailable
 	}
 	if found {
+		stored, present, targetErr := record.AuthorizationTarget()
+		if targetErr != nil {
+			return nil, ErrCommandAuthorizationDenied
+		}
+		if err := s.router.authorizeStored(ctx, record.Fingerprint(), stored, present); err != nil {
+			return nil, err
+		}
 		return replayDurable(id, record, fingerprint)
 	}
 	authority := s.router.projection.(CommandEpochAuthority)
@@ -393,11 +426,24 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	if wire.Target == nil {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target"), nil
 	}
-	record, created, outcome, err := s.store.AcceptCommandIntent(ctx, id, actor, s.epoch, fingerprint)
+	var created bool
+	var outcome storage.TransactionOutcome
+	if _, _, targetErr := target.Values(); targetErr == nil {
+		record, created, outcome, err = s.store.AcceptAuthorizedCommandIntent(ctx, id, actor, s.epoch, fingerprint, target)
+	} else {
+		record, created, outcome, err = s.store.AcceptCommandIntent(ctx, id, actor, s.epoch, fingerprint)
+	}
 	if outcome != storage.TransactionCommitted || err != nil {
 		return nil, durableTransactionError(outcome)
 	}
 	if !created {
+		stored, present, targetErr := record.AuthorizationTarget()
+		if targetErr != nil {
+			return nil, ErrCommandAuthorizationDenied
+		}
+		if err := s.router.authorizeStored(ctx, record.Fingerprint(), stored, present); err != nil {
+			return nil, err
+		}
 		return replayDurable(id, record, fingerprint)
 	}
 	// The dispatching commit deliberately precedes every final route fence.
@@ -412,7 +458,7 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	if err := runtime.Ping(ctx); err != nil {
 		return nil, ErrDurableLedgerUnavailable
 	}
-	response, dispatchErr := s.router.dispatchOnce(ctx, actor, wire, preparedRoute)
+	response, dispatchErr := s.router.dispatchOnce(withExpectedAuthorizationTarget(ctx, target), actor, wire, preparedRoute)
 	if response == nil {
 		response = commandFailure(actions.ErrorCode_ERROR_CODE_UNSPECIFIED, "command")
 		response.CommandId = wire.CommandId

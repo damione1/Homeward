@@ -43,7 +43,16 @@ type LightCapture struct {
 
 // CaptureLight uses the same generation -> Host -> catalogue -> sequencer lock
 // order as command admission, with no inflight reservation or driver call.
-func (r *CommandRouter) CaptureLight(ctx context.Context, alias domain.HAAlias) (LightCapture, error) {
+func (r *CommandRouter) CaptureLight(ctx context.Context, alias domain.HAAlias) (result LightCapture, resultErr error) {
+	defer func() {
+		if resultErr == nil {
+			resultErr = r.filterCapture(ctx, result.entity, result.description, &result.state, &result.hasState)
+		}
+		resultErr = r.captureError(resultErr)
+		if resultErr != nil {
+			result = LightCapture{}
+		}
+	}()
 	if r == nil || r.host == nil || ctx == nil {
 		return LightCapture{}, ErrInvalidInput
 	}

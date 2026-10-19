@@ -139,16 +139,18 @@ const (
 )
 
 type preparedMember struct {
-	kind      preparedKind
-	alias     domain.HAAlias
-	source    parser.Position
-	code      RefusalCode
-	field     string
-	reason    string
-	light     integrations.PreparedLight
-	fan       integrations.PreparedFan
-	direct    integrations.PreparedDirect
-	satisfied *satisfactionSlot
+	capturedEntity domain.EntityID
+	kind           preparedKind
+	alias          domain.HAAlias
+	source         parser.Position
+	code           RefusalCode
+	field          string
+	reason         string
+	cause          error // retained classification; display text never decides authorization
+	light          integrations.PreparedLight
+	fan            integrations.PreparedFan
+	direct         integrations.PreparedDirect
+	satisfied      *satisfactionSlot
 }
 
 type satisfactionSlot struct {
@@ -198,6 +200,7 @@ const (
 )
 
 type memberSpec struct {
+	capturedEntity   domain.EntityID
 	origin           memberOrigin
 	alias            domain.HAAlias
 	source           parser.Position

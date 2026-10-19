@@ -570,6 +570,111 @@ CREATE TABLE public.auth_enrollment_grants (
 );
 ALTER TABLE public.auth_audit DROP CONSTRAINT auth_audit_action_check;
 ALTER TABLE public.auth_audit ADD CONSTRAINT auth_audit_action_check CHECK (action BETWEEN 1 AND 20);
+`}, {version: Version{11}, sql: `
+-- Authorization policies share immutable document contents and collection with
+-- NHA-151. Only the typed per-account activation projection is new.
+ALTER TYPE public.config_document_kind ADD VALUE 'authorization_policy';
+ALTER TYPE public.config_schema_version ADD VALUE 'homeward.authorization/1';
+ALTER TYPE public.config_syntax_profile ADD VALUE 'homeward.authorization-yaml/1';
+CREATE TABLE public.authorization_policy_active (
+    account_id text PRIMARY KEY REFERENCES public.auth_accounts(id) ON DELETE CASCADE,
+    document_id text NOT NULL UNIQUE REFERENCES public.config_documents(id),
+    version_revision bigint NOT NULL CHECK (version_revision > 0),
+    rights_revision bigint NOT NULL CHECK (rights_revision > 0 AND rights_revision <= version_revision),
+    semantic_sha256 bytea NOT NULL CHECK (octet_length(semantic_sha256) = 32)
+);
+CREATE FUNCTION public.homeward_authorization_guard_active() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE document_kind text;
+BEGIN
+    PERFORM pg_advisory_xact_lock(481316, 151);
+    IF TG_OP = 'DELETE' THEN
+        IF EXISTS (SELECT 1 FROM public.auth_accounts WHERE id=OLD.account_id) THEN
+            RAISE EXCEPTION 'active authorization policy cannot be deleted' USING ERRCODE = '23514';
+        END IF;
+        RETURN OLD;
+    END IF;
+    SELECT kind::text INTO document_kind FROM public.config_documents WHERE id=NEW.document_id;
+    IF document_kind IS DISTINCT FROM 'authorization_policy' THEN
+        RAISE EXCEPTION 'authorization policy document kind mismatch' USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM public.config_versions v WHERE v.document_id=NEW.document_id
+        AND v.revision=NEW.version_revision AND v.schema_version::text='homeward.authorization/1'
+        AND v.syntax_profile::text='homeward.authorization-yaml/1'
+    ) THEN
+        RAISE EXCEPTION 'authorization policy schema mismatch' USING ERRCODE = '23514';
+    END IF;
+    IF TG_OP = 'INSERT' THEN
+        IF NEW.rights_revision IS DISTINCT FROM NEW.version_revision THEN
+            RAISE EXCEPTION 'initial authorization revision mismatch' USING ERRCODE = '23514';
+        END IF;
+    ELSE
+        IF NEW.account_id IS DISTINCT FROM OLD.account_id OR NEW.document_id IS DISTINCT FROM OLD.document_id OR
+           NEW.version_revision <= OLD.version_revision THEN
+            RAISE EXCEPTION 'authorization policy identity and revisions are protected' USING ERRCODE = '23514';
+        END IF;
+        IF NEW.semantic_sha256 = OLD.semantic_sha256 THEN
+            IF NEW.rights_revision IS DISTINCT FROM OLD.rights_revision THEN
+                RAISE EXCEPTION 'unchanged authorization revision changed' USING ERRCODE = '23514';
+            END IF;
+        ELSIF NEW.rights_revision IS DISTINCT FROM NEW.version_revision THEN
+            RAISE EXCEPTION 'changed authorization revision mismatch' USING ERRCODE = '23514';
+        END IF;
+    END IF;
+    RETURN NEW;
+END
+$$;
+CREATE TRIGGER authorization_active_identity BEFORE INSERT OR UPDATE OR DELETE ON public.authorization_policy_active
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_authorization_guard_active();
+CREATE TRIGGER authorization_active_no_truncate BEFORE TRUNCATE ON public.authorization_policy_active
+    FOR EACH STATEMENT EXECUTE FUNCTION public.homeward_config_no_truncate();
+CREATE OR REPLACE FUNCTION public.homeward_config_guard_version() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        RAISE EXCEPTION 'config version is immutable' USING ERRCODE = '23514';
+    END IF;
+    PERFORM pg_advisory_xact_lock(481316, 151);
+    IF current_setting('homeward.config_gc', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'config version deletion requires collection' USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM public.config_active a
+        JOIN public.config_generation_entries e ON e.generation_revision = a.generation_revision
+        WHERE a.singleton AND e.document_id = OLD.document_id AND e.version_revision = OLD.revision
+    ) OR EXISTS (
+        SELECT 1 FROM public.authorization_policy_active p
+        WHERE p.document_id=OLD.document_id AND p.version_revision=OLD.revision
+    ) THEN
+        RAISE EXCEPTION 'active config version is protected' USING ERRCODE = '23514';
+    END IF;
+    RETURN OLD;
+END
+$$;
+ALTER TABLE public.auth_audit DROP CONSTRAINT auth_audit_action_check;
+ALTER TABLE public.auth_audit ADD CONSTRAINT auth_audit_action_check CHECK (action BETWEEN 1 AND 23);
+ALTER TABLE public.command_intents ADD COLUMN authorization_entity_id text;
+ALTER TABLE public.command_intents ADD COLUMN authorization_schema_id text;
+ALTER TABLE public.command_intents ADD COLUMN authorization_endpoint text;
+ALTER TABLE public.command_intents ADD CONSTRAINT command_authorization_target_presence CHECK (
+    (authorization_entity_id IS NULL AND authorization_schema_id IS NULL AND authorization_endpoint IS NULL) OR
+    (authorization_entity_id IS NOT NULL AND authorization_entity_id <> '' AND
+     authorization_schema_id IS NOT NULL AND authorization_schema_id <> '' AND
+     authorization_endpoint IS NOT NULL AND authorization_endpoint <> '')
+);
+CREATE FUNCTION public.homeward_command_guard_identity() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.command_id IS DISTINCT FROM OLD.command_id OR NEW.actor_id IS DISTINCT FROM OLD.actor_id OR
+       NEW.admission_epoch IS DISTINCT FROM OLD.admission_epoch OR NEW.fingerprint IS DISTINCT FROM OLD.fingerprint OR
+       NEW.authorization_entity_id IS DISTINCT FROM OLD.authorization_entity_id OR
+       NEW.authorization_schema_id IS DISTINCT FROM OLD.authorization_schema_id OR
+       NEW.authorization_endpoint IS DISTINCT FROM OLD.authorization_endpoint THEN
+        RAISE EXCEPTION 'command intention identity is immutable' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END
+$$;
+CREATE TRIGGER command_intention_identity BEFORE UPDATE ON public.command_intents
+    FOR EACH ROW EXECUTE FUNCTION public.homeward_command_guard_identity();
 `}}
 
 var latestVersion = migrations[len(migrations)-1].version
