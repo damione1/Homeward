@@ -1,0 +1,24 @@
+{
+  "inventory": "Projects/New Home Assistant/Dashboards et interface.md",
+  "inventory_date": "2026-10-16",
+  "capture_kind": "redacted configuration serialized for the Obsidian inventory; original Home Assistant storage/YAML bytes were not captured",
+  "fixtures": [
+    {
+      "file": "alarm.inventory.yaml",
+      "dashboard_id_in_inventory": "dashboard_alarm",
+      "ha_url_path_in_inventory": "dashboard-alarm",
+      "inventory_lines_inclusive": [113, 272],
+      "transform": "copy YAML fence content exactly, exclude Markdown fences",
+      "bytes": 4309,
+      "sha256": "2c8198a5b91b6ef1646f0a54b3f09414a86969cf11db36a5d700bc0df5fc5fe6"
+    },
+    {
+      "file": "overview-bathroom.inventory.yaml",
+      "dashboard_id_in_inventory": "lovelace",
+      "ha_url_path_in_inventory": "lovelace",
+      "inventory_lines_inclusive": [2526, 2578],
+      "transform": "prefix 'views:\n' to the exact contiguous Bathroom view excerpt; this is a derived document, not an original dashboard file",
+      "sha256": "d37b082a85999451494f291a4c30d3c2fffe4e74f11ccf9f617eb5def9ddab00"
+    }
+  ]
+}

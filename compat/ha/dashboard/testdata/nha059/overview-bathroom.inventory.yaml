@@ -1,0 +1,54 @@
+views:
+- type: sections
+  max_columns: 2
+  path: bathroom
+  title: Bathroom
+  icon: mdi:shower
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Bathroom
+      heading_style: title
+      icon: mdi:shower
+    - type: tile
+      entity: climate.neviweb130_climate_salle_de_bain
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+  - type: grid
+    cards:
+    - type: heading
+      heading_style: title
+      heading: Sonos
+    - type: tile
+      entity: media_player.bathroom
+      show_entity_picture: true
+      state_content: media_channel
+      vertical: false
+      features:
+      - type: media-player-volume-slider
+      features_position: bottom
+  cards: []
+  subview: true
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '#  Bathroom'
