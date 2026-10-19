@@ -23,6 +23,7 @@ import (
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
+	"github.com/damione1/Homeward/internal/workday"
 	"github.com/damione1/Homeward/internal/worker"
 	"github.com/damione1/Homeward/scope"
 )
@@ -56,6 +57,8 @@ type RuntimePlan struct {
 	ConfigureAutomationTriggerResults func(context.Context, AutomationTriggerResults) error
 	AutomationRuns                    *AutomationRunsComposition
 	Public                            *PublicPlan
+	WorkdayCalendar                   workday.CalendarReader
+	ConfigureWorkdayCalendar          func(context.Context, workday.CalendarReader) error
 }
 
 // RuntimeFactory is trusted server composition. The default runtime has no
@@ -126,6 +129,9 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	if dependencies.solarClock == nil {
 		dependencies.solarClock = automationtriggers.RealClock{}
 	}
+	if dependencies.workdayClock == nil {
+		dependencies.workdayClock = automationtriggers.RealClock{}
+	}
 	sequence, err := sequencer.New(dependencies.sequenceClock, 16384)
 	if err != nil {
 		store.Close()
@@ -174,7 +180,8 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		neviwebSettings, neviwebEnabled := c.NeviwebSettings()
 		workers := c.ExternalWorkers()
 		solarSettings, solarEnabled := c.SolarSettings()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || hasActiveHelpers || solarEnabled {
+		workdaySettings, workdayEnabled := c.WorkdaySettings()
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || hasActiveHelpers || solarEnabled || workdayEnabled {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
@@ -199,6 +206,12 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 				if err := addConfiguredSolar(&plan, solarSettings, dependencies.solarClock); err != nil {
 					return closeStoreWithRecorder(store, recording, err)
 				}
+			}
+			if workdayEnabled {
+				if err := addConfiguredWorkday(&plan, workdaySettings, dependencies.workdayClock); err != nil {
+					return closeStoreWithRecorder(store, recording, err)
+				}
+				plan.ConfigureWorkdayCalendar = dependencies.configureWorkdayCalendar
 			}
 			if hiloEnabled {
 				repository, ok := plan.Identity.(*registry.Repository)
@@ -259,6 +272,14 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	}
 	if plan.Configure != nil {
 		if err := plan.Configure(ctx, host, store); err != nil {
+			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+		}
+	}
+	if plan.ConfigureWorkdayCalendar != nil {
+		if err := workday.ValidateReader(plan.WorkdayCalendar); err != nil {
+			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+		}
+		if err := plan.ConfigureWorkdayCalendar(ctx, plan.WorkdayCalendar); err != nil {
 			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 	}
