@@ -18,6 +18,8 @@ var (
 const MaxSubscriptions = 64
 const MaxQueueCapacity = 4096
 const MaxViewQueueBytes = 4 << 20
+const MaxRecorderQueueBytes = 4 << 20
+const MaxRecorderQueueEntries = 1024
 
 // QueueLimits is constructed as a whole so each class has an explicit,
 // independent capacity. The defaults are provisional; final quotas are a
@@ -130,6 +132,7 @@ type Subscription struct {
 	capacity    int
 	queue       []Entry
 	queueBytes  int
+	maxBytes    int
 	wake        chan struct{}
 	closed      bool
 	degraded    bool
@@ -213,6 +216,9 @@ func (s *Sequencer) subscribe(class SubscriptionClass) (*Subscription, Cursor, e
 		return nil, Cursor{}, ErrInvalidInput
 	}
 	sub := &Subscription{owner: s, class: class, capacity: capacity, queue: make([]Entry, 0, capacity), wake: make(chan struct{}), replayValid: true}
+	if class == SubscriptionRecorder {
+		sub.maxBytes = MaxRecorderQueueBytes
+	}
 	s.subs[sub] = struct{}{}
 	return sub, Cursor{epoch: s.epoch, seq: s.seq}, nil
 }
@@ -232,9 +238,13 @@ func (sub *Subscription) addLoss(entry Entry, reason LossReason) {
 		if entry.cursor.seq > sub.loss.To.seq {
 			sub.loss.To = entry.cursor
 		}
-		sub.loss.Count++
+		if sub.loss.Count < ^uint64(0) {
+			sub.loss.Count++
+		}
 	}
-	sub.lost++
+	if sub.lost < ^uint64(0) {
+		sub.lost++
+	}
 	sub.replayValid = false
 }
 
@@ -281,13 +291,20 @@ func (s *Sequencer) publish(entry Entry) {
 			}
 			sub.signal()
 		case SubscriptionRecorder:
-			if len(sub.queue) == sub.capacity {
+			if entry.estimatedBytes > sub.maxBytes {
+				sub.addLoss(entry, LossRecorderOverflow)
+				sub.signal()
+				continue
+			}
+			for len(sub.queue) == sub.capacity || entry.estimatedBytes > sub.maxBytes-sub.queueBytes {
 				sub.addLoss(sub.queue[0], LossRecorderOverflow)
+				sub.queueBytes -= sub.queue[0].estimatedBytes
 				copy(sub.queue, sub.queue[1:])
 				sub.queue[len(sub.queue)-1] = Entry{}
 				sub.queue = sub.queue[:len(sub.queue)-1]
 			}
 			sub.queue = append(sub.queue, entry)
+			sub.queueBytes += entry.estimatedBytes
 			sub.signal()
 		case SubscriptionView:
 			if sub.degraded {
@@ -352,7 +369,7 @@ func (sub *Subscription) Next(ctx context.Context) (Delivery, error) {
 		}
 		if len(sub.queue) > 0 {
 			entry := sub.queue[0]
-			if sub.class == SubscriptionView {
+			if sub.class == SubscriptionView || sub.class == SubscriptionRecorder {
 				sub.queueBytes -= entry.estimatedBytes
 			}
 			copy(sub.queue, sub.queue[1:])

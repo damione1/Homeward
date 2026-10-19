@@ -263,29 +263,71 @@ func (s *Sequencer) append(entry Entry) Entry {
 // body, owned strings, slices and encoded declarations. The projection has a
 // separate budget to qualify in NHA-165.
 func retainedBytes(entry Entry) int {
+	const overBudget = MaxJournalBytes + 1
 	size := int(unsafe.Sizeof(Entry{})) + 256
-	instance, source, _, present := entry.Origin()
+	instance, source, causality, present := entry.Origin()
 	if present {
 		name, _ := instance.Value()
 		session, _, _ := source.Components()
-		size += len(name) + len(session)
+		size = retainedCharge(size, len(name))
+		size = retainedCharge(size, len(session))
+		cause, correlation, err := causality.Components()
+		if err != nil {
+			return overBudget
+		}
+		if cause != nil {
+			value, _ := cause.Value()
+			size = retainedCharge(size, len(value))
+		}
+		if correlation != nil {
+			value, _ := correlation.Value()
+			size = retainedCharge(size, len(value))
+		}
 	}
 	switch entry.kind {
 	case KindState:
 		id, state, _, _ := entry.State()
 		name, _ := id.Value()
-		size += len(name)
+		size = retainedCharge(size, len(name))
+		_, _, times, stateSource, _, err := state.Components()
+		if err != nil {
+			return overBudget
+		}
+		if times.ObservedAt != nil {
+			size = retainedCharge(size, int(unsafe.Sizeof(time.Time{})))
+		}
+		stateSession, _, _ := stateSource.Components()
+		size = retainedCharge(size, len(stateSession))
+		if current, ok := state.CurrentValue(); ok {
+			size = retainedStateValueBytes(size, current)
+		}
+		if display, ok := state.DisplayValue(); ok {
+			size = retainedStateValueBytes(size, display)
+		}
 		wire, err := contracts.EncodeObservedState(state)
 		if err != nil {
-			return MaxJournalBytes + 1
+			return overBudget
 		}
-		size += proto.Size(wire) * 4
+		size = retainedScaledCharge(size, proto.Size(wire), 4)
 	case KindEvent:
-		id, _, _ := entry.Event()
+		id, event, _ := entry.Event()
 		name, _ := id.Value()
-		size += len(name) + 1024
+		code, _, sequence, err := event.Components()
+		if err != nil {
+			return overBudget
+		}
+		size = retainedCharge(size, len(name))
+		size = retainedCharge(size, len(code))
+		if sequence != nil {
+			size = retainedCharge(size, int(unsafe.Sizeof(uint64(0))))
+		}
+		size = retainedCharge(size, 1024)
 	case KindHealth:
-		size += 1024
+		_, detail, err := entry.health.Components()
+		if err != nil {
+			return overBudget
+		}
+		size = retainedCharge(size, len(detail)+1024)
 	case KindRegistry:
 		for _, record := range entry.registry {
 			device, entity, _ := record.IDs()
@@ -294,26 +336,60 @@ func retainedBytes(entry Entry) int {
 			instance, key, _ := record.Source()
 			i, _ := instance.Value()
 			kd, ke, _ := key.Components()
-			size += 512 + len(d) + len(e) + len(i) + len(kd) + len(ke)
+			size = retainedCharge(size, 512)
+			size = retainedCharge(size, len(d))
+			size = retainedCharge(size, len(e))
+			size = retainedCharge(size, len(i))
+			size = retainedCharge(size, len(kd))
+			size = retainedCharge(size, len(ke))
 			_, _, aliases, _ := record.Aliases()
 			for _, alias := range aliases {
 				a, _ := alias.Value()
-				size += len(a) + 32
+				size = retainedCharge(retainedCharge(size, len(a)), 32)
 			}
 		}
 	case KindCapabilities:
 		for _, declaration := range entry.capabilities {
 			_, id, _, _, _ := declaration.Identity()
 			name, _ := id.Value()
-			size += 512 + len(name)
+			size = retainedCharge(retainedCharge(size, 512), len(name))
 			for _, description := range declaration.Descriptions() {
-				size += proto.Size(description)*4 + 128
+				size = retainedCharge(retainedScaledCharge(size, proto.Size(description), 4), 128)
 			}
 		}
 	case KindUnspecified:
-		return MaxJournalBytes + 1
+		return overBudget
 	default:
-		return MaxJournalBytes + 1
+		return overBudget
+	}
+	return size
+}
+
+func retainedCharge(size, additional int) int {
+	const overBudget = MaxJournalBytes + 1
+	if additional < 0 || size > overBudget-additional {
+		return overBudget
+	}
+	return size + additional
+}
+
+func retainedScaledCharge(size, additional, factor int) int {
+	const overBudget = MaxJournalBytes + 1
+	if additional < 0 || factor < 1 || additional > (overBudget-size)/factor {
+		return overBudget
+	}
+	return size + additional*factor
+}
+
+func retainedStateValueBytes(size int, value domain.StateValue) int {
+	if measurement, ok := value.Measurement(); ok {
+		parts, err := measurement.Components()
+		if err != nil {
+			return MaxJournalBytes + 1
+		}
+		symbol, _ := parts.Unit.Symbol()
+		canonical, _ := parts.Unit.CanonicalSymbol()
+		return retainedCharge(retainedCharge(size, len(symbol)), len(canonical))
 	}
 	return size
 }
