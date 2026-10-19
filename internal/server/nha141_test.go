@@ -19,6 +19,7 @@ import (
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/accounts"
 	"github.com/damione1/Homeward/internal/authorization"
+	"github.com/damione1/Homeward/internal/recorder"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/jackc/pgx/v5"
@@ -385,6 +386,7 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 		})
 	}()
 	var address net.Addr
+	expectRecorderDrainFailure := false
 	select {
 	case address = <-ready:
 	case err := <-done:
@@ -396,7 +398,9 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 		cancel()
 		select {
 		case err := <-done:
-			if err != nil {
+			if expectRecorderDrainFailure && !errors.Is(err, recorder.ErrDrainIncomplete) {
+				t.Errorf("Run shutdown after PostgreSQL loss did not report incomplete Recorder drain: %v", err)
+			} else if !expectRecorderDrainFailure && err != nil {
 				t.Errorf("Run shutdown: %v", err)
 			}
 		case <-time.After(8 * time.Second):
@@ -691,6 +695,7 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	if err := cluster.Stop(); err != nil {
 		t.Fatal(err)
 	}
+	expectRecorderDrainFailure = true
 	if err := listWith(secondAdminSession.AccessToken); err == nil {
 		t.Fatal("database outage admitted an access credential")
 	} else if connect.CodeOf(err) != connect.CodeUnauthenticated && connect.CodeOf(err) != connect.CodeUnavailable {

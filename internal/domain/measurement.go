@@ -118,6 +118,15 @@ func (u Unit) Dimension() (Dimension, error) {
 	return u.dimension, nil
 }
 
+// BaseTransform returns the admitted affine conversion captured by this Unit.
+// A later catalogue registration cannot change this immutable snapshot.
+func (u Unit) BaseTransform() (scale, offset float64, err error) {
+	if !u.valid() {
+		return 0, 0, ErrInvalidUnit
+	}
+	return u.scale, u.offset, nil
+}
+
 // UnitCatalog owns admission. Registration is explicit and thread-safe; a
 // parsed Unit is an immutable snapshot even if other entries are added later.
 type UnitCatalog struct {

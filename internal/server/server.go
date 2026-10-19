@@ -15,6 +15,7 @@ import (
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/neviweb"
+	"github.com/damione1/Homeward/internal/recorder"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
@@ -64,6 +65,10 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	if err != nil {
 		return err
 	}
+	recorderLimits, err := c.RecorderLimits()
+	if err != nil {
+		return err
+	}
 	if _, err := c.ListenEndpoint(); err != nil {
 		return err
 	}
@@ -100,24 +105,26 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		store.Close()
 		return err
 	}
-	hiloSettings, hiloEnabled := c.HiloSettings()
-	units, err := newRunUnitCatalog(hiloEnabled)
+	recording, err := prepareRecorder(ctx, sequence, store, recorderLimits)
 	if err != nil {
 		store.Close()
 		return err
 	}
+	hiloSettings, hiloEnabled := c.HiloSettings()
+	units, err := newRunUnitCatalog(hiloEnabled)
+	if err != nil {
+		return closeStoreWithRecorder(store, recording, err)
+	}
 	catalog, err := contracts.NewCapabilityCatalog(units)
 	if err != nil {
-		store.Close()
-		return err
+		return closeStoreWithRecorder(store, recording, err)
 	}
 	plan := RuntimePlan{Identity: unconfiguredIdentity{}}
 	var hiloRun *hiloComposition
 	if factory != nil {
 		plan, err = factory(ctx, store)
 		if err != nil {
-			store.Close()
-			return err
+			return closeStoreWithRecorder(store, recording, err)
 		}
 	} else {
 		mqttSettings, mqttEnabled := c.MQTTSettings()
@@ -128,41 +135,34 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
 				if e != nil {
-					store.Close()
-					return e
+					return closeStoreWithRecorder(store, recording, e)
 				}
 				if _, e = secrets.InitializeCredentialIfAbsent(ctx, neviwebSettings.SessionHandle(), initial); e != nil {
-					store.Close()
-					return e
+					return closeStoreWithRecorder(store, recording, e)
 				}
 				cloud = append(cloud, neviwebComposition{settings: neviwebSettings, catalog: catalog})
 			}
 			plan, err = defaultConfiguredRuntimePlan(mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
 			if err != nil {
-				store.Close()
-				return err
+				return closeStoreWithRecorder(store, recording, err)
 			}
 			if hiloEnabled {
 				repository, ok := plan.Identity.(*registry.Repository)
 				if !ok {
-					store.Close()
-					return ErrIdentityNotConfigured
+					return closeStoreWithRecorder(store, recording, ErrIdentityNotConfigured)
 				}
 				hiloRun, err = newHiloComposition(hiloSettings, store, sequence, catalog, repository)
 				if err != nil {
-					store.Close()
-					return err
+					return closeStoreWithRecorder(store, recording, err)
 				}
 				if err := hiloRun.augment(&plan); err != nil {
-					store.Close()
-					return err
+					return closeStoreWithRecorder(store, recording, err)
 				}
 			}
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		store.Close()
-		return err
+		return closeStoreWithRecorder(store, recording, err)
 	}
 	var sessionClockSource sessionClock = realSessionClock{}
 	if plan.Public != nil && plan.Public.sessionClock != nil {
@@ -170,81 +170,77 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	}
 	sessions, err := prepareLocalAuthorization(ctx, store, sessionClockSource)
 	if err != nil {
-		store.Close()
-		return err
+		return closeStoreWithRecorder(store, recording, err)
 	}
 	host, err := integrations.NewHost(plan.Identity, sequence, catalog)
 	if err != nil {
-		store.Close()
-		return err
+		return closeStoreWithRecorder(store, recording, err)
 	}
 	if err := host.AttachSecrets(secrets); err != nil {
-		store.Close()
-		return err
+		return closePreparedRuntime(host, nil, store, err, nil, recording)
 	}
 	if err := host.AttachAuthorization(sessions.authority); err != nil {
-		store.Close()
-		return err
+		return closePreparedRuntime(host, nil, store, err, nil, recording)
 	}
 	authorization, err := newCloudAuthorizationCoordinator(ctx, host, integrations.DefaultCloudAuthorizationLimits())
 	if err != nil {
-		return closePreparedRuntime(host, nil, store, err, nil)
+		return closePreparedRuntime(host, nil, store, err, nil, recording)
 	}
 	if plan.Configure != nil {
 		if err := plan.Configure(ctx, host, store); err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil)
+			return closePreparedRuntime(host, authorization, store, err, nil, recording)
 		}
 	}
 	if plan.ConfigureAuthorization != nil {
 		composition, err := authorizationComposition(ctx, sessions, sequence, plan.Identity)
 		if err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil)
+			return closePreparedRuntime(host, authorization, store, err, nil, recording)
 		}
 		if err := plan.ConfigureAuthorization(ctx, composition); err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil)
+			return closePreparedRuntime(host, authorization, store, err, nil, recording)
 		}
 	}
 	if plan.ConfigureCloudAuthorization != nil {
 		if err := plan.ConfigureCloudAuthorization(ctx, authorization.composition()); err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil)
+			return closePreparedRuntime(host, authorization, store, err, nil, recording)
 		}
 	}
 	energySpecs, err := configuredEnergySpecs(ctx, c, store, sequence)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, nil)
+		return closePreparedRuntime(host, authorization, store, err, nil, recording)
 	}
 	plan.Pilots = append(plan.Pilots, energySpecs...)
 	if hiloRun != nil {
 		hiloEnergy, err := hiloRun.energySpec(ctx)
 		if err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil)
+			return closePreparedRuntime(host, authorization, store, err, nil, recording)
 		}
 		plan.Pilots = append(plan.Pilots, hiloEnergy)
 	}
 	reactive, err := startReactiveTemplates(ctx, plan.Identity, host, sequence, plan.ReactiveTemplates)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, nil)
+		return closePreparedRuntime(host, authorization, store, err, nil, recording)
 	}
 	authorization.freeze()
 	if err := ctx.Err(); err != nil {
-		return closePreparedRuntime(host, authorization, store, err, reactive)
+		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
 	}
 	plan.Public, sessions, err = composeSessionsWithCoordinator(plan.Public, store, sessions)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, reactive)
+		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
 	}
 	public, err := compilePublicPlan(plan.Public, publicSettings)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, reactive)
+		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
 	}
 	supervisor, err := integrations.NewSupervisor(host, plan.Pilots, integrations.DefaultRetryPolicy(), integrations.RealTimer{}, integrations.RandomJitter{})
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, reactive)
+		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
 	}
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
 	if err := supervisor.Start(ctx); err != nil {
 		lifecycleCancel()
-		return closePreparedRuntime(host, authorization, store, err, reactive)
+		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
 	}
 	if err := authorization.openAdmissions(); err != nil {
 		lifecycleCancel()
@@ -255,9 +251,10 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		stopErr := supervisor.Stop(stopCtx)
 		authorizationErr := authorization.Close(stopCtx)
 		reactiveErr := reactive.Close(stopCtx)
+		recorderErr := drainRecorder(stopCtx, recording)
 		cancel()
-		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done(), reactive.Done())
-		return errors.Join(err, stopErr, authorizationErr, reactiveErr)
+		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done(), reactive.Done(), recording.Done())
+		return errors.Join(err, stopErr, authorizationErr, reactiveErr, recorderErr)
 	}
 	var reactiveDone <-chan struct{}
 	if reactive != nil {
@@ -301,9 +298,10 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	stopErr := supervisor.Stop(stopCtx)
 	authorizationErr := <-authorizationStop
 	reactiveErr := <-reactiveStop
+	recorderErr := drainRecorder(stopCtx, recording)
 	cancel()
-	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done())
-	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr, reactiveErr)
+	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), recording.Done())
+	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr, reactiveErr, recorderErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured
@@ -427,7 +425,7 @@ func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, 
 	}}, nil
 }
 
-func closePreparedRuntime(host *integrations.Manager, authorization *cloudAuthorizationCoordinator, store *storage.Store, cause error, templates *reactiveTemplateRuntime) error {
+func closePreparedRuntime(host *integrations.Manager, authorization *cloudAuthorizationCoordinator, store *storage.Store, cause error, templates *reactiveTemplateRuntime, recording *recorder.Recorder) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	if authorization != nil {
 		authorization.CloseAdmissions()
@@ -450,13 +448,10 @@ func closePreparedRuntime(host *integrations.Manager, authorization *cloudAuthor
 	if templates != nil {
 		reactiveErr = <-reactiveStop
 	}
+	recorderErr := drainRecorder(ctx, recording)
 	cancel()
-	if authorization != nil {
-		retainStoreUntilDrained(store, done, authorization.Done(), templates.Done())
-	} else {
-		retainStoreUntilDrained(store, done, templates.Done())
-	}
-	return errors.Join(cause, closeErr, authorizationErr, reactiveErr)
+	retainStoreUntilDrained(store, done, authorization.Done(), templates.Done(), recording.Done())
+	return errors.Join(cause, closeErr, authorizationErr, reactiveErr, recorderErr)
 }
 
 // A timed-out drain keeps PostgreSQL until every owner really finishes. A nil

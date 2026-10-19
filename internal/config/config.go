@@ -14,6 +14,7 @@ import (
 	"github.com/damione1/Homeward/internal/hilo"
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/neviweb"
+	"github.com/damione1/Homeward/internal/recorder"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/worker"
 
@@ -30,6 +31,7 @@ type Config struct {
 	workers  []worker.Config
 	energy   []EnergyBinding
 	public   PublicSettings
+	recorder recorder.Limits
 }
 
 var ErrUninitialized = errors.New("configuration: uninitialized")
@@ -48,6 +50,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		Hilo     *hilo.Input             `yaml:"hilo"`
 		Energy   []energyInput           `yaml:"energy"`
 		Public   *publicInput            `yaml:"public"`
+		Recorder *RecorderInput          `yaml:"recorder"`
 		Workers  []struct {
 			Instance    string   `yaml:"instance"`
 			Executable  string   `yaml:"executable"`
@@ -84,6 +87,10 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		return Config{}, fmt.Errorf("configuration: data_dir must be an absolute normalized persistent directory")
 	}
 	result := Config{listen: endpoint, postgres: postgres, dataDir: raw.DataDir}
+	result.recorder, err = ParseRecorderInput(raw.Recorder)
+	if err != nil {
+		return Config{}, err
+	}
 	result.energy, err = parseEnergyBindings(raw.Energy)
 	if err != nil {
 		return Config{}, err
@@ -199,6 +206,13 @@ func (c Config) PostgresSettings() (storage.Settings, error) {
 		return storage.Settings{}, ErrUninitialized
 	}
 	return c.postgres, nil
+}
+
+func (c Config) RecorderLimits() (recorder.Limits, error) {
+	if !c.recorder.Valid() {
+		return recorder.Limits{}, ErrUninitialized
+	}
+	return c.recorder, nil
 }
 
 // ListenEndpoint returns a value copy. Only an uninitialized Config can fail;

@@ -1,0 +1,100 @@
+package storage
+
+// recorderSchemaSQL is installed only by the versioned production migration.
+const recorderSchemaSQL = `
+CREATE TABLE public.recorder_epochs (
+    epoch bytea PRIMARY KEY CHECK (octet_length(epoch) = 16),
+    run_id bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
+    started_at timestamptz NOT NULL,
+    closed_at timestamptz,
+    clean_close boolean NOT NULL DEFAULT false,
+    previous_epoch bytea REFERENCES public.recorder_epochs(epoch),
+    previous_checkpoint numeric(20,0),
+    previous_clean_close boolean,
+    checkpoint numeric(20,0) NOT NULL DEFAULT 0 CHECK (checkpoint BETWEEN 0 AND 18446744073709551615),
+    last_batch_from numeric(20,0),
+    last_batch_to numeric(20,0),
+    last_batch_digest bytea CHECK (last_batch_digest IS NULL OR octet_length(last_batch_digest) = 32),
+    policy_excluded numeric(20,0) NOT NULL DEFAULT 0 CHECK (policy_excluded BETWEEN 0 AND 18446744073709551615),
+    reconciliation_complete boolean NOT NULL DEFAULT false,
+    CHECK ((previous_epoch IS NULL) = (previous_checkpoint IS NULL)),
+    CHECK ((previous_epoch IS NULL) = (previous_clean_close IS NULL)),
+    CHECK ((last_batch_from IS NULL) = (last_batch_to IS NULL)),
+    CHECK ((last_batch_from IS NULL) = (last_batch_digest IS NULL)),
+    CHECK (last_batch_from IS NULL OR (last_batch_from <= last_batch_to AND last_batch_to = checkpoint)),
+    CHECK (closed_at IS NULL OR closed_at >= started_at)
+);
+CREATE TABLE public.state_history (
+    epoch bytea NOT NULL REFERENCES public.recorder_epochs(epoch),
+    sequence numeric(20,0) NOT NULL CHECK (sequence BETWEEN 1 AND 18446744073709551615),
+    entity_id text NOT NULL CHECK (entity_id <> ''),
+    entity_digest bytea NOT NULL CHECK (octet_length(entity_digest) = 32),
+    instance_id text NOT NULL CHECK (instance_id <> ''),
+    admitted_at timestamptz NOT NULL,
+    admitted_unix_seconds bigint NOT NULL,
+    admitted_nanos integer NOT NULL CHECK (admitted_nanos BETWEEN 0 AND 999999999),
+    revision numeric(20,0) NOT NULL CHECK (revision BETWEEN 1 AND 18446744073709551615),
+    observed_at timestamptz,
+    received_at timestamptz NOT NULL,
+    last_changed timestamptz NOT NULL,
+    last_updated timestamptz NOT NULL,
+    last_reported timestamptz NOT NULL,
+    source_session text NOT NULL CHECK (source_session <> ''),
+    source_sequence numeric(20,0) CHECK (source_sequence BETWEEN 0 AND 18446744073709551615),
+    causation_id text,
+    correlation_id text,
+    availability smallint NOT NULL CHECK (availability BETWEEN 1 AND 3),
+    freshness smallint NOT NULL CHECK (freshness BETWEEN 1 AND 2),
+    provenance smallint NOT NULL CHECK (provenance BETWEEN 1 AND 3),
+    value_kind smallint CHECK (value_kind BETWEEN 1 AND 5),
+    measurement_value double precision,
+    measurement_unit text,
+    measurement_canonical_unit text,
+    measurement_scale double precision,
+    measurement_offset double precision,
+    measurement_dimension smallint CHECK (measurement_dimension BETWEEN 1 AND 6),
+    measurement_precision smallint CHECK (measurement_precision BETWEEN -308 AND 308),
+    measurement_semantic smallint CHECK (measurement_semantic BETWEEN 1 AND 3),
+    measurement_aggregation smallint CHECK (measurement_aggregation BETWEEN 1 AND 3),
+    payload bytea NOT NULL CHECK (octet_length(payload) BETWEEN 1 AND 4194304),
+    payload_digest bytea NOT NULL CHECK (octet_length(payload_digest) = 32),
+    record_digest bytea NOT NULL CHECK (octet_length(record_digest) = 32),
+    PRIMARY KEY (epoch, sequence),
+    CHECK ((measurement_value IS NULL) = (measurement_unit IS NULL)),
+    CHECK ((measurement_value IS NULL) = (measurement_canonical_unit IS NULL)),
+    CHECK ((measurement_value IS NULL) = (measurement_scale IS NULL)),
+    CHECK ((measurement_value IS NULL) = (measurement_offset IS NULL)),
+    CHECK (measurement_scale IS NULL OR measurement_scale > 0),
+    CHECK ((measurement_value IS NULL) = (measurement_dimension IS NULL)),
+    CHECK ((measurement_value IS NULL) = (measurement_precision IS NULL)),
+    CHECK ((measurement_value IS NULL) = (measurement_semantic IS NULL)),
+    CHECK ((measurement_value IS NULL) = (measurement_aggregation IS NULL))
+);
+CREATE INDEX state_history_by_time ON public.state_history(received_at, epoch, sequence);
+CREATE INDEX state_history_by_entity_digest ON public.state_history(entity_digest, received_at DESC);
+CREATE TABLE public.history_gaps (
+    epoch bytea NOT NULL REFERENCES public.recorder_epochs(epoch),
+    from_sequence numeric(20,0) NOT NULL CHECK (from_sequence BETWEEN 1 AND 18446744073709551615),
+    through_sequence numeric(20,0) NOT NULL CHECK (through_sequence BETWEEN 1 AND 18446744073709551615),
+    reason smallint NOT NULL CHECK (reason BETWEEN 1 AND 3),
+    known_lost_count numeric(20,0) CHECK (known_lost_count BETWEEN 1 AND 18446744073709551615),
+    uncertain_envelope boolean NOT NULL,
+    PRIMARY KEY (epoch, from_sequence, through_sequence, reason),
+    CHECK (from_sequence <= through_sequence)
+);
+CREATE TABLE public.recorder_snapshots (
+    epoch bytea NOT NULL REFERENCES public.recorder_epochs(epoch),
+    boundary_sequence numeric(20,0) NOT NULL CHECK (boundary_sequence BETWEEN 0 AND 18446744073709551615),
+    entity_id text NOT NULL CHECK (entity_id <> ''),
+    entity_digest bytea NOT NULL CHECK (octet_length(entity_digest) = 32),
+    revision numeric(20,0) NOT NULL CHECK (revision BETWEEN 1 AND 18446744073709551615),
+    observed_at timestamptz,
+    received_at timestamptz NOT NULL,
+    source_session text NOT NULL CHECK (source_session <> ''),
+    source_sequence numeric(20,0) CHECK (source_sequence BETWEEN 0 AND 18446744073709551615),
+    payload bytea NOT NULL CHECK (octet_length(payload) BETWEEN 1 AND 4194304),
+    payload_digest bytea NOT NULL CHECK (octet_length(payload_digest) = 32),
+    record_digest bytea NOT NULL CHECK (octet_length(record_digest) = 32),
+    PRIMARY KEY (epoch, boundary_sequence, entity_digest)
+);
+`
