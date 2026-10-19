@@ -48,6 +48,9 @@ const (
 	// OperatorAccountServiceRecoverAccountProcedure is the fully-qualified name of the
 	// OperatorAccountService's RecoverAccount RPC.
 	OperatorAccountServiceRecoverAccountProcedure = "/home.auth.v1.OperatorAccountService/RecoverAccount"
+	// OperatorAccountServiceResetSecondFactorProcedure is the fully-qualified name of the
+	// OperatorAccountService's ResetSecondFactor RPC.
+	OperatorAccountServiceResetSecondFactorProcedure = "/home.auth.v1.OperatorAccountService/ResetSecondFactor"
 	// AccountServiceCreateAccountProcedure is the fully-qualified name of the AccountService's
 	// CreateAccount RPC.
 	AccountServiceCreateAccountProcedure = "/home.auth.v1.AccountService/CreateAccount"
@@ -130,6 +133,7 @@ const (
 type OperatorAccountServiceClient interface {
 	BootstrapAdmin(context.Context, *connect.Request[v1.BootstrapAdminRequest]) (*connect.Response[v1.BootstrapAdminResponse], error)
 	RecoverAccount(context.Context, *connect.Request[v1.RecoverAccountRequest]) (*connect.Response[v1.RecoverAccountResponse], error)
+	ResetSecondFactor(context.Context, *connect.Request[v1.ResetSecondFactorRequest]) (*connect.Response[v1.ResetSecondFactorResponse], error)
 }
 
 // NewOperatorAccountServiceClient constructs a client for the home.auth.v1.OperatorAccountService
@@ -155,13 +159,20 @@ func NewOperatorAccountServiceClient(httpClient connect.HTTPClient, baseURL stri
 			connect.WithSchema(operatorAccountServiceMethods.ByName("RecoverAccount")),
 			connect.WithClientOptions(opts...),
 		),
+		resetSecondFactor: connect.NewClient[v1.ResetSecondFactorRequest, v1.ResetSecondFactorResponse](
+			httpClient,
+			baseURL+OperatorAccountServiceResetSecondFactorProcedure,
+			connect.WithSchema(operatorAccountServiceMethods.ByName("ResetSecondFactor")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // operatorAccountServiceClient implements OperatorAccountServiceClient.
 type operatorAccountServiceClient struct {
-	bootstrapAdmin *connect.Client[v1.BootstrapAdminRequest, v1.BootstrapAdminResponse]
-	recoverAccount *connect.Client[v1.RecoverAccountRequest, v1.RecoverAccountResponse]
+	bootstrapAdmin    *connect.Client[v1.BootstrapAdminRequest, v1.BootstrapAdminResponse]
+	recoverAccount    *connect.Client[v1.RecoverAccountRequest, v1.RecoverAccountResponse]
+	resetSecondFactor *connect.Client[v1.ResetSecondFactorRequest, v1.ResetSecondFactorResponse]
 }
 
 // BootstrapAdmin calls home.auth.v1.OperatorAccountService.BootstrapAdmin.
@@ -174,11 +185,17 @@ func (c *operatorAccountServiceClient) RecoverAccount(ctx context.Context, req *
 	return c.recoverAccount.CallUnary(ctx, req)
 }
 
+// ResetSecondFactor calls home.auth.v1.OperatorAccountService.ResetSecondFactor.
+func (c *operatorAccountServiceClient) ResetSecondFactor(ctx context.Context, req *connect.Request[v1.ResetSecondFactorRequest]) (*connect.Response[v1.ResetSecondFactorResponse], error) {
+	return c.resetSecondFactor.CallUnary(ctx, req)
+}
+
 // OperatorAccountServiceHandler is an implementation of the home.auth.v1.OperatorAccountService
 // service.
 type OperatorAccountServiceHandler interface {
 	BootstrapAdmin(context.Context, *connect.Request[v1.BootstrapAdminRequest]) (*connect.Response[v1.BootstrapAdminResponse], error)
 	RecoverAccount(context.Context, *connect.Request[v1.RecoverAccountRequest]) (*connect.Response[v1.RecoverAccountResponse], error)
+	ResetSecondFactor(context.Context, *connect.Request[v1.ResetSecondFactorRequest]) (*connect.Response[v1.ResetSecondFactorResponse], error)
 }
 
 // NewOperatorAccountServiceHandler builds an HTTP handler from the service implementation. It
@@ -200,12 +217,20 @@ func NewOperatorAccountServiceHandler(svc OperatorAccountServiceHandler, opts ..
 		connect.WithSchema(operatorAccountServiceMethods.ByName("RecoverAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
+	operatorAccountServiceResetSecondFactorHandler := connect.NewUnaryHandler(
+		OperatorAccountServiceResetSecondFactorProcedure,
+		svc.ResetSecondFactor,
+		connect.WithSchema(operatorAccountServiceMethods.ByName("ResetSecondFactor")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/home.auth.v1.OperatorAccountService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case OperatorAccountServiceBootstrapAdminProcedure:
 			operatorAccountServiceBootstrapAdminHandler.ServeHTTP(w, r)
 		case OperatorAccountServiceRecoverAccountProcedure:
 			operatorAccountServiceRecoverAccountHandler.ServeHTTP(w, r)
+		case OperatorAccountServiceResetSecondFactorProcedure:
+			operatorAccountServiceResetSecondFactorHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -221,6 +246,10 @@ func (UnimplementedOperatorAccountServiceHandler) BootstrapAdmin(context.Context
 
 func (UnimplementedOperatorAccountServiceHandler) RecoverAccount(context.Context, *connect.Request[v1.RecoverAccountRequest]) (*connect.Response[v1.RecoverAccountResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.auth.v1.OperatorAccountService.RecoverAccount is not implemented"))
+}
+
+func (UnimplementedOperatorAccountServiceHandler) ResetSecondFactor(context.Context, *connect.Request[v1.ResetSecondFactorRequest]) (*connect.Response[v1.ResetSecondFactorResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.auth.v1.OperatorAccountService.ResetSecondFactor is not implemented"))
 }
 
 // AccountServiceClient is a client for the home.auth.v1.AccountService service.

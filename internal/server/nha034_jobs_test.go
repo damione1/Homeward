@@ -34,6 +34,9 @@ func nha034ServerStore(t *testing.T) *storage.Store {
 	if _, err := store.Migrate(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.BootstrapMFAPolicy(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	return store
 }
 func nha034Account(t *testing.T, store *storage.Store) storage.AccountRecord {

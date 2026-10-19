@@ -675,7 +675,7 @@ END
 $$;
 CREATE TRIGGER command_intention_identity BEFORE UPDATE ON public.command_intents
     FOR EACH ROW EXECUTE FUNCTION public.homeward_command_guard_identity();
-`}, {version: Version{12}, sql: recorderSchemaSQL}, {version: Version{13}, sql: helperValuesSchema}, {version: Version{14}, sql: scheduledJobsSchema}, {version: Version{15}, sql: calendarSchemaSQL}, {version: Version{16}, sql: helperValuesV16 + recorderHelperSchemaSQL}, {version: Version{17}, sql: recorderSolarSchemaSQL}}
+`}, {version: Version{12}, sql: recorderSchemaSQL}, {version: Version{13}, sql: helperValuesSchema}, {version: Version{14}, sql: scheduledJobsSchema}, {version: Version{15}, sql: calendarSchemaSQL}, {version: Version{16}, sql: helperValuesV16 + recorderHelperSchemaSQL}, {version: Version{17}, sql: recorderSolarSchemaSQL}, {version: Version{18}, sql: mfaMigration18SQL}}
 
 var latestVersion = migrations[len(migrations)-1].version
 

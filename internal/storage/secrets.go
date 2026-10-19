@@ -617,30 +617,34 @@ func (r *SecretRepository) ReadCredentialVersioned(ctx context.Context, handle S
 	return value, SecretRevision{handle: handle, number: revision}, nil
 }
 
-func (r *SecretRepository) seal(handle SecretHandle, revision int64, salt, plain []byte) ([]byte, error) {
-	aead, err := r.aead(salt)
-	if err != nil {
-		return nil, err
-	}
-	aad := secretAAD(handle, revision, r.key.id[:], salt)
-	return aead.Seal(nil, nil, plain, aad), nil
-}
+// protectedPurpose selects a fixed domain; suite and AEAD implementation remain unique.
+type protectedPurpose uint8
 
-func (r *SecretRepository) open(handle SecretHandle, revision int64, salt, ciphertext []byte) ([]byte, error) {
-	aead, err := r.aead(salt)
-	if err != nil {
-		return nil, err
-	}
-	aad := secretAAD(handle, revision, r.key.id[:], salt)
-	plain, err := aead.Open(nil, nil, ciphertext, aad)
-	if err != nil {
-		return nil, &Error{kind: SecretIntegrity}
-	}
-	return plain, nil
-}
+const (
+	protectedUnspecified protectedPurpose = iota
+	protectedIntegrationCredential
+	protectedMFACredential
+	protectedMFACeremony
+)
 
-func (r *SecretRepository) aead(salt []byte) (cipher.AEAD, error) {
-	derived, err := hkdf.Key(sha256.New, r.key.bytes[:], salt, "homeward/integration-secret/aes256gcm/v1", 32)
+func (p protectedPurpose) domain() (string, error) {
+	switch p {
+	case protectedIntegrationCredential:
+		return "homeward/integration-secret/aes256gcm/v1", nil
+	case protectedMFACredential:
+		return "homeward/mfa-credential/aes256gcm/v1", nil
+	case protectedMFACeremony:
+		return "homeward/mfa-ceremony/aes256gcm/v1", nil
+	default:
+		return "", &Error{kind: SecretInvalid}
+	}
+}
+func protectedAEAD(key *masterKey, purpose protectedPurpose, salt []byte) (cipher.AEAD, error) {
+	domain, err := purpose.domain()
+	if err != nil || !key.valid() || len(salt) != 32 {
+		return nil, &Error{kind: SecretInvalid}
+	}
+	derived, err := hkdf.Key(sha256.New, key.bytes[:], salt, domain, 32)
 	if err != nil {
 		return nil, &Error{kind: SecretUnavailable}
 	}
@@ -653,6 +657,33 @@ func (r *SecretRepository) aead(salt []byte) (cipher.AEAD, error) {
 		return nil, &Error{kind: SecretUnavailable}
 	}
 	return aead, nil
+}
+func sealProtectedRecord(key *masterKey, purpose protectedPurpose, aad, salt, plain []byte) ([]byte, error) {
+	aead, err := protectedAEAD(key, purpose, salt)
+	if err != nil {
+		return nil, err
+	}
+	return aead.Seal(nil, nil, plain, aad), nil
+}
+func openProtectedRecord(key *masterKey, purpose protectedPurpose, aad, salt, ciphertext []byte) ([]byte, error) {
+	aead, err := protectedAEAD(key, purpose, salt)
+	if err != nil {
+		return nil, err
+	}
+	plain, err := aead.Open(nil, nil, ciphertext, aad)
+	if err != nil {
+		return nil, &Error{kind: SecretIntegrity}
+	}
+	return plain, nil
+}
+func (r *SecretRepository) seal(handle SecretHandle, revision int64, salt, plain []byte) ([]byte, error) {
+	return sealProtectedRecord(&r.key, protectedIntegrationCredential, secretAAD(handle, revision, r.key.id[:], salt), salt, plain)
+}
+func (r *SecretRepository) open(handle SecretHandle, revision int64, salt, ciphertext []byte) ([]byte, error) {
+	return openProtectedRecord(&r.key, protectedIntegrationCredential, secretAAD(handle, revision, r.key.id[:], salt), salt, ciphertext)
+}
+func (r *SecretRepository) aead(salt []byte) (cipher.AEAD, error) {
+	return protectedAEAD(&r.key, protectedIntegrationCredential, salt)
 }
 
 func secretAAD(handle SecretHandle, revision int64, keyID, salt []byte) []byte {

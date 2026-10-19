@@ -77,6 +77,7 @@ message Account {
 service OperatorAccountService {
   rpc BootstrapAdmin(BootstrapAdminRequest) returns (BootstrapAdminResponse);
   rpc RecoverAccount(RecoverAccountRequest) returns (RecoverAccountResponse);
+  rpc ResetSecondFactor(ResetSecondFactorRequest) returns (ResetSecondFactorResponse);
 }
 message BootstrapAdminRequest {
   string login_name = 1;
@@ -89,6 +90,9 @@ message RecoverAccountRequest {
   string replacement_password = 2;
 }
 message RecoverAccountResponse { Account account = 1; }
+// Operator Unix recovery only; password recovery never resets factors.
+message ResetSecondFactorRequest { AccountId account_id = 1; }
+message ResetSecondFactorResponse { Account account = 1; }
 
 service AccountService {
   rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
@@ -159,11 +163,34 @@ message RevokeInvitationResponse {}
 message SecondFactorPolicy {
   bool require_admin_factor = 1;
   google.protobuf.Timestamp updated_at = 2;
+  PolicyVersion version = 3;
 }
 message GetSecondFactorPolicyRequest {}
 message GetSecondFactorPolicyResponse { SecondFactorPolicy policy = 1; }
-message SetSecondFactorPolicyRequest { bool require_admin_factor = 1; }
-message SetSecondFactorPolicyResponse { SecondFactorPolicy policy = 1; }
+message SetSecondFactorPolicyRequest {
+  bool require_admin_factor = 1;
+  PolicyVersion expected = 2;
+}
+enum SecondFactorSessionContinuation {
+  SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED = 0;
+  SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES = 1;
+  SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED = 2;
+}
+message SetSecondFactorPolicyResponse {
+  SecondFactorPolicy policy = 1;
+  SecondFactorSessionContinuation continuation = 2;
+}
+enum SecondFactorPolicyErrorCode {
+  SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED = 0;
+  SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION = 1;
+  SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT = 2;
+  SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE = 3;
+}
+message SecondFactorPolicyError {
+  SecondFactorPolicyErrorCode code = 1;
+  // Empty for authority failures; otherwise exactly "expected".
+  string field = 2;
+}
 
 enum FactorKind {
   FACTOR_KIND_UNSPECIFIED = 0;
@@ -242,6 +269,13 @@ enum CredentialAudience {
   CREDENTIAL_AUDIENCE_INTERACTIVE = 1;
   CREDENTIAL_AUDIENCE_MCP = 2;
 }
+// Original authentication evidence; refresh never upgrades it or its time.
+enum AuthenticationSatisfaction {
+  AUTHENTICATION_SATISFACTION_UNSPECIFIED = 0;
+  AUTHENTICATION_SATISFACTION_PASSWORD_ONLY = 1;
+  AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 = 2;
+  AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE = 3;
+}
 message Session {
   SessionId id = 1;
   AccountId account_id = 2;
@@ -249,6 +283,8 @@ message Session {
   google.protobuf.Timestamp expires_at = 4;
   optional google.protobuf.Timestamp revoked_at = 5;
   optional google.protobuf.Timestamp last_used_at = 6;
+  AuthenticationSatisfaction authentication_satisfaction = 7;
+  google.protobuf.Timestamp authenticated_at = 8;
 }
 // Bearer values are emitted only at login/refresh, never in Session metadata.
 message SessionTokens {

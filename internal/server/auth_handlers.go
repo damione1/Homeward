@@ -12,6 +12,7 @@ import (
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/accounts"
+	"github.com/damione1/Homeward/internal/authmfa"
 	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -29,8 +30,12 @@ const (
 )
 
 type factorPreparation struct {
-	kind    factorPreparationKind
-	options []*authv1.FactorOption
+	revision storage.RevocationRevision
+	policy   authmfa.ExpectedPolicyVersion
+	ceremony authmfa.PreparedCeremony
+	started  time.Time
+	kind     factorPreparationKind
+	options  []*authv1.FactorOption
 }
 
 func factorAuthenticated() factorPreparation {
@@ -46,16 +51,13 @@ func factorChallenge(options []*authv1.FactorOption) factorPreparation {
 	}
 	return factorPreparation{kind: factorPreparationChallenge, options: copied}
 }
-func factorEnrollment() factorPreparation {
-	return factorPreparation{kind: factorPreparationEnrollment}
-}
 
 // factorProvider is a private NHA-142 seam. Prepare returns exactly one of
 // authenticated, challenge or enrollment required. Verify must perform the
 // cryptographic proof check; wire admission alone cannot.
 type factorProvider interface {
-	Prepare(context.Context, contracts.AccountID, bool, contracts.ChallengeID) (factorPreparation, error)
-	Verify(context.Context, storage.ChallengeRecord, *authv1.FactorProof) (bool, error)
+	Prepare(context.Context, contracts.AccountID, contracts.ChallengeID) (factorPreparation, error)
+	Verify(context.Context, storage.MFALoginSnapshot, *authv1.FactorProof) (authmfa.VerifiedLogin, error)
 }
 
 type loginBucket struct {
@@ -182,6 +184,14 @@ func sessionWire(record storage.SessionRecord) (*authv1.Session, error) {
 	}
 	result := &authv1.Session{Id: &authv1.SessionId{Value: idText}, AccountId: &authv1.AccountId{Value: accountText},
 		CreatedAt: timestamppb.New(record.CreatedAt()), ExpiresAt: timestamppb.New(record.ExpiresAt())}
+	satisfaction, authenticated, err := record.Authentication()
+	if err != nil {
+		return nil, err
+	}
+	result.AuthenticationSatisfaction = satisfaction
+	if !authenticated.IsZero() {
+		result.AuthenticatedAt = timestamppb.New(authenticated)
+	}
 	if revoked := record.RevokedAt(); revoked != nil {
 		result.RevokedAt = timestamppb.New(*revoked)
 	}
@@ -217,6 +227,11 @@ func (h *authHandler) createSession(ctx context.Context, account contracts.Accou
 	if err != nil {
 		return nil, err
 	}
+	ticket, err := h.coordinator.enterMFAPolicy(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer ticket.release()
 	guard, err := h.coordinator.enter(ctx, account)
 	if err != nil {
 		return nil, err
@@ -305,9 +320,20 @@ func (h *authHandler) StartLogin(ctx context.Context, request *connect.Request[a
 			return nil, h.deniedLogin(ctx, false)
 		}
 	} else {
-		preparation, err = h.provider.Prepare(ctx, account, factorEnabled, challengeID)
+		if h.coordinator.mfa == nil {
+			return nil, mfaRPCError(authmfa.NewError(authmfa.ErrorUnavailable))
+		}
+		permit, permitErr := h.coordinator.mfa.crypto.Acquire(ctx)
+		if permitErr != nil {
+			return nil, mfaRPCError(permitErr)
+		}
+		defer permit.Release()
+		preparation, err = h.provider.Prepare(ctx, account, challengeID)
 		if err != nil {
-			return nil, sessionRPCError(err)
+			return nil, mfaRPCError(err)
+		}
+		if preparation.revision != revision {
+			return nil, mfaRPCError(authmfa.NewError(authmfa.ErrorConflict))
 		}
 	}
 	switch preparation.kind {
@@ -321,13 +347,17 @@ func (h *authHandler) StartLogin(ctx context.Context, request *connect.Request[a
 		}
 		return connect.NewResponse(&authv1.StartLoginResponse{Decision: &authv1.LoginDecision{Outcome: &authv1.LoginDecision_Authenticated{Authenticated: tokens}}}), nil
 	case factorPreparationChallenge:
-		preparation = factorChallenge(preparation.options)
-		if preparation.kind != factorPreparationChallenge || len(preparation.options) == 0 {
+		copied := factorChallenge(preparation.options)
+		if copied.kind != factorPreparationChallenge || len(copied.options) == 0 {
 			return nil, sessionRPCError(storage.ErrSessionUnavailable)
+		}
+		expiry, expiryErr := preparation.ceremony.ExpiresAt()
+		if expiryErr != nil || preparation.started.IsZero() {
+			return nil, mfaRPCError(authmfa.NewError(authmfa.ErrorIntegrity))
 		}
 		issueNow := h.coordinator.clock.Now()
 		idText, _ := challengeID.Value()
-		candidate := &authv1.FactorChallenge{Id: &authv1.ChallengeId{Value: idText}, ExpiresAt: timestamppb.New(issueNow.Add(5 * time.Minute)), Options: preparation.options}
+		candidate := &authv1.FactorChallenge{Id: &authv1.ChallengeId{Value: idText}, ExpiresAt: timestamppb.New(expiry), Options: copied.options}
 		decision := &authv1.LoginDecision{Outcome: &authv1.LoginDecision_Challenge{Challenge: candidate}}
 		if _, err := contracts.AdmitLoginDecision(decision, issueNow); err != nil {
 			return nil, sessionRPCError(storage.ErrSessionUnavailable)
@@ -336,18 +366,27 @@ func (h *authHandler) StartLogin(ctx context.Context, request *connect.Request[a
 		if err != nil {
 			return nil, sessionRPCError(err)
 		}
+		admitted, err := h.coordinator.mfa.repository.PrepareLoginChallenge(storage.ChallengeCreation{ID: challengeID, Account: account, Revision: revision, Payload: payload, Now: preparation.started}, preparation.policy, preparation.ceremony)
+		if err != nil {
+			return nil, mfaRPCError(err)
+		}
+		ticket, err := h.coordinator.enterMFAPolicy(ctx)
+		if err != nil {
+			return nil, mfaRPCError(err)
+		}
+		defer ticket.release()
 		guard, err := h.coordinator.enter(ctx, account)
 		if err != nil {
 			return nil, sessionRPCError(err)
 		}
-		stored, issueErr := h.store.IssueChallenge(ctx, storage.ChallengeCreation{ID: challengeID, Account: account, Revision: revision, Payload: payload, Now: issueNow})
-		if errors.Is(issueErr, storage.ErrSessionCommitUnknown) {
+		stored, issueErr := h.coordinator.mfa.repository.IssueLoginChallenge(ctx, admitted)
+		if authmfa.KindOf(issueErr) == authmfa.ErrorCommitUnknown {
 			guard.quarantine()
 			guard.cancelLeases(ctx, nil)
 		}
 		guard.release()
 		if issueErr != nil {
-			return nil, sessionRPCError(issueErr)
+			return nil, mfaRPCError(issueErr)
 		}
 		candidate.ExpiresAt = timestamppb.New(stored.ExpiresAt)
 		return connect.NewResponse(&authv1.StartLoginResponse{Decision: decision}), nil
@@ -363,6 +402,11 @@ func (h *authHandler) StartLogin(ctx context.Context, request *connect.Request[a
 		if err != nil {
 			return nil, sessionRPCError(err)
 		}
+		ticket, err := h.coordinator.enterMFAPolicy(ctx)
+		if err != nil {
+			return nil, mfaRPCError(err)
+		}
+		defer ticket.release()
 		guard, err := h.coordinator.enter(ctx, account)
 		if err != nil {
 			return nil, sessionRPCError(err)
@@ -393,43 +437,80 @@ func (h *authHandler) StartLogin(ctx context.Context, request *connect.Request[a
 }
 
 func (h *authHandler) CompleteLogin(ctx context.Context, request *connect.Request[authv1.CompleteLoginRequest]) (*connect.Response[authv1.CompleteLoginResponse], error) {
-	if request == nil || request.Msg == nil || request.Msg.ChallengeId == nil {
+	if request == nil || request.Msg == nil || request.Msg.ChallengeId == nil || len(request.Msg.ProtoReflect().GetUnknown()) != 0 || proto.Size(request.Msg) > authmfa.MaxRequestBytes {
 		return nil, sessionRPCError(storage.ErrSessionInvalid)
 	}
 	id, err := contracts.ParseChallengeID(request.Msg.ChallengeId.Value)
 	if err != nil {
 		return nil, sessionRPCError(storage.ErrSessionInvalid)
 	}
+	runtime := h.coordinator.mfa
+	if runtime == nil || h.provider == nil {
+		return nil, mfaRPCError(authmfa.NewError(authmfa.ErrorUnavailable))
+	}
+	permit, err := runtime.crypto.Acquire(ctx)
+	if err != nil {
+		return nil, mfaRPCError(err)
+	}
+	defer permit.Release()
 	now := h.coordinator.clock.Now()
 	challenge, err := h.store.LookupChallenge(ctx, id, now)
 	if err != nil {
 		return nil, sessionRPCError(err)
 	}
-	// Reserve a proof slot before shape checks and before the provider call.
-	if err := h.store.ReserveChallengeAttempt(ctx, challenge, now); err != nil {
-		return nil, sessionRPCError(err)
+	snapshot, err := runtime.repository.LoginSnapshot(ctx, challenge, now)
+	if err != nil {
+		return nil, mfaRPCError(err)
 	}
-	var offered authv1.FactorChallenge
-	if err := proto.Unmarshal(challenge.Payload, &offered); err != nil {
-		return nil, sessionRPCError(storage.ErrSessionUnavailable)
+	// Reserve both persistent budgets before offered-proof validation or crypto.
+	if err := runtime.repository.ReserveProof(ctx, snapshot, now); err != nil {
+		return nil, mfaRPCError(err)
 	}
-	idText, _ := id.Value()
-	offered.Id = &authv1.ChallengeId{Value: idText}
-	offered.ExpiresAt = timestamppb.New(challenge.ExpiresAt)
-	if err := contracts.AdmitCompleteLoginRequest(request.Msg, &offered, now); err != nil {
+	offered, err := snapshot.Offered()
+	if err != nil {
+		return nil, mfaRPCError(err)
+	}
+	if err := contracts.AdmitCompleteLoginRequest(request.Msg, offered, now); err != nil {
 		return nil, h.deniedLogin(ctx, false)
 	}
-	if h.provider == nil {
-		return nil, sessionRPCError(storage.ErrSessionUnavailable)
+	proof, err := h.provider.Verify(ctx, snapshot, request.Msg.Proof)
+	if err != nil {
+		return nil, mfaRPCError(err)
 	}
-	verified, err := h.provider.Verify(ctx, challenge, request.Msg.Proof)
+	finalization, err := runtime.repository.PrepareFinalization(proof, snapshot)
+	if err != nil {
+		return nil, mfaRPCError(err)
+	}
+	sessionID, err := accounts.NewSessionID()
 	if err != nil {
 		return nil, sessionRPCError(err)
 	}
-	if !verified {
-		return nil, h.deniedLogin(ctx, false)
+	credentials, err := newIssuedCredentials()
+	if err != nil {
+		return nil, sessionRPCError(err)
 	}
-	tokens, err := h.createSession(ctx, challenge.Account, challenge.Revision, &id)
+	ticket, err := h.coordinator.enterMFAPolicy(ctx)
+	if err != nil {
+		return nil, mfaRPCError(err)
+	}
+	defer ticket.release()
+	guard, err := h.coordinator.enter(ctx, challenge.Account)
+	if err != nil {
+		return nil, sessionRPCError(err)
+	}
+	defer guard.release()
+	created, err := runtime.repository.FinalizeLogin(ctx, storage.SessionCreation{ID: sessionID, Account: challenge.Account, Revision: challenge.Revision, ChallengeID: &id, AccessDigest: credentials.accessDigest, RefreshDigest: credentials.refreshDigest, Now: h.coordinator.clock.Now()}, finalization)
+	if authmfa.KindOf(err) == authmfa.ErrorCommitUnknown {
+		guard.quarantine()
+		guard.cancelLeases(ctx, nil)
+	}
+	if err != nil {
+		return nil, mfaRPCError(err)
+	}
+	if created.Evicted != nil {
+		guard.cancelLeases(ctx, created.Evicted)
+	}
+	tokens, err := tokensWire(created.Session, created.AccessExpiresAt, credentials)
 	if err != nil {
 		return nil, sessionRPCError(err)
 	}
@@ -456,6 +537,11 @@ func (h *authHandler) RefreshSession(ctx context.Context, request *connect.Reque
 	if err != nil {
 		return nil, sessionRPCError(err)
 	}
+	ticket, err := h.coordinator.enterMFAPolicy(ctx)
+	if err != nil {
+		return nil, mfaRPCError(err)
+	}
+	defer ticket.release()
 	guard, err := h.coordinator.enter(ctx, owner.Account)
 	if err != nil {
 		return nil, sessionRPCError(err)

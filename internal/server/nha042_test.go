@@ -79,6 +79,10 @@ func nha042ServerEnvironmentFor(t *testing.T) *nha042ServerEnvironment {
 		store.Close()
 		t.Fatal(err)
 	}
+	if _, err := store.BootstrapMFAPolicy(context.Background()); err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
 	account := nha034Account(t, store)
 	owner, _ := nha034Session(t, store, account, "nha042-server-explicit-caller", time.Now().UTC())
 	principal, err := authorization.NativePrincipal(owner.Account, owner.Session)

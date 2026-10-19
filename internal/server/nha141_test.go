@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"net"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/damione1/Homeward/contracts"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/accounts"
@@ -79,6 +77,9 @@ func TestNHA141CredentialRoutesRejectH2CBeforeBody(t *testing.T) {
 	if _, err := registerAuthRoutes(plan, store, coordinator, nil); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := registerAccountRoutes(plan, store, coordinator); err != nil {
+		t.Fatal(err)
+	}
 	compiled, err := compilePublicPlan(plan, public)
 	if err != nil {
 		t.Fatal(err)
@@ -91,6 +92,13 @@ func TestNHA141CredentialRoutesRejectH2CBeforeBody(t *testing.T) {
 		authv1connect.AuthServiceRefreshSessionProcedure,
 		authv1connect.AuthServiceListSessionsProcedure,
 		authv1connect.AuthServiceRevokeSessionProcedure,
+		authv1connect.AuthServiceBeginFactorEnrollmentProcedure,
+		authv1connect.AuthServiceCompleteFactorEnrollmentProcedure,
+		authv1connect.AuthServiceListFactorsProcedure,
+		authv1connect.AuthServiceRemoveFactorProcedure,
+		authv1connect.AuthServiceReplaceRecoveryCodesProcedure,
+		authv1connect.AccountServiceGetSecondFactorPolicyProcedure,
+		authv1connect.AccountServiceSetSecondFactorPolicyProcedure,
 	} {
 		request := httptest.NewRequest(http.MethodPost, path, nha181UnreadBody{t})
 		request.Header.Set("Authorization", "Bearer "+canary)
@@ -195,152 +203,16 @@ func (c *nha141Clock) Advance(to time.Time) {
 	}
 }
 
-type nha141FactorProvider struct {
-	preparation factorPreparation
-	proofCalls  int
-	verified    bool
-}
-
 func nha141BearerRequest[T any](message *T, access string) *connect.Request[T] {
 	request := connect.NewRequest(message)
 	request.Header().Set("Authorization", "Bearer "+access)
 	return request
 }
 
-func (p *nha141FactorProvider) Prepare(context.Context, contracts.AccountID, bool, contracts.ChallengeID) (factorPreparation, error) {
-	return p.preparation, nil
-}
-
-func (p *nha141FactorProvider) Verify(context.Context, storage.ChallengeRecord, *authv1.FactorProof) (bool, error) {
-	p.proofCalls++
-	return p.verified, nil
-}
-
 func TestNHA141FactorDecisionsAndProofReservations(t *testing.T) {
-	const password = "NHA141 synthetic factor password canary"
-	cluster := testpg.Start(t)
-	settings := nha049Config(t, cluster.Port, shortPrivateDataDir(t))
-	storeSettings, err := settings.PostgresSettings()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-	store, err := storage.Open(ctx, storeSettings)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	if _, err := store.Migrate(ctx); err != nil {
-		t.Fatal(err)
-	}
-	input, err := newAccountInput(ctx, "NHA141 Factor Admin", "NHA141 Factor Admin", password, authv1.AccountRole_ACCOUNT_ROLE_ADMIN)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.BootstrapAdmin(ctx, input); err != nil {
-		t.Fatal(err)
-	}
-	clock := newNHA141Clock(time.Now().UTC().Truncate(time.Microsecond))
-	coordinator, err := newSessionCoordinatorWithClock(store, clock)
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider := &nha141FactorProvider{preparation: factorEnrollment()}
-	handler, err := newAuthHandler(store, coordinator, provider)
-	if err != nil {
-		t.Fatal(err)
-	}
-	start := func(h *authHandler) (*authv1.LoginDecision, error) {
-		response, err := h.StartLogin(ctx, connect.NewRequest(&authv1.StartLoginRequest{LoginName: "NHA141 Factor Admin", Password: password}))
-		if err != nil {
-			return nil, err
-		}
-		return response.Msg.Decision, nil
-	}
-	decision, err := start(handler)
-	if err != nil || decision.GetEnrollmentRequired() == nil || decision.GetAuthenticated() != nil {
-		t.Fatalf("factor enrollment did not return its own outcome: %v", err)
-	}
-	grantAsAccess, err := accounts.ParseAccessSecret(decision.GetEnrollmentRequired().EnrollmentToken)
-	if err != nil {
-		t.Fatalf("opaque grant had unexpected syntax: %v", err)
-	}
-	grantAsAccessDigest, err := grantAsAccess.Digest()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.LookupAccessOwner(ctx, grantAsAccessDigest); !errors.Is(err, storage.ErrSessionNotFound) {
-		t.Fatalf("enrollment grant admitted by the access digest index: %v", err)
-	}
-	grantRequest := httptest.NewRequest(http.MethodGet, "/nha141/grant", nil)
-	grantRequest.TLS = &tls.ConnectionState{}
-	grantRequest.Header.Set("Authorization", "Bearer "+decision.GetEnrollmentRequired().EnrollmentToken)
-	if _, _, release, err := (&sessionAuth{store: store, coordinator: coordinator}).AuthenticateWithLease(ctx, grantRequest); !errors.Is(err, errSessionUnauthenticated) || release != nil {
-		t.Fatalf("enrollment grant admitted as bearer access: %v", err)
-	}
-	listed, err := store.ListSessions(ctx, input.ID, input.ID, clock.Now())
-	if err != nil || len(listed) != 0 {
-		t.Fatalf("enrollment issued a session: count=%d err=%v", len(listed), err)
-	}
-	accountText, _ := input.ID.Value()
-	if err := store.InTransaction(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `UPDATE public.auth_accounts SET second_factor_enabled=true WHERE id=$1`, accountText)
-		return err
-	}); err != nil {
-		t.Fatal(err)
-	}
-	provider.preparation = factorAuthenticated()
-	if _, err := start(handler); connect.CodeOf(err) != connect.CodeUnauthenticated {
-		t.Fatalf("enabled factor downgraded to password-only session: %v", err)
-	}
-	withoutProvider, err := newAuthHandler(store, coordinator, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := start(withoutProvider); connect.CodeOf(err) != connect.CodeUnauthenticated {
-		t.Fatalf("missing factor provider admitted enabled account: %v", err)
-	}
-	provider.preparation = factorChallenge([]*authv1.FactorOption{{Method: &authv1.FactorOption_RecoveryCode{RecoveryCode: &authv1.RecoveryCodeChallenge{}}}})
-	decision, err = start(handler)
-	if err != nil || decision == nil || decision.GetChallenge() == nil || decision.GetAuthenticated() != nil {
-		t.Fatalf("challenge did not return its own outcome: %v", err)
-	}
-	challenge := decision.GetChallenge()
-	invalid := &authv1.CompleteLoginRequest{ChallengeId: challenge.Id, Proof: &authv1.FactorProof{Proof: &authv1.FactorProof_Fido2{Fido2: &authv1.Fido2Assertion{}}}}
-	if _, err := handler.CompleteLogin(ctx, connect.NewRequest(invalid)); connect.CodeOf(err) != connect.CodeUnauthenticated {
-		t.Fatalf("unoffered proof admitted: %v", err)
-	}
-	valid := &authv1.CompleteLoginRequest{ChallengeId: challenge.Id, Proof: &authv1.FactorProof{Proof: &authv1.FactorProof_RecoveryCode{RecoveryCode: "NHA141 synthetic invalid recovery code"}}}
-	for i := 0; i < 4; i++ {
-		if _, err := handler.CompleteLogin(ctx, connect.NewRequest(valid)); connect.CodeOf(err) != connect.CodeUnauthenticated {
-			t.Fatalf("unverified proof %d admitted: %v", i, err)
-		}
-	}
-	if provider.proofCalls != 4 {
-		t.Fatalf("provider called for malformed proof or wrong number of reservations: %d", provider.proofCalls)
-	}
-	if _, err := handler.CompleteLogin(ctx, connect.NewRequest(valid)); connect.CodeOf(err) != connect.CodeUnauthenticated || provider.proofCalls != 4 {
-		t.Fatalf("sixth proof reached provider: calls=%d err=%v", provider.proofCalls, err)
-	}
-	clock.Advance(challenge.ExpiresAt.AsTime())
-	if _, err := handler.CompleteLogin(ctx, connect.NewRequest(valid)); connect.CodeOf(err) != connect.CodeUnauthenticated || provider.proofCalls != 4 {
-		t.Fatalf("challenge remained usable at exact expiry: calls=%d err=%v", provider.proofCalls, err)
-	}
-	clock.Advance(clock.Now().Add(11 * time.Minute))
-	provider.verified = true
-	decision, err = start(handler)
-	if err != nil || decision.GetChallenge() == nil {
-		t.Fatalf("fresh challenge after expiry: %v", err)
-	}
-	valid.ChallengeId = decision.GetChallenge().Id
-	completed, err := handler.CompleteLogin(ctx, connect.NewRequest(valid))
-	if err != nil || completed == nil || completed.Msg.Decision.GetAuthenticated() == nil {
-		t.Fatalf("verified offered proof did not issue a session: %v", err)
-	}
-	if _, err := handler.CompleteLogin(ctx, connect.NewRequest(valid)); connect.CodeOf(err) != connect.CodeUnauthenticated || provider.proofCalls != 5 {
-		t.Fatalf("consumed challenge replay reached provider: calls=%d err=%v", provider.proofCalls, err)
-	}
+	// NHA142 replaces the declarative bool with actual proof verification and
+	// atomically consumed credentials, retaining these141 regression contracts.
+	nha142ExerciseFactorReservations(t)
 }
 
 func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {

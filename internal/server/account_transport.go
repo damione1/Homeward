@@ -56,6 +56,8 @@ func registerAccountRoutes(plan *PublicPlan, store *storage.Store, coordinator *
 		ConnectProcedure{Path: authv1connect.AccountServiceAcceptInvitationProcedure, Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: authv1connect.AccountServiceListInvitationsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: authv1connect.AccountServiceRevokeInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AccountServiceGetSecondFactorPolicyProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AccountServiceSetSecondFactorPolicyProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 	)
 	return plan, err
 }

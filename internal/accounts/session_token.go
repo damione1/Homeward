@@ -184,6 +184,10 @@ func NewEnrollmentSecret() (EnrollmentSecret, error) {
 	raw, err := newSessionRaw()
 	return EnrollmentSecret{raw: raw, valid: err == nil}, err
 }
+func ParseEnrollmentSecret(text string) (EnrollmentSecret, error) {
+	raw, err := parseSessionRaw(text)
+	return EnrollmentSecret{raw: raw, valid: err == nil}, err
+}
 func (s EnrollmentSecret) Text() (string, error) {
 	if !s.valid {
 		return "", ErrInvalidSessionToken

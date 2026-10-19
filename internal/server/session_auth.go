@@ -30,13 +30,23 @@ func (*sessionAuth) Authenticate(context.Context, *http.Request) (domain.ActorID
 }
 
 func (a *sessionAuth) AuthenticateWithLease(ctx context.Context, request *http.Request) (domain.ActorID, context.Context, func(), error) {
-	if a == nil || a.store == nil || a.coordinator == nil || ctx == nil || request == nil {
+	if request == nil || request.TLS == nil || ctx == nil {
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
-	if request.TLS == nil {
+	return a.authenticateAccessHeaders(context.WithValue(ctx, nativeTLSContextKey{}, nativeTLSAdmission{}), request.Header)
+}
+
+// Only the common HTTP guard or AuthenticateWithLease can attest actual TLS.
+// Anonymous enrollment routes use this same access admission, never a fake
+// http.Request/TLS state or a second credential parser.
+func (a *sessionAuth) authenticateAccessHeaders(ctx context.Context, header http.Header) (domain.ActorID, context.Context, func(), error) {
+	if a == nil || a.store == nil || a.coordinator == nil || ctx == nil {
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
-	values := request.Header.Values("Authorization")
+	if _, ok := ctx.Value(nativeTLSContextKey{}).(nativeTLSAdmission); !ok {
+		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
+	}
+	values := header.Values("Authorization")
 	if len(values) != 1 || len(values[0]) < 8 || !strings.EqualFold(values[0][:6], "Bearer") || values[0][6] != ' ' {
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
@@ -59,6 +69,17 @@ func (a *sessionAuth) AuthenticateWithLease(ctx context.Context, request *http.R
 	defer guard.release()
 	admission, err := a.store.AdmitAccess(ctx, owner, digest, a.coordinator.clock.Now())
 	if err != nil {
+		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
+	}
+	switch admission.Role {
+	case authv1.AccountRole_ACCOUNT_ROLE_ADMIN:
+		ticket, err := a.coordinator.policy.tryEnter(admission.PolicyVersion)
+		if err != nil {
+			return domain.ActorID{}, nil, nil, err
+		}
+		defer ticket.release()
+	case authv1.AccountRole_ACCOUNT_ROLE_USER:
+	default:
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
 	if err := guard.refreshAuthorization(ctx); err != nil {

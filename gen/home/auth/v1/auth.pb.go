@@ -261,6 +261,107 @@ func (ScopeOperation) EnumDescriptor() ([]byte, []int) {
 	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{3}
 }
 
+type SecondFactorSessionContinuation int32
+
+const (
+	SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED               SecondFactorSessionContinuation = 0
+	SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES                 SecondFactorSessionContinuation = 1
+	SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED SecondFactorSessionContinuation = 2
+)
+
+// Enum value maps for SecondFactorSessionContinuation.
+var (
+	SecondFactorSessionContinuation_name = map[int32]string{
+		0: "SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED",
+		1: "SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES",
+		2: "SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED",
+	}
+	SecondFactorSessionContinuation_value = map[string]int32{
+		"SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED":               0,
+		"SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES":                 1,
+		"SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED": 2,
+	}
+)
+
+func (x SecondFactorSessionContinuation) Enum() *SecondFactorSessionContinuation {
+	p := new(SecondFactorSessionContinuation)
+	*p = x
+	return p
+}
+
+func (x SecondFactorSessionContinuation) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SecondFactorSessionContinuation) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_auth_v1_auth_proto_enumTypes[4].Descriptor()
+}
+
+func (SecondFactorSessionContinuation) Type() protoreflect.EnumType {
+	return &file_home_auth_v1_auth_proto_enumTypes[4]
+}
+
+func (x SecondFactorSessionContinuation) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SecondFactorSessionContinuation.Descriptor instead.
+func (SecondFactorSessionContinuation) EnumDescriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{4}
+}
+
+type SecondFactorPolicyErrorCode int32
+
+const (
+	SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED           SecondFactorPolicyErrorCode = 0
+	SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION       SecondFactorPolicyErrorCode = 1
+	SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT      SecondFactorPolicyErrorCode = 2
+	SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE SecondFactorPolicyErrorCode = 3
+)
+
+// Enum value maps for SecondFactorPolicyErrorCode.
+var (
+	SecondFactorPolicyErrorCode_name = map[int32]string{
+		0: "SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED",
+		1: "SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION",
+		2: "SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT",
+		3: "SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE",
+	}
+	SecondFactorPolicyErrorCode_value = map[string]int32{
+		"SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED":           0,
+		"SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION":       1,
+		"SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT":      2,
+		"SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE": 3,
+	}
+)
+
+func (x SecondFactorPolicyErrorCode) Enum() *SecondFactorPolicyErrorCode {
+	p := new(SecondFactorPolicyErrorCode)
+	*p = x
+	return p
+}
+
+func (x SecondFactorPolicyErrorCode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SecondFactorPolicyErrorCode) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_auth_v1_auth_proto_enumTypes[5].Descriptor()
+}
+
+func (SecondFactorPolicyErrorCode) Type() protoreflect.EnumType {
+	return &file_home_auth_v1_auth_proto_enumTypes[5]
+}
+
+func (x SecondFactorPolicyErrorCode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SecondFactorPolicyErrorCode.Descriptor instead.
+func (SecondFactorPolicyErrorCode) EnumDescriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{5}
+}
+
 type FactorKind int32
 
 const (
@@ -291,11 +392,11 @@ func (x FactorKind) String() string {
 }
 
 func (FactorKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[4].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[6].Descriptor()
 }
 
 func (FactorKind) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[4]
+	return &file_home_auth_v1_auth_proto_enumTypes[6]
 }
 
 func (x FactorKind) Number() protoreflect.EnumNumber {
@@ -304,7 +405,7 @@ func (x FactorKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FactorKind.Descriptor instead.
 func (FactorKind) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{4}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{6}
 }
 
 // An interactive access token is short-lived (15 minutes by default); the
@@ -342,11 +443,11 @@ func (x CredentialAudience) String() string {
 }
 
 func (CredentialAudience) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[5].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[7].Descriptor()
 }
 
 func (CredentialAudience) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[5]
+	return &file_home_auth_v1_auth_proto_enumTypes[7]
 }
 
 func (x CredentialAudience) Number() protoreflect.EnumNumber {
@@ -355,7 +456,60 @@ func (x CredentialAudience) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CredentialAudience.Descriptor instead.
 func (CredentialAudience) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{5}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{7}
+}
+
+// Original authentication evidence; refresh never upgrades it or its time.
+type AuthenticationSatisfaction int32
+
+const (
+	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_UNSPECIFIED            AuthenticationSatisfaction = 0
+	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY          AuthenticationSatisfaction = 1
+	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2         AuthenticationSatisfaction = 2
+	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE AuthenticationSatisfaction = 3
+)
+
+// Enum value maps for AuthenticationSatisfaction.
+var (
+	AuthenticationSatisfaction_name = map[int32]string{
+		0: "AUTHENTICATION_SATISFACTION_UNSPECIFIED",
+		1: "AUTHENTICATION_SATISFACTION_PASSWORD_ONLY",
+		2: "AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2",
+		3: "AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE",
+	}
+	AuthenticationSatisfaction_value = map[string]int32{
+		"AUTHENTICATION_SATISFACTION_UNSPECIFIED":            0,
+		"AUTHENTICATION_SATISFACTION_PASSWORD_ONLY":          1,
+		"AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2":         2,
+		"AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE": 3,
+	}
+)
+
+func (x AuthenticationSatisfaction) Enum() *AuthenticationSatisfaction {
+	p := new(AuthenticationSatisfaction)
+	*p = x
+	return p
+}
+
+func (x AuthenticationSatisfaction) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AuthenticationSatisfaction) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_auth_v1_auth_proto_enumTypes[8].Descriptor()
+}
+
+func (AuthenticationSatisfaction) Type() protoreflect.EnumType {
+	return &file_home_auth_v1_auth_proto_enumTypes[8]
+}
+
+func (x AuthenticationSatisfaction) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AuthenticationSatisfaction.Descriptor instead.
+func (AuthenticationSatisfaction) EnumDescriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{8}
 }
 
 // No human-controlled text, credential, token or provider payload in errors.
@@ -405,11 +559,11 @@ func (x AuthErrorCode) String() string {
 }
 
 func (AuthErrorCode) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[6].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[9].Descriptor()
 }
 
 func (AuthErrorCode) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[6]
+	return &file_home_auth_v1_auth_proto_enumTypes[9]
 }
 
 func (x AuthErrorCode) Number() protoreflect.EnumNumber {
@@ -418,7 +572,7 @@ func (x AuthErrorCode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AuthErrorCode.Descriptor instead.
 func (AuthErrorCode) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{6}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{9}
 }
 
 type AuthenticationFailure int32
@@ -457,11 +611,11 @@ func (x AuthenticationFailure) String() string {
 }
 
 func (AuthenticationFailure) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[7].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[10].Descriptor()
 }
 
 func (AuthenticationFailure) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[7]
+	return &file_home_auth_v1_auth_proto_enumTypes[10]
 }
 
 func (x AuthenticationFailure) Number() protoreflect.EnumNumber {
@@ -470,7 +624,7 @@ func (x AuthenticationFailure) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AuthenticationFailure.Descriptor instead.
 func (AuthenticationFailure) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{7}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{10}
 }
 
 type PermissionFailure int32
@@ -509,11 +663,11 @@ func (x PermissionFailure) String() string {
 }
 
 func (PermissionFailure) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[8].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[11].Descriptor()
 }
 
 func (PermissionFailure) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[8]
+	return &file_home_auth_v1_auth_proto_enumTypes[11]
 }
 
 func (x PermissionFailure) Number() protoreflect.EnumNumber {
@@ -522,7 +676,7 @@ func (x PermissionFailure) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PermissionFailure.Descriptor instead.
 func (PermissionFailure) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{8}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{11}
 }
 
 type ConflictFailure int32
@@ -564,11 +718,11 @@ func (x ConflictFailure) String() string {
 }
 
 func (ConflictFailure) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[9].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[12].Descriptor()
 }
 
 func (ConflictFailure) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[9]
+	return &file_home_auth_v1_auth_proto_enumTypes[12]
 }
 
 func (x ConflictFailure) Number() protoreflect.EnumNumber {
@@ -577,7 +731,7 @@ func (x ConflictFailure) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ConflictFailure.Descriptor instead.
 func (ConflictFailure) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{9}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{12}
 }
 
 type ExpiredResource int32
@@ -622,11 +776,11 @@ func (x ExpiredResource) String() string {
 }
 
 func (ExpiredResource) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[10].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[13].Descriptor()
 }
 
 func (ExpiredResource) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[10]
+	return &file_home_auth_v1_auth_proto_enumTypes[13]
 }
 
 func (x ExpiredResource) Number() protoreflect.EnumNumber {
@@ -635,7 +789,7 @@ func (x ExpiredResource) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ExpiredResource.Descriptor instead.
 func (ExpiredResource) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{10}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{13}
 }
 
 type AuthField int32
@@ -713,11 +867,11 @@ func (x AuthField) String() string {
 }
 
 func (AuthField) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[11].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[14].Descriptor()
 }
 
 func (AuthField) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[11]
+	return &file_home_auth_v1_auth_proto_enumTypes[14]
 }
 
 func (x AuthField) Number() protoreflect.EnumNumber {
@@ -726,7 +880,7 @@ func (x AuthField) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AuthField.Descriptor instead.
 func (AuthField) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{11}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{14}
 }
 
 type PolicyRightsChange int32
@@ -762,11 +916,11 @@ func (x PolicyRightsChange) String() string {
 }
 
 func (PolicyRightsChange) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[12].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[15].Descriptor()
 }
 
 func (PolicyRightsChange) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[12]
+	return &file_home_auth_v1_auth_proto_enumTypes[15]
 }
 
 func (x PolicyRightsChange) Number() protoreflect.EnumNumber {
@@ -775,7 +929,7 @@ func (x PolicyRightsChange) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PolicyRightsChange.Descriptor instead.
 func (PolicyRightsChange) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{12}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{15}
 }
 
 type AuthorizationPolicyErrorCode int32
@@ -820,11 +974,11 @@ func (x AuthorizationPolicyErrorCode) String() string {
 }
 
 func (AuthorizationPolicyErrorCode) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[13].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[16].Descriptor()
 }
 
 func (AuthorizationPolicyErrorCode) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[13]
+	return &file_home_auth_v1_auth_proto_enumTypes[16]
 }
 
 func (x AuthorizationPolicyErrorCode) Number() protoreflect.EnumNumber {
@@ -833,7 +987,7 @@ func (x AuthorizationPolicyErrorCode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AuthorizationPolicyErrorCode.Descriptor instead.
 func (AuthorizationPolicyErrorCode) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{13}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{16}
 }
 
 type AuthorizationTerminationReason int32
@@ -878,11 +1032,11 @@ func (x AuthorizationTerminationReason) String() string {
 }
 
 func (AuthorizationTerminationReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_auth_v1_auth_proto_enumTypes[14].Descriptor()
+	return file_home_auth_v1_auth_proto_enumTypes[17].Descriptor()
 }
 
 func (AuthorizationTerminationReason) Type() protoreflect.EnumType {
-	return &file_home_auth_v1_auth_proto_enumTypes[14]
+	return &file_home_auth_v1_auth_proto_enumTypes[17]
 }
 
 func (x AuthorizationTerminationReason) Number() protoreflect.EnumNumber {
@@ -891,7 +1045,7 @@ func (x AuthorizationTerminationReason) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AuthorizationTerminationReason.Descriptor instead.
 func (AuthorizationTerminationReason) EnumDescriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{14}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{17}
 }
 
 // IDs are open, opaque and different types. Admission rejects an absent or empty value.
@@ -1557,6 +1711,95 @@ func (x *RecoverAccountResponse) GetAccount() *Account {
 	return nil
 }
 
+// Operator Unix recovery only; password recovery never resets factors.
+type ResetSecondFactorRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     *AccountId             `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResetSecondFactorRequest) Reset() {
+	*x = ResetSecondFactorRequest{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetSecondFactorRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetSecondFactorRequest) ProtoMessage() {}
+
+func (x *ResetSecondFactorRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetSecondFactorRequest.ProtoReflect.Descriptor instead.
+func (*ResetSecondFactorRequest) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ResetSecondFactorRequest) GetAccountId() *AccountId {
+	if x != nil {
+		return x.AccountId
+	}
+	return nil
+}
+
+type ResetSecondFactorResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Account       *Account               `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResetSecondFactorResponse) Reset() {
+	*x = ResetSecondFactorResponse{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetSecondFactorResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetSecondFactorResponse) ProtoMessage() {}
+
+func (x *ResetSecondFactorResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetSecondFactorResponse.ProtoReflect.Descriptor instead.
+func (*ResetSecondFactorResponse) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ResetSecondFactorResponse) GetAccount() *Account {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
 // An administrator may create a ready account directly or invite a person.
 // Implementations enforce the last-admin and name uniqueness invariants.
 type CreateAccountRequest struct {
@@ -1571,7 +1814,7 @@ type CreateAccountRequest struct {
 
 func (x *CreateAccountRequest) Reset() {
 	*x = CreateAccountRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[13]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1583,7 +1826,7 @@ func (x *CreateAccountRequest) String() string {
 func (*CreateAccountRequest) ProtoMessage() {}
 
 func (x *CreateAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[13]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1596,7 +1839,7 @@ func (x *CreateAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAccountRequest.ProtoReflect.Descriptor instead.
 func (*CreateAccountRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{13}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CreateAccountRequest) GetLoginName() string {
@@ -1636,7 +1879,7 @@ type CreateAccountResponse struct {
 
 func (x *CreateAccountResponse) Reset() {
 	*x = CreateAccountResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[14]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1648,7 +1891,7 @@ func (x *CreateAccountResponse) String() string {
 func (*CreateAccountResponse) ProtoMessage() {}
 
 func (x *CreateAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[14]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1661,7 +1904,7 @@ func (x *CreateAccountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAccountResponse.ProtoReflect.Descriptor instead.
 func (*CreateAccountResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{14}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CreateAccountResponse) GetAccount() *Account {
@@ -1680,7 +1923,7 @@ type GetAccountRequest struct {
 
 func (x *GetAccountRequest) Reset() {
 	*x = GetAccountRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[15]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1692,7 +1935,7 @@ func (x *GetAccountRequest) String() string {
 func (*GetAccountRequest) ProtoMessage() {}
 
 func (x *GetAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[15]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1705,7 +1948,7 @@ func (x *GetAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccountRequest.ProtoReflect.Descriptor instead.
 func (*GetAccountRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{15}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetAccountRequest) GetAccountId() *AccountId {
@@ -1724,7 +1967,7 @@ type GetAccountResponse struct {
 
 func (x *GetAccountResponse) Reset() {
 	*x = GetAccountResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[16]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1736,7 +1979,7 @@ func (x *GetAccountResponse) String() string {
 func (*GetAccountResponse) ProtoMessage() {}
 
 func (x *GetAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[16]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1749,7 +1992,7 @@ func (x *GetAccountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccountResponse.ProtoReflect.Descriptor instead.
 func (*GetAccountResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{16}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetAccountResponse) GetAccount() *Account {
@@ -1767,7 +2010,7 @@ type ListAccountsRequest struct {
 
 func (x *ListAccountsRequest) Reset() {
 	*x = ListAccountsRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[17]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1779,7 +2022,7 @@ func (x *ListAccountsRequest) String() string {
 func (*ListAccountsRequest) ProtoMessage() {}
 
 func (x *ListAccountsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[17]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1792,7 +2035,7 @@ func (x *ListAccountsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAccountsRequest.ProtoReflect.Descriptor instead.
 func (*ListAccountsRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{17}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{19}
 }
 
 type ListAccountsResponse struct {
@@ -1804,7 +2047,7 @@ type ListAccountsResponse struct {
 
 func (x *ListAccountsResponse) Reset() {
 	*x = ListAccountsResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[18]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1816,7 +2059,7 @@ func (x *ListAccountsResponse) String() string {
 func (*ListAccountsResponse) ProtoMessage() {}
 
 func (x *ListAccountsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[18]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1829,7 +2072,7 @@ func (x *ListAccountsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAccountsResponse.ProtoReflect.Descriptor instead.
 func (*ListAccountsResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{18}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListAccountsResponse) GetAccounts() []*Account {
@@ -1851,7 +2094,7 @@ type UpdateAccountRequest struct {
 
 func (x *UpdateAccountRequest) Reset() {
 	*x = UpdateAccountRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[19]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1863,7 +2106,7 @@ func (x *UpdateAccountRequest) String() string {
 func (*UpdateAccountRequest) ProtoMessage() {}
 
 func (x *UpdateAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[19]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1876,7 +2119,7 @@ func (x *UpdateAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAccountRequest.ProtoReflect.Descriptor instead.
 func (*UpdateAccountRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{19}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *UpdateAccountRequest) GetAccountId() *AccountId {
@@ -1916,7 +2159,7 @@ type UpdateAccountResponse struct {
 
 func (x *UpdateAccountResponse) Reset() {
 	*x = UpdateAccountResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[20]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1928,7 +2171,7 @@ func (x *UpdateAccountResponse) String() string {
 func (*UpdateAccountResponse) ProtoMessage() {}
 
 func (x *UpdateAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[20]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1941,7 +2184,7 @@ func (x *UpdateAccountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAccountResponse.ProtoReflect.Descriptor instead.
 func (*UpdateAccountResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{20}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *UpdateAccountResponse) GetAccount() *Account {
@@ -1960,7 +2203,7 @@ type DeleteAccountRequest struct {
 
 func (x *DeleteAccountRequest) Reset() {
 	*x = DeleteAccountRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[21]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1972,7 +2215,7 @@ func (x *DeleteAccountRequest) String() string {
 func (*DeleteAccountRequest) ProtoMessage() {}
 
 func (x *DeleteAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[21]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1985,7 +2228,7 @@ func (x *DeleteAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAccountRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAccountRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{21}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *DeleteAccountRequest) GetAccountId() *AccountId {
@@ -2003,7 +2246,7 @@ type DeleteAccountResponse struct {
 
 func (x *DeleteAccountResponse) Reset() {
 	*x = DeleteAccountResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[22]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2015,7 +2258,7 @@ func (x *DeleteAccountResponse) String() string {
 func (*DeleteAccountResponse) ProtoMessage() {}
 
 func (x *DeleteAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[22]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2028,7 +2271,7 @@ func (x *DeleteAccountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAccountResponse.ProtoReflect.Descriptor instead.
 func (*DeleteAccountResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{22}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{24}
 }
 
 type Invitation struct {
@@ -2046,7 +2289,7 @@ type Invitation struct {
 
 func (x *Invitation) Reset() {
 	*x = Invitation{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[23]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2058,7 +2301,7 @@ func (x *Invitation) String() string {
 func (*Invitation) ProtoMessage() {}
 
 func (x *Invitation) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[23]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2071,7 +2314,7 @@ func (x *Invitation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Invitation.ProtoReflect.Descriptor instead.
 func (*Invitation) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{23}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *Invitation) GetId() *InvitationId {
@@ -2134,7 +2377,7 @@ type CreateInvitationRequest struct {
 
 func (x *CreateInvitationRequest) Reset() {
 	*x = CreateInvitationRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[24]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2146,7 +2389,7 @@ func (x *CreateInvitationRequest) String() string {
 func (*CreateInvitationRequest) ProtoMessage() {}
 
 func (x *CreateInvitationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[24]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2159,7 +2402,7 @@ func (x *CreateInvitationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateInvitationRequest.ProtoReflect.Descriptor instead.
 func (*CreateInvitationRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{24}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *CreateInvitationRequest) GetLoginName() string {
@@ -2194,7 +2437,7 @@ type CreateInvitationResponse struct {
 
 func (x *CreateInvitationResponse) Reset() {
 	*x = CreateInvitationResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[25]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2206,7 +2449,7 @@ func (x *CreateInvitationResponse) String() string {
 func (*CreateInvitationResponse) ProtoMessage() {}
 
 func (x *CreateInvitationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[25]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2219,7 +2462,7 @@ func (x *CreateInvitationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateInvitationResponse.ProtoReflect.Descriptor instead.
 func (*CreateInvitationResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{25}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *CreateInvitationResponse) GetInvitation() *Invitation {
@@ -2247,7 +2490,7 @@ type AcceptInvitationRequest struct {
 
 func (x *AcceptInvitationRequest) Reset() {
 	*x = AcceptInvitationRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[26]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2259,7 +2502,7 @@ func (x *AcceptInvitationRequest) String() string {
 func (*AcceptInvitationRequest) ProtoMessage() {}
 
 func (x *AcceptInvitationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[26]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2272,7 +2515,7 @@ func (x *AcceptInvitationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptInvitationRequest.ProtoReflect.Descriptor instead.
 func (*AcceptInvitationRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{26}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *AcceptInvitationRequest) GetInvitationToken() string {
@@ -2305,7 +2548,7 @@ type AcceptInvitationResponse struct {
 
 func (x *AcceptInvitationResponse) Reset() {
 	*x = AcceptInvitationResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[27]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2317,7 +2560,7 @@ func (x *AcceptInvitationResponse) String() string {
 func (*AcceptInvitationResponse) ProtoMessage() {}
 
 func (x *AcceptInvitationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[27]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2330,7 +2573,7 @@ func (x *AcceptInvitationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptInvitationResponse.ProtoReflect.Descriptor instead.
 func (*AcceptInvitationResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{27}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *AcceptInvitationResponse) GetAccount() *Account {
@@ -2348,7 +2591,7 @@ type ListInvitationsRequest struct {
 
 func (x *ListInvitationsRequest) Reset() {
 	*x = ListInvitationsRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[28]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2360,7 +2603,7 @@ func (x *ListInvitationsRequest) String() string {
 func (*ListInvitationsRequest) ProtoMessage() {}
 
 func (x *ListInvitationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[28]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2373,7 +2616,7 @@ func (x *ListInvitationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListInvitationsRequest.ProtoReflect.Descriptor instead.
 func (*ListInvitationsRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{28}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{30}
 }
 
 type ListInvitationsResponse struct {
@@ -2385,7 +2628,7 @@ type ListInvitationsResponse struct {
 
 func (x *ListInvitationsResponse) Reset() {
 	*x = ListInvitationsResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[29]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2397,7 +2640,7 @@ func (x *ListInvitationsResponse) String() string {
 func (*ListInvitationsResponse) ProtoMessage() {}
 
 func (x *ListInvitationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[29]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2410,7 +2653,7 @@ func (x *ListInvitationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListInvitationsResponse.ProtoReflect.Descriptor instead.
 func (*ListInvitationsResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{29}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ListInvitationsResponse) GetInvitations() []*Invitation {
@@ -2429,7 +2672,7 @@ type RevokeInvitationRequest struct {
 
 func (x *RevokeInvitationRequest) Reset() {
 	*x = RevokeInvitationRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[30]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2441,7 +2684,7 @@ func (x *RevokeInvitationRequest) String() string {
 func (*RevokeInvitationRequest) ProtoMessage() {}
 
 func (x *RevokeInvitationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[30]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2454,7 +2697,7 @@ func (x *RevokeInvitationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeInvitationRequest.ProtoReflect.Descriptor instead.
 func (*RevokeInvitationRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{30}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *RevokeInvitationRequest) GetInvitationId() *InvitationId {
@@ -2472,7 +2715,7 @@ type RevokeInvitationResponse struct {
 
 func (x *RevokeInvitationResponse) Reset() {
 	*x = RevokeInvitationResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[31]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2484,7 +2727,7 @@ func (x *RevokeInvitationResponse) String() string {
 func (*RevokeInvitationResponse) ProtoMessage() {}
 
 func (x *RevokeInvitationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[31]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2497,7 +2740,7 @@ func (x *RevokeInvitationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeInvitationResponse.ProtoReflect.Descriptor instead.
 func (*RevokeInvitationResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{31}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{33}
 }
 
 // The default false value is the decided policy for an unconfigured instance.
@@ -2505,13 +2748,14 @@ type SecondFactorPolicy struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	RequireAdminFactor bool                   `protobuf:"varint,1,opt,name=require_admin_factor,json=requireAdminFactor,proto3" json:"require_admin_factor,omitempty"`
 	UpdatedAt          *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Version            *PolicyVersion         `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
 func (x *SecondFactorPolicy) Reset() {
 	*x = SecondFactorPolicy{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[32]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2523,7 +2767,7 @@ func (x *SecondFactorPolicy) String() string {
 func (*SecondFactorPolicy) ProtoMessage() {}
 
 func (x *SecondFactorPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[32]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2536,7 +2780,7 @@ func (x *SecondFactorPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecondFactorPolicy.ProtoReflect.Descriptor instead.
 func (*SecondFactorPolicy) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{32}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *SecondFactorPolicy) GetRequireAdminFactor() bool {
@@ -2553,6 +2797,13 @@ func (x *SecondFactorPolicy) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *SecondFactorPolicy) GetVersion() *PolicyVersion {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
 type GetSecondFactorPolicyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -2561,7 +2812,7 @@ type GetSecondFactorPolicyRequest struct {
 
 func (x *GetSecondFactorPolicyRequest) Reset() {
 	*x = GetSecondFactorPolicyRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[33]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2573,7 +2824,7 @@ func (x *GetSecondFactorPolicyRequest) String() string {
 func (*GetSecondFactorPolicyRequest) ProtoMessage() {}
 
 func (x *GetSecondFactorPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[33]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2586,7 +2837,7 @@ func (x *GetSecondFactorPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSecondFactorPolicyRequest.ProtoReflect.Descriptor instead.
 func (*GetSecondFactorPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{33}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{35}
 }
 
 type GetSecondFactorPolicyResponse struct {
@@ -2598,7 +2849,7 @@ type GetSecondFactorPolicyResponse struct {
 
 func (x *GetSecondFactorPolicyResponse) Reset() {
 	*x = GetSecondFactorPolicyResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[34]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2610,7 +2861,7 @@ func (x *GetSecondFactorPolicyResponse) String() string {
 func (*GetSecondFactorPolicyResponse) ProtoMessage() {}
 
 func (x *GetSecondFactorPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[34]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2623,7 +2874,7 @@ func (x *GetSecondFactorPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSecondFactorPolicyResponse.ProtoReflect.Descriptor instead.
 func (*GetSecondFactorPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{34}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *GetSecondFactorPolicyResponse) GetPolicy() *SecondFactorPolicy {
@@ -2636,13 +2887,14 @@ func (x *GetSecondFactorPolicyResponse) GetPolicy() *SecondFactorPolicy {
 type SetSecondFactorPolicyRequest struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	RequireAdminFactor bool                   `protobuf:"varint,1,opt,name=require_admin_factor,json=requireAdminFactor,proto3" json:"require_admin_factor,omitempty"`
+	Expected           *PolicyVersion         `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
 func (x *SetSecondFactorPolicyRequest) Reset() {
 	*x = SetSecondFactorPolicyRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[35]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2654,7 +2906,7 @@ func (x *SetSecondFactorPolicyRequest) String() string {
 func (*SetSecondFactorPolicyRequest) ProtoMessage() {}
 
 func (x *SetSecondFactorPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[35]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2667,7 +2919,7 @@ func (x *SetSecondFactorPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSecondFactorPolicyRequest.ProtoReflect.Descriptor instead.
 func (*SetSecondFactorPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{35}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *SetSecondFactorPolicyRequest) GetRequireAdminFactor() bool {
@@ -2677,16 +2929,24 @@ func (x *SetSecondFactorPolicyRequest) GetRequireAdminFactor() bool {
 	return false
 }
 
+func (x *SetSecondFactorPolicyRequest) GetExpected() *PolicyVersion {
+	if x != nil {
+		return x.Expected
+	}
+	return nil
+}
+
 type SetSecondFactorPolicyResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Policy        *SecondFactorPolicy    `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	state         protoimpl.MessageState          `protogen:"open.v1"`
+	Policy        *SecondFactorPolicy             `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	Continuation  SecondFactorSessionContinuation `protobuf:"varint,2,opt,name=continuation,proto3,enum=home.auth.v1.SecondFactorSessionContinuation" json:"continuation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SetSecondFactorPolicyResponse) Reset() {
 	*x = SetSecondFactorPolicyResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[36]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2698,7 +2958,7 @@ func (x *SetSecondFactorPolicyResponse) String() string {
 func (*SetSecondFactorPolicyResponse) ProtoMessage() {}
 
 func (x *SetSecondFactorPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[36]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2711,7 +2971,7 @@ func (x *SetSecondFactorPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSecondFactorPolicyResponse.ProtoReflect.Descriptor instead.
 func (*SetSecondFactorPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{36}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *SetSecondFactorPolicyResponse) GetPolicy() *SecondFactorPolicy {
@@ -2719,6 +2979,66 @@ func (x *SetSecondFactorPolicyResponse) GetPolicy() *SecondFactorPolicy {
 		return x.Policy
 	}
 	return nil
+}
+
+func (x *SetSecondFactorPolicyResponse) GetContinuation() SecondFactorSessionContinuation {
+	if x != nil {
+		return x.Continuation
+	}
+	return SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED
+}
+
+type SecondFactorPolicyError struct {
+	state protoimpl.MessageState      `protogen:"open.v1"`
+	Code  SecondFactorPolicyErrorCode `protobuf:"varint,1,opt,name=code,proto3,enum=home.auth.v1.SecondFactorPolicyErrorCode" json:"code,omitempty"`
+	// Empty for authority failures; otherwise exactly "expected".
+	Field         string `protobuf:"bytes,2,opt,name=field,proto3" json:"field,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SecondFactorPolicyError) Reset() {
+	*x = SecondFactorPolicyError{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SecondFactorPolicyError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SecondFactorPolicyError) ProtoMessage() {}
+
+func (x *SecondFactorPolicyError) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SecondFactorPolicyError.ProtoReflect.Descriptor instead.
+func (*SecondFactorPolicyError) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *SecondFactorPolicyError) GetCode() SecondFactorPolicyErrorCode {
+	if x != nil {
+		return x.Code
+	}
+	return SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED
+}
+
+func (x *SecondFactorPolicyError) GetField() string {
+	if x != nil {
+		return x.Field
+	}
+	return ""
 }
 
 type FactorCredential struct {
@@ -2734,7 +3054,7 @@ type FactorCredential struct {
 
 func (x *FactorCredential) Reset() {
 	*x = FactorCredential{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[37]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2746,7 +3066,7 @@ func (x *FactorCredential) String() string {
 func (*FactorCredential) ProtoMessage() {}
 
 func (x *FactorCredential) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[37]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2759,7 +3079,7 @@ func (x *FactorCredential) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FactorCredential.ProtoReflect.Descriptor instead.
 func (*FactorCredential) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{37}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *FactorCredential) GetId() *FactorCredentialId {
@@ -2810,7 +3130,7 @@ type Fido2AssertionChallenge struct {
 
 func (x *Fido2AssertionChallenge) Reset() {
 	*x = Fido2AssertionChallenge{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[38]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2822,7 +3142,7 @@ func (x *Fido2AssertionChallenge) String() string {
 func (*Fido2AssertionChallenge) ProtoMessage() {}
 
 func (x *Fido2AssertionChallenge) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[38]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2835,7 +3155,7 @@ func (x *Fido2AssertionChallenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fido2AssertionChallenge.ProtoReflect.Descriptor instead.
 func (*Fido2AssertionChallenge) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{38}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *Fido2AssertionChallenge) GetChallenge() []byte {
@@ -2887,7 +3207,7 @@ type Fido2EnrollmentChallenge struct {
 
 func (x *Fido2EnrollmentChallenge) Reset() {
 	*x = Fido2EnrollmentChallenge{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[39]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2899,7 +3219,7 @@ func (x *Fido2EnrollmentChallenge) String() string {
 func (*Fido2EnrollmentChallenge) ProtoMessage() {}
 
 func (x *Fido2EnrollmentChallenge) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[39]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2912,7 +3232,7 @@ func (x *Fido2EnrollmentChallenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fido2EnrollmentChallenge.ProtoReflect.Descriptor instead.
 func (*Fido2EnrollmentChallenge) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{39}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *Fido2EnrollmentChallenge) GetChallenge() []byte {
@@ -2965,7 +3285,7 @@ type RecoveryCodeChallenge struct {
 
 func (x *RecoveryCodeChallenge) Reset() {
 	*x = RecoveryCodeChallenge{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[40]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2977,7 +3297,7 @@ func (x *RecoveryCodeChallenge) String() string {
 func (*RecoveryCodeChallenge) ProtoMessage() {}
 
 func (x *RecoveryCodeChallenge) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[40]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2990,7 +3310,7 @@ func (x *RecoveryCodeChallenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecoveryCodeChallenge.ProtoReflect.Descriptor instead.
 func (*RecoveryCodeChallenge) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{40}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{43}
 }
 
 type FactorOption struct {
@@ -3006,7 +3326,7 @@ type FactorOption struct {
 
 func (x *FactorOption) Reset() {
 	*x = FactorOption{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[41]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3018,7 +3338,7 @@ func (x *FactorOption) String() string {
 func (*FactorOption) ProtoMessage() {}
 
 func (x *FactorOption) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[41]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3031,7 +3351,7 @@ func (x *FactorOption) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FactorOption.ProtoReflect.Descriptor instead.
 func (*FactorOption) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{41}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *FactorOption) GetMethod() isFactorOption_Method {
@@ -3089,7 +3409,7 @@ type FactorChallenge struct {
 
 func (x *FactorChallenge) Reset() {
 	*x = FactorChallenge{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[42]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3101,7 +3421,7 @@ func (x *FactorChallenge) String() string {
 func (*FactorChallenge) ProtoMessage() {}
 
 func (x *FactorChallenge) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[42]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3114,7 +3434,7 @@ func (x *FactorChallenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FactorChallenge.ProtoReflect.Descriptor instead.
 func (*FactorChallenge) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{42}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *FactorChallenge) GetId() *ChallengeId {
@@ -3149,7 +3469,7 @@ type EnrollmentChallenge struct {
 
 func (x *EnrollmentChallenge) Reset() {
 	*x = EnrollmentChallenge{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[43]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3161,7 +3481,7 @@ func (x *EnrollmentChallenge) String() string {
 func (*EnrollmentChallenge) ProtoMessage() {}
 
 func (x *EnrollmentChallenge) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[43]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3174,7 +3494,7 @@ func (x *EnrollmentChallenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnrollmentChallenge.ProtoReflect.Descriptor instead.
 func (*EnrollmentChallenge) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{43}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *EnrollmentChallenge) GetId() *ChallengeId {
@@ -3215,7 +3535,7 @@ type Fido2Assertion struct {
 
 func (x *Fido2Assertion) Reset() {
 	*x = Fido2Assertion{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[44]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3227,7 +3547,7 @@ func (x *Fido2Assertion) String() string {
 func (*Fido2Assertion) ProtoMessage() {}
 
 func (x *Fido2Assertion) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[44]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3240,7 +3560,7 @@ func (x *Fido2Assertion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fido2Assertion.ProtoReflect.Descriptor instead.
 func (*Fido2Assertion) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{44}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *Fido2Assertion) GetCredentialId() []byte {
@@ -3297,7 +3617,7 @@ type Fido2Attestation struct {
 
 func (x *Fido2Attestation) Reset() {
 	*x = Fido2Attestation{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[45]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3309,7 +3629,7 @@ func (x *Fido2Attestation) String() string {
 func (*Fido2Attestation) ProtoMessage() {}
 
 func (x *Fido2Attestation) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[45]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3322,7 +3642,7 @@ func (x *Fido2Attestation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fido2Attestation.ProtoReflect.Descriptor instead.
 func (*Fido2Attestation) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{45}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *Fido2Attestation) GetCredentialId() []byte {
@@ -3366,7 +3686,7 @@ type FactorProof struct {
 
 func (x *FactorProof) Reset() {
 	*x = FactorProof{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[46]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3378,7 +3698,7 @@ func (x *FactorProof) String() string {
 func (*FactorProof) ProtoMessage() {}
 
 func (x *FactorProof) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[46]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3391,7 +3711,7 @@ func (x *FactorProof) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FactorProof.ProtoReflect.Descriptor instead.
 func (*FactorProof) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{46}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *FactorProof) GetProof() isFactorProof_Proof {
@@ -3436,20 +3756,22 @@ func (*FactorProof_Fido2) isFactorProof_Proof() {}
 func (*FactorProof_RecoveryCode) isFactorProof_Proof() {}
 
 type Session struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            *SessionId             `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	AccountId     *AccountId             `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	RevokedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=revoked_at,json=revokedAt,proto3,oneof" json:"revoked_at,omitempty"`
-	LastUsedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_used_at,json=lastUsedAt,proto3,oneof" json:"last_used_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                      protoimpl.MessageState     `protogen:"open.v1"`
+	Id                         *SessionId                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	AccountId                  *AccountId                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	CreatedAt                  *timestamppb.Timestamp     `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ExpiresAt                  *timestamppb.Timestamp     `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	RevokedAt                  *timestamppb.Timestamp     `protobuf:"bytes,5,opt,name=revoked_at,json=revokedAt,proto3,oneof" json:"revoked_at,omitempty"`
+	LastUsedAt                 *timestamppb.Timestamp     `protobuf:"bytes,6,opt,name=last_used_at,json=lastUsedAt,proto3,oneof" json:"last_used_at,omitempty"`
+	AuthenticationSatisfaction AuthenticationSatisfaction `protobuf:"varint,7,opt,name=authentication_satisfaction,json=authenticationSatisfaction,proto3,enum=home.auth.v1.AuthenticationSatisfaction" json:"authentication_satisfaction,omitempty"`
+	AuthenticatedAt            *timestamppb.Timestamp     `protobuf:"bytes,8,opt,name=authenticated_at,json=authenticatedAt,proto3" json:"authenticated_at,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *Session) Reset() {
 	*x = Session{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[47]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3461,7 +3783,7 @@ func (x *Session) String() string {
 func (*Session) ProtoMessage() {}
 
 func (x *Session) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[47]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3474,7 +3796,7 @@ func (x *Session) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Session.ProtoReflect.Descriptor instead.
 func (*Session) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{47}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *Session) GetId() *SessionId {
@@ -3519,6 +3841,20 @@ func (x *Session) GetLastUsedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Session) GetAuthenticationSatisfaction() AuthenticationSatisfaction {
+	if x != nil {
+		return x.AuthenticationSatisfaction
+	}
+	return AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_UNSPECIFIED
+}
+
+func (x *Session) GetAuthenticatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AuthenticatedAt
+	}
+	return nil
+}
+
 // Bearer values are emitted only at login/refresh, never in Session metadata.
 type SessionTokens struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
@@ -3533,7 +3869,7 @@ type SessionTokens struct {
 
 func (x *SessionTokens) Reset() {
 	*x = SessionTokens{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[48]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3545,7 +3881,7 @@ func (x *SessionTokens) String() string {
 func (*SessionTokens) ProtoMessage() {}
 
 func (x *SessionTokens) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[48]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3558,7 +3894,7 @@ func (x *SessionTokens) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionTokens.ProtoReflect.Descriptor instead.
 func (*SessionTokens) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{48}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *SessionTokens) GetSession() *Session {
@@ -3611,7 +3947,7 @@ type EnrollmentRequired struct {
 
 func (x *EnrollmentRequired) Reset() {
 	*x = EnrollmentRequired{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[49]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3623,7 +3959,7 @@ func (x *EnrollmentRequired) String() string {
 func (*EnrollmentRequired) ProtoMessage() {}
 
 func (x *EnrollmentRequired) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[49]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3636,7 +3972,7 @@ func (x *EnrollmentRequired) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnrollmentRequired.ProtoReflect.Descriptor instead.
 func (*EnrollmentRequired) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{49}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *EnrollmentRequired) GetAccountId() *AccountId {
@@ -3676,7 +4012,7 @@ type LoginDecision struct {
 
 func (x *LoginDecision) Reset() {
 	*x = LoginDecision{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[50]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3688,7 +4024,7 @@ func (x *LoginDecision) String() string {
 func (*LoginDecision) ProtoMessage() {}
 
 func (x *LoginDecision) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[50]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3701,7 +4037,7 @@ func (x *LoginDecision) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginDecision.ProtoReflect.Descriptor instead.
 func (*LoginDecision) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{50}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *LoginDecision) GetOutcome() isLoginDecision_Outcome {
@@ -3770,7 +4106,7 @@ type StartLoginRequest struct {
 
 func (x *StartLoginRequest) Reset() {
 	*x = StartLoginRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[51]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3782,7 +4118,7 @@ func (x *StartLoginRequest) String() string {
 func (*StartLoginRequest) ProtoMessage() {}
 
 func (x *StartLoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[51]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3795,7 +4131,7 @@ func (x *StartLoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartLoginRequest.ProtoReflect.Descriptor instead.
 func (*StartLoginRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{51}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *StartLoginRequest) GetLoginName() string {
@@ -3821,7 +4157,7 @@ type StartLoginResponse struct {
 
 func (x *StartLoginResponse) Reset() {
 	*x = StartLoginResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[52]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3833,7 +4169,7 @@ func (x *StartLoginResponse) String() string {
 func (*StartLoginResponse) ProtoMessage() {}
 
 func (x *StartLoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[52]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3846,7 +4182,7 @@ func (x *StartLoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartLoginResponse.ProtoReflect.Descriptor instead.
 func (*StartLoginResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{52}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *StartLoginResponse) GetDecision() *LoginDecision {
@@ -3866,7 +4202,7 @@ type CompleteLoginRequest struct {
 
 func (x *CompleteLoginRequest) Reset() {
 	*x = CompleteLoginRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[53]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3878,7 +4214,7 @@ func (x *CompleteLoginRequest) String() string {
 func (*CompleteLoginRequest) ProtoMessage() {}
 
 func (x *CompleteLoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[53]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3891,7 +4227,7 @@ func (x *CompleteLoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteLoginRequest.ProtoReflect.Descriptor instead.
 func (*CompleteLoginRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{53}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *CompleteLoginRequest) GetChallengeId() *ChallengeId {
@@ -3917,7 +4253,7 @@ type CompleteLoginResponse struct {
 
 func (x *CompleteLoginResponse) Reset() {
 	*x = CompleteLoginResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[54]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3929,7 +4265,7 @@ func (x *CompleteLoginResponse) String() string {
 func (*CompleteLoginResponse) ProtoMessage() {}
 
 func (x *CompleteLoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[54]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3942,7 +4278,7 @@ func (x *CompleteLoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteLoginResponse.ProtoReflect.Descriptor instead.
 func (*CompleteLoginResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{54}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *CompleteLoginResponse) GetDecision() *LoginDecision {
@@ -3961,7 +4297,7 @@ type RefreshSessionRequest struct {
 
 func (x *RefreshSessionRequest) Reset() {
 	*x = RefreshSessionRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[55]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3973,7 +4309,7 @@ func (x *RefreshSessionRequest) String() string {
 func (*RefreshSessionRequest) ProtoMessage() {}
 
 func (x *RefreshSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[55]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3986,7 +4322,7 @@ func (x *RefreshSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshSessionRequest.ProtoReflect.Descriptor instead.
 func (*RefreshSessionRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{55}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *RefreshSessionRequest) GetRefreshToken() string {
@@ -4005,7 +4341,7 @@ type RefreshSessionResponse struct {
 
 func (x *RefreshSessionResponse) Reset() {
 	*x = RefreshSessionResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[56]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4017,7 +4353,7 @@ func (x *RefreshSessionResponse) String() string {
 func (*RefreshSessionResponse) ProtoMessage() {}
 
 func (x *RefreshSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[56]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4030,7 +4366,7 @@ func (x *RefreshSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshSessionResponse.ProtoReflect.Descriptor instead.
 func (*RefreshSessionResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{56}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *RefreshSessionResponse) GetTokens() *SessionTokens {
@@ -4049,7 +4385,7 @@ type ListSessionsRequest struct {
 
 func (x *ListSessionsRequest) Reset() {
 	*x = ListSessionsRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[57]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4061,7 +4397,7 @@ func (x *ListSessionsRequest) String() string {
 func (*ListSessionsRequest) ProtoMessage() {}
 
 func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[57]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4074,7 +4410,7 @@ func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{57}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *ListSessionsRequest) GetAccountId() *AccountId {
@@ -4093,7 +4429,7 @@ type ListSessionsResponse struct {
 
 func (x *ListSessionsResponse) Reset() {
 	*x = ListSessionsResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[58]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4105,7 +4441,7 @@ func (x *ListSessionsResponse) String() string {
 func (*ListSessionsResponse) ProtoMessage() {}
 
 func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[58]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4118,7 +4454,7 @@ func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
 func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{58}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *ListSessionsResponse) GetSessions() []*Session {
@@ -4137,7 +4473,7 @@ type RevokeSessionRequest struct {
 
 func (x *RevokeSessionRequest) Reset() {
 	*x = RevokeSessionRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[59]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4149,7 +4485,7 @@ func (x *RevokeSessionRequest) String() string {
 func (*RevokeSessionRequest) ProtoMessage() {}
 
 func (x *RevokeSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[59]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4162,7 +4498,7 @@ func (x *RevokeSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeSessionRequest.ProtoReflect.Descriptor instead.
 func (*RevokeSessionRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{59}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *RevokeSessionRequest) GetSessionId() *SessionId {
@@ -4180,7 +4516,7 @@ type RevokeSessionResponse struct {
 
 func (x *RevokeSessionResponse) Reset() {
 	*x = RevokeSessionResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[60]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4192,7 +4528,7 @@ func (x *RevokeSessionResponse) String() string {
 func (*RevokeSessionResponse) ProtoMessage() {}
 
 func (x *RevokeSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[60]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4205,7 +4541,7 @@ func (x *RevokeSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeSessionResponse.ProtoReflect.Descriptor instead.
 func (*RevokeSessionResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{60}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{63}
 }
 
 type BeginFactorEnrollmentRequest struct {
@@ -4220,7 +4556,7 @@ type BeginFactorEnrollmentRequest struct {
 
 func (x *BeginFactorEnrollmentRequest) Reset() {
 	*x = BeginFactorEnrollmentRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[61]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4232,7 +4568,7 @@ func (x *BeginFactorEnrollmentRequest) String() string {
 func (*BeginFactorEnrollmentRequest) ProtoMessage() {}
 
 func (x *BeginFactorEnrollmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[61]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4245,7 +4581,7 @@ func (x *BeginFactorEnrollmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginFactorEnrollmentRequest.ProtoReflect.Descriptor instead.
 func (*BeginFactorEnrollmentRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{61}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *BeginFactorEnrollmentRequest) GetKind() FactorKind {
@@ -4271,7 +4607,7 @@ type BeginFactorEnrollmentResponse struct {
 
 func (x *BeginFactorEnrollmentResponse) Reset() {
 	*x = BeginFactorEnrollmentResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[62]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4283,7 +4619,7 @@ func (x *BeginFactorEnrollmentResponse) String() string {
 func (*BeginFactorEnrollmentResponse) ProtoMessage() {}
 
 func (x *BeginFactorEnrollmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[62]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4296,7 +4632,7 @@ func (x *BeginFactorEnrollmentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginFactorEnrollmentResponse.ProtoReflect.Descriptor instead.
 func (*BeginFactorEnrollmentResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{62}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *BeginFactorEnrollmentResponse) GetChallenge() *EnrollmentChallenge {
@@ -4317,7 +4653,7 @@ type CompleteFactorEnrollmentRequest struct {
 
 func (x *CompleteFactorEnrollmentRequest) Reset() {
 	*x = CompleteFactorEnrollmentRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[63]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4329,7 +4665,7 @@ func (x *CompleteFactorEnrollmentRequest) String() string {
 func (*CompleteFactorEnrollmentRequest) ProtoMessage() {}
 
 func (x *CompleteFactorEnrollmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[63]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4342,7 +4678,7 @@ func (x *CompleteFactorEnrollmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteFactorEnrollmentRequest.ProtoReflect.Descriptor instead.
 func (*CompleteFactorEnrollmentRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{63}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *CompleteFactorEnrollmentRequest) GetChallengeId() *ChallengeId {
@@ -4377,7 +4713,7 @@ type CompleteFactorEnrollmentResponse struct {
 
 func (x *CompleteFactorEnrollmentResponse) Reset() {
 	*x = CompleteFactorEnrollmentResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[64]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4389,7 +4725,7 @@ func (x *CompleteFactorEnrollmentResponse) String() string {
 func (*CompleteFactorEnrollmentResponse) ProtoMessage() {}
 
 func (x *CompleteFactorEnrollmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[64]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4402,7 +4738,7 @@ func (x *CompleteFactorEnrollmentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteFactorEnrollmentResponse.ProtoReflect.Descriptor instead.
 func (*CompleteFactorEnrollmentResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{64}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *CompleteFactorEnrollmentResponse) GetFactor() *FactorCredential {
@@ -4428,7 +4764,7 @@ type ListFactorsRequest struct {
 
 func (x *ListFactorsRequest) Reset() {
 	*x = ListFactorsRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[65]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4440,7 +4776,7 @@ func (x *ListFactorsRequest) String() string {
 func (*ListFactorsRequest) ProtoMessage() {}
 
 func (x *ListFactorsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[65]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4453,7 +4789,7 @@ func (x *ListFactorsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFactorsRequest.ProtoReflect.Descriptor instead.
 func (*ListFactorsRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{65}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ListFactorsRequest) GetAccountId() *AccountId {
@@ -4472,7 +4808,7 @@ type ListFactorsResponse struct {
 
 func (x *ListFactorsResponse) Reset() {
 	*x = ListFactorsResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[66]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4484,7 +4820,7 @@ func (x *ListFactorsResponse) String() string {
 func (*ListFactorsResponse) ProtoMessage() {}
 
 func (x *ListFactorsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[66]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4497,7 +4833,7 @@ func (x *ListFactorsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFactorsResponse.ProtoReflect.Descriptor instead.
 func (*ListFactorsResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{66}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *ListFactorsResponse) GetFactors() []*FactorCredential {
@@ -4517,7 +4853,7 @@ type RemoveFactorRequest struct {
 
 func (x *RemoveFactorRequest) Reset() {
 	*x = RemoveFactorRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[67]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4529,7 +4865,7 @@ func (x *RemoveFactorRequest) String() string {
 func (*RemoveFactorRequest) ProtoMessage() {}
 
 func (x *RemoveFactorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[67]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4542,7 +4878,7 @@ func (x *RemoveFactorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveFactorRequest.ProtoReflect.Descriptor instead.
 func (*RemoveFactorRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{67}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *RemoveFactorRequest) GetFactorId() *FactorCredentialId {
@@ -4560,7 +4896,7 @@ type RemoveFactorResponse struct {
 
 func (x *RemoveFactorResponse) Reset() {
 	*x = RemoveFactorResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[68]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4572,7 +4908,7 @@ func (x *RemoveFactorResponse) String() string {
 func (*RemoveFactorResponse) ProtoMessage() {}
 
 func (x *RemoveFactorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[68]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4585,7 +4921,7 @@ func (x *RemoveFactorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveFactorResponse.ProtoReflect.Descriptor instead.
 func (*RemoveFactorResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{68}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{71}
 }
 
 // Replacing codes invalidates unused old codes and returns replacements once.
@@ -4598,7 +4934,7 @@ type ReplaceRecoveryCodesRequest struct {
 
 func (x *ReplaceRecoveryCodesRequest) Reset() {
 	*x = ReplaceRecoveryCodesRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[69]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4610,7 +4946,7 @@ func (x *ReplaceRecoveryCodesRequest) String() string {
 func (*ReplaceRecoveryCodesRequest) ProtoMessage() {}
 
 func (x *ReplaceRecoveryCodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[69]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4623,7 +4959,7 @@ func (x *ReplaceRecoveryCodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplaceRecoveryCodesRequest.ProtoReflect.Descriptor instead.
 func (*ReplaceRecoveryCodesRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{69}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *ReplaceRecoveryCodesRequest) GetAccountId() *AccountId {
@@ -4642,7 +4978,7 @@ type ReplaceRecoveryCodesResponse struct {
 
 func (x *ReplaceRecoveryCodesResponse) Reset() {
 	*x = ReplaceRecoveryCodesResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[70]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4654,7 +4990,7 @@ func (x *ReplaceRecoveryCodesResponse) String() string {
 func (*ReplaceRecoveryCodesResponse) ProtoMessage() {}
 
 func (x *ReplaceRecoveryCodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[70]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4667,7 +5003,7 @@ func (x *ReplaceRecoveryCodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplaceRecoveryCodesResponse.ProtoReflect.Descriptor instead.
 func (*ReplaceRecoveryCodesResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{70}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *ReplaceRecoveryCodesResponse) GetRecoveryCodes() []string {
@@ -4694,7 +5030,7 @@ type McpKey struct {
 
 func (x *McpKey) Reset() {
 	*x = McpKey{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[71]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4706,7 +5042,7 @@ func (x *McpKey) String() string {
 func (*McpKey) ProtoMessage() {}
 
 func (x *McpKey) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[71]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4719,7 +5055,7 @@ func (x *McpKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use McpKey.ProtoReflect.Descriptor instead.
 func (*McpKey) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{71}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *McpKey) GetId() *McpKeyId {
@@ -4797,7 +5133,7 @@ type CreateMcpKeyRequest struct {
 
 func (x *CreateMcpKeyRequest) Reset() {
 	*x = CreateMcpKeyRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[72]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4809,7 +5145,7 @@ func (x *CreateMcpKeyRequest) String() string {
 func (*CreateMcpKeyRequest) ProtoMessage() {}
 
 func (x *CreateMcpKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[72]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4822,7 +5158,7 @@ func (x *CreateMcpKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateMcpKeyRequest.ProtoReflect.Descriptor instead.
 func (*CreateMcpKeyRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{72}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *CreateMcpKeyRequest) GetClientName() string {
@@ -4857,7 +5193,7 @@ type CreateMcpKeyResponse struct {
 
 func (x *CreateMcpKeyResponse) Reset() {
 	*x = CreateMcpKeyResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[73]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4869,7 +5205,7 @@ func (x *CreateMcpKeyResponse) String() string {
 func (*CreateMcpKeyResponse) ProtoMessage() {}
 
 func (x *CreateMcpKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[73]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4882,7 +5218,7 @@ func (x *CreateMcpKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateMcpKeyResponse.ProtoReflect.Descriptor instead.
 func (*CreateMcpKeyResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{73}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *CreateMcpKeyResponse) GetKey() *McpKey {
@@ -4908,7 +5244,7 @@ type ListMcpKeysRequest struct {
 
 func (x *ListMcpKeysRequest) Reset() {
 	*x = ListMcpKeysRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[74]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4920,7 +5256,7 @@ func (x *ListMcpKeysRequest) String() string {
 func (*ListMcpKeysRequest) ProtoMessage() {}
 
 func (x *ListMcpKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[74]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4933,7 +5269,7 @@ func (x *ListMcpKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMcpKeysRequest.ProtoReflect.Descriptor instead.
 func (*ListMcpKeysRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{74}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *ListMcpKeysRequest) GetAccountId() *AccountId {
@@ -4952,7 +5288,7 @@ type ListMcpKeysResponse struct {
 
 func (x *ListMcpKeysResponse) Reset() {
 	*x = ListMcpKeysResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[75]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4964,7 +5300,7 @@ func (x *ListMcpKeysResponse) String() string {
 func (*ListMcpKeysResponse) ProtoMessage() {}
 
 func (x *ListMcpKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[75]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4977,7 +5313,7 @@ func (x *ListMcpKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMcpKeysResponse.ProtoReflect.Descriptor instead.
 func (*ListMcpKeysResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{75}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *ListMcpKeysResponse) GetKeys() []*McpKey {
@@ -4996,7 +5332,7 @@ type RevokeMcpKeyRequest struct {
 
 func (x *RevokeMcpKeyRequest) Reset() {
 	*x = RevokeMcpKeyRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[76]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5008,7 +5344,7 @@ func (x *RevokeMcpKeyRequest) String() string {
 func (*RevokeMcpKeyRequest) ProtoMessage() {}
 
 func (x *RevokeMcpKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[76]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5021,7 +5357,7 @@ func (x *RevokeMcpKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeMcpKeyRequest.ProtoReflect.Descriptor instead.
 func (*RevokeMcpKeyRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{76}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *RevokeMcpKeyRequest) GetKeyId() *McpKeyId {
@@ -5039,7 +5375,7 @@ type RevokeMcpKeyResponse struct {
 
 func (x *RevokeMcpKeyResponse) Reset() {
 	*x = RevokeMcpKeyResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[77]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5051,7 +5387,7 @@ func (x *RevokeMcpKeyResponse) String() string {
 func (*RevokeMcpKeyResponse) ProtoMessage() {}
 
 func (x *RevokeMcpKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[77]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5064,7 +5400,7 @@ func (x *RevokeMcpKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeMcpKeyResponse.ProtoReflect.Descriptor instead.
 func (*RevokeMcpKeyResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{77}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{80}
 }
 
 type AuthError struct {
@@ -5085,7 +5421,7 @@ type AuthError struct {
 
 func (x *AuthError) Reset() {
 	*x = AuthError{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[78]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5097,7 +5433,7 @@ func (x *AuthError) String() string {
 func (*AuthError) ProtoMessage() {}
 
 func (x *AuthError) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[78]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5110,7 +5446,7 @@ func (x *AuthError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthError.ProtoReflect.Descriptor instead.
 func (*AuthError) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{78}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *AuthError) GetCode() AuthErrorCode {
@@ -5231,7 +5567,7 @@ type PolicyVersion struct {
 
 func (x *PolicyVersion) Reset() {
 	*x = PolicyVersion{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[79]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5243,7 +5579,7 @@ func (x *PolicyVersion) String() string {
 func (*PolicyVersion) ProtoMessage() {}
 
 func (x *PolicyVersion) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[79]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5256,7 +5592,7 @@ func (x *PolicyVersion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyVersion.ProtoReflect.Descriptor instead.
 func (*PolicyVersion) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{79}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *PolicyVersion) GetRevision() uint64 {
@@ -5287,7 +5623,7 @@ type PolicySnapshot struct {
 
 func (x *PolicySnapshot) Reset() {
 	*x = PolicySnapshot{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[80]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5299,7 +5635,7 @@ func (x *PolicySnapshot) String() string {
 func (*PolicySnapshot) ProtoMessage() {}
 
 func (x *PolicySnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[80]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5312,7 +5648,7 @@ func (x *PolicySnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicySnapshot.ProtoReflect.Descriptor instead.
 func (*PolicySnapshot) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{80}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *PolicySnapshot) GetAccountId() *AccountId {
@@ -5366,7 +5702,7 @@ type GetPolicyRequest struct {
 
 func (x *GetPolicyRequest) Reset() {
 	*x = GetPolicyRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[81]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5378,7 +5714,7 @@ func (x *GetPolicyRequest) String() string {
 func (*GetPolicyRequest) ProtoMessage() {}
 
 func (x *GetPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[81]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5391,7 +5727,7 @@ func (x *GetPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPolicyRequest.ProtoReflect.Descriptor instead.
 func (*GetPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{81}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *GetPolicyRequest) GetAccountId() *AccountId {
@@ -5414,7 +5750,7 @@ type GetPolicyResponse struct {
 
 func (x *GetPolicyResponse) Reset() {
 	*x = GetPolicyResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[82]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5426,7 +5762,7 @@ func (x *GetPolicyResponse) String() string {
 func (*GetPolicyResponse) ProtoMessage() {}
 
 func (x *GetPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[82]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5439,7 +5775,7 @@ func (x *GetPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPolicyResponse.ProtoReflect.Descriptor instead.
 func (*GetPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{82}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *GetPolicyResponse) GetResult() isGetPolicyResponse_Result {
@@ -5500,7 +5836,7 @@ type ReplacePolicyRequest struct {
 
 func (x *ReplacePolicyRequest) Reset() {
 	*x = ReplacePolicyRequest{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[83]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5512,7 +5848,7 @@ func (x *ReplacePolicyRequest) String() string {
 func (*ReplacePolicyRequest) ProtoMessage() {}
 
 func (x *ReplacePolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[83]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5525,7 +5861,7 @@ func (x *ReplacePolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplacePolicyRequest.ProtoReflect.Descriptor instead.
 func (*ReplacePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{83}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *ReplacePolicyRequest) GetAccountId() *AccountId {
@@ -5593,7 +5929,7 @@ type ReplacePolicyResponse struct {
 
 func (x *ReplacePolicyResponse) Reset() {
 	*x = ReplacePolicyResponse{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[84]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5605,7 +5941,7 @@ func (x *ReplacePolicyResponse) String() string {
 func (*ReplacePolicyResponse) ProtoMessage() {}
 
 func (x *ReplacePolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[84]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5618,7 +5954,7 @@ func (x *ReplacePolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplacePolicyResponse.ProtoReflect.Descriptor instead.
 func (*ReplacePolicyResponse) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{84}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *ReplacePolicyResponse) GetPolicy() *PolicySnapshot {
@@ -5645,7 +5981,7 @@ type AuthorizationPolicyError struct {
 
 func (x *AuthorizationPolicyError) Reset() {
 	*x = AuthorizationPolicyError{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[85]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5657,7 +5993,7 @@ func (x *AuthorizationPolicyError) String() string {
 func (*AuthorizationPolicyError) ProtoMessage() {}
 
 func (x *AuthorizationPolicyError) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[85]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5670,7 +6006,7 @@ func (x *AuthorizationPolicyError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorizationPolicyError.ProtoReflect.Descriptor instead.
 func (*AuthorizationPolicyError) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{85}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *AuthorizationPolicyError) GetCode() AuthorizationPolicyErrorCode {
@@ -5698,7 +6034,7 @@ type AuthorizationTermination struct {
 
 func (x *AuthorizationTermination) Reset() {
 	*x = AuthorizationTermination{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[86]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5710,7 +6046,7 @@ func (x *AuthorizationTermination) String() string {
 func (*AuthorizationTermination) ProtoMessage() {}
 
 func (x *AuthorizationTermination) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[86]
+	mi := &file_home_auth_v1_auth_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5723,7 +6059,7 @@ func (x *AuthorizationTermination) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorizationTermination.ProtoReflect.Descriptor instead.
 func (*AuthorizationTermination) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{86}
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *AuthorizationTermination) GetReason() AuthorizationTerminationReason {
@@ -5780,6 +6116,11 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\v2\x17.home.auth.v1.AccountIdR\taccountId\x121\n" +
 	"\x14replacement_password\x18\x02 \x01(\tR\x13replacementPassword\"I\n" +
 	"\x16RecoverAccountResponse\x12/\n" +
+	"\aaccount\x18\x01 \x01(\v2\x15.home.auth.v1.AccountR\aaccount\"R\n" +
+	"\x18ResetSecondFactorRequest\x126\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\v2\x17.home.auth.v1.AccountIdR\taccountId\"L\n" +
+	"\x19ResetSecondFactorResponse\x12/\n" +
 	"\aaccount\x18\x01 \x01(\v2\x15.home.auth.v1.AccountR\aaccount\"\xb2\x01\n" +
 	"\x14CreateAccountRequest\x12\x1d\n" +
 	"\n" +
@@ -5850,18 +6191,24 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\vinvitations\x18\x01 \x03(\v2\x18.home.auth.v1.InvitationR\vinvitations\"Z\n" +
 	"\x17RevokeInvitationRequest\x12?\n" +
 	"\rinvitation_id\x18\x01 \x01(\v2\x1a.home.auth.v1.InvitationIdR\finvitationId\"\x1a\n" +
-	"\x18RevokeInvitationResponse\"\x81\x01\n" +
+	"\x18RevokeInvitationResponse\"\xb8\x01\n" +
 	"\x12SecondFactorPolicy\x120\n" +
 	"\x14require_admin_factor\x18\x01 \x01(\bR\x12requireAdminFactor\x129\n" +
 	"\n" +
-	"updated_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x1e\n" +
+	"updated_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x125\n" +
+	"\aversion\x18\x03 \x01(\v2\x1b.home.auth.v1.PolicyVersionR\aversion\"\x1e\n" +
 	"\x1cGetSecondFactorPolicyRequest\"Y\n" +
 	"\x1dGetSecondFactorPolicyResponse\x128\n" +
-	"\x06policy\x18\x01 \x01(\v2 .home.auth.v1.SecondFactorPolicyR\x06policy\"P\n" +
+	"\x06policy\x18\x01 \x01(\v2 .home.auth.v1.SecondFactorPolicyR\x06policy\"\x89\x01\n" +
 	"\x1cSetSecondFactorPolicyRequest\x120\n" +
-	"\x14require_admin_factor\x18\x01 \x01(\bR\x12requireAdminFactor\"Y\n" +
+	"\x14require_admin_factor\x18\x01 \x01(\bR\x12requireAdminFactor\x127\n" +
+	"\bexpected\x18\x02 \x01(\v2\x1b.home.auth.v1.PolicyVersionR\bexpected\"\xac\x01\n" +
 	"\x1dSetSecondFactorPolicyResponse\x128\n" +
-	"\x06policy\x18\x01 \x01(\v2 .home.auth.v1.SecondFactorPolicyR\x06policy\"\xb9\x02\n" +
+	"\x06policy\x18\x01 \x01(\v2 .home.auth.v1.SecondFactorPolicyR\x06policy\x12Q\n" +
+	"\fcontinuation\x18\x02 \x01(\x0e2-.home.auth.v1.SecondFactorSessionContinuationR\fcontinuation\"n\n" +
+	"\x17SecondFactorPolicyError\x12=\n" +
+	"\x04code\x18\x01 \x01(\x0e2).home.auth.v1.SecondFactorPolicyErrorCodeR\x04code\x12\x14\n" +
+	"\x05field\x18\x02 \x01(\tR\x05field\"\xb9\x02\n" +
 	"\x10FactorCredential\x120\n" +
 	"\x02id\x18\x01 \x01(\v2 .home.auth.v1.FactorCredentialIdR\x02id\x126\n" +
 	"\n" +
@@ -5919,7 +6266,7 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\vFactorProof\x124\n" +
 	"\x05fido2\x18\x01 \x01(\v2\x1c.home.auth.v1.Fido2AssertionH\x00R\x05fido2\x12%\n" +
 	"\rrecovery_code\x18\x02 \x01(\tH\x00R\frecoveryCodeB\a\n" +
-	"\x05proof\"\x83\x03\n" +
+	"\x05proof\"\xb5\x04\n" +
 	"\aSession\x12'\n" +
 	"\x02id\x18\x01 \x01(\v2\x17.home.auth.v1.SessionIdR\x02id\x126\n" +
 	"\n" +
@@ -5931,7 +6278,9 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\n" +
 	"revoked_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\trevokedAt\x88\x01\x01\x12A\n" +
 	"\flast_used_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampH\x01R\n" +
-	"lastUsedAt\x88\x01\x01B\r\n" +
+	"lastUsedAt\x88\x01\x01\x12i\n" +
+	"\x1bauthentication_satisfaction\x18\a \x01(\x0e2(.home.auth.v1.AuthenticationSatisfactionR\x1aauthenticationSatisfaction\x12E\n" +
+	"\x10authenticated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x0fauthenticatedAtB\r\n" +
 	"\v_revoked_atB\x0f\n" +
 	"\r_last_used_at\"\x8e\x02\n" +
 	"\rSessionTokens\x12/\n" +
@@ -6111,7 +6460,16 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\x1bSCOPE_OPERATION_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14SCOPE_OPERATION_READ\x10\x01\x12\x19\n" +
 	"\x15SCOPE_OPERATION_WRITE\x10\x02\x12\x1e\n" +
-	"\x1aSCOPE_OPERATION_ADMINISTER\x10\x03*@\n" +
+	"\x1aSCOPE_OPERATION_ADMINISTER\x10\x03*\xc9\x01\n" +
+	"\x1fSecondFactorSessionContinuation\x122\n" +
+	".SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED\x10\x00\x120\n" +
+	",SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES\x10\x01\x12@\n" +
+	"<SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED\x10\x02*\xf4\x01\n" +
+	"\x1bSecondFactorPolicyErrorCode\x12/\n" +
+	"+SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED\x10\x00\x123\n" +
+	"/SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION\x10\x01\x124\n" +
+	"0SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT\x10\x02\x129\n" +
+	"5SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE\x10\x03*@\n" +
 	"\n" +
 	"FactorKind\x12\x1b\n" +
 	"\x17FACTOR_KIND_UNSPECIFIED\x10\x00\x12\x15\n" +
@@ -6119,7 +6477,12 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\x12CredentialAudience\x12#\n" +
 	"\x1fCREDENTIAL_AUDIENCE_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fCREDENTIAL_AUDIENCE_INTERACTIVE\x10\x01\x12\x1b\n" +
-	"\x17CREDENTIAL_AUDIENCE_MCP\x10\x02*\xff\x01\n" +
+	"\x17CREDENTIAL_AUDIENCE_MCP\x10\x02*\xe0\x01\n" +
+	"\x1aAuthenticationSatisfaction\x12+\n" +
+	"'AUTHENTICATION_SATISFACTION_UNSPECIFIED\x10\x00\x12-\n" +
+	")AUTHENTICATION_SATISFACTION_PASSWORD_ONLY\x10\x01\x12.\n" +
+	"*AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2\x10\x02\x126\n" +
+	"2AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE\x10\x03*\xff\x01\n" +
 	"\rAuthErrorCode\x12\x1f\n" +
 	"\x1bAUTH_ERROR_CODE_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fAUTH_ERROR_CODE_UNAUTHENTICATED\x10\x01\x12%\n" +
@@ -6187,10 +6550,11 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"3AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED\x10\x02\x125\n" +
 	"1AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED\x10\x03\x123\n" +
 	"/AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED\x10\x04\x12:\n" +
-	"6AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE\x10\x052\xd2\x01\n" +
+	"6AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE\x10\x052\xb8\x02\n" +
 	"\x16OperatorAccountService\x12[\n" +
 	"\x0eBootstrapAdmin\x12#.home.auth.v1.BootstrapAdminRequest\x1a$.home.auth.v1.BootstrapAdminResponse\x12[\n" +
-	"\x0eRecoverAccount\x12#.home.auth.v1.RecoverAccountRequest\x1a$.home.auth.v1.RecoverAccountResponse2\xb3\b\n" +
+	"\x0eRecoverAccount\x12#.home.auth.v1.RecoverAccountRequest\x1a$.home.auth.v1.RecoverAccountResponse\x12d\n" +
+	"\x11ResetSecondFactor\x12&.home.auth.v1.ResetSecondFactorRequest\x1a'.home.auth.v1.ResetSecondFactorResponse2\xb3\b\n" +
 	"\x0eAccountService\x12X\n" +
 	"\rCreateAccount\x12\".home.auth.v1.CreateAccountRequest\x1a#.home.auth.v1.CreateAccountResponse\x12O\n" +
 	"\n" +
@@ -6236,293 +6600,309 @@ func file_home_auth_v1_auth_proto_rawDescGZIP() []byte {
 	return file_home_auth_v1_auth_proto_rawDescData
 }
 
-var file_home_auth_v1_auth_proto_enumTypes = make([]protoimpl.EnumInfo, 15)
-var file_home_auth_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 87)
+var file_home_auth_v1_auth_proto_enumTypes = make([]protoimpl.EnumInfo, 18)
+var file_home_auth_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 90)
 var file_home_auth_v1_auth_proto_goTypes = []any{
 	(AccountRole)(0),                         // 0: home.auth.v1.AccountRole
 	(AccountStatus)(0),                       // 1: home.auth.v1.AccountStatus
 	(ScopeFamily)(0),                         // 2: home.auth.v1.ScopeFamily
 	(ScopeOperation)(0),                      // 3: home.auth.v1.ScopeOperation
-	(FactorKind)(0),                          // 4: home.auth.v1.FactorKind
-	(CredentialAudience)(0),                  // 5: home.auth.v1.CredentialAudience
-	(AuthErrorCode)(0),                       // 6: home.auth.v1.AuthErrorCode
-	(AuthenticationFailure)(0),               // 7: home.auth.v1.AuthenticationFailure
-	(PermissionFailure)(0),                   // 8: home.auth.v1.PermissionFailure
-	(ConflictFailure)(0),                     // 9: home.auth.v1.ConflictFailure
-	(ExpiredResource)(0),                     // 10: home.auth.v1.ExpiredResource
-	(AuthField)(0),                           // 11: home.auth.v1.AuthField
-	(PolicyRightsChange)(0),                  // 12: home.auth.v1.PolicyRightsChange
-	(AuthorizationPolicyErrorCode)(0),        // 13: home.auth.v1.AuthorizationPolicyErrorCode
-	(AuthorizationTerminationReason)(0),      // 14: home.auth.v1.AuthorizationTerminationReason
-	(*AccountId)(nil),                        // 15: home.auth.v1.AccountId
-	(*SessionId)(nil),                        // 16: home.auth.v1.SessionId
-	(*FactorCredentialId)(nil),               // 17: home.auth.v1.FactorCredentialId
-	(*InvitationId)(nil),                     // 18: home.auth.v1.InvitationId
-	(*ChallengeId)(nil),                      // 19: home.auth.v1.ChallengeId
-	(*McpKeyId)(nil),                         // 20: home.auth.v1.McpKeyId
-	(*InstanceId)(nil),                       // 21: home.auth.v1.InstanceId
-	(*Scope)(nil),                            // 22: home.auth.v1.Scope
-	(*Account)(nil),                          // 23: home.auth.v1.Account
-	(*BootstrapAdminRequest)(nil),            // 24: home.auth.v1.BootstrapAdminRequest
-	(*BootstrapAdminResponse)(nil),           // 25: home.auth.v1.BootstrapAdminResponse
-	(*RecoverAccountRequest)(nil),            // 26: home.auth.v1.RecoverAccountRequest
-	(*RecoverAccountResponse)(nil),           // 27: home.auth.v1.RecoverAccountResponse
-	(*CreateAccountRequest)(nil),             // 28: home.auth.v1.CreateAccountRequest
-	(*CreateAccountResponse)(nil),            // 29: home.auth.v1.CreateAccountResponse
-	(*GetAccountRequest)(nil),                // 30: home.auth.v1.GetAccountRequest
-	(*GetAccountResponse)(nil),               // 31: home.auth.v1.GetAccountResponse
-	(*ListAccountsRequest)(nil),              // 32: home.auth.v1.ListAccountsRequest
-	(*ListAccountsResponse)(nil),             // 33: home.auth.v1.ListAccountsResponse
-	(*UpdateAccountRequest)(nil),             // 34: home.auth.v1.UpdateAccountRequest
-	(*UpdateAccountResponse)(nil),            // 35: home.auth.v1.UpdateAccountResponse
-	(*DeleteAccountRequest)(nil),             // 36: home.auth.v1.DeleteAccountRequest
-	(*DeleteAccountResponse)(nil),            // 37: home.auth.v1.DeleteAccountResponse
-	(*Invitation)(nil),                       // 38: home.auth.v1.Invitation
-	(*CreateInvitationRequest)(nil),          // 39: home.auth.v1.CreateInvitationRequest
-	(*CreateInvitationResponse)(nil),         // 40: home.auth.v1.CreateInvitationResponse
-	(*AcceptInvitationRequest)(nil),          // 41: home.auth.v1.AcceptInvitationRequest
-	(*AcceptInvitationResponse)(nil),         // 42: home.auth.v1.AcceptInvitationResponse
-	(*ListInvitationsRequest)(nil),           // 43: home.auth.v1.ListInvitationsRequest
-	(*ListInvitationsResponse)(nil),          // 44: home.auth.v1.ListInvitationsResponse
-	(*RevokeInvitationRequest)(nil),          // 45: home.auth.v1.RevokeInvitationRequest
-	(*RevokeInvitationResponse)(nil),         // 46: home.auth.v1.RevokeInvitationResponse
-	(*SecondFactorPolicy)(nil),               // 47: home.auth.v1.SecondFactorPolicy
-	(*GetSecondFactorPolicyRequest)(nil),     // 48: home.auth.v1.GetSecondFactorPolicyRequest
-	(*GetSecondFactorPolicyResponse)(nil),    // 49: home.auth.v1.GetSecondFactorPolicyResponse
-	(*SetSecondFactorPolicyRequest)(nil),     // 50: home.auth.v1.SetSecondFactorPolicyRequest
-	(*SetSecondFactorPolicyResponse)(nil),    // 51: home.auth.v1.SetSecondFactorPolicyResponse
-	(*FactorCredential)(nil),                 // 52: home.auth.v1.FactorCredential
-	(*Fido2AssertionChallenge)(nil),          // 53: home.auth.v1.Fido2AssertionChallenge
-	(*Fido2EnrollmentChallenge)(nil),         // 54: home.auth.v1.Fido2EnrollmentChallenge
-	(*RecoveryCodeChallenge)(nil),            // 55: home.auth.v1.RecoveryCodeChallenge
-	(*FactorOption)(nil),                     // 56: home.auth.v1.FactorOption
-	(*FactorChallenge)(nil),                  // 57: home.auth.v1.FactorChallenge
-	(*EnrollmentChallenge)(nil),              // 58: home.auth.v1.EnrollmentChallenge
-	(*Fido2Assertion)(nil),                   // 59: home.auth.v1.Fido2Assertion
-	(*Fido2Attestation)(nil),                 // 60: home.auth.v1.Fido2Attestation
-	(*FactorProof)(nil),                      // 61: home.auth.v1.FactorProof
-	(*Session)(nil),                          // 62: home.auth.v1.Session
-	(*SessionTokens)(nil),                    // 63: home.auth.v1.SessionTokens
-	(*EnrollmentRequired)(nil),               // 64: home.auth.v1.EnrollmentRequired
-	(*LoginDecision)(nil),                    // 65: home.auth.v1.LoginDecision
-	(*StartLoginRequest)(nil),                // 66: home.auth.v1.StartLoginRequest
-	(*StartLoginResponse)(nil),               // 67: home.auth.v1.StartLoginResponse
-	(*CompleteLoginRequest)(nil),             // 68: home.auth.v1.CompleteLoginRequest
-	(*CompleteLoginResponse)(nil),            // 69: home.auth.v1.CompleteLoginResponse
-	(*RefreshSessionRequest)(nil),            // 70: home.auth.v1.RefreshSessionRequest
-	(*RefreshSessionResponse)(nil),           // 71: home.auth.v1.RefreshSessionResponse
-	(*ListSessionsRequest)(nil),              // 72: home.auth.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),             // 73: home.auth.v1.ListSessionsResponse
-	(*RevokeSessionRequest)(nil),             // 74: home.auth.v1.RevokeSessionRequest
-	(*RevokeSessionResponse)(nil),            // 75: home.auth.v1.RevokeSessionResponse
-	(*BeginFactorEnrollmentRequest)(nil),     // 76: home.auth.v1.BeginFactorEnrollmentRequest
-	(*BeginFactorEnrollmentResponse)(nil),    // 77: home.auth.v1.BeginFactorEnrollmentResponse
-	(*CompleteFactorEnrollmentRequest)(nil),  // 78: home.auth.v1.CompleteFactorEnrollmentRequest
-	(*CompleteFactorEnrollmentResponse)(nil), // 79: home.auth.v1.CompleteFactorEnrollmentResponse
-	(*ListFactorsRequest)(nil),               // 80: home.auth.v1.ListFactorsRequest
-	(*ListFactorsResponse)(nil),              // 81: home.auth.v1.ListFactorsResponse
-	(*RemoveFactorRequest)(nil),              // 82: home.auth.v1.RemoveFactorRequest
-	(*RemoveFactorResponse)(nil),             // 83: home.auth.v1.RemoveFactorResponse
-	(*ReplaceRecoveryCodesRequest)(nil),      // 84: home.auth.v1.ReplaceRecoveryCodesRequest
-	(*ReplaceRecoveryCodesResponse)(nil),     // 85: home.auth.v1.ReplaceRecoveryCodesResponse
-	(*McpKey)(nil),                           // 86: home.auth.v1.McpKey
-	(*CreateMcpKeyRequest)(nil),              // 87: home.auth.v1.CreateMcpKeyRequest
-	(*CreateMcpKeyResponse)(nil),             // 88: home.auth.v1.CreateMcpKeyResponse
-	(*ListMcpKeysRequest)(nil),               // 89: home.auth.v1.ListMcpKeysRequest
-	(*ListMcpKeysResponse)(nil),              // 90: home.auth.v1.ListMcpKeysResponse
-	(*RevokeMcpKeyRequest)(nil),              // 91: home.auth.v1.RevokeMcpKeyRequest
-	(*RevokeMcpKeyResponse)(nil),             // 92: home.auth.v1.RevokeMcpKeyResponse
-	(*AuthError)(nil),                        // 93: home.auth.v1.AuthError
-	(*PolicyVersion)(nil),                    // 94: home.auth.v1.PolicyVersion
-	(*PolicySnapshot)(nil),                   // 95: home.auth.v1.PolicySnapshot
-	(*GetPolicyRequest)(nil),                 // 96: home.auth.v1.GetPolicyRequest
-	(*GetPolicyResponse)(nil),                // 97: home.auth.v1.GetPolicyResponse
-	(*ReplacePolicyRequest)(nil),             // 98: home.auth.v1.ReplacePolicyRequest
-	(*ReplacePolicyResponse)(nil),            // 99: home.auth.v1.ReplacePolicyResponse
-	(*AuthorizationPolicyError)(nil),         // 100: home.auth.v1.AuthorizationPolicyError
-	(*AuthorizationTermination)(nil),         // 101: home.auth.v1.AuthorizationTermination
-	(*timestamppb.Timestamp)(nil),            // 102: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),              // 103: google.protobuf.Duration
-	(*emptypb.Empty)(nil),                    // 104: google.protobuf.Empty
+	(SecondFactorSessionContinuation)(0),     // 4: home.auth.v1.SecondFactorSessionContinuation
+	(SecondFactorPolicyErrorCode)(0),         // 5: home.auth.v1.SecondFactorPolicyErrorCode
+	(FactorKind)(0),                          // 6: home.auth.v1.FactorKind
+	(CredentialAudience)(0),                  // 7: home.auth.v1.CredentialAudience
+	(AuthenticationSatisfaction)(0),          // 8: home.auth.v1.AuthenticationSatisfaction
+	(AuthErrorCode)(0),                       // 9: home.auth.v1.AuthErrorCode
+	(AuthenticationFailure)(0),               // 10: home.auth.v1.AuthenticationFailure
+	(PermissionFailure)(0),                   // 11: home.auth.v1.PermissionFailure
+	(ConflictFailure)(0),                     // 12: home.auth.v1.ConflictFailure
+	(ExpiredResource)(0),                     // 13: home.auth.v1.ExpiredResource
+	(AuthField)(0),                           // 14: home.auth.v1.AuthField
+	(PolicyRightsChange)(0),                  // 15: home.auth.v1.PolicyRightsChange
+	(AuthorizationPolicyErrorCode)(0),        // 16: home.auth.v1.AuthorizationPolicyErrorCode
+	(AuthorizationTerminationReason)(0),      // 17: home.auth.v1.AuthorizationTerminationReason
+	(*AccountId)(nil),                        // 18: home.auth.v1.AccountId
+	(*SessionId)(nil),                        // 19: home.auth.v1.SessionId
+	(*FactorCredentialId)(nil),               // 20: home.auth.v1.FactorCredentialId
+	(*InvitationId)(nil),                     // 21: home.auth.v1.InvitationId
+	(*ChallengeId)(nil),                      // 22: home.auth.v1.ChallengeId
+	(*McpKeyId)(nil),                         // 23: home.auth.v1.McpKeyId
+	(*InstanceId)(nil),                       // 24: home.auth.v1.InstanceId
+	(*Scope)(nil),                            // 25: home.auth.v1.Scope
+	(*Account)(nil),                          // 26: home.auth.v1.Account
+	(*BootstrapAdminRequest)(nil),            // 27: home.auth.v1.BootstrapAdminRequest
+	(*BootstrapAdminResponse)(nil),           // 28: home.auth.v1.BootstrapAdminResponse
+	(*RecoverAccountRequest)(nil),            // 29: home.auth.v1.RecoverAccountRequest
+	(*RecoverAccountResponse)(nil),           // 30: home.auth.v1.RecoverAccountResponse
+	(*ResetSecondFactorRequest)(nil),         // 31: home.auth.v1.ResetSecondFactorRequest
+	(*ResetSecondFactorResponse)(nil),        // 32: home.auth.v1.ResetSecondFactorResponse
+	(*CreateAccountRequest)(nil),             // 33: home.auth.v1.CreateAccountRequest
+	(*CreateAccountResponse)(nil),            // 34: home.auth.v1.CreateAccountResponse
+	(*GetAccountRequest)(nil),                // 35: home.auth.v1.GetAccountRequest
+	(*GetAccountResponse)(nil),               // 36: home.auth.v1.GetAccountResponse
+	(*ListAccountsRequest)(nil),              // 37: home.auth.v1.ListAccountsRequest
+	(*ListAccountsResponse)(nil),             // 38: home.auth.v1.ListAccountsResponse
+	(*UpdateAccountRequest)(nil),             // 39: home.auth.v1.UpdateAccountRequest
+	(*UpdateAccountResponse)(nil),            // 40: home.auth.v1.UpdateAccountResponse
+	(*DeleteAccountRequest)(nil),             // 41: home.auth.v1.DeleteAccountRequest
+	(*DeleteAccountResponse)(nil),            // 42: home.auth.v1.DeleteAccountResponse
+	(*Invitation)(nil),                       // 43: home.auth.v1.Invitation
+	(*CreateInvitationRequest)(nil),          // 44: home.auth.v1.CreateInvitationRequest
+	(*CreateInvitationResponse)(nil),         // 45: home.auth.v1.CreateInvitationResponse
+	(*AcceptInvitationRequest)(nil),          // 46: home.auth.v1.AcceptInvitationRequest
+	(*AcceptInvitationResponse)(nil),         // 47: home.auth.v1.AcceptInvitationResponse
+	(*ListInvitationsRequest)(nil),           // 48: home.auth.v1.ListInvitationsRequest
+	(*ListInvitationsResponse)(nil),          // 49: home.auth.v1.ListInvitationsResponse
+	(*RevokeInvitationRequest)(nil),          // 50: home.auth.v1.RevokeInvitationRequest
+	(*RevokeInvitationResponse)(nil),         // 51: home.auth.v1.RevokeInvitationResponse
+	(*SecondFactorPolicy)(nil),               // 52: home.auth.v1.SecondFactorPolicy
+	(*GetSecondFactorPolicyRequest)(nil),     // 53: home.auth.v1.GetSecondFactorPolicyRequest
+	(*GetSecondFactorPolicyResponse)(nil),    // 54: home.auth.v1.GetSecondFactorPolicyResponse
+	(*SetSecondFactorPolicyRequest)(nil),     // 55: home.auth.v1.SetSecondFactorPolicyRequest
+	(*SetSecondFactorPolicyResponse)(nil),    // 56: home.auth.v1.SetSecondFactorPolicyResponse
+	(*SecondFactorPolicyError)(nil),          // 57: home.auth.v1.SecondFactorPolicyError
+	(*FactorCredential)(nil),                 // 58: home.auth.v1.FactorCredential
+	(*Fido2AssertionChallenge)(nil),          // 59: home.auth.v1.Fido2AssertionChallenge
+	(*Fido2EnrollmentChallenge)(nil),         // 60: home.auth.v1.Fido2EnrollmentChallenge
+	(*RecoveryCodeChallenge)(nil),            // 61: home.auth.v1.RecoveryCodeChallenge
+	(*FactorOption)(nil),                     // 62: home.auth.v1.FactorOption
+	(*FactorChallenge)(nil),                  // 63: home.auth.v1.FactorChallenge
+	(*EnrollmentChallenge)(nil),              // 64: home.auth.v1.EnrollmentChallenge
+	(*Fido2Assertion)(nil),                   // 65: home.auth.v1.Fido2Assertion
+	(*Fido2Attestation)(nil),                 // 66: home.auth.v1.Fido2Attestation
+	(*FactorProof)(nil),                      // 67: home.auth.v1.FactorProof
+	(*Session)(nil),                          // 68: home.auth.v1.Session
+	(*SessionTokens)(nil),                    // 69: home.auth.v1.SessionTokens
+	(*EnrollmentRequired)(nil),               // 70: home.auth.v1.EnrollmentRequired
+	(*LoginDecision)(nil),                    // 71: home.auth.v1.LoginDecision
+	(*StartLoginRequest)(nil),                // 72: home.auth.v1.StartLoginRequest
+	(*StartLoginResponse)(nil),               // 73: home.auth.v1.StartLoginResponse
+	(*CompleteLoginRequest)(nil),             // 74: home.auth.v1.CompleteLoginRequest
+	(*CompleteLoginResponse)(nil),            // 75: home.auth.v1.CompleteLoginResponse
+	(*RefreshSessionRequest)(nil),            // 76: home.auth.v1.RefreshSessionRequest
+	(*RefreshSessionResponse)(nil),           // 77: home.auth.v1.RefreshSessionResponse
+	(*ListSessionsRequest)(nil),              // 78: home.auth.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),             // 79: home.auth.v1.ListSessionsResponse
+	(*RevokeSessionRequest)(nil),             // 80: home.auth.v1.RevokeSessionRequest
+	(*RevokeSessionResponse)(nil),            // 81: home.auth.v1.RevokeSessionResponse
+	(*BeginFactorEnrollmentRequest)(nil),     // 82: home.auth.v1.BeginFactorEnrollmentRequest
+	(*BeginFactorEnrollmentResponse)(nil),    // 83: home.auth.v1.BeginFactorEnrollmentResponse
+	(*CompleteFactorEnrollmentRequest)(nil),  // 84: home.auth.v1.CompleteFactorEnrollmentRequest
+	(*CompleteFactorEnrollmentResponse)(nil), // 85: home.auth.v1.CompleteFactorEnrollmentResponse
+	(*ListFactorsRequest)(nil),               // 86: home.auth.v1.ListFactorsRequest
+	(*ListFactorsResponse)(nil),              // 87: home.auth.v1.ListFactorsResponse
+	(*RemoveFactorRequest)(nil),              // 88: home.auth.v1.RemoveFactorRequest
+	(*RemoveFactorResponse)(nil),             // 89: home.auth.v1.RemoveFactorResponse
+	(*ReplaceRecoveryCodesRequest)(nil),      // 90: home.auth.v1.ReplaceRecoveryCodesRequest
+	(*ReplaceRecoveryCodesResponse)(nil),     // 91: home.auth.v1.ReplaceRecoveryCodesResponse
+	(*McpKey)(nil),                           // 92: home.auth.v1.McpKey
+	(*CreateMcpKeyRequest)(nil),              // 93: home.auth.v1.CreateMcpKeyRequest
+	(*CreateMcpKeyResponse)(nil),             // 94: home.auth.v1.CreateMcpKeyResponse
+	(*ListMcpKeysRequest)(nil),               // 95: home.auth.v1.ListMcpKeysRequest
+	(*ListMcpKeysResponse)(nil),              // 96: home.auth.v1.ListMcpKeysResponse
+	(*RevokeMcpKeyRequest)(nil),              // 97: home.auth.v1.RevokeMcpKeyRequest
+	(*RevokeMcpKeyResponse)(nil),             // 98: home.auth.v1.RevokeMcpKeyResponse
+	(*AuthError)(nil),                        // 99: home.auth.v1.AuthError
+	(*PolicyVersion)(nil),                    // 100: home.auth.v1.PolicyVersion
+	(*PolicySnapshot)(nil),                   // 101: home.auth.v1.PolicySnapshot
+	(*GetPolicyRequest)(nil),                 // 102: home.auth.v1.GetPolicyRequest
+	(*GetPolicyResponse)(nil),                // 103: home.auth.v1.GetPolicyResponse
+	(*ReplacePolicyRequest)(nil),             // 104: home.auth.v1.ReplacePolicyRequest
+	(*ReplacePolicyResponse)(nil),            // 105: home.auth.v1.ReplacePolicyResponse
+	(*AuthorizationPolicyError)(nil),         // 106: home.auth.v1.AuthorizationPolicyError
+	(*AuthorizationTermination)(nil),         // 107: home.auth.v1.AuthorizationTermination
+	(*timestamppb.Timestamp)(nil),            // 108: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),              // 109: google.protobuf.Duration
+	(*emptypb.Empty)(nil),                    // 110: google.protobuf.Empty
 }
 var file_home_auth_v1_auth_proto_depIdxs = []int32{
 	2,   // 0: home.auth.v1.Scope.family:type_name -> home.auth.v1.ScopeFamily
 	3,   // 1: home.auth.v1.Scope.operation:type_name -> home.auth.v1.ScopeOperation
-	15,  // 2: home.auth.v1.Account.id:type_name -> home.auth.v1.AccountId
+	18,  // 2: home.auth.v1.Account.id:type_name -> home.auth.v1.AccountId
 	0,   // 3: home.auth.v1.Account.role:type_name -> home.auth.v1.AccountRole
 	1,   // 4: home.auth.v1.Account.status:type_name -> home.auth.v1.AccountStatus
-	102, // 5: home.auth.v1.Account.created_at:type_name -> google.protobuf.Timestamp
-	102, // 6: home.auth.v1.Account.updated_at:type_name -> google.protobuf.Timestamp
-	23,  // 7: home.auth.v1.BootstrapAdminResponse.account:type_name -> home.auth.v1.Account
-	15,  // 8: home.auth.v1.RecoverAccountRequest.account_id:type_name -> home.auth.v1.AccountId
-	23,  // 9: home.auth.v1.RecoverAccountResponse.account:type_name -> home.auth.v1.Account
-	0,   // 10: home.auth.v1.CreateAccountRequest.role:type_name -> home.auth.v1.AccountRole
-	23,  // 11: home.auth.v1.CreateAccountResponse.account:type_name -> home.auth.v1.Account
-	15,  // 12: home.auth.v1.GetAccountRequest.account_id:type_name -> home.auth.v1.AccountId
-	23,  // 13: home.auth.v1.GetAccountResponse.account:type_name -> home.auth.v1.Account
-	23,  // 14: home.auth.v1.ListAccountsResponse.accounts:type_name -> home.auth.v1.Account
-	15,  // 15: home.auth.v1.UpdateAccountRequest.account_id:type_name -> home.auth.v1.AccountId
-	0,   // 16: home.auth.v1.UpdateAccountRequest.role:type_name -> home.auth.v1.AccountRole
-	1,   // 17: home.auth.v1.UpdateAccountRequest.status:type_name -> home.auth.v1.AccountStatus
-	23,  // 18: home.auth.v1.UpdateAccountResponse.account:type_name -> home.auth.v1.Account
-	15,  // 19: home.auth.v1.DeleteAccountRequest.account_id:type_name -> home.auth.v1.AccountId
-	18,  // 20: home.auth.v1.Invitation.id:type_name -> home.auth.v1.InvitationId
-	0,   // 21: home.auth.v1.Invitation.role:type_name -> home.auth.v1.AccountRole
-	102, // 22: home.auth.v1.Invitation.expires_at:type_name -> google.protobuf.Timestamp
-	102, // 23: home.auth.v1.Invitation.created_at:type_name -> google.protobuf.Timestamp
-	102, // 24: home.auth.v1.Invitation.accepted_at:type_name -> google.protobuf.Timestamp
-	102, // 25: home.auth.v1.Invitation.revoked_at:type_name -> google.protobuf.Timestamp
-	0,   // 26: home.auth.v1.CreateInvitationRequest.role:type_name -> home.auth.v1.AccountRole
-	102, // 27: home.auth.v1.CreateInvitationRequest.expires_at:type_name -> google.protobuf.Timestamp
-	38,  // 28: home.auth.v1.CreateInvitationResponse.invitation:type_name -> home.auth.v1.Invitation
-	23,  // 29: home.auth.v1.AcceptInvitationResponse.account:type_name -> home.auth.v1.Account
-	38,  // 30: home.auth.v1.ListInvitationsResponse.invitations:type_name -> home.auth.v1.Invitation
-	18,  // 31: home.auth.v1.RevokeInvitationRequest.invitation_id:type_name -> home.auth.v1.InvitationId
-	102, // 32: home.auth.v1.SecondFactorPolicy.updated_at:type_name -> google.protobuf.Timestamp
-	47,  // 33: home.auth.v1.GetSecondFactorPolicyResponse.policy:type_name -> home.auth.v1.SecondFactorPolicy
-	47,  // 34: home.auth.v1.SetSecondFactorPolicyResponse.policy:type_name -> home.auth.v1.SecondFactorPolicy
-	17,  // 35: home.auth.v1.FactorCredential.id:type_name -> home.auth.v1.FactorCredentialId
-	15,  // 36: home.auth.v1.FactorCredential.account_id:type_name -> home.auth.v1.AccountId
-	4,   // 37: home.auth.v1.FactorCredential.kind:type_name -> home.auth.v1.FactorKind
-	102, // 38: home.auth.v1.FactorCredential.created_at:type_name -> google.protobuf.Timestamp
-	102, // 39: home.auth.v1.FactorCredential.last_used_at:type_name -> google.protobuf.Timestamp
-	21,  // 40: home.auth.v1.Fido2AssertionChallenge.instance_id:type_name -> home.auth.v1.InstanceId
-	21,  // 41: home.auth.v1.Fido2EnrollmentChallenge.instance_id:type_name -> home.auth.v1.InstanceId
-	53,  // 42: home.auth.v1.FactorOption.fido2:type_name -> home.auth.v1.Fido2AssertionChallenge
-	55,  // 43: home.auth.v1.FactorOption.recovery_code:type_name -> home.auth.v1.RecoveryCodeChallenge
-	19,  // 44: home.auth.v1.FactorChallenge.id:type_name -> home.auth.v1.ChallengeId
-	102, // 45: home.auth.v1.FactorChallenge.expires_at:type_name -> google.protobuf.Timestamp
-	56,  // 46: home.auth.v1.FactorChallenge.options:type_name -> home.auth.v1.FactorOption
-	19,  // 47: home.auth.v1.EnrollmentChallenge.id:type_name -> home.auth.v1.ChallengeId
-	102, // 48: home.auth.v1.EnrollmentChallenge.expires_at:type_name -> google.protobuf.Timestamp
-	54,  // 49: home.auth.v1.EnrollmentChallenge.fido2:type_name -> home.auth.v1.Fido2EnrollmentChallenge
-	59,  // 50: home.auth.v1.FactorProof.fido2:type_name -> home.auth.v1.Fido2Assertion
-	16,  // 51: home.auth.v1.Session.id:type_name -> home.auth.v1.SessionId
-	15,  // 52: home.auth.v1.Session.account_id:type_name -> home.auth.v1.AccountId
-	102, // 53: home.auth.v1.Session.created_at:type_name -> google.protobuf.Timestamp
-	102, // 54: home.auth.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
-	102, // 55: home.auth.v1.Session.revoked_at:type_name -> google.protobuf.Timestamp
-	102, // 56: home.auth.v1.Session.last_used_at:type_name -> google.protobuf.Timestamp
-	62,  // 57: home.auth.v1.SessionTokens.session:type_name -> home.auth.v1.Session
-	5,   // 58: home.auth.v1.SessionTokens.audience:type_name -> home.auth.v1.CredentialAudience
-	102, // 59: home.auth.v1.SessionTokens.access_expires_at:type_name -> google.protobuf.Timestamp
-	15,  // 60: home.auth.v1.EnrollmentRequired.account_id:type_name -> home.auth.v1.AccountId
-	102, // 61: home.auth.v1.EnrollmentRequired.expires_at:type_name -> google.protobuf.Timestamp
-	63,  // 62: home.auth.v1.LoginDecision.authenticated:type_name -> home.auth.v1.SessionTokens
-	57,  // 63: home.auth.v1.LoginDecision.challenge:type_name -> home.auth.v1.FactorChallenge
-	64,  // 64: home.auth.v1.LoginDecision.enrollment_required:type_name -> home.auth.v1.EnrollmentRequired
-	65,  // 65: home.auth.v1.StartLoginResponse.decision:type_name -> home.auth.v1.LoginDecision
-	19,  // 66: home.auth.v1.CompleteLoginRequest.challenge_id:type_name -> home.auth.v1.ChallengeId
-	61,  // 67: home.auth.v1.CompleteLoginRequest.proof:type_name -> home.auth.v1.FactorProof
-	65,  // 68: home.auth.v1.CompleteLoginResponse.decision:type_name -> home.auth.v1.LoginDecision
-	63,  // 69: home.auth.v1.RefreshSessionResponse.tokens:type_name -> home.auth.v1.SessionTokens
-	15,  // 70: home.auth.v1.ListSessionsRequest.account_id:type_name -> home.auth.v1.AccountId
-	62,  // 71: home.auth.v1.ListSessionsResponse.sessions:type_name -> home.auth.v1.Session
-	16,  // 72: home.auth.v1.RevokeSessionRequest.session_id:type_name -> home.auth.v1.SessionId
-	4,   // 73: home.auth.v1.BeginFactorEnrollmentRequest.kind:type_name -> home.auth.v1.FactorKind
-	58,  // 74: home.auth.v1.BeginFactorEnrollmentResponse.challenge:type_name -> home.auth.v1.EnrollmentChallenge
-	19,  // 75: home.auth.v1.CompleteFactorEnrollmentRequest.challenge_id:type_name -> home.auth.v1.ChallengeId
-	60,  // 76: home.auth.v1.CompleteFactorEnrollmentRequest.attestation:type_name -> home.auth.v1.Fido2Attestation
-	52,  // 77: home.auth.v1.CompleteFactorEnrollmentResponse.factor:type_name -> home.auth.v1.FactorCredential
-	15,  // 78: home.auth.v1.ListFactorsRequest.account_id:type_name -> home.auth.v1.AccountId
-	52,  // 79: home.auth.v1.ListFactorsResponse.factors:type_name -> home.auth.v1.FactorCredential
-	17,  // 80: home.auth.v1.RemoveFactorRequest.factor_id:type_name -> home.auth.v1.FactorCredentialId
-	15,  // 81: home.auth.v1.ReplaceRecoveryCodesRequest.account_id:type_name -> home.auth.v1.AccountId
-	20,  // 82: home.auth.v1.McpKey.id:type_name -> home.auth.v1.McpKeyId
-	15,  // 83: home.auth.v1.McpKey.account_id:type_name -> home.auth.v1.AccountId
-	5,   // 84: home.auth.v1.McpKey.audience:type_name -> home.auth.v1.CredentialAudience
-	22,  // 85: home.auth.v1.McpKey.scopes:type_name -> home.auth.v1.Scope
-	102, // 86: home.auth.v1.McpKey.created_at:type_name -> google.protobuf.Timestamp
-	102, // 87: home.auth.v1.McpKey.expires_at:type_name -> google.protobuf.Timestamp
-	102, // 88: home.auth.v1.McpKey.revoked_at:type_name -> google.protobuf.Timestamp
-	102, // 89: home.auth.v1.McpKey.last_used_at:type_name -> google.protobuf.Timestamp
-	22,  // 90: home.auth.v1.CreateMcpKeyRequest.scopes:type_name -> home.auth.v1.Scope
-	103, // 91: home.auth.v1.CreateMcpKeyRequest.lifetime:type_name -> google.protobuf.Duration
-	86,  // 92: home.auth.v1.CreateMcpKeyResponse.key:type_name -> home.auth.v1.McpKey
-	15,  // 93: home.auth.v1.ListMcpKeysRequest.account_id:type_name -> home.auth.v1.AccountId
-	86,  // 94: home.auth.v1.ListMcpKeysResponse.keys:type_name -> home.auth.v1.McpKey
-	20,  // 95: home.auth.v1.RevokeMcpKeyRequest.key_id:type_name -> home.auth.v1.McpKeyId
-	6,   // 96: home.auth.v1.AuthError.code:type_name -> home.auth.v1.AuthErrorCode
-	7,   // 97: home.auth.v1.AuthError.authentication:type_name -> home.auth.v1.AuthenticationFailure
-	8,   // 98: home.auth.v1.AuthError.permission:type_name -> home.auth.v1.PermissionFailure
-	9,   // 99: home.auth.v1.AuthError.conflict:type_name -> home.auth.v1.ConflictFailure
-	10,  // 100: home.auth.v1.AuthError.expired:type_name -> home.auth.v1.ExpiredResource
-	11,  // 101: home.auth.v1.AuthError.invalid_field:type_name -> home.auth.v1.AuthField
-	102, // 102: home.auth.v1.AuthError.retry_at:type_name -> google.protobuf.Timestamp
-	15,  // 103: home.auth.v1.PolicySnapshot.account_id:type_name -> home.auth.v1.AccountId
-	94,  // 104: home.auth.v1.PolicySnapshot.version:type_name -> home.auth.v1.PolicyVersion
-	102, // 105: home.auth.v1.PolicySnapshot.updated_at:type_name -> google.protobuf.Timestamp
-	15,  // 106: home.auth.v1.GetPolicyRequest.account_id:type_name -> home.auth.v1.AccountId
-	95,  // 107: home.auth.v1.GetPolicyResponse.present:type_name -> home.auth.v1.PolicySnapshot
-	104, // 108: home.auth.v1.GetPolicyResponse.absent:type_name -> google.protobuf.Empty
-	15,  // 109: home.auth.v1.ReplacePolicyRequest.account_id:type_name -> home.auth.v1.AccountId
-	94,  // 110: home.auth.v1.ReplacePolicyRequest.expected:type_name -> home.auth.v1.PolicyVersion
-	104, // 111: home.auth.v1.ReplacePolicyRequest.expect_absent:type_name -> google.protobuf.Empty
-	95,  // 112: home.auth.v1.ReplacePolicyResponse.policy:type_name -> home.auth.v1.PolicySnapshot
-	12,  // 113: home.auth.v1.ReplacePolicyResponse.rights_change:type_name -> home.auth.v1.PolicyRightsChange
-	13,  // 114: home.auth.v1.AuthorizationPolicyError.code:type_name -> home.auth.v1.AuthorizationPolicyErrorCode
-	14,  // 115: home.auth.v1.AuthorizationTermination.reason:type_name -> home.auth.v1.AuthorizationTerminationReason
-	24,  // 116: home.auth.v1.OperatorAccountService.BootstrapAdmin:input_type -> home.auth.v1.BootstrapAdminRequest
-	26,  // 117: home.auth.v1.OperatorAccountService.RecoverAccount:input_type -> home.auth.v1.RecoverAccountRequest
-	28,  // 118: home.auth.v1.AccountService.CreateAccount:input_type -> home.auth.v1.CreateAccountRequest
-	30,  // 119: home.auth.v1.AccountService.GetAccount:input_type -> home.auth.v1.GetAccountRequest
-	32,  // 120: home.auth.v1.AccountService.ListAccounts:input_type -> home.auth.v1.ListAccountsRequest
-	34,  // 121: home.auth.v1.AccountService.UpdateAccount:input_type -> home.auth.v1.UpdateAccountRequest
-	36,  // 122: home.auth.v1.AccountService.DeleteAccount:input_type -> home.auth.v1.DeleteAccountRequest
-	39,  // 123: home.auth.v1.AccountService.CreateInvitation:input_type -> home.auth.v1.CreateInvitationRequest
-	41,  // 124: home.auth.v1.AccountService.AcceptInvitation:input_type -> home.auth.v1.AcceptInvitationRequest
-	43,  // 125: home.auth.v1.AccountService.ListInvitations:input_type -> home.auth.v1.ListInvitationsRequest
-	45,  // 126: home.auth.v1.AccountService.RevokeInvitation:input_type -> home.auth.v1.RevokeInvitationRequest
-	48,  // 127: home.auth.v1.AccountService.GetSecondFactorPolicy:input_type -> home.auth.v1.GetSecondFactorPolicyRequest
-	50,  // 128: home.auth.v1.AccountService.SetSecondFactorPolicy:input_type -> home.auth.v1.SetSecondFactorPolicyRequest
-	66,  // 129: home.auth.v1.AuthService.StartLogin:input_type -> home.auth.v1.StartLoginRequest
-	68,  // 130: home.auth.v1.AuthService.CompleteLogin:input_type -> home.auth.v1.CompleteLoginRequest
-	70,  // 131: home.auth.v1.AuthService.RefreshSession:input_type -> home.auth.v1.RefreshSessionRequest
-	72,  // 132: home.auth.v1.AuthService.ListSessions:input_type -> home.auth.v1.ListSessionsRequest
-	74,  // 133: home.auth.v1.AuthService.RevokeSession:input_type -> home.auth.v1.RevokeSessionRequest
-	76,  // 134: home.auth.v1.AuthService.BeginFactorEnrollment:input_type -> home.auth.v1.BeginFactorEnrollmentRequest
-	78,  // 135: home.auth.v1.AuthService.CompleteFactorEnrollment:input_type -> home.auth.v1.CompleteFactorEnrollmentRequest
-	80,  // 136: home.auth.v1.AuthService.ListFactors:input_type -> home.auth.v1.ListFactorsRequest
-	82,  // 137: home.auth.v1.AuthService.RemoveFactor:input_type -> home.auth.v1.RemoveFactorRequest
-	84,  // 138: home.auth.v1.AuthService.ReplaceRecoveryCodes:input_type -> home.auth.v1.ReplaceRecoveryCodesRequest
-	87,  // 139: home.auth.v1.McpKeyService.CreateMcpKey:input_type -> home.auth.v1.CreateMcpKeyRequest
-	89,  // 140: home.auth.v1.McpKeyService.ListMcpKeys:input_type -> home.auth.v1.ListMcpKeysRequest
-	91,  // 141: home.auth.v1.McpKeyService.RevokeMcpKey:input_type -> home.auth.v1.RevokeMcpKeyRequest
-	96,  // 142: home.auth.v1.AuthorizationPolicyService.GetPolicy:input_type -> home.auth.v1.GetPolicyRequest
-	98,  // 143: home.auth.v1.AuthorizationPolicyService.ReplacePolicy:input_type -> home.auth.v1.ReplacePolicyRequest
-	25,  // 144: home.auth.v1.OperatorAccountService.BootstrapAdmin:output_type -> home.auth.v1.BootstrapAdminResponse
-	27,  // 145: home.auth.v1.OperatorAccountService.RecoverAccount:output_type -> home.auth.v1.RecoverAccountResponse
-	29,  // 146: home.auth.v1.AccountService.CreateAccount:output_type -> home.auth.v1.CreateAccountResponse
-	31,  // 147: home.auth.v1.AccountService.GetAccount:output_type -> home.auth.v1.GetAccountResponse
-	33,  // 148: home.auth.v1.AccountService.ListAccounts:output_type -> home.auth.v1.ListAccountsResponse
-	35,  // 149: home.auth.v1.AccountService.UpdateAccount:output_type -> home.auth.v1.UpdateAccountResponse
-	37,  // 150: home.auth.v1.AccountService.DeleteAccount:output_type -> home.auth.v1.DeleteAccountResponse
-	40,  // 151: home.auth.v1.AccountService.CreateInvitation:output_type -> home.auth.v1.CreateInvitationResponse
-	42,  // 152: home.auth.v1.AccountService.AcceptInvitation:output_type -> home.auth.v1.AcceptInvitationResponse
-	44,  // 153: home.auth.v1.AccountService.ListInvitations:output_type -> home.auth.v1.ListInvitationsResponse
-	46,  // 154: home.auth.v1.AccountService.RevokeInvitation:output_type -> home.auth.v1.RevokeInvitationResponse
-	49,  // 155: home.auth.v1.AccountService.GetSecondFactorPolicy:output_type -> home.auth.v1.GetSecondFactorPolicyResponse
-	51,  // 156: home.auth.v1.AccountService.SetSecondFactorPolicy:output_type -> home.auth.v1.SetSecondFactorPolicyResponse
-	67,  // 157: home.auth.v1.AuthService.StartLogin:output_type -> home.auth.v1.StartLoginResponse
-	69,  // 158: home.auth.v1.AuthService.CompleteLogin:output_type -> home.auth.v1.CompleteLoginResponse
-	71,  // 159: home.auth.v1.AuthService.RefreshSession:output_type -> home.auth.v1.RefreshSessionResponse
-	73,  // 160: home.auth.v1.AuthService.ListSessions:output_type -> home.auth.v1.ListSessionsResponse
-	75,  // 161: home.auth.v1.AuthService.RevokeSession:output_type -> home.auth.v1.RevokeSessionResponse
-	77,  // 162: home.auth.v1.AuthService.BeginFactorEnrollment:output_type -> home.auth.v1.BeginFactorEnrollmentResponse
-	79,  // 163: home.auth.v1.AuthService.CompleteFactorEnrollment:output_type -> home.auth.v1.CompleteFactorEnrollmentResponse
-	81,  // 164: home.auth.v1.AuthService.ListFactors:output_type -> home.auth.v1.ListFactorsResponse
-	83,  // 165: home.auth.v1.AuthService.RemoveFactor:output_type -> home.auth.v1.RemoveFactorResponse
-	85,  // 166: home.auth.v1.AuthService.ReplaceRecoveryCodes:output_type -> home.auth.v1.ReplaceRecoveryCodesResponse
-	88,  // 167: home.auth.v1.McpKeyService.CreateMcpKey:output_type -> home.auth.v1.CreateMcpKeyResponse
-	90,  // 168: home.auth.v1.McpKeyService.ListMcpKeys:output_type -> home.auth.v1.ListMcpKeysResponse
-	92,  // 169: home.auth.v1.McpKeyService.RevokeMcpKey:output_type -> home.auth.v1.RevokeMcpKeyResponse
-	97,  // 170: home.auth.v1.AuthorizationPolicyService.GetPolicy:output_type -> home.auth.v1.GetPolicyResponse
-	99,  // 171: home.auth.v1.AuthorizationPolicyService.ReplacePolicy:output_type -> home.auth.v1.ReplacePolicyResponse
-	144, // [144:172] is the sub-list for method output_type
-	116, // [116:144] is the sub-list for method input_type
-	116, // [116:116] is the sub-list for extension type_name
-	116, // [116:116] is the sub-list for extension extendee
-	0,   // [0:116] is the sub-list for field type_name
+	108, // 5: home.auth.v1.Account.created_at:type_name -> google.protobuf.Timestamp
+	108, // 6: home.auth.v1.Account.updated_at:type_name -> google.protobuf.Timestamp
+	26,  // 7: home.auth.v1.BootstrapAdminResponse.account:type_name -> home.auth.v1.Account
+	18,  // 8: home.auth.v1.RecoverAccountRequest.account_id:type_name -> home.auth.v1.AccountId
+	26,  // 9: home.auth.v1.RecoverAccountResponse.account:type_name -> home.auth.v1.Account
+	18,  // 10: home.auth.v1.ResetSecondFactorRequest.account_id:type_name -> home.auth.v1.AccountId
+	26,  // 11: home.auth.v1.ResetSecondFactorResponse.account:type_name -> home.auth.v1.Account
+	0,   // 12: home.auth.v1.CreateAccountRequest.role:type_name -> home.auth.v1.AccountRole
+	26,  // 13: home.auth.v1.CreateAccountResponse.account:type_name -> home.auth.v1.Account
+	18,  // 14: home.auth.v1.GetAccountRequest.account_id:type_name -> home.auth.v1.AccountId
+	26,  // 15: home.auth.v1.GetAccountResponse.account:type_name -> home.auth.v1.Account
+	26,  // 16: home.auth.v1.ListAccountsResponse.accounts:type_name -> home.auth.v1.Account
+	18,  // 17: home.auth.v1.UpdateAccountRequest.account_id:type_name -> home.auth.v1.AccountId
+	0,   // 18: home.auth.v1.UpdateAccountRequest.role:type_name -> home.auth.v1.AccountRole
+	1,   // 19: home.auth.v1.UpdateAccountRequest.status:type_name -> home.auth.v1.AccountStatus
+	26,  // 20: home.auth.v1.UpdateAccountResponse.account:type_name -> home.auth.v1.Account
+	18,  // 21: home.auth.v1.DeleteAccountRequest.account_id:type_name -> home.auth.v1.AccountId
+	21,  // 22: home.auth.v1.Invitation.id:type_name -> home.auth.v1.InvitationId
+	0,   // 23: home.auth.v1.Invitation.role:type_name -> home.auth.v1.AccountRole
+	108, // 24: home.auth.v1.Invitation.expires_at:type_name -> google.protobuf.Timestamp
+	108, // 25: home.auth.v1.Invitation.created_at:type_name -> google.protobuf.Timestamp
+	108, // 26: home.auth.v1.Invitation.accepted_at:type_name -> google.protobuf.Timestamp
+	108, // 27: home.auth.v1.Invitation.revoked_at:type_name -> google.protobuf.Timestamp
+	0,   // 28: home.auth.v1.CreateInvitationRequest.role:type_name -> home.auth.v1.AccountRole
+	108, // 29: home.auth.v1.CreateInvitationRequest.expires_at:type_name -> google.protobuf.Timestamp
+	43,  // 30: home.auth.v1.CreateInvitationResponse.invitation:type_name -> home.auth.v1.Invitation
+	26,  // 31: home.auth.v1.AcceptInvitationResponse.account:type_name -> home.auth.v1.Account
+	43,  // 32: home.auth.v1.ListInvitationsResponse.invitations:type_name -> home.auth.v1.Invitation
+	21,  // 33: home.auth.v1.RevokeInvitationRequest.invitation_id:type_name -> home.auth.v1.InvitationId
+	108, // 34: home.auth.v1.SecondFactorPolicy.updated_at:type_name -> google.protobuf.Timestamp
+	100, // 35: home.auth.v1.SecondFactorPolicy.version:type_name -> home.auth.v1.PolicyVersion
+	52,  // 36: home.auth.v1.GetSecondFactorPolicyResponse.policy:type_name -> home.auth.v1.SecondFactorPolicy
+	100, // 37: home.auth.v1.SetSecondFactorPolicyRequest.expected:type_name -> home.auth.v1.PolicyVersion
+	52,  // 38: home.auth.v1.SetSecondFactorPolicyResponse.policy:type_name -> home.auth.v1.SecondFactorPolicy
+	4,   // 39: home.auth.v1.SetSecondFactorPolicyResponse.continuation:type_name -> home.auth.v1.SecondFactorSessionContinuation
+	5,   // 40: home.auth.v1.SecondFactorPolicyError.code:type_name -> home.auth.v1.SecondFactorPolicyErrorCode
+	20,  // 41: home.auth.v1.FactorCredential.id:type_name -> home.auth.v1.FactorCredentialId
+	18,  // 42: home.auth.v1.FactorCredential.account_id:type_name -> home.auth.v1.AccountId
+	6,   // 43: home.auth.v1.FactorCredential.kind:type_name -> home.auth.v1.FactorKind
+	108, // 44: home.auth.v1.FactorCredential.created_at:type_name -> google.protobuf.Timestamp
+	108, // 45: home.auth.v1.FactorCredential.last_used_at:type_name -> google.protobuf.Timestamp
+	24,  // 46: home.auth.v1.Fido2AssertionChallenge.instance_id:type_name -> home.auth.v1.InstanceId
+	24,  // 47: home.auth.v1.Fido2EnrollmentChallenge.instance_id:type_name -> home.auth.v1.InstanceId
+	59,  // 48: home.auth.v1.FactorOption.fido2:type_name -> home.auth.v1.Fido2AssertionChallenge
+	61,  // 49: home.auth.v1.FactorOption.recovery_code:type_name -> home.auth.v1.RecoveryCodeChallenge
+	22,  // 50: home.auth.v1.FactorChallenge.id:type_name -> home.auth.v1.ChallengeId
+	108, // 51: home.auth.v1.FactorChallenge.expires_at:type_name -> google.protobuf.Timestamp
+	62,  // 52: home.auth.v1.FactorChallenge.options:type_name -> home.auth.v1.FactorOption
+	22,  // 53: home.auth.v1.EnrollmentChallenge.id:type_name -> home.auth.v1.ChallengeId
+	108, // 54: home.auth.v1.EnrollmentChallenge.expires_at:type_name -> google.protobuf.Timestamp
+	60,  // 55: home.auth.v1.EnrollmentChallenge.fido2:type_name -> home.auth.v1.Fido2EnrollmentChallenge
+	65,  // 56: home.auth.v1.FactorProof.fido2:type_name -> home.auth.v1.Fido2Assertion
+	19,  // 57: home.auth.v1.Session.id:type_name -> home.auth.v1.SessionId
+	18,  // 58: home.auth.v1.Session.account_id:type_name -> home.auth.v1.AccountId
+	108, // 59: home.auth.v1.Session.created_at:type_name -> google.protobuf.Timestamp
+	108, // 60: home.auth.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	108, // 61: home.auth.v1.Session.revoked_at:type_name -> google.protobuf.Timestamp
+	108, // 62: home.auth.v1.Session.last_used_at:type_name -> google.protobuf.Timestamp
+	8,   // 63: home.auth.v1.Session.authentication_satisfaction:type_name -> home.auth.v1.AuthenticationSatisfaction
+	108, // 64: home.auth.v1.Session.authenticated_at:type_name -> google.protobuf.Timestamp
+	68,  // 65: home.auth.v1.SessionTokens.session:type_name -> home.auth.v1.Session
+	7,   // 66: home.auth.v1.SessionTokens.audience:type_name -> home.auth.v1.CredentialAudience
+	108, // 67: home.auth.v1.SessionTokens.access_expires_at:type_name -> google.protobuf.Timestamp
+	18,  // 68: home.auth.v1.EnrollmentRequired.account_id:type_name -> home.auth.v1.AccountId
+	108, // 69: home.auth.v1.EnrollmentRequired.expires_at:type_name -> google.protobuf.Timestamp
+	69,  // 70: home.auth.v1.LoginDecision.authenticated:type_name -> home.auth.v1.SessionTokens
+	63,  // 71: home.auth.v1.LoginDecision.challenge:type_name -> home.auth.v1.FactorChallenge
+	70,  // 72: home.auth.v1.LoginDecision.enrollment_required:type_name -> home.auth.v1.EnrollmentRequired
+	71,  // 73: home.auth.v1.StartLoginResponse.decision:type_name -> home.auth.v1.LoginDecision
+	22,  // 74: home.auth.v1.CompleteLoginRequest.challenge_id:type_name -> home.auth.v1.ChallengeId
+	67,  // 75: home.auth.v1.CompleteLoginRequest.proof:type_name -> home.auth.v1.FactorProof
+	71,  // 76: home.auth.v1.CompleteLoginResponse.decision:type_name -> home.auth.v1.LoginDecision
+	69,  // 77: home.auth.v1.RefreshSessionResponse.tokens:type_name -> home.auth.v1.SessionTokens
+	18,  // 78: home.auth.v1.ListSessionsRequest.account_id:type_name -> home.auth.v1.AccountId
+	68,  // 79: home.auth.v1.ListSessionsResponse.sessions:type_name -> home.auth.v1.Session
+	19,  // 80: home.auth.v1.RevokeSessionRequest.session_id:type_name -> home.auth.v1.SessionId
+	6,   // 81: home.auth.v1.BeginFactorEnrollmentRequest.kind:type_name -> home.auth.v1.FactorKind
+	64,  // 82: home.auth.v1.BeginFactorEnrollmentResponse.challenge:type_name -> home.auth.v1.EnrollmentChallenge
+	22,  // 83: home.auth.v1.CompleteFactorEnrollmentRequest.challenge_id:type_name -> home.auth.v1.ChallengeId
+	66,  // 84: home.auth.v1.CompleteFactorEnrollmentRequest.attestation:type_name -> home.auth.v1.Fido2Attestation
+	58,  // 85: home.auth.v1.CompleteFactorEnrollmentResponse.factor:type_name -> home.auth.v1.FactorCredential
+	18,  // 86: home.auth.v1.ListFactorsRequest.account_id:type_name -> home.auth.v1.AccountId
+	58,  // 87: home.auth.v1.ListFactorsResponse.factors:type_name -> home.auth.v1.FactorCredential
+	20,  // 88: home.auth.v1.RemoveFactorRequest.factor_id:type_name -> home.auth.v1.FactorCredentialId
+	18,  // 89: home.auth.v1.ReplaceRecoveryCodesRequest.account_id:type_name -> home.auth.v1.AccountId
+	23,  // 90: home.auth.v1.McpKey.id:type_name -> home.auth.v1.McpKeyId
+	18,  // 91: home.auth.v1.McpKey.account_id:type_name -> home.auth.v1.AccountId
+	7,   // 92: home.auth.v1.McpKey.audience:type_name -> home.auth.v1.CredentialAudience
+	25,  // 93: home.auth.v1.McpKey.scopes:type_name -> home.auth.v1.Scope
+	108, // 94: home.auth.v1.McpKey.created_at:type_name -> google.protobuf.Timestamp
+	108, // 95: home.auth.v1.McpKey.expires_at:type_name -> google.protobuf.Timestamp
+	108, // 96: home.auth.v1.McpKey.revoked_at:type_name -> google.protobuf.Timestamp
+	108, // 97: home.auth.v1.McpKey.last_used_at:type_name -> google.protobuf.Timestamp
+	25,  // 98: home.auth.v1.CreateMcpKeyRequest.scopes:type_name -> home.auth.v1.Scope
+	109, // 99: home.auth.v1.CreateMcpKeyRequest.lifetime:type_name -> google.protobuf.Duration
+	92,  // 100: home.auth.v1.CreateMcpKeyResponse.key:type_name -> home.auth.v1.McpKey
+	18,  // 101: home.auth.v1.ListMcpKeysRequest.account_id:type_name -> home.auth.v1.AccountId
+	92,  // 102: home.auth.v1.ListMcpKeysResponse.keys:type_name -> home.auth.v1.McpKey
+	23,  // 103: home.auth.v1.RevokeMcpKeyRequest.key_id:type_name -> home.auth.v1.McpKeyId
+	9,   // 104: home.auth.v1.AuthError.code:type_name -> home.auth.v1.AuthErrorCode
+	10,  // 105: home.auth.v1.AuthError.authentication:type_name -> home.auth.v1.AuthenticationFailure
+	11,  // 106: home.auth.v1.AuthError.permission:type_name -> home.auth.v1.PermissionFailure
+	12,  // 107: home.auth.v1.AuthError.conflict:type_name -> home.auth.v1.ConflictFailure
+	13,  // 108: home.auth.v1.AuthError.expired:type_name -> home.auth.v1.ExpiredResource
+	14,  // 109: home.auth.v1.AuthError.invalid_field:type_name -> home.auth.v1.AuthField
+	108, // 110: home.auth.v1.AuthError.retry_at:type_name -> google.protobuf.Timestamp
+	18,  // 111: home.auth.v1.PolicySnapshot.account_id:type_name -> home.auth.v1.AccountId
+	100, // 112: home.auth.v1.PolicySnapshot.version:type_name -> home.auth.v1.PolicyVersion
+	108, // 113: home.auth.v1.PolicySnapshot.updated_at:type_name -> google.protobuf.Timestamp
+	18,  // 114: home.auth.v1.GetPolicyRequest.account_id:type_name -> home.auth.v1.AccountId
+	101, // 115: home.auth.v1.GetPolicyResponse.present:type_name -> home.auth.v1.PolicySnapshot
+	110, // 116: home.auth.v1.GetPolicyResponse.absent:type_name -> google.protobuf.Empty
+	18,  // 117: home.auth.v1.ReplacePolicyRequest.account_id:type_name -> home.auth.v1.AccountId
+	100, // 118: home.auth.v1.ReplacePolicyRequest.expected:type_name -> home.auth.v1.PolicyVersion
+	110, // 119: home.auth.v1.ReplacePolicyRequest.expect_absent:type_name -> google.protobuf.Empty
+	101, // 120: home.auth.v1.ReplacePolicyResponse.policy:type_name -> home.auth.v1.PolicySnapshot
+	15,  // 121: home.auth.v1.ReplacePolicyResponse.rights_change:type_name -> home.auth.v1.PolicyRightsChange
+	16,  // 122: home.auth.v1.AuthorizationPolicyError.code:type_name -> home.auth.v1.AuthorizationPolicyErrorCode
+	17,  // 123: home.auth.v1.AuthorizationTermination.reason:type_name -> home.auth.v1.AuthorizationTerminationReason
+	27,  // 124: home.auth.v1.OperatorAccountService.BootstrapAdmin:input_type -> home.auth.v1.BootstrapAdminRequest
+	29,  // 125: home.auth.v1.OperatorAccountService.RecoverAccount:input_type -> home.auth.v1.RecoverAccountRequest
+	31,  // 126: home.auth.v1.OperatorAccountService.ResetSecondFactor:input_type -> home.auth.v1.ResetSecondFactorRequest
+	33,  // 127: home.auth.v1.AccountService.CreateAccount:input_type -> home.auth.v1.CreateAccountRequest
+	35,  // 128: home.auth.v1.AccountService.GetAccount:input_type -> home.auth.v1.GetAccountRequest
+	37,  // 129: home.auth.v1.AccountService.ListAccounts:input_type -> home.auth.v1.ListAccountsRequest
+	39,  // 130: home.auth.v1.AccountService.UpdateAccount:input_type -> home.auth.v1.UpdateAccountRequest
+	41,  // 131: home.auth.v1.AccountService.DeleteAccount:input_type -> home.auth.v1.DeleteAccountRequest
+	44,  // 132: home.auth.v1.AccountService.CreateInvitation:input_type -> home.auth.v1.CreateInvitationRequest
+	46,  // 133: home.auth.v1.AccountService.AcceptInvitation:input_type -> home.auth.v1.AcceptInvitationRequest
+	48,  // 134: home.auth.v1.AccountService.ListInvitations:input_type -> home.auth.v1.ListInvitationsRequest
+	50,  // 135: home.auth.v1.AccountService.RevokeInvitation:input_type -> home.auth.v1.RevokeInvitationRequest
+	53,  // 136: home.auth.v1.AccountService.GetSecondFactorPolicy:input_type -> home.auth.v1.GetSecondFactorPolicyRequest
+	55,  // 137: home.auth.v1.AccountService.SetSecondFactorPolicy:input_type -> home.auth.v1.SetSecondFactorPolicyRequest
+	72,  // 138: home.auth.v1.AuthService.StartLogin:input_type -> home.auth.v1.StartLoginRequest
+	74,  // 139: home.auth.v1.AuthService.CompleteLogin:input_type -> home.auth.v1.CompleteLoginRequest
+	76,  // 140: home.auth.v1.AuthService.RefreshSession:input_type -> home.auth.v1.RefreshSessionRequest
+	78,  // 141: home.auth.v1.AuthService.ListSessions:input_type -> home.auth.v1.ListSessionsRequest
+	80,  // 142: home.auth.v1.AuthService.RevokeSession:input_type -> home.auth.v1.RevokeSessionRequest
+	82,  // 143: home.auth.v1.AuthService.BeginFactorEnrollment:input_type -> home.auth.v1.BeginFactorEnrollmentRequest
+	84,  // 144: home.auth.v1.AuthService.CompleteFactorEnrollment:input_type -> home.auth.v1.CompleteFactorEnrollmentRequest
+	86,  // 145: home.auth.v1.AuthService.ListFactors:input_type -> home.auth.v1.ListFactorsRequest
+	88,  // 146: home.auth.v1.AuthService.RemoveFactor:input_type -> home.auth.v1.RemoveFactorRequest
+	90,  // 147: home.auth.v1.AuthService.ReplaceRecoveryCodes:input_type -> home.auth.v1.ReplaceRecoveryCodesRequest
+	93,  // 148: home.auth.v1.McpKeyService.CreateMcpKey:input_type -> home.auth.v1.CreateMcpKeyRequest
+	95,  // 149: home.auth.v1.McpKeyService.ListMcpKeys:input_type -> home.auth.v1.ListMcpKeysRequest
+	97,  // 150: home.auth.v1.McpKeyService.RevokeMcpKey:input_type -> home.auth.v1.RevokeMcpKeyRequest
+	102, // 151: home.auth.v1.AuthorizationPolicyService.GetPolicy:input_type -> home.auth.v1.GetPolicyRequest
+	104, // 152: home.auth.v1.AuthorizationPolicyService.ReplacePolicy:input_type -> home.auth.v1.ReplacePolicyRequest
+	28,  // 153: home.auth.v1.OperatorAccountService.BootstrapAdmin:output_type -> home.auth.v1.BootstrapAdminResponse
+	30,  // 154: home.auth.v1.OperatorAccountService.RecoverAccount:output_type -> home.auth.v1.RecoverAccountResponse
+	32,  // 155: home.auth.v1.OperatorAccountService.ResetSecondFactor:output_type -> home.auth.v1.ResetSecondFactorResponse
+	34,  // 156: home.auth.v1.AccountService.CreateAccount:output_type -> home.auth.v1.CreateAccountResponse
+	36,  // 157: home.auth.v1.AccountService.GetAccount:output_type -> home.auth.v1.GetAccountResponse
+	38,  // 158: home.auth.v1.AccountService.ListAccounts:output_type -> home.auth.v1.ListAccountsResponse
+	40,  // 159: home.auth.v1.AccountService.UpdateAccount:output_type -> home.auth.v1.UpdateAccountResponse
+	42,  // 160: home.auth.v1.AccountService.DeleteAccount:output_type -> home.auth.v1.DeleteAccountResponse
+	45,  // 161: home.auth.v1.AccountService.CreateInvitation:output_type -> home.auth.v1.CreateInvitationResponse
+	47,  // 162: home.auth.v1.AccountService.AcceptInvitation:output_type -> home.auth.v1.AcceptInvitationResponse
+	49,  // 163: home.auth.v1.AccountService.ListInvitations:output_type -> home.auth.v1.ListInvitationsResponse
+	51,  // 164: home.auth.v1.AccountService.RevokeInvitation:output_type -> home.auth.v1.RevokeInvitationResponse
+	54,  // 165: home.auth.v1.AccountService.GetSecondFactorPolicy:output_type -> home.auth.v1.GetSecondFactorPolicyResponse
+	56,  // 166: home.auth.v1.AccountService.SetSecondFactorPolicy:output_type -> home.auth.v1.SetSecondFactorPolicyResponse
+	73,  // 167: home.auth.v1.AuthService.StartLogin:output_type -> home.auth.v1.StartLoginResponse
+	75,  // 168: home.auth.v1.AuthService.CompleteLogin:output_type -> home.auth.v1.CompleteLoginResponse
+	77,  // 169: home.auth.v1.AuthService.RefreshSession:output_type -> home.auth.v1.RefreshSessionResponse
+	79,  // 170: home.auth.v1.AuthService.ListSessions:output_type -> home.auth.v1.ListSessionsResponse
+	81,  // 171: home.auth.v1.AuthService.RevokeSession:output_type -> home.auth.v1.RevokeSessionResponse
+	83,  // 172: home.auth.v1.AuthService.BeginFactorEnrollment:output_type -> home.auth.v1.BeginFactorEnrollmentResponse
+	85,  // 173: home.auth.v1.AuthService.CompleteFactorEnrollment:output_type -> home.auth.v1.CompleteFactorEnrollmentResponse
+	87,  // 174: home.auth.v1.AuthService.ListFactors:output_type -> home.auth.v1.ListFactorsResponse
+	89,  // 175: home.auth.v1.AuthService.RemoveFactor:output_type -> home.auth.v1.RemoveFactorResponse
+	91,  // 176: home.auth.v1.AuthService.ReplaceRecoveryCodes:output_type -> home.auth.v1.ReplaceRecoveryCodesResponse
+	94,  // 177: home.auth.v1.McpKeyService.CreateMcpKey:output_type -> home.auth.v1.CreateMcpKeyResponse
+	96,  // 178: home.auth.v1.McpKeyService.ListMcpKeys:output_type -> home.auth.v1.ListMcpKeysResponse
+	98,  // 179: home.auth.v1.McpKeyService.RevokeMcpKey:output_type -> home.auth.v1.RevokeMcpKeyResponse
+	103, // 180: home.auth.v1.AuthorizationPolicyService.GetPolicy:output_type -> home.auth.v1.GetPolicyResponse
+	105, // 181: home.auth.v1.AuthorizationPolicyService.ReplacePolicy:output_type -> home.auth.v1.ReplacePolicyResponse
+	153, // [153:182] is the sub-list for method output_type
+	124, // [124:153] is the sub-list for method input_type
+	124, // [124:124] is the sub-list for extension type_name
+	124, // [124:124] is the sub-list for extension extendee
+	0,   // [0:124] is the sub-list for field type_name
 }
 
 func init() { file_home_auth_v1_auth_proto_init() }
@@ -6530,26 +6910,26 @@ func file_home_auth_v1_auth_proto_init() {
 	if File_home_auth_v1_auth_proto != nil {
 		return
 	}
-	file_home_auth_v1_auth_proto_msgTypes[19].OneofWrappers = []any{}
-	file_home_auth_v1_auth_proto_msgTypes[23].OneofWrappers = []any{}
-	file_home_auth_v1_auth_proto_msgTypes[37].OneofWrappers = []any{}
-	file_home_auth_v1_auth_proto_msgTypes[41].OneofWrappers = []any{
+	file_home_auth_v1_auth_proto_msgTypes[21].OneofWrappers = []any{}
+	file_home_auth_v1_auth_proto_msgTypes[25].OneofWrappers = []any{}
+	file_home_auth_v1_auth_proto_msgTypes[40].OneofWrappers = []any{}
+	file_home_auth_v1_auth_proto_msgTypes[44].OneofWrappers = []any{
 		(*FactorOption_Fido2)(nil),
 		(*FactorOption_RecoveryCode)(nil),
 	}
-	file_home_auth_v1_auth_proto_msgTypes[44].OneofWrappers = []any{}
-	file_home_auth_v1_auth_proto_msgTypes[46].OneofWrappers = []any{
+	file_home_auth_v1_auth_proto_msgTypes[47].OneofWrappers = []any{}
+	file_home_auth_v1_auth_proto_msgTypes[49].OneofWrappers = []any{
 		(*FactorProof_Fido2)(nil),
 		(*FactorProof_RecoveryCode)(nil),
 	}
-	file_home_auth_v1_auth_proto_msgTypes[47].OneofWrappers = []any{}
-	file_home_auth_v1_auth_proto_msgTypes[50].OneofWrappers = []any{
+	file_home_auth_v1_auth_proto_msgTypes[50].OneofWrappers = []any{}
+	file_home_auth_v1_auth_proto_msgTypes[53].OneofWrappers = []any{
 		(*LoginDecision_Authenticated)(nil),
 		(*LoginDecision_Challenge)(nil),
 		(*LoginDecision_EnrollmentRequired)(nil),
 	}
-	file_home_auth_v1_auth_proto_msgTypes[71].OneofWrappers = []any{}
-	file_home_auth_v1_auth_proto_msgTypes[78].OneofWrappers = []any{
+	file_home_auth_v1_auth_proto_msgTypes[74].OneofWrappers = []any{}
+	file_home_auth_v1_auth_proto_msgTypes[81].OneofWrappers = []any{
 		(*AuthError_Authentication)(nil),
 		(*AuthError_Permission)(nil),
 		(*AuthError_Conflict)(nil),
@@ -6557,11 +6937,11 @@ func file_home_auth_v1_auth_proto_init() {
 		(*AuthError_InvalidField)(nil),
 		(*AuthError_RetryAt)(nil),
 	}
-	file_home_auth_v1_auth_proto_msgTypes[82].OneofWrappers = []any{
+	file_home_auth_v1_auth_proto_msgTypes[85].OneofWrappers = []any{
 		(*GetPolicyResponse_Present)(nil),
 		(*GetPolicyResponse_Absent)(nil),
 	}
-	file_home_auth_v1_auth_proto_msgTypes[83].OneofWrappers = []any{
+	file_home_auth_v1_auth_proto_msgTypes[86].OneofWrappers = []any{
 		(*ReplacePolicyRequest_Expected)(nil),
 		(*ReplacePolicyRequest_ExpectAbsent)(nil),
 	}
@@ -6570,8 +6950,8 @@ func file_home_auth_v1_auth_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_auth_v1_auth_proto_rawDesc), len(file_home_auth_v1_auth_proto_rawDesc)),
-			NumEnums:      15,
-			NumMessages:   87,
+			NumEnums:      18,
+			NumMessages:   90,
 			NumExtensions: 0,
 			NumServices:   5,
 		},

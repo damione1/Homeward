@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/damione1/Homeward/compat/ha/parser"
+	"github.com/damione1/Homeward/internal/authmfa"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/jackc/pgx/v5"
@@ -25,7 +26,7 @@ const (
 	configSourceLimitCount = 256
 )
 
-// The SQL enum in migration v4 is authoritative; this conversion is checked
+// The SQL enum extended by migrations is authoritative; this conversion is checked
 // against pg_enum by TestNHA151SchemaEnumDrift.
 type ConfigDocumentKind uint8
 
@@ -33,6 +34,7 @@ const (
 	ConfigDocumentKindInvalid ConfigDocumentKind = iota
 	ConfigDocumentKindYAMLSource
 	ConfigDocumentKindAuthorizationPolicy
+	ConfigDocumentKindMFAPolicy
 )
 
 func (k ConfigDocumentKind) String() string {
@@ -41,6 +43,8 @@ func (k ConfigDocumentKind) String() string {
 		return "yaml_source"
 	case ConfigDocumentKindAuthorizationPolicy:
 		return "authorization_policy"
+	case ConfigDocumentKindMFAPolicy:
+		return "mfa_policy"
 	default:
 		return ""
 	}
@@ -50,6 +54,8 @@ func parseConfigDocumentKind(text string) (ConfigDocumentKind, error) {
 	switch text {
 	case ConfigDocumentKindYAMLSource.String():
 		return ConfigDocumentKindYAMLSource, nil
+	case ConfigDocumentKindMFAPolicy.String():
+		return ConfigDocumentKindMFAPolicy, nil
 	case ConfigDocumentKindAuthorizationPolicy.String():
 		return ConfigDocumentKindAuthorizationPolicy, nil
 	default:
@@ -290,6 +296,7 @@ const (
 	configSourceDeclarative
 	configSourceAuthorization
 	configSourceDeclarative2
+	configSourceMFA
 )
 
 func (f configSourceFormat) values() (ConfigDocumentKind, string, string, error) {
@@ -298,6 +305,8 @@ func (f configSourceFormat) values() (ConfigDocumentKind, string, string, error)
 		return ConfigDocumentKindYAMLSource, bundle.SchemaDeclarative1.String(), parser.SyntaxProfileDeclarative.String(), nil
 	case configSourceDeclarative2:
 		return ConfigDocumentKindYAMLSource, bundle.SchemaDeclarative2.String(), parser.SyntaxProfileDeclarative2.String(), nil
+	case configSourceMFA:
+		return ConfigDocumentKindMFAPolicy, authmfa.PolicySchema, authmfa.PolicySyntaxProfile, nil
 	case configSourceAuthorization:
 		return ConfigDocumentKindAuthorizationPolicy, authorization.Schema, authorization.SyntaxProfile, nil
 	case configSourceInvalid:
@@ -373,7 +382,7 @@ func (c *ConfigTx) prune(id ConfigDocumentID) error {
 		         ) OR EXISTS (
 		           SELECT 1 FROM public.authorization_policy_active p
 		           WHERE p.document_id=v.document_id AND p.version_revision=v.revision
-		         ) THEN 0 ELSE 1 END, v.revision DESC) AS keep_rank
+		         ) OR EXISTS (SELECT 1 FROM public.auth_mfa_policy p WHERE p.document_id=v.document_id AND p.version_revision=v.revision) THEN 0 ELSE 1 END, v.revision DESC) AS keep_rank
 		FROM public.config_versions v WHERE v.document_id=$1
 	)
 	DELETE FROM public.config_versions v USING ranked r
@@ -784,6 +793,9 @@ func (s *Store) readConfig(ctx context.Context, target *ConfigGenerationRevision
 		}
 		copy(v.hash[:], hashBytes)
 		v.kind, err = parseConfigDocumentKind(kind)
+		if err == nil && v.kind != ConfigDocumentKindYAMLSource {
+			err = &Error{kind: ConfigIntegrity}
+		}
 		if err != nil {
 			rows.Close()
 			return ConfigGenerationSnapshot{}, err

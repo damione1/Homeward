@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/compat/ha/parser"
+	"github.com/damione1/Homeward/internal/authmfa"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/jackc/pgx/v5"
@@ -26,6 +27,16 @@ func nha151SQLState(t *testing.T, err error, want string) {
 }
 
 func nha151Store(t *testing.T) (*Store, context.Context) {
+	t.Helper()
+	store, ctx := nha151UninitializedStore(t)
+	if _, err := store.BootstrapMFAPolicy(ctx); err != nil {
+		t.Fatal(err)
+	}
+	return store, ctx
+}
+
+// Initialization tests need the migrated database before runtime metadata exists.
+func nha151UninitializedStore(t *testing.T) (*Store, context.Context) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	t.Cleanup(cancel)
@@ -509,7 +520,7 @@ func TestNHA151MultiSourceManifestAndPrevalidation(t *testing.T) {
 		t.Fatalf("prevalidation rollback: %v %v", outcome, err)
 	}
 	var docs int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM public.config_documents`).Scan(&docs); err != nil || docs != 0 {
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM public.config_documents`).Scan(&docs); err != nil || docs != 1 {
 		t.Fatalf("prevalidation left a prefix: %d %v", docs, err)
 	}
 	var first []ConfigVersionRef
@@ -872,9 +883,9 @@ func TestNHA151SchemaEnumDrift(t *testing.T) {
 		name string
 		want []string
 	}{
-		{"config_document_kind", []string{ConfigDocumentKindYAMLSource.String(), ConfigDocumentKindAuthorizationPolicy.String()}},
-		{"config_schema_version", []string{bundle.SchemaDeclarative1.String(), authorization.Schema, bundle.SchemaDeclarative2.String()}},
-		{"config_syntax_profile", []string{parser.SyntaxProfileDeclarative.String(), authorization.SyntaxProfile, parser.SyntaxProfileDeclarative2.String()}},
+		{"config_document_kind", []string{ConfigDocumentKindYAMLSource.String(), ConfigDocumentKindAuthorizationPolicy.String(), ConfigDocumentKindMFAPolicy.String()}},
+		{"config_schema_version", []string{bundle.SchemaDeclarative1.String(), authorization.Schema, bundle.SchemaDeclarative2.String(), authmfa.PolicySchema}},
+		{"config_syntax_profile", []string{parser.SyntaxProfileDeclarative.String(), authorization.SyntaxProfile, parser.SyntaxProfileDeclarative2.String(), authmfa.PolicySyntaxProfile}},
 	} {
 		rows, err := s.pool.Query(ctx, `SELECT e.enumlabel FROM pg_enum e
 			JOIN pg_type t ON t.oid=e.enumtypid

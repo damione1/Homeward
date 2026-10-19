@@ -41,6 +41,11 @@ func registerAuthRoutes(plan *PublicPlan, store *storage.Store, coordinator *ses
 		ConnectProcedure{Path: authv1connect.AuthServiceRefreshSessionProcedure, Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: authv1connect.AuthServiceListSessionsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: authv1connect.AuthServiceRevokeSessionProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AuthServiceBeginFactorEnrollmentProcedure, Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AuthServiceCompleteFactorEnrollmentProcedure, Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AuthServiceListFactorsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AuthServiceRemoveFactorProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: authv1connect.AuthServiceReplaceRecoveryCodesProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 	)
 	return plan, err
 }

@@ -31,6 +31,15 @@ type ChallengeRecord struct {
 }
 
 func (s *Store) IssueChallenge(ctx context.Context, input ChallengeCreation) (ChallengeRecord, error) {
+	return sessionTransaction(s, ctx, func(tx pgx.Tx) (ChallengeRecord, error) {
+		if _, err := lockMFAPolicy(ctx, tx); err != nil {
+			return ChallengeRecord{}, ErrSessionUnavailable
+		}
+		return s.issueChallengeTx(ctx, tx, input)
+	})
+}
+func (s *Store) issueChallengeTx(ctx context.Context, tx pgx.Tx, input ChallengeCreation) (ChallengeRecord, error) {
+
 	id, err := input.ID.Value()
 	if err != nil || len(id) > 128 || !input.Revision.validFor(input.Account) ||
 		len(input.Payload) == 0 || len(input.Payload) > 16384 || input.Now.IsZero() {
@@ -41,27 +50,25 @@ func (s *Store) IssueChallenge(ctx context.Context, input ChallengeCreation) (Ch
 		return ChallengeRecord{}, ErrSessionInvalid
 	}
 	payload := append([]byte(nil), input.Payload...)
-	return sessionTransaction(s, ctx, func(tx pgx.Tx) (ChallengeRecord, error) {
-		var revision int64
-		var status int16
-		if err := tx.QueryRow(ctx, `SELECT revocation_revision,status FROM public.auth_accounts WHERE id=$1 FOR UPDATE`, account).Scan(&revision, &status); err != nil {
-			return ChallengeRecord{}, ErrSessionNotFound
-		}
-		if status != 1 || revision != input.Revision.number {
-			return ChallengeRecord{}, ErrSessionNotFound
-		}
-		expires := input.Now.Add(challengeLifetime)
-		if _, err := tx.Exec(ctx, `INSERT INTO public.auth_login_challenges(account_id,id,account_revision,options,expires_at,attempts)
+	var revision int64
+	var status int16
+	if err := tx.QueryRow(ctx, `SELECT revocation_revision,status FROM public.auth_accounts WHERE id=$1 FOR UPDATE`, account).Scan(&revision, &status); err != nil {
+		return ChallengeRecord{}, ErrSessionNotFound
+	}
+	if status != 1 || revision != input.Revision.number {
+		return ChallengeRecord{}, ErrSessionNotFound
+	}
+	expires := input.Now.Add(challengeLifetime).Truncate(time.Microsecond)
+	if _, err := tx.Exec(ctx, `INSERT INTO public.auth_login_challenges(account_id,id,account_revision,options,expires_at,attempts)
             VALUES($1,$2,$3,$4,$5,0) ON CONFLICT(account_id) DO UPDATE
             SET id=EXCLUDED.id,account_revision=EXCLUDED.account_revision,options=EXCLUDED.options,
                 expires_at=EXCLUDED.expires_at,attempts=0,consumed_at=NULL`, account, id, revision, payload, expires); err != nil {
-			return ChallengeRecord{}, ErrSessionUnavailable
-		}
-		if err := insertSessionAudit(ctx, tx, input.Account, authActionChallengeIssued, authOutcomeAdmitted); err != nil {
-			return ChallengeRecord{}, err
-		}
-		return ChallengeRecord{ID: input.ID, Account: input.Account, Revision: input.Revision, Payload: append([]byte(nil), payload...), ExpiresAt: expires}, nil
-	})
+		return ChallengeRecord{}, ErrSessionUnavailable
+	}
+	if err := insertSessionAudit(ctx, tx, input.Account, authActionChallengeIssued, authOutcomeAdmitted); err != nil {
+		return ChallengeRecord{}, err
+	}
+	return ChallengeRecord{ID: input.ID, Account: input.Account, Revision: input.Revision, Payload: append([]byte(nil), payload...), ExpiresAt: expires}, nil
 }
 
 // LookupChallenge is preliminary: CompleteLogin must recheck and consume the
@@ -103,6 +110,9 @@ func (s *Store) ReserveChallengeAttempt(ctx context.Context, known ChallengeReco
 		return ErrSessionInvalid
 	}
 	_, err = sessionTransaction(s, ctx, func(tx pgx.Tx) (struct{}, error) {
+		if _, err := lockMFAPolicy(ctx, tx); err != nil {
+			return struct{}{}, ErrSessionUnavailable
+		}
 		var revision int64
 		var status int16
 		if err := tx.QueryRow(ctx, `SELECT revocation_revision,status FROM public.auth_accounts WHERE id=$1 FOR UPDATE`, account).Scan(&revision, &status); err != nil {
@@ -132,12 +142,18 @@ func (s *Store) IssueEnrollmentGrant(ctx context.Context, accountID contracts.Ac
 		return time.Time{}, ErrSessionInvalid
 	}
 	return sessionTransaction(s, ctx, func(tx pgx.Tx) (time.Time, error) {
+		policy, err := lockMFAPolicy(ctx, tx)
+		if err != nil {
+			return time.Time{}, ErrSessionUnavailable
+		}
 		var current int64
-		var status int16
-		if err := tx.QueryRow(ctx, `SELECT revocation_revision,status FROM public.auth_accounts WHERE id=$1 FOR UPDATE`, account).Scan(&current, &status); err != nil {
+		var status, role int16
+		var enabled bool
+		if err := tx.QueryRow(ctx, `SELECT revocation_revision,status,role,second_factor_enabled FROM public.auth_accounts WHERE id=$1 FOR UPDATE`, account).Scan(&current, &status, &role, &enabled); err != nil {
 			return time.Time{}, ErrSessionNotFound
 		}
-		if status != 1 || current != revision.number {
+		required, _ := policy.source.Required()
+		if status != 1 || current != revision.number || role != 1 || !required || enabled {
 			return time.Time{}, ErrSessionNotFound
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM public.auth_enrollment_grants WHERE account_id=$1`, account); err != nil {

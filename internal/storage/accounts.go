@@ -281,6 +281,12 @@ const (
 	authActionPolicyRead
 	authActionPolicyReplace
 	authActionPolicySeed
+	authActionMFAEnroll
+	authActionMFARemove
+	authActionMFARecoveryReplace
+	authActionMFAReset
+	authActionMFAPolicyReplace
+	authActionMFAPolicyRead
 )
 
 const authOutcomeAdmitted int16 = 1
@@ -380,7 +386,7 @@ func insertAccountAudit(ctx context.Context, tx pgx.Tx, event accountAudit, outc
 	if err != nil {
 		return err
 	}
-	if event.action < authActionBootstrap || event.action > authActionPolicySeed || (outcome != authOutcomeAdmitted && outcome != authOutcomeDenied) {
+	if event.action < authActionBootstrap || event.action > authActionMFAPolicyRead || (outcome != authOutcomeAdmitted && outcome != authOutcomeDenied) {
 		return ErrAccountInvalid
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO public.auth_audit(actor_account_id, target_account_id, invitation_id, action, outcome)
@@ -460,9 +466,19 @@ func classifyAccountError(err error) error {
 	return ErrAccountUnavailable
 }
 
-func lockAuthSingleton(ctx context.Context, tx pgx.Tx) (bool, error) {
+func lockAuthBootstrapOnly(ctx context.Context, tx pgx.Tx) (bool, error) {
 	var completed bool
-	if err := tx.QueryRow(ctx, `SELECT completed FROM public.auth_bootstrap WHERE singleton = true FOR UPDATE`).Scan(&completed); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT completed FROM public.auth_bootstrap WHERE singleton=true FOR UPDATE`).Scan(&completed); err != nil {
+		return false, err
+	}
+	return completed, nil
+}
+func lockAuthSingleton(ctx context.Context, tx pgx.Tx) (bool, error) {
+	completed, err := lockAuthBootstrapOnly(ctx, tx)
+	if err != nil {
+		return false, err
+	}
+	if _, err := lockMFAPolicy(ctx, tx); err != nil {
 		return false, err
 	}
 	return completed, nil

@@ -56,6 +56,9 @@ func TestNHA049StoreBootstrapInvitationAdminAndRecovery(t *testing.T) {
 	if version, err := store.Migrate(ctx); err != nil || version != CurrentVersion() {
 		t.Fatalf("account schema migration: %v %v", version, err)
 	}
+	if _, err := store.BootstrapMFAPolicy(ctx); err != nil {
+		t.Fatal(err)
+	}
 
 	first := nha049AccountInput(t, "Administrator One", authv1.AccountRole_ACCOUNT_ROLE_ADMIN)
 	second := nha049AccountInput(t, "Administrator Two", authv1.AccountRole_ACCOUNT_ROLE_ADMIN)
@@ -295,6 +298,9 @@ func TestNHA049AuditInsertFailureRollsBackAccountAndInvitation(t *testing.T) {
 	}
 	defer store.Close()
 	if _, err := store.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BootstrapMFAPolicy(ctx); err != nil {
 		t.Fatal(err)
 	}
 	admin := nha049AccountInput(t, "Audit Failure Admin", authv1.AccountRole_ACCOUNT_ROLE_ADMIN)

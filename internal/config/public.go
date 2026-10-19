@@ -89,13 +89,18 @@ func (s PublicSettings) RequestTimeout() time.Duration  { return s.requestTimeou
 func (s PublicSettings) StreamTimeout() time.Duration   { return s.streamTimeout }
 func (s PublicSettings) ShutdownTimeout() time.Duration { return s.shutdownTimeout }
 
-func parsePublicSettings(input *publicInput) (PublicSettings, error) {
-	result := PublicSettings{
+// DefaultPublicSettings is the same admitted default used by YAML parsing.
+func DefaultPublicSettings() PublicSettings {
+	return PublicSettings{
 		transport:       PublicTransportH2C,
 		maxRequestBytes: defaultMaxRequestBytes, maxConcurrentRequests: defaultMaxConcurrentRequests,
 		requestTimeout: defaultRequestTimeout, streamTimeout: defaultStreamTimeout,
 		shutdownTimeout: defaultShutdownTimeout, valid: true,
 	}
+}
+
+func parsePublicSettings(input *publicInput) (PublicSettings, error) {
+	result := DefaultPublicSettings()
 	if input == nil {
 		return result, nil
 	}

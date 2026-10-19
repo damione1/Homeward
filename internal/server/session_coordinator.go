@@ -21,6 +21,8 @@ var errSessionCoordinatorBusy = errors.New("server: session admission capacity e
 // identity. Every admission still reads PostgreSQL while holding its account
 // gate. The single Go process serves public, MCP and operator transports.
 type sessionCoordinator struct {
+	policy           *mfaPolicyFence
+	mfa              *mfaRuntime
 	store            *storage.Store
 	clock            sessionClock
 	mu               sync.Mutex
@@ -53,13 +55,14 @@ type sessionAccountGate struct {
 }
 
 type sessionGuard struct {
-	coordinator *sessionCoordinator
-	key         string
-	gate        *sessionAccountGate
-	once        sync.Once
-	mutation    *authorization.Mutation
-	termination authv1.AuthorizationTerminationReason
-	creating    bool
+	policyTicket *mfaPolicyTicket
+	coordinator  *sessionCoordinator
+	key          string
+	gate         *sessionAccountGate
+	once         sync.Once
+	mutation     *authorization.Mutation
+	termination  authv1.AuthorizationTerminationReason
+	creating     bool
 }
 
 type sessionLease struct {
@@ -149,6 +152,7 @@ func (g *sessionGuard) release() {
 		g.gate.refs--
 		c.evictIdleLocked(g.key, g.gate)
 		c.mu.Unlock()
+		g.policyTicket.release()
 	})
 }
 

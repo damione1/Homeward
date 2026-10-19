@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"errors"
+	"math"
 	"reflect"
 	"time"
 	"unicode/utf8"
@@ -198,7 +199,7 @@ func AdmitAccount(account *auth.Account) (AdmittedAuthWire[*auth.Account], error
 }
 
 func validSession(session *auth.Session, now time.Time) bool {
-	return session != nil && validSessionID(session.Id) && validAccountID(session.AccountId) &&
+	return session != nil && knownFieldsOnly(session.ProtoReflect()) && validSessionAuthentication(session, now) && validSessionID(session.Id) && validAccountID(session.AccountId) &&
 		validTimestamp(session.CreatedAt) && validFuture(session.ExpiresAt, now) &&
 		session.ExpiresAt.AsTime().After(session.CreatedAt.AsTime()) &&
 		(session.RevokedAt == nil || validTimestamp(session.RevokedAt)) &&
@@ -457,4 +458,87 @@ func AuthErrorConnectCode(detail *auth.AuthError) (connect.Code, error) {
 	default:
 		return 0, ErrInvalidAuthContract
 	}
+}
+
+// AdmitAuthenticationSatisfaction admits newly issued authentication methods.
+// Legacy UNSPECIFIED remains an explicit metadata state, never new evidence.
+func AdmitAuthenticationSatisfaction(value auth.AuthenticationSatisfaction) error {
+	switch value {
+	case auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY, auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2, auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE:
+		return nil
+	case auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_UNSPECIFIED:
+		return ErrInvalidAuthContract
+	default:
+		return ErrInvalidAuthContract
+	}
+}
+func validSessionAuthentication(session *auth.Session, now time.Time) bool {
+	if session == nil {
+		return false
+	}
+	switch session.AuthenticationSatisfaction {
+	case auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_UNSPECIFIED:
+		return session.AuthenticatedAt == nil
+	case auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY, auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2, auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE:
+		return validTimestamp(session.AuthenticatedAt) && validTimestamp(session.CreatedAt) && session.AuthenticatedAt.AsTime().Equal(session.CreatedAt.AsTime()) && !session.AuthenticatedAt.AsTime().After(now)
+	default:
+		return false
+	}
+}
+func validMFAPolicyVersion(version *auth.PolicyVersion) bool {
+	return version != nil && knownFieldsOnly(version.ProtoReflect()) && version.Revision > 0 && version.Revision <= math.MaxInt64 && len(version.SourceSha256) == 32
+}
+func AdmitSetSecondFactorPolicy(request *auth.SetSecondFactorPolicyRequest) (AdmittedAuthWire[*auth.SetSecondFactorPolicyRequest], error) {
+	if request == nil || !knownFieldsOnly(request.ProtoReflect()) || !validMFAPolicyVersion(request.Expected) {
+		return AdmittedAuthWire[*auth.SetSecondFactorPolicyRequest]{}, ErrInvalidAuthContract
+	}
+	return AdmittedAuthWire[*auth.SetSecondFactorPolicyRequest]{value: proto.Clone(request).(*auth.SetSecondFactorPolicyRequest)}, nil
+}
+func validSecondFactorPolicy(policy *auth.SecondFactorPolicy) bool {
+	return policy != nil && knownFieldsOnly(policy.ProtoReflect()) && validMFAPolicyVersion(policy.Version) && validTimestamp(policy.UpdatedAt)
+}
+func AdmitGetSecondFactorPolicyResponse(response *auth.GetSecondFactorPolicyResponse) (AdmittedAuthWire[*auth.GetSecondFactorPolicyResponse], error) {
+	if response == nil || !knownFieldsOnly(response.ProtoReflect()) || !validSecondFactorPolicy(response.Policy) {
+		return AdmittedAuthWire[*auth.GetSecondFactorPolicyResponse]{}, ErrInvalidAuthContract
+	}
+	return AdmittedAuthWire[*auth.GetSecondFactorPolicyResponse]{value: proto.Clone(response).(*auth.GetSecondFactorPolicyResponse)}, nil
+}
+func AdmitSetSecondFactorPolicyResponse(response *auth.SetSecondFactorPolicyResponse) (AdmittedAuthWire[*auth.SetSecondFactorPolicyResponse], error) {
+	if response == nil || !knownFieldsOnly(response.ProtoReflect()) || !validSecondFactorPolicy(response.Policy) {
+		return AdmittedAuthWire[*auth.SetSecondFactorPolicyResponse]{}, ErrInvalidAuthContract
+	}
+	switch response.Continuation {
+	case auth.SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES, auth.SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED:
+		return AdmittedAuthWire[*auth.SetSecondFactorPolicyResponse]{value: proto.Clone(response).(*auth.SetSecondFactorPolicyResponse)}, nil
+	case auth.SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED:
+		return AdmittedAuthWire[*auth.SetSecondFactorPolicyResponse]{}, ErrInvalidAuthContract
+	default:
+		return AdmittedAuthWire[*auth.SetSecondFactorPolicyResponse]{}, ErrInvalidAuthContract
+	}
+}
+func AdmitSecondFactorPolicyError(detail *auth.SecondFactorPolicyError) (AdmittedAuthWire[*auth.SecondFactorPolicyError], error) {
+	if detail == nil || !knownFieldsOnly(detail.ProtoReflect()) {
+		return AdmittedAuthWire[*auth.SecondFactorPolicyError]{}, ErrInvalidAuthContract
+	}
+	valid := false
+	switch detail.Code {
+	case auth.SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION, auth.SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT:
+		valid = detail.Field == "expected"
+	case auth.SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE:
+		valid = detail.Field == ""
+	case auth.SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED:
+		valid = false
+	default:
+		valid = false
+	}
+	if !valid {
+		return AdmittedAuthWire[*auth.SecondFactorPolicyError]{}, ErrInvalidAuthContract
+	}
+	return AdmittedAuthWire[*auth.SecondFactorPolicyError]{value: proto.Clone(detail).(*auth.SecondFactorPolicyError)}, nil
+}
+func AdmitResetSecondFactor(request *auth.ResetSecondFactorRequest) error {
+	if request == nil || !knownFieldsOnly(request.ProtoReflect()) || !validAccountID(request.AccountId) || len(request.AccountId.Value) > 128 {
+		return ErrInvalidAuthContract
+	}
+	return nil
 }
