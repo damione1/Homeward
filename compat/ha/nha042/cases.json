@@ -1,0 +1,22 @@
+{
+  "source_commit": "abe1fdd7cd6b4de1715c87b6fd87d92699514ef9",
+  "homeassistant": "2026.10.1",
+  "source_script_sha256": "75376abc1686bcfde2f5d235863728b630b91f703ad03eb1a4b6a22eb8387ee3",
+  "source_component_sha256": "8afceb2f5a092830ca98f5ddd6349f131f5d8d555dda92c31782e71efc8df69e",
+  "source_variables_sha256": "c70c73cdd5979f05fd16997762c4cddb9a0dd1bfb4b7f23d7a11c4ec325bf9ea",
+  "cases": [
+    {"id": "direct_waits", "kind": "call", "mode": "direct", "cancel_parent": false},
+    {"id": "turn_on_returns_after_start", "kind": "call", "mode": "detached", "cancel_parent": false},
+    {"id": "cancel_direct_parent", "kind": "call", "mode": "direct", "cancel_parent": true},
+    {"id": "cancel_detached_parent", "kind": "call", "mode": "detached", "cancel_parent": true},
+    {"id": "zero_trigger_already_matching", "kind": "zero", "wait": "trigger", "initial": true},
+    {"id": "zero_template_already_matching", "kind": "zero", "wait": "template", "initial": true},
+    {"id": "zero_template_false", "kind": "zero", "wait": "template", "initial": false},
+    {"id": "trigger_before_timeout_callback", "kind": "race", "order": "event-first", "continue_on_timeout": true},
+    {"id": "timeout_callback_before_trigger", "kind": "race", "order": "timeout-first", "continue_on_timeout": true},
+    {"id": "trigger_before_timeout_abort", "kind": "race", "order": "event-first", "continue_on_timeout": false},
+    {"id": "timeout_before_trigger_abort", "kind": "race", "order": "timeout-first", "continue_on_timeout": false},
+    {"id": "processed_trigger_callback_then_due_timeout", "kind": "race", "order": "event-callback-first", "continue_on_timeout": false},
+    {"id": "parallel_error_waits_other_branch", "kind": "parallel"}
+  ]
+}

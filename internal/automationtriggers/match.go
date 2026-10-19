@@ -517,7 +517,16 @@ func (s *Service) startForLocked(i int, duration time.Duration, tick time.Durati
 }
 
 func (s *Service) fireLocked(i int, cursor sequencer.Cursor, entity domain.EntityID, payload []byte) {
+	if i >= s.permanentRules && s.waitOwners[i] == nil {
+		return
+	}
+
 	r := s.plan.rules[i]
-	s.enqueueLocked(Result{kind: ResultFired, automation: r.automation, triggerKey: r.trigger.Key(),
-		at: s.clock.Now().UTC(), cursor: cursor, entity: entity, payload: payload})
+	result := Result{kind: ResultFired, automation: r.automation, triggerKey: r.trigger.Key(),
+		at: s.clock.Now().UTC(), cursor: cursor, entity: entity, payload: payload}
+	if owner := s.waitOwners[i]; owner != nil {
+		s.fireWaitLocked(owner, result, r)
+		return
+	}
+	s.enqueueLocked(result)
 }

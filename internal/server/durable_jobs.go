@@ -32,12 +32,12 @@ type DurableJobsInput struct {
 // Its native-session grant is not an admission surface for a scoped/MCP caller
 // that happens to know a SessionID; that ceiling-preserving grant is out of scope.
 type DurableJobsComposition struct {
-	generation integrations.GenerationAuthority
-	epoch      integrations.CommandEpochAuthority
-	backup     jobs.BackupHandler
-	clock      jobs.Clock
-	timer      jobs.Timer
-	configure  func(context.Context, DurableJobsServices) error
+	commands  *DurableCommandsComposition
+	epoch     integrations.CommandEpochAuthority
+	backup    jobs.BackupHandler
+	clock     jobs.Clock
+	timer     jobs.Timer
+	configure func(context.Context, DurableJobsServices) error
 }
 
 func NewDurableJobsComposition(input DurableJobsInput) (*DurableJobsComposition, error) {
@@ -50,9 +50,23 @@ func NewDurableJobsComposition(input DurableJobsInput) (*DurableJobsComposition,
 		if nilReactiveInterface(input.Commands.Generation) || nilReactiveInterface(input.Commands.Epoch) {
 			return nil, integrations.ErrInvalidInput
 		}
-		composition.generation, composition.epoch = input.Commands.Generation, input.Commands.Epoch
+		composition.epoch = input.Commands.Epoch
+		commands, err := NewDurableCommandsComposition(DurableCommandsInput{Generation: input.Commands.Generation, Clock: input.Clock})
+		if err != nil {
+			return nil, integrations.ErrInvalidInput
+		}
+		composition.commands = commands
 	}
 	return composition, nil
+}
+
+// CommandComposition lends this declaration to Run and concrete scripts. It
+// creates no runtime; all borrowers must use this exact private descriptor.
+func (c *DurableJobsComposition) CommandComposition() *DurableCommandsComposition {
+	if c == nil {
+		return nil
+	}
+	return c.commands
 }
 
 // DurableJobsServices is the same service set the server owns. A future command
@@ -91,6 +105,23 @@ func newDurableJobsRuntime(ctx context.Context, store *storage.Store, host *inte
 	if composition == nil {
 		return nil, nil
 	}
+	if nilReactiveInterface(ctx) || store == nil || host == nil || sessions == nil || sessions.store != store || sessions.authority == nil {
+		return nil, integrations.ErrInvalidInput
+	}
+	commands, err := prepareDurableCommands(ctx, host, store, composition.commands)
+	if err != nil {
+		return nil, err
+	}
+	return newDurableJobsRuntimeWithCommands(ctx, store, host, sessions, composition, commands)
+}
+
+// The legacy constructor above remains for isolated 034 assemblies. Run uses
+// this constructor with its already registered 024 service, including when
+// scripts and scenes borrow that same runtime. It never acquires a second one.
+func newDurableJobsRuntimeWithCommands(ctx context.Context, store *storage.Store, host *integrations.Manager, sessions *sessionCoordinator, composition *DurableJobsComposition, commands *integrations.DurableCommandService) (*durableJobsRuntime, error) {
+	if composition == nil {
+		return nil, nil
+	}
 	if nilReactiveInterface(ctx) || store == nil || host == nil || sessions == nil || sessions.store != store || sessions.authority == nil || nilReactiveInterface(composition.clock) || nilReactiveInterface(composition.timer) {
 		return nil, integrations.ErrInvalidInput
 	}
@@ -100,11 +131,11 @@ func newDurableJobsRuntime(ctx context.Context, store *storage.Store, host *inte
 	}
 	services := DurableJobsServices{repository: repository}
 	var command *jobs.CommandHandler
-	if composition.generation != nil {
-		services.commands, err = integrations.NewDurableCommandServiceWithClock(ctx, host, composition.generation, store, composition.clock)
-		if err != nil {
-			return nil, err
+	if composition.commands != nil {
+		if commands == nil {
+			return nil, integrations.ErrInvalidInput
 		}
+		services.commands = commands
 		command, err = jobs.NewCommandHandler(services.commands, &jobSessionAdmission{store, sessions}, composition.epoch, composition.clock)
 		if err != nil {
 			return nil, err

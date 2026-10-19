@@ -22,18 +22,21 @@ type groupReplacement struct {
 // Service owns one lossless View subscription and one render loop. Its output
 // queue never invokes a consumer while holding a sequencer or service lock.
 type Service struct {
-	sequence        *sequencer.Sequencer
-	plan            Plan
-	clock           Clock
-	ctx             context.Context
-	cancel          context.CancelFunc
-	updates         chan Update
-	replacements    chan groupReplacement
-	done            chan struct{}
-	mu              sync.Mutex
-	closed          bool
-	err             error
-	groupGeneration atomic.Uint64
+	controls                        chan templateControl
+	waitHandles                     map[ProgramID]*WaitHandle
+	permanentPrograms, controlSlots int
+	sequence                        *sequencer.Sequencer
+	plan                            Plan
+	clock                           Clock
+	ctx                             context.Context
+	cancel                          context.CancelFunc
+	updates                         chan Update
+	replacements                    chan groupReplacement
+	done                            chan struct{}
+	mu                              sync.Mutex
+	closed                          bool
+	err                             error
+	groupGeneration                 atomic.Uint64
 }
 
 func Start(ctx context.Context, sequence *sequencer.Sequencer, plan Plan, clock Clock) (*Service, error) {
@@ -43,9 +46,16 @@ func Start(ctx context.Context, sequence *sequencer.Sequencer, plan Plan, clock 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	owned, err := NewPlan(plan.definitions, plan.groups, plan.zone)
+	if err != nil {
+		return nil, err
+	}
+	owned.waitsEnabled = plan.waitsEnabled
+	plan = owned
 	runCtx, cancel := context.WithCancel(ctx)
 	s := &Service{sequence: sequence, plan: plan, clock: clock, ctx: runCtx, cancel: cancel,
-		updates: make(chan Update, MaxPrograms), replacements: make(chan groupReplacement), done: make(chan struct{})}
+		controls: make(chan templateControl, 128), waitHandles: make(map[ProgramID]*WaitHandle), updates: make(chan Update, MaxPrograms), replacements: make(chan groupReplacement), done: make(chan struct{})}
+	s.permanentPrograms = len(plan.definitions)
 	s.groupGeneration.Store(1)
 	e := &engine{service: s, outputs: make(map[ProgramID]Update), readers: make(map[ProgramID][]template.Dependency)}
 	changes, err := e.rebase()
@@ -97,14 +107,20 @@ func (s *Service) setError(err error) {
 	s.mu.Unlock()
 }
 func (s *Service) emit(updates []Update) error {
-	// There is one sender. A receiver can only free space after this check, so
-	// the whole batch is admitted or the service stops with its old publication.
-	if len(updates) > cap(s.updates)-len(s.updates) {
+	// Ephemeral readers consume their own result; the permanent output queue
+	// remains reserved for its one established publication consumer.
+	permanent := make([]Update, 0, len(updates))
+	for _, update := range updates {
+		if !s.routeWaitUpdate(update) {
+			permanent = append(permanent, update)
+		}
+	}
+	if len(permanent) > cap(s.updates)-len(s.updates) {
 		s.setError(ErrOutputFull)
 		s.CloseAdmissions()
 		return ErrOutputFull
 	}
-	for _, update := range updates {
+	for _, update := range permanent {
 		select {
 		case s.updates <- update:
 		default:
@@ -178,20 +194,22 @@ func (s *Service) ReplaceGroups(ctx context.Context, groups []bundle.Group) erro
 }
 
 type engine struct {
-	service      *Service
-	snapshot     sequencer.Snapshot
-	sub          *sequencer.Subscription
-	outputs      map[ProgramID]Update
-	readers      map[ProgramID][]template.Dependency
-	watchAliases map[domain.HAAlias]struct{}
-	activeMinute bool
-	dirty        bool
-	rebasing     bool
-	replayBudget *int
-	lastMinute   int64
-	minute       Timer
-	retry        Timer
-	retryDelay   time.Duration
+	nextWait       uint64
+	pendingControl *templateControl
+	service        *Service
+	snapshot       sequencer.Snapshot
+	sub            *sequencer.Subscription
+	outputs        map[ProgramID]Update
+	readers        map[ProgramID][]template.Dependency
+	watchAliases   map[domain.HAAlias]struct{}
+	activeMinute   bool
+	dirty          bool
+	rebasing       bool
+	replayBudget   *int
+	lastMinute     int64
+	minute         Timer
+	retry          Timer
+	retryDelay     time.Duration
 }
 
 func (e *engine) rebase() ([]Update, error) {
@@ -379,6 +397,32 @@ func (s *Service) run(e *engine) {
 	defer close(s.done)
 	defer close(s.updates)
 	defer func() {
+		// Only this engine mutates the set; complete all observers before the
+		// service's Done acknowledgement, without another task or subscription.
+		s.CloseAdmissions()
+		for _, handle := range s.waitHandles {
+			s.finishWait(handle, ErrClosed)
+		}
+		if e.pendingControl != nil {
+			request := e.pendingControl
+			if request.release != nil {
+				request.release()
+			}
+			request.result <- templateControlResult{err: ErrClosed}
+		}
+		for {
+			select {
+			case request := <-s.controls:
+				if request.release != nil {
+					request.release()
+				}
+				request.result <- templateControlResult{err: ErrClosed}
+			default:
+				return
+			}
+		}
+	}()
+	defer func() {
 		if e.minute != nil {
 			e.minute.Stop()
 		}
@@ -466,6 +510,12 @@ func (s *Service) run(e *engine) {
 			}
 			continue
 		}
+		if e.pendingControl != nil {
+			if e.handleControl(e.pendingControl) {
+				e.pendingControl = nil
+			}
+			continue
+		}
 		var minute <-chan time.Time
 		if e.minute != nil {
 			minute = e.minute.C()
@@ -512,6 +562,10 @@ func (s *Service) run(e *engine) {
 				if emitErr := s.emit(changes); emitErr != nil {
 					s.setError(emitErr)
 				}
+			}
+		case request := <-s.controls:
+			if !e.handleControl(&request) {
+				e.pendingControl = &request
 			}
 		case req := <-s.replacements:
 			if s.groupGeneration.Load() == ^uint64(0) {

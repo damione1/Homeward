@@ -33,6 +33,23 @@ func NewReactiveTemplateComposition(plan reactivetemplate.Plan, output ReactiveT
 	return &ReactiveTemplateComposition{plan: plan, output: output, clock: clock}, nil
 }
 
+// Enable transient script waits in the one declared 044 engine. A copied
+// descriptor retains permanent outputs and the caller's explicit clock; no
+// second template service or fallback global engine is constructed.
+func scriptReactiveTemplateComposition(composition *ReactiveTemplateComposition, runs *AutomationRunsComposition) (*ReactiveTemplateComposition, error) {
+	if runs == nil || runs.scripts == nil {
+		return composition, nil
+	}
+	if composition == nil {
+		return nil, ErrInvalidTriggerComposition
+	}
+	plan, err := composition.plan.WithScriptWaits(runs.scripts.input.Zone)
+	if err != nil {
+		return nil, errors.Join(ErrInvalidTriggerComposition, err)
+	}
+	return &ReactiveTemplateComposition{plan: plan, output: composition.output, clock: composition.clock}, nil
+}
+
 func nilReactiveInterface(value any) bool {
 	if value == nil {
 		return true

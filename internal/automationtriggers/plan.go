@@ -89,6 +89,8 @@ type SunSource interface {
 
 type PlanInput struct {
 	Automations   []ir.Automation
+	Scripts       []ir.Script
+	MQTTIngress   mqtt.TriggerEdgePilot
 	Zone          string
 	Resolver      Resolver
 	MQTTSettings  mqtt.Settings
@@ -97,6 +99,8 @@ type PlanInput struct {
 }
 
 type rule struct {
+	wait       uint64
+	waitIndex  int
 	automation string
 	trigger    ir.Trigger
 	entity     domain.EntityID
@@ -104,7 +108,14 @@ type rule struct {
 	calendar   CalendarSourceID
 }
 
+type waitSource struct{ object, path string }
+type waitDefinition struct {
+	source ir.Source
+	rules  []rule
+}
+
 type Plan struct {
+	waits           map[waitSource]waitDefinition
 	valid           bool
 	zone            string
 	location        *time.Location
@@ -113,6 +124,7 @@ type Plan struct {
 	mqttInstance    domain.IntegrationInstanceID
 	hasMQTTInstance bool
 	mqttFilters     []mqtt.TopicFilter
+	mqttIngress     mqtt.TriggerEdgePilot
 	sun             SunSource
 	position        SolarPosition
 }
@@ -124,6 +136,13 @@ func (p Plan) MQTTInstance() (domain.IntegrationInstanceID, bool) {
 func (p Plan) MQTTFilters() []mqtt.TopicFilter {
 	return append([]mqtt.TopicFilter(nil), p.mqttFilters...)
 }
+func (p Plan) MQTTIngress() (mqtt.TriggerEdgePilot, bool) {
+	instance, err := p.mqttIngress.Instance()
+	if !p.Valid() || err != nil || !p.hasMQTTInstance || instance != p.mqttInstance {
+		return mqtt.TriggerEdgePilot{}, false
+	}
+	return p.mqttIngress, true
+}
 func (p Plan) Count() int { return len(p.rules) }
 
 // AutomationIDs returns the distinct compiled automation IDs represented by
@@ -134,6 +153,9 @@ func (p Plan) AutomationIDs() []string {
 	}
 	seen := make(map[string]struct{}, len(p.rules))
 	for _, rule := range p.rules {
+		if rule.automation == "" {
+			continue
+		}
 		seen[rule.automation] = struct{}{}
 	}
 	ids := make([]string, 0, len(seen))
@@ -158,14 +180,14 @@ func nilInterface(value any) bool {
 }
 
 func NewPlan(input PlanInput) (Plan, error) {
-	if nilInterface(input.Resolver) || input.Zone == "" || len(input.Zone) > 256 || len(input.Automations) == 0 {
+	if nilInterface(input.Resolver) || input.Zone == "" || len(input.Zone) > 256 || len(input.Automations)+len(input.Scripts) == 0 {
 		return Plan{}, ErrInvalidPlan
 	}
 	location, err := time.LoadLocation(input.Zone)
 	if err != nil {
 		return Plan{}, ErrInvalidPlan
 	}
-	plan := Plan{valid: true, zone: input.Zone, location: location, sun: input.SunSource, position: input.SolarPosition,
+	plan := Plan{waits: make(map[waitSource]waitDefinition), valid: true, zone: input.Zone, location: location, sun: input.SunSource, position: input.SolarPosition,
 		charge: 512 + 2*len(input.Zone)}
 	totalCount := 0
 	for _, automation := range input.Automations {
@@ -178,6 +200,30 @@ func NewPlan(input PlanInput) (Plan, error) {
 		}
 		totalCount += count
 		plan.charge += charge
+	}
+	waitCount := 0
+	chargeWaits := func(count, charge int) error {
+		if count > MaxTriggers-waitCount || charge > MaxEngineCharge-sequencer.MaxViewQueueBytes-runtimeFixedCharge-512-256-plan.charge {
+			return ErrCapacity
+		}
+		waitCount += count
+		plan.charge += charge
+		return nil
+	}
+	for _, automation := range input.Automations {
+		count, charge := automation.WaitPlanBytes()
+		if err := chargeWaits(count, charge); err != nil {
+			return Plan{}, err
+		}
+	}
+	for _, script := range input.Scripts {
+		if !script.Valid() {
+			return Plan{}, ErrInvalidPlan
+		}
+		count, charge := script.WaitPlanBytes()
+		if err := chargeWaits(count, charge); err != nil {
+			return Plan{}, err
+		}
 	}
 	plan.rules = make([]rule, 0, totalCount)
 	seen := make(map[string]bool)
@@ -192,56 +238,64 @@ func NewPlan(input PlanInput) (Plan, error) {
 				return Plan{}, ErrInvalidPlan
 			}
 			seen[automation.ID()+"\x00"+trigger.Key()] = true
-			r := rule{automation: automation.ID(), trigger: trigger}
-			switch trigger.Kind() {
-			case ir.TriggerState, ir.TriggerNumericState:
-				r.entity, err = input.Resolver.ResolveEntity(trigger.EntityAlias())
-				if err != nil {
-					return Plan{}, ErrInvalidPlan
-				}
-				if _, err = r.entity.Value(); err != nil {
-					return Plan{}, ErrInvalidPlan
-				}
-			case ir.TriggerCalendar:
-				r.calendar, err = input.Resolver.ResolveCalendar(trigger.EntityAlias())
-				if err != nil || !r.calendar.Valid() {
-					return Plan{}, ErrInvalidPlan
-				}
-			case ir.TriggerDeviceMQTT:
-				needsMQTT = true
-				r.device, err = input.Resolver.ResolveDevice(trigger.DeviceRef())
-				if err != nil {
-					return Plan{}, ErrInvalidPlan
-				}
-				if _, err = r.device.Value(); err != nil {
-					return Plan{}, ErrInvalidPlan
-				}
-			case ir.TriggerMQTT:
-				needsMQTT = true
+			r, mqttRequired, err := resolveRule(input, automation.ID(), trigger)
+			if err != nil {
+				return Plan{}, err
+			}
+			needsMQTT = needsMQTT || mqttRequired
+			if trigger.Kind() == ir.TriggerMQTT {
 				mqttSeen[trigger.Topic()] = true
-			case ir.TriggerSunset:
-				if nilInterface(input.SunSource) {
-					return Plan{}, ErrInvalidPlan
-				}
-				if _, _, err = input.SolarPosition.Components(); err != nil {
-					return Plan{}, ErrInvalidPlan
-				}
-			case ir.TriggerTime, ir.TriggerTimePattern, ir.TriggerEvent:
-				if trigger.Kind() == ir.TriggerEvent {
-					data := trigger.Data()
-					_, devicePresent := data.DeviceRef().Value()
-					_, commandPresent := data.Command()
-					_, clusterPresent := data.ClusterID()
-					_, endpointPresent := data.EndpointID()
-					_, argsPresent := data.Args()
-					if devicePresent == nil || commandPresent || clusterPresent || endpointPresent || argsPresent {
-						return Plan{}, ErrInvalidPlan
-					}
-				}
-			default:
-				return Plan{}, ErrInvalidPlan
 			}
 			plan.rules = append(plan.rules, r)
+		}
+	}
+	addWaits := func(definitions []ir.WaitDefinition) error {
+		for _, definition := range definitions {
+			source := definition.Source()
+			key := waitSource{source.Object(), source.Path()}
+			if key.object == "" || key.path == "" {
+				return ErrInvalidPlan
+			}
+			if _, duplicate := plan.waits[key]; duplicate {
+				return ErrInvalidPlan
+			}
+			selected := waitDefinition{source: source}
+			seen := make(map[string]bool)
+			for _, trigger := range definition.Triggers() {
+				if trigger.Key() == "" || seen[trigger.Key()] {
+					return ErrInvalidPlan
+				}
+				seen[trigger.Key()] = true
+				r, required, err := resolveRule(input, "", trigger)
+				if err != nil {
+					return err
+				}
+				needsMQTT = needsMQTT || required
+				if trigger.Kind() == ir.TriggerMQTT {
+					mqttSeen[trigger.Topic()] = true
+				}
+				selected.rules = append(selected.rules, r)
+			}
+			if len(selected.rules) == 0 {
+				return ErrInvalidPlan
+			}
+			plan.waits[key] = selected
+		}
+		return nil
+	}
+	for _, automation := range input.Automations {
+		if err := addWaits(automation.Waits()); err != nil {
+			return Plan{}, err
+		}
+	}
+	for _, script := range input.Scripts {
+		if err := addWaits(script.Waits()); err != nil {
+			return Plan{}, err
+		}
+	}
+	for _, definition := range plan.waits {
+		if len(definition.rules) > MaxTriggers-len(plan.rules) {
+			return Plan{}, ErrCapacity
 		}
 	}
 	if needsMQTT {
@@ -272,5 +326,69 @@ func NewPlan(input PlanInput) (Plan, error) {
 			return left < right
 		})
 	}
+	if len(plan.waits) != 0 && needsMQTT && !input.MQTTIngress.Covers(plan.mqttInstance, plan.mqttFilters) {
+		return Plan{}, ErrInvalidPlan
+	}
+	if needsMQTT && input.MQTTIngress.Covers(plan.mqttInstance, plan.mqttFilters) {
+		plan.mqttIngress = input.MQTTIngress
+	}
+
 	return plan, nil
+}
+
+// resolveRule is shared by permanent automations and all transient script
+// waits. Every admitted TriggerKind takes the same resolution and operational
+// refusal path before the runtime can register it.
+func resolveRule(input PlanInput, automation string, trigger ir.Trigger) (rule, bool, error) {
+	r := rule{automation: automation, trigger: trigger}
+	needsMQTT := false
+	var err error
+	switch trigger.Kind() {
+	case ir.TriggerState, ir.TriggerNumericState:
+		r.entity, err = input.Resolver.ResolveEntity(trigger.EntityAlias())
+		if err != nil {
+			return rule{}, false, ErrInvalidPlan
+		}
+		if _, err = r.entity.Value(); err != nil {
+			return rule{}, false, ErrInvalidPlan
+		}
+	case ir.TriggerCalendar:
+		r.calendar, err = input.Resolver.ResolveCalendar(trigger.EntityAlias())
+		if err != nil || !r.calendar.Valid() {
+			return rule{}, false, ErrInvalidPlan
+		}
+	case ir.TriggerDeviceMQTT:
+		needsMQTT = true
+		r.device, err = input.Resolver.ResolveDevice(trigger.DeviceRef())
+		if err != nil {
+			return rule{}, false, ErrInvalidPlan
+		}
+		if _, err = r.device.Value(); err != nil {
+			return rule{}, false, ErrInvalidPlan
+		}
+	case ir.TriggerMQTT:
+		needsMQTT = true
+	case ir.TriggerSunset:
+		if nilInterface(input.SunSource) {
+			return rule{}, false, ErrInvalidPlan
+		}
+		if _, _, err = input.SolarPosition.Components(); err != nil {
+			return rule{}, false, ErrInvalidPlan
+		}
+	case ir.TriggerTime, ir.TriggerTimePattern, ir.TriggerEvent:
+		if trigger.Kind() == ir.TriggerEvent {
+			data := trigger.Data()
+			_, devicePresent := data.DeviceRef().Value()
+			_, commandPresent := data.Command()
+			_, clusterPresent := data.ClusterID()
+			_, endpointPresent := data.EndpointID()
+			_, argsPresent := data.Args()
+			if devicePresent == nil || commandPresent || clusterPresent || endpointPresent || argsPresent {
+				return rule{}, false, ErrInvalidPlan
+			}
+		}
+	default:
+		return rule{}, false, ErrInvalidPlan
+	}
+	return r, needsMQTT, nil
 }

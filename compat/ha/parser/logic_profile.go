@@ -38,6 +38,18 @@ func logicRule() *rule {
 	logicActions.fields["wait_for_trigger"] = sequence(trigger)
 	logicActions.fields["if"] = sequence(condition)
 	logicActions.fields["choose"].item.fields["conditions"] = sequence(condition)
+	// Scripts share the admitted action tree, never the automation trigger
+	// requirement. These additions do not change the historical core profile.
+	logicActions.fields["delay"] = &rule{alternatives: []*rule{scalar(), mapping(map[string]*rule{
+		"milliseconds": scalar(), "seconds": scalar(), "minutes": scalar(),
+	})}}
+	logicActions.fields["wait_template"] = scalar()
+	script := mapping(map[string]*rule{
+		"alias": scalar(), "description": scalar(), "mode": scalar(), "max": scalar(), "max_exceeded": scalar(),
+		"variables": {kind: KindMapping, dynamic: &rule{open: true}}, "sequence": sequence(logicActions),
+	})
+	body.fields["sequence"] = sequence(logicActions)
+	body.fields["script"] = &rule{kind: KindMapping, dynamic: script}
 	// A source in scope/logic_mvp_sources is a single automation mapping. The
 	// wrapped automation list is also admitted for include-based bundles.
 	body.fields["automation"] = sequence(bodyWithoutAutomation(body))
