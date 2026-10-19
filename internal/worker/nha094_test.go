@@ -65,6 +65,9 @@ func waitMarker(t *testing.T, marker, text string, timeout time.Duration, onWait
 		if err == nil && strings.Contains(string(bytes), text) {
 			return string(bytes)
 		}
+		if err == nil && strings.Contains(string(bytes), "command_stream_error:") {
+			t.Fatalf("worker marker %q absent after command stream admission failed: %s", text, bytes)
+		}
 		if time.Now().After(deadline) {
 			t.Fatalf("worker marker %q absent: %s (%v)", text, bytes, err)
 		}
@@ -200,8 +203,9 @@ func startWorkerRigWithGate(t *testing.T, mode string, capture bool, commandGate
 	switch mode {
 	case "normal", "new", "new_hold", "crash", "fail", "hold", "many_hold", "stubborn", "orphan_child",
 		"small_frame", "large_frame", "secret":
-		// The rejected probe proves that the first Commands RPC reached the
-		// server: an idle stream cannot provide response headers as a barrier.
+		// The shared client waits for this first RPC's admission headers, then
+		// independently requires ALREADY_EXISTS from the second-stream probe.
+		// A failure marker preserves its phase/status before this bounded wait.
 		waitMarker(t, marker, "second_stream_rejected", 5*time.Second, onWaiting)
 	case "incompatible", "incompatible_host_major", "incompatible_host_minor", "incompatible_driver_major",
 		"incompatible_digest", "incompatible_version_pair", "incompatible_new_digest",

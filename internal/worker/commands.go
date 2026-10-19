@@ -173,6 +173,11 @@ func (p *pilot) Commands(ctx context.Context, r *connect.Request[wire.CommandsRe
 			p.transportOnce.Do(func() { close(p.transportLost) })
 		}
 	}()
+	// Flush admission headers without a CommandsResponse. Ownership and its
+	// cleanup are established above, and no network I/O occurs under p.mu.
+	if err := stream.Send(nil); err != nil {
+		return err
+	}
 	for {
 		select {
 		case <-ctx.Done():
