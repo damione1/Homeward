@@ -19,6 +19,7 @@ const MaxGrants = 39
 const MaxEntities = 4096
 const MaxSlots = 64
 const MaxDashboards = 1024
+const MaxLists = 4096
 const MaxDepth = 16
 const MaxAuthorityBytes = 32 << 20
 
@@ -42,6 +43,7 @@ type grant struct {
 	allSlots   slots
 	entities   map[domain.EntityID]slots
 	dashboards map[DashboardID]struct{}
+	lists      map[domain.ListID]struct{}
 }
 
 type Policy struct {
@@ -152,6 +154,30 @@ func (g grant) permits(account contracts.AccountID, object Object) bool {
 		default:
 			return false
 		}
+	case objectList:
+		if object.collection {
+			if _, err := object.list.Value(); err == nil {
+				return false
+			}
+			if g.permission.operation == authv1.ScopeOperation_SCOPE_OPERATION_WRITE {
+				return g.kind == selectionAll
+			}
+			return g.kind == selectionAll || g.kind == selectionExplicit && len(g.lists) != 0
+		}
+		if _, err := object.list.Value(); err != nil {
+			return false
+		}
+		switch g.kind {
+		case selectionAll:
+			return true
+		case selectionExplicit:
+			_, allowed := g.lists[object.list]
+			return allowed
+		case selectionOwn, selectionInvalid:
+			return false
+		default:
+			return false
+		}
 	case objectAccounts, objectIntegrations, objectGlobalConfiguration, objectInvalid:
 		return false
 	default:
@@ -173,10 +199,14 @@ func configurable(permission Permission) objectKind {
 		if permission.operation == authv1.ScopeOperation_SCOPE_OPERATION_READ || permission.operation == authv1.ScopeOperation_SCOPE_OPERATION_WRITE || permission.operation == authv1.ScopeOperation_SCOPE_OPERATION_ADMINISTER {
 			return objectDashboard
 		}
+	case authv1.ScopeFamily_SCOPE_FAMILY_LISTS:
+		if permission.operation == authv1.ScopeOperation_SCOPE_OPERATION_READ || permission.operation == authv1.ScopeOperation_SCOPE_OPERATION_WRITE {
+			return objectList
+		}
 	case authv1.ScopeFamily_SCOPE_FAMILY_UNSPECIFIED,
 		authv1.ScopeFamily_SCOPE_FAMILY_HISTORY, authv1.ScopeFamily_SCOPE_FAMILY_MEDIA,
 		authv1.ScopeFamily_SCOPE_FAMILY_LOCATION, authv1.ScopeFamily_SCOPE_FAMILY_CALENDARS,
-		authv1.ScopeFamily_SCOPE_FAMILY_LISTS, authv1.ScopeFamily_SCOPE_FAMILY_LOGIC,
+		authv1.ScopeFamily_SCOPE_FAMILY_LOGIC,
 		authv1.ScopeFamily_SCOPE_FAMILY_INTEGRATIONS, authv1.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION,
 		authv1.ScopeFamily_SCOPE_FAMILY_ACCOUNTS, authv1.ScopeFamily_SCOPE_FAMILY_BACKUPS:
 		return objectInvalid
@@ -251,6 +281,24 @@ func semanticHash(policy Policy) [sha256.Size]byte {
 		sort.Slice(dashboards, func(i, j int) bool { return dashboards[i].dashboard < dashboards[j].dashboard })
 		for _, id := range dashboards {
 			write(id.dashboard)
+		}
+		// The old /1 semantic encoding is byte-for-byte unchanged for all
+		// pre-LISTS grants. Only the new object variant appends a collection.
+		if value.object == objectList {
+			write(strconv.Itoa(len(value.lists)))
+			lists := make([]domain.ListID, 0, len(value.lists))
+			for id := range value.lists {
+				lists = append(lists, id)
+			}
+			sort.Slice(lists, func(i, j int) bool {
+				left, _ := lists[i].Value()
+				right, _ := lists[j].Value()
+				return left < right
+			})
+			for _, id := range lists {
+				text, _ := id.Value()
+				write(text)
+			}
 		}
 		// Delimit each collection and grant independently of caller ordering.
 		write("end-grant")
