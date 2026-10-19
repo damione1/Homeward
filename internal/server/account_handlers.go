@@ -10,6 +10,7 @@ import (
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/accounts"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -23,12 +24,47 @@ func (h *accountHandler) accountMutationGuard(ctx context.Context, target contra
 	if h == nil || h.coordinator == nil {
 		return nil, storage.ErrSessionUnavailable
 	}
-	return h.coordinator.enter(ctx, target)
+	guard, err := h.coordinator.enter(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	guard.mutation, err = h.coordinator.authority.BeginMutation(target)
+	if err != nil {
+		guard.release()
+		return nil, err
+	}
+	return guard, nil
 }
 
-func finishAccountMutation(guard *sessionGuard, ctx context.Context, err error, revoking bool) {
+func (h *accountHandler) accountCreationGuard(ctx context.Context, target contracts.AccountID) (*sessionGuard, error) {
+	if h == nil || h.coordinator == nil {
+		return nil, storage.ErrSessionUnavailable
+	}
+	// Reconcile unpublished creation IDs before taking this new account's gate.
+	// A database outage cannot accumulate a fresh unknown ID on every retry.
+	if err := h.coordinator.reconcilePendingCreations(ctx); err != nil {
+		return nil, err
+	}
+	guard, err := h.accountMutationGuard(ctx, target)
+	if err == nil {
+		guard.creating = true
+	}
+	return guard, err
+}
+
+func finishAccountMutation(guard *sessionGuard, ctx context.Context, err error, revoking bool) error {
 	if guard == nil {
-		return
+		return err
+	}
+	if err == nil {
+		if publishErr := guard.refreshAuthorization(ctx); publishErr != nil {
+			// The transaction committed but the current memory projection could
+			// not be established. Close admissions until PG reconciliation.
+			guard.quarantine()
+			guard.cancelLeases(ctx, nil)
+			guard.release()
+			return storage.ErrAccountUnavailable
+		}
 	}
 	if errors.Is(err, storage.ErrAccountCommitUnknown) {
 		guard.quarantine()
@@ -37,6 +73,23 @@ func finishAccountMutation(guard *sessionGuard, ctx context.Context, err error, 
 		guard.cancelLeases(ctx, nil)
 	}
 	guard.release()
+	return err
+}
+
+// The initial source is the same admitted empty policy that storage seeds in
+// the account's transaction. Reserve it before any account INSERT can commit.
+func reserveAccountSeed(guard *sessionGuard) error {
+	if guard == nil || guard.mutation == nil {
+		return authorization.ErrInvalid
+	}
+	source, err := authorization.EmptySource(guard.gate.account)
+	if err == nil {
+		err = guard.mutation.ReservePolicy(source)
+	}
+	if err != nil {
+		guard.release()
+	}
+	return err
 }
 
 var _ authv1connect.AccountServiceHandler = (*accountHandler)(nil)
@@ -153,6 +206,8 @@ func accountRPCError(err error) error {
 		return connect.NewError(connect.CodeDeadlineExceeded, errors.New("request deadline exceeded"))
 	case errors.Is(err, accounts.ErrKDFBusy):
 		return connect.NewError(connect.CodeResourceExhausted, errors.New("password derivation busy"))
+	case errors.Is(err, authorization.ErrCapacity):
+		return connect.NewError(connect.CodeResourceExhausted, errors.New("authorization capacity exhausted"))
 	case errors.Is(err, storage.ErrAccountListTooLarge):
 		return connect.NewError(connect.CodeResourceExhausted, errors.New("account listing exceeds response limit"))
 	case errors.Is(err, accounts.ErrInvalidLogin), errors.Is(err, accounts.ErrInvalidDisplayName),
@@ -242,7 +297,15 @@ func (h *accountHandler) BootstrapAdmin(ctx context.Context, request *connect.Re
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
+	guard, err := h.accountCreationGuard(ctx, input.ID)
+	if err != nil {
+		return nil, accountRPCError(err)
+	}
+	if err := reserveAccountSeed(guard); err != nil {
+		return nil, accountRPCError(err)
+	}
 	record, err := h.store.BootstrapAdmin(ctx, input)
+	err = finishAccountMutation(guard, ctx, err, false)
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
@@ -270,7 +333,7 @@ func (h *accountHandler) RecoverAccount(ctx context.Context, request *connect.Re
 		return nil, accountRPCError(err)
 	}
 	record, err := h.store.RecoverAccount(ctx, id, verifier)
-	finishAccountMutation(guard, ctx, err, true)
+	err = finishAccountMutation(guard, ctx, err, true)
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
@@ -293,7 +356,15 @@ func (h *accountHandler) CreateAccount(ctx context.Context, request *connect.Req
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
+	guard, err := h.accountCreationGuard(ctx, input.ID)
+	if err != nil {
+		return nil, accountRPCError(err)
+	}
+	if err := reserveAccountSeed(guard); err != nil {
+		return nil, accountRPCError(err)
+	}
 	record, err := h.store.CreateAccount(ctx, actor, input)
+	err = finishAccountMutation(guard, ctx, err, false)
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
@@ -402,7 +473,7 @@ func (h *accountHandler) UpdateAccount(ctx context.Context, request *connect.Req
 			return nil, accountRPCError(err)
 		}
 	}
-	finishAccountMutation(guard, ctx, err, rightsChanged)
+	err = finishAccountMutation(guard, ctx, err, rightsChanged)
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
@@ -430,7 +501,7 @@ func (h *accountHandler) DeleteAccount(ctx context.Context, request *connect.Req
 		return nil, accountRPCError(err)
 	}
 	err = h.store.DeleteAccount(ctx, actor, target)
-	finishAccountMutation(guard, ctx, err, true)
+	err = finishAccountMutation(guard, ctx, err, true)
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
@@ -507,7 +578,15 @@ func (h *accountHandler) AcceptInvitation(ctx context.Context, request *connect.
 	if err != nil {
 		return nil, accountRPCError(err)
 	}
+	guard, err := h.accountCreationGuard(ctx, id)
+	if err != nil {
+		return nil, accountRPCError(err)
+	}
+	if err := reserveAccountSeed(guard); err != nil {
+		return nil, accountRPCError(err)
+	}
 	record, err := h.store.AcceptInvitation(ctx, digest, id, display, verifier)
+	err = finishAccountMutation(guard, ctx, err, false)
 	if err != nil {
 		return nil, accountRPCError(err)
 	}

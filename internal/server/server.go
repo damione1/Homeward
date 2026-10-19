@@ -42,6 +42,7 @@ type RuntimePlan struct {
 	Pilots                      []integrations.PilotSpec
 	Configure                   func(context.Context, *integrations.Manager, *storage.Store) error
 	ConfigureCloudAuthorization func(context.Context, CloudAuthorizationComposition) error
+	ConfigureAuthorization      func(context.Context, AuthorizationComposition) error
 	ReactiveTemplates           *ReactiveTemplateComposition
 	Public                      *PublicPlan
 }
@@ -163,6 +164,15 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		store.Close()
 		return err
 	}
+	var sessionClockSource sessionClock = realSessionClock{}
+	if plan.Public != nil && plan.Public.sessionClock != nil {
+		sessionClockSource = plan.Public.sessionClock
+	}
+	sessions, err := prepareLocalAuthorization(ctx, store, sessionClockSource)
+	if err != nil {
+		store.Close()
+		return err
+	}
 	host, err := integrations.NewHost(plan.Identity, sequence, catalog)
 	if err != nil {
 		store.Close()
@@ -172,12 +182,25 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		store.Close()
 		return err
 	}
+	if err := host.AttachAuthorization(sessions.authority); err != nil {
+		store.Close()
+		return err
+	}
 	authorization, err := newCloudAuthorizationCoordinator(ctx, host, integrations.DefaultCloudAuthorizationLimits())
 	if err != nil {
 		return closePreparedRuntime(host, nil, store, err, nil)
 	}
 	if plan.Configure != nil {
 		if err := plan.Configure(ctx, host, store); err != nil {
+			return closePreparedRuntime(host, authorization, store, err, nil)
+		}
+	}
+	if plan.ConfigureAuthorization != nil {
+		composition, err := authorizationComposition(ctx, sessions, sequence, plan.Identity)
+		if err != nil {
+			return closePreparedRuntime(host, authorization, store, err, nil)
+		}
+		if err := plan.ConfigureAuthorization(ctx, composition); err != nil {
 			return closePreparedRuntime(host, authorization, store, err, nil)
 		}
 	}
@@ -206,8 +229,7 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	if err := ctx.Err(); err != nil {
 		return closePreparedRuntime(host, authorization, store, err, reactive)
 	}
-	var sessions *sessionCoordinator
-	plan.Public, sessions, err = composeLocalSessions(plan.Public, store)
+	plan.Public, sessions, err = composeSessionsWithCoordinator(plan.Public, store, sessions)
 	if err != nil {
 		return closePreparedRuntime(host, authorization, store, err, reactive)
 	}

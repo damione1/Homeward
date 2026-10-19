@@ -10,6 +10,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -726,6 +727,171 @@ func (x AuthField) Number() protoreflect.EnumNumber {
 // Deprecated: Use AuthField.Descriptor instead.
 func (AuthField) EnumDescriptor() ([]byte, []int) {
 	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{11}
+}
+
+type PolicyRightsChange int32
+
+const (
+	PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNSPECIFIED PolicyRightsChange = 0
+	PolicyRightsChange_POLICY_RIGHTS_CHANGE_CHANGED     PolicyRightsChange = 1
+	PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNCHANGED   PolicyRightsChange = 2
+)
+
+// Enum value maps for PolicyRightsChange.
+var (
+	PolicyRightsChange_name = map[int32]string{
+		0: "POLICY_RIGHTS_CHANGE_UNSPECIFIED",
+		1: "POLICY_RIGHTS_CHANGE_CHANGED",
+		2: "POLICY_RIGHTS_CHANGE_UNCHANGED",
+	}
+	PolicyRightsChange_value = map[string]int32{
+		"POLICY_RIGHTS_CHANGE_UNSPECIFIED": 0,
+		"POLICY_RIGHTS_CHANGE_CHANGED":     1,
+		"POLICY_RIGHTS_CHANGE_UNCHANGED":   2,
+	}
+)
+
+func (x PolicyRightsChange) Enum() *PolicyRightsChange {
+	p := new(PolicyRightsChange)
+	*p = x
+	return p
+}
+
+func (x PolicyRightsChange) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PolicyRightsChange) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_auth_v1_auth_proto_enumTypes[12].Descriptor()
+}
+
+func (PolicyRightsChange) Type() protoreflect.EnumType {
+	return &file_home_auth_v1_auth_proto_enumTypes[12]
+}
+
+func (x PolicyRightsChange) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PolicyRightsChange.Descriptor instead.
+func (PolicyRightsChange) EnumDescriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{12}
+}
+
+type AuthorizationPolicyErrorCode int32
+
+const (
+	AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED           AuthorizationPolicyErrorCode = 0
+	AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT      AuthorizationPolicyErrorCode = 1
+	AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE        AuthorizationPolicyErrorCode = 2
+	AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION       AuthorizationPolicyErrorCode = 3
+	AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED          AuthorizationPolicyErrorCode = 4
+	AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE AuthorizationPolicyErrorCode = 5
+)
+
+// Enum value maps for AuthorizationPolicyErrorCode.
+var (
+	AuthorizationPolicyErrorCode_name = map[int32]string{
+		0: "AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED",
+		1: "AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT",
+		2: "AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE",
+		3: "AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION",
+		4: "AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED",
+		5: "AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE",
+	}
+	AuthorizationPolicyErrorCode_value = map[string]int32{
+		"AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED":           0,
+		"AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT":      1,
+		"AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE":        2,
+		"AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION":       3,
+		"AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED":          4,
+		"AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE": 5,
+	}
+)
+
+func (x AuthorizationPolicyErrorCode) Enum() *AuthorizationPolicyErrorCode {
+	p := new(AuthorizationPolicyErrorCode)
+	*p = x
+	return p
+}
+
+func (x AuthorizationPolicyErrorCode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AuthorizationPolicyErrorCode) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_auth_v1_auth_proto_enumTypes[13].Descriptor()
+}
+
+func (AuthorizationPolicyErrorCode) Type() protoreflect.EnumType {
+	return &file_home_auth_v1_auth_proto_enumTypes[13]
+}
+
+func (x AuthorizationPolicyErrorCode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AuthorizationPolicyErrorCode.Descriptor instead.
+func (AuthorizationPolicyErrorCode) EnumDescriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{13}
+}
+
+type AuthorizationTerminationReason int32
+
+const (
+	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED           AuthorizationTerminationReason = 0
+	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED    AuthorizationTerminationReason = 1
+	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED    AuthorizationTerminationReason = 2
+	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED      AuthorizationTerminationReason = 3
+	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED        AuthorizationTerminationReason = 4
+	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE AuthorizationTerminationReason = 5
+)
+
+// Enum value maps for AuthorizationTerminationReason.
+var (
+	AuthorizationTerminationReason_name = map[int32]string{
+		0: "AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED",
+		1: "AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED",
+		2: "AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED",
+		3: "AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED",
+		4: "AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED",
+		5: "AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE",
+	}
+	AuthorizationTerminationReason_value = map[string]int32{
+		"AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED":           0,
+		"AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED":    1,
+		"AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED":    2,
+		"AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED":      3,
+		"AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED":        4,
+		"AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE": 5,
+	}
+)
+
+func (x AuthorizationTerminationReason) Enum() *AuthorizationTerminationReason {
+	p := new(AuthorizationTerminationReason)
+	*p = x
+	return p
+}
+
+func (x AuthorizationTerminationReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AuthorizationTerminationReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_auth_v1_auth_proto_enumTypes[14].Descriptor()
+}
+
+func (AuthorizationTerminationReason) Type() protoreflect.EnumType {
+	return &file_home_auth_v1_auth_proto_enumTypes[14]
+}
+
+func (x AuthorizationTerminationReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AuthorizationTerminationReason.Descriptor instead.
+func (AuthorizationTerminationReason) EnumDescriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{14}
 }
 
 // IDs are open, opaque and different types. Admission rejects an absent or empty value.
@@ -5055,11 +5221,523 @@ func (*AuthError_InvalidField) isAuthError_Detail() {}
 
 func (*AuthError_RetryAt) isAuthError_Detail() {}
 
+type PolicyVersion struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Revision      uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`                            // Positive, at most the signed PostgreSQL bigint maximum.
+	SourceSha256  []byte                 `protobuf:"bytes,2,opt,name=source_sha256,json=sourceSha256,proto3" json:"source_sha256,omitempty"` // Exactly 32 bytes; hash of exact yaml_source bytes.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PolicyVersion) Reset() {
+	*x = PolicyVersion{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PolicyVersion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PolicyVersion) ProtoMessage() {}
+
+func (x *PolicyVersion) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PolicyVersion.ProtoReflect.Descriptor instead.
+func (*PolicyVersion) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *PolicyVersion) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *PolicyVersion) GetSourceSha256() []byte {
+	if x != nil {
+		return x.SourceSha256
+	}
+	return nil
+}
+
+type PolicySnapshot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     *AccountId             `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	YamlSource    []byte                 `protobuf:"bytes,2,opt,name=yaml_source,json=yamlSource,proto3" json:"yaml_source,omitempty"` // UTF-8, 1..1048576 bytes. Never an include or secret.
+	Schema        string                 `protobuf:"bytes,3,opt,name=schema,proto3" json:"schema,omitempty"`
+	SyntaxProfile string                 `protobuf:"bytes,4,opt,name=syntax_profile,json=syntaxProfile,proto3" json:"syntax_profile,omitempty"`
+	Version       *PolicyVersion         `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PolicySnapshot) Reset() {
+	*x = PolicySnapshot{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PolicySnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PolicySnapshot) ProtoMessage() {}
+
+func (x *PolicySnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PolicySnapshot.ProtoReflect.Descriptor instead.
+func (*PolicySnapshot) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *PolicySnapshot) GetAccountId() *AccountId {
+	if x != nil {
+		return x.AccountId
+	}
+	return nil
+}
+
+func (x *PolicySnapshot) GetYamlSource() []byte {
+	if x != nil {
+		return x.YamlSource
+	}
+	return nil
+}
+
+func (x *PolicySnapshot) GetSchema() string {
+	if x != nil {
+		return x.Schema
+	}
+	return ""
+}
+
+func (x *PolicySnapshot) GetSyntaxProfile() string {
+	if x != nil {
+		return x.SyntaxProfile
+	}
+	return ""
+}
+
+func (x *PolicySnapshot) GetVersion() *PolicyVersion {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
+func (x *PolicySnapshot) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type GetPolicyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     *AccountId             `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPolicyRequest) Reset() {
+	*x = GetPolicyRequest{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPolicyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPolicyRequest) ProtoMessage() {}
+
+func (x *GetPolicyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPolicyRequest.ProtoReflect.Descriptor instead.
+func (*GetPolicyRequest) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{81}
+}
+
+func (x *GetPolicyRequest) GetAccountId() *AccountId {
+	if x != nil {
+		return x.AccountId
+	}
+	return nil
+}
+
+type GetPolicyResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Result:
+	//
+	//	*GetPolicyResponse_Present
+	//	*GetPolicyResponse_Absent
+	Result        isGetPolicyResponse_Result `protobuf_oneof:"result"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPolicyResponse) Reset() {
+	*x = GetPolicyResponse{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPolicyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPolicyResponse) ProtoMessage() {}
+
+func (x *GetPolicyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPolicyResponse.ProtoReflect.Descriptor instead.
+func (*GetPolicyResponse) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *GetPolicyResponse) GetResult() isGetPolicyResponse_Result {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+func (x *GetPolicyResponse) GetPresent() *PolicySnapshot {
+	if x != nil {
+		if x, ok := x.Result.(*GetPolicyResponse_Present); ok {
+			return x.Present
+		}
+	}
+	return nil
+}
+
+func (x *GetPolicyResponse) GetAbsent() *emptypb.Empty {
+	if x != nil {
+		if x, ok := x.Result.(*GetPolicyResponse_Absent); ok {
+			return x.Absent
+		}
+	}
+	return nil
+}
+
+type isGetPolicyResponse_Result interface {
+	isGetPolicyResponse_Result()
+}
+
+type GetPolicyResponse_Present struct {
+	Present *PolicySnapshot `protobuf:"bytes,1,opt,name=present,proto3,oneof"`
+}
+
+type GetPolicyResponse_Absent struct {
+	Absent *emptypb.Empty `protobuf:"bytes,2,opt,name=absent,proto3,oneof"`
+}
+
+func (*GetPolicyResponse_Present) isGetPolicyResponse_Result() {}
+
+func (*GetPolicyResponse_Absent) isGetPolicyResponse_Result() {}
+
+type ReplacePolicyRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	AccountId  *AccountId             `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	YamlSource []byte                 `protobuf:"bytes,2,opt,name=yaml_source,json=yamlSource,proto3" json:"yaml_source,omitempty"`
+	// Absence of this oneof is invalid. A zero revision is never "not present".
+	//
+	// Types that are valid to be assigned to Precondition:
+	//
+	//	*ReplacePolicyRequest_Expected
+	//	*ReplacePolicyRequest_ExpectAbsent
+	Precondition  isReplacePolicyRequest_Precondition `protobuf_oneof:"precondition"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReplacePolicyRequest) Reset() {
+	*x = ReplacePolicyRequest{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReplacePolicyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReplacePolicyRequest) ProtoMessage() {}
+
+func (x *ReplacePolicyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReplacePolicyRequest.ProtoReflect.Descriptor instead.
+func (*ReplacePolicyRequest) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *ReplacePolicyRequest) GetAccountId() *AccountId {
+	if x != nil {
+		return x.AccountId
+	}
+	return nil
+}
+
+func (x *ReplacePolicyRequest) GetYamlSource() []byte {
+	if x != nil {
+		return x.YamlSource
+	}
+	return nil
+}
+
+func (x *ReplacePolicyRequest) GetPrecondition() isReplacePolicyRequest_Precondition {
+	if x != nil {
+		return x.Precondition
+	}
+	return nil
+}
+
+func (x *ReplacePolicyRequest) GetExpected() *PolicyVersion {
+	if x != nil {
+		if x, ok := x.Precondition.(*ReplacePolicyRequest_Expected); ok {
+			return x.Expected
+		}
+	}
+	return nil
+}
+
+func (x *ReplacePolicyRequest) GetExpectAbsent() *emptypb.Empty {
+	if x != nil {
+		if x, ok := x.Precondition.(*ReplacePolicyRequest_ExpectAbsent); ok {
+			return x.ExpectAbsent
+		}
+	}
+	return nil
+}
+
+type isReplacePolicyRequest_Precondition interface {
+	isReplacePolicyRequest_Precondition()
+}
+
+type ReplacePolicyRequest_Expected struct {
+	Expected *PolicyVersion `protobuf:"bytes,3,opt,name=expected,proto3,oneof"`
+}
+
+type ReplacePolicyRequest_ExpectAbsent struct {
+	ExpectAbsent *emptypb.Empty `protobuf:"bytes,4,opt,name=expect_absent,json=expectAbsent,proto3,oneof"`
+}
+
+func (*ReplacePolicyRequest_Expected) isReplacePolicyRequest_Precondition() {}
+
+func (*ReplacePolicyRequest_ExpectAbsent) isReplacePolicyRequest_Precondition() {}
+
+type ReplacePolicyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Policy        *PolicySnapshot        `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	RightsChange  PolicyRightsChange     `protobuf:"varint,2,opt,name=rights_change,json=rightsChange,proto3,enum=home.auth.v1.PolicyRightsChange" json:"rights_change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReplacePolicyResponse) Reset() {
+	*x = ReplacePolicyResponse{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReplacePolicyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReplacePolicyResponse) ProtoMessage() {}
+
+func (x *ReplacePolicyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReplacePolicyResponse.ProtoReflect.Descriptor instead.
+func (*ReplacePolicyResponse) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *ReplacePolicyResponse) GetPolicy() *PolicySnapshot {
+	if x != nil {
+		return x.Policy
+	}
+	return nil
+}
+
+func (x *ReplacePolicyResponse) GetRightsChange() PolicyRightsChange {
+	if x != nil {
+		return x.RightsChange
+	}
+	return PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNSPECIFIED
+}
+
+type AuthorizationPolicyError struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Code          AuthorizationPolicyErrorCode `protobuf:"varint,1,opt,name=code,proto3,enum=home.auth.v1.AuthorizationPolicyErrorCode" json:"code,omitempty"`
+	FieldPath     string                       `protobuf:"bytes,2,opt,name=field_path,json=fieldPath,proto3" json:"field_path,omitempty"` // Bounded schema path; never rejected source or object ID.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthorizationPolicyError) Reset() {
+	*x = AuthorizationPolicyError{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthorizationPolicyError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthorizationPolicyError) ProtoMessage() {}
+
+func (x *AuthorizationPolicyError) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthorizationPolicyError.ProtoReflect.Descriptor instead.
+func (*AuthorizationPolicyError) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *AuthorizationPolicyError) GetCode() AuthorizationPolicyErrorCode {
+	if x != nil {
+		return x.Code
+	}
+	return AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED
+}
+
+func (x *AuthorizationPolicyError) GetFieldPath() string {
+	if x != nil {
+		return x.FieldPath
+	}
+	return ""
+}
+
+// Presence of this error detail always requires discarding the cached view.
+// A reconnect must authenticate and open a new snapshot; no removed IDs leak.
+type AuthorizationTermination struct {
+	state         protoimpl.MessageState         `protogen:"open.v1"`
+	Reason        AuthorizationTerminationReason `protobuf:"varint,1,opt,name=reason,proto3,enum=home.auth.v1.AuthorizationTerminationReason" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthorizationTermination) Reset() {
+	*x = AuthorizationTermination{}
+	mi := &file_home_auth_v1_auth_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthorizationTermination) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthorizationTermination) ProtoMessage() {}
+
+func (x *AuthorizationTermination) ProtoReflect() protoreflect.Message {
+	mi := &file_home_auth_v1_auth_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthorizationTermination.ProtoReflect.Descriptor instead.
+func (*AuthorizationTermination) Descriptor() ([]byte, []int) {
+	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *AuthorizationTermination) GetReason() AuthorizationTerminationReason {
+	if x != nil {
+		return x.Reason
+	}
+	return AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED
+}
+
 var File_home_auth_v1_auth_proto protoreflect.FileDescriptor
 
 const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\n" +
-	"\x17home/auth/v1/auth.proto\x12\fhome.auth.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"!\n" +
+	"\x17home/auth/v1/auth.proto\x12\fhome.auth.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"!\n" +
 	"\tAccountId\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\"!\n" +
 	"\tSessionId\x12\x14\n" +
@@ -5366,7 +6044,44 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\aexpired\x18\x05 \x01(\x0e2\x1d.home.auth.v1.ExpiredResourceH\x00R\aexpired\x12>\n" +
 	"\rinvalid_field\x18\x06 \x01(\x0e2\x17.home.auth.v1.AuthFieldH\x00R\finvalidField\x127\n" +
 	"\bretry_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampH\x00R\aretryAtB\b\n" +
-	"\x06detail*Z\n" +
+	"\x06detail\"P\n" +
+	"\rPolicyVersion\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\x04R\brevision\x12#\n" +
+	"\rsource_sha256\x18\x02 \x01(\fR\fsourceSha256\"\x9a\x02\n" +
+	"\x0ePolicySnapshot\x126\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\v2\x17.home.auth.v1.AccountIdR\taccountId\x12\x1f\n" +
+	"\vyaml_source\x18\x02 \x01(\fR\n" +
+	"yamlSource\x12\x16\n" +
+	"\x06schema\x18\x03 \x01(\tR\x06schema\x12%\n" +
+	"\x0esyntax_profile\x18\x04 \x01(\tR\rsyntaxProfile\x125\n" +
+	"\aversion\x18\x05 \x01(\v2\x1b.home.auth.v1.PolicyVersionR\aversion\x129\n" +
+	"\n" +
+	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"J\n" +
+	"\x10GetPolicyRequest\x126\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\v2\x17.home.auth.v1.AccountIdR\taccountId\"\x89\x01\n" +
+	"\x11GetPolicyResponse\x128\n" +
+	"\apresent\x18\x01 \x01(\v2\x1c.home.auth.v1.PolicySnapshotH\x00R\apresent\x120\n" +
+	"\x06absent\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x06absentB\b\n" +
+	"\x06result\"\xf9\x01\n" +
+	"\x14ReplacePolicyRequest\x126\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\v2\x17.home.auth.v1.AccountIdR\taccountId\x12\x1f\n" +
+	"\vyaml_source\x18\x02 \x01(\fR\n" +
+	"yamlSource\x129\n" +
+	"\bexpected\x18\x03 \x01(\v2\x1b.home.auth.v1.PolicyVersionH\x00R\bexpected\x12=\n" +
+	"\rexpect_absent\x18\x04 \x01(\v2\x16.google.protobuf.EmptyH\x00R\fexpectAbsentB\x0e\n" +
+	"\fprecondition\"\x94\x01\n" +
+	"\x15ReplacePolicyResponse\x124\n" +
+	"\x06policy\x18\x01 \x01(\v2\x1c.home.auth.v1.PolicySnapshotR\x06policy\x12E\n" +
+	"\rrights_change\x18\x02 \x01(\x0e2 .home.auth.v1.PolicyRightsChangeR\frightsChange\"y\n" +
+	"\x18AuthorizationPolicyError\x12>\n" +
+	"\x04code\x18\x01 \x01(\x0e2*.home.auth.v1.AuthorizationPolicyErrorCodeR\x04code\x12\x1d\n" +
+	"\n" +
+	"field_path\x18\x02 \x01(\tR\tfieldPath\"`\n" +
+	"\x18AuthorizationTermination\x12D\n" +
+	"\x06reason\x18\x01 \x01(\x0e2,.home.auth.v1.AuthorizationTerminationReasonR\x06reason*Z\n" +
 	"\vAccountRole\x12\x1c\n" +
 	"\x18ACCOUNT_ROLE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12ACCOUNT_ROLE_ADMIN\x10\x01\x12\x15\n" +
@@ -5454,7 +6169,25 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\x16AUTH_FIELD_CLIENT_NAME\x10\r\x12\x15\n" +
 	"\x11AUTH_FIELD_SCOPES\x10\x0e\x12\x17\n" +
 	"\x13AUTH_FIELD_LIFETIME\x10\x0f\x12\x19\n" +
-	"\x15AUTH_FIELD_MCP_KEY_ID\x10\x102\xd2\x01\n" +
+	"\x15AUTH_FIELD_MCP_KEY_ID\x10\x10*\x80\x01\n" +
+	"\x12PolicyRightsChange\x12$\n" +
+	" POLICY_RIGHTS_CHANGE_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x1cPOLICY_RIGHTS_CHANGE_CHANGED\x10\x01\x12\"\n" +
+	"\x1ePOLICY_RIGHTS_CHANGE_UNCHANGED\x10\x02*\xdb\x02\n" +
+	"\x1cAuthorizationPolicyErrorCode\x12/\n" +
+	"+AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED\x10\x00\x124\n" +
+	"0AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT\x10\x01\x122\n" +
+	".AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE\x10\x02\x123\n" +
+	"/AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION\x10\x03\x120\n" +
+	",AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED\x10\x04\x129\n" +
+	"5AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE\x10\x05*\xec\x02\n" +
+	"\x1eAuthorizationTerminationReason\x120\n" +
+	",AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED\x10\x00\x127\n" +
+	"3AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED\x10\x01\x127\n" +
+	"3AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED\x10\x02\x125\n" +
+	"1AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED\x10\x03\x123\n" +
+	"/AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED\x10\x04\x12:\n" +
+	"6AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE\x10\x052\xd2\x01\n" +
 	"\x16OperatorAccountService\x12[\n" +
 	"\x0eBootstrapAdmin\x12#.home.auth.v1.BootstrapAdminRequest\x1a$.home.auth.v1.BootstrapAdminResponse\x12[\n" +
 	"\x0eRecoverAccount\x12#.home.auth.v1.RecoverAccountRequest\x1a$.home.auth.v1.RecoverAccountResponse2\xb3\b\n" +
@@ -5486,7 +6219,10 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\rMcpKeyService\x12U\n" +
 	"\fCreateMcpKey\x12!.home.auth.v1.CreateMcpKeyRequest\x1a\".home.auth.v1.CreateMcpKeyResponse\x12R\n" +
 	"\vListMcpKeys\x12 .home.auth.v1.ListMcpKeysRequest\x1a!.home.auth.v1.ListMcpKeysResponse\x12U\n" +
-	"\fRevokeMcpKey\x12!.home.auth.v1.RevokeMcpKeyRequest\x1a\".home.auth.v1.RevokeMcpKeyResponseB6Z4github.com/damione1/Homeward/gen/home/auth/v1;authv1b\x06proto3"
+	"\fRevokeMcpKey\x12!.home.auth.v1.RevokeMcpKeyRequest\x1a\".home.auth.v1.RevokeMcpKeyResponse2\xc4\x01\n" +
+	"\x1aAuthorizationPolicyService\x12L\n" +
+	"\tGetPolicy\x12\x1e.home.auth.v1.GetPolicyRequest\x1a\x1f.home.auth.v1.GetPolicyResponse\x12X\n" +
+	"\rReplacePolicy\x12\".home.auth.v1.ReplacePolicyRequest\x1a#.home.auth.v1.ReplacePolicyResponseB6Z4github.com/damione1/Homeward/gen/home/auth/v1;authv1b\x06proto3"
 
 var (
 	file_home_auth_v1_auth_proto_rawDescOnce sync.Once
@@ -5500,8 +6236,8 @@ func file_home_auth_v1_auth_proto_rawDescGZIP() []byte {
 	return file_home_auth_v1_auth_proto_rawDescData
 }
 
-var file_home_auth_v1_auth_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
-var file_home_auth_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 79)
+var file_home_auth_v1_auth_proto_enumTypes = make([]protoimpl.EnumInfo, 15)
+var file_home_auth_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 87)
 var file_home_auth_v1_auth_proto_goTypes = []any{
 	(AccountRole)(0),                         // 0: home.auth.v1.AccountRole
 	(AccountStatus)(0),                       // 1: home.auth.v1.AccountStatus
@@ -5515,249 +6251,278 @@ var file_home_auth_v1_auth_proto_goTypes = []any{
 	(ConflictFailure)(0),                     // 9: home.auth.v1.ConflictFailure
 	(ExpiredResource)(0),                     // 10: home.auth.v1.ExpiredResource
 	(AuthField)(0),                           // 11: home.auth.v1.AuthField
-	(*AccountId)(nil),                        // 12: home.auth.v1.AccountId
-	(*SessionId)(nil),                        // 13: home.auth.v1.SessionId
-	(*FactorCredentialId)(nil),               // 14: home.auth.v1.FactorCredentialId
-	(*InvitationId)(nil),                     // 15: home.auth.v1.InvitationId
-	(*ChallengeId)(nil),                      // 16: home.auth.v1.ChallengeId
-	(*McpKeyId)(nil),                         // 17: home.auth.v1.McpKeyId
-	(*InstanceId)(nil),                       // 18: home.auth.v1.InstanceId
-	(*Scope)(nil),                            // 19: home.auth.v1.Scope
-	(*Account)(nil),                          // 20: home.auth.v1.Account
-	(*BootstrapAdminRequest)(nil),            // 21: home.auth.v1.BootstrapAdminRequest
-	(*BootstrapAdminResponse)(nil),           // 22: home.auth.v1.BootstrapAdminResponse
-	(*RecoverAccountRequest)(nil),            // 23: home.auth.v1.RecoverAccountRequest
-	(*RecoverAccountResponse)(nil),           // 24: home.auth.v1.RecoverAccountResponse
-	(*CreateAccountRequest)(nil),             // 25: home.auth.v1.CreateAccountRequest
-	(*CreateAccountResponse)(nil),            // 26: home.auth.v1.CreateAccountResponse
-	(*GetAccountRequest)(nil),                // 27: home.auth.v1.GetAccountRequest
-	(*GetAccountResponse)(nil),               // 28: home.auth.v1.GetAccountResponse
-	(*ListAccountsRequest)(nil),              // 29: home.auth.v1.ListAccountsRequest
-	(*ListAccountsResponse)(nil),             // 30: home.auth.v1.ListAccountsResponse
-	(*UpdateAccountRequest)(nil),             // 31: home.auth.v1.UpdateAccountRequest
-	(*UpdateAccountResponse)(nil),            // 32: home.auth.v1.UpdateAccountResponse
-	(*DeleteAccountRequest)(nil),             // 33: home.auth.v1.DeleteAccountRequest
-	(*DeleteAccountResponse)(nil),            // 34: home.auth.v1.DeleteAccountResponse
-	(*Invitation)(nil),                       // 35: home.auth.v1.Invitation
-	(*CreateInvitationRequest)(nil),          // 36: home.auth.v1.CreateInvitationRequest
-	(*CreateInvitationResponse)(nil),         // 37: home.auth.v1.CreateInvitationResponse
-	(*AcceptInvitationRequest)(nil),          // 38: home.auth.v1.AcceptInvitationRequest
-	(*AcceptInvitationResponse)(nil),         // 39: home.auth.v1.AcceptInvitationResponse
-	(*ListInvitationsRequest)(nil),           // 40: home.auth.v1.ListInvitationsRequest
-	(*ListInvitationsResponse)(nil),          // 41: home.auth.v1.ListInvitationsResponse
-	(*RevokeInvitationRequest)(nil),          // 42: home.auth.v1.RevokeInvitationRequest
-	(*RevokeInvitationResponse)(nil),         // 43: home.auth.v1.RevokeInvitationResponse
-	(*SecondFactorPolicy)(nil),               // 44: home.auth.v1.SecondFactorPolicy
-	(*GetSecondFactorPolicyRequest)(nil),     // 45: home.auth.v1.GetSecondFactorPolicyRequest
-	(*GetSecondFactorPolicyResponse)(nil),    // 46: home.auth.v1.GetSecondFactorPolicyResponse
-	(*SetSecondFactorPolicyRequest)(nil),     // 47: home.auth.v1.SetSecondFactorPolicyRequest
-	(*SetSecondFactorPolicyResponse)(nil),    // 48: home.auth.v1.SetSecondFactorPolicyResponse
-	(*FactorCredential)(nil),                 // 49: home.auth.v1.FactorCredential
-	(*Fido2AssertionChallenge)(nil),          // 50: home.auth.v1.Fido2AssertionChallenge
-	(*Fido2EnrollmentChallenge)(nil),         // 51: home.auth.v1.Fido2EnrollmentChallenge
-	(*RecoveryCodeChallenge)(nil),            // 52: home.auth.v1.RecoveryCodeChallenge
-	(*FactorOption)(nil),                     // 53: home.auth.v1.FactorOption
-	(*FactorChallenge)(nil),                  // 54: home.auth.v1.FactorChallenge
-	(*EnrollmentChallenge)(nil),              // 55: home.auth.v1.EnrollmentChallenge
-	(*Fido2Assertion)(nil),                   // 56: home.auth.v1.Fido2Assertion
-	(*Fido2Attestation)(nil),                 // 57: home.auth.v1.Fido2Attestation
-	(*FactorProof)(nil),                      // 58: home.auth.v1.FactorProof
-	(*Session)(nil),                          // 59: home.auth.v1.Session
-	(*SessionTokens)(nil),                    // 60: home.auth.v1.SessionTokens
-	(*EnrollmentRequired)(nil),               // 61: home.auth.v1.EnrollmentRequired
-	(*LoginDecision)(nil),                    // 62: home.auth.v1.LoginDecision
-	(*StartLoginRequest)(nil),                // 63: home.auth.v1.StartLoginRequest
-	(*StartLoginResponse)(nil),               // 64: home.auth.v1.StartLoginResponse
-	(*CompleteLoginRequest)(nil),             // 65: home.auth.v1.CompleteLoginRequest
-	(*CompleteLoginResponse)(nil),            // 66: home.auth.v1.CompleteLoginResponse
-	(*RefreshSessionRequest)(nil),            // 67: home.auth.v1.RefreshSessionRequest
-	(*RefreshSessionResponse)(nil),           // 68: home.auth.v1.RefreshSessionResponse
-	(*ListSessionsRequest)(nil),              // 69: home.auth.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),             // 70: home.auth.v1.ListSessionsResponse
-	(*RevokeSessionRequest)(nil),             // 71: home.auth.v1.RevokeSessionRequest
-	(*RevokeSessionResponse)(nil),            // 72: home.auth.v1.RevokeSessionResponse
-	(*BeginFactorEnrollmentRequest)(nil),     // 73: home.auth.v1.BeginFactorEnrollmentRequest
-	(*BeginFactorEnrollmentResponse)(nil),    // 74: home.auth.v1.BeginFactorEnrollmentResponse
-	(*CompleteFactorEnrollmentRequest)(nil),  // 75: home.auth.v1.CompleteFactorEnrollmentRequest
-	(*CompleteFactorEnrollmentResponse)(nil), // 76: home.auth.v1.CompleteFactorEnrollmentResponse
-	(*ListFactorsRequest)(nil),               // 77: home.auth.v1.ListFactorsRequest
-	(*ListFactorsResponse)(nil),              // 78: home.auth.v1.ListFactorsResponse
-	(*RemoveFactorRequest)(nil),              // 79: home.auth.v1.RemoveFactorRequest
-	(*RemoveFactorResponse)(nil),             // 80: home.auth.v1.RemoveFactorResponse
-	(*ReplaceRecoveryCodesRequest)(nil),      // 81: home.auth.v1.ReplaceRecoveryCodesRequest
-	(*ReplaceRecoveryCodesResponse)(nil),     // 82: home.auth.v1.ReplaceRecoveryCodesResponse
-	(*McpKey)(nil),                           // 83: home.auth.v1.McpKey
-	(*CreateMcpKeyRequest)(nil),              // 84: home.auth.v1.CreateMcpKeyRequest
-	(*CreateMcpKeyResponse)(nil),             // 85: home.auth.v1.CreateMcpKeyResponse
-	(*ListMcpKeysRequest)(nil),               // 86: home.auth.v1.ListMcpKeysRequest
-	(*ListMcpKeysResponse)(nil),              // 87: home.auth.v1.ListMcpKeysResponse
-	(*RevokeMcpKeyRequest)(nil),              // 88: home.auth.v1.RevokeMcpKeyRequest
-	(*RevokeMcpKeyResponse)(nil),             // 89: home.auth.v1.RevokeMcpKeyResponse
-	(*AuthError)(nil),                        // 90: home.auth.v1.AuthError
-	(*timestamppb.Timestamp)(nil),            // 91: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),              // 92: google.protobuf.Duration
+	(PolicyRightsChange)(0),                  // 12: home.auth.v1.PolicyRightsChange
+	(AuthorizationPolicyErrorCode)(0),        // 13: home.auth.v1.AuthorizationPolicyErrorCode
+	(AuthorizationTerminationReason)(0),      // 14: home.auth.v1.AuthorizationTerminationReason
+	(*AccountId)(nil),                        // 15: home.auth.v1.AccountId
+	(*SessionId)(nil),                        // 16: home.auth.v1.SessionId
+	(*FactorCredentialId)(nil),               // 17: home.auth.v1.FactorCredentialId
+	(*InvitationId)(nil),                     // 18: home.auth.v1.InvitationId
+	(*ChallengeId)(nil),                      // 19: home.auth.v1.ChallengeId
+	(*McpKeyId)(nil),                         // 20: home.auth.v1.McpKeyId
+	(*InstanceId)(nil),                       // 21: home.auth.v1.InstanceId
+	(*Scope)(nil),                            // 22: home.auth.v1.Scope
+	(*Account)(nil),                          // 23: home.auth.v1.Account
+	(*BootstrapAdminRequest)(nil),            // 24: home.auth.v1.BootstrapAdminRequest
+	(*BootstrapAdminResponse)(nil),           // 25: home.auth.v1.BootstrapAdminResponse
+	(*RecoverAccountRequest)(nil),            // 26: home.auth.v1.RecoverAccountRequest
+	(*RecoverAccountResponse)(nil),           // 27: home.auth.v1.RecoverAccountResponse
+	(*CreateAccountRequest)(nil),             // 28: home.auth.v1.CreateAccountRequest
+	(*CreateAccountResponse)(nil),            // 29: home.auth.v1.CreateAccountResponse
+	(*GetAccountRequest)(nil),                // 30: home.auth.v1.GetAccountRequest
+	(*GetAccountResponse)(nil),               // 31: home.auth.v1.GetAccountResponse
+	(*ListAccountsRequest)(nil),              // 32: home.auth.v1.ListAccountsRequest
+	(*ListAccountsResponse)(nil),             // 33: home.auth.v1.ListAccountsResponse
+	(*UpdateAccountRequest)(nil),             // 34: home.auth.v1.UpdateAccountRequest
+	(*UpdateAccountResponse)(nil),            // 35: home.auth.v1.UpdateAccountResponse
+	(*DeleteAccountRequest)(nil),             // 36: home.auth.v1.DeleteAccountRequest
+	(*DeleteAccountResponse)(nil),            // 37: home.auth.v1.DeleteAccountResponse
+	(*Invitation)(nil),                       // 38: home.auth.v1.Invitation
+	(*CreateInvitationRequest)(nil),          // 39: home.auth.v1.CreateInvitationRequest
+	(*CreateInvitationResponse)(nil),         // 40: home.auth.v1.CreateInvitationResponse
+	(*AcceptInvitationRequest)(nil),          // 41: home.auth.v1.AcceptInvitationRequest
+	(*AcceptInvitationResponse)(nil),         // 42: home.auth.v1.AcceptInvitationResponse
+	(*ListInvitationsRequest)(nil),           // 43: home.auth.v1.ListInvitationsRequest
+	(*ListInvitationsResponse)(nil),          // 44: home.auth.v1.ListInvitationsResponse
+	(*RevokeInvitationRequest)(nil),          // 45: home.auth.v1.RevokeInvitationRequest
+	(*RevokeInvitationResponse)(nil),         // 46: home.auth.v1.RevokeInvitationResponse
+	(*SecondFactorPolicy)(nil),               // 47: home.auth.v1.SecondFactorPolicy
+	(*GetSecondFactorPolicyRequest)(nil),     // 48: home.auth.v1.GetSecondFactorPolicyRequest
+	(*GetSecondFactorPolicyResponse)(nil),    // 49: home.auth.v1.GetSecondFactorPolicyResponse
+	(*SetSecondFactorPolicyRequest)(nil),     // 50: home.auth.v1.SetSecondFactorPolicyRequest
+	(*SetSecondFactorPolicyResponse)(nil),    // 51: home.auth.v1.SetSecondFactorPolicyResponse
+	(*FactorCredential)(nil),                 // 52: home.auth.v1.FactorCredential
+	(*Fido2AssertionChallenge)(nil),          // 53: home.auth.v1.Fido2AssertionChallenge
+	(*Fido2EnrollmentChallenge)(nil),         // 54: home.auth.v1.Fido2EnrollmentChallenge
+	(*RecoveryCodeChallenge)(nil),            // 55: home.auth.v1.RecoveryCodeChallenge
+	(*FactorOption)(nil),                     // 56: home.auth.v1.FactorOption
+	(*FactorChallenge)(nil),                  // 57: home.auth.v1.FactorChallenge
+	(*EnrollmentChallenge)(nil),              // 58: home.auth.v1.EnrollmentChallenge
+	(*Fido2Assertion)(nil),                   // 59: home.auth.v1.Fido2Assertion
+	(*Fido2Attestation)(nil),                 // 60: home.auth.v1.Fido2Attestation
+	(*FactorProof)(nil),                      // 61: home.auth.v1.FactorProof
+	(*Session)(nil),                          // 62: home.auth.v1.Session
+	(*SessionTokens)(nil),                    // 63: home.auth.v1.SessionTokens
+	(*EnrollmentRequired)(nil),               // 64: home.auth.v1.EnrollmentRequired
+	(*LoginDecision)(nil),                    // 65: home.auth.v1.LoginDecision
+	(*StartLoginRequest)(nil),                // 66: home.auth.v1.StartLoginRequest
+	(*StartLoginResponse)(nil),               // 67: home.auth.v1.StartLoginResponse
+	(*CompleteLoginRequest)(nil),             // 68: home.auth.v1.CompleteLoginRequest
+	(*CompleteLoginResponse)(nil),            // 69: home.auth.v1.CompleteLoginResponse
+	(*RefreshSessionRequest)(nil),            // 70: home.auth.v1.RefreshSessionRequest
+	(*RefreshSessionResponse)(nil),           // 71: home.auth.v1.RefreshSessionResponse
+	(*ListSessionsRequest)(nil),              // 72: home.auth.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),             // 73: home.auth.v1.ListSessionsResponse
+	(*RevokeSessionRequest)(nil),             // 74: home.auth.v1.RevokeSessionRequest
+	(*RevokeSessionResponse)(nil),            // 75: home.auth.v1.RevokeSessionResponse
+	(*BeginFactorEnrollmentRequest)(nil),     // 76: home.auth.v1.BeginFactorEnrollmentRequest
+	(*BeginFactorEnrollmentResponse)(nil),    // 77: home.auth.v1.BeginFactorEnrollmentResponse
+	(*CompleteFactorEnrollmentRequest)(nil),  // 78: home.auth.v1.CompleteFactorEnrollmentRequest
+	(*CompleteFactorEnrollmentResponse)(nil), // 79: home.auth.v1.CompleteFactorEnrollmentResponse
+	(*ListFactorsRequest)(nil),               // 80: home.auth.v1.ListFactorsRequest
+	(*ListFactorsResponse)(nil),              // 81: home.auth.v1.ListFactorsResponse
+	(*RemoveFactorRequest)(nil),              // 82: home.auth.v1.RemoveFactorRequest
+	(*RemoveFactorResponse)(nil),             // 83: home.auth.v1.RemoveFactorResponse
+	(*ReplaceRecoveryCodesRequest)(nil),      // 84: home.auth.v1.ReplaceRecoveryCodesRequest
+	(*ReplaceRecoveryCodesResponse)(nil),     // 85: home.auth.v1.ReplaceRecoveryCodesResponse
+	(*McpKey)(nil),                           // 86: home.auth.v1.McpKey
+	(*CreateMcpKeyRequest)(nil),              // 87: home.auth.v1.CreateMcpKeyRequest
+	(*CreateMcpKeyResponse)(nil),             // 88: home.auth.v1.CreateMcpKeyResponse
+	(*ListMcpKeysRequest)(nil),               // 89: home.auth.v1.ListMcpKeysRequest
+	(*ListMcpKeysResponse)(nil),              // 90: home.auth.v1.ListMcpKeysResponse
+	(*RevokeMcpKeyRequest)(nil),              // 91: home.auth.v1.RevokeMcpKeyRequest
+	(*RevokeMcpKeyResponse)(nil),             // 92: home.auth.v1.RevokeMcpKeyResponse
+	(*AuthError)(nil),                        // 93: home.auth.v1.AuthError
+	(*PolicyVersion)(nil),                    // 94: home.auth.v1.PolicyVersion
+	(*PolicySnapshot)(nil),                   // 95: home.auth.v1.PolicySnapshot
+	(*GetPolicyRequest)(nil),                 // 96: home.auth.v1.GetPolicyRequest
+	(*GetPolicyResponse)(nil),                // 97: home.auth.v1.GetPolicyResponse
+	(*ReplacePolicyRequest)(nil),             // 98: home.auth.v1.ReplacePolicyRequest
+	(*ReplacePolicyResponse)(nil),            // 99: home.auth.v1.ReplacePolicyResponse
+	(*AuthorizationPolicyError)(nil),         // 100: home.auth.v1.AuthorizationPolicyError
+	(*AuthorizationTermination)(nil),         // 101: home.auth.v1.AuthorizationTermination
+	(*timestamppb.Timestamp)(nil),            // 102: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),              // 103: google.protobuf.Duration
+	(*emptypb.Empty)(nil),                    // 104: google.protobuf.Empty
 }
 var file_home_auth_v1_auth_proto_depIdxs = []int32{
 	2,   // 0: home.auth.v1.Scope.family:type_name -> home.auth.v1.ScopeFamily
 	3,   // 1: home.auth.v1.Scope.operation:type_name -> home.auth.v1.ScopeOperation
-	12,  // 2: home.auth.v1.Account.id:type_name -> home.auth.v1.AccountId
+	15,  // 2: home.auth.v1.Account.id:type_name -> home.auth.v1.AccountId
 	0,   // 3: home.auth.v1.Account.role:type_name -> home.auth.v1.AccountRole
 	1,   // 4: home.auth.v1.Account.status:type_name -> home.auth.v1.AccountStatus
-	91,  // 5: home.auth.v1.Account.created_at:type_name -> google.protobuf.Timestamp
-	91,  // 6: home.auth.v1.Account.updated_at:type_name -> google.protobuf.Timestamp
-	20,  // 7: home.auth.v1.BootstrapAdminResponse.account:type_name -> home.auth.v1.Account
-	12,  // 8: home.auth.v1.RecoverAccountRequest.account_id:type_name -> home.auth.v1.AccountId
-	20,  // 9: home.auth.v1.RecoverAccountResponse.account:type_name -> home.auth.v1.Account
+	102, // 5: home.auth.v1.Account.created_at:type_name -> google.protobuf.Timestamp
+	102, // 6: home.auth.v1.Account.updated_at:type_name -> google.protobuf.Timestamp
+	23,  // 7: home.auth.v1.BootstrapAdminResponse.account:type_name -> home.auth.v1.Account
+	15,  // 8: home.auth.v1.RecoverAccountRequest.account_id:type_name -> home.auth.v1.AccountId
+	23,  // 9: home.auth.v1.RecoverAccountResponse.account:type_name -> home.auth.v1.Account
 	0,   // 10: home.auth.v1.CreateAccountRequest.role:type_name -> home.auth.v1.AccountRole
-	20,  // 11: home.auth.v1.CreateAccountResponse.account:type_name -> home.auth.v1.Account
-	12,  // 12: home.auth.v1.GetAccountRequest.account_id:type_name -> home.auth.v1.AccountId
-	20,  // 13: home.auth.v1.GetAccountResponse.account:type_name -> home.auth.v1.Account
-	20,  // 14: home.auth.v1.ListAccountsResponse.accounts:type_name -> home.auth.v1.Account
-	12,  // 15: home.auth.v1.UpdateAccountRequest.account_id:type_name -> home.auth.v1.AccountId
+	23,  // 11: home.auth.v1.CreateAccountResponse.account:type_name -> home.auth.v1.Account
+	15,  // 12: home.auth.v1.GetAccountRequest.account_id:type_name -> home.auth.v1.AccountId
+	23,  // 13: home.auth.v1.GetAccountResponse.account:type_name -> home.auth.v1.Account
+	23,  // 14: home.auth.v1.ListAccountsResponse.accounts:type_name -> home.auth.v1.Account
+	15,  // 15: home.auth.v1.UpdateAccountRequest.account_id:type_name -> home.auth.v1.AccountId
 	0,   // 16: home.auth.v1.UpdateAccountRequest.role:type_name -> home.auth.v1.AccountRole
 	1,   // 17: home.auth.v1.UpdateAccountRequest.status:type_name -> home.auth.v1.AccountStatus
-	20,  // 18: home.auth.v1.UpdateAccountResponse.account:type_name -> home.auth.v1.Account
-	12,  // 19: home.auth.v1.DeleteAccountRequest.account_id:type_name -> home.auth.v1.AccountId
-	15,  // 20: home.auth.v1.Invitation.id:type_name -> home.auth.v1.InvitationId
+	23,  // 18: home.auth.v1.UpdateAccountResponse.account:type_name -> home.auth.v1.Account
+	15,  // 19: home.auth.v1.DeleteAccountRequest.account_id:type_name -> home.auth.v1.AccountId
+	18,  // 20: home.auth.v1.Invitation.id:type_name -> home.auth.v1.InvitationId
 	0,   // 21: home.auth.v1.Invitation.role:type_name -> home.auth.v1.AccountRole
-	91,  // 22: home.auth.v1.Invitation.expires_at:type_name -> google.protobuf.Timestamp
-	91,  // 23: home.auth.v1.Invitation.created_at:type_name -> google.protobuf.Timestamp
-	91,  // 24: home.auth.v1.Invitation.accepted_at:type_name -> google.protobuf.Timestamp
-	91,  // 25: home.auth.v1.Invitation.revoked_at:type_name -> google.protobuf.Timestamp
+	102, // 22: home.auth.v1.Invitation.expires_at:type_name -> google.protobuf.Timestamp
+	102, // 23: home.auth.v1.Invitation.created_at:type_name -> google.protobuf.Timestamp
+	102, // 24: home.auth.v1.Invitation.accepted_at:type_name -> google.protobuf.Timestamp
+	102, // 25: home.auth.v1.Invitation.revoked_at:type_name -> google.protobuf.Timestamp
 	0,   // 26: home.auth.v1.CreateInvitationRequest.role:type_name -> home.auth.v1.AccountRole
-	91,  // 27: home.auth.v1.CreateInvitationRequest.expires_at:type_name -> google.protobuf.Timestamp
-	35,  // 28: home.auth.v1.CreateInvitationResponse.invitation:type_name -> home.auth.v1.Invitation
-	20,  // 29: home.auth.v1.AcceptInvitationResponse.account:type_name -> home.auth.v1.Account
-	35,  // 30: home.auth.v1.ListInvitationsResponse.invitations:type_name -> home.auth.v1.Invitation
-	15,  // 31: home.auth.v1.RevokeInvitationRequest.invitation_id:type_name -> home.auth.v1.InvitationId
-	91,  // 32: home.auth.v1.SecondFactorPolicy.updated_at:type_name -> google.protobuf.Timestamp
-	44,  // 33: home.auth.v1.GetSecondFactorPolicyResponse.policy:type_name -> home.auth.v1.SecondFactorPolicy
-	44,  // 34: home.auth.v1.SetSecondFactorPolicyResponse.policy:type_name -> home.auth.v1.SecondFactorPolicy
-	14,  // 35: home.auth.v1.FactorCredential.id:type_name -> home.auth.v1.FactorCredentialId
-	12,  // 36: home.auth.v1.FactorCredential.account_id:type_name -> home.auth.v1.AccountId
+	102, // 27: home.auth.v1.CreateInvitationRequest.expires_at:type_name -> google.protobuf.Timestamp
+	38,  // 28: home.auth.v1.CreateInvitationResponse.invitation:type_name -> home.auth.v1.Invitation
+	23,  // 29: home.auth.v1.AcceptInvitationResponse.account:type_name -> home.auth.v1.Account
+	38,  // 30: home.auth.v1.ListInvitationsResponse.invitations:type_name -> home.auth.v1.Invitation
+	18,  // 31: home.auth.v1.RevokeInvitationRequest.invitation_id:type_name -> home.auth.v1.InvitationId
+	102, // 32: home.auth.v1.SecondFactorPolicy.updated_at:type_name -> google.protobuf.Timestamp
+	47,  // 33: home.auth.v1.GetSecondFactorPolicyResponse.policy:type_name -> home.auth.v1.SecondFactorPolicy
+	47,  // 34: home.auth.v1.SetSecondFactorPolicyResponse.policy:type_name -> home.auth.v1.SecondFactorPolicy
+	17,  // 35: home.auth.v1.FactorCredential.id:type_name -> home.auth.v1.FactorCredentialId
+	15,  // 36: home.auth.v1.FactorCredential.account_id:type_name -> home.auth.v1.AccountId
 	4,   // 37: home.auth.v1.FactorCredential.kind:type_name -> home.auth.v1.FactorKind
-	91,  // 38: home.auth.v1.FactorCredential.created_at:type_name -> google.protobuf.Timestamp
-	91,  // 39: home.auth.v1.FactorCredential.last_used_at:type_name -> google.protobuf.Timestamp
-	18,  // 40: home.auth.v1.Fido2AssertionChallenge.instance_id:type_name -> home.auth.v1.InstanceId
-	18,  // 41: home.auth.v1.Fido2EnrollmentChallenge.instance_id:type_name -> home.auth.v1.InstanceId
-	50,  // 42: home.auth.v1.FactorOption.fido2:type_name -> home.auth.v1.Fido2AssertionChallenge
-	52,  // 43: home.auth.v1.FactorOption.recovery_code:type_name -> home.auth.v1.RecoveryCodeChallenge
-	16,  // 44: home.auth.v1.FactorChallenge.id:type_name -> home.auth.v1.ChallengeId
-	91,  // 45: home.auth.v1.FactorChallenge.expires_at:type_name -> google.protobuf.Timestamp
-	53,  // 46: home.auth.v1.FactorChallenge.options:type_name -> home.auth.v1.FactorOption
-	16,  // 47: home.auth.v1.EnrollmentChallenge.id:type_name -> home.auth.v1.ChallengeId
-	91,  // 48: home.auth.v1.EnrollmentChallenge.expires_at:type_name -> google.protobuf.Timestamp
-	51,  // 49: home.auth.v1.EnrollmentChallenge.fido2:type_name -> home.auth.v1.Fido2EnrollmentChallenge
-	56,  // 50: home.auth.v1.FactorProof.fido2:type_name -> home.auth.v1.Fido2Assertion
-	13,  // 51: home.auth.v1.Session.id:type_name -> home.auth.v1.SessionId
-	12,  // 52: home.auth.v1.Session.account_id:type_name -> home.auth.v1.AccountId
-	91,  // 53: home.auth.v1.Session.created_at:type_name -> google.protobuf.Timestamp
-	91,  // 54: home.auth.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
-	91,  // 55: home.auth.v1.Session.revoked_at:type_name -> google.protobuf.Timestamp
-	91,  // 56: home.auth.v1.Session.last_used_at:type_name -> google.protobuf.Timestamp
-	59,  // 57: home.auth.v1.SessionTokens.session:type_name -> home.auth.v1.Session
+	102, // 38: home.auth.v1.FactorCredential.created_at:type_name -> google.protobuf.Timestamp
+	102, // 39: home.auth.v1.FactorCredential.last_used_at:type_name -> google.protobuf.Timestamp
+	21,  // 40: home.auth.v1.Fido2AssertionChallenge.instance_id:type_name -> home.auth.v1.InstanceId
+	21,  // 41: home.auth.v1.Fido2EnrollmentChallenge.instance_id:type_name -> home.auth.v1.InstanceId
+	53,  // 42: home.auth.v1.FactorOption.fido2:type_name -> home.auth.v1.Fido2AssertionChallenge
+	55,  // 43: home.auth.v1.FactorOption.recovery_code:type_name -> home.auth.v1.RecoveryCodeChallenge
+	19,  // 44: home.auth.v1.FactorChallenge.id:type_name -> home.auth.v1.ChallengeId
+	102, // 45: home.auth.v1.FactorChallenge.expires_at:type_name -> google.protobuf.Timestamp
+	56,  // 46: home.auth.v1.FactorChallenge.options:type_name -> home.auth.v1.FactorOption
+	19,  // 47: home.auth.v1.EnrollmentChallenge.id:type_name -> home.auth.v1.ChallengeId
+	102, // 48: home.auth.v1.EnrollmentChallenge.expires_at:type_name -> google.protobuf.Timestamp
+	54,  // 49: home.auth.v1.EnrollmentChallenge.fido2:type_name -> home.auth.v1.Fido2EnrollmentChallenge
+	59,  // 50: home.auth.v1.FactorProof.fido2:type_name -> home.auth.v1.Fido2Assertion
+	16,  // 51: home.auth.v1.Session.id:type_name -> home.auth.v1.SessionId
+	15,  // 52: home.auth.v1.Session.account_id:type_name -> home.auth.v1.AccountId
+	102, // 53: home.auth.v1.Session.created_at:type_name -> google.protobuf.Timestamp
+	102, // 54: home.auth.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	102, // 55: home.auth.v1.Session.revoked_at:type_name -> google.protobuf.Timestamp
+	102, // 56: home.auth.v1.Session.last_used_at:type_name -> google.protobuf.Timestamp
+	62,  // 57: home.auth.v1.SessionTokens.session:type_name -> home.auth.v1.Session
 	5,   // 58: home.auth.v1.SessionTokens.audience:type_name -> home.auth.v1.CredentialAudience
-	91,  // 59: home.auth.v1.SessionTokens.access_expires_at:type_name -> google.protobuf.Timestamp
-	12,  // 60: home.auth.v1.EnrollmentRequired.account_id:type_name -> home.auth.v1.AccountId
-	91,  // 61: home.auth.v1.EnrollmentRequired.expires_at:type_name -> google.protobuf.Timestamp
-	60,  // 62: home.auth.v1.LoginDecision.authenticated:type_name -> home.auth.v1.SessionTokens
-	54,  // 63: home.auth.v1.LoginDecision.challenge:type_name -> home.auth.v1.FactorChallenge
-	61,  // 64: home.auth.v1.LoginDecision.enrollment_required:type_name -> home.auth.v1.EnrollmentRequired
-	62,  // 65: home.auth.v1.StartLoginResponse.decision:type_name -> home.auth.v1.LoginDecision
-	16,  // 66: home.auth.v1.CompleteLoginRequest.challenge_id:type_name -> home.auth.v1.ChallengeId
-	58,  // 67: home.auth.v1.CompleteLoginRequest.proof:type_name -> home.auth.v1.FactorProof
-	62,  // 68: home.auth.v1.CompleteLoginResponse.decision:type_name -> home.auth.v1.LoginDecision
-	60,  // 69: home.auth.v1.RefreshSessionResponse.tokens:type_name -> home.auth.v1.SessionTokens
-	12,  // 70: home.auth.v1.ListSessionsRequest.account_id:type_name -> home.auth.v1.AccountId
-	59,  // 71: home.auth.v1.ListSessionsResponse.sessions:type_name -> home.auth.v1.Session
-	13,  // 72: home.auth.v1.RevokeSessionRequest.session_id:type_name -> home.auth.v1.SessionId
+	102, // 59: home.auth.v1.SessionTokens.access_expires_at:type_name -> google.protobuf.Timestamp
+	15,  // 60: home.auth.v1.EnrollmentRequired.account_id:type_name -> home.auth.v1.AccountId
+	102, // 61: home.auth.v1.EnrollmentRequired.expires_at:type_name -> google.protobuf.Timestamp
+	63,  // 62: home.auth.v1.LoginDecision.authenticated:type_name -> home.auth.v1.SessionTokens
+	57,  // 63: home.auth.v1.LoginDecision.challenge:type_name -> home.auth.v1.FactorChallenge
+	64,  // 64: home.auth.v1.LoginDecision.enrollment_required:type_name -> home.auth.v1.EnrollmentRequired
+	65,  // 65: home.auth.v1.StartLoginResponse.decision:type_name -> home.auth.v1.LoginDecision
+	19,  // 66: home.auth.v1.CompleteLoginRequest.challenge_id:type_name -> home.auth.v1.ChallengeId
+	61,  // 67: home.auth.v1.CompleteLoginRequest.proof:type_name -> home.auth.v1.FactorProof
+	65,  // 68: home.auth.v1.CompleteLoginResponse.decision:type_name -> home.auth.v1.LoginDecision
+	63,  // 69: home.auth.v1.RefreshSessionResponse.tokens:type_name -> home.auth.v1.SessionTokens
+	15,  // 70: home.auth.v1.ListSessionsRequest.account_id:type_name -> home.auth.v1.AccountId
+	62,  // 71: home.auth.v1.ListSessionsResponse.sessions:type_name -> home.auth.v1.Session
+	16,  // 72: home.auth.v1.RevokeSessionRequest.session_id:type_name -> home.auth.v1.SessionId
 	4,   // 73: home.auth.v1.BeginFactorEnrollmentRequest.kind:type_name -> home.auth.v1.FactorKind
-	55,  // 74: home.auth.v1.BeginFactorEnrollmentResponse.challenge:type_name -> home.auth.v1.EnrollmentChallenge
-	16,  // 75: home.auth.v1.CompleteFactorEnrollmentRequest.challenge_id:type_name -> home.auth.v1.ChallengeId
-	57,  // 76: home.auth.v1.CompleteFactorEnrollmentRequest.attestation:type_name -> home.auth.v1.Fido2Attestation
-	49,  // 77: home.auth.v1.CompleteFactorEnrollmentResponse.factor:type_name -> home.auth.v1.FactorCredential
-	12,  // 78: home.auth.v1.ListFactorsRequest.account_id:type_name -> home.auth.v1.AccountId
-	49,  // 79: home.auth.v1.ListFactorsResponse.factors:type_name -> home.auth.v1.FactorCredential
-	14,  // 80: home.auth.v1.RemoveFactorRequest.factor_id:type_name -> home.auth.v1.FactorCredentialId
-	12,  // 81: home.auth.v1.ReplaceRecoveryCodesRequest.account_id:type_name -> home.auth.v1.AccountId
-	17,  // 82: home.auth.v1.McpKey.id:type_name -> home.auth.v1.McpKeyId
-	12,  // 83: home.auth.v1.McpKey.account_id:type_name -> home.auth.v1.AccountId
+	58,  // 74: home.auth.v1.BeginFactorEnrollmentResponse.challenge:type_name -> home.auth.v1.EnrollmentChallenge
+	19,  // 75: home.auth.v1.CompleteFactorEnrollmentRequest.challenge_id:type_name -> home.auth.v1.ChallengeId
+	60,  // 76: home.auth.v1.CompleteFactorEnrollmentRequest.attestation:type_name -> home.auth.v1.Fido2Attestation
+	52,  // 77: home.auth.v1.CompleteFactorEnrollmentResponse.factor:type_name -> home.auth.v1.FactorCredential
+	15,  // 78: home.auth.v1.ListFactorsRequest.account_id:type_name -> home.auth.v1.AccountId
+	52,  // 79: home.auth.v1.ListFactorsResponse.factors:type_name -> home.auth.v1.FactorCredential
+	17,  // 80: home.auth.v1.RemoveFactorRequest.factor_id:type_name -> home.auth.v1.FactorCredentialId
+	15,  // 81: home.auth.v1.ReplaceRecoveryCodesRequest.account_id:type_name -> home.auth.v1.AccountId
+	20,  // 82: home.auth.v1.McpKey.id:type_name -> home.auth.v1.McpKeyId
+	15,  // 83: home.auth.v1.McpKey.account_id:type_name -> home.auth.v1.AccountId
 	5,   // 84: home.auth.v1.McpKey.audience:type_name -> home.auth.v1.CredentialAudience
-	19,  // 85: home.auth.v1.McpKey.scopes:type_name -> home.auth.v1.Scope
-	91,  // 86: home.auth.v1.McpKey.created_at:type_name -> google.protobuf.Timestamp
-	91,  // 87: home.auth.v1.McpKey.expires_at:type_name -> google.protobuf.Timestamp
-	91,  // 88: home.auth.v1.McpKey.revoked_at:type_name -> google.protobuf.Timestamp
-	91,  // 89: home.auth.v1.McpKey.last_used_at:type_name -> google.protobuf.Timestamp
-	19,  // 90: home.auth.v1.CreateMcpKeyRequest.scopes:type_name -> home.auth.v1.Scope
-	92,  // 91: home.auth.v1.CreateMcpKeyRequest.lifetime:type_name -> google.protobuf.Duration
-	83,  // 92: home.auth.v1.CreateMcpKeyResponse.key:type_name -> home.auth.v1.McpKey
-	12,  // 93: home.auth.v1.ListMcpKeysRequest.account_id:type_name -> home.auth.v1.AccountId
-	83,  // 94: home.auth.v1.ListMcpKeysResponse.keys:type_name -> home.auth.v1.McpKey
-	17,  // 95: home.auth.v1.RevokeMcpKeyRequest.key_id:type_name -> home.auth.v1.McpKeyId
+	22,  // 85: home.auth.v1.McpKey.scopes:type_name -> home.auth.v1.Scope
+	102, // 86: home.auth.v1.McpKey.created_at:type_name -> google.protobuf.Timestamp
+	102, // 87: home.auth.v1.McpKey.expires_at:type_name -> google.protobuf.Timestamp
+	102, // 88: home.auth.v1.McpKey.revoked_at:type_name -> google.protobuf.Timestamp
+	102, // 89: home.auth.v1.McpKey.last_used_at:type_name -> google.protobuf.Timestamp
+	22,  // 90: home.auth.v1.CreateMcpKeyRequest.scopes:type_name -> home.auth.v1.Scope
+	103, // 91: home.auth.v1.CreateMcpKeyRequest.lifetime:type_name -> google.protobuf.Duration
+	86,  // 92: home.auth.v1.CreateMcpKeyResponse.key:type_name -> home.auth.v1.McpKey
+	15,  // 93: home.auth.v1.ListMcpKeysRequest.account_id:type_name -> home.auth.v1.AccountId
+	86,  // 94: home.auth.v1.ListMcpKeysResponse.keys:type_name -> home.auth.v1.McpKey
+	20,  // 95: home.auth.v1.RevokeMcpKeyRequest.key_id:type_name -> home.auth.v1.McpKeyId
 	6,   // 96: home.auth.v1.AuthError.code:type_name -> home.auth.v1.AuthErrorCode
 	7,   // 97: home.auth.v1.AuthError.authentication:type_name -> home.auth.v1.AuthenticationFailure
 	8,   // 98: home.auth.v1.AuthError.permission:type_name -> home.auth.v1.PermissionFailure
 	9,   // 99: home.auth.v1.AuthError.conflict:type_name -> home.auth.v1.ConflictFailure
 	10,  // 100: home.auth.v1.AuthError.expired:type_name -> home.auth.v1.ExpiredResource
 	11,  // 101: home.auth.v1.AuthError.invalid_field:type_name -> home.auth.v1.AuthField
-	91,  // 102: home.auth.v1.AuthError.retry_at:type_name -> google.protobuf.Timestamp
-	21,  // 103: home.auth.v1.OperatorAccountService.BootstrapAdmin:input_type -> home.auth.v1.BootstrapAdminRequest
-	23,  // 104: home.auth.v1.OperatorAccountService.RecoverAccount:input_type -> home.auth.v1.RecoverAccountRequest
-	25,  // 105: home.auth.v1.AccountService.CreateAccount:input_type -> home.auth.v1.CreateAccountRequest
-	27,  // 106: home.auth.v1.AccountService.GetAccount:input_type -> home.auth.v1.GetAccountRequest
-	29,  // 107: home.auth.v1.AccountService.ListAccounts:input_type -> home.auth.v1.ListAccountsRequest
-	31,  // 108: home.auth.v1.AccountService.UpdateAccount:input_type -> home.auth.v1.UpdateAccountRequest
-	33,  // 109: home.auth.v1.AccountService.DeleteAccount:input_type -> home.auth.v1.DeleteAccountRequest
-	36,  // 110: home.auth.v1.AccountService.CreateInvitation:input_type -> home.auth.v1.CreateInvitationRequest
-	38,  // 111: home.auth.v1.AccountService.AcceptInvitation:input_type -> home.auth.v1.AcceptInvitationRequest
-	40,  // 112: home.auth.v1.AccountService.ListInvitations:input_type -> home.auth.v1.ListInvitationsRequest
-	42,  // 113: home.auth.v1.AccountService.RevokeInvitation:input_type -> home.auth.v1.RevokeInvitationRequest
-	45,  // 114: home.auth.v1.AccountService.GetSecondFactorPolicy:input_type -> home.auth.v1.GetSecondFactorPolicyRequest
-	47,  // 115: home.auth.v1.AccountService.SetSecondFactorPolicy:input_type -> home.auth.v1.SetSecondFactorPolicyRequest
-	63,  // 116: home.auth.v1.AuthService.StartLogin:input_type -> home.auth.v1.StartLoginRequest
-	65,  // 117: home.auth.v1.AuthService.CompleteLogin:input_type -> home.auth.v1.CompleteLoginRequest
-	67,  // 118: home.auth.v1.AuthService.RefreshSession:input_type -> home.auth.v1.RefreshSessionRequest
-	69,  // 119: home.auth.v1.AuthService.ListSessions:input_type -> home.auth.v1.ListSessionsRequest
-	71,  // 120: home.auth.v1.AuthService.RevokeSession:input_type -> home.auth.v1.RevokeSessionRequest
-	73,  // 121: home.auth.v1.AuthService.BeginFactorEnrollment:input_type -> home.auth.v1.BeginFactorEnrollmentRequest
-	75,  // 122: home.auth.v1.AuthService.CompleteFactorEnrollment:input_type -> home.auth.v1.CompleteFactorEnrollmentRequest
-	77,  // 123: home.auth.v1.AuthService.ListFactors:input_type -> home.auth.v1.ListFactorsRequest
-	79,  // 124: home.auth.v1.AuthService.RemoveFactor:input_type -> home.auth.v1.RemoveFactorRequest
-	81,  // 125: home.auth.v1.AuthService.ReplaceRecoveryCodes:input_type -> home.auth.v1.ReplaceRecoveryCodesRequest
-	84,  // 126: home.auth.v1.McpKeyService.CreateMcpKey:input_type -> home.auth.v1.CreateMcpKeyRequest
-	86,  // 127: home.auth.v1.McpKeyService.ListMcpKeys:input_type -> home.auth.v1.ListMcpKeysRequest
-	88,  // 128: home.auth.v1.McpKeyService.RevokeMcpKey:input_type -> home.auth.v1.RevokeMcpKeyRequest
-	22,  // 129: home.auth.v1.OperatorAccountService.BootstrapAdmin:output_type -> home.auth.v1.BootstrapAdminResponse
-	24,  // 130: home.auth.v1.OperatorAccountService.RecoverAccount:output_type -> home.auth.v1.RecoverAccountResponse
-	26,  // 131: home.auth.v1.AccountService.CreateAccount:output_type -> home.auth.v1.CreateAccountResponse
-	28,  // 132: home.auth.v1.AccountService.GetAccount:output_type -> home.auth.v1.GetAccountResponse
-	30,  // 133: home.auth.v1.AccountService.ListAccounts:output_type -> home.auth.v1.ListAccountsResponse
-	32,  // 134: home.auth.v1.AccountService.UpdateAccount:output_type -> home.auth.v1.UpdateAccountResponse
-	34,  // 135: home.auth.v1.AccountService.DeleteAccount:output_type -> home.auth.v1.DeleteAccountResponse
-	37,  // 136: home.auth.v1.AccountService.CreateInvitation:output_type -> home.auth.v1.CreateInvitationResponse
-	39,  // 137: home.auth.v1.AccountService.AcceptInvitation:output_type -> home.auth.v1.AcceptInvitationResponse
-	41,  // 138: home.auth.v1.AccountService.ListInvitations:output_type -> home.auth.v1.ListInvitationsResponse
-	43,  // 139: home.auth.v1.AccountService.RevokeInvitation:output_type -> home.auth.v1.RevokeInvitationResponse
-	46,  // 140: home.auth.v1.AccountService.GetSecondFactorPolicy:output_type -> home.auth.v1.GetSecondFactorPolicyResponse
-	48,  // 141: home.auth.v1.AccountService.SetSecondFactorPolicy:output_type -> home.auth.v1.SetSecondFactorPolicyResponse
-	64,  // 142: home.auth.v1.AuthService.StartLogin:output_type -> home.auth.v1.StartLoginResponse
-	66,  // 143: home.auth.v1.AuthService.CompleteLogin:output_type -> home.auth.v1.CompleteLoginResponse
-	68,  // 144: home.auth.v1.AuthService.RefreshSession:output_type -> home.auth.v1.RefreshSessionResponse
-	70,  // 145: home.auth.v1.AuthService.ListSessions:output_type -> home.auth.v1.ListSessionsResponse
-	72,  // 146: home.auth.v1.AuthService.RevokeSession:output_type -> home.auth.v1.RevokeSessionResponse
-	74,  // 147: home.auth.v1.AuthService.BeginFactorEnrollment:output_type -> home.auth.v1.BeginFactorEnrollmentResponse
-	76,  // 148: home.auth.v1.AuthService.CompleteFactorEnrollment:output_type -> home.auth.v1.CompleteFactorEnrollmentResponse
-	78,  // 149: home.auth.v1.AuthService.ListFactors:output_type -> home.auth.v1.ListFactorsResponse
-	80,  // 150: home.auth.v1.AuthService.RemoveFactor:output_type -> home.auth.v1.RemoveFactorResponse
-	82,  // 151: home.auth.v1.AuthService.ReplaceRecoveryCodes:output_type -> home.auth.v1.ReplaceRecoveryCodesResponse
-	85,  // 152: home.auth.v1.McpKeyService.CreateMcpKey:output_type -> home.auth.v1.CreateMcpKeyResponse
-	87,  // 153: home.auth.v1.McpKeyService.ListMcpKeys:output_type -> home.auth.v1.ListMcpKeysResponse
-	89,  // 154: home.auth.v1.McpKeyService.RevokeMcpKey:output_type -> home.auth.v1.RevokeMcpKeyResponse
-	129, // [129:155] is the sub-list for method output_type
-	103, // [103:129] is the sub-list for method input_type
-	103, // [103:103] is the sub-list for extension type_name
-	103, // [103:103] is the sub-list for extension extendee
-	0,   // [0:103] is the sub-list for field type_name
+	102, // 102: home.auth.v1.AuthError.retry_at:type_name -> google.protobuf.Timestamp
+	15,  // 103: home.auth.v1.PolicySnapshot.account_id:type_name -> home.auth.v1.AccountId
+	94,  // 104: home.auth.v1.PolicySnapshot.version:type_name -> home.auth.v1.PolicyVersion
+	102, // 105: home.auth.v1.PolicySnapshot.updated_at:type_name -> google.protobuf.Timestamp
+	15,  // 106: home.auth.v1.GetPolicyRequest.account_id:type_name -> home.auth.v1.AccountId
+	95,  // 107: home.auth.v1.GetPolicyResponse.present:type_name -> home.auth.v1.PolicySnapshot
+	104, // 108: home.auth.v1.GetPolicyResponse.absent:type_name -> google.protobuf.Empty
+	15,  // 109: home.auth.v1.ReplacePolicyRequest.account_id:type_name -> home.auth.v1.AccountId
+	94,  // 110: home.auth.v1.ReplacePolicyRequest.expected:type_name -> home.auth.v1.PolicyVersion
+	104, // 111: home.auth.v1.ReplacePolicyRequest.expect_absent:type_name -> google.protobuf.Empty
+	95,  // 112: home.auth.v1.ReplacePolicyResponse.policy:type_name -> home.auth.v1.PolicySnapshot
+	12,  // 113: home.auth.v1.ReplacePolicyResponse.rights_change:type_name -> home.auth.v1.PolicyRightsChange
+	13,  // 114: home.auth.v1.AuthorizationPolicyError.code:type_name -> home.auth.v1.AuthorizationPolicyErrorCode
+	14,  // 115: home.auth.v1.AuthorizationTermination.reason:type_name -> home.auth.v1.AuthorizationTerminationReason
+	24,  // 116: home.auth.v1.OperatorAccountService.BootstrapAdmin:input_type -> home.auth.v1.BootstrapAdminRequest
+	26,  // 117: home.auth.v1.OperatorAccountService.RecoverAccount:input_type -> home.auth.v1.RecoverAccountRequest
+	28,  // 118: home.auth.v1.AccountService.CreateAccount:input_type -> home.auth.v1.CreateAccountRequest
+	30,  // 119: home.auth.v1.AccountService.GetAccount:input_type -> home.auth.v1.GetAccountRequest
+	32,  // 120: home.auth.v1.AccountService.ListAccounts:input_type -> home.auth.v1.ListAccountsRequest
+	34,  // 121: home.auth.v1.AccountService.UpdateAccount:input_type -> home.auth.v1.UpdateAccountRequest
+	36,  // 122: home.auth.v1.AccountService.DeleteAccount:input_type -> home.auth.v1.DeleteAccountRequest
+	39,  // 123: home.auth.v1.AccountService.CreateInvitation:input_type -> home.auth.v1.CreateInvitationRequest
+	41,  // 124: home.auth.v1.AccountService.AcceptInvitation:input_type -> home.auth.v1.AcceptInvitationRequest
+	43,  // 125: home.auth.v1.AccountService.ListInvitations:input_type -> home.auth.v1.ListInvitationsRequest
+	45,  // 126: home.auth.v1.AccountService.RevokeInvitation:input_type -> home.auth.v1.RevokeInvitationRequest
+	48,  // 127: home.auth.v1.AccountService.GetSecondFactorPolicy:input_type -> home.auth.v1.GetSecondFactorPolicyRequest
+	50,  // 128: home.auth.v1.AccountService.SetSecondFactorPolicy:input_type -> home.auth.v1.SetSecondFactorPolicyRequest
+	66,  // 129: home.auth.v1.AuthService.StartLogin:input_type -> home.auth.v1.StartLoginRequest
+	68,  // 130: home.auth.v1.AuthService.CompleteLogin:input_type -> home.auth.v1.CompleteLoginRequest
+	70,  // 131: home.auth.v1.AuthService.RefreshSession:input_type -> home.auth.v1.RefreshSessionRequest
+	72,  // 132: home.auth.v1.AuthService.ListSessions:input_type -> home.auth.v1.ListSessionsRequest
+	74,  // 133: home.auth.v1.AuthService.RevokeSession:input_type -> home.auth.v1.RevokeSessionRequest
+	76,  // 134: home.auth.v1.AuthService.BeginFactorEnrollment:input_type -> home.auth.v1.BeginFactorEnrollmentRequest
+	78,  // 135: home.auth.v1.AuthService.CompleteFactorEnrollment:input_type -> home.auth.v1.CompleteFactorEnrollmentRequest
+	80,  // 136: home.auth.v1.AuthService.ListFactors:input_type -> home.auth.v1.ListFactorsRequest
+	82,  // 137: home.auth.v1.AuthService.RemoveFactor:input_type -> home.auth.v1.RemoveFactorRequest
+	84,  // 138: home.auth.v1.AuthService.ReplaceRecoveryCodes:input_type -> home.auth.v1.ReplaceRecoveryCodesRequest
+	87,  // 139: home.auth.v1.McpKeyService.CreateMcpKey:input_type -> home.auth.v1.CreateMcpKeyRequest
+	89,  // 140: home.auth.v1.McpKeyService.ListMcpKeys:input_type -> home.auth.v1.ListMcpKeysRequest
+	91,  // 141: home.auth.v1.McpKeyService.RevokeMcpKey:input_type -> home.auth.v1.RevokeMcpKeyRequest
+	96,  // 142: home.auth.v1.AuthorizationPolicyService.GetPolicy:input_type -> home.auth.v1.GetPolicyRequest
+	98,  // 143: home.auth.v1.AuthorizationPolicyService.ReplacePolicy:input_type -> home.auth.v1.ReplacePolicyRequest
+	25,  // 144: home.auth.v1.OperatorAccountService.BootstrapAdmin:output_type -> home.auth.v1.BootstrapAdminResponse
+	27,  // 145: home.auth.v1.OperatorAccountService.RecoverAccount:output_type -> home.auth.v1.RecoverAccountResponse
+	29,  // 146: home.auth.v1.AccountService.CreateAccount:output_type -> home.auth.v1.CreateAccountResponse
+	31,  // 147: home.auth.v1.AccountService.GetAccount:output_type -> home.auth.v1.GetAccountResponse
+	33,  // 148: home.auth.v1.AccountService.ListAccounts:output_type -> home.auth.v1.ListAccountsResponse
+	35,  // 149: home.auth.v1.AccountService.UpdateAccount:output_type -> home.auth.v1.UpdateAccountResponse
+	37,  // 150: home.auth.v1.AccountService.DeleteAccount:output_type -> home.auth.v1.DeleteAccountResponse
+	40,  // 151: home.auth.v1.AccountService.CreateInvitation:output_type -> home.auth.v1.CreateInvitationResponse
+	42,  // 152: home.auth.v1.AccountService.AcceptInvitation:output_type -> home.auth.v1.AcceptInvitationResponse
+	44,  // 153: home.auth.v1.AccountService.ListInvitations:output_type -> home.auth.v1.ListInvitationsResponse
+	46,  // 154: home.auth.v1.AccountService.RevokeInvitation:output_type -> home.auth.v1.RevokeInvitationResponse
+	49,  // 155: home.auth.v1.AccountService.GetSecondFactorPolicy:output_type -> home.auth.v1.GetSecondFactorPolicyResponse
+	51,  // 156: home.auth.v1.AccountService.SetSecondFactorPolicy:output_type -> home.auth.v1.SetSecondFactorPolicyResponse
+	67,  // 157: home.auth.v1.AuthService.StartLogin:output_type -> home.auth.v1.StartLoginResponse
+	69,  // 158: home.auth.v1.AuthService.CompleteLogin:output_type -> home.auth.v1.CompleteLoginResponse
+	71,  // 159: home.auth.v1.AuthService.RefreshSession:output_type -> home.auth.v1.RefreshSessionResponse
+	73,  // 160: home.auth.v1.AuthService.ListSessions:output_type -> home.auth.v1.ListSessionsResponse
+	75,  // 161: home.auth.v1.AuthService.RevokeSession:output_type -> home.auth.v1.RevokeSessionResponse
+	77,  // 162: home.auth.v1.AuthService.BeginFactorEnrollment:output_type -> home.auth.v1.BeginFactorEnrollmentResponse
+	79,  // 163: home.auth.v1.AuthService.CompleteFactorEnrollment:output_type -> home.auth.v1.CompleteFactorEnrollmentResponse
+	81,  // 164: home.auth.v1.AuthService.ListFactors:output_type -> home.auth.v1.ListFactorsResponse
+	83,  // 165: home.auth.v1.AuthService.RemoveFactor:output_type -> home.auth.v1.RemoveFactorResponse
+	85,  // 166: home.auth.v1.AuthService.ReplaceRecoveryCodes:output_type -> home.auth.v1.ReplaceRecoveryCodesResponse
+	88,  // 167: home.auth.v1.McpKeyService.CreateMcpKey:output_type -> home.auth.v1.CreateMcpKeyResponse
+	90,  // 168: home.auth.v1.McpKeyService.ListMcpKeys:output_type -> home.auth.v1.ListMcpKeysResponse
+	92,  // 169: home.auth.v1.McpKeyService.RevokeMcpKey:output_type -> home.auth.v1.RevokeMcpKeyResponse
+	97,  // 170: home.auth.v1.AuthorizationPolicyService.GetPolicy:output_type -> home.auth.v1.GetPolicyResponse
+	99,  // 171: home.auth.v1.AuthorizationPolicyService.ReplacePolicy:output_type -> home.auth.v1.ReplacePolicyResponse
+	144, // [144:172] is the sub-list for method output_type
+	116, // [116:144] is the sub-list for method input_type
+	116, // [116:116] is the sub-list for extension type_name
+	116, // [116:116] is the sub-list for extension extendee
+	0,   // [0:116] is the sub-list for field type_name
 }
 
 func init() { file_home_auth_v1_auth_proto_init() }
@@ -5792,15 +6557,23 @@ func file_home_auth_v1_auth_proto_init() {
 		(*AuthError_InvalidField)(nil),
 		(*AuthError_RetryAt)(nil),
 	}
+	file_home_auth_v1_auth_proto_msgTypes[82].OneofWrappers = []any{
+		(*GetPolicyResponse_Present)(nil),
+		(*GetPolicyResponse_Absent)(nil),
+	}
+	file_home_auth_v1_auth_proto_msgTypes[83].OneofWrappers = []any{
+		(*ReplacePolicyRequest_Expected)(nil),
+		(*ReplacePolicyRequest_ExpectAbsent)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_auth_v1_auth_proto_rawDesc), len(file_home_auth_v1_auth_proto_rawDesc)),
-			NumEnums:      12,
-			NumMessages:   79,
+			NumEnums:      15,
+			NumMessages:   87,
 			NumExtensions: 0,
-			NumServices:   4,
+			NumServices:   5,
 		},
 		GoTypes:           file_home_auth_v1_auth_proto_goTypes,
 		DependencyIndexes: file_home_auth_v1_auth_proto_depIdxs,

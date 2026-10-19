@@ -10,6 +10,7 @@ pub mod home {
 }
 
 pub mod auth_contract;
+pub mod authorization_contract;
 
 /// Pure representation/generation admission example. Authorization, expiry,
 /// identity resolution and dispatch remain responsibilities of later services.

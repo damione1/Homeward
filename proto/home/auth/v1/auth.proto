@@ -2,6 +2,7 @@ syntax = "proto3";
 package home.auth.v1;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/auth/v1;authv1";
@@ -428,3 +429,71 @@ message AuthError {
     google.protobuf.Timestamp retry_at = 7;
   }
 }
+
+// Authorization policy sources are Homeward YAML, not a Home Assistant
+// candidate. The server admits the exact bytes under homeward.authorization/1.
+// Role/status are authoritative account facts and never fields of this source.
+service AuthorizationPolicyService {
+  rpc GetPolicy(GetPolicyRequest) returns (GetPolicyResponse);
+  rpc ReplacePolicy(ReplacePolicyRequest) returns (ReplacePolicyResponse);
+}
+message PolicyVersion {
+  uint64 revision = 1; // Positive, at most the signed PostgreSQL bigint maximum.
+  bytes source_sha256 = 2; // Exactly 32 bytes; hash of exact yaml_source bytes.
+}
+message PolicySnapshot {
+  AccountId account_id = 1;
+  bytes yaml_source = 2; // UTF-8, 1..1048576 bytes. Never an include or secret.
+  string schema = 3;
+  string syntax_profile = 4;
+  PolicyVersion version = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+message GetPolicyRequest { AccountId account_id = 1; }
+message GetPolicyResponse {
+  oneof result {
+    PolicySnapshot present = 1;
+    google.protobuf.Empty absent = 2;
+  }
+}
+message ReplacePolicyRequest {
+  AccountId account_id = 1;
+  bytes yaml_source = 2;
+  // Absence of this oneof is invalid. A zero revision is never "not present".
+  oneof precondition {
+    PolicyVersion expected = 3;
+    google.protobuf.Empty expect_absent = 4;
+  }
+}
+enum PolicyRightsChange {
+  POLICY_RIGHTS_CHANGE_UNSPECIFIED = 0;
+  POLICY_RIGHTS_CHANGE_CHANGED = 1;
+  POLICY_RIGHTS_CHANGE_UNCHANGED = 2;
+}
+message ReplacePolicyResponse {
+  PolicySnapshot policy = 1;
+  PolicyRightsChange rights_change = 2;
+}
+enum AuthorizationPolicyErrorCode {
+  AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED = 0;
+  AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT = 1;
+  AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE = 2;
+  AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION = 3;
+  AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED = 4;
+  AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE = 5;
+}
+message AuthorizationPolicyError {
+  AuthorizationPolicyErrorCode code = 1;
+  string field_path = 2; // Bounded schema path; never rejected source or object ID.
+}
+enum AuthorizationTerminationReason {
+  AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED = 0;
+  AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED = 1;
+  AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED = 2;
+  AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED = 3;
+  AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED = 4;
+  AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE = 5;
+}
+// Presence of this error detail always requires discarding the cached view.
+// A reconnect must authenticate and open a new snapshot; no removed IDs leak.
+message AuthorizationTermination { AuthorizationTerminationReason reason = 1; }

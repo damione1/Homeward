@@ -9,6 +9,8 @@ import (
 	"time"
 
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"google.golang.org/protobuf/proto"
 )
@@ -65,6 +67,8 @@ type volatileEntry struct {
 	state       volatileState
 	response    *actions.CommandResponse
 	err         error
+	target      authorization.CommandTarget
+	hasTarget   bool
 }
 
 type volatileCommandLedger struct {
@@ -232,7 +236,7 @@ func (s *VolatileCommandService) RecordedPreparedLight(ctx context.Context, prep
 	if err != nil || prepared.actor != prepared.route.actor {
 		return nil, false, ErrInvalidInput
 	}
-	return s.recordedPrepared(ctx, prepared.actor, wire)
+	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedLightCommand(prepared.route)), prepared.actor, wire)
 }
 
 func (s *VolatileCommandService) RecordedPreparedFan(ctx context.Context, prepared PreparedFan) (*actions.CommandResponse, bool, error) {
@@ -243,7 +247,7 @@ func (s *VolatileCommandService) RecordedPreparedFan(ctx context.Context, prepar
 	if err != nil || prepared.actor != prepared.route.actor {
 		return nil, false, ErrInvalidInput
 	}
-	return s.recordedPrepared(ctx, prepared.actor, wire)
+	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedFanCommand(prepared.route)), prepared.actor, wire)
 }
 
 func (s *VolatileCommandService) RecordedPreparedDirect(ctx context.Context, prepared PreparedDirect) (*actions.CommandResponse, bool, error) {
@@ -254,7 +258,7 @@ func (s *VolatileCommandService) RecordedPreparedDirect(ctx context.Context, pre
 	if err != nil || prepared.actor != prepared.route.actor {
 		return nil, false, ErrInvalidInput
 	}
-	return s.recordedPrepared(ctx, prepared.actor, wire)
+	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedDirectCommand(prepared.route)), prepared.actor, wire)
 }
 
 func (s *VolatileCommandService) recordedPrepared(ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest) (*actions.CommandResponse, bool, error) {
@@ -283,11 +287,19 @@ func (s *VolatileCommandService) recordedPrepared(ctx context.Context, actor dom
 		return nil, false, ErrInvalidInput
 	}
 	ledger.mu.Lock()
-	defer ledger.mu.Unlock()
 	entry := ledger.entries[id]
+	ledger.mu.Unlock()
 	if entry == nil {
+		if err := s.router.authorizeMissingRecord(ctx, actor, wire); err != nil {
+			return nil, false, err
+		}
 		return nil, false, nil
 	}
+	if err := s.router.authorizeStored(ctx, entry.fingerprint, entry.target, entry.hasTarget); err != nil {
+		return nil, false, err
+	}
+	ledger.mu.Lock()
+	defer ledger.mu.Unlock()
 	if !bytes.Equal(entry.fingerprint, fingerprint) {
 		return nil, true, ErrCommandIDConflict
 	}
@@ -309,6 +321,13 @@ func (l *volatileCommandLedger) dispatchWithPrepared(router *CommandRouter, ctx 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	ctx = preparedAuthorizationContext(ctx, preparedRoute)
+	target, err := router.authorizeRequest(ctx, actor, request, authv1.ScopeOperation_SCOPE_OPERATION_WRITE)
+	if err != nil {
+		return nil, err
+	}
+	_, _, targetErr := target.Values()
+	hasTarget := targetErr == nil
 	authority := router.projection.(CommandEpochAuthority) // checked at service construction
 	current, err := authority.CurrentAdmissionEpoch()
 	if err != nil || current == "" || current != l.epoch {
@@ -327,6 +346,11 @@ func (l *volatileCommandLedger) dispatchWithPrepared(router *CommandRouter, ctx 
 	// Reject oversized input before cloning or encoding it. The exact budget
 	// check below also includes the trusted actor and length prefix.
 	if proto.Size(request) > l.limits.intentBytes {
+		// Native requests do not query the existence of an old ID through a
+		// malformed oversized envelope. The explicit legacy contract is kept.
+		if router.host.commandAuthority() != nil {
+			return nil, ErrCommandIntentTooLarge
+		}
 		l.mu.Lock()
 		_, exists := l.entries[id]
 		l.mu.Unlock()
@@ -353,11 +377,13 @@ func (l *volatileCommandLedger) dispatchWithPrepared(router *CommandRouter, ctx 
 	}
 	l.mu.Lock()
 	if entry := l.entries[id]; entry != nil {
+		l.mu.Unlock()
+		if err := router.authorizeStored(ctx, entry.fingerprint, entry.target, entry.hasTarget); err != nil {
+			return nil, err
+		}
 		if !bytes.Equal(entry.fingerprint, fingerprint) {
-			l.mu.Unlock()
 			return nil, ErrCommandIDConflict
 		}
-		l.mu.Unlock()
 		if !validDeadline {
 			return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at"), nil
 		}
@@ -365,6 +391,9 @@ func (l *volatileCommandLedger) dispatchWithPrepared(router *CommandRouter, ctx 
 		defer deadline.Stop()
 		select {
 		case <-entry.done:
+			if err := router.authorizeStored(ctx, entry.fingerprint, entry.target, entry.hasTarget); err != nil {
+				return nil, err
+			}
 			return cloneVolatileResult(entry)
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -384,12 +413,12 @@ func (l *volatileCommandLedger) dispatchWithPrepared(router *CommandRouter, ctx 
 		l.mu.Unlock()
 		return nil, ErrVolatileLedgerFull
 	}
-	entry := &volatileEntry{fingerprint: fingerprint, done: make(chan struct{}), state: volatilePending}
+	entry := &volatileEntry{fingerprint: fingerprint, done: make(chan struct{}), state: volatilePending, target: target, hasTarget: hasTarget}
 	l.entries[id] = entry
 	l.retained += cost
 	l.mu.Unlock()
 
-	return l.runFirst(entry, router, ctx, actor, wire, preparedRoute)
+	return l.runFirst(entry, router, withExpectedAuthorizationTarget(ctx, target), actor, wire, preparedRoute)
 }
 
 // commandFingerprint is shared by volatile and durable admission. It uses the

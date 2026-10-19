@@ -1187,6 +1187,357 @@ impl ::buffa::Enumeration for AuthField {
         ]
     }
 }
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum PolicyRightsChange {
+    POLICY_RIGHTS_CHANGE_UNSPECIFIED = 0i32,
+    POLICY_RIGHTS_CHANGE_CHANGED = 1i32,
+    POLICY_RIGHTS_CHANGE_UNCHANGED = 2i32,
+}
+impl PolicyRightsChange {
+    ///Idiomatic alias for [`Self::POLICY_RIGHTS_CHANGE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::POLICY_RIGHTS_CHANGE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::POLICY_RIGHTS_CHANGE_CHANGED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Changed: Self = Self::POLICY_RIGHTS_CHANGE_CHANGED;
+    ///Idiomatic alias for [`Self::POLICY_RIGHTS_CHANGE_UNCHANGED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unchanged: Self = Self::POLICY_RIGHTS_CHANGE_UNCHANGED;
+}
+impl ::core::default::Default for PolicyRightsChange {
+    fn default() -> Self {
+        Self::POLICY_RIGHTS_CHANGE_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for PolicyRightsChange {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::POLICY_RIGHTS_CHANGE_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::POLICY_RIGHTS_CHANGE_CHANGED),
+            2i32 => ::core::option::Option::Some(Self::POLICY_RIGHTS_CHANGE_UNCHANGED),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::POLICY_RIGHTS_CHANGE_UNSPECIFIED => "POLICY_RIGHTS_CHANGE_UNSPECIFIED",
+            Self::POLICY_RIGHTS_CHANGE_CHANGED => "POLICY_RIGHTS_CHANGE_CHANGED",
+            Self::POLICY_RIGHTS_CHANGE_UNCHANGED => "POLICY_RIGHTS_CHANGE_UNCHANGED",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "POLICY_RIGHTS_CHANGE_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::POLICY_RIGHTS_CHANGE_UNSPECIFIED)
+            }
+            "POLICY_RIGHTS_CHANGE_CHANGED" => {
+                ::core::option::Option::Some(Self::POLICY_RIGHTS_CHANGE_CHANGED)
+            }
+            "POLICY_RIGHTS_CHANGE_UNCHANGED" => {
+                ::core::option::Option::Some(Self::POLICY_RIGHTS_CHANGE_UNCHANGED)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::POLICY_RIGHTS_CHANGE_UNSPECIFIED,
+            Self::POLICY_RIGHTS_CHANGE_CHANGED,
+            Self::POLICY_RIGHTS_CHANGE_UNCHANGED,
+        ]
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum AuthorizationPolicyErrorCode {
+    AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED = 0i32,
+    AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT = 1i32,
+    AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE = 2i32,
+    AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION = 3i32,
+    AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED = 4i32,
+    AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE = 5i32,
+}
+impl AuthorizationPolicyErrorCode {
+    ///Idiomatic alias for [`Self::AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const VersionConflict: Self = Self::AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT;
+    ///Idiomatic alias for [`Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const InvalidSource: Self = Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE;
+    ///Idiomatic alias for [`Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const InvalidVersion: Self = Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION;
+    ///Idiomatic alias for [`Self::AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ScopeDenied: Self = Self::AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED;
+    ///Idiomatic alias for [`Self::AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AuthorityUnavailable: Self = Self::AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE;
+}
+impl ::core::default::Default for AuthorizationPolicyErrorCode {
+    fn default() -> Self {
+        Self::AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for AuthorizationPolicyErrorCode {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED,
+                )
+            }
+            1i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT,
+                )
+            }
+            2i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE,
+                )
+            }
+            3i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION,
+                )
+            }
+            4i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED,
+                )
+            }
+            5i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED => {
+                "AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED"
+            }
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT => {
+                "AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT"
+            }
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE => {
+                "AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE"
+            }
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION => {
+                "AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION"
+            }
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED => {
+                "AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED"
+            }
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE => {
+                "AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED,
+                )
+            }
+            "AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT,
+                )
+            }
+            "AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE,
+                )
+            }
+            "AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION,
+                )
+            }
+            "AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED,
+                )
+            }
+            "AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_UNSPECIFIED,
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_VERSION_CONFLICT,
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE,
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION,
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_SCOPE_DENIED,
+            Self::AUTHORIZATION_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE,
+        ]
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum AuthorizationTerminationReason {
+    AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED = 0i32,
+    AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED = 1i32,
+    AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED = 2i32,
+    AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED = 3i32,
+    AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED = 4i32,
+    AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE = 5i32,
+}
+impl AuthorizationTerminationReason {
+    ///Idiomatic alias for [`Self::AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const CredentialRevoked: Self = Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED;
+    ///Idiomatic alias for [`Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const CredentialExpired: Self = Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED;
+    ///Idiomatic alias for [`Self::AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AccountDisabled: Self = Self::AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED;
+    ///Idiomatic alias for [`Self::AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RightsChanged: Self = Self::AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED;
+    ///Idiomatic alias for [`Self::AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AuthorityUnavailable: Self = Self::AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE;
+}
+impl ::core::default::Default for AuthorizationTerminationReason {
+    fn default() -> Self {
+        Self::AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for AuthorizationTerminationReason {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED,
+                )
+            }
+            1i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED,
+                )
+            }
+            2i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED,
+                )
+            }
+            3i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED,
+                )
+            }
+            4i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED,
+                )
+            }
+            5i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED => {
+                "AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED"
+            }
+            Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED => {
+                "AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED"
+            }
+            Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED => {
+                "AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED"
+            }
+            Self::AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED => {
+                "AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED"
+            }
+            Self::AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED => {
+                "AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED"
+            }
+            Self::AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE => {
+                "AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED,
+                )
+            }
+            "AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED,
+                )
+            }
+            "AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED,
+                )
+            }
+            "AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED,
+                )
+            }
+            "AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED,
+                )
+            }
+            "AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE" => {
+                ::core::option::Option::Some(
+                    Self::AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED,
+            Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED,
+            Self::AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED,
+            Self::AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED,
+            Self::AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED,
+            Self::AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE,
+        ]
+    }
+}
 /// IDs are open, opaque and different types. Admission rejects an absent or empty value.
 #[derive(Clone, PartialEq, Default)]
 pub struct AccountId {
@@ -11892,6 +12243,1235 @@ pub mod auth_error {
     pub use super::__buffa::oneof::auth_error::Detail;
     #[doc(inline)]
     pub use super::__buffa::view::oneof::auth_error::Detail as DetailView;
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct PolicyVersion {
+    /// Positive, at most the signed PostgreSQL bigint maximum.
+    ///
+    /// Field 1: `revision`
+    pub revision: u64,
+    /// Exactly 32 bytes; hash of exact yaml_source bytes.
+    ///
+    /// Field 2: `source_sha256`
+    pub source_sha256: ::buffa::alloc::vec::Vec<u8>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PolicyVersion {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PolicyVersion")
+            .field("revision", &self.revision)
+            .field("source_sha256", &self.source_sha256)
+            .finish()
+    }
+}
+impl PolicyVersion {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.PolicyVersion";
+}
+::buffa::impl_default_instance!(PolicyVersion);
+impl ::buffa::MessageName for PolicyVersion {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "PolicyVersion";
+    const FULL_NAME: &'static str = "home.auth.v1.PolicyVersion";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.PolicyVersion";
+}
+impl ::buffa::Message for PolicyVersion {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.revision != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.revision) as u64;
+        }
+        if !self.source_sha256.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.source_sha256) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.revision != 0u64 {
+            ::buffa::types::put_uint64_field(1u32, self.revision, buf);
+        }
+        if !self.source_sha256.is_empty() {
+            ::buffa::types::put_shared_bytes_field(2u32, &self.source_sha256, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.revision = ::buffa::types::decode_uint64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.source_sha256, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.revision = 0u64;
+        self.source_sha256.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PolicyVersion {
+    const PROTO_FQN: &'static str = "home.auth.v1.PolicyVersion";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct PolicySnapshot {
+    /// Field 1: `account_id`
+    pub account_id: ::buffa::MessageField<AccountId, ::buffa::Inline<AccountId>>,
+    /// UTF-8, 1..1048576 bytes. Never an include or secret.
+    ///
+    /// Field 2: `yaml_source`
+    pub yaml_source: ::buffa::alloc::vec::Vec<u8>,
+    /// Field 3: `schema`
+    pub schema: ::buffa::alloc::string::String,
+    /// Field 4: `syntax_profile`
+    pub syntax_profile: ::buffa::alloc::string::String,
+    /// Field 5: `version`
+    pub version: ::buffa::MessageField<PolicyVersion, ::buffa::Inline<PolicyVersion>>,
+    /// Field 6: `updated_at`
+    pub updated_at: ::buffa::MessageField<
+        ::buffa_types::google::protobuf::Timestamp,
+        ::buffa::Inline<::buffa_types::google::protobuf::Timestamp>,
+    >,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PolicySnapshot {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PolicySnapshot")
+            .field("account_id", &self.account_id)
+            .field("yaml_source", &self.yaml_source)
+            .field("schema", &self.schema)
+            .field("syntax_profile", &self.syntax_profile)
+            .field("version", &self.version)
+            .field("updated_at", &self.updated_at)
+            .finish()
+    }
+}
+impl PolicySnapshot {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.PolicySnapshot";
+}
+::buffa::impl_default_instance!(PolicySnapshot);
+impl ::buffa::MessageName for PolicySnapshot {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "PolicySnapshot";
+    const FULL_NAME: &'static str = "home.auth.v1.PolicySnapshot";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.PolicySnapshot";
+}
+impl ::buffa::Message for PolicySnapshot {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.account_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.account_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.yaml_source.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.yaml_source) as u64;
+        }
+        if !self.schema.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.schema) as u64;
+        }
+        if !self.syntax_profile.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.syntax_profile) as u64;
+        }
+        if self.version.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.version.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.updated_at.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.updated_at.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.account_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.account_id.write_to(__cache, buf);
+        }
+        if !self.yaml_source.is_empty() {
+            ::buffa::types::put_shared_bytes_field(2u32, &self.yaml_source, buf);
+        }
+        if !self.schema.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.schema, buf);
+        }
+        if !self.syntax_profile.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.syntax_profile, buf);
+        }
+        if self.version.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.version.write_to(__cache, buf);
+        }
+        if self.updated_at.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                6u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.updated_at.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.account_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.yaml_source, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.schema, buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.syntax_profile, buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.version.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.updated_at.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.account_id = ::buffa::MessageField::none();
+        self.yaml_source.clear();
+        self.schema.clear();
+        self.syntax_profile.clear();
+        self.version = ::buffa::MessageField::none();
+        self.updated_at = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PolicySnapshot {
+    const PROTO_FQN: &'static str = "home.auth.v1.PolicySnapshot";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct GetPolicyRequest {
+    /// Field 1: `account_id`
+    pub account_id: ::buffa::MessageField<AccountId, ::buffa::Inline<AccountId>>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for GetPolicyRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("GetPolicyRequest").field("account_id", &self.account_id).finish()
+    }
+}
+impl GetPolicyRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.GetPolicyRequest";
+}
+::buffa::impl_default_instance!(GetPolicyRequest);
+impl ::buffa::MessageName for GetPolicyRequest {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "GetPolicyRequest";
+    const FULL_NAME: &'static str = "home.auth.v1.GetPolicyRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.GetPolicyRequest";
+}
+impl ::buffa::Message for GetPolicyRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.account_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.account_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.account_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.account_id.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.account_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.account_id = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for GetPolicyRequest {
+    const PROTO_FQN: &'static str = "home.auth.v1.GetPolicyRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct GetPolicyResponse {
+    pub result: ::core::option::Option<__buffa::oneof::get_policy_response::Result>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for GetPolicyResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("GetPolicyResponse").field("result", &self.result).finish()
+    }
+}
+impl GetPolicyResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.GetPolicyResponse";
+}
+::buffa::impl_default_instance!(GetPolicyResponse);
+impl ::buffa::MessageName for GetPolicyResponse {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "GetPolicyResponse";
+    const FULL_NAME: &'static str = "home.auth.v1.GetPolicyResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.GetPolicyResponse";
+}
+impl ::buffa::Message for GetPolicyResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if let ::core::option::Option::Some(ref v) = self.result {
+            match v {
+                __buffa::oneof::get_policy_response::Result::Present(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::get_policy_response::Result::Absent(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if let ::core::option::Option::Some(ref v) = self.result {
+            match v {
+                __buffa::oneof::get_policy_response::Result::Present(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::get_policy_response::Result::Absent(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::get_policy_response::Result::Present(
+                        ref mut existing,
+                    ),
+                ) = self.result
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.result = ::core::option::Option::Some(
+                        __buffa::oneof::get_policy_response::Result::Present(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::get_policy_response::Result::Absent(ref mut existing),
+                ) = self.result
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.result = ::core::option::Option::Some(
+                        __buffa::oneof::get_policy_response::Result::Absent(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.result = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for GetPolicyResponse {
+    const PROTO_FQN: &'static str = "home.auth.v1.GetPolicyResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+pub mod get_policy_response {
+    #[allow(unused_imports)]
+    use super::*;
+    #[doc(inline)]
+    pub use super::__buffa::oneof::get_policy_response::Result;
+    #[doc(inline)]
+    pub use super::__buffa::view::oneof::get_policy_response::Result as ResultView;
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct ReplacePolicyRequest {
+    /// Field 1: `account_id`
+    pub account_id: ::buffa::MessageField<AccountId, ::buffa::Inline<AccountId>>,
+    /// Field 2: `yaml_source`
+    pub yaml_source: ::buffa::alloc::vec::Vec<u8>,
+    pub precondition: ::core::option::Option<
+        __buffa::oneof::replace_policy_request::Precondition,
+    >,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ReplacePolicyRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ReplacePolicyRequest")
+            .field("account_id", &self.account_id)
+            .field("yaml_source", &self.yaml_source)
+            .field("precondition", &self.precondition)
+            .finish()
+    }
+}
+impl ReplacePolicyRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ReplacePolicyRequest";
+}
+::buffa::impl_default_instance!(ReplacePolicyRequest);
+impl ::buffa::MessageName for ReplacePolicyRequest {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "ReplacePolicyRequest";
+    const FULL_NAME: &'static str = "home.auth.v1.ReplacePolicyRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ReplacePolicyRequest";
+}
+impl ::buffa::Message for ReplacePolicyRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.account_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.account_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.yaml_source.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.yaml_source) as u64;
+        }
+        if let ::core::option::Option::Some(ref v) = self.precondition {
+            match v {
+                __buffa::oneof::replace_policy_request::Precondition::Expected(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::replace_policy_request::Precondition::ExpectAbsent(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.account_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.account_id.write_to(__cache, buf);
+        }
+        if !self.yaml_source.is_empty() {
+            ::buffa::types::put_shared_bytes_field(2u32, &self.yaml_source, buf);
+        }
+        if let ::core::option::Option::Some(ref v) = self.precondition {
+            match v {
+                __buffa::oneof::replace_policy_request::Precondition::Expected(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        3u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::replace_policy_request::Precondition::ExpectAbsent(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.account_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.yaml_source, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::replace_policy_request::Precondition::Expected(
+                        ref mut existing,
+                    ),
+                ) = self.precondition
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.precondition = ::core::option::Option::Some(
+                        __buffa::oneof::replace_policy_request::Precondition::Expected(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::replace_policy_request::Precondition::ExpectAbsent(
+                        ref mut existing,
+                    ),
+                ) = self.precondition
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.precondition = ::core::option::Option::Some(
+                        __buffa::oneof::replace_policy_request::Precondition::ExpectAbsent(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.account_id = ::buffa::MessageField::none();
+        self.yaml_source.clear();
+        self.precondition = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ReplacePolicyRequest {
+    const PROTO_FQN: &'static str = "home.auth.v1.ReplacePolicyRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+pub mod replace_policy_request {
+    #[allow(unused_imports)]
+    use super::*;
+    #[doc(inline)]
+    pub use super::__buffa::oneof::replace_policy_request::Precondition;
+    #[doc(inline)]
+    pub use super::__buffa::view::oneof::replace_policy_request::Precondition as PreconditionView;
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct ReplacePolicyResponse {
+    /// Field 1: `policy`
+    pub policy: ::buffa::MessageField<PolicySnapshot, ::buffa::Inline<PolicySnapshot>>,
+    /// Field 2: `rights_change`
+    pub rights_change: ::buffa::EnumValue<PolicyRightsChange>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ReplacePolicyResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ReplacePolicyResponse")
+            .field("policy", &self.policy)
+            .field("rights_change", &self.rights_change)
+            .finish()
+    }
+}
+impl ReplacePolicyResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ReplacePolicyResponse";
+}
+::buffa::impl_default_instance!(ReplacePolicyResponse);
+impl ::buffa::MessageName for ReplacePolicyResponse {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "ReplacePolicyResponse";
+    const FULL_NAME: &'static str = "home.auth.v1.ReplacePolicyResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ReplacePolicyResponse";
+}
+impl ::buffa::Message for ReplacePolicyResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.policy.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.policy.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.rights_change.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.policy.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.policy.write_to(__cache, buf);
+        }
+        {
+            let val = self.rights_change.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.policy.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.rights_change = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.policy = ::buffa::MessageField::none();
+        self.rights_change = ::buffa::EnumValue::from(0);
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ReplacePolicyResponse {
+    const PROTO_FQN: &'static str = "home.auth.v1.ReplacePolicyResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct AuthorizationPolicyError {
+    /// Field 1: `code`
+    pub code: ::buffa::EnumValue<AuthorizationPolicyErrorCode>,
+    /// Bounded schema path; never rejected source or object ID.
+    ///
+    /// Field 2: `field_path`
+    pub field_path: ::buffa::alloc::string::String,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for AuthorizationPolicyError {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("AuthorizationPolicyError")
+            .field("code", &self.code)
+            .field("field_path", &self.field_path)
+            .finish()
+    }
+}
+impl AuthorizationPolicyError {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.AuthorizationPolicyError";
+}
+::buffa::impl_default_instance!(AuthorizationPolicyError);
+impl ::buffa::MessageName for AuthorizationPolicyError {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "AuthorizationPolicyError";
+    const FULL_NAME: &'static str = "home.auth.v1.AuthorizationPolicyError";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.AuthorizationPolicyError";
+}
+impl ::buffa::Message for AuthorizationPolicyError {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.code.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if !self.field_path.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.field_path) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.code.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        if !self.field_path.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.field_path, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.code = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.field_path, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.code = ::buffa::EnumValue::from(0);
+        self.field_path.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for AuthorizationPolicyError {
+    const PROTO_FQN: &'static str = "home.auth.v1.AuthorizationPolicyError";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+/// Presence of this error detail always requires discarding the cached view.
+/// A reconnect must authenticate and open a new snapshot; no removed IDs leak.
+#[derive(Clone, PartialEq, Default)]
+pub struct AuthorizationTermination {
+    /// Field 1: `reason`
+    pub reason: ::buffa::EnumValue<AuthorizationTerminationReason>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for AuthorizationTermination {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("AuthorizationTermination").field("reason", &self.reason).finish()
+    }
+}
+impl AuthorizationTermination {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.AuthorizationTermination";
+}
+::buffa::impl_default_instance!(AuthorizationTermination);
+impl ::buffa::MessageName for AuthorizationTermination {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "AuthorizationTermination";
+    const FULL_NAME: &'static str = "home.auth.v1.AuthorizationTermination";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.AuthorizationTermination";
+}
+impl ::buffa::Message for AuthorizationTermination {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.reason.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.reason.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.reason = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.reason = ::buffa::EnumValue::from(0);
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for AuthorizationTermination {
+    const PROTO_FQN: &'static str = "home.auth.v1.AuthorizationTermination";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
 }
 #[allow(
     non_camel_case_types,
@@ -36259,6 +37839,2686 @@ pub mod __buffa {
             type View<'a> = AuthErrorView<'a>;
             type ViewHandle = AuthErrorOwnedView;
         }
+        #[derive(Clone, Debug, Default)]
+        pub struct PolicyVersionView<'a> {
+            /// Positive, at most the signed PostgreSQL bigint maximum.
+            ///
+            /// Field 1: `revision`
+            pub revision: u64,
+            /// Exactly 32 bytes; hash of exact yaml_source bytes.
+            ///
+            /// Field 2: `source_sha256`
+            pub source_sha256: &'a [u8],
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for PolicyVersionView<'a> {
+            type Owned = super::super::PolicyVersion;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.revision = ::buffa::types::decode_uint64(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.source_sha256 = ::buffa::types::borrow_bytes(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::PolicyVersion,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::PolicyVersion,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::PolicyVersion {
+                    revision: self.revision,
+                    source_sha256: (self.source_sha256).to_vec(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for PolicyVersionView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.revision != 0u64 {
+                    size
+                        += 1u64
+                            + ::buffa::types::uint64_encoded_len(self.revision) as u64;
+                }
+                if !self.source_sha256.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::bytes_encoded_len(&self.source_sha256)
+                                as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.revision != 0u64 {
+                    ::buffa::types::put_uint64_field(1u32, self.revision, buf);
+                }
+                if !self.source_sha256.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(
+                        2u32,
+                        &self.source_sha256,
+                        buf,
+                    );
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for PolicyVersionView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "PolicyVersion";
+            const FULL_NAME: &'static str = "home.auth.v1.PolicyVersion";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.PolicyVersion";
+        }
+        ::buffa::impl_default_view_instance!(PolicyVersionView);
+        ::buffa::impl_view_reborrow!(PolicyVersionView);
+        /** Self-contained, `'static` owned view of a `PolicyVersion` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PolicyVersionView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PolicyVersionView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct PolicyVersionOwnedView(
+            ::buffa::OwnedView<PolicyVersionView<'static>>,
+        );
+        impl PolicyVersionOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    PolicyVersionOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    PolicyVersionOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::PolicyVersion,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    PolicyVersionOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`PolicyVersionView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &PolicyVersionView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::PolicyVersion {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Positive, at most the signed PostgreSQL bigint maximum.
+            ///
+            /// Field 1: `revision`
+            #[must_use]
+            pub fn revision(&self) -> u64 {
+                self.0.reborrow().revision
+            }
+            /// Exactly 32 bytes; hash of exact yaml_source bytes.
+            ///
+            /// Field 2: `source_sha256`
+            #[must_use]
+            pub fn source_sha256(&self) -> &'_ [u8] {
+                self.0.reborrow().source_sha256
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<PolicyVersionView<'static>>>
+        for PolicyVersionOwnedView {
+            fn from(inner: ::buffa::OwnedView<PolicyVersionView<'static>>) -> Self {
+                PolicyVersionOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<PolicyVersionOwnedView>
+        for ::buffa::OwnedView<PolicyVersionView<'static>> {
+            fn from(wrapper: PolicyVersionOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<PolicyVersionView<'static>>>
+        for PolicyVersionOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<PolicyVersionView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::PolicyVersion {
+            type View<'a> = PolicyVersionView<'a>;
+            type ViewHandle = PolicyVersionOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct PolicySnapshotView<'a> {
+            /// Field 1: `account_id`
+            pub account_id: ::buffa::MessageFieldView<
+                super::super::__buffa::view::AccountIdView<'a>,
+            >,
+            /// UTF-8, 1..1048576 bytes. Never an include or secret.
+            ///
+            /// Field 2: `yaml_source`
+            pub yaml_source: &'a [u8],
+            /// Field 3: `schema`
+            pub schema: &'a str,
+            /// Field 4: `syntax_profile`
+            pub syntax_profile: &'a str,
+            /// Field 5: `version`
+            pub version: ::buffa::MessageFieldView<
+                super::super::__buffa::view::PolicyVersionView<'a>,
+            >,
+            /// Field 6: `updated_at`
+            pub updated_at: ::buffa::MessageFieldView<
+                ::buffa_types::google::protobuf::__buffa::view::TimestampView<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for PolicySnapshotView<'a> {
+            type Owned = super::super::PolicySnapshot;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.account_id.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.account_id = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.yaml_source = ::buffa::types::borrow_bytes(&mut cur)?;
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.schema = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.syntax_profile = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.version.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.version = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::PolicyVersionView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.updated_at.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.updated_at = ::buffa::MessageFieldView::set(
+                                    <::buffa_types::google::protobuf::__buffa::view::TimestampView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::PolicySnapshot,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::PolicySnapshot,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::PolicySnapshot {
+                    account_id: match self.account_id.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::AccountId,
+                                ::buffa::Inline<super::super::AccountId>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    yaml_source: (self.yaml_source).to_vec(),
+                    schema: self.schema.to_string(),
+                    syntax_profile: self.syntax_profile.to_string(),
+                    version: match self.version.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::PolicyVersion,
+                                ::buffa::Inline<super::super::PolicyVersion>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    updated_at: match self.updated_at.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                ::buffa_types::google::protobuf::Timestamp,
+                                ::buffa::Inline<::buffa_types::google::protobuf::Timestamp>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for PolicySnapshotView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.account_id.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.account_id.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if !self.yaml_source.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::bytes_encoded_len(&self.yaml_source)
+                                as u64;
+                }
+                if !self.schema.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.schema) as u64;
+                }
+                if !self.syntax_profile.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.syntax_profile)
+                                as u64;
+                }
+                if self.version.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.version.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.updated_at.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.updated_at.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.account_id.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.account_id.write_to(__cache, buf);
+                }
+                if !self.yaml_source.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(2u32, &self.yaml_source, buf);
+                }
+                if !self.schema.is_empty() {
+                    ::buffa::types::put_string_field(3u32, &self.schema, buf);
+                }
+                if !self.syntax_profile.is_empty() {
+                    ::buffa::types::put_string_field(4u32, &self.syntax_profile, buf);
+                }
+                if self.version.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.version.write_to(__cache, buf);
+                }
+                if self.updated_at.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.updated_at.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for PolicySnapshotView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "PolicySnapshot";
+            const FULL_NAME: &'static str = "home.auth.v1.PolicySnapshot";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.PolicySnapshot";
+        }
+        ::buffa::impl_default_view_instance!(PolicySnapshotView);
+        ::buffa::impl_view_reborrow!(PolicySnapshotView);
+        /** Self-contained, `'static` owned view of a `PolicySnapshot` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PolicySnapshotView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PolicySnapshotView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct PolicySnapshotOwnedView(
+            ::buffa::OwnedView<PolicySnapshotView<'static>>,
+        );
+        impl PolicySnapshotOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    PolicySnapshotOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    PolicySnapshotOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::PolicySnapshot,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    PolicySnapshotOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`PolicySnapshotView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &PolicySnapshotView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::PolicySnapshot {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `account_id`
+            #[must_use]
+            pub fn account_id(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::AccountIdView<'_>,
+            > {
+                &self.0.reborrow().account_id
+            }
+            /// UTF-8, 1..1048576 bytes. Never an include or secret.
+            ///
+            /// Field 2: `yaml_source`
+            #[must_use]
+            pub fn yaml_source(&self) -> &'_ [u8] {
+                self.0.reborrow().yaml_source
+            }
+            /// Field 3: `schema`
+            #[must_use]
+            pub fn schema(&self) -> &'_ str {
+                self.0.reborrow().schema
+            }
+            /// Field 4: `syntax_profile`
+            #[must_use]
+            pub fn syntax_profile(&self) -> &'_ str {
+                self.0.reborrow().syntax_profile
+            }
+            /// Field 5: `version`
+            #[must_use]
+            pub fn version(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::PolicyVersionView<'_>,
+            > {
+                &self.0.reborrow().version
+            }
+            /// Field 6: `updated_at`
+            #[must_use]
+            pub fn updated_at(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                ::buffa_types::google::protobuf::__buffa::view::TimestampView<'_>,
+            > {
+                &self.0.reborrow().updated_at
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<PolicySnapshotView<'static>>>
+        for PolicySnapshotOwnedView {
+            fn from(inner: ::buffa::OwnedView<PolicySnapshotView<'static>>) -> Self {
+                PolicySnapshotOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<PolicySnapshotOwnedView>
+        for ::buffa::OwnedView<PolicySnapshotView<'static>> {
+            fn from(wrapper: PolicySnapshotOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<PolicySnapshotView<'static>>>
+        for PolicySnapshotOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<PolicySnapshotView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::PolicySnapshot {
+            type View<'a> = PolicySnapshotView<'a>;
+            type ViewHandle = PolicySnapshotOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct GetPolicyRequestView<'a> {
+            /// Field 1: `account_id`
+            pub account_id: ::buffa::MessageFieldView<
+                super::super::__buffa::view::AccountIdView<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for GetPolicyRequestView<'a> {
+            type Owned = super::super::GetPolicyRequest;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.account_id.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.account_id = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::GetPolicyRequest,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::GetPolicyRequest,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::GetPolicyRequest {
+                    account_id: match self.account_id.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::AccountId,
+                                ::buffa::Inline<super::super::AccountId>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for GetPolicyRequestView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.account_id.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.account_id.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.account_id.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.account_id.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for GetPolicyRequestView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "GetPolicyRequest";
+            const FULL_NAME: &'static str = "home.auth.v1.GetPolicyRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.GetPolicyRequest";
+        }
+        ::buffa::impl_default_view_instance!(GetPolicyRequestView);
+        ::buffa::impl_view_reborrow!(GetPolicyRequestView);
+        /** Self-contained, `'static` owned view of a `GetPolicyRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`GetPolicyRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`GetPolicyRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct GetPolicyRequestOwnedView(
+            ::buffa::OwnedView<GetPolicyRequestView<'static>>,
+        );
+        impl GetPolicyRequestOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    GetPolicyRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    GetPolicyRequestOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::GetPolicyRequest,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    GetPolicyRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`GetPolicyRequestView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &GetPolicyRequestView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::GetPolicyRequest {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `account_id`
+            #[must_use]
+            pub fn account_id(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::AccountIdView<'_>,
+            > {
+                &self.0.reborrow().account_id
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<GetPolicyRequestView<'static>>>
+        for GetPolicyRequestOwnedView {
+            fn from(inner: ::buffa::OwnedView<GetPolicyRequestView<'static>>) -> Self {
+                GetPolicyRequestOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<GetPolicyRequestOwnedView>
+        for ::buffa::OwnedView<GetPolicyRequestView<'static>> {
+            fn from(wrapper: GetPolicyRequestOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<GetPolicyRequestView<'static>>>
+        for GetPolicyRequestOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<GetPolicyRequestView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::GetPolicyRequest {
+            type View<'a> = GetPolicyRequestView<'a>;
+            type ViewHandle = GetPolicyRequestOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct GetPolicyResponseView<'a> {
+            pub result: ::core::option::Option<
+                super::super::__buffa::view::oneof::get_policy_response::Result<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for GetPolicyResponseView<'a> {
+            type Owned = super::super::GetPolicyResponse;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::get_policy_response::Result::Present(
+                                ref mut existing,
+                            ),
+                        ) = view.result
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.result = Some(
+                                super::super::__buffa::view::oneof::get_policy_response::Result::Present(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::PolicySnapshotView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::get_policy_response::Result::Absent(
+                                ref mut existing,
+                            ),
+                        ) = view.result
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.result = Some(
+                                super::super::__buffa::view::oneof::get_policy_response::Result::Absent(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <::buffa_types::google::protobuf::__buffa::view::EmptyView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::GetPolicyResponse,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::GetPolicyResponse,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::GetPolicyResponse {
+                    result: match self.result.as_ref() {
+                        ::core::option::Option::Some(v) => {
+                            ::core::option::Option::Some(
+                                match v {
+                                    super::super::__buffa::view::oneof::get_policy_response::Result::Present(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::get_policy_response::Result::Present(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::get_policy_response::Result::Absent(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::get_policy_response::Result::Absent(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                        ::core::option::Option::None => ::core::option::Option::None,
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for GetPolicyResponseView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if let ::core::option::Option::Some(ref v) = self.result {
+                    match v {
+                        super::super::__buffa::view::oneof::get_policy_response::Result::Present(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::get_policy_response::Result::Absent(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if let ::core::option::Option::Some(ref v) = self.result {
+                    match v {
+                        super::super::__buffa::view::oneof::get_policy_response::Result::Present(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                1u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::get_policy_response::Result::Absent(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                2u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for GetPolicyResponseView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "GetPolicyResponse";
+            const FULL_NAME: &'static str = "home.auth.v1.GetPolicyResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.GetPolicyResponse";
+        }
+        ::buffa::impl_default_view_instance!(GetPolicyResponseView);
+        ::buffa::impl_view_reborrow!(GetPolicyResponseView);
+        /** Self-contained, `'static` owned view of a `GetPolicyResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`GetPolicyResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`GetPolicyResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct GetPolicyResponseOwnedView(
+            ::buffa::OwnedView<GetPolicyResponseView<'static>>,
+        );
+        impl GetPolicyResponseOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    GetPolicyResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    GetPolicyResponseOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::GetPolicyResponse,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    GetPolicyResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`GetPolicyResponseView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &GetPolicyResponseView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::GetPolicyResponse {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Oneof `result`.
+            #[must_use]
+            pub fn result(
+                &self,
+            ) -> ::core::option::Option<
+                &super::super::__buffa::view::oneof::get_policy_response::Result<'_>,
+            > {
+                self.0.reborrow().result.as_ref()
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<GetPolicyResponseView<'static>>>
+        for GetPolicyResponseOwnedView {
+            fn from(inner: ::buffa::OwnedView<GetPolicyResponseView<'static>>) -> Self {
+                GetPolicyResponseOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<GetPolicyResponseOwnedView>
+        for ::buffa::OwnedView<GetPolicyResponseView<'static>> {
+            fn from(wrapper: GetPolicyResponseOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<GetPolicyResponseView<'static>>>
+        for GetPolicyResponseOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<GetPolicyResponseView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::GetPolicyResponse {
+            type View<'a> = GetPolicyResponseView<'a>;
+            type ViewHandle = GetPolicyResponseOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct ReplacePolicyRequestView<'a> {
+            /// Field 1: `account_id`
+            pub account_id: ::buffa::MessageFieldView<
+                super::super::__buffa::view::AccountIdView<'a>,
+            >,
+            /// Field 2: `yaml_source`
+            pub yaml_source: &'a [u8],
+            pub precondition: ::core::option::Option<
+                super::super::__buffa::view::oneof::replace_policy_request::Precondition<
+                    'a,
+                >,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ReplacePolicyRequestView<'a> {
+            type Owned = super::super::ReplacePolicyRequest;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.account_id.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.account_id = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.yaml_source = ::buffa::types::borrow_bytes(&mut cur)?;
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::replace_policy_request::Precondition::Expected(
+                                ref mut existing,
+                            ),
+                        ) = view.precondition
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.precondition = Some(
+                                super::super::__buffa::view::oneof::replace_policy_request::Precondition::Expected(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::PolicyVersionView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::replace_policy_request::Precondition::ExpectAbsent(
+                                ref mut existing,
+                            ),
+                        ) = view.precondition
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.precondition = Some(
+                                super::super::__buffa::view::oneof::replace_policy_request::Precondition::ExpectAbsent(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <::buffa_types::google::protobuf::__buffa::view::EmptyView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ReplacePolicyRequest,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ReplacePolicyRequest,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ReplacePolicyRequest {
+                    account_id: match self.account_id.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::AccountId,
+                                ::buffa::Inline<super::super::AccountId>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    yaml_source: (self.yaml_source).to_vec(),
+                    precondition: match self.precondition.as_ref() {
+                        ::core::option::Option::Some(v) => {
+                            ::core::option::Option::Some(
+                                match v {
+                                    super::super::__buffa::view::oneof::replace_policy_request::Precondition::Expected(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::replace_policy_request::Precondition::Expected(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::replace_policy_request::Precondition::ExpectAbsent(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::replace_policy_request::Precondition::ExpectAbsent(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                        ::core::option::Option::None => ::core::option::Option::None,
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ReplacePolicyRequestView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.account_id.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.account_id.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if !self.yaml_source.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::bytes_encoded_len(&self.yaml_source)
+                                as u64;
+                }
+                if let ::core::option::Option::Some(ref v) = self.precondition {
+                    match v {
+                        super::super::__buffa::view::oneof::replace_policy_request::Precondition::Expected(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::replace_policy_request::Precondition::ExpectAbsent(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.account_id.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.account_id.write_to(__cache, buf);
+                }
+                if !self.yaml_source.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(2u32, &self.yaml_source, buf);
+                }
+                if let ::core::option::Option::Some(ref v) = self.precondition {
+                    match v {
+                        super::super::__buffa::view::oneof::replace_policy_request::Precondition::Expected(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                3u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::replace_policy_request::Precondition::ExpectAbsent(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                4u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ReplacePolicyRequestView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "ReplacePolicyRequest";
+            const FULL_NAME: &'static str = "home.auth.v1.ReplacePolicyRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ReplacePolicyRequest";
+        }
+        ::buffa::impl_default_view_instance!(ReplacePolicyRequestView);
+        ::buffa::impl_view_reborrow!(ReplacePolicyRequestView);
+        /** Self-contained, `'static` owned view of a `ReplacePolicyRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ReplacePolicyRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ReplacePolicyRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ReplacePolicyRequestOwnedView(
+            ::buffa::OwnedView<ReplacePolicyRequestView<'static>>,
+        );
+        impl ReplacePolicyRequestOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReplacePolicyRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReplacePolicyRequestOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ReplacePolicyRequest,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReplacePolicyRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ReplacePolicyRequestView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ReplacePolicyRequestView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ReplacePolicyRequest {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `account_id`
+            #[must_use]
+            pub fn account_id(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::AccountIdView<'_>,
+            > {
+                &self.0.reborrow().account_id
+            }
+            /// Field 2: `yaml_source`
+            #[must_use]
+            pub fn yaml_source(&self) -> &'_ [u8] {
+                self.0.reborrow().yaml_source
+            }
+            /// Oneof `precondition`.
+            #[must_use]
+            pub fn precondition(
+                &self,
+            ) -> ::core::option::Option<
+                &super::super::__buffa::view::oneof::replace_policy_request::Precondition<
+                    '_,
+                >,
+            > {
+                self.0.reborrow().precondition.as_ref()
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<ReplacePolicyRequestView<'static>>>
+        for ReplacePolicyRequestOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<ReplacePolicyRequestView<'static>>,
+            ) -> Self {
+                ReplacePolicyRequestOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ReplacePolicyRequestOwnedView>
+        for ::buffa::OwnedView<ReplacePolicyRequestView<'static>> {
+            fn from(wrapper: ReplacePolicyRequestOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<ReplacePolicyRequestView<'static>>,
+        > for ReplacePolicyRequestOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ReplacePolicyRequestView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ReplacePolicyRequest {
+            type View<'a> = ReplacePolicyRequestView<'a>;
+            type ViewHandle = ReplacePolicyRequestOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct ReplacePolicyResponseView<'a> {
+            /// Field 1: `policy`
+            pub policy: ::buffa::MessageFieldView<
+                super::super::__buffa::view::PolicySnapshotView<'a>,
+            >,
+            /// Field 2: `rights_change`
+            pub rights_change: ::buffa::EnumValue<super::super::PolicyRightsChange>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ReplacePolicyResponseView<'a> {
+            type Owned = super::super::ReplacePolicyResponse;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.policy.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.policy = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::PolicySnapshotView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.rights_change = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ReplacePolicyResponse,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ReplacePolicyResponse,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ReplacePolicyResponse {
+                    policy: match self.policy.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::PolicySnapshot,
+                                ::buffa::Inline<super::super::PolicySnapshot>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    rights_change: self.rights_change,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ReplacePolicyResponseView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.policy.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.policy.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                {
+                    let val = self.rights_change.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.policy.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.policy.write_to(__cache, buf);
+                }
+                {
+                    let val = self.rights_change.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(2u32, val, buf);
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ReplacePolicyResponseView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "ReplacePolicyResponse";
+            const FULL_NAME: &'static str = "home.auth.v1.ReplacePolicyResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ReplacePolicyResponse";
+        }
+        ::buffa::impl_default_view_instance!(ReplacePolicyResponseView);
+        ::buffa::impl_view_reborrow!(ReplacePolicyResponseView);
+        /** Self-contained, `'static` owned view of a `ReplacePolicyResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ReplacePolicyResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ReplacePolicyResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ReplacePolicyResponseOwnedView(
+            ::buffa::OwnedView<ReplacePolicyResponseView<'static>>,
+        );
+        impl ReplacePolicyResponseOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReplacePolicyResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReplacePolicyResponseOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ReplacePolicyResponse,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReplacePolicyResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ReplacePolicyResponseView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ReplacePolicyResponseView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ReplacePolicyResponse {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `policy`
+            #[must_use]
+            pub fn policy(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::PolicySnapshotView<'_>,
+            > {
+                &self.0.reborrow().policy
+            }
+            /// Field 2: `rights_change`
+            #[must_use]
+            pub fn rights_change(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::PolicyRightsChange> {
+                self.0.reborrow().rights_change
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<ReplacePolicyResponseView<'static>>,
+        > for ReplacePolicyResponseOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<ReplacePolicyResponseView<'static>>,
+            ) -> Self {
+                ReplacePolicyResponseOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ReplacePolicyResponseOwnedView>
+        for ::buffa::OwnedView<ReplacePolicyResponseView<'static>> {
+            fn from(wrapper: ReplacePolicyResponseOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<ReplacePolicyResponseView<'static>>,
+        > for ReplacePolicyResponseOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ReplacePolicyResponseView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ReplacePolicyResponse {
+            type View<'a> = ReplacePolicyResponseView<'a>;
+            type ViewHandle = ReplacePolicyResponseOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct AuthorizationPolicyErrorView<'a> {
+            /// Field 1: `code`
+            pub code: ::buffa::EnumValue<super::super::AuthorizationPolicyErrorCode>,
+            /// Bounded schema path; never rejected source or object ID.
+            ///
+            /// Field 2: `field_path`
+            pub field_path: &'a str,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for AuthorizationPolicyErrorView<'a> {
+            type Owned = super::super::AuthorizationPolicyError;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.code = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.field_path = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::AuthorizationPolicyError,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::AuthorizationPolicyError,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::AuthorizationPolicyError {
+                    code: self.code,
+                    field_path: self.field_path.to_string(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for AuthorizationPolicyErrorView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                {
+                    let val = self.code.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                if !self.field_path.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.field_path)
+                                as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                {
+                    let val = self.code.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(1u32, val, buf);
+                    }
+                }
+                if !self.field_path.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.field_path, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for AuthorizationPolicyErrorView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "AuthorizationPolicyError";
+            const FULL_NAME: &'static str = "home.auth.v1.AuthorizationPolicyError";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.AuthorizationPolicyError";
+        }
+        ::buffa::impl_default_view_instance!(AuthorizationPolicyErrorView);
+        ::buffa::impl_view_reborrow!(AuthorizationPolicyErrorView);
+        /** Self-contained, `'static` owned view of a `AuthorizationPolicyError` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`AuthorizationPolicyErrorView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`AuthorizationPolicyErrorView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct AuthorizationPolicyErrorOwnedView(
+            ::buffa::OwnedView<AuthorizationPolicyErrorView<'static>>,
+        );
+        impl AuthorizationPolicyErrorOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    AuthorizationPolicyErrorOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    AuthorizationPolicyErrorOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::AuthorizationPolicyError,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    AuthorizationPolicyErrorOwnedView(
+                        ::buffa::OwnedView::from_owned(msg)?,
+                    ),
+                )
+            }
+            /// Borrow the full [`AuthorizationPolicyErrorView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &AuthorizationPolicyErrorView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::AuthorizationPolicyError {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `code`
+            #[must_use]
+            pub fn code(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::AuthorizationPolicyErrorCode> {
+                self.0.reborrow().code
+            }
+            /// Bounded schema path; never rejected source or object ID.
+            ///
+            /// Field 2: `field_path`
+            #[must_use]
+            pub fn field_path(&self) -> &'_ str {
+                self.0.reborrow().field_path
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<AuthorizationPolicyErrorView<'static>>,
+        > for AuthorizationPolicyErrorOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<AuthorizationPolicyErrorView<'static>>,
+            ) -> Self {
+                AuthorizationPolicyErrorOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<AuthorizationPolicyErrorOwnedView>
+        for ::buffa::OwnedView<AuthorizationPolicyErrorView<'static>> {
+            fn from(wrapper: AuthorizationPolicyErrorOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<AuthorizationPolicyErrorView<'static>>,
+        > for AuthorizationPolicyErrorOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<AuthorizationPolicyErrorView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::AuthorizationPolicyError {
+            type View<'a> = AuthorizationPolicyErrorView<'a>;
+            type ViewHandle = AuthorizationPolicyErrorOwnedView;
+        }
+        /// Presence of this error detail always requires discarding the cached view.
+        /// A reconnect must authenticate and open a new snapshot; no removed IDs leak.
+        #[derive(Clone, Debug, Default)]
+        pub struct AuthorizationTerminationView<'a> {
+            /// Field 1: `reason`
+            pub reason: ::buffa::EnumValue<super::super::AuthorizationTerminationReason>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for AuthorizationTerminationView<'a> {
+            type Owned = super::super::AuthorizationTermination;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.reason = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::AuthorizationTermination,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::AuthorizationTermination,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::AuthorizationTermination {
+                    reason: self.reason,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for AuthorizationTerminationView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                {
+                    let val = self.reason.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                {
+                    let val = self.reason.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(1u32, val, buf);
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for AuthorizationTerminationView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "AuthorizationTermination";
+            const FULL_NAME: &'static str = "home.auth.v1.AuthorizationTermination";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.AuthorizationTermination";
+        }
+        ::buffa::impl_default_view_instance!(AuthorizationTerminationView);
+        ::buffa::impl_view_reborrow!(AuthorizationTerminationView);
+        /** Self-contained, `'static` owned view of a `AuthorizationTermination` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`AuthorizationTerminationView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`AuthorizationTerminationView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct AuthorizationTerminationOwnedView(
+            ::buffa::OwnedView<AuthorizationTerminationView<'static>>,
+        );
+        impl AuthorizationTerminationOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    AuthorizationTerminationOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    AuthorizationTerminationOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::AuthorizationTermination,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    AuthorizationTerminationOwnedView(
+                        ::buffa::OwnedView::from_owned(msg)?,
+                    ),
+                )
+            }
+            /// Borrow the full [`AuthorizationTerminationView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &AuthorizationTerminationView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::AuthorizationTermination {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `reason`
+            #[must_use]
+            pub fn reason(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::AuthorizationTerminationReason> {
+                self.0.reborrow().reason
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<AuthorizationTerminationView<'static>>,
+        > for AuthorizationTerminationOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<AuthorizationTerminationView<'static>>,
+            ) -> Self {
+                AuthorizationTerminationOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<AuthorizationTerminationOwnedView>
+        for ::buffa::OwnedView<AuthorizationTerminationView<'static>> {
+            fn from(wrapper: AuthorizationTerminationOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<AuthorizationTerminationView<'static>>,
+        > for AuthorizationTerminationOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<AuthorizationTerminationView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::AuthorizationTermination {
+            type View<'a> = AuthorizationTerminationView<'a>;
+            type ViewHandle = AuthorizationTerminationOwnedView;
+        }
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -36353,6 +40613,44 @@ pub mod __buffa {
                             ::buffa_types::google::protobuf::__buffa::view::TimestampView<
                                 'a,
                             >,
+                        >,
+                    ),
+                }
+            }
+            pub mod get_policy_response {
+                #[allow(unused_imports)]
+                use super::*;
+                #[derive(Clone, Debug)]
+                pub enum Result<'a> {
+                    Present(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::PolicySnapshotView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Absent(
+                        ::buffa::alloc::boxed::Box<
+                            ::buffa_types::google::protobuf::__buffa::view::EmptyView<'a>,
+                        >,
+                    ),
+                }
+            }
+            pub mod replace_policy_request {
+                #[allow(unused_imports)]
+                use super::*;
+                #[derive(Clone, Debug)]
+                pub enum Precondition<'a> {
+                    Expected(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::PolicyVersionView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    ExpectAbsent(
+                        ::buffa::alloc::boxed::Box<
+                            ::buffa_types::google::protobuf::__buffa::view::EmptyView<'a>,
                         >,
                     ),
                 }
@@ -36496,6 +40794,63 @@ pub mod __buffa {
             impl From<::buffa_types::google::protobuf::Timestamp> for Detail {
                 fn from(v: ::buffa_types::google::protobuf::Timestamp) -> Self {
                     Self::RetryAt(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+        }
+        pub mod get_policy_response {
+            #[allow(unused_imports)]
+            use super::*;
+            #[derive(Clone, PartialEq, Debug)]
+            pub enum Result {
+                Present(::buffa::alloc::boxed::Box<super::super::super::PolicySnapshot>),
+                Absent(
+                    ::buffa::alloc::boxed::Box<::buffa_types::google::protobuf::Empty>,
+                ),
+            }
+            impl ::buffa::Oneof for Result {}
+            impl From<super::super::super::PolicySnapshot> for Result {
+                fn from(v: super::super::super::PolicySnapshot) -> Self {
+                    Self::Present(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::PolicySnapshot>
+            for ::core::option::Option<Result> {
+                fn from(v: super::super::super::PolicySnapshot) -> Self {
+                    Self::Some(Result::from(v))
+                }
+            }
+            impl From<::buffa_types::google::protobuf::Empty> for Result {
+                fn from(v: ::buffa_types::google::protobuf::Empty) -> Self {
+                    Self::Absent(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+        }
+        pub mod replace_policy_request {
+            #[allow(unused_imports)]
+            use super::*;
+            /// Absence of this oneof is invalid. A zero revision is never "not present".
+            #[derive(Clone, PartialEq, Debug)]
+            pub enum Precondition {
+                Expected(::buffa::alloc::boxed::Box<super::super::super::PolicyVersion>),
+                ExpectAbsent(
+                    ::buffa::alloc::boxed::Box<::buffa_types::google::protobuf::Empty>,
+                ),
+            }
+            impl ::buffa::Oneof for Precondition {}
+            impl From<super::super::super::PolicyVersion> for Precondition {
+                fn from(v: super::super::super::PolicyVersion) -> Self {
+                    Self::Expected(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::PolicyVersion>
+            for ::core::option::Option<Precondition> {
+                fn from(v: super::super::super::PolicyVersion) -> Self {
+                    Self::Some(Precondition::from(v))
+                }
+            }
+            impl From<::buffa_types::google::protobuf::Empty> for Precondition {
+                fn from(v: ::buffa_types::google::protobuf::Empty) -> Self {
+                    Self::ExpectAbsent(::buffa::alloc::boxed::Box::new(v))
                 }
             }
         }
@@ -36817,3 +41172,35 @@ pub use self::__buffa::view::RevokeMcpKeyResponseOwnedView;
 pub use self::__buffa::view::AuthErrorView;
 #[doc(inline)]
 pub use self::__buffa::view::AuthErrorOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PolicyVersionView;
+#[doc(inline)]
+pub use self::__buffa::view::PolicyVersionOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PolicySnapshotView;
+#[doc(inline)]
+pub use self::__buffa::view::PolicySnapshotOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPolicyRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPolicyRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPolicyResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPolicyResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReplacePolicyRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReplacePolicyRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReplacePolicyResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReplacePolicyResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AuthorizationPolicyErrorView;
+#[doc(inline)]
+pub use self::__buffa::view::AuthorizationPolicyErrorOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AuthorizationTerminationView;
+#[doc(inline)]
+pub use self::__buffa::view::AuthorizationTerminationOwnedView;

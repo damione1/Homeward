@@ -68,6 +68,11 @@ func (slot *PreparationSlot) PrepareOnce(ctx context.Context) (PreparedScene, er
 		plan, err := slot.service.prepare(ctx, slot.ref, slot.actor, slot.invocation, transition, slot.expiresAt)
 		slot.prepared, slot.err = PreparedScene{plan: plan}, err
 	})
+	if slot.err == nil {
+		if err := slot.service.authorizePreparedResult(ctx, slot.prepared.plan); err != nil {
+			return PreparedScene{}, err
+		}
+	}
 	return slot.prepared, slot.err
 }
 
@@ -142,6 +147,7 @@ func (s *Service) prepare(ctx context.Context, ref SceneRef, actor domain.ActorI
 			return nil, err
 		}
 		member := s.prepareMember(ctx, spec, actor, commandID, transition, expiresAt)
+		member.capturedEntity = spec.capturedEntity
 		plan.members = append(plan.members, member)
 	}
 	return plan, nil
@@ -239,6 +245,12 @@ func refused(spec memberSpec, code RefusalCode, field, reason string) preparedMe
 		code: code, field: field, reason: reason}
 }
 
+func refusedCause(spec memberSpec, code RefusalCode, field string, cause error) preparedMember {
+	member := refused(spec, code, field, cause.Error())
+	member.cause = cause
+	return member
+}
+
 func (s *Service) prepareMember(ctx context.Context, spec memberSpec,
 	actor domain.ActorID, id domain.CommandID, transition *float64, expiresAt time.Time) preparedMember {
 	if spec.origin == originInvalid {
@@ -255,7 +267,7 @@ func (s *Service) prepareMember(ctx context.Context, spec memberSpec,
 			on, brightness, ct := intent.Components()
 			capture, err := s.commands.CaptureLight(ctx, spec.alias)
 			if err != nil {
-				return refused(spec, RefusalRoute, "light", err.Error())
+				return refusedCause(spec, RefusalRoute, "light", err)
 			}
 			prepared, err := capture.PrepareHAWithCT(actor, id, expiresAt, on, brightness, ct, transition, false)
 			if err != nil {
@@ -266,7 +278,7 @@ func (s *Service) prepareMember(ctx context.Context, spec memberSpec,
 			intent, _ := spec.ha.Fan()
 			capture, err := s.commands.CaptureFan(ctx, spec.alias)
 			if err != nil {
-				return refused(spec, RefusalRoute, "fan", err.Error())
+				return refusedCause(spec, RefusalRoute, "fan", err)
 			}
 			var pct *uint8
 			if intent.On() {
@@ -314,7 +326,7 @@ func (s *Service) prepareMember(ctx context.Context, spec memberSpec,
 			}
 			capture, err := s.commands.CaptureLight(ctx, spec.alias)
 			if err != nil {
-				return refused(spec, RefusalRoute, "light", err.Error())
+				return refusedCause(spec, RefusalRoute, "light", err)
 			}
 			prepared, err := capture.PrepareNative(actor, id, expiresAt, on, percent, ct, transition)
 			if err != nil {
@@ -340,7 +352,7 @@ func (s *Service) prepareDirect(ctx context.Context, spec memberSpec, actor doma
 	}
 	capture, err := s.commands.CaptureDirect(ctx, spec.alias, kind)
 	if err != nil {
-		return refused(spec, RefusalRoute, "target", err.Error())
+		return refusedCause(spec, RefusalRoute, "target", err)
 	}
 	var prepared integrations.PreparedDirect
 	if kind == integrations.DirectFan {
@@ -371,6 +383,10 @@ func (s *Service) ApplyPrepared(ctx context.Context, prepared PreparedScene) (Ap
 	}
 	defer finish()
 	plan := prepared.plan
+	if err := s.authorizePreparedResult(runCtx, plan); err != nil {
+		return ApplyResult{}, err
+	}
+
 	result := ApplyResult{members: make([]MemberResult, 0, len(plan.members))}
 	succeeded := 0
 	for _, member := range plan.members {
@@ -383,6 +399,9 @@ func (s *Service) ApplyPrepared(ctx context.Context, prepared PreparedScene) (Ap
 			succeeded++
 		}
 		result.members = append(result.members, item)
+	}
+	if err := s.authorizePreparedResult(runCtx, plan); err != nil {
+		return ApplyResult{}, err
 	}
 	switch {
 	case succeeded == len(result.members):

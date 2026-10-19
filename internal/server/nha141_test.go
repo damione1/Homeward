@@ -18,6 +18,7 @@ import (
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/accounts"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/jackc/pgx/v5"
@@ -370,6 +371,16 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 					<-r.Context().Done()
 					streamCanceled <- struct{}{}
 				}))
+			if err == nil {
+				// This fixture emits no object data. Its explicit READ binding
+				// exercises native lease cancellation without an unknown-route
+				// allow-all or an invented operational media permission.
+				permission, admissionErr := authorization.NewPermission(authv1.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY, authv1.ScopeOperation_SCOPE_OPERATION_READ)
+				if admissionErr != nil {
+					return RuntimePlan{}, admissionErr
+				}
+				err = plan.BindPermission(RouteKindMedia, RouteMethodGet, "/nha141/stream", permission)
+			}
 			return RuntimePlan{Identity: unconfiguredIdentity{}, Public: plan}, err
 		})
 	}()

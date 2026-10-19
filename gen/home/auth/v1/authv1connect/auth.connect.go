@@ -29,6 +29,9 @@ const (
 	AuthServiceName = "home.auth.v1.AuthService"
 	// McpKeyServiceName is the fully-qualified name of the McpKeyService service.
 	McpKeyServiceName = "home.auth.v1.McpKeyService"
+	// AuthorizationPolicyServiceName is the fully-qualified name of the AuthorizationPolicyService
+	// service.
+	AuthorizationPolicyServiceName = "home.auth.v1.AuthorizationPolicyService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -115,6 +118,12 @@ const (
 	// McpKeyServiceRevokeMcpKeyProcedure is the fully-qualified name of the McpKeyService's
 	// RevokeMcpKey RPC.
 	McpKeyServiceRevokeMcpKeyProcedure = "/home.auth.v1.McpKeyService/RevokeMcpKey"
+	// AuthorizationPolicyServiceGetPolicyProcedure is the fully-qualified name of the
+	// AuthorizationPolicyService's GetPolicy RPC.
+	AuthorizationPolicyServiceGetPolicyProcedure = "/home.auth.v1.AuthorizationPolicyService/GetPolicy"
+	// AuthorizationPolicyServiceReplacePolicyProcedure is the fully-qualified name of the
+	// AuthorizationPolicyService's ReplacePolicy RPC.
+	AuthorizationPolicyServiceReplacePolicyProcedure = "/home.auth.v1.AuthorizationPolicyService/ReplacePolicy"
 )
 
 // OperatorAccountServiceClient is a client for the home.auth.v1.OperatorAccountService service.
@@ -968,4 +977,102 @@ func (UnimplementedMcpKeyServiceHandler) ListMcpKeys(context.Context, *connect.R
 
 func (UnimplementedMcpKeyServiceHandler) RevokeMcpKey(context.Context, *connect.Request[v1.RevokeMcpKeyRequest]) (*connect.Response[v1.RevokeMcpKeyResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.auth.v1.McpKeyService.RevokeMcpKey is not implemented"))
+}
+
+// AuthorizationPolicyServiceClient is a client for the home.auth.v1.AuthorizationPolicyService
+// service.
+type AuthorizationPolicyServiceClient interface {
+	GetPolicy(context.Context, *connect.Request[v1.GetPolicyRequest]) (*connect.Response[v1.GetPolicyResponse], error)
+	ReplacePolicy(context.Context, *connect.Request[v1.ReplacePolicyRequest]) (*connect.Response[v1.ReplacePolicyResponse], error)
+}
+
+// NewAuthorizationPolicyServiceClient constructs a client for the
+// home.auth.v1.AuthorizationPolicyService service. By default, it uses the Connect protocol with
+// the binary Protobuf Codec, asks for gzipped responses, and sends uncompressed requests. To use
+// the gRPC or gRPC-Web protocols, supply the connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewAuthorizationPolicyServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) AuthorizationPolicyServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	authorizationPolicyServiceMethods := v1.File_home_auth_v1_auth_proto.Services().ByName("AuthorizationPolicyService").Methods()
+	return &authorizationPolicyServiceClient{
+		getPolicy: connect.NewClient[v1.GetPolicyRequest, v1.GetPolicyResponse](
+			httpClient,
+			baseURL+AuthorizationPolicyServiceGetPolicyProcedure,
+			connect.WithSchema(authorizationPolicyServiceMethods.ByName("GetPolicy")),
+			connect.WithClientOptions(opts...),
+		),
+		replacePolicy: connect.NewClient[v1.ReplacePolicyRequest, v1.ReplacePolicyResponse](
+			httpClient,
+			baseURL+AuthorizationPolicyServiceReplacePolicyProcedure,
+			connect.WithSchema(authorizationPolicyServiceMethods.ByName("ReplacePolicy")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// authorizationPolicyServiceClient implements AuthorizationPolicyServiceClient.
+type authorizationPolicyServiceClient struct {
+	getPolicy     *connect.Client[v1.GetPolicyRequest, v1.GetPolicyResponse]
+	replacePolicy *connect.Client[v1.ReplacePolicyRequest, v1.ReplacePolicyResponse]
+}
+
+// GetPolicy calls home.auth.v1.AuthorizationPolicyService.GetPolicy.
+func (c *authorizationPolicyServiceClient) GetPolicy(ctx context.Context, req *connect.Request[v1.GetPolicyRequest]) (*connect.Response[v1.GetPolicyResponse], error) {
+	return c.getPolicy.CallUnary(ctx, req)
+}
+
+// ReplacePolicy calls home.auth.v1.AuthorizationPolicyService.ReplacePolicy.
+func (c *authorizationPolicyServiceClient) ReplacePolicy(ctx context.Context, req *connect.Request[v1.ReplacePolicyRequest]) (*connect.Response[v1.ReplacePolicyResponse], error) {
+	return c.replacePolicy.CallUnary(ctx, req)
+}
+
+// AuthorizationPolicyServiceHandler is an implementation of the
+// home.auth.v1.AuthorizationPolicyService service.
+type AuthorizationPolicyServiceHandler interface {
+	GetPolicy(context.Context, *connect.Request[v1.GetPolicyRequest]) (*connect.Response[v1.GetPolicyResponse], error)
+	ReplacePolicy(context.Context, *connect.Request[v1.ReplacePolicyRequest]) (*connect.Response[v1.ReplacePolicyResponse], error)
+}
+
+// NewAuthorizationPolicyServiceHandler builds an HTTP handler from the service implementation. It
+// returns the path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewAuthorizationPolicyServiceHandler(svc AuthorizationPolicyServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	authorizationPolicyServiceMethods := v1.File_home_auth_v1_auth_proto.Services().ByName("AuthorizationPolicyService").Methods()
+	authorizationPolicyServiceGetPolicyHandler := connect.NewUnaryHandler(
+		AuthorizationPolicyServiceGetPolicyProcedure,
+		svc.GetPolicy,
+		connect.WithSchema(authorizationPolicyServiceMethods.ByName("GetPolicy")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authorizationPolicyServiceReplacePolicyHandler := connect.NewUnaryHandler(
+		AuthorizationPolicyServiceReplacePolicyProcedure,
+		svc.ReplacePolicy,
+		connect.WithSchema(authorizationPolicyServiceMethods.ByName("ReplacePolicy")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/home.auth.v1.AuthorizationPolicyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case AuthorizationPolicyServiceGetPolicyProcedure:
+			authorizationPolicyServiceGetPolicyHandler.ServeHTTP(w, r)
+		case AuthorizationPolicyServiceReplacePolicyProcedure:
+			authorizationPolicyServiceReplacePolicyHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedAuthorizationPolicyServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedAuthorizationPolicyServiceHandler struct{}
+
+func (UnimplementedAuthorizationPolicyServiceHandler) GetPolicy(context.Context, *connect.Request[v1.GetPolicyRequest]) (*connect.Response[v1.GetPolicyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.auth.v1.AuthorizationPolicyService.GetPolicy is not implemented"))
+}
+
+func (UnimplementedAuthorizationPolicyServiceHandler) ReplacePolicy(context.Context, *connect.Request[v1.ReplacePolicyRequest]) (*connect.Response[v1.ReplacePolicyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.auth.v1.AuthorizationPolicyService.ReplacePolicy is not implemented"))
 }

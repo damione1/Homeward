@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/damione1/Homeward/compat/ha/parser"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -31,12 +32,15 @@ type ConfigDocumentKind uint8
 const (
 	ConfigDocumentKindInvalid ConfigDocumentKind = iota
 	ConfigDocumentKindYAMLSource
+	ConfigDocumentKindAuthorizationPolicy
 )
 
 func (k ConfigDocumentKind) String() string {
 	switch k {
 	case ConfigDocumentKindYAMLSource:
 		return "yaml_source"
+	case ConfigDocumentKindAuthorizationPolicy:
+		return "authorization_policy"
 	default:
 		return ""
 	}
@@ -46,6 +50,8 @@ func parseConfigDocumentKind(text string) (ConfigDocumentKind, error) {
 	switch text {
 	case ConfigDocumentKindYAMLSource.String():
 		return ConfigDocumentKindYAMLSource, nil
+	case ConfigDocumentKindAuthorizationPolicy.String():
+		return ConfigDocumentKindAuthorizationPolicy, nil
 	default:
 		return ConfigDocumentKindInvalid, &Error{kind: ConfigIntegrity}
 	}
@@ -187,29 +193,38 @@ func (s *Store) InConfigTransactionOutcome(ctx context.Context, fn func(*ConfigT
 		return TransactionNotCommitted, &Error{kind: ConfigInvalid}
 	}
 	return s.InTransactionOutcome(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(481316, 151)`); err != nil {
-			return err
-		}
-		c := &ConfigTx{ctx: ctx, tx: tx, live: true}
-		defer func() { c.live = false }()
-		if err := fn(c); err != nil {
-			return err
-		}
-		if c.failure != nil {
-			return c.failure
-		}
-		ids := make([]string, 0, len(c.touched))
-		for id := range c.touched {
-			ids = append(ids, id)
-		}
-		sort.Strings(ids)
-		for _, id := range ids {
-			if err := c.prune(c.touched[id]); err != nil {
-				return err
-			}
-		}
-		return nil
+		return withConfigTx(ctx, tx, fn)
 	})
+}
+
+// withConfigTx never opens another transaction. Account creation and policy
+// replacement acquire this lock before auth_bootstrap in their same pgx.Tx.
+func withConfigTx(ctx context.Context, tx pgx.Tx, fn func(*ConfigTx) error) error {
+	if fn == nil {
+		return &Error{kind: ConfigInvalid}
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(481316, 151)`); err != nil {
+		return err
+	}
+	c := &ConfigTx{ctx: ctx, tx: tx, live: true}
+	defer func() { c.live = false }()
+	if err := fn(c); err != nil {
+		return err
+	}
+	if c.failure != nil {
+		return c.failure
+	}
+	ids := make([]string, 0, len(c.touched))
+	for id := range c.touched {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if err := c.prune(c.touched[id]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SaveCandidate persists only the exact bytes held by an admitted Candidate.
@@ -255,48 +270,78 @@ func (c *ConfigTx) SaveCandidate(candidate bundle.Candidate, bindings []ConfigDo
 		if !ok {
 			return nil, &Error{kind: ConfigInvalid}
 		}
-		_, err = c.tx.Exec(c.ctx, `INSERT INTO public.config_documents(id, logical_path, kind)
-			VALUES ($1,$2,$3::public.config_document_kind) ON CONFLICT (id) DO NOTHING`,
-			b.id.document, b.path, ConfigDocumentKindYAMLSource.String())
-		if err != nil {
-			return nil, configWriteError(err)
+		ref, saveErr := c.saveAdmittedSource(b, configSourceDeclarative, source.Bytes(), source.SHA256(), metadata)
+		if saveErr != nil {
+			return nil, saveErr
 		}
-		var path, kind string
-		if err := c.tx.QueryRow(c.ctx, `SELECT logical_path, kind::text FROM public.config_documents WHERE id=$1`, b.id.document).Scan(&path, &kind); err != nil {
-			return nil, err
-		}
-		parsedKind, err := parseConfigDocumentKind(kind)
-		if err != nil {
-			return nil, err
-		}
-		if path != b.path || parsedKind != ConfigDocumentKindYAMLSource {
-			return nil, &Error{kind: ConfigConflict}
-		}
-		var revision int64
-		if err := c.tx.QueryRow(c.ctx, `UPDATE public.config_documents SET last_revision=last_revision+1
-			WHERE id=$1 RETURNING last_revision`, b.id.document).Scan(&revision); err != nil {
-			return nil, err
-		}
-		var parent any
-		if revision > 1 {
-			parent = revision - 1
-		}
-		sourceHash := source.SHA256()
-		_, err = c.tx.Exec(c.ctx, `INSERT INTO public.config_versions
-			(document_id,revision,parent_revision,source_hash,author,source,schema_version,syntax_profile,yaml_source)
-			VALUES ($1,$2,$3,$4,$5,$6,$7::public.config_schema_version,$8::public.config_syntax_profile,$9)`,
-			b.id.document, revision, parent, sourceHash[:], metadata.author.author, metadata.source.source,
-			candidate.Schema().String(), candidate.Profile().String(), source.Bytes())
-		if err != nil {
-			return nil, configWriteError(err)
-		}
-		if c.touched == nil {
-			c.touched = make(map[string]ConfigDocumentID)
-		}
-		c.touched[b.id.document] = b.id
-		refs = append(refs, ConfigVersionRef{document: b.id, revision: ConfigVersionRevision{version: revision}})
+		refs = append(refs, ref)
 	}
 	return refs, nil
+}
+
+type configSourceFormat uint8
+
+const (
+	configSourceInvalid configSourceFormat = iota
+	configSourceDeclarative
+	configSourceAuthorization
+)
+
+func (f configSourceFormat) values() (ConfigDocumentKind, string, string, error) {
+	switch f {
+	case configSourceDeclarative:
+		return ConfigDocumentKindYAMLSource, bundle.SchemaDeclarative1.String(), parser.SyntaxProfileDeclarative.String(), nil
+	case configSourceAuthorization:
+		return ConfigDocumentKindAuthorizationPolicy, authorization.Schema, authorization.SyntaxProfile, nil
+	case configSourceInvalid:
+		return ConfigDocumentKindInvalid, "", "", &Error{kind: ConfigInvalid}
+	default:
+		return ConfigDocumentKindInvalid, "", "", &Error{kind: ConfigInvalid}
+	}
+}
+
+// saveAdmittedSource is shared by closed-schema admission wrappers only. It
+// does not accept an arbitrary schema/profile pair or masquerade as Candidate.
+func (c *ConfigTx) saveAdmittedSource(binding ConfigDocumentBinding, format configSourceFormat, data []byte, sourceHash [sha256.Size]byte, metadata ConfigVersionMetadata) (ConfigVersionRef, error) {
+	if err := c.valid(); err != nil {
+		return ConfigVersionRef{}, err
+	}
+	kind, schema, profile, err := format.values()
+	if err != nil || !binding.id.Valid() || !metadata.author.Valid() || !metadata.source.Valid() || len(data) > 1<<20 || sha256.Sum256(data) != sourceHash {
+		return ConfigVersionRef{}, &Error{kind: ConfigInvalid}
+	}
+	if _, err := parser.NewSourceFile(binding.path, nil); err != nil {
+		return ConfigVersionRef{}, &Error{kind: ConfigInvalid}
+	}
+	if _, err := c.tx.Exec(c.ctx, `INSERT INTO public.config_documents(id,logical_path,kind)
+		VALUES($1,$2,$3::public.config_document_kind) ON CONFLICT(id) DO NOTHING`, binding.id.document, binding.path, kind.String()); err != nil {
+		return ConfigVersionRef{}, configWriteError(err)
+	}
+	var path, storedKind string
+	if err := c.tx.QueryRow(c.ctx, `SELECT logical_path,kind::text FROM public.config_documents WHERE id=$1`, binding.id.document).Scan(&path, &storedKind); err != nil {
+		return ConfigVersionRef{}, err
+	}
+	if path != binding.path || storedKind != kind.String() {
+		return ConfigVersionRef{}, &Error{kind: ConfigConflict}
+	}
+	var revision int64
+	if err := c.tx.QueryRow(c.ctx, `UPDATE public.config_documents SET last_revision=last_revision+1 WHERE id=$1 RETURNING last_revision`, binding.id.document).Scan(&revision); err != nil {
+		return ConfigVersionRef{}, err
+	}
+	var parent any
+	if revision > 1 {
+		parent = revision - 1
+	}
+	if _, err := c.tx.Exec(c.ctx, `INSERT INTO public.config_versions
+		(document_id,revision,parent_revision,source_hash,author,source,schema_version,syntax_profile,yaml_source)
+		VALUES($1,$2,$3,$4,$5,$6,$7::public.config_schema_version,$8::public.config_syntax_profile,$9)`, binding.id.document, revision, parent, sourceHash[:], metadata.author.author, metadata.source.source, schema, profile, data); err != nil {
+		return ConfigVersionRef{}, configWriteError(err)
+	}
+	if c.touched == nil {
+		c.touched = make(map[string]ConfigDocumentID)
+	}
+	c.touched[binding.id.document] = binding.id
+	return ConfigVersionRef{document: binding.id, revision: ConfigVersionRevision{version: revision}}, nil
 }
 
 func configWriteError(err error) error {
@@ -318,6 +363,9 @@ func (c *ConfigTx) prune(id ConfigDocumentID) error {
 		           SELECT 1 FROM public.config_active a
 		           JOIN public.config_generation_entries e ON e.generation_revision=a.generation_revision
 		           WHERE a.singleton AND e.document_id=v.document_id AND e.version_revision=v.revision
+		         ) OR EXISTS (
+		           SELECT 1 FROM public.authorization_policy_active p
+		           WHERE p.document_id=v.document_id AND p.version_revision=v.revision
 		         ) THEN 0 ELSE 1 END, v.revision DESC) AS keep_rank
 		FROM public.config_versions v WHERE v.document_id=$1
 	)

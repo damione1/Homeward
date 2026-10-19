@@ -7,7 +7,9 @@ import (
 
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"google.golang.org/protobuf/proto"
 )
@@ -23,16 +25,17 @@ type CommandDriver interface {
 var ErrSupervisedPilotPanic = errors.New("supervised pilot panicked during command dispatch")
 
 type AdmittedCommand struct {
-	id       domain.CommandID
-	actor    domain.ActorID
-	entity   domain.EntityID
-	request  *actions.CommandRequest
-	progress *actionEntry
-	tracker  *actionTracker
-	host     *Manager
-	binding  Binding
-	light    lightTarget
-	fan      *fanProfileSnapshot
+	id         domain.CommandID
+	actor      domain.ActorID
+	entity     domain.EntityID
+	request    *actions.CommandRequest
+	progress   *actionEntry
+	tracker    *actionTracker
+	host       *Manager
+	binding    Binding
+	light      lightTarget
+	fan        *fanProfileSnapshot
+	permission *authorization.Permit
 }
 
 // Causality is a command-scoped token. A driver attaches it to a subsequent
@@ -87,11 +90,18 @@ func (c AdmittedCommand) ReadyForTransport() bool {
 	if c.host == nil {
 		return false
 	}
-	c.host.mu.Lock()
-	defer c.host.mu.Unlock()
-	return c.host.admission == admissionOpen && c.liveOwner() &&
-		(c.light.profile == nil || c.host.lightProfiles[c.entity] == c.light.profile) &&
-		(c.fan == nil || c.host.fanProfiles[c.entity] == c.fan)
+	check := func() error {
+		c.host.mu.Lock()
+		defer c.host.mu.Unlock()
+		if c.host.authorizationAuthority != nil && c.permission == nil {
+			return ErrCommandAuthorizationDenied
+		}
+		if c.host.admission != admissionOpen || !c.liveOwner() || (c.light.profile != nil && c.host.lightProfiles[c.entity] != c.light.profile) || (c.fan != nil && c.host.fanProfiles[c.entity] != c.fan) {
+			return ErrCommandRouteUnavailable
+		}
+		return nil
+	}
+	return withCurrentPermission(c.permission, check) == nil
 }
 
 // MQTTLightEmission returns the encoded brightness captured during route
@@ -240,6 +250,9 @@ func commandFailure(code actions.ErrorCode, path string) *actions.CommandRespons
 }
 
 func (r *CommandRouter) Dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest) (*actions.CommandResponse, error) {
+	if _, err := r.authorizeRequest(ctx, actor, request, authv1.ScopeOperation_SCOPE_OPERATION_WRITE); err != nil {
+		return nil, err
+	}
 	if r == nil || r.host == nil {
 		return nil, ErrInvalidInput
 	}
@@ -273,6 +286,14 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		return nil, ErrInvalidInput
 	}
 	wire := proto.Clone(request).(*actions.CommandRequest)
+	authorizationTarget, permit, err := r.commandPermit(ctx, actor, wire)
+	if err != nil {
+		return nil, err
+	}
+	if permit != nil {
+		defer permit.Release()
+		ctx = permit.Context()
+	}
 	if contractErr := contracts.RejectUnknownCommandFields(wire); contractErr != nil {
 		return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_FAILED, Error: contractErr}, nil
 	}
@@ -318,6 +339,12 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	if err != nil {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target"), nil
 	}
+	if permit != nil {
+		expected, _, targetErr := authorizationTarget.Values()
+		if targetErr != nil || expected != entity {
+			return commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target"), nil
+		}
+	}
 	entityText, _ := entity.Value()
 	resolved := proto.Clone(wire).(*actions.CommandRequest)
 	resolved.Target = &wireregistry.EntityRef{Reference: &wireregistry.EntityRef_EntityId{EntityId: entityText}}
@@ -344,131 +371,133 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	}()
 	var rejected *actions.ContractError
 	var routeFailure error
-	err = r.generation.WithCurrent(ctx, func(revision uint64) error {
-		if revision == 0 {
-			return ErrCommandRouteUnavailable
-		}
-		h := r.host
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		if h.admission != admissionOpen || h.retirementExhausted {
-			return ErrAdmissionsClosed
-		}
-		if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
-			rejected = commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at").Error
-			return nil
-		}
-		binding, exists := h.owners[entity]
-		if !exists {
-			rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
-			return nil
-		}
-		if _, fenced := h.retiringSources[retiringSource{binding.instance, binding.key}]; fenced {
-			rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
-			return nil
-		}
-		if _, fenced := h.retiring[entity]; fenced {
-			rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
-			return nil
-		}
-		session := h.active[binding.instance]
-		if session == nil || !session.live() || session.bindings[entity] != binding || nilInterface(session.commandDriver) {
-			rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
-			return nil
-		}
-		contractErr, routeErr := h.catalog.CommitPreparedCapabilityCommand(prepared, wire.AdmissionEpoch, revision, func(description *wireregistry.CapabilityDescription) error {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
-				return errCommandExpired
-			}
-			slot := commandOwnerSlot{binding.device, description.SchemaId, description.Endpoint}
-			endpointSlot := commandEndpointSlot{binding.device, description.Endpoint}
-			if h.inflight[endpointSlot] {
-				return ErrCommandRouteBusy
-			}
-			selected := h.commandOwners[slot]
-			if err := r.projection.AdmitCommandRoute(CommandRoute{Entity: entity, Alias: alias, Binding: binding, Description: description, Designated: selected, ExpectedRevision: wire.ExpectedRevision, Epoch: wire.AdmissionEpoch}); err != nil {
-				return err
-			}
-			pointSource := r.projection.(ActionPointSource) // checked at construction
-			var pointErr error
-			actionPoint, pointErr = pointSource.CommandActionPoint(entity)
-			if pointErr != nil {
-				return pointErr
-			}
-			var target lightTarget
-			var fan *fanProfileSnapshot
-			if description.SchemaId == contracts.LightSchema {
-				profile := h.lightProfiles[entity]
-				if preparedRoute != nil {
-					if preparedRoute.kind != preparedCommandLight {
-						return ErrCommandRouteUnavailable
-					}
-					light := preparedRoute.light
-					capture := light.capture
-					if alias == nil || *alias != capture.alias || capture.entity != entity ||
-						capture.binding != binding || capture.profile == nil || profile != capture.profile ||
-						profile.endpoint != description.Endpoint || !proto.Equal(description, capture.description) ||
-						capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision ||
-						light.target.profile != profile {
-						return ErrCommandRouteUnavailable
-					}
-					target = light.target
-				} else if profile != nil && profile.endpoint == description.Endpoint {
-					target = targetForLight(resolved, profile)
-				}
-			} else if description.SchemaId == contracts.FanSchema && preparedRoute != nil && preparedRoute.kind == preparedCommandFan {
-				capture := preparedRoute.fan.capture
-				profile := h.fanProfiles[entity]
-				if alias == nil || *alias != capture.alias || capture.entity != entity ||
-					capture.binding != binding || capture.profile == nil || profile != capture.profile ||
-					!proto.Equal(description, capture.description) || profile.alias != capture.alias ||
-					capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision {
-					return ErrCommandRouteUnavailable
-				}
-				fan = profile
-			} else if preparedRoute != nil && preparedRoute.kind == preparedCommandDirect {
-				capture := preparedRoute.direct.capture
-				if alias == nil || *alias != capture.alias || capture.entity != entity ||
-					capture.binding != binding || !proto.Equal(description, capture.description) ||
-					capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision {
-					return ErrCommandRouteUnavailable
-				}
-			} else if preparedRoute != nil {
+	err = withCurrentPermission(permit, func() error {
+		return r.generation.WithCurrent(ctx, func(revision uint64) error {
+			if revision == 0 {
 				return ErrCommandRouteUnavailable
 			}
-			admitted = AdmittedCommand{id: id, actor: actor, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding, light: target, fan: fan}
-			// Slot lease is reserved before the Host lock is released.
-			h.inflight[endpointSlot] = true
-			leased = endpointSlot
+			h := r.host
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			if h.admission != admissionOpen || h.retirementExhausted {
+				return ErrAdmissionsClosed
+			}
+			if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
+				rejected = commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at").Error
+				return nil
+			}
+			binding, exists := h.owners[entity]
+			if !exists {
+				rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
+				return nil
+			}
+			if _, fenced := h.retiringSources[retiringSource{binding.instance, binding.key}]; fenced {
+				rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
+				return nil
+			}
+			if _, fenced := h.retiring[entity]; fenced {
+				rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
+				return nil
+			}
+			session := h.active[binding.instance]
+			if session == nil || !session.live() || session.bindings[entity] != binding || nilInterface(session.commandDriver) {
+				rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
+				return nil
+			}
+			contractErr, routeErr := h.catalog.CommitPreparedCapabilityCommand(prepared, wire.AdmissionEpoch, revision, func(description *wireregistry.CapabilityDescription) error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
+					return errCommandExpired
+				}
+				slot := commandOwnerSlot{binding.device, description.SchemaId, description.Endpoint}
+				endpointSlot := commandEndpointSlot{binding.device, description.Endpoint}
+				if h.inflight[endpointSlot] {
+					return ErrCommandRouteBusy
+				}
+				selected := h.commandOwners[slot]
+				if err := r.projection.AdmitCommandRoute(CommandRoute{Entity: entity, Alias: alias, Binding: binding, Description: description, Designated: selected, ExpectedRevision: wire.ExpectedRevision, Epoch: wire.AdmissionEpoch}); err != nil {
+					return err
+				}
+				pointSource := r.projection.(ActionPointSource) // checked at construction
+				var pointErr error
+				actionPoint, pointErr = pointSource.CommandActionPoint(entity)
+				if pointErr != nil {
+					return pointErr
+				}
+				var target lightTarget
+				var fan *fanProfileSnapshot
+				if description.SchemaId == contracts.LightSchema {
+					profile := h.lightProfiles[entity]
+					if preparedRoute != nil {
+						if preparedRoute.kind != preparedCommandLight {
+							return ErrCommandRouteUnavailable
+						}
+						light := preparedRoute.light
+						capture := light.capture
+						if alias == nil || *alias != capture.alias || capture.entity != entity ||
+							capture.binding != binding || capture.profile == nil || profile != capture.profile ||
+							profile.endpoint != description.Endpoint || !proto.Equal(description, capture.description) ||
+							capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision ||
+							light.target.profile != profile {
+							return ErrCommandRouteUnavailable
+						}
+						target = light.target
+					} else if profile != nil && profile.endpoint == description.Endpoint {
+						target = targetForLight(resolved, profile)
+					}
+				} else if description.SchemaId == contracts.FanSchema && preparedRoute != nil && preparedRoute.kind == preparedCommandFan {
+					capture := preparedRoute.fan.capture
+					profile := h.fanProfiles[entity]
+					if alias == nil || *alias != capture.alias || capture.entity != entity ||
+						capture.binding != binding || capture.profile == nil || profile != capture.profile ||
+						!proto.Equal(description, capture.description) || profile.alias != capture.alias ||
+						capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision {
+						return ErrCommandRouteUnavailable
+					}
+					fan = profile
+				} else if preparedRoute != nil && preparedRoute.kind == preparedCommandDirect {
+					capture := preparedRoute.direct.capture
+					if alias == nil || *alias != capture.alias || capture.entity != entity ||
+						capture.binding != binding || !proto.Equal(description, capture.description) ||
+						capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision {
+						return ErrCommandRouteUnavailable
+					}
+				} else if preparedRoute != nil {
+					return ErrCommandRouteUnavailable
+				}
+				admitted = AdmittedCommand{id: id, actor: actor, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding, light: target, fan: fan, permission: permit}
+				// Slot lease is reserved before the Host lock is released.
+				h.inflight[endpointSlot] = true
+				leased = endpointSlot
+				return nil
+			})
+			if contractErr != nil {
+				rejected = contractErr
+				return nil
+			}
+			if routeErr != nil {
+				switch {
+				case errors.Is(routeErr, ErrCommandRouteBusy), errors.Is(routeErr, ErrActionProgressFull), errors.Is(routeErr, context.Canceled), errors.Is(routeErr, context.DeadlineExceeded):
+					routeFailure = routeErr
+				case errors.Is(routeErr, errCommandExpired):
+					rejected = commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at").Error
+				case errors.Is(routeErr, ErrCommandEpochChanged):
+					rejected = commandFailure(actions.ErrorCode_ERROR_CODE_STALE_EPOCH, "admission_epoch").Error
+				case errors.Is(routeErr, ErrCommandRevisionChanged):
+					rejected = commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expected_revision").Error
+				default:
+					rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
+				}
+				return nil
+			}
+			// Lease linearization: route validation succeeded under Host→catalogue→
+			// sequencer locks. Later revocation cannot retroactively cancel it.
+			driver = session.commandDriver
+			managed = session.work
 			return nil
 		})
-		if contractErr != nil {
-			rejected = contractErr
-			return nil
-		}
-		if routeErr != nil {
-			switch {
-			case errors.Is(routeErr, ErrCommandRouteBusy), errors.Is(routeErr, ErrActionProgressFull), errors.Is(routeErr, context.Canceled), errors.Is(routeErr, context.DeadlineExceeded):
-				routeFailure = routeErr
-			case errors.Is(routeErr, errCommandExpired):
-				rejected = commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at").Error
-			case errors.Is(routeErr, ErrCommandEpochChanged):
-				rejected = commandFailure(actions.ErrorCode_ERROR_CODE_STALE_EPOCH, "admission_epoch").Error
-			case errors.Is(routeErr, ErrCommandRevisionChanged):
-				rejected = commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expected_revision").Error
-			default:
-				rejected = commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target").Error
-			}
-			return nil
-		}
-		// Lease linearization: route validation succeeded under Host→catalogue→
-		// sequencer locks. Later revocation cannot retroactively cancel it.
-		driver = session.commandDriver
-		managed = session.work
-		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -535,6 +564,9 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		}
 	}()
 	var dispatchErr error
+	if !admitted.ReadyForTransport() {
+		return commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target"), nil
+	}
 	if managed != nil {
 		dispatchErr = dispatchManaged(managed, driver, dispatchCtx, admitted)
 	} else {

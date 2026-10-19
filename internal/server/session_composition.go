@@ -13,12 +13,23 @@ func composeLocalSessions(plan *PublicPlan, store *storage.Store) (*PublicPlan, 
 	if err != nil {
 		return nil, nil, err
 	}
+	return composeSessionsWithCoordinator(plan, store, coordinator)
+}
+
+func composeSessionsWithCoordinator(plan *PublicPlan, store *storage.Store, coordinator *sessionCoordinator) (*PublicPlan, *sessionCoordinator, error) {
+	if store == nil || coordinator == nil {
+		return nil, nil, ErrInvalidPublicPlan
+	}
+	var err error
 	plan, err = registerAuthRoutes(plan, store, coordinator, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 	plan, err = registerAccountRoutes(plan, store, coordinator)
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := registerAuthorizationPolicyRoutes(plan, store, coordinator); err != nil {
 		return nil, nil, err
 	}
 	return plan, coordinator, nil

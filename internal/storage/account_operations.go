@@ -24,7 +24,7 @@ func (s *Store) CreateAccount(ctx context.Context, actor contracts.AccountID, in
 	if _, err := sqlAccountID(actor); err != nil {
 		return AccountRecord{}, ErrAccountPermission
 	}
-	return accountTransaction(s, ctx, accountAudit{actor: &actor, target: &input.ID, action: authActionCreateAccount}, func(tx pgx.Tx) (AccountRecord, error) {
+	return accountConfigTransaction(s, ctx, accountAudit{actor: &actor, target: &input.ID, action: authActionCreateAccount}, func(tx pgx.Tx, config *ConfigTx) (AccountRecord, error) {
 		if _, err := lockAuthSingleton(ctx, tx); err != nil {
 			return AccountRecord{}, err
 		}
@@ -35,6 +35,9 @@ func (s *Store) CreateAccount(ctx context.Context, actor contracts.AccountID, in
 			return AccountRecord{}, err
 		}
 		if err := insertAccount(ctx, tx, input); err != nil {
+			return AccountRecord{}, err
+		}
+		if err := seedAuthorizationPolicy(config, input.ID); err != nil {
 			return AccountRecord{}, err
 		}
 		return accountByID(ctx, tx, input.ID)
@@ -194,7 +197,7 @@ func (s *Store) DeleteAccount(ctx context.Context, actor, target contracts.Accou
 	if err != nil {
 		return err
 	}
-	_, err = accountTransaction(s, ctx, accountAudit{actor: &actor, target: &target, action: authActionDeleteAccount}, func(tx pgx.Tx) (struct{}, error) {
+	_, err = accountConfigTransaction(s, ctx, accountAudit{actor: &actor, target: &target, action: authActionDeleteAccount}, func(tx pgx.Tx, _ *ConfigTx) (struct{}, error) {
 		if _, err := lockAuthSingleton(ctx, tx); err != nil {
 			return struct{}{}, err
 		}
@@ -269,7 +272,7 @@ func (s *Store) AcceptInvitation(ctx context.Context, digest [32]byte, accountID
 	if _, err := sqlAccountID(accountID); err != nil {
 		return AccountRecord{}, err
 	}
-	return accountTransaction(s, ctx, accountAudit{target: &accountID, action: authActionAcceptInvitation}, func(tx pgx.Tx) (AccountRecord, error) {
+	return accountConfigTransaction(s, ctx, accountAudit{target: &accountID, action: authActionAcceptInvitation}, func(tx pgx.Tx, config *ConfigTx) (AccountRecord, error) {
 		if _, err := lockAuthSingleton(ctx, tx); err != nil {
 			return AccountRecord{}, err
 		}
@@ -309,6 +312,9 @@ func (s *Store) AcceptInvitation(ctx context.Context, digest [32]byte, accountID
 			return AccountRecord{}, ErrInvitationUnavailable
 		}
 		if err := insertAccountRow(ctx, tx, account); err != nil {
+			return AccountRecord{}, err
+		}
+		if err := seedAuthorizationPolicy(config, accountID); err != nil {
 			return AccountRecord{}, err
 		}
 		if _, err := tx.Exec(ctx, `UPDATE public.auth_invitations SET accepted_at=now() WHERE id=$1`, mustInvitationID(invitation.id)); err != nil {

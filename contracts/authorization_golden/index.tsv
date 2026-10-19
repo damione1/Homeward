@@ -1,0 +1,10 @@
+replace-exact	ReplacePolicyRequest	true
+replace-absent	ReplacePolicyRequest	true
+replace-no-cas	ReplacePolicyRequest	false
+replace-zero	ReplacePolicyRequest	false
+get-absent	GetPolicyResponse	true
+get-no-result	GetPolicyResponse	false
+termination-rights	AuthorizationTermination	true
+termination-future	AuthorizationTermination	false
+error-source	AuthorizationPolicyError	true
+error-object-leak	AuthorizationPolicyError	false

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/sequencer"
@@ -71,6 +72,8 @@ type Grant struct {
 	revision uint64
 	allowed  map[domain.EntityID]struct{}
 	digest   [32]byte
+	slots    map[domain.EntityID]map[authorization.CapabilitySlot]struct{}
+	complete map[domain.EntityID]bool
 }
 
 func NewGrant(actor ActorID, revision uint64, allowed []domain.EntityID) (Grant, error) {
@@ -84,7 +87,7 @@ func NewGrant(actor ActorID, revision uint64, allowed []domain.EntityID) (Grant,
 		}
 		set[id] = struct{}{}
 	}
-	return Grant{actor, revision, set, hashIDs(1, set)}, nil
+	return Grant{actor: actor, revision: revision, allowed: set, digest: hashIDs(1, set)}, nil
 }
 func (g Grant) validFor(actor ActorID) bool {
 	// NewGrant copied the private set and established its digest. No getter
@@ -363,6 +366,13 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 		record := snapshot.Registry[id]
 		state, hasState := snapshot.States[id]
 		descriptions := snapshot.Capabilities[id]
+		descriptions, complete := lastGrant.filterCapabilities(id, descriptions)
+		if lastGrant.slots != nil && len(descriptions) == 0 {
+			continue
+		}
+		if !complete {
+			state, hasState = domain.ObservedState{}, false
+		}
 		device, entity, _ := record.IDs()
 		entityText, _ := entity.Value()
 		deviceText, _ := device.Value()
