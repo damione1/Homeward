@@ -98,18 +98,7 @@ func TestNHA069ActiveCommandRouterWritesOnlyAfterDispatch(t *testing.T) {
 	t.Cleanup(func() { tasks.close(t, pilot) })
 	broker.Publish(t, "homeassistant/switch/relay/config", []byte(`{"unique_id":"switch-wire","device":{"identifiers":["command-device"]},"state_topic":"zigbee2mqtt/relay/state","command_topic":"zigbee2mqtt/relay/set"}`), true)
 	broker.Publish(t, "homeassistant/light/lamp/config", []byte(`{"unique_id":"light-wire","device":{"identifiers":["command-device"]},"schema":"json","state_topic":"zigbee2mqtt/lamp/state","command_topic":"zigbee2mqtt/lamp/set","brightness":true,"brightness_scale":254,"supported_color_modes":["color_temp"],"min_mireds":250,"max_mireds":454}`), true)
-	deadline := time.Now().Add(3 * time.Second)
-	for {
-		_, switchErr := r.manager.Capabilities(ids[0].Entity)
-		_, lightErr := r.manager.Capabilities(ids[1].Entity)
-		if switchErr == nil && lightErr == nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("broker discovery did not reach Host: %v %v; diagnostics %v", switchErr, lightErr, r.mapper.Diagnostics())
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	nha182WaitCommandCapabilities(t, r, tasks, ids[0].Entity, ids[1].Entity)
 	if got := broker.PublishCount(settings.clientID); got != 0 {
 		t.Fatalf("startup/discovery published %d packets", got)
 	}
