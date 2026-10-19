@@ -3,6 +3,7 @@ package home.state.v1;
 
 import "google/protobuf/timestamp.proto";
 import "home/registry/v1/registry.proto";
+import "home/helpers/v1/helpers.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/state/v1;statev1";
 enum Availability {
@@ -83,6 +84,7 @@ message ObservedState {
     LightValue light = 13;
     FanValue fan = 14;
     ClimateValue climate = 15;
+    home.helpers.v1.HelperValue helper = 16;
   }
 }
 

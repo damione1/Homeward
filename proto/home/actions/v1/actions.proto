@@ -3,6 +3,7 @@ package home.actions.v1;
 
 import "google/protobuf/timestamp.proto";
 import "home/registry/v1/registry.proto";
+import "home/helpers/v1/helpers.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/actions/v1;actionsv1";
 message SetSwitch {
@@ -38,6 +39,7 @@ message ActionArgs {
     SetLight set_light = 3;
     SetFan set_fan = 4;
     SetClimate set_climate = 5;
+    home.helpers.v1.HelperAction helper = 6;
   }
 }
 message CommandRequest {

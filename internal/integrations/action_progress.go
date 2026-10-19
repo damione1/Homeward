@@ -175,6 +175,10 @@ func predicateFor(request *actions.CommandRequest) actionPredicate {
 			}
 			return predicate
 		}
+	case *actions.ActionArgs_Helper:
+		// A helper is local SQL state. A matching observation is not evidence of
+		// COMMIT; its pilot supplies the confirmed CAS receipt via ConfirmProtocol.
+		return actionPredicate{}
 	case *actions.ActionArgs_SetClimate, *actions.ActionArgs_Extension:
 		return actionPredicate{}
 	default:

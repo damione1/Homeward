@@ -19,12 +19,15 @@ type Schema uint8
 const (
 	SchemaInvalid Schema = iota
 	SchemaDeclarative1
+	SchemaDeclarative2
 )
 
 func (s Schema) String() string {
 	switch s {
 	case SchemaDeclarative1:
 		return "ha-declarative-1"
+	case SchemaDeclarative2:
+		return "ha-declarative-2"
 	default:
 		return ""
 	}
@@ -34,20 +37,25 @@ func (s Schema) String() string {
 // before using it; a Go zero value or overwritten value is never admitted.
 // Its collections and source bytes are only observable through copies.
 type Candidate struct {
-	valid    bool
-	profile  parser.SyntaxProfile
-	schema   Schema
-	entry    string
-	hash     [sha256.Size]byte
-	sources  []parser.SourceFile
-	booleans []BoolHelper
-	numbers  []NumberHelper
-	counters []CounterHelper
-	groups   []Group
+	valid     bool
+	profile   parser.SyntaxProfile
+	schema    Schema
+	entry     string
+	hash      [sha256.Size]byte
+	sources   []parser.SourceFile
+	booleans  []BoolHelper
+	numbers   []NumberHelper
+	counters  []CounterHelper
+	buttons   []ButtonHelper
+	datetimes []DatetimeHelper
+	selects   []SelectHelper
+	texts     []TextHelper
+	groups    []Group
 }
 
 func (c Candidate) Valid() bool {
-	return c.valid && c.profile == parser.SyntaxProfileDeclarative && c.schema == SchemaDeclarative1
+	return c.valid && ((c.profile == parser.SyntaxProfileDeclarative && c.schema == SchemaDeclarative1) ||
+		(c.profile == parser.SyntaxProfileDeclarative2 && c.schema == SchemaDeclarative2))
 }
 func (c Candidate) Profile() parser.SyntaxProfile {
 	if !c.Valid() {
@@ -96,6 +104,35 @@ func (c Candidate) Counters() []CounterHelper {
 		return nil
 	}
 	return append([]CounterHelper(nil), c.counters...)
+}
+
+func (c Candidate) Buttons() []ButtonHelper {
+	if !c.Valid() {
+		return nil
+	}
+	return append([]ButtonHelper(nil), c.buttons...)
+}
+func (c Candidate) Datetimes() []DatetimeHelper {
+	if !c.Valid() {
+		return nil
+	}
+	return append([]DatetimeHelper(nil), c.datetimes...)
+}
+func (c Candidate) Selects() []SelectHelper {
+	if !c.Valid() {
+		return nil
+	}
+	out := make([]SelectHelper, len(c.selects))
+	for i, value := range c.selects {
+		out[i] = value.copy()
+	}
+	return out
+}
+func (c Candidate) Texts() []TextHelper {
+	if !c.Valid() {
+		return nil
+	}
+	return append([]TextHelper(nil), c.texts...)
 }
 func (c Candidate) Groups() []Group {
 	if !c.Valid() {
@@ -208,6 +245,7 @@ type CounterHelper struct {
 	maximum    int64
 	hasMaximum bool
 	step       int64
+	restore    bool
 }
 
 func (h CounterHelper) Valid() bool            { return h.valid }
@@ -218,6 +256,7 @@ func (h CounterHelper) Initial() (int64, bool) { return h.initial, h.hasInitial 
 func (h CounterHelper) Minimum() (int64, bool) { return h.minimum, h.hasMinimum }
 func (h CounterHelper) Maximum() (int64, bool) { return h.maximum, h.hasMaximum }
 func (h CounterHelper) Step() int64            { return h.step }
+func (h CounterHelper) Restore() bool          { return h.restore }
 
 type Group struct {
 	valid   bool

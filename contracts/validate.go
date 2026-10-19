@@ -3,8 +3,10 @@ package contracts
 
 import (
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	helperwire "github.com/damione1/Homeward/gen/home/helpers/v1"
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
+	"math"
 	"unicode/utf8"
 )
 
@@ -14,13 +16,31 @@ func ValidateCommand(c *actions.CommandRequest, epoch string, revision uint64) *
 	if err := validateEnvelope(c, epoch, revision); err != nil {
 		return err
 	}
-	if c.CapabilitySchemaId != SwitchSchema {
+	if c.CapabilitySchemaId != SwitchSchema && c.CapabilitySchemaId != HelperSchema {
 		return commandError(actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY, "capability_schema_id", "command rejected by contract")
+	}
+	if c.CapabilitySchemaId == HelperSchema {
+		action := c.GetArguments().GetHelper()
+		if action == nil || !knownFieldsOnly(action.ProtoReflect()) || action.ExpectedHelperRevision == nil || *action.ExpectedHelperRevision > math.MaxInt64 || admittedSimpleHelperOperation(action.Operation) == false {
+			return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.helper", "command rejected by contract")
+		}
+		if action.Operation == helperwire.HelperOperation_HELPER_OPERATION_SET {
+			if _, err := AdmitHelperSetValue(action.Value); err != nil {
+				return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.helper.value", "command rejected by contract")
+			}
+		} else if action.Value != nil {
+			return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.helper.value", "command rejected by contract")
+		}
+		return nil
 	}
 	if !validArguments(c.Arguments) {
 		return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments", "command rejected by contract")
 	}
 	return nil
+}
+
+func admittedSimpleHelperOperation(operation helperwire.HelperOperation) bool {
+	return operation >= helperwire.HelperOperation_HELPER_OPERATION_SET && operation <= helperwire.HelperOperation_HELPER_OPERATION_PREVIOUS
 }
 
 func commandError(code actions.ErrorCode, path, message string) *actions.ContractError {

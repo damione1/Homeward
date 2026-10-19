@@ -18,6 +18,7 @@ const (
 	CommitUnknown
 	InitialAbsent
 	RevisionExhausted
+	NoAuthorizedTarget
 )
 
 type Error struct{ code ErrorCode }
@@ -57,6 +58,8 @@ func (e *Error) Error() string {
 		return "helpers: active definition has no initial value"
 	case RevisionExhausted:
 		return "helpers: revision exhausted"
+	case NoAuthorizedTarget:
+		return "helpers: button has no authorized target"
 	default:
 		return "helpers: invalid error"
 	}

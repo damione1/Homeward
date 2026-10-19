@@ -25,10 +25,27 @@ func Compile(bundleRoot, entry string) (Candidate, error) {
 	return admit(doc, filepath.Clean(entry))
 }
 
+// CompileV2 admits the additive typed-helper profile without changing v1.
+func CompileV2(bundleRoot, entry string) (Candidate, error) {
+	doc, err := parser.LoadProfile(bundleRoot, entry, parser.SyntaxProfileDeclarative2)
+	if err != nil {
+		return Candidate{}, err
+	}
+	return admit(doc, filepath.Clean(entry))
+}
+
 // CompileSources reuses the same admission path at a persisted-source restore
 // boundary. Operational reads of the returned Candidate never reparse YAML.
 func CompileSources(entry string, sources []parser.SourceFile) (Candidate, error) {
 	doc, err := parser.LoadSources(entry, sources, parser.SyntaxProfileDeclarative)
+	if err != nil {
+		return Candidate{}, err
+	}
+	return admit(doc, filepath.Clean(entry))
+}
+
+func CompileSourcesV2(entry string, sources []parser.SourceFile) (Candidate, error) {
+	doc, err := parser.LoadSources(entry, sources, parser.SyntaxProfileDeclarative2)
 	if err != nil {
 		return Candidate{}, err
 	}
@@ -45,7 +62,7 @@ type pendingGroup struct {
 }
 
 func admit(doc *parser.Document, entry string) (Candidate, error) {
-	if doc == nil || doc.Profile() != parser.DeclarativeProfile {
+	if doc == nil || (doc.Profile() != parser.DeclarativeProfile && doc.Profile() != parser.DeclarativeProfile2) {
 		return Candidate{}, ErrInvalidCandidate
 	}
 	root := doc.Root()
@@ -53,6 +70,17 @@ func admit(doc *parser.Document, entry string) (Candidate, error) {
 		return Candidate{}, diagnostic(CodeInvalidValue, root, "configuration must be a mapping")
 	}
 	c := Candidate{profile: parser.SyntaxProfileDeclarative, schema: SchemaDeclarative1, entry: entry}
+	if doc.Profile() == parser.DeclarativeProfile2 {
+		c.profile, c.schema = parser.SyntaxProfileDeclarative2, SchemaDeclarative2
+	}
+	seen := make(map[domain.HAAlias]bool)
+	remember := func(id domain.HAAlias, at parser.Node) error {
+		if c.schema == SchemaDeclarative2 && seen[id] {
+			return diagnostic(CodeDuplicateReference, at, "duplicate helper alias")
+		}
+		seen[id] = true
+		return nil
+	}
 	var pending []pendingGroup
 	for _, family := range root.Entries() {
 		switch parser.FamilyFromKey(family.Key) {
@@ -60,6 +88,9 @@ func admit(doc *parser.Document, entry string) (Candidate, error) {
 			for _, item := range family.Value.Entries() {
 				h, err := admitBool(item)
 				if err != nil {
+					return Candidate{}, err
+				}
+				if err := remember(h.ID(), item.Value); err != nil {
 					return Candidate{}, err
 				}
 				c.booleans = append(c.booleans, h)
@@ -70,15 +101,77 @@ func admit(doc *parser.Document, entry string) (Candidate, error) {
 				if err != nil {
 					return Candidate{}, err
 				}
+				if err := remember(h.ID(), item.Value); err != nil {
+					return Candidate{}, err
+				}
 				c.numbers = append(c.numbers, h)
 			}
 		case parser.FamilyCounter:
 			for _, item := range family.Value.Entries() {
-				h, err := admitCounter(item)
+				h, err := admitCounter(item, c.schema == SchemaDeclarative2)
 				if err != nil {
 					return Candidate{}, err
 				}
+				if err := remember(h.ID(), item.Value); err != nil {
+					return Candidate{}, err
+				}
 				c.counters = append(c.counters, h)
+			}
+		case parser.FamilyInputButton:
+			if c.schema != SchemaDeclarative2 {
+				return Candidate{}, diagnostic(CodeUnsupportedCategory, family.Value, "button requires declarative v2")
+			}
+			for _, item := range family.Value.Entries() {
+				h, err := admitButton(item)
+				if err != nil {
+					return Candidate{}, err
+				}
+				if err := remember(h.ID(), item.Value); err != nil {
+					return Candidate{}, err
+				}
+				c.buttons = append(c.buttons, h)
+			}
+		case parser.FamilyInputDatetime:
+			if c.schema != SchemaDeclarative2 {
+				return Candidate{}, diagnostic(CodeUnsupportedCategory, family.Value, "datetime requires declarative v2")
+			}
+			for _, item := range family.Value.Entries() {
+				h, err := admitDatetime(item)
+				if err != nil {
+					return Candidate{}, err
+				}
+				if err := remember(h.ID(), item.Value); err != nil {
+					return Candidate{}, err
+				}
+				c.datetimes = append(c.datetimes, h)
+			}
+		case parser.FamilyInputSelect:
+			if c.schema != SchemaDeclarative2 {
+				return Candidate{}, diagnostic(CodeUnsupportedCategory, family.Value, "select requires declarative v2")
+			}
+			for _, item := range family.Value.Entries() {
+				h, err := admitSelect(item)
+				if err != nil {
+					return Candidate{}, err
+				}
+				if err := remember(h.ID(), item.Value); err != nil {
+					return Candidate{}, err
+				}
+				c.selects = append(c.selects, h)
+			}
+		case parser.FamilyInputText:
+			if c.schema != SchemaDeclarative2 {
+				return Candidate{}, diagnostic(CodeUnsupportedCategory, family.Value, "text requires declarative v2")
+			}
+			for _, item := range family.Value.Entries() {
+				h, err := admitText(item)
+				if err != nil {
+					return Candidate{}, err
+				}
+				if err := remember(h.ID(), item.Value); err != nil {
+					return Candidate{}, err
+				}
+				c.texts = append(c.texts, h)
 			}
 		case parser.FamilyGroup:
 			for _, item := range family.Value.Entries() {
@@ -293,12 +386,12 @@ func admitNumber(item parser.Entry) (NumberHelper, error) {
 	return h, nil
 }
 
-func admitCounter(item parser.Entry) (CounterHelper, error) {
+func admitCounter(item parser.Entry, v2 bool) (CounterHelper, error) {
 	id, err := alias(parser.FamilyCounter.Key(), item.Key, item.Value)
 	if err != nil {
 		return CounterHelper{}, err
 	}
-	h := CounterHelper{id: id, step: 1}
+	h := CounterHelper{id: id, step: 1, restore: true}
 	stepAt := item.Value
 	for _, field := range item.Value.Entries() {
 		switch parser.DeclarativeFieldFromKey(field.Key) {
@@ -318,6 +411,11 @@ func admitCounter(item parser.Entry) (CounterHelper, error) {
 			h.name, err = textValue(field.Value)
 		case parser.FieldIcon:
 			h.icon, err = textValue(field.Value)
+		case parser.FieldRestore:
+			if !v2 {
+				return CounterHelper{}, diagnostic(CodeInvalidValue, field.Value, "restore requires declarative v2")
+			}
+			h.restore, err = boolValue(field.Value)
 		default:
 			return CounterHelper{}, diagnostic(CodeInvalidValue, field.Value, "unsupported counter field")
 		}
@@ -327,6 +425,9 @@ func admitCounter(item parser.Entry) (CounterHelper, error) {
 	}
 	if h.step <= 0 {
 		return CounterHelper{}, diagnostic(CodeInvalidValue, stepAt, "counter step must be positive")
+	}
+	if !h.restore {
+		return CounterHelper{}, diagnostic(CodeInvalidValue, item.Value, "counter restore false is outside the persisted profile")
 	}
 	if h.hasMinimum && h.hasMaximum && h.minimum > h.maximum {
 		return CounterHelper{}, diagnostic(CodeInvalidValue, item.Value, "counter bounds are reversed")
@@ -449,7 +550,11 @@ func resolveGroups(c *Candidate, pending []pendingGroup) error {
 
 func manifestHash(profile parser.SyntaxProfile, schema Schema, entry string, files []parser.SourceFile) [sha256.Size]byte {
 	h := sha256.New()
-	writePart(h, "homeward-candidate-v1")
+	if schema == SchemaDeclarative2 {
+		writePart(h, "homeward-candidate-v2")
+	} else {
+		writePart(h, "homeward-candidate-v1")
+	}
 	writePart(h, profile.String())
 	writePart(h, schema.String())
 	writePart(h, entry)

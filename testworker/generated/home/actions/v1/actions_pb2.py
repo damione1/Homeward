@@ -24,9 +24,10 @@ _sym_db = _symbol_database.Default()
 
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 from home.registry.v1 import registry_pb2 as home_dot_registry_dot_v1_dot_registry__pb2
+from home.helpers.v1 import helpers_pb2 as home_dot_helpers_dot_v1_dot_helpers__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1dhome/actions/v1/actions.proto\x12\x0fhome.actions.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fhome/registry/v1/registry.proto\"\x17\n\tSetSwitch\x12\n\n\x02on\x18\x01 \x01(\x08\"\xc8\x01\n\x08SetLight\x12\x0f\n\x02on\x18\x01 \x01(\x08H\x00\x88\x01\x01\x12\x1f\n\x12\x62rightness_percent\x18\x02 \x01(\x01H\x01\x88\x01\x01\x12\x1e\n\x11\x63olor_temp_mireds\x18\x03 \x01(\rH\x02\x88\x01\x01\x12\x1f\n\x12transition_seconds\x18\x04 \x01(\x01H\x03\x88\x01\x01\x42\x05\n\x03_onB\x15\n\x13_brightness_percentB\x14\n\x12_color_temp_miredsB\x15\n\x13_transition_seconds\">\n\x06SetFan\x12\x0f\n\x02on\x18\x01 \x01(\x08H\x00\x88\x01\x01\x12\x12\n\x05speed\x18\x02 \x01(\tH\x01\x88\x01\x01\x42\x05\n\x03_onB\x08\n\x06_speed\"{\n\nSetClimate\x12\x1d\n\x10setpoint_celsius\x18\x01 \x01(\x01H\x00\x88\x01\x01\x12\x30\n\x04mode\x18\x02 \x01(\x0e\x32\x1d.home.registry.v1.ClimateModeH\x01\x88\x01\x01\x42\x13\n\x11_setpoint_celsiusB\x07\n\x05_mode\"i\n\x10\x45xtensionPayload\x12\x11\n\tschema_id\x18\x01 \x01(\t\x12\r\n\x05major\x18\x02 \x01(\r\x12\x19\n\x11\x64\x65scriptor_sha256\x18\x03 \x01(\x0c\x12\x18\n\x10protobuf_payload\x18\x04 \x01(\x0c\"\x93\x02\n\nActionArgs\x12\x30\n\nset_switch\x18\x01 \x01(\x0b\x32\x1a.home.actions.v1.SetSwitchH\x00\x12\x36\n\textension\x18\x02 \x01(\x0b\x32!.home.actions.v1.ExtensionPayloadH\x00\x12.\n\tset_light\x18\x03 \x01(\x0b\x32\x19.home.actions.v1.SetLightH\x00\x12*\n\x07set_fan\x18\x04 \x01(\x0b\x32\x17.home.actions.v1.SetFanH\x00\x12\x32\n\x0bset_climate\x18\x05 \x01(\x0b\x32\x1b.home.actions.v1.SetClimateH\x00\x42\x0b\n\targuments\"\xe4\x02\n\x0e\x43ommandRequest\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x17\n\x0f\x61\x64mission_epoch\x18\x02 \x01(\t\x12\x17\n\x0f\x63onfig_revision\x18\x03 \x01(\x04\x12+\n\x06target\x18\x04 \x01(\x0b\x32\x1b.home.registry.v1.EntityRef\x12\x1c\n\x14\x63\x61pability_schema_id\x18\x05 \x01(\t\x12.\n\targuments\x18\x06 \x01(\x0b\x32\x1b.home.actions.v1.ActionArgs\x12\x1e\n\x11\x65xpected_revision\x18\x07 \x01(\x04H\x00\x88\x01\x01\x12.\n\nexpires_at\x18\x08 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x10\n\x08\x65ndpoint\x18\t \x01(\tB\x14\n\x12_expected_revisionJ\x04\x08\n\x10\x0bR\x13retry_automatically\"Q\n\x0b\x45rrorDetail\x12\x0e\n\x06reason\x18\x01 \x01(\t\x12\x1d\n\x10\x63urrent_revision\x18\x02 \x01(\x04H\x00\x88\x01\x01\x42\x13\n\x11_current_revision\"\x8c\x01\n\rContractError\x12(\n\x04\x63ode\x18\x01 \x01(\x0e\x32\x1a.home.actions.v1.ErrorCode\x12\x12\n\nfield_path\x18\x02 \x01(\t\x12\x0f\n\x07message\x18\x03 \x01(\t\x12,\n\x06\x64\x65tail\x18\x04 \x01(\x0b\x32\x1c.home.actions.v1.ErrorDetail\"\x83\x01\n\x0f\x43ommandResponse\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12-\n\x06status\x18\x02 \x01(\x0e\x32\x1d.home.actions.v1.ActionStatus\x12-\n\x05\x65rror\x18\x03 \x01(\x0b\x32\x1e.home.actions.v1.ContractError*\xd1\x01\n\tErrorCode\x12\x1a\n\x16\x45RROR_CODE_UNSPECIFIED\x10\x00\x12\x1f\n\x1b\x45RROR_CODE_INVALID_ARGUMENT\x10\x01\x12%\n!ERROR_CODE_UNSUPPORTED_CAPABILITY\x10\x02\x12\x1a\n\x16\x45RROR_CODE_STALE_EPOCH\x10\x03\x12\"\n\x1e\x45RROR_CODE_STALE_CONFIGURATION\x10\x04\x12 \n\x1c\x45RROR_CODE_PERMISSION_DENIED\x10\x05*\xfc\x01\n\x0c\x41\x63tionStatus\x12\x1d\n\x19\x41\x43TION_STATUS_UNSPECIFIED\x10\x00\x12\x1a\n\x16\x41\x43TION_STATUS_ACCEPTED\x10\x01\x12\x1c\n\x18\x41\x43TION_STATUS_DISPATCHED\x10\x02\x12\x1e\n\x1a\x41\x43TION_STATUS_ACKNOWLEDGED\x10\x03\x12\x1b\n\x17\x41\x43TION_STATUS_CONFIRMED\x10\x04\x12\x18\n\x14\x41\x43TION_STATUS_FAILED\x10\x05\x12\x1b\n\x17\x41\x43TION_STATUS_CANCELLED\x10\x06\x12\x1f\n\x1b\x41\x43TION_STATUS_INDETERMINATE\x10\x07\x42<Z:github.com/damione1/Homeward/gen/home/actions/v1;actionsv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1dhome/actions/v1/actions.proto\x12\x0fhome.actions.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fhome/registry/v1/registry.proto\x1a\x1dhome/helpers/v1/helpers.proto\"\x17\n\tSetSwitch\x12\n\n\x02on\x18\x01 \x01(\x08\"\xc8\x01\n\x08SetLight\x12\x0f\n\x02on\x18\x01 \x01(\x08H\x00\x88\x01\x01\x12\x1f\n\x12\x62rightness_percent\x18\x02 \x01(\x01H\x01\x88\x01\x01\x12\x1e\n\x11\x63olor_temp_mireds\x18\x03 \x01(\rH\x02\x88\x01\x01\x12\x1f\n\x12transition_seconds\x18\x04 \x01(\x01H\x03\x88\x01\x01\x42\x05\n\x03_onB\x15\n\x13_brightness_percentB\x14\n\x12_color_temp_miredsB\x15\n\x13_transition_seconds\">\n\x06SetFan\x12\x0f\n\x02on\x18\x01 \x01(\x08H\x00\x88\x01\x01\x12\x12\n\x05speed\x18\x02 \x01(\tH\x01\x88\x01\x01\x42\x05\n\x03_onB\x08\n\x06_speed\"{\n\nSetClimate\x12\x1d\n\x10setpoint_celsius\x18\x01 \x01(\x01H\x00\x88\x01\x01\x12\x30\n\x04mode\x18\x02 \x01(\x0e\x32\x1d.home.registry.v1.ClimateModeH\x01\x88\x01\x01\x42\x13\n\x11_setpoint_celsiusB\x07\n\x05_mode\"i\n\x10\x45xtensionPayload\x12\x11\n\tschema_id\x18\x01 \x01(\t\x12\r\n\x05major\x18\x02 \x01(\r\x12\x19\n\x11\x64\x65scriptor_sha256\x18\x03 \x01(\x0c\x12\x18\n\x10protobuf_payload\x18\x04 \x01(\x0c\"\xc4\x02\n\nActionArgs\x12\x30\n\nset_switch\x18\x01 \x01(\x0b\x32\x1a.home.actions.v1.SetSwitchH\x00\x12\x36\n\textension\x18\x02 \x01(\x0b\x32!.home.actions.v1.ExtensionPayloadH\x00\x12.\n\tset_light\x18\x03 \x01(\x0b\x32\x19.home.actions.v1.SetLightH\x00\x12*\n\x07set_fan\x18\x04 \x01(\x0b\x32\x17.home.actions.v1.SetFanH\x00\x12\x32\n\x0bset_climate\x18\x05 \x01(\x0b\x32\x1b.home.actions.v1.SetClimateH\x00\x12/\n\x06helper\x18\x06 \x01(\x0b\x32\x1d.home.helpers.v1.HelperActionH\x00\x42\x0b\n\targuments\"\xe4\x02\n\x0e\x43ommandRequest\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x17\n\x0f\x61\x64mission_epoch\x18\x02 \x01(\t\x12\x17\n\x0f\x63onfig_revision\x18\x03 \x01(\x04\x12+\n\x06target\x18\x04 \x01(\x0b\x32\x1b.home.registry.v1.EntityRef\x12\x1c\n\x14\x63\x61pability_schema_id\x18\x05 \x01(\t\x12.\n\targuments\x18\x06 \x01(\x0b\x32\x1b.home.actions.v1.ActionArgs\x12\x1e\n\x11\x65xpected_revision\x18\x07 \x01(\x04H\x00\x88\x01\x01\x12.\n\nexpires_at\x18\x08 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x10\n\x08\x65ndpoint\x18\t \x01(\tB\x14\n\x12_expected_revisionJ\x04\x08\n\x10\x0bR\x13retry_automatically\"Q\n\x0b\x45rrorDetail\x12\x0e\n\x06reason\x18\x01 \x01(\t\x12\x1d\n\x10\x63urrent_revision\x18\x02 \x01(\x04H\x00\x88\x01\x01\x42\x13\n\x11_current_revision\"\x8c\x01\n\rContractError\x12(\n\x04\x63ode\x18\x01 \x01(\x0e\x32\x1a.home.actions.v1.ErrorCode\x12\x12\n\nfield_path\x18\x02 \x01(\t\x12\x0f\n\x07message\x18\x03 \x01(\t\x12,\n\x06\x64\x65tail\x18\x04 \x01(\x0b\x32\x1c.home.actions.v1.ErrorDetail\"\x83\x01\n\x0f\x43ommandResponse\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12-\n\x06status\x18\x02 \x01(\x0e\x32\x1d.home.actions.v1.ActionStatus\x12-\n\x05\x65rror\x18\x03 \x01(\x0b\x32\x1e.home.actions.v1.ContractError*\xd1\x01\n\tErrorCode\x12\x1a\n\x16\x45RROR_CODE_UNSPECIFIED\x10\x00\x12\x1f\n\x1b\x45RROR_CODE_INVALID_ARGUMENT\x10\x01\x12%\n!ERROR_CODE_UNSUPPORTED_CAPABILITY\x10\x02\x12\x1a\n\x16\x45RROR_CODE_STALE_EPOCH\x10\x03\x12\"\n\x1e\x45RROR_CODE_STALE_CONFIGURATION\x10\x04\x12 \n\x1c\x45RROR_CODE_PERMISSION_DENIED\x10\x05*\xfc\x01\n\x0c\x41\x63tionStatus\x12\x1d\n\x19\x41\x43TION_STATUS_UNSPECIFIED\x10\x00\x12\x1a\n\x16\x41\x43TION_STATUS_ACCEPTED\x10\x01\x12\x1c\n\x18\x41\x43TION_STATUS_DISPATCHED\x10\x02\x12\x1e\n\x1a\x41\x43TION_STATUS_ACKNOWLEDGED\x10\x03\x12\x1b\n\x17\x41\x43TION_STATUS_CONFIRMED\x10\x04\x12\x18\n\x14\x41\x43TION_STATUS_FAILED\x10\x05\x12\x1b\n\x17\x41\x43TION_STATUS_CANCELLED\x10\x06\x12\x1f\n\x1b\x41\x43TION_STATUS_INDETERMINATE\x10\x07\x42<Z:github.com/damione1/Homeward/gen/home/actions/v1;actionsv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,28 +35,28 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'home.actions.v1.actions_pb2
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z:github.com/damione1/Homeward/gen/home/actions/v1;actionsv1'
-  _globals['_ERRORCODE']._serialized_start=1638
-  _globals['_ERRORCODE']._serialized_end=1847
-  _globals['_ACTIONSTATUS']._serialized_start=1850
-  _globals['_ACTIONSTATUS']._serialized_end=2102
-  _globals['_SETSWITCH']._serialized_start=116
-  _globals['_SETSWITCH']._serialized_end=139
-  _globals['_SETLIGHT']._serialized_start=142
-  _globals['_SETLIGHT']._serialized_end=342
-  _globals['_SETFAN']._serialized_start=344
-  _globals['_SETFAN']._serialized_end=406
-  _globals['_SETCLIMATE']._serialized_start=408
-  _globals['_SETCLIMATE']._serialized_end=531
-  _globals['_EXTENSIONPAYLOAD']._serialized_start=533
-  _globals['_EXTENSIONPAYLOAD']._serialized_end=638
-  _globals['_ACTIONARGS']._serialized_start=641
-  _globals['_ACTIONARGS']._serialized_end=916
-  _globals['_COMMANDREQUEST']._serialized_start=919
-  _globals['_COMMANDREQUEST']._serialized_end=1275
-  _globals['_ERRORDETAIL']._serialized_start=1277
-  _globals['_ERRORDETAIL']._serialized_end=1358
-  _globals['_CONTRACTERROR']._serialized_start=1361
-  _globals['_CONTRACTERROR']._serialized_end=1501
-  _globals['_COMMANDRESPONSE']._serialized_start=1504
-  _globals['_COMMANDRESPONSE']._serialized_end=1635
+  _globals['_ERRORCODE']._serialized_start=1718
+  _globals['_ERRORCODE']._serialized_end=1927
+  _globals['_ACTIONSTATUS']._serialized_start=1930
+  _globals['_ACTIONSTATUS']._serialized_end=2182
+  _globals['_SETSWITCH']._serialized_start=147
+  _globals['_SETSWITCH']._serialized_end=170
+  _globals['_SETLIGHT']._serialized_start=173
+  _globals['_SETLIGHT']._serialized_end=373
+  _globals['_SETFAN']._serialized_start=375
+  _globals['_SETFAN']._serialized_end=437
+  _globals['_SETCLIMATE']._serialized_start=439
+  _globals['_SETCLIMATE']._serialized_end=562
+  _globals['_EXTENSIONPAYLOAD']._serialized_start=564
+  _globals['_EXTENSIONPAYLOAD']._serialized_end=669
+  _globals['_ACTIONARGS']._serialized_start=672
+  _globals['_ACTIONARGS']._serialized_end=996
+  _globals['_COMMANDREQUEST']._serialized_start=999
+  _globals['_COMMANDREQUEST']._serialized_end=1355
+  _globals['_ERRORDETAIL']._serialized_start=1357
+  _globals['_ERRORDETAIL']._serialized_end=1438
+  _globals['_CONTRACTERROR']._serialized_start=1441
+  _globals['_CONTRACTERROR']._serialized_end=1581
+  _globals['_COMMANDRESPONSE']._serialized_start=1584
+  _globals['_COMMANDRESPONSE']._serialized_end=1715
 # @@protoc_insertion_point(module_scope)

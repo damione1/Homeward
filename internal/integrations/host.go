@@ -1181,6 +1181,14 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 				}
 				matched = true
 			}
+		case domain.ValueHelper:
+			if description.SchemaId == contracts.HelperSchema {
+				helper, _, ok := observation.value.Helper()
+				if !ok || h.catalog.AdmitDomainHelper(binding.entity, observation.endpoint, helper) != nil {
+					return ErrInvalidInput
+				}
+				matched = true
+			}
 		case domain.ValueUnspecified:
 			return ErrInvalidInput
 		default:

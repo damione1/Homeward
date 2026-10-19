@@ -68,13 +68,31 @@ func profileRule(profile SyntaxProfile) *rule {
 		FamilyInputNumber.Key():  {kind: KindMapping, dynamic: numberHelper},
 		FamilyCounter.Key():      {kind: KindMapping, dynamic: counterHelper},
 	})
-	if profile == SyntaxProfileDeclarative {
+	if profile == SyntaxProfileDeclarative || profile == SyntaxProfileDeclarative2 {
 		root.fields[FamilyInputNumber.Key()].dynamic.fields[FieldMode.Key()] = scalar()
 		group := mapping(map[string]*rule{
 			FieldName.Key(): scalar(), FieldEntities.Key(): sequence(scalar()),
 			FieldAll.Key(): scalar(), FieldIcon.Key(): scalar(),
 		})
 		root.fields[FamilyGroup.Key()] = &rule{kind: KindMapping, dynamic: group}
+	}
+	if profile == SyntaxProfileDeclarative2 {
+		root.fields[FamilyCounter.Key()].dynamic.fields[FieldRestore.Key()] = scalar()
+		root.fields[FamilyInputButton.Key()] = &rule{kind: KindMapping, dynamic: mapping(map[string]*rule{
+			FieldName.Key(): scalar(), FieldIcon.Key(): scalar(),
+		})}
+		root.fields[FamilyInputDatetime.Key()] = &rule{kind: KindMapping, dynamic: mapping(map[string]*rule{
+			FieldName.Key(): scalar(), FieldIcon.Key(): scalar(), FieldInitial.Key(): scalar(),
+			FieldHasDate.Key(): scalar(), FieldHasTime.Key(): scalar(),
+		})}
+		root.fields[FamilyInputSelect.Key()] = &rule{kind: KindMapping, dynamic: mapping(map[string]*rule{
+			FieldName.Key(): scalar(), FieldIcon.Key(): scalar(), FieldInitial.Key(): scalar(),
+			FieldOptions.Key(): sequence(scalar()),
+		})}
+		root.fields[FamilyInputText.Key()] = &rule{kind: KindMapping, dynamic: mapping(map[string]*rule{
+			FieldName.Key(): scalar(), FieldIcon.Key(): scalar(), FieldInitial.Key(): scalar(),
+			FieldMin.Key(): scalar(), FieldMax.Key(): scalar(), FieldMode.Key(): scalar(),
+		})}
 	}
 	return root
 }

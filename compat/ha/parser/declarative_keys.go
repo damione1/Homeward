@@ -12,16 +12,24 @@ const (
 	FamilyInputNumber
 	FamilyCounter
 	FamilyGroup
+	FamilyInputButton
+	FamilyInputDatetime
+	FamilyInputSelect
+	FamilyInputText
 )
 
 var familyKeys = [...]string{
-	FamilyInvalid:      "",
-	FamilyAutomation:   "automation",
-	FamilyScript:       "script",
-	FamilyInputBoolean: "input_boolean",
-	FamilyInputNumber:  "input_number",
-	FamilyCounter:      "counter",
-	FamilyGroup:        "group",
+	FamilyInvalid:       "",
+	FamilyAutomation:    "automation",
+	FamilyScript:        "script",
+	FamilyInputBoolean:  "input_boolean",
+	FamilyInputNumber:   "input_number",
+	FamilyCounter:       "counter",
+	FamilyGroup:         "group",
+	FamilyInputButton:   "input_button",
+	FamilyInputDatetime: "input_datetime",
+	FamilyInputSelect:   "input_select",
+	FamilyInputText:     "input_text",
 }
 
 func (f Family) Key() string {
@@ -58,6 +66,10 @@ const (
 	FieldMode
 	FieldEntities
 	FieldAll
+	FieldHasDate
+	FieldHasTime
+	FieldOptions
+	FieldRestore
 )
 
 var declarativeFieldKeys = [...]string{
@@ -74,6 +86,10 @@ var declarativeFieldKeys = [...]string{
 	FieldMode:              "mode",
 	FieldEntities:          "entities",
 	FieldAll:               "all",
+	FieldHasDate:           "has_date",
+	FieldHasTime:           "has_time",
+	FieldOptions:           "options",
+	FieldRestore:           "restore",
 }
 
 func (f DeclarativeField) Key() string {

@@ -3,8 +3,10 @@ package contracts
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
+	helperwire "github.com/damione1/Homeward/gen/home/helpers/v1"
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	state "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/internal/domain"
@@ -276,6 +278,19 @@ func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, m
 			return domain.ObservedState{}, err
 		}
 		value = &v
+	case *state.ObservedState_Helper:
+		if item == nil || item.Helper == nil || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		helper, helperRevision, err := admitHelperWire(item.Helper, true)
+		if err != nil || measurement.Catalog.AdmitDomainHelper(entity, measurement.Endpoint, helper) != nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		v, err := domain.NewHelperStateValue(helper, helperRevision)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &v
 	case nil:
 	default:
 		return domain.ObservedState{}, ErrInvalidWireState
@@ -365,11 +380,147 @@ func EncodeObservedState(observed domain.ObservedState) (*state.ObservedState, e
 				return nil, err
 			}
 			w.Value = &state.ObservedState_Climate{Climate: wireClimate}
+		case domain.ValueHelper:
+			helper, helperRevision, _ := value.Helper()
+			wireHelper, err := encodeHelperWire(helper, helperRevision)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_Helper{Helper: wireHelper}
 		case domain.ValueUnspecified:
 			return nil, ErrInvalidWireState
 		default:
 			return nil, ErrInvalidWireState
 		}
+	}
+	return w, nil
+}
+
+// Helper wire is decoded at an admission boundary, never interpreted directly
+// by an integration. A future oneof branch remains decodable but is refused.
+func admitHelperWire(w *helperwire.HelperValue, requireRevision bool) (domain.HelperValue, uint64, error) {
+	if w == nil || !knownFieldsOnly(w.ProtoReflect()) || (requireRevision && (w.HelperRevision == 0 || w.HelperRevision > math.MaxInt64)) || (!requireRevision && w.HelperRevision != 0) {
+		return domain.HelperValue{}, 0, ErrInvalidWireState
+	}
+	var value domain.HelperValue
+	var err error
+	switch item := w.Value.(type) {
+	case *helperwire.HelperValue_Boolean:
+		if item == nil {
+			return domain.HelperValue{}, 0, ErrInvalidWireState
+		}
+		value = domain.NewHelperBoolean(item.Boolean)
+	case *helperwire.HelperValue_Number:
+		if item == nil {
+			return domain.HelperValue{}, 0, ErrInvalidWireState
+		}
+		value, err = domain.NewHelperNumber(item.Number)
+	case *helperwire.HelperValue_Counter:
+		if item == nil {
+			return domain.HelperValue{}, 0, ErrInvalidWireState
+		}
+		value = domain.NewHelperCounter(item.Counter)
+	case *helperwire.HelperValue_ButtonPressedAt:
+		if item == nil || item.ButtonPressedAt == nil || !knownFieldsOnly(item.ButtonPressedAt.ProtoReflect()) || item.ButtonPressedAt.CheckValid() != nil || item.ButtonPressedAt.Nanos%1000 != 0 {
+			return domain.HelperValue{}, 0, ErrInvalidWireState
+		}
+		value, err = domain.NewHelperButtonPress(item.ButtonPressedAt.AsTime())
+	case *helperwire.HelperValue_Date:
+		if item == nil || item.Date == nil || !knownFieldsOnly(item.Date.ProtoReflect()) {
+			return domain.HelperValue{}, 0, ErrInvalidWireState
+		}
+		var date domain.CivilDate
+		date, err = domain.NewCivilDate(int(item.Date.Year), int(item.Date.Month), int(item.Date.Day))
+		if err == nil {
+			value, err = domain.NewHelperDate(date)
+		}
+	case *helperwire.HelperValue_Time:
+		if item == nil || item.Time == nil || !knownFieldsOnly(item.Time.ProtoReflect()) {
+			return domain.HelperValue{}, 0, ErrInvalidWireState
+		}
+		var clock domain.CivilTime
+		clock, err = domain.NewCivilTime(int(item.Time.Hour), int(item.Time.Minute), int(item.Time.Second))
+		if err == nil {
+			value, err = domain.NewHelperTime(clock)
+		}
+	case *helperwire.HelperValue_Datetime:
+		if item == nil || item.Datetime == nil || !knownFieldsOnly(item.Datetime.ProtoReflect()) || item.Datetime.Date == nil || item.Datetime.Time == nil || !knownFieldsOnly(item.Datetime.Date.ProtoReflect()) || !knownFieldsOnly(item.Datetime.Time.ProtoReflect()) {
+			return domain.HelperValue{}, 0, ErrInvalidWireState
+		}
+		date, de := domain.NewCivilDate(int(item.Datetime.Date.Year), int(item.Datetime.Date.Month), int(item.Datetime.Date.Day))
+		clock, ce := domain.NewCivilTime(int(item.Datetime.Time.Hour), int(item.Datetime.Time.Minute), int(item.Datetime.Time.Second))
+		if de != nil || ce != nil {
+			return domain.HelperValue{}, 0, ErrInvalidWireState
+		}
+		civil, _ := domain.NewCivilDateTime(date, clock)
+		value, err = domain.NewHelperDateTime(civil)
+	case *helperwire.HelperValue_SelectedOption:
+		if item == nil {
+			return domain.HelperValue{}, 0, ErrInvalidWireState
+		}
+		value, err = domain.NewHelperSelect(item.SelectedOption)
+	case *helperwire.HelperValue_Text:
+		if item == nil {
+			return domain.HelperValue{}, 0, ErrInvalidWireState
+		}
+		value, err = domain.NewHelperText(item.Text)
+	default:
+		return domain.HelperValue{}, 0, ErrInvalidWireState
+	}
+	if err != nil || !value.Valid() {
+		return domain.HelperValue{}, 0, ErrInvalidWireState
+	}
+	return value, w.HelperRevision, nil
+}
+
+// AdmitHelperSetValue is the command boundary for a SET payload. The caller
+// still checks the action against the active definition and SQL CAS revision.
+func AdmitHelperSetValue(w *helperwire.HelperValue) (domain.HelperValue, error) {
+	value, _, err := admitHelperWire(w, false)
+	return value, err
+}
+
+func encodeHelperWire(v domain.HelperValue, revision uint64) (*helperwire.HelperValue, error) {
+	kind, err := v.Kind()
+	if err != nil || revision == 0 {
+		return nil, ErrInvalidWireState
+	}
+	w := &helperwire.HelperValue{HelperRevision: revision}
+	switch kind {
+	case domain.HelperBoolean:
+		value, _ := v.Boolean()
+		w.Value = &helperwire.HelperValue_Boolean{Boolean: value}
+	case domain.HelperNumber:
+		value, _ := v.Number()
+		w.Value = &helperwire.HelperValue_Number{Number: value}
+	case domain.HelperCounter:
+		value, _ := v.Counter()
+		w.Value = &helperwire.HelperValue_Counter{Counter: value}
+	case domain.HelperButtonPress:
+		value, _ := v.ButtonPress()
+		w.Value = &helperwire.HelperValue_ButtonPressedAt{ButtonPressedAt: timestamppb.New(value)}
+	case domain.HelperDate:
+		value, _ := v.Date()
+		y, m, d, _ := value.Components()
+		w.Value = &helperwire.HelperValue_Date{Date: &helperwire.CivilDate{Year: uint32(y), Month: uint32(m), Day: uint32(d)}}
+	case domain.HelperTime:
+		value, _ := v.Time()
+		h, m, s, _ := value.Components()
+		w.Value = &helperwire.HelperValue_Time{Time: &helperwire.CivilTime{Hour: uint32(h), Minute: uint32(m), Second: uint32(s)}}
+	case domain.HelperDateTime:
+		value, _ := v.DateTime()
+		date, clock, _ := value.Components()
+		y, month, day, _ := date.Components()
+		h, minute, second, _ := clock.Components()
+		w.Value = &helperwire.HelperValue_Datetime{Datetime: &helperwire.CivilDateTime{Date: &helperwire.CivilDate{Year: uint32(y), Month: uint32(month), Day: uint32(day)}, Time: &helperwire.CivilTime{Hour: uint32(h), Minute: uint32(minute), Second: uint32(second)}}}
+	case domain.HelperSelect:
+		value, _ := v.Select()
+		w.Value = &helperwire.HelperValue_SelectedOption{SelectedOption: value}
+	case domain.HelperText:
+		value, _ := v.Text()
+		w.Value = &helperwire.HelperValue_Text{Text: value}
+	default:
+		return nil, ErrInvalidWireState
 	}
 	return w, nil
 }

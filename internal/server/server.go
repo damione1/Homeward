@@ -12,8 +12,10 @@ import (
 	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/config"
+	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/heatingownership"
+	"github.com/damione1/Homeward/internal/helpers"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/neviweb"
@@ -134,10 +136,27 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			return closeStoreWithRecorder(store, recording, err)
 		}
 	} else {
+		activeGeneration, hasActiveGeneration, e := store.ReadActiveConfig(ctx)
+		if e != nil {
+			return closeStoreWithRecorder(store, recording, e)
+		}
+		var activeCandidate bundle.Candidate
+		var hasActiveHelpers bool
+		if hasActiveGeneration {
+			activeCandidate, e = activeGeneration.Restore()
+			if e != nil {
+				return closeStoreWithRecorder(store, recording, e)
+			}
+			definitions, definitionErr := helpers.Definitions(activeCandidate)
+			if definitionErr != nil {
+				return closeStoreWithRecorder(store, recording, definitionErr)
+			}
+			hasActiveHelpers = len(definitions) != 0
+		}
 		mqttSettings, mqttEnabled := c.MQTTSettings()
 		neviwebSettings, neviwebEnabled := c.NeviwebSettings()
 		workers := c.ExternalWorkers()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 {
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || hasActiveHelpers {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
@@ -152,6 +171,11 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			plan, err = defaultConfiguredRuntimePlan(mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
 			if err != nil {
 				return closeStoreWithRecorder(store, recording, err)
+			}
+			if hasActiveHelpers {
+				if err := addActiveHelpers(&plan, activeCandidate, store); err != nil {
+					return closeStoreWithRecorder(store, recording, err)
+				}
 			}
 			if hiloEnabled {
 				repository, ok := plan.Identity.(*registry.Repository)

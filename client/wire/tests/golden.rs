@@ -1,6 +1,6 @@
 use buffa::Message;
 use home_wire_contract::home::{
-    actions::v1 as actions, registry::v1 as registry, state::v1 as state,
+    actions::v1 as actions, helpers::v1 as helpers, registry::v1 as registry, state::v1 as state,
 };
 fn golden(name: &str) -> Vec<u8> {
     let cwd = std::env::current_dir().expect("cannot locate golden fixture: no current directory");
@@ -172,6 +172,258 @@ fn admission_rejects_missing_and_unknown_branches_without_weakening_wire_decode(
     }
 }
 
+fn helper_action_mut(request: &mut actions::CommandRequest) -> &mut helpers::HelperAction {
+    let args = request
+        .arguments
+        .as_option_mut()
+        .expect("missing action args");
+    let Some(actions::action_args::Arguments::Helper(action)) = args.arguments.as_mut() else {
+        panic!("missing helper action")
+    };
+    action
+}
+
+fn with_future_field<M: Message + Default>(message: &M) -> M {
+    let mut bytes = message.encode_to_vec();
+    bytes.extend_from_slice(&[0x98, 0x06, 0x07]);
+    let decoded = M::decode_from_slice(&bytes).unwrap();
+    assert_eq!(decoded.encode_to_vec(), bytes);
+    decoded
+}
+
+#[test]
+fn nha097_helper_wire_presence_and_command_admission() {
+    use actions::action_args::Arguments;
+    use helpers::helper_value::Value;
+
+    let original: actions::CommandRequest = roundtrip("command");
+    let mut helper = original.clone();
+    helper.capability_schema_id = "core.helper.v1".into();
+    let action = helpers::HelperAction {
+        operation: helpers::HelperOperation::Set.into(),
+        expected_helper_revision: Some(0),
+        value: helpers::HelperValue {
+            value: Some(Value::Boolean(false)),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    };
+    helper.arguments = actions::ActionArgs {
+        arguments: Some(Arguments::Helper(Box::new(action))),
+        ..Default::default()
+    }
+    .into();
+    let accept = |request: &actions::CommandRequest| {
+        let bytes = request.encode_to_vec();
+        let decoded = actions::CommandRequest::decode_from_slice(&bytes).unwrap();
+        assert_eq!(decoded.encode_to_vec(), bytes);
+        assert!(
+            home_wire_contract::validate_command(&decoded, "epoch-a", decoded.config_revision)
+                .is_ok()
+        );
+    };
+    for value in [
+        Value::Boolean(false),
+        Value::Number(0.0),
+        Value::Text(String::new()),
+    ] {
+        helper_action_mut(&mut helper).value = helpers::HelperValue {
+            value: Some(value),
+            ..Default::default()
+        }
+        .into();
+        accept(&helper);
+    }
+    let date = helpers::CivilDate {
+        year: 2026,
+        month: 10,
+        day: 19,
+        ..Default::default()
+    };
+    let time = helpers::CivilTime {
+        hour: 8,
+        minute: 30,
+        ..Default::default()
+    };
+    let datetime = helpers::CivilDateTime {
+        date: date.clone().into(),
+        time: time.clone().into(),
+        ..Default::default()
+    };
+    for value in [
+        Value::Date(Box::new(date.clone())),
+        Value::Time(Box::new(time.clone())),
+        Value::Datetime(Box::new(datetime.clone())),
+    ] {
+        helper_action_mut(&mut helper).value = helpers::HelperValue {
+            value: Some(value),
+            ..Default::default()
+        }
+        .into();
+        accept(&helper);
+    }
+    let mut wrong_family = helper.clone();
+    wrong_family.capability_schema_id = "core.switch.v1".into();
+    assert_eq!(
+        home_wire_contract::validate_command(
+            &wrong_family,
+            "epoch-a",
+            wrong_family.config_revision
+        ),
+        Err(rejection(actions::ErrorCode::InvalidArgument, "arguments"))
+    );
+    let mut wrong_family = original;
+    wrong_family.capability_schema_id = "core.helper.v1".into();
+    assert_eq!(
+        home_wire_contract::validate_command(
+            &wrong_family,
+            "epoch-a",
+            wrong_family.config_revision
+        ),
+        Err(rejection(actions::ErrorCode::InvalidArgument, "arguments"))
+    );
+    let mut missing_revision = helper.clone();
+    helper_action_mut(&mut missing_revision).expected_helper_revision = None;
+    assert_eq!(
+        home_wire_contract::validate_command(
+            &missing_revision,
+            "epoch-a",
+            missing_revision.config_revision
+        ),
+        Err(rejection(
+            actions::ErrorCode::InvalidArgument,
+            "arguments.helper.expected_helper_revision"
+        ))
+    );
+    let mut excessive_revision = helper.clone();
+    helper_action_mut(&mut excessive_revision).expected_helper_revision = Some(i64::MAX as u64 + 1);
+    assert_eq!(
+        home_wire_contract::validate_command(
+            &excessive_revision,
+            "epoch-a",
+            excessive_revision.config_revision
+        ),
+        Err(rejection(
+            actions::ErrorCode::InvalidArgument,
+            "arguments.helper"
+        ))
+    );
+    for operation in [
+        buffa::EnumValue::Known(helpers::HelperOperation::Unspecified),
+        buffa::EnumValue::Unknown(99),
+    ] {
+        let mut rejected = helper.clone();
+        helper_action_mut(&mut rejected).operation = operation;
+        assert_eq!(
+            home_wire_contract::validate_command(&rejected, "epoch-a", rejected.config_revision),
+            Err(rejection(
+                actions::ErrorCode::InvalidArgument,
+                "arguments.helper.operation"
+            ))
+        );
+    }
+    let mut future_value = helper.clone();
+    let mut value_bytes = helper_action_mut(&mut future_value)
+        .value
+        .as_option()
+        .unwrap()
+        .encode_to_vec();
+    value_bytes.extend_from_slice(&[0x98, 0x06, 0x07]);
+    helper_action_mut(&mut future_value).value =
+        helpers::HelperValue::decode_from_slice(&value_bytes)
+            .unwrap()
+            .into();
+    assert_eq!(
+        home_wire_contract::validate_command(
+            &future_value,
+            "epoch-a",
+            future_value.config_revision
+        ),
+        Err(rejection(
+            actions::ErrorCode::InvalidArgument,
+            "arguments.helper.value"
+        ))
+    );
+    let mut future_action = helper.clone();
+    let mut action_bytes = helper_action_mut(&mut future_action).encode_to_vec();
+    action_bytes.extend_from_slice(&[0x98, 0x06, 0x07]);
+    future_action.arguments = actions::ActionArgs {
+        arguments: Some(Arguments::Helper(Box::new(
+            helpers::HelperAction::decode_from_slice(&action_bytes).unwrap(),
+        ))),
+        ..Default::default()
+    }
+    .into();
+    assert_eq!(
+        home_wire_contract::validate_command(
+            &future_action,
+            "epoch-a",
+            future_action.config_revision
+        ),
+        Err(rejection(
+            actions::ErrorCode::InvalidArgument,
+            "arguments.helper"
+        ))
+    );
+    for value in [
+        Value::Date(Box::new(with_future_field(&date))),
+        Value::Time(Box::new(with_future_field(&time))),
+        Value::Datetime(Box::new(with_future_field(&datetime))),
+        Value::Datetime(Box::new(helpers::CivilDateTime {
+            date: with_future_field(&date).into(),
+            time: time.clone().into(),
+            ..Default::default()
+        })),
+        Value::Datetime(Box::new(helpers::CivilDateTime {
+            date: date.clone().into(),
+            time: with_future_field(&time).into(),
+            ..Default::default()
+        })),
+    ] {
+        let mut future_civil = helper.clone();
+        helper_action_mut(&mut future_civil).value = helpers::HelperValue {
+            value: Some(value),
+            ..Default::default()
+        }
+        .into();
+        assert_eq!(
+            home_wire_contract::validate_command(
+                &future_civil,
+                "epoch-a",
+                future_civil.config_revision
+            ),
+            Err(rejection(
+                actions::ErrorCode::InvalidArgument,
+                "arguments.helper.value"
+            ))
+        );
+    }
+    let mut no_value = helper.clone();
+    helper_action_mut(&mut no_value).value = Default::default();
+    assert_eq!(
+        home_wire_contract::validate_command(&no_value, "epoch-a", no_value.config_revision),
+        Err(rejection(
+            actions::ErrorCode::InvalidArgument,
+            "arguments.helper.value"
+        ))
+    );
+    helper_action_mut(&mut no_value).operation = helpers::HelperOperation::Toggle.into();
+    accept(&no_value);
+    helper_action_mut(&mut no_value).value = helpers::HelperValue {
+        value: Some(Value::Boolean(false)),
+        ..Default::default()
+    }
+    .into();
+    assert_eq!(
+        home_wire_contract::validate_command(&no_value, "epoch-a", no_value.config_revision),
+        Err(rejection(
+            actions::ErrorCode::InvalidArgument,
+            "arguments.helper.value"
+        ))
+    );
+}
+
 #[test]
 fn nha014_capability_constraints_and_action_presence_survive_rust_codec() {
     use registry::capability_description::Constraints;
@@ -227,6 +479,7 @@ fn nha014_capability_constraints_and_action_presence_survive_rust_codec() {
                 assert_eq!(capability.schema_id, "core.binary.v1");
                 assert_eq!(c.device_class, None);
             }
+            Some(Constraints::Helper(_)) => panic!("unexpected helper in core fixture"),
             Some(Constraints::Extension(_)) => panic!("unexpected extension in core fixture"),
             None => panic!("missing constraints"),
         }

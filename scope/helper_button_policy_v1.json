@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "buttons": [
+    {"alias": "input_button.cast_to_nest_hub", "decision": "no_authorized_target"},
+    {"alias": "input_button.pause_bird_s_radio", "decision": "local_press"},
+    {"alias": "input_button.start_bird_s_radio", "decision": "local_press"},
+    {"alias": "input_button.trash_out", "decision": "local_press"}
+  ]
+}

@@ -2,7 +2,9 @@ package reactivetemplate
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/damione1/Homeward/compat/ha/template"
 	"github.com/damione1/Homeward/internal/config/bundle"
@@ -79,6 +81,50 @@ func formatCurrent(value domain.StateValue) (string, []template.Binding, error) 
 		return "", nil, err
 	}
 	switch kind {
+	case domain.ValueHelper:
+		helper, _, ok := value.Helper()
+		if !ok {
+			return "", nil, ErrInvalidProjection
+		}
+		switch helperKind, _ := helper.Kind(); helperKind {
+		case domain.HelperBoolean:
+			v, _ := helper.Boolean()
+			if v {
+				return "on", nil, nil
+			}
+			return "off", nil, nil
+		case domain.HelperNumber:
+			v, _ := helper.Number()
+			return strconv.FormatFloat(v, 'f', -1, 64), nil, nil
+		case domain.HelperCounter:
+			v, _ := helper.Counter()
+			return strconv.FormatInt(v, 10), nil, nil
+		case domain.HelperButtonPress:
+			v, _ := helper.ButtonPress()
+			return v.Format(time.RFC3339Nano), nil, nil
+		case domain.HelperDate:
+			v, _ := helper.Date()
+			year, month, day, _ := v.Components()
+			return fmt.Sprintf("%04d-%02d-%02d", year, month, day), nil, nil
+		case domain.HelperTime:
+			v, _ := helper.Time()
+			hour, minute, second, _ := v.Components()
+			return fmt.Sprintf("%02d:%02d:%02d", hour, minute, second), nil, nil
+		case domain.HelperDateTime:
+			v, _ := helper.DateTime()
+			date, clock, _ := v.Components()
+			year, month, day, _ := date.Components()
+			hour, minute, second, _ := clock.Components()
+			return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, second), nil, nil
+		case domain.HelperSelect:
+			v, _ := helper.Select()
+			return v, nil, nil
+		case domain.HelperText:
+			v, _ := helper.Text()
+			return v, nil, nil
+		default:
+			return "", nil, ErrInvalidProjection
+		}
 	case domain.ValueSwitch:
 		on, _ := value.Switch()
 		if on {
