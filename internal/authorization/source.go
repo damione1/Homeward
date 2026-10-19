@@ -44,6 +44,11 @@ type grantInput struct {
 type objectInput struct {
 	Entities   *entitiesInput   `yaml:"entities"`
 	Dashboards *dashboardsInput `yaml:"dashboards"`
+	Lists      *listsInput      `yaml:"lists"`
+}
+type listsInput struct {
+	All      *emptyInput `yaml:"all"`
+	Explicit *[]string   `yaml:"explicit"`
 }
 type entitiesInput struct {
 	All      *allEntitiesInput `yaml:"all"`
@@ -115,7 +120,7 @@ func AdmitPolicySource(account contracts.AccountID, data []byte) (PolicySource, 
 	}
 	policy := Policy{account: account, grants: make([]grant, 0, len(*input.Grants)), cost: 256}
 	seen := make(map[Permission]struct{}, len(*input.Grants))
-	entities, dashboards := 0, 0
+	entities, dashboards, lists := 0, 0, 0
 	for _, raw := range *input.Grants {
 		if raw.Scope == nil || raw.Objects == nil {
 			return PolicySource{}, invalidSource("grants")
@@ -132,7 +137,17 @@ func AdmitPolicySource(account contracts.AccountID, data []byte) (PolicySource, 
 		if kind == objectInvalid {
 			return PolicySource{}, invalidSource("grants.scope")
 		}
-		if (raw.Objects.Entities == nil) == (raw.Objects.Dashboards == nil) {
+		selectors := 0
+		if raw.Objects.Entities != nil {
+			selectors++
+		}
+		if raw.Objects.Dashboards != nil {
+			selectors++
+		}
+		if raw.Objects.Lists != nil {
+			selectors++
+		}
+		if selectors != 1 {
 			return PolicySource{}, invalidSource("grants.objects")
 		}
 		value := grant{permission: permission, object: kind}
@@ -223,6 +238,35 @@ func AdmitPolicySource(account contracts.AccountID, data []byte) (PolicySource, 
 					policy.cost += 80 + len(text)
 				}
 			}
+		case objectList:
+			if raw.Objects.Lists == nil {
+				return PolicySource{}, invalidSource("grants.objects")
+			}
+			selection := raw.Objects.Lists
+			if (selection.All == nil) == (selection.Explicit == nil) {
+				return PolicySource{}, invalidSource("grants.objects.lists")
+			}
+			if selection.All != nil {
+				value.kind = selectionAll
+			} else {
+				value.kind = selectionExplicit
+				lists += len(*selection.Explicit)
+				if lists > MaxLists {
+					return PolicySource{}, invalidSource("grants.objects.lists.explicit")
+				}
+				value.lists = make(map[domain.ListID]struct{}, len(*selection.Explicit))
+				for _, text := range *selection.Explicit {
+					id, parseErr := domain.ParseListID(text)
+					if parseErr != nil {
+						return PolicySource{}, invalidSource("grants.objects.lists.explicit")
+					}
+					if _, duplicate := value.lists[id]; duplicate {
+						return PolicySource{}, invalidSource("grants.objects.lists.explicit")
+					}
+					value.lists[id] = struct{}{}
+					policy.cost += 80 + len(text)
+				}
+			}
 		case objectAccounts, objectIntegrations, objectGlobalConfiguration, objectInvalid:
 			return PolicySource{}, invalidSource("grants.objects")
 		default:
@@ -242,6 +286,8 @@ func emptyGrant(value grant) bool {
 		return value.kind == selectionExplicit && len(value.entities) == 0 || value.kind == selectionAll && value.allSlots.kind == selectionExplicit && len(value.allSlots.explicit) == 0
 	case objectDashboard:
 		return value.kind == selectionExplicit && len(value.dashboards) == 0
+	case objectList:
+		return value.kind == selectionExplicit && len(value.lists) == 0
 	case objectInvalid, objectAccounts, objectIntegrations, objectGlobalConfiguration:
 		return true
 	default:

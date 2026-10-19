@@ -196,15 +196,29 @@ const (
 	objectAccounts
 	objectIntegrations
 	objectGlobalConfiguration
+	objectList
 )
 
 type Object struct {
-	kind      objectKind
-	entity    domain.EntityID
-	slot      CapabilitySlot
-	dashboard DashboardID
-	owner     contracts.AccountID
+	kind       objectKind
+	entity     domain.EntityID
+	slot       CapabilitySlot
+	dashboard  DashboardID
+	owner      contracts.AccountID
+	list       domain.ListID
+	collection bool
 }
+
+func ListObject(id domain.ListID) (Object, error) {
+	if _, err := id.Value(); err != nil {
+		return Object{}, ErrInvalid
+	}
+	return Object{kind: objectList, list: id}, nil
+}
+
+// ListCollectionObject denotes a bounded catalogue query or creation/import.
+// Authorization still evaluates an all/explicit selector for the operation.
+func ListCollectionObject() Object { return Object{kind: objectList, collection: true} }
 
 func EntityObject(entity domain.EntityID, slot CapabilitySlot) (Object, error) {
 	if _, err := entity.Value(); err != nil {
