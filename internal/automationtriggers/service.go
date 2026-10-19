@@ -76,9 +76,15 @@ type calendarKey struct {
 	source                 CalendarSourceID
 	uid, instance, trigger string
 	edge                   uint8
+	wait                   uint64
 }
 
 type Service struct {
+	permanentRules                                       int
+	waitOwners                                           map[int]*WaitHandle
+	waits                                                map[uint64]*WaitHandle
+	nextWait                                             uint64
+	waitPlanning                                         sync.WaitGroup
 	mu                                                   sync.Mutex
 	plan                                                 Plan
 	seq                                                  *sequencer.Sequencer
@@ -128,8 +134,14 @@ func NewService(plan Plan, seq *sequencer.Sequencer, clock Clock) (*Service, err
 	if !plan.Valid() || seq == nil || nilInterface(clock) || clock.Now().IsZero() {
 		return nil, ErrInvalidPlan
 	}
+	permanentRules := len(plan.rules)
+	// The service owns its mutable runtime slots; the admitted plan remains an
+	// immutable value shared with server composition and ID consistency checks.
+	rules := make([]rule, MaxTriggers)
+	copy(rules, plan.rules)
+	plan.rules = rules
 	shutdownCtx, requestShutdown := context.WithCancel(context.Background())
-	return &Service{plan: plan, seq: seq, clock: clock, generation: 1,
+	return &Service{permanentRules: permanentRules, waitOwners: make(map[int]*WaitHandle), waits: make(map[uint64]*WaitHandle), plan: plan, seq: seq, clock: clock, generation: 1,
 		shutdownCtx: shutdownCtx, requestShutdown: requestShutdown,
 		states: make(map[domain.EntityID]domain.ObservedState), registry: make(map[domain.EntityID]integrations.RegistryRecord),
 		stateCharges: make(map[domain.EntityID]int), recordCharges: make(map[domain.EntityID]int),
@@ -353,6 +365,7 @@ func (s *Service) CloseAdmissions() {
 	}
 	s.mu.Lock()
 	s.admissionsOpen = false
+	s.closeWaitsLocked(ErrServiceClosed)
 	if s.cancelSun != nil {
 		s.cancelSun()
 	}
@@ -384,12 +397,14 @@ func (s *Service) Close() error {
 			<-s.readerDone
 			<-s.timerDone
 		}
+		s.waitPlanning.Wait()
 		s.mu.Lock()
 		err := s.err
 		s.mu.Unlock()
 		return err
 	}
 	s.closed, s.admissionsOpen = true, false
+	s.closeWaitsLocked(ErrServiceClosed)
 	if s.cancelSun != nil {
 		s.cancelSun()
 	}
@@ -424,6 +439,7 @@ func (s *Service) Close() error {
 		<-s.readerDone
 		<-s.timerDone
 	}
+	s.waitPlanning.Wait()
 	s.mu.Lock()
 	err := s.err
 	s.mu.Unlock()
@@ -536,6 +552,7 @@ func (s *Service) suspendLocked(reason DegradedReason) {
 		return
 	}
 	s.suspended = true
+	s.closeWaitsLocked(ErrServiceClosed)
 	s.suspendReason = reason
 	clear(s.pending)
 	clear(s.scheduled)

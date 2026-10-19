@@ -150,7 +150,7 @@ func calendarAlarm(r rule, occurrence CalendarOccurrence) (calendarKey, time.Tim
 	if instant.IsZero() {
 		return calendarKey{}, time.Time{}, ErrInvalidPlan
 	}
-	return calendarKey{source: source, uid: uid, instance: instance, trigger: r.automation + "\x00" + r.trigger.Key(), edge: uint8(r.trigger.CalendarEdge())}, instant, nil
+	return calendarKey{wait: r.wait, source: source, uid: uid, instance: instance, trigger: r.automation + "\x00" + r.trigger.Key(), edge: uint8(r.trigger.CalendarEdge())}, instant, nil
 }
 
 func calendarKeyCharge(key calendarKey) int {
@@ -347,6 +347,9 @@ func (s *Service) fireCalendarDueLocked(i int, now time.Time, missedByWallJump b
 		return
 	}
 	for _, item := range occurrences {
+		if i >= s.permanentRules && s.waitOwners[i] == nil {
+			return
+		}
 		_, _, _, _, _, _, _, freshness, err := item.Components()
 		if err != nil || freshness != domain.FreshnessFresh {
 			continue

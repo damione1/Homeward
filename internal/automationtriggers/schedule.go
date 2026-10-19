@@ -132,6 +132,7 @@ func (s *Service) scheduleRuleLocked(i int, now time.Time) {
 		return
 	}
 	r := s.plan.rules[i]
+	owner := s.waitOwners[i]
 	switch r.trigger.Kind() {
 	case ir.TriggerTime, ir.TriggerTimePattern:
 		if next, ok := nextCivilTime(now, s.plan.location, r.trigger, s.civil[i]); ok {
@@ -143,8 +144,8 @@ func (s *Service) scheduleRuleLocked(i int, now time.Time) {
 		if last := s.civilUTC[i].Add(-offset); last.After(after) {
 			after = last
 		}
-		result, err, current := s.nextSunsetLocked(after)
-		if !current {
+		result, err, current := s.nextSunsetLocked(after, owner)
+		if !current || owner != nil && (owner.closing || s.waitOwners[i] != owner) {
 			return
 		}
 		if err != nil {
@@ -205,21 +206,33 @@ func (s *Service) scheduleRuleLocked(i int, now time.Time) {
 // nextSunsetLocked serializes source calls while releasing the service mutex.
 // A generation change or shutdown cancels the in-flight source and discards
 // its answer at the original cursor; it never schedules a stale result.
-func (s *Service) nextSunsetLocked(after time.Time) (SunResult, error, bool) {
+func (s *Service) nextSunsetLocked(after time.Time, owner *WaitHandle) (SunResult, error, bool) {
+	parent := s.ctx
+	if owner != nil {
+		parent = owner.ctx
+	}
+
 	generation := s.generation
 	for s.sunDone != nil {
-		done, ctx := s.sunDone, s.ctx
+		done, ctx := s.sunDone, parent
 		s.mu.Unlock()
 		select {
 		case <-done:
 		case <-ctx.Done():
 		}
 		s.mu.Lock()
-		if s.closed || s.suspended || !s.admissionsOpen || s.generation != generation || s.ctx.Err() != nil {
+		if s.closed || s.suspended || !s.admissionsOpen || s.generation != generation || s.ctx.Err() != nil || parent.Err() != nil {
 			return SunResult{}, nil, false
 		}
 	}
-	callCtx, cancel := context.WithCancel(s.ctx)
+	if parent.Err() != nil {
+		return SunResult{}, nil, false
+	}
+	callCtx, cancel := context.WithCancel(parent)
+	if owner != nil {
+		owner.planning++
+	}
+
 	done := make(chan struct{})
 	s.sunDone, s.cancelSun = done, cancel
 	source, zone, position := s.plan.sun, s.plan.zone, s.plan.position
@@ -228,6 +241,10 @@ func (s *Service) nextSunsetLocked(after time.Time) (SunResult, error, bool) {
 	s.mu.Lock()
 	cancel()
 	s.sunDone, s.cancelSun = nil, nil
+	if owner != nil {
+		owner.planning--
+		s.finishWaitJoinLocked(owner)
+	}
 	close(done)
 	if s.closed || s.suspended || !s.admissionsOpen || s.generation != generation || s.ctx.Err() != nil {
 		return SunResult{}, nil, false

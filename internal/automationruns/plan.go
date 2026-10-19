@@ -1,5 +1,5 @@
-// Package automationruns admits and orders automation runs. It does not
-// interpret actions or confer a command capability.
+// Package automationruns owns bounded automation and script executions. Command
+// authority is supplied explicitly; compiling a plan never confers it.
 package automationruns
 
 import (
@@ -74,12 +74,32 @@ type Executor interface {
 	Execute(context.Context, ir.Automation, Run) error
 }
 
+// ScriptExecutor is required only when the same controller's plan contains
+// real scripts. A Script never passes through Execute as a fake Automation.
+type ScriptExecutor interface {
+	ExecuteScript(context.Context, ir.Script, Run) error
+}
+
+type executionKind uint8
+
+const (
+	executionInvalid executionKind = iota
+	executionAutomation
+	executionScript
+)
+
+type laneKey struct {
+	kind     executionKind
+	identity string
+}
+
 type Trigger struct {
 	automation, triggerKey string
 	payload                string
 	at                     time.Time
 	cursor                 sequencer.Cursor
 	entity                 domain.EntityID
+	script                 ir.ScriptID
 }
 
 func (t Trigger) Automation() string       { return t.automation }
@@ -88,6 +108,12 @@ func (t Trigger) Payload() string          { return t.payload }
 func (t Trigger) At() time.Time            { return t.at }
 func (t Trigger) Cursor() sequencer.Cursor { return t.cursor }
 func (t Trigger) Entity() domain.EntityID  { return t.entity }
+func (t Trigger) laneKey() laneKey {
+	if id, err := t.script.Value(); err == nil {
+		return laneKey{executionScript, id}
+	}
+	return laneKey{executionAutomation, t.automation}
+}
 
 type RunID uint64
 type Generation uint64
@@ -97,28 +123,49 @@ type Run struct {
 	generation Generation
 	trigger    Trigger
 	env        *Environment
+	stack      []ir.ScriptID
+	suspend    func()
+	path       executionPath
 }
 
 func (r Run) ID() RunID                 { return r.id }
 func (r Run) Generation() Generation    { return r.generation }
 func (r Run) Trigger() Trigger          { return r.trigger }
 func (r Run) Environment() *Environment { return r.env }
+func (r Run) ScriptID() ir.ScriptID     { return r.trigger.script }
 
 type automationSpec struct {
 	value       ir.Automation
 	mode        ir.AutomationMode
 	max         int
 	maxExceeded ir.MaxExceededMode
+	script      ir.Script
 }
 
 // Plan keeps the compiled automation as the only mode authority. Operational
 // admission is a separate boundary from the broader logic-1 IR max profile.
+type planToken struct{ admitted bool }
+
 type Plan struct {
-	valid bool
-	items map[string]automationSpec
+	token   *planToken
+	valid   bool
+	items   map[string]automationSpec
+	scripts map[ir.ScriptID]automationSpec
 }
 
-func (p Plan) Valid() bool { return p.valid && len(p.items) > 0 }
+func (p Plan) Valid() bool { return p.valid && len(p.items)+len(p.scripts) > 0 }
+
+func (p Plan) ScriptIDs() []ir.ScriptID {
+	if !p.Valid() {
+		return nil
+	}
+	result := make([]ir.ScriptID, 0, len(p.scripts))
+	for id := range p.scripts {
+		result = append(result, id)
+	}
+	sort.Slice(result, func(i, j int) bool { a, _ := result[i].Value(); b, _ := result[j].Value(); return a < b })
+	return result
+}
 
 // AutomationIDs is a sorted caller-owned view for Run composition admission.
 func (p Plan) AutomationIDs() []string {
@@ -134,10 +181,14 @@ func (p Plan) AutomationIDs() []string {
 }
 
 func NewPlan(automations []ir.Automation) (Plan, error) {
-	if len(automations) == 0 || len(automations) > automationtriggers.MaxTriggers {
+	return NewPlanWithScripts(automations, nil)
+}
+
+func NewPlanWithScripts(automations []ir.Automation, scripts []ir.Script) (Plan, error) {
+	if len(automations)+len(scripts) == 0 || len(automations) > automationtriggers.MaxTriggers || len(scripts) > 64 {
 		return Plan{}, ErrInvalidPlan
 	}
-	p := Plan{valid: true, items: make(map[string]automationSpec, len(automations))}
+	p := Plan{token: &planToken{admitted: true}, valid: true, items: make(map[string]automationSpec, len(automations)), scripts: make(map[ir.ScriptID]automationSpec, len(scripts))}
 	for _, a := range automations {
 		if !a.Valid() || a.ID() == "" || len(a.ID()) > 256 {
 			return Plan{}, ErrInvalidPlan
@@ -166,6 +217,38 @@ func NewPlan(automations []ir.Automation) (Plan, error) {
 			return Plan{}, ErrCapacity
 		}
 		p.items[a.ID()] = automationSpec{value: a, mode: a.Mode(), max: max, maxExceeded: a.MaxExceeded()}
+	}
+	for _, script := range scripts {
+		if !script.Valid() {
+			return Plan{}, ErrInvalidPlan
+		}
+		if _, err := script.ID().Value(); err != nil {
+			return Plan{}, ErrInvalidPlan
+		}
+		if _, duplicate := p.scripts[script.ID()]; duplicate {
+			return Plan{}, ErrInvalidPlan
+		}
+		switch script.Mode() {
+		case ir.AutomationSingle, ir.AutomationRestart, ir.AutomationQueued, ir.AutomationParallel:
+		default:
+			return Plan{}, ErrInvalidPlan
+		}
+		switch script.MaxExceeded() {
+		case ir.MaxExceededUnspecified, ir.MaxExceededSilent, ir.MaxExceededWarning, ir.MaxExceededError:
+		default:
+			return Plan{}, ErrInvalidPlan
+		}
+		maximum := DefaultMaxRuns
+		if value, present := script.Max(); present {
+			maximum = value
+		}
+		if maximum < 1 {
+			return Plan{}, ErrInvalidPlan
+		}
+		if maximum > MaxLiveRuns {
+			return Plan{}, ErrCapacity
+		}
+		p.scripts[script.ID()] = automationSpec{script: script, mode: script.Mode(), max: maximum, maxExceeded: script.MaxExceeded()}
 	}
 	return p, nil
 }

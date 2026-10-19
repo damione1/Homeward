@@ -3,9 +3,11 @@ package ir
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/damione1/Homeward/compat/ha/parser"
+	"github.com/damione1/Homeward/compat/ha/template"
 )
 
 func (c *semanticCompiler) actionList(node parser.Node, required bool) ([]Action, Diagnostic) {
@@ -32,7 +34,7 @@ func (c *semanticCompiler) action(node parser.Node) (Action, Diagnostic) {
 		return Action{}, c.fail(CodeUnsupportedForm, "action", node, "action mapping required")
 	}
 	selection := ""
-	for _, key := range []string{"variables", "sequence", "choose", "if", "repeat", "parallel", "wait_for_trigger", "stop", "action"} {
+	for _, key := range []string{"variables", "sequence", "choose", "if", "repeat", "parallel", "wait_for_trigger", "wait_template", "delay", "stop", "action"} {
 		if _, present := node.Lookup(key); present {
 			if selection != "" {
 				return Action{}, c.fail(CodeUnsupportedForm, key, node, "exactly one action variant is required")
@@ -182,17 +184,38 @@ func (c *semanticCompiler) action(node parser.Node) (Action, Diagnostic) {
 		}
 		action.kind = ActionParallel
 		action.children = children
-	case "wait_for_trigger":
-		if d := c.mapping(node, "wait_for_trigger", "timeout", "continue_on_timeout"); d.Valid() {
+	case "delay":
+		if d := c.mapping(node, "delay"); d.Valid() {
 			return Action{}, d
 		}
-		value, _ := node.Lookup("wait_for_trigger")
-		triggers, d := c.triggerList(value, true, false)
+		value, _ := node.Lookup("delay")
+		milliseconds, d := c.delay(value)
 		if d.Valid() {
 			return Action{}, d
 		}
-		action.kind = ActionWait
-		action.triggers = triggers
+		action.kind, action.delayMillis = ActionDelay, milliseconds
+	case "wait_for_trigger", "wait_template":
+		if d := c.mapping(node, selection, "timeout", "continue_on_timeout"); d.Valid() {
+			return Action{}, d
+		}
+		value, _ := node.Lookup(selection)
+		if selection == "wait_for_trigger" {
+			triggers, d := c.triggerList(value, true, false)
+			if d.Valid() {
+				return Action{}, d
+			}
+			action.kind, action.triggers = ActionWait, triggers
+		} else {
+			source, valid := plain(value)
+			if !valid || source == "" {
+				return Action{}, c.fail(CodeInvalidValue, selection, value, "template string required")
+			}
+			program, err := template.Compile(source)
+			if err != nil {
+				return Action{}, c.fail(CodeUnsupportedTemplate, selection, value, err.Error())
+			}
+			action.kind, action.waitProgram = ActionWaitTemplate, program
+		}
 		if timeout, ok := node.Lookup("timeout"); ok {
 			milliseconds, diag := c.timeout(timeout)
 			if diag.Valid() {
@@ -323,6 +346,55 @@ func (c *semanticCompiler) timeout(node parser.Node) (int64, Diagnostic) {
 	return total, Diagnostic{}
 }
 
+func (c *semanticCompiler) delay(node parser.Node) (int64, Diagnostic) {
+	if node.Kind() == parser.KindMapping {
+		value, diagnostic := c.timeout(node)
+		if diagnostic.Valid() {
+			diagnostic.field = "delay"
+		}
+		return value, diagnostic
+	}
+	admit := func(seconds float64) (int64, bool) {
+		milliseconds := seconds * 1000
+		return int64(milliseconds), !math.IsNaN(seconds) && !math.IsInf(seconds, 0) && seconds >= 0 && seconds <= 86400 && milliseconds == math.Trunc(milliseconds)
+	}
+	if value, valid := scalarNumber(node); valid {
+		if milliseconds, valid := admit(value); valid {
+			return milliseconds, Diagnostic{}
+		}
+	}
+	if text, valid := plain(node); valid {
+		if containsTemplateSyntax(text) {
+			return 0, c.fail(CodeUnsupportedTemplate, "delay", node, "templated delay is outside static duration profile")
+		}
+		// HA config_validation.time_period_str accepts HH:MM[:SS], with
+		// integral hour/minute components and decimal seconds. Seconds-only
+		// strings take its time_period_seconds path. Keep exact milliseconds
+		// and the established 24h operational bound.
+		parts := strings.Split(text, ":")
+		if len(parts) == 1 {
+			if value, err := strconv.ParseFloat(text, 64); err == nil {
+				if milliseconds, valid := admit(value); valid {
+					return milliseconds, Diagnostic{}
+				}
+			}
+		} else if len(parts) == 2 || len(parts) == 3 {
+			hours, hourErr := strconv.ParseInt(parts[0], 10, 64)
+			minutes, minuteErr := strconv.ParseInt(parts[1], 10, 64)
+			seconds, secondErr := float64(0), error(nil)
+			if len(parts) == 3 {
+				seconds, secondErr = strconv.ParseFloat(parts[2], 64)
+			}
+			if hourErr == nil && minuteErr == nil && secondErr == nil && hours >= 0 && minutes >= 0 && seconds >= 0 {
+				if milliseconds, valid := admit(float64(hours)*3600 + float64(minutes)*60 + seconds); valid {
+					return milliseconds, Diagnostic{}
+				}
+			}
+		}
+	}
+	return 0, c.fail(CodeInvalidValue, "delay", node, "static nonnegative duration within 24 hours and exact milliseconds required")
+}
+
 func (c *semanticCompiler) call(node parser.Node) (Call, Diagnostic) {
 	selection, d := c.stringField(node, "action", true)
 	if d.Valid() {
@@ -331,6 +403,9 @@ func (c *semanticCompiler) call(node parser.Node) (Call, Diagnostic) {
 	serviceNode, _ := node.Lookup("action")
 	if containsTemplateSyntax(selection) {
 		return Call{}, c.fail(CodeUnsupportedTemplate, "action", serviceNode, "templated service name is outside static service profile")
+	}
+	if strings.HasPrefix(selection, "script.") {
+		return c.scriptCall(node, selection)
 	}
 	call := Call{}
 	var domain string

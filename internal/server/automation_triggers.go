@@ -52,6 +52,7 @@ type AutomationRunsComposition struct {
 	preparer automationruns.Preparer
 	executor automationruns.Executor
 	runtime  *automationruns.Controller
+	scripts  *scriptRunsComposition
 }
 
 func NewAutomationRunsComposition(input AutomationRunsInput) (*AutomationRunsComposition, error) {
@@ -65,8 +66,14 @@ func validateAutomationRunAssembly(triggers *automationtriggers.Plan, runs *Auto
 	if runs == nil {
 		return nil
 	}
-	if triggers == nil || !triggers.Valid() || callback != nil ||
-		!slices.Equal(triggers.AutomationIDs(), runs.plan.AutomationIDs()) {
+	if !runs.plan.Valid() || callback != nil {
+		return ErrInvalidTriggerComposition
+	}
+	if triggers == nil {
+		if runs.scripts == nil || len(runs.plan.AutomationIDs()) != 0 {
+			return ErrInvalidTriggerComposition
+		}
+	} else if !triggers.Valid() || !slices.Equal(triggers.AutomationIDs(), runs.plan.AutomationIDs()) {
 		return ErrInvalidTriggerComposition
 	}
 	return nil
@@ -92,9 +99,13 @@ func (c *AutomationRunsComposition) Done() <-chan struct{} {
 	return c.runtime.Done()
 }
 
-func prepareAutomationRuns(triggers *automationtriggers.Service, composition *AutomationRunsComposition) (*automationruns.Controller, error) {
+func prepareAutomationRuns(ctx context.Context, triggers *automationtriggers.Service, composition *AutomationRunsComposition, services scriptRunServices) (*automationruns.Controller, error) {
 	if composition == nil {
 		return nil, nil
+	}
+	if composition.scripts != nil {
+		services.triggers = triggers
+		return prepareScriptRuns(ctx, composition, services)
 	}
 	if triggers == nil {
 		return nil, ErrInvalidTriggerComposition
@@ -115,11 +126,11 @@ func prepareAutomationRuns(triggers *automationtriggers.Service, composition *Au
 // prepareAutomationTriggers binds an admitted plan to Run's one sequencer.
 // The factory is trusted to use NewDiscoveryPilotFactoryWithTriggerEdges for
 // the matching MQTT PilotSpec; an external worker cannot call this Go ingress.
-func prepareAutomationTriggers(ctx context.Context, plan *automationtriggers.Plan, sequence *sequencer.Sequencer, host *integrations.Manager, pilots []integrations.PilotSpec) (*automationtriggers.Service, error) {
+func prepareAutomationTriggers(ctx context.Context, plan *automationtriggers.Plan, sequence *sequencer.Sequencer, host *integrations.Manager, pilots []integrations.PilotSpec, clock automationtriggers.Clock) (*automationtriggers.Service, error) {
 	if plan == nil {
 		return nil, nil
 	}
-	if !plan.Valid() || sequence == nil || host == nil {
+	if !plan.Valid() || sequence == nil || host == nil || nilReactiveInterface(clock) {
 		return nil, ErrInvalidTriggerComposition
 	}
 	if filters := plan.MQTTFilters(); len(filters) != 0 {
@@ -144,7 +155,7 @@ func prepareAutomationTriggers(ctx context.Context, plan *automationtriggers.Pla
 			return nil, err
 		}
 	}
-	service, err := automationtriggers.NewService(*plan, sequence, automationtriggers.RealClock{})
+	service, err := automationtriggers.NewService(*plan, sequence, clock)
 	if err != nil {
 		return nil, err
 	}
@@ -155,33 +166,75 @@ func prepareAutomationTriggers(ctx context.Context, plan *automationtriggers.Pla
 	return service, nil
 }
 
-func closeTriggerPreparedRuntime(host *integrations.Manager, service *automationtriggers.Service, runs *automationruns.Controller, closeOther func(context.Context, <-chan struct{}) error) error {
+// The proof carries the actual MQTT factory, not a parallel assertion about
+// an arbitrary PilotSpec. Install it once and reject a competing instance.
+// Legacy 040 plans without transient waits retain their existing assembly.
+func installAutomationTriggerMQTTPilot(plan *RuntimePlan) error {
+	if plan == nil {
+		return ErrInvalidTriggerComposition
+	}
+	if plan.AutomationTriggers == nil {
+		return nil
+	}
+	proof, present := plan.AutomationTriggers.MQTTIngress()
+	if !present {
+		return nil
+	}
+	instance, err := proof.Instance()
+	if err != nil || !proof.Covers(instance, plan.AutomationTriggers.MQTTFilters()) {
+		return ErrInvalidTriggerComposition
+	}
+	for _, pilot := range plan.Pilots {
+		id, err := pilot.Instance()
+		if err != nil || id == instance {
+			return ErrInvalidTriggerComposition
+		}
+	}
+	spec, err := proof.PilotSpec()
+	if err != nil {
+		return err
+	}
+	plan.Pilots = append(plan.Pilots, spec)
+	return nil
+}
+
+func closeTriggerPreparedRuntime(host *integrations.Manager, service *automationtriggers.Service, runs *automationruns.Controller, composition *AutomationRunsComposition, closeOther func(context.Context, <-chan struct{}) error) error {
 	stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
-	if service == nil {
-		return closeOther(stopCtx, nil)
-	}
 	service.CloseAdmissions()
 	if runs != nil {
 		runs.BeginClose()
 	}
+	sceneDone := beginCloseScriptScenes(composition)
 	if host != nil {
 		_ = host.CloseAdmissions()
 	}
 	triggerErr := drainAutomationTriggers(stopCtx, service)
 	runErr := drainAutomationRuns(stopCtx, runs)
-	return errors.Join(triggerErr, runErr, closeOther(stopCtx, joinedAutomationDone(service.Done(), runs.Done())))
+	sceneErr := drainScriptScenes(stopCtx, composition)
+	return errors.Join(triggerErr, runErr, sceneErr, closeOther(stopCtx, joinedAutomationDone(service.Done(), runs.Done(), sceneDone)))
 }
 
-func joinedAutomationDone(first, second <-chan struct{}) <-chan struct{} {
-	if first == nil {
-		return second
+func joinedAutomationDone(owners ...<-chan struct{}) <-chan struct{} {
+	drains := make([]<-chan struct{}, 0, len(owners))
+	for _, owner := range owners {
+		if owner != nil {
+			drains = append(drains, owner)
+		}
 	}
-	if second == nil {
-		return first
+	if len(drains) == 0 {
+		return nil
+	}
+	if len(drains) == 1 {
+		return drains[0]
 	}
 	done := make(chan struct{})
-	go func() { <-first; <-second; close(done) }()
+	go func() {
+		for _, owner := range drains {
+			<-owner
+		}
+		close(done)
+	}()
 	return done
 }
 

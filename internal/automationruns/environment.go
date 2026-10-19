@@ -39,6 +39,7 @@ type Environment struct {
 	depth  int
 	data   map[string]template.Value
 	charge int
+	closed bool
 }
 
 func validBindingName(name string) bool {
@@ -128,7 +129,7 @@ func (e *Environment) Get(name string) (template.Value, bool) {
 	}
 	e.arena.mu.Lock()
 	defer e.arena.mu.Unlock()
-	if e.arena.closed {
+	if e.arena.closed || e.closed {
 		return template.Value{}, false
 	}
 	v, ok := e.data[name]
@@ -148,7 +149,7 @@ func (e *Environment) Set(name string, value template.Value) error {
 	a := e.arena
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.closed {
+	if a.closed || e.closed {
 		return ErrClosed
 	}
 	_, exists := e.data[name]
@@ -193,7 +194,7 @@ func (e *Environment) ForkBranch() (*Environment, error) {
 	a := e.arena
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.closed {
+	if a.closed || e.closed {
 		return nil, ErrClosed
 	}
 	if e.depth >= MaxBranchDepth || a.forks >= MaxBranchesPerRun {
@@ -211,4 +212,59 @@ func (e *Environment) ForkBranch() (*Environment, error) {
 	a.forks++
 	a.charge += charge
 	return child, nil
+}
+
+// snapshot reserves both the retained binding copy and NewInputs' temporary
+// validation/evaluation copy before constructing either one. The caller keeps
+// the lease until synchronous evaluation or wait registration has returned.
+func (e *Environment) snapshot() ([]template.Binding, func(), error) {
+	if e == nil || e.arena == nil {
+		return nil, nil, ErrInvalidPlan
+	}
+	a := e.arena
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed || e.closed {
+		return nil, nil, ErrClosed
+	}
+	const temporary = 2*MaxEnvironmentBytes + 2*environmentBase
+	if !a.pool.adjust(0, temporary) {
+		return nil, nil, ErrCapacity
+	}
+	bindings := make([]template.Binding, 0, len(e.data))
+	for name, value := range e.data {
+		bindings = append(bindings, template.Binding{Name: name, Value: value.Copy()})
+	}
+	var once sync.Once
+	return bindings, func() { once.Do(func() { a.pool.adjust(temporary, 0) }) }, nil
+}
+
+// closeBranch follows the join of all tasks using this private branch. The
+// root environment remains owned by the controller until actual run completion.
+func (e *Environment) closeBranch() {
+	if e == nil || e.arena == nil || e.depth == 0 {
+		return
+	}
+	a := e.arena
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed || e.closed {
+		return
+	}
+	e.closed = true
+	e.data = nil
+	for index, candidate := range a.environments {
+		if candidate != e {
+			continue
+		}
+		copy(a.environments[index:], a.environments[index+1:])
+		a.environments[len(a.environments)-1] = nil
+		a.environments = a.environments[:len(a.environments)-1]
+		break
+	}
+	charge := e.charge
+	e.charge = 0
+	a.charge -= charge
+	a.forks--
+	a.pool.adjust(charge, 0)
 }

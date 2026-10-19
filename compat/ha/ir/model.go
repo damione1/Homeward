@@ -288,21 +288,22 @@ func (a Automation) Triggers() []Trigger          { return cloneTriggers(a.trigg
 // TriggerPlanBytes charges the selected trigger projection before the runtime
 // clones it. It includes owned source arrays and dynamic strings, not actions
 // or conditions, which the trigger service never retains.
-func (a Automation) TriggerPlanBytes() (int, int) {
+func (a Automation) TriggerPlanBytes() (int, int) { return triggerPlanBytes(a.id, a.triggers) }
+func triggerPlanBytes(object string, triggers []Trigger) (int, int) {
 	bytes := 256
-	for _, trigger := range a.triggers {
+	for _, trigger := range triggers {
 		alias, _ := trigger.entityAlias.Value()
 		device, _ := trigger.deviceID.Value()
 		eventType, _ := trigger.eventType.Value()
 		topic, _ := trigger.topic.Value()
 		dataDevice, _ := trigger.eventData.deviceID.Value()
-		bytes += int(unsafe.Sizeof(Trigger{})) + 256 + 2*(len(a.id)+len(trigger.id)+len(trigger.key)+
+		bytes += int(unsafe.Sizeof(Trigger{})) + 256 + 2*(len(object)+len(trigger.id)+len(trigger.key)+
 			len(trigger.from)+len(trigger.to)+len(trigger.payload)+len(trigger.subtype)+len(trigger.eventData.command)+
 			len(alias)+len(device)+len(eventType)+len(topic)+len(dataDevice))
 		bytes += len(trigger.eventData.args) * int(unsafe.Sizeof(int64(0)))
 		bytes += trigger.source.planBytes()
 	}
-	return len(a.triggers), bytes
+	return len(triggers), bytes
 }
 func (a Automation) Conditions() []Condition { return cloneConditions(a.conditions) }
 func (a Automation) Variables() []Variable {
@@ -313,6 +314,82 @@ func (a Automation) Variables() []Variable {
 	return out
 }
 func (a Automation) Actions() []Action { return cloneActions(a.actions) }
+
+// ExecutionSize is a conservative admission estimate before any action/source
+// accessor copies its tree. Template IR is charged at its bounded maximum.
+func (a Automation) ExecutionSize() (nodes, depth, bytes int) {
+	nodes, depth, bytes = actionSize(a.actions, 1)
+	bytes += a.source.planBytes() + 2*(len(a.id)+len(a.alias)+len(a.description)+len(a.category))
+	for _, condition := range a.conditions {
+		bytes += conditionSize(condition)
+	}
+	for _, variable := range a.variables {
+		bytes += variableSize(variable)
+	}
+	return
+}
+
+func variableSize(v Variable) int {
+	return 256 + 2*len(v.name) + 2*len(v.value.text) + v.source.planBytes() + v.value.source.planBytes()
+}
+func conditionSize(c Condition) int {
+	bytes := 512 + c.source.planBytes() + 2*(len(c.state)+len(c.templateSource))
+	for _, id := range c.triggerIDs {
+		bytes += 2 * len(id)
+	}
+	if c.program.Valid() {
+		bytes += 64 << 10
+	}
+	return bytes
+}
+func actionSize(actions []Action, level int) (nodes, depth, bytes int) {
+	depth = level
+	for _, action := range actions {
+		nodes++
+		bytes += 1024 + action.source.planBytes() + 2*len(action.stop)
+		if action.waitProgram.Valid() {
+			bytes += 64 << 10
+		}
+		for _, variable := range action.variables {
+			bytes += variableSize(variable)
+		}
+		for _, condition := range action.conditions {
+			bytes += conditionSize(condition)
+		}
+		for _, trigger := range action.triggers {
+			bytes += 2048 + trigger.source.planBytes() + 2*(len(trigger.id)+len(trigger.key)+len(trigger.payload)+len(trigger.from)+len(trigger.to))
+		}
+		for _, variable := range action.call.scriptVariables {
+			bytes += variableSize(variable)
+		}
+		for _, target := range action.call.targets {
+			bytes += 256 + target.source.planBytes()
+		}
+		bytes += len(action.call.scripts) * 512
+		children, childDepth, childBytes := actionSize(action.children, level+1)
+		nodes, bytes = nodes+children, bytes+childBytes
+		if childDepth > depth && len(action.children) != 0 {
+			depth = childDepth
+		}
+		children, childDepth, childBytes = actionSize(action.otherwise, level+1)
+		nodes, bytes = nodes+children, bytes+childBytes
+		if childDepth > depth && len(action.otherwise) != 0 {
+			depth = childDepth
+		}
+		for _, branch := range action.branches {
+			bytes += 256 + branch.source.planBytes()
+			for _, condition := range branch.conditions {
+				bytes += conditionSize(condition)
+			}
+			children, childDepth, childBytes = actionSize(branch.actions, level+1)
+			nodes, bytes = nodes+children, bytes+childBytes
+			if childDepth > depth && len(branch.actions) != 0 {
+				depth = childDepth
+			}
+		}
+	}
+	return
+}
 func (a Automation) Requirements() []Requirement {
 	return append([]Requirement(nil), a.requirements...)
 }
@@ -545,6 +622,8 @@ const (
 	ActionWait
 	ActionStop
 	ActionCall
+	ActionDelay
+	ActionWaitTemplate
 )
 
 type Branch struct {
@@ -577,6 +656,8 @@ type Action struct {
 	hasTimeout, continueOnTimeout, hasContinueOnTimeout bool
 	stop                                                string
 	call                                                Call
+	delayMillis                                         int64
+	waitProgram                                         template.Program
 }
 
 func (a Action) Kind() ActionKind { return a.kind }
@@ -604,6 +685,8 @@ func (a Action) TimeoutMillis() (int64, bool)    { return a.timeoutMillis, a.has
 func (a Action) ContinueOnTimeout() (bool, bool) { return a.continueOnTimeout, a.hasContinueOnTimeout }
 func (a Action) Stop() string                    { return a.stop }
 func (a Action) Call() Call                      { return a.call.clone() }
+func (a Action) DelayMillis() int64              { return a.delayMillis }
+func (a Action) WaitProgram() template.Program   { return a.waitProgram }
 func (a Action) clone() Action {
 	a.source = a.source.clone()
 	a.variables = a.Variables()
@@ -632,6 +715,7 @@ const (
 	CallLightTurnOn
 	CallLightTurnOff
 	CallSceneTurnOn
+	CallScript
 )
 
 type Number struct {
@@ -678,6 +762,9 @@ type Call struct {
 	temperature       Number
 	brightness        Brightness
 	transitionSeconds Number
+	scripts           []ScriptID
+	scriptMode        ScriptCallMode
+	scriptVariables   []Variable
 }
 
 func (c Call) Kind() CallKind { return c.kind }
@@ -702,11 +789,22 @@ func (c Call) BrightnessStepPercent() Number {
 	}
 	return Number{}
 }
-func (c Call) TransitionSeconds() Number { return c.transitionSeconds.clone() }
+func (c Call) TransitionSeconds() Number  { return c.transitionSeconds.clone() }
+func (c Call) ScriptMode() ScriptCallMode { return c.scriptMode }
+func (c Call) Scripts() []ScriptID        { return append([]ScriptID(nil), c.scripts...) }
+func (c Call) ScriptVariables() []Variable {
+	result := make([]Variable, len(c.scriptVariables))
+	for i, item := range c.scriptVariables {
+		result[i] = item.clone()
+	}
+	return result
+}
 func (c Call) clone() Call {
 	c.targets = c.Targets()
 	c.temperature = c.temperature.clone()
 	c.brightness = c.brightness.clone()
 	c.transitionSeconds = c.transitionSeconds.clone()
+	c.scripts = c.Scripts()
+	c.scriptVariables = c.ScriptVariables()
 	return c
 }

@@ -140,6 +140,7 @@ type Catalogue struct {
 	entities []Entity
 	devices  []Device
 	events   []Event
+	scripts  []ScriptID
 }
 
 func NewCatalogue(entities []Entity, devices []Device, events []Event) (Catalogue, error) {
@@ -193,6 +194,35 @@ func (c Catalogue) Entities() []Entity {
 }
 func (c Catalogue) Devices() []Device { return append([]Device(nil), c.devices...) }
 func (c Catalogue) Events() []Event   { return append([]Event(nil), c.events...) }
+
+// WithScripts adds the explicit script namespace supplied by the composing
+// generation. It confers no execution or command authority.
+func (c Catalogue) WithScripts(ids []ScriptID) (Catalogue, error) {
+	if !c.Valid() || len(ids) > 64 {
+		return Catalogue{}, ErrInvalidCatalogue
+	}
+	seen := make(map[ScriptID]struct{}, len(ids))
+	for _, id := range ids {
+		if _, err := id.Value(); err != nil {
+			return Catalogue{}, ErrInvalidCatalogue
+		}
+		if _, duplicate := seen[id]; duplicate {
+			return Catalogue{}, ErrInvalidCatalogue
+		}
+		seen[id] = struct{}{}
+	}
+	c.scripts = append([]ScriptID(nil), ids...)
+	return c, nil
+}
+func (c Catalogue) Scripts() []ScriptID { return append([]ScriptID(nil), c.scripts...) }
+func (c Catalogue) hasScript(id ScriptID) bool {
+	for _, candidate := range c.scripts {
+		if candidate == id {
+			return true
+		}
+	}
+	return false
+}
 func (c Catalogue) entity(alias domain.HAAlias) (Entity, bool) {
 	for _, v := range c.entities {
 		if v.alias == alias {

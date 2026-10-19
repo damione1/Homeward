@@ -1,0 +1,457 @@
+{
+  "cases": [
+    {
+      "after_cancel": {
+        "child_running": true,
+        "effects": [
+          "switch.nha042_child_enter"
+        ],
+        "parent_running": true
+      },
+      "before": {
+        "child_running": true,
+        "effects": [
+          "switch.nha042_child_enter"
+        ],
+        "parent_running": true
+      },
+      "child_running": false,
+      "final_effects": [
+        "switch.nha042_child_enter",
+        "switch.nha042_child_exit",
+        "switch.nha042_parent_after_call"
+      ],
+      "id": "direct_waits",
+      "parent_result": {
+        "stop_requested": false,
+        "task_cancelled": false,
+        "type": "ScriptRunResult",
+        "wait": null
+      },
+      "parent_running": false,
+      "template_subscriptions": [
+        {
+          "template": "{{ is_state('switch.nha042_gate', 'on') }}",
+          "unsubscribe_calls": 1
+        }
+      ]
+    },
+    {
+      "after_cancel": {
+        "child_running": true,
+        "effects": [
+          "switch.nha042_child_enter",
+          "switch.nha042_parent_after_call"
+        ],
+        "parent_running": false
+      },
+      "before": {
+        "child_running": true,
+        "effects": [
+          "switch.nha042_child_enter",
+          "switch.nha042_parent_after_call"
+        ],
+        "parent_running": false
+      },
+      "child_running": false,
+      "final_effects": [
+        "switch.nha042_child_enter",
+        "switch.nha042_parent_after_call",
+        "switch.nha042_child_exit"
+      ],
+      "id": "turn_on_returns_after_start",
+      "parent_result": {
+        "stop_requested": false,
+        "task_cancelled": false,
+        "type": "ScriptRunResult",
+        "wait": null
+      },
+      "parent_running": false,
+      "template_subscriptions": [
+        {
+          "template": "{{ is_state('switch.nha042_gate', 'on') }}",
+          "unsubscribe_calls": 1
+        }
+      ]
+    },
+    {
+      "after_cancel": {
+        "child_running": false,
+        "effects": [
+          "switch.nha042_child_enter"
+        ],
+        "parent_running": false
+      },
+      "before": {
+        "child_running": true,
+        "effects": [
+          "switch.nha042_child_enter"
+        ],
+        "parent_running": true
+      },
+      "child_running": false,
+      "final_effects": [
+        "switch.nha042_child_enter"
+      ],
+      "id": "cancel_direct_parent",
+      "parent_result": {
+        "stop_requested": true,
+        "task_cancelled": true,
+        "type": "CancelledError",
+        "wait": null
+      },
+      "parent_running": false,
+      "template_subscriptions": [
+        {
+          "template": "{{ is_state('switch.nha042_gate', 'on') }}",
+          "unsubscribe_calls": 1
+        }
+      ]
+    },
+    {
+      "after_cancel": {
+        "child_running": true,
+        "effects": [
+          "switch.nha042_child_enter",
+          "switch.nha042_parent_after_call"
+        ],
+        "parent_running": false
+      },
+      "before": {
+        "child_running": true,
+        "effects": [
+          "switch.nha042_child_enter",
+          "switch.nha042_parent_after_call"
+        ],
+        "parent_running": true
+      },
+      "child_running": false,
+      "final_effects": [
+        "switch.nha042_child_enter",
+        "switch.nha042_parent_after_call",
+        "switch.nha042_child_exit"
+      ],
+      "id": "cancel_detached_parent",
+      "parent_result": {
+        "stop_requested": true,
+        "task_cancelled": false,
+        "type": "ScriptRunResult",
+        "wait": {
+          "completed": false,
+          "remaining": null
+        }
+      },
+      "parent_running": false,
+      "template_subscriptions": [
+        {
+          "template": "{{ is_state('switch.nha042_gate', 'on') }}",
+          "unsubscribe_calls": 1
+        },
+        {
+          "template": "{{ false }}",
+          "unsubscribe_calls": 1
+        }
+      ]
+    },
+    {
+      "effects": [
+        "switch.nha042_after_wait"
+      ],
+      "id": "zero_trigger_already_matching",
+      "running": false,
+      "wait": {
+        "completed": false,
+        "remaining": 0.0,
+        "trigger": null
+      }
+    },
+    {
+      "effects": [
+        "switch.nha042_after_wait"
+      ],
+      "id": "zero_template_already_matching",
+      "running": false,
+      "wait": {
+        "completed": true,
+        "remaining": 0.0
+      }
+    },
+    {
+      "effects": [
+        "switch.nha042_after_wait"
+      ],
+      "id": "zero_template_false",
+      "running": false,
+      "wait": {
+        "completed": false,
+        "remaining": 0.0
+      }
+    },
+    {
+      "callback_first_case_trigger_elapsed": null,
+      "callbacks": [
+        {
+          "callback": "timeout",
+          "elapsed": 60.0,
+          "future_already_done": false
+        },
+        {
+          "callback": "trigger_enter",
+          "elapsed": 60.0
+        },
+        {
+          "callback": "trigger_future_completion",
+          "elapsed": 60.0,
+          "future_already_done": false
+        },
+        {
+          "callback": "trigger_completed",
+          "elapsed": 60.0
+        }
+      ],
+      "cause_order": "event-first",
+      "effects": [
+        "switch.nha042_after_race"
+      ],
+      "elapsed": 60.0,
+      "id": "trigger_before_timeout_callback",
+      "result": "ScriptRunResult",
+      "result_state": "returned",
+      "running": false,
+      "scope": "cause admission and instrumented real callback execution at coherent virtual deadline; labels alone do not establish callback order",
+      "timeout_cancelled": true,
+      "trigger_registration_completed": true,
+      "wait": {
+        "completed": true,
+        "remaining": 0.0,
+        "trigger": {
+          "id": "0",
+          "idx": "0",
+          "platform": "event"
+        }
+      }
+    },
+    {
+      "callback_first_case_trigger_elapsed": null,
+      "callbacks": [
+        {
+          "callback": "timeout",
+          "elapsed": 60.0,
+          "future_already_done": false
+        },
+        {
+          "callback": "trigger_enter",
+          "elapsed": 60.0
+        },
+        {
+          "callback": "trigger_future_completion",
+          "elapsed": 60.0,
+          "future_already_done": false
+        },
+        {
+          "callback": "trigger_completed",
+          "elapsed": 60.0
+        }
+      ],
+      "cause_order": "timeout-first",
+      "effects": [
+        "switch.nha042_after_race"
+      ],
+      "elapsed": 60.0,
+      "id": "timeout_callback_before_trigger",
+      "result": "ScriptRunResult",
+      "result_state": "returned",
+      "running": false,
+      "scope": "cause admission and instrumented real callback execution at coherent virtual deadline; labels alone do not establish callback order",
+      "timeout_cancelled": true,
+      "trigger_registration_completed": true,
+      "wait": {
+        "completed": true,
+        "remaining": 0.0,
+        "trigger": {
+          "id": "0",
+          "idx": "0",
+          "platform": "event"
+        }
+      }
+    },
+    {
+      "callback_first_case_trigger_elapsed": null,
+      "callbacks": [
+        {
+          "callback": "timeout",
+          "elapsed": 60.0,
+          "future_already_done": false
+        },
+        {
+          "callback": "trigger_enter",
+          "elapsed": 60.0
+        },
+        {
+          "callback": "trigger_future_completion",
+          "elapsed": 60.0,
+          "future_already_done": false
+        },
+        {
+          "callback": "trigger_completed",
+          "elapsed": 60.0
+        }
+      ],
+      "cause_order": "event-first",
+      "effects": [],
+      "elapsed": 60.0,
+      "id": "trigger_before_timeout_abort",
+      "result": "ScriptRunResult",
+      "result_state": "returned",
+      "running": false,
+      "scope": "cause admission and instrumented real callback execution at coherent virtual deadline; labels alone do not establish callback order",
+      "timeout_cancelled": true,
+      "trigger_registration_completed": true,
+      "wait": {
+        "completed": true,
+        "remaining": 0.0,
+        "trigger": {
+          "id": "0",
+          "idx": "0",
+          "platform": "event"
+        }
+      }
+    },
+    {
+      "callback_first_case_trigger_elapsed": null,
+      "callbacks": [
+        {
+          "callback": "timeout",
+          "elapsed": 60.0,
+          "future_already_done": false
+        },
+        {
+          "callback": "trigger_enter",
+          "elapsed": 60.0
+        },
+        {
+          "callback": "trigger_future_completion",
+          "elapsed": 60.0,
+          "future_already_done": false
+        },
+        {
+          "callback": "trigger_completed",
+          "elapsed": 60.0
+        }
+      ],
+      "cause_order": "timeout-first",
+      "effects": [],
+      "elapsed": 60.0,
+      "id": "timeout_before_trigger_abort",
+      "result": "ScriptRunResult",
+      "result_state": "returned",
+      "running": false,
+      "scope": "cause admission and instrumented real callback execution at coherent virtual deadline; labels alone do not establish callback order",
+      "timeout_cancelled": true,
+      "trigger_registration_completed": true,
+      "wait": {
+        "completed": true,
+        "remaining": 0.0,
+        "trigger": {
+          "id": "0",
+          "idx": "0",
+          "platform": "event"
+        }
+      }
+    },
+    {
+      "callback_first_case_trigger_elapsed": 59.0,
+      "callbacks": [
+        {
+          "callback": "trigger_enter",
+          "elapsed": 59.0
+        },
+        {
+          "callback": "trigger_future_completion",
+          "elapsed": 59.0,
+          "future_already_done": false
+        },
+        {
+          "callback": "trigger_completed",
+          "elapsed": 59.0
+        },
+        {
+          "callback": "timeout",
+          "elapsed": 60.0,
+          "future_already_done": false
+        }
+      ],
+      "cause_order": "event-callback-first",
+      "effects": [],
+      "elapsed": 60.0,
+      "id": "processed_trigger_callback_then_due_timeout",
+      "result": "ScriptRunResult",
+      "result_state": "returned",
+      "running": false,
+      "scope": "cause admission and instrumented real callback execution at coherent virtual deadline; labels alone do not establish callback order",
+      "timeout_cancelled": true,
+      "trigger_registration_completed": true,
+      "wait": {
+        "completed": true,
+        "remaining": 0.0,
+        "trigger": {
+          "id": "0",
+          "idx": "0",
+          "platform": "event"
+        }
+      }
+    },
+    {
+      "before": {
+        "effects": [
+          "switch.nha042_fail"
+        ],
+        "running": true,
+        "task_done": false
+      },
+      "effects": [
+        "switch.nha042_fail",
+        "switch.nha042_other_branch"
+      ],
+      "error": {
+        "message": "synthetic branch error",
+        "type": "HomeAssistantError"
+      },
+      "id": "parallel_error_waits_other_branch",
+      "result": "HomeAssistantError",
+      "result_state": "synthetic_error",
+      "running": false,
+      "template_subscriptions": [
+        {
+          "template": "{{ is_state('switch.nha042_gate', 'on') }}",
+          "unsubscribe_calls": 1
+        }
+      ]
+    }
+  ],
+  "projection": {
+    "removed_fields": [
+      "cases[].wall_utc"
+    ],
+    "scope": "stable synthetic HA observations; Python result classes require explicit Go conversion, not production error strings"
+  },
+  "provenance": {
+    "architecture": "arm64",
+    "fixtures_sha256": "9c077c0d144e9b1ad2b088531542b5a944f3cdff79507bc32e659b80ffb87de3",
+    "image": "ghcr.io/home-assistant/home-assistant@sha256:17100609af8bb79bf5390f5d514b9aaeb00d184ce758f37769cd80c450851db7",
+    "worker_sha256": "5049a44ead0cae8db58596e205ad7e6395724823eb4bbc89c7195137beb894a2"
+  },
+  "raw_observed_sha256": "5451707561a62e1182b4ca6e9450293d2445f7c87102ae8a22e041e32dd6a38d",
+  "runtime": {
+    "async_interrupt": "1.2.2",
+    "homeassistant": "2026.10.1",
+    "python": "3.14.6",
+    "source_sha256": {
+      "component": "8afceb2f5a092830ca98f5ddd6349f131f5d8d555dda92c31782e71efc8df69e",
+      "script": "75376abc1686bcfde2f5d235863728b630b91f703ad03eb1a4b6a22eb8387ee3",
+      "variables": "c70c73cdd5979f05fd16997762c4cddb9a0dd1bfb4b7f23d7a11c4ec325bf9ea"
+    }
+  },
+  "source_artifact": "qualification/nha042/p0-observed-06.json",
+  "source_commit": "abe1fdd7cd6b4de1715c87b6fd87d92699514ef9"
+}

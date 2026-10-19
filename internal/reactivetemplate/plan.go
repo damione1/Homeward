@@ -71,9 +71,10 @@ func (d Definition) ID() ProgramID                   { return d.id }
 func (d Definition) Target() (domain.EntityID, bool) { return d.target, d.hasTarget }
 
 type Plan struct {
-	definitions []Definition
-	groups      []bundle.Group
-	zone        *time.Location
+	waitsEnabled bool
+	definitions  []Definition
+	groups       []bundle.Group
+	zone         *time.Location
 }
 
 func NewPlan(definitions []Definition, groups []bundle.Group, zone *time.Location) (Plan, error) {
@@ -114,7 +115,16 @@ func NewPlan(definitions []Definition, groups []bundle.Group, zone *time.Locatio
 	return Plan{definitions: copyDefinitions, groups: copyGroups, zone: zone}, nil
 }
 
-func (p Plan) Active() bool { return len(p.definitions) > 0 }
+// WithScriptWaits explicitly composes transient conditions/waits into this
+// existing engine, including a wait-only runtime with no permanent template.
+func (p Plan) WithScriptWaits(zone *time.Location) (Plan, error) {
+	if zone == nil || p.zone != nil && p.zone.String() != zone.String() {
+		return Plan{}, ErrInvalidPlan
+	}
+	p.zone, p.waitsEnabled = zone, true
+	return p, nil
+}
+func (p Plan) Active() bool { return len(p.definitions) > 0 || p.waitsEnabled }
 
 type Clock interface {
 	Now() time.Time
