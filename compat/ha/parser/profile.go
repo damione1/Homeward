@@ -31,6 +31,9 @@ func profileRule(profile SyntaxProfile) *rule {
 	if profile == SyntaxProfileScene {
 		return sceneRule()
 	}
+	if profile == SyntaxProfileLovelace {
+		return lovelaceRule()
+	}
 	openSyntax := &rule{open: true}
 	mode := &rule{kind: KindScalar, values: map[string]bool{"single": true, "restart": true, "queued": true}}
 	target := mapping(map[string]*rule{"entity_id": scalar(), "device_id": scalar(), "area_id": scalar()})
