@@ -203,17 +203,22 @@ func TestNHA068CleanStartDropsRealOfflineSessionBacklogAndRestoresSubscriptions(
 	if err := old.Client.Disconnect(&paho.Disconnect{ReasonCode: 0}); err != nil {
 		t.Fatal(err)
 	}
+	broker.WaitOfflineSession(t, settings.clientID)
 	broker.Publish(t, "nha068/state/device", []byte("offline-old-appui"), false)
-	deadline := time.Now().Add(2 * time.Second)
+	offlineDeadline := time.NewTimer(2 * time.Second)
+	defer offlineDeadline.Stop()
+	offlinePoll := time.NewTicker(10 * time.Millisecond)
+	defer offlinePoll.Stop()
 	for {
 		stored, ok := broker.Server.Clients.Get(settings.clientID)
 		if ok && stored.State.Inflight.Len() > 0 {
 			break
 		}
-		if time.Now().After(deadline) {
+		select {
+		case <-offlinePoll.C:
+		case <-offlineDeadline.C:
 			t.Fatal("broker did not retain offline QoS1 publication")
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 	h := nha068Capture{observations: make(chan Observation, 8)}
 	p, tasks := nha068Start(t, settings, h)
@@ -246,6 +251,7 @@ func TestNHA068CleanStartDropsRealOfflineSessionBacklogAndRestoresSubscriptions(
 		t.Fatal("Paho did not join after loss")
 	}
 	tasks.close(t, p)
+	broker.WaitSessionRemoved(t, settings.clientID)
 	broker.Publish(t, "nha068/state/device", []byte("offline-after-loss"), false)
 	h2 := nha068Capture{observations: make(chan Observation, 8)}
 	_, _ = nha068Start(t, settings, h2)

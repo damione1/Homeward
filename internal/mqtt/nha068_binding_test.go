@@ -92,11 +92,17 @@ func TestNHA068SyntheticBindingRetirementAndRestoredState(t *testing.T) {
 	t.Cleanup(func() { tasks.close(t, p) })
 	check := func(freshness domain.Freshness, provenance domain.Provenance) {
 		t.Helper()
-		deadline := time.Now().Add(3 * time.Second)
+		deadline := time.NewTimer(3 * time.Second)
+		defer deadline.Stop()
+		poll := time.NewTicker(10 * time.Millisecond)
+		defer poll.Stop()
 		for {
 			state, ok := fixture.State(ids[0].Entity)
+			var lastQuality domain.Quality
+			var stateErr error
 			if ok {
 				_, q, _, _, _, err := state.Components()
+				lastQuality, stateErr = q, err
 				if err == nil {
 					a, f, pr, _ := q.Components()
 					if a == domain.AvailabilityAvailable && f == freshness && pr == provenance {
@@ -104,10 +110,13 @@ func TestNHA068SyntheticBindingRetirementAndRestoredState(t *testing.T) {
 					}
 				}
 			}
-			if time.Now().After(deadline) {
-				t.Fatalf("binding quality did not become %v/%v", freshness, provenance)
+			select {
+			case workerErr := <-tasks.errors:
+				t.Fatalf("binding worker failed before quality %v/%v: %v; has_state=%t last_quality=%v state_error=%v", freshness, provenance, workerErr, ok, lastQuality, stateErr)
+			case <-deadline.C:
+				t.Fatalf("binding quality did not become %v/%v: has_state=%t last_quality=%v state_error=%v", freshness, provenance, ok, lastQuality, stateErr)
+			case <-poll.C:
 			}
-			time.Sleep(10 * time.Millisecond)
 		}
 	}
 	check(domain.FreshnessStale, domain.ProvenanceRestored)
@@ -116,7 +125,10 @@ func TestNHA068SyntheticBindingRetirementAndRestoredState(t *testing.T) {
 	}
 	broker.Publish(t, "nha068/state/relay", []byte("off"), true)
 	check(domain.FreshnessFresh, domain.ProvenanceObserved)
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.NewTimer(3 * time.Second)
+	defer deadline.Stop()
+	eventPoll := time.NewTicker(10 * time.Millisecond)
+	defer eventPoll.Stop()
 	for {
 		events, err := fixture.Events()
 		if err != nil {
@@ -125,10 +137,16 @@ func TestNHA068SyntheticBindingRetirementAndRestoredState(t *testing.T) {
 		if len(events) == 1 {
 			break
 		}
-		if time.Now().After(deadline) {
+		if len(events) > 1 {
+			t.Fatalf("live publication produced duplicate edges: %d", len(events))
+		}
+		select {
+		case workerErr := <-tasks.errors:
+			t.Fatalf("binding worker failed before live edge: %v", workerErr)
+		case <-eventPoll.C:
+		case <-deadline.C:
 			t.Fatalf("live edge missing: %d", len(events))
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 	if err := manager.Revoke(session); err != nil {
 		t.Fatal(err)
@@ -144,5 +162,20 @@ func TestNHA068SyntheticBindingRetirementAndRestoredState(t *testing.T) {
 	a, f, _, err := q.Components()
 	if err != nil || a != domain.AvailabilityUnavailable || f != domain.FreshnessStale {
 		t.Fatalf("retirement quality %v/%v %v", a, f, err)
+	}
+	fresh, err := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := domain.NewSwitchValue(true)
+	late, err := integrations.NewStateObservation("relay", fresh, &value, nil, time.Now(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Publish(context.Background(), bindings[0], late); !errors.Is(err, integrations.ErrInactiveSession) {
+		t.Fatalf("retired session admitted late state: %v", err)
+	}
+	if events, err := fixture.Events(); err != nil || len(events) != 1 {
+		t.Fatalf("retained/late state changed exact live event count: %d %v", len(events), err)
 	}
 }
