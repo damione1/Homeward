@@ -126,6 +126,24 @@ func (p Plan) MQTTFilters() []mqtt.TopicFilter {
 }
 func (p Plan) Count() int { return len(p.rules) }
 
+// AutomationIDs returns the distinct compiled automation IDs represented by
+// the trigger rules. The caller owns the sorted result.
+func (p Plan) AutomationIDs() []string {
+	if !p.Valid() {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(p.rules))
+	for _, rule := range p.rules {
+		seen[rule.automation] = struct{}{}
+	}
+	ids := make([]string, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
 func nilInterface(value any) bool {
 	if value == nil {
 		return true

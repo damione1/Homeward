@@ -189,6 +189,7 @@ const (
 	AutomationSingle
 	AutomationRestart
 	AutomationQueued
+	AutomationParallel
 )
 
 func (m AutomationMode) String() string {
@@ -199,6 +200,8 @@ func (m AutomationMode) String() string {
 		return "restart"
 	case AutomationQueued:
 		return "queued"
+	case AutomationParallel:
+		return "parallel"
 	default:
 		return ""
 	}
@@ -211,6 +214,8 @@ func parseAutomationMode(value string) AutomationMode {
 		return AutomationRestart
 	case "queued":
 		return AutomationQueued
+	case "parallel":
+		return AutomationParallel
 	default:
 		return AutomationModeInvalid
 	}
