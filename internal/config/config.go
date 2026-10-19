@@ -15,6 +15,7 @@ import (
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/neviweb"
 	"github.com/damione1/Homeward/internal/recorder"
+	"github.com/damione1/Homeward/internal/solar"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/worker"
 
@@ -32,6 +33,7 @@ type Config struct {
 	energy   []EnergyBinding
 	public   PublicSettings
 	recorder recorder.Limits
+	solar    *solar.Settings
 }
 
 var ErrUninitialized = errors.New("configuration: uninitialized")
@@ -51,6 +53,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		Energy   []energyInput           `yaml:"energy"`
 		Public   *publicInput            `yaml:"public"`
 		Recorder *RecorderInput          `yaml:"recorder"`
+		Solar    yaml.Node               `yaml:"solar"`
 		Workers  []struct {
 			Instance    string   `yaml:"instance"`
 			Executable  string   `yaml:"executable"`
@@ -87,6 +90,10 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		return Config{}, fmt.Errorf("configuration: data_dir must be an absolute normalized persistent directory")
 	}
 	result := Config{listen: endpoint, postgres: postgres, dataDir: raw.DataDir}
+	result.solar, err = parseSolarInput(raw.Solar)
+	if err != nil {
+		return Config{}, err
+	}
 	result.recorder, err = ParseRecorderInput(raw.Recorder)
 	if err != nil {
 		return Config{}, err

@@ -259,7 +259,7 @@ func NewService(source *sequencer.Sequencer, auth Authorizer, config Configurati
 	if source == nil || nilInterface(auth) || nilInterface(config) || nilInterface(clock) {
 		return nil, ErrInvalidInput
 	}
-	if _, err := source.Capture(); err != nil {
+	if err := source.CheckCaptureAvailable(); err != nil {
 		return nil, err
 	}
 	s := &Service{source: source, auth: auth, config: config, clock: clock, captures: make(map[string]*capture), preparing: make(chan struct{}, MaxPreparations), replaySlots: make(chan struct{}, MaxConcurrentReplays)}
@@ -336,8 +336,11 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 	if err != nil {
 		return Page{}, err
 	}
-	snapshot, err := s.source.Capture()
+	snapshot, err := s.source.CaptureBounded(MaxSnapshotBytes)
 	if err != nil {
+		if errors.Is(err, sequencer.ErrSnapshotBudget) {
+			return Page{}, ErrResourceExhausted
+		}
 		return Page{}, err
 	}
 	if !snapshot.RegistryReady {
@@ -391,6 +394,13 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 				return Page{}, ErrResourceExhausted
 			}
 			itemBytes += encoded * 4
+		}
+		if hasState {
+			stateBytes, err := sequencer.EstimateTriggerStateBytes(id, state)
+			if err != nil || stateBytes > MaxSnapshotBytes-itemBytes {
+				return Page{}, ErrResourceExhausted
+			}
+			itemBytes += stateBytes
 		}
 		if itemBytes > MaxSnapshotBytes-bytes {
 			return Page{}, ErrResourceExhausted

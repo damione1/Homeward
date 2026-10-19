@@ -157,6 +157,9 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 		// current protobuf can decode it transitively, but that does not
 		// enlarge any historical worker profile.
 		for _, description := range input.Descriptions {
+			if contracts.NativeSolarDescription(description) {
+				return nil, rpcInvalid()
+			}
 			if description != nil && (description.SchemaId == contracts.HelperSchema || description.GetHelper() != nil) {
 				return nil, rpcInvalid()
 			}

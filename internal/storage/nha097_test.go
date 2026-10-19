@@ -46,7 +46,7 @@ func TestNHA097Migration16RetainsOldRowsAndClosesValueTags(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if version, err := store.Migrate(ctx); err != nil || version.Number() != 16 {
+	if version, err := store.migrate(ctx, migrations[:16]); err != nil || version.Number() != 16 {
 		t.Fatalf("additive v16: %v %v", version, err)
 	}
 	var retained int

@@ -81,6 +81,64 @@ func formatCurrent(value domain.StateValue) (string, []template.Binding, error) 
 		return "", nil, err
 	}
 	switch kind {
+	case domain.ValueSolar:
+		solar, _ := value.Solar()
+		input, err := solar.Components()
+		if err != nil {
+			return "", nil, err
+		}
+		text := ""
+		switch input.Horizon {
+		case domain.SolarAboveHorizon:
+			text = "above_horizon"
+		case domain.SolarBelowHorizon:
+			text = "below_horizon"
+		case domain.SolarHorizonUnspecified:
+			return "", nil, ErrInvalidProjection
+		default:
+			return "", nil, ErrInvalidProjection
+		}
+		elevation, err := template.Float(input.ElevationDegrees)
+		if err != nil {
+			return "", nil, err
+		}
+		azimuth, err := template.Float(input.AzimuthDegrees)
+		if err != nil {
+			return "", nil, err
+		}
+		attrs := []template.Binding{{Name: "elevation", Value: elevation}, {Name: "azimuth", Value: azimuth}, {Name: "rising", Value: template.Bool(input.Rising)}}
+		for i, kind := range domain.SolarEventKinds() {
+			name, err := kind.Name()
+			if err != nil {
+				return "", nil, err
+			}
+			value, err := solarOccurrenceProjection(input.Next[i])
+			if err != nil {
+				return "", nil, err
+			}
+			attrs = append(attrs, template.Binding{Name: "next_" + name, Value: value})
+		}
+		return text, attrs, nil
+	case domain.ValueSolarEvent:
+		event, _ := value.SolarEvent()
+		kind, occurrence, err := event.Components()
+		if err != nil {
+			return "", nil, err
+		}
+		name, _ := kind.Name()
+		nameValue, err := template.String(name)
+		if err != nil {
+			return "", nil, err
+		}
+		projected, err := solarOccurrenceProjection(occurrence)
+		if err != nil {
+			return "", nil, err
+		}
+		text, present := projected.StringValue()
+		if !present {
+			text = "unknown"
+		}
+		return text, []template.Binding{{Name: "event", Value: nameValue}, {Name: "occurrence", Value: projected}}, nil
 	case domain.ValueHelper:
 		helper, _, ok := value.Helper()
 		if !ok {
@@ -251,6 +309,26 @@ func formatCurrent(value domain.StateValue) (string, []template.Binding, error) 
 		return "", nil, ErrInvalidProjection
 	default:
 		return "", nil, ErrInvalidProjection
+	}
+}
+
+func solarOccurrenceProjection(value domain.SolarOccurrence) (template.Value, error) {
+	at, reason, kind, err := value.Components()
+	if err != nil {
+		return template.Value{}, err
+	}
+	switch kind {
+	case domain.SolarOccurrencePresent:
+		return template.String(at.UTC().Format(time.RFC3339Nano))
+	case domain.SolarOccurrenceAbsent:
+		if reason != domain.SolarNoEventWithinSearchHorizon {
+			return template.Value{}, ErrInvalidProjection
+		}
+		return template.None(), nil
+	case domain.SolarOccurrenceUnspecified:
+		return template.Value{}, ErrInvalidProjection
+	default:
+		return template.Value{}, ErrInvalidProjection
 	}
 }
 

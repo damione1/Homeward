@@ -480,6 +480,8 @@ fn nha014_capability_constraints_and_action_presence_survive_rust_codec() {
                 assert_eq!(c.device_class, None);
             }
             Some(Constraints::Helper(_)) => panic!("unexpected helper in core fixture"),
+            Some(Constraints::Solar(_)) => panic!("unexpected solar in core fixture"),
+            Some(Constraints::SolarEvent(_)) => panic!("unexpected solar event in core fixture"),
             Some(Constraints::Extension(_)) => panic!("unexpected extension in core fixture"),
             None => panic!("missing constraints"),
         }

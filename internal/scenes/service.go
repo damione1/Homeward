@@ -318,6 +318,8 @@ func (s *Service) prepareMember(ctx context.Context, spec memberSpec,
 			return refused(spec, RefusalSource, "value", "invalid captured value")
 		}
 		switch kind {
+		case domain.ValueSolar, domain.ValueSolarEvent:
+			return refused(spec, RefusalCapability, "member", "solar observations cannot be reproduced as commands")
 		case domain.ValueLight:
 			light, _ := spec.native.Light()
 			on, percent, ct, err := light.Components()

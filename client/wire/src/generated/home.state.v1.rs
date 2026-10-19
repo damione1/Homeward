@@ -1657,6 +1657,22 @@ impl ::buffa::Message for ObservedState {
                         += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::observed_state::Value::Solar(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::observed_state::Value::SolarEvent(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -1774,6 +1790,22 @@ impl ::buffa::Message for ObservedState {
                 __buffa::oneof::observed_state::Value::Helper(x) => {
                     ::buffa::types::put_len_delimited_header(
                         16u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::observed_state::Value::Solar(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        17u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::observed_state::Value::SolarEvent(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        18u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -2000,6 +2032,46 @@ impl ::buffa::Message for ObservedState {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.value = ::core::option::Option::Some(
                         __buffa::oneof::observed_state::Value::Helper(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::observed_state::Value::Solar(ref mut existing),
+                ) = self.value
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.value = ::core::option::Option::Some(
+                        __buffa::oneof::observed_state::Value::Solar(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::observed_state::Value::SolarEvent(ref mut existing),
+                ) = self.value
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.value = ::core::option::Option::Some(
+                        __buffa::oneof::observed_state::Value::SolarEvent(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -6090,6 +6162,68 @@ pub mod __buffa {
                             );
                         }
                     }
+                    17u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::observed_state::Value::Solar(
+                                ref mut existing,
+                            ),
+                        ) = view.value
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.value = Some(
+                                super::super::__buffa::view::oneof::observed_state::Value::Solar(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::solar::v1::__buffa::view::SolarValueView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    18u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::observed_state::Value::SolarEvent(
+                                ref mut existing,
+                            ),
+                        ) = view.value
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.value = Some(
+                                super::super::__buffa::view::oneof::observed_state::Value::SolarEvent(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::solar::v1::__buffa::view::SolarEventValueView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -6243,6 +6377,24 @@ pub mod __buffa {
                                             ),
                                         )
                                     }
+                                    super::super::__buffa::view::oneof::observed_state::Value::Solar(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::observed_state::Value::Solar(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::observed_state::Value::SolarEvent(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::observed_state::Value::SolarEvent(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
                                 },
                             )
                         }
@@ -6389,6 +6541,26 @@ pub mod __buffa {
                                 += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                                     + inner as u64;
                         }
+                        super::super::__buffa::view::oneof::observed_state::Value::Solar(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::observed_state::Value::SolarEvent(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
                     }
                 }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -6519,6 +6691,26 @@ pub mod __buffa {
                         ) => {
                             ::buffa::types::put_len_delimited_header(
                                 16u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::observed_state::Value::Solar(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                17u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::observed_state::Value::SolarEvent(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                18u32,
                                 u64::from(__cache.consume_next()),
                                 buf,
                             );
@@ -10595,6 +10787,20 @@ pub mod __buffa {
                             >,
                         >,
                     ),
+                    Solar(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::solar::v1::__buffa::view::SolarValueView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    SolarEvent(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::solar::v1::__buffa::view::SolarEventValueView<
+                                'a,
+                            >,
+                        >,
+                    ),
                 }
             }
             pub mod watch_view_response {
@@ -10661,6 +10867,16 @@ pub mod __buffa {
                         super::super::super::super::super::helpers::v1::HelperValue,
                     >,
                 ),
+                Solar(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::solar::v1::SolarValue,
+                    >,
+                ),
+                SolarEvent(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::solar::v1::SolarEventValue,
+                    >,
+                ),
             }
             impl ::buffa::Oneof for Value {}
             impl From<super::super::super::Measurement> for Value {
@@ -10718,6 +10934,38 @@ pub mod __buffa {
             for ::core::option::Option<Value> {
                 fn from(
                     v: super::super::super::super::super::helpers::v1::HelperValue,
+                ) -> Self {
+                    Self::Some(Value::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::solar::v1::SolarValue>
+            for Value {
+                fn from(
+                    v: super::super::super::super::super::solar::v1::SolarValue,
+                ) -> Self {
+                    Self::Solar(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::solar::v1::SolarValue>
+            for ::core::option::Option<Value> {
+                fn from(
+                    v: super::super::super::super::super::solar::v1::SolarValue,
+                ) -> Self {
+                    Self::Some(Value::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::solar::v1::SolarEventValue>
+            for Value {
+                fn from(
+                    v: super::super::super::super::super::solar::v1::SolarEventValue,
+                ) -> Self {
+                    Self::SolarEvent(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::solar::v1::SolarEventValue>
+            for ::core::option::Option<Value> {
+                fn from(
+                    v: super::super::super::super::super::solar::v1::SolarEventValue,
                 ) -> Self {
                     Self::Some(Value::from(v))
                 }

@@ -33,6 +33,8 @@ const (
 	MeasurementSchema = "core.measurement.v1"
 	BinarySchema      = "core.binary.v1"
 	HelperSchema      = "core.helper.v1"
+	SolarSchema       = "core.solar.v1"
+	SolarEventSchema  = "core.solar_event.v1"
 )
 
 var extensionSchema = regexp.MustCompile(`^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*\.v[1-9][0-9]*$`)
@@ -203,6 +205,8 @@ func (c *CapabilityCatalog) AdmitReadOnlyDriverCapability(d *registry.Capability
 			return nil
 		}
 	case *registry.CapabilityDescription_Measurement, *registry.CapabilityDescription_Binary:
+		return nil
+	case *registry.CapabilityDescription_Solar, *registry.CapabilityDescription_SolarEvent:
 		return nil
 	case *registry.CapabilityDescription_Helper:
 		if constraints.Helper != nil && len(constraints.Helper.Operations) == 0 {
@@ -401,6 +405,14 @@ func (c *CapabilityCatalog) validateDescription(d *registry.CapabilityDescriptio
 	case *registry.CapabilityDescription_Helper:
 		if constraints == nil || d.SchemaId != HelperSchema || !validHelperConstraints(constraints.Helper) {
 			return errors.New("helper schema/constraints mismatch")
+		}
+	case *registry.CapabilityDescription_Solar:
+		if constraints == nil || d.SchemaId != SolarSchema || !validSolarConstraints(constraints.Solar) {
+			return ErrInvalidCapability
+		}
+	case *registry.CapabilityDescription_SolarEvent:
+		if constraints == nil || d.SchemaId != SolarEventSchema || !validSolarEventConstraints(constraints.SolarEvent) {
+			return ErrInvalidCapability
 		}
 	case *registry.CapabilityDescription_Extension:
 		if constraints == nil || constraints.Extension == nil || !extensionSchema.MatchString(d.SchemaId) || strings.HasPrefix(d.SchemaId, "core.") {
@@ -917,7 +929,7 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 			return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.extension.protobuf_payload", err.Error())
 		}
 		return nil
-	case *registry.CapabilityDescription_Measurement, *registry.CapabilityDescription_Binary:
+	case *registry.CapabilityDescription_Measurement, *registry.CapabilityDescription_Binary, *registry.CapabilityDescription_Solar, *registry.CapabilityDescription_SolarEvent:
 		return commandError(actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY, "capability_schema_id", "capability is observation only")
 	}
 	return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments", "action is outside advertised instance constraints")

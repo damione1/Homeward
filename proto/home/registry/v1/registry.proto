@@ -2,6 +2,7 @@ syntax = "proto3";
 package home.registry.v1;
 
 import "home/helpers/v1/helpers.proto";
+import "home/solar/v1/solar.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/registry/v1;registryv1";
 message EntityId {
@@ -34,6 +35,8 @@ message CapabilityDescription {
     BinaryConstraints binary = 12;
     ExtensionConstraints extension = 13;
     home.helpers.v1.HelperConstraints helper = 14;
+    home.solar.v1.SolarConstraints solar = 15;
+    home.solar.v1.SolarEventConstraints solar_event = 16;
   }
 }
 

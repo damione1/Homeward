@@ -67,6 +67,10 @@ func Run(ctx context.Context, c config.Config, listen ListenFunc, ready func(net
 }
 
 func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr), factory RuntimeFactory) error {
+	return runWithDependencies(ctx, c, listen, ready, factory, runDependencies{})
+}
+
+func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr), factory RuntimeFactory, dependencies runDependencies) error {
 	if ctx == nil || listen == nil {
 		return ErrInvalidContext
 	}
@@ -109,7 +113,13 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		store.Close()
 		return err
 	}
-	sequence, err := sequencer.New(sequencer.RealClock{}, 16384)
+	if dependencies.sequenceClock == nil {
+		dependencies.sequenceClock = sequencer.RealClock{}
+	}
+	if dependencies.solarClock == nil {
+		dependencies.solarClock = automationtriggers.RealClock{}
+	}
+	sequence, err := sequencer.New(dependencies.sequenceClock, 16384)
 	if err != nil {
 		store.Close()
 		return err
@@ -156,7 +166,8 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 		mqttSettings, mqttEnabled := c.MQTTSettings()
 		neviwebSettings, neviwebEnabled := c.NeviwebSettings()
 		workers := c.ExternalWorkers()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || hasActiveHelpers {
+		solarSettings, solarEnabled := c.SolarSettings()
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || hasActiveHelpers || solarEnabled {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
@@ -174,6 +185,11 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			}
 			if hasActiveHelpers {
 				if err := addActiveHelpers(&plan, activeCandidate, store); err != nil {
+					return closeStoreWithRecorder(store, recording, err)
+				}
+			}
+			if solarEnabled {
+				if err := addConfiguredSolar(&plan, solarSettings, dependencies.solarClock); err != nil {
 					return closeStoreWithRecorder(store, recording, err)
 				}
 			}
@@ -231,6 +247,11 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil)
 		}
 		if err := plan.ConfigureAuthorization(ctx, composition); err != nil {
+			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil)
+		}
+	}
+	if dependencies.observe != nil {
+		if err := dependencies.observe(ctx, sequence); err != nil {
 			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil)
 		}
 	}

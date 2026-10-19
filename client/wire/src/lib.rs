@@ -3,6 +3,7 @@
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod home {
+    pub mod solar { pub mod v1 { include!("generated/home.solar.v1.rs"); } }
     pub mod helpers { pub mod v1 { include!("generated/home.helpers.v1.rs"); } }
     pub mod registry { pub mod v1 { include!("generated/home.registry.v1.rs"); } }
     pub mod actions { pub mod v1 { include!("generated/home.actions.v1.rs"); } }
@@ -12,6 +13,7 @@ pub mod home {
 
 pub mod auth_contract;
 pub mod authorization_contract;
+pub mod solar_contract;
 
 fn known_helper_set_value(value: &home::helpers::v1::HelperValue) -> bool {
     use home::helpers::v1::helper_value::Value;

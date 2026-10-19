@@ -292,6 +292,32 @@ func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, m
 		}
 		value = &v
 	case nil:
+	case *state.ObservedState_Solar:
+		if item == nil || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		solar, err := AdmitWireSolarValue(item.Solar)
+		if err != nil || measurement.Catalog.AdmitDomainSolar(entity, measurement.Endpoint, solar) != nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		v, err := domain.NewSolarStateValue(solar)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &v
+	case *state.ObservedState_SolarEvent:
+		if item == nil || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		solar, err := AdmitWireSolarEventValue(item.SolarEvent)
+		if err != nil || measurement.Catalog.AdmitDomainSolarEvent(entity, measurement.Endpoint, solar) != nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		v, err := domain.NewSolarEventStateValue(solar)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &v
 	default:
 		return domain.ObservedState{}, ErrInvalidWireState
 	}
@@ -387,6 +413,20 @@ func EncodeObservedState(observed domain.ObservedState) (*state.ObservedState, e
 				return nil, err
 			}
 			w.Value = &state.ObservedState_Helper{Helper: wireHelper}
+		case domain.ValueSolar:
+			solar, _ := value.Solar()
+			encoded, err := EncodeSolarValue(solar)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_Solar{Solar: encoded}
+		case domain.ValueSolarEvent:
+			solar, _ := value.SolarEvent()
+			encoded, err := EncodeSolarEventValue(solar)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_SolarEvent{SolarEvent: encoded}
 		case domain.ValueUnspecified:
 			return nil, ErrInvalidWireState
 		default:

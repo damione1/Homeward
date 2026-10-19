@@ -4,6 +4,7 @@ package home.state.v1;
 import "google/protobuf/timestamp.proto";
 import "home/registry/v1/registry.proto";
 import "home/helpers/v1/helpers.proto";
+import "home/solar/v1/solar.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/state/v1;statev1";
 enum Availability {
@@ -85,6 +86,8 @@ message ObservedState {
     FanValue fan = 14;
     ClimateValue climate = 15;
     home.helpers.v1.HelperValue helper = 16;
+    home.solar.v1.SolarValue solar = 17;
+    home.solar.v1.SolarEventValue solar_event = 18;
   }
 }
 

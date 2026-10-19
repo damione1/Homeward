@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory(prefix="nha027-bootstrap-") as directory:
     try:
         cfg = root / "config.yaml"
         settings = ("listen: '127.0.0.1:0'\n"
-                    f"data_dir: '{root / 'app-data'}'\npostgres:\n"
+                    f"data_dir: '{root / 'a'}'\npostgres:\n"
                     "  host: '127.0.0.1'\n"
                     f"  port: {pg_port}\n"
                     "  database: postgres\n  user: homeward_test\n"

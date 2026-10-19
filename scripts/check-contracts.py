@@ -20,6 +20,11 @@ for line in (auth_dir/"index.tsv").read_text().splitlines():
     else:
         data=bytes.fromhex((auth_dir/f"{name}.hex").read_text())
     assert data==(auth_dir/f"{name}.bin").read_bytes(),name
+for line in (ROOT/"contracts/solar_golden/index.tsv").read_text().splitlines():
+    name,message,admitted=line.split("\t")
+    assert admitted in ("true","false")
+    data=subprocess.check_output(["protoc","-I","proto","--encode=home.solar.v1."+message,"proto/home/solar/v1/solar.proto"],input=(ROOT/f"contracts/solar_golden/{name}.textproto").read_bytes(),cwd=ROOT)
+    assert data==(ROOT/f"contracts/solar_golden/{name}.bin").read_bytes(),name
 subprocess.run(["buf","breaking","--against",".compat/baseline"],cwd=ROOT,check=True)
 with tempfile.TemporaryDirectory(prefix="nha004-breaking-") as directory:
     temp=pathlib.Path(directory);shutil.copytree(ROOT/"proto",temp/"proto");shutil.copy(ROOT/"buf.yaml",temp/"buf.yaml")

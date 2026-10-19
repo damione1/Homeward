@@ -724,6 +724,22 @@ impl ::buffa::Message for CapabilityDescription {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::capability_description::Constraints::Solar(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::capability_description::Constraints::SolarEvent(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -815,6 +831,22 @@ impl ::buffa::Message for CapabilityDescription {
                 __buffa::oneof::capability_description::Constraints::Helper(x) => {
                     ::buffa::types::put_len_delimited_header(
                         14u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::capability_description::Constraints::Solar(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        15u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::capability_description::Constraints::SolarEvent(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        16u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -1048,6 +1080,50 @@ impl ::buffa::Message for CapabilityDescription {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.constraints = ::core::option::Option::Some(
                         __buffa::oneof::capability_description::Constraints::Helper(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::capability_description::Constraints::Solar(
+                        ref mut existing,
+                    ),
+                ) = self.constraints
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.constraints = ::core::option::Option::Some(
+                        __buffa::oneof::capability_description::Constraints::Solar(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::capability_description::Constraints::SolarEvent(
+                        ref mut existing,
+                    ),
+                ) = self.constraints
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.constraints = ::core::option::Option::Some(
+                        __buffa::oneof::capability_description::Constraints::SolarEvent(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -3684,6 +3760,68 @@ pub mod __buffa {
                             );
                         }
                     }
+                    15u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::capability_description::Constraints::Solar(
+                                ref mut existing,
+                            ),
+                        ) = view.constraints
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.constraints = Some(
+                                super::super::__buffa::view::oneof::capability_description::Constraints::Solar(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::solar::v1::__buffa::view::SolarConstraintsView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    16u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::capability_description::Constraints::SolarEvent(
+                                ref mut existing,
+                            ),
+                        ) = view.constraints
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.constraints = Some(
+                                super::super::__buffa::view::oneof::capability_description::Constraints::SolarEvent(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::solar::v1::__buffa::view::SolarEventConstraintsView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -3790,6 +3928,24 @@ pub mod __buffa {
                                         v,
                                     ) => {
                                         super::super::__buffa::oneof::capability_description::Constraints::Helper(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::capability_description::Constraints::Solar(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::capability_description::Constraints::Solar(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::capability_description::Constraints::SolarEvent(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::capability_description::Constraints::SolarEvent(
                                             ::buffa::alloc::boxed::Box::new(
                                                 v.to_owned_from_source(__buffa_src)?,
                                             ),
@@ -3927,6 +4083,26 @@ pub mod __buffa {
                                 += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                                     + inner as u64;
                         }
+                        super::super::__buffa::view::oneof::capability_description::Constraints::Solar(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::capability_description::Constraints::SolarEvent(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
                     }
                 }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -4043,6 +4219,26 @@ pub mod __buffa {
                         ) => {
                             ::buffa::types::put_len_delimited_header(
                                 14u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::capability_description::Constraints::Solar(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                15u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::capability_description::Constraints::SolarEvent(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                16u32,
                                 u64::from(__cache.consume_next()),
                                 buf,
                             );
@@ -7746,6 +7942,20 @@ pub mod __buffa {
                             >,
                         >,
                     ),
+                    Solar(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::solar::v1::__buffa::view::SolarConstraintsView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    SolarEvent(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::solar::v1::__buffa::view::SolarEventConstraintsView<
+                                'a,
+                            >,
+                        >,
+                    ),
                 }
             }
         }
@@ -7791,6 +8001,16 @@ pub mod __buffa {
                 Helper(
                     ::buffa::alloc::boxed::Box<
                         super::super::super::super::super::helpers::v1::HelperConstraints,
+                    >,
+                ),
+                Solar(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::solar::v1::SolarConstraints,
+                    >,
+                ),
+                SolarEvent(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::solar::v1::SolarEventConstraints,
                     >,
                 ),
             }
@@ -7884,6 +8104,40 @@ pub mod __buffa {
             for ::core::option::Option<Constraints> {
                 fn from(
                     v: super::super::super::super::super::helpers::v1::HelperConstraints,
+                ) -> Self {
+                    Self::Some(Constraints::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::solar::v1::SolarConstraints>
+            for Constraints {
+                fn from(
+                    v: super::super::super::super::super::solar::v1::SolarConstraints,
+                ) -> Self {
+                    Self::Solar(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::solar::v1::SolarConstraints>
+            for ::core::option::Option<Constraints> {
+                fn from(
+                    v: super::super::super::super::super::solar::v1::SolarConstraints,
+                ) -> Self {
+                    Self::Some(Constraints::from(v))
+                }
+            }
+            impl From<
+                super::super::super::super::super::solar::v1::SolarEventConstraints,
+            > for Constraints {
+                fn from(
+                    v: super::super::super::super::super::solar::v1::SolarEventConstraints,
+                ) -> Self {
+                    Self::SolarEvent(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<
+                super::super::super::super::super::solar::v1::SolarEventConstraints,
+            > for ::core::option::Option<Constraints> {
+                fn from(
+                    v: super::super::super::super::super::solar::v1::SolarEventConstraints,
                 ) -> Self {
                     Self::Some(Constraints::from(v))
                 }

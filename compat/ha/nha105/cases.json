@@ -1,0 +1,31 @@
+{
+  "profile": "ha-2026.10/core-1",
+  "cases": [
+    {"id":"nha105-equator-equinox","latitude":0,"longitude":0,"elevation_m":0,"timezone":"UTC","now_utc":"2024-03-20T12:00:00Z","date":"2024-03-20"},
+    {"id":"nha105-temperate-summer","latitude":45,"longitude":-75,"elevation_m":0,"timezone":"America/Toronto","now_utc":"2024-06-21T12:00:00Z","date":"2024-06-21"},
+    {"id":"nha105-temperate-winter","latitude":45,"longitude":-75,"elevation_m":0,"timezone":"America/Toronto","now_utc":"2024-12-21T12:00:00Z","date":"2024-12-21"},
+    {"id":"nha105-altitude-1000","latitude":45,"longitude":-75,"elevation_m":1000,"timezone":"America/Toronto","now_utc":"2024-06-21T12:00:00Z","date":"2024-06-21"},
+    {"id":"nha105-altitude-negative","latitude":45,"longitude":-75,"elevation_m":-100,"timezone":"America/Toronto","now_utc":"2024-06-21T12:00:00Z","date":"2024-06-21"},
+    {"id":"nha105-spring-gap-before","latitude":45,"longitude":-75,"elevation_m":0,"timezone":"America/Toronto","now_utc":"2024-03-10T06:59:59Z","date":"2024-03-10"},
+    {"id":"nha105-spring-gap-after","latitude":45,"longitude":-75,"elevation_m":0,"timezone":"America/Toronto","now_utc":"2024-03-10T07:00:01Z","date":"2024-03-10"},
+    {"id":"nha105-fold-first","latitude":45,"longitude":-75,"elevation_m":0,"timezone":"America/Toronto","now_utc":"2024-11-03T05:30:00Z","date":"2024-11-03"},
+    {"id":"nha105-fold-second","latitude":45,"longitude":-75,"elevation_m":0,"timezone":"America/Toronto","now_utc":"2024-11-03T06:30:00Z","date":"2024-11-03"},
+    {"id":"nha105-southern-summer","latitude":-35,"longitude":150,"elevation_m":0,"timezone":"Australia/Sydney","now_utc":"2024-12-21T12:00:00Z","date":"2024-12-21"},
+    {"id":"nha105-southern-winter","latitude":-35,"longitude":150,"elevation_m":0,"timezone":"Australia/Sydney","now_utc":"2024-06-21T12:00:00Z","date":"2024-06-21"},
+    {"id":"nha105-half-hour-zone","latitude":-35,"longitude":150,"elevation_m":0,"timezone":"Australia/Adelaide","now_utc":"2024-09-22T18:00:00Z","date":"2024-09-23"},
+    {"id":"nha105-date-line-east","latitude":0,"longitude":180,"elevation_m":0,"timezone":"Pacific/Kiritimati","now_utc":"2024-12-31T23:59:59Z","date":"2025-01-01"},
+    {"id":"nha105-date-line-west","latitude":0,"longitude":-180,"elevation_m":0,"timezone":"Pacific/Honolulu","now_utc":"2025-01-01T00:00:01Z","date":"2024-12-31"},
+    {"id":"nha105-leap-before","latitude":0,"longitude":0,"elevation_m":0,"timezone":"UTC","now_utc":"2024-02-28T23:59:59Z","date":"2024-02-28"},
+    {"id":"nha105-leap-after","latitude":0,"longitude":0,"elevation_m":0,"timezone":"UTC","now_utc":"2024-02-29T00:00:01Z","date":"2024-02-29"},
+    {"id":"nha105-public-norway-june","latitude":69.6,"longitude":18.8,"elevation_m":0,"timezone":"Europe/Oslo","now_utc":"2016-06-01T00:00:00Z","date":"2016-06-01"},
+    {"id":"nha105-synthetic-arctic-june","latitude":70,"longitude":20,"elevation_m":0,"timezone":"Europe/Oslo","now_utc":"2024-06-21T12:00:00Z","date":"2024-06-21"},
+    {"id":"nha105-north-pole-summer","latitude":90,"longitude":0,"elevation_m":0,"timezone":"UTC","now_utc":"2024-06-21T12:00:00Z","date":"2024-06-21"},
+    {"id":"nha105-south-pole-summer","latitude":-90,"longitude":0,"elevation_m":0,"timezone":"UTC","now_utc":"2024-12-21T12:00:00Z","date":"2024-12-21"},
+    {"id":"nha105-north-pole-winter","latitude":90,"longitude":0,"elevation_m":0,"timezone":"UTC","now_utc":"2024-12-21T12:00:00Z","date":"2024-12-21"},
+    {"id":"nha105-exhausted-search","latitude":69.6,"longitude":18.8,"elevation_m":10000000,"timezone":"Europe/Oslo","now_utc":"2016-06-01T00:00:00Z","date":"2016-06-01"},
+    {"id":"nha105-setting-before","latitude":45,"longitude":-75,"elevation_m":0,"timezone":"America/Toronto","now_utc":"2024-06-21T12:00:00Z","date":"2024-06-21","after_event":"setting","after_shift_us":-1},
+    {"id":"nha105-setting-equal","latitude":45,"longitude":-75,"elevation_m":0,"timezone":"America/Toronto","now_utc":"2024-06-21T12:00:00Z","date":"2024-06-21","after_event":"setting"},
+    {"id":"nha105-setting-after","latitude":45,"longitude":-75,"elevation_m":0,"timezone":"America/Toronto","now_utc":"2024-06-21T12:00:00Z","date":"2024-06-21","after_event":"setting","after_shift_us":1},
+    {"id":"nha105-midnight-equal","latitude":45,"longitude":-75,"elevation_m":0,"timezone":"America/Toronto","now_utc":"2024-12-31T12:00:00Z","date":"2025-01-01","after_event":"midnight"}
+  ]
+}
