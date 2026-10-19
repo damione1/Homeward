@@ -9,10 +9,12 @@ pub mod home {
     pub mod actions { pub mod v1 { include!("generated/home.actions.v1.rs"); } }
     pub mod state { pub mod v1 { include!("generated/home.state.v1.rs"); } }
     pub mod auth { pub mod v1 { include!("generated/home.auth.v1.rs"); } }
+    pub mod lists { pub mod v1 { include!("generated/home.lists.v1.rs"); } }
 }
 
 pub mod auth_contract;
 pub mod authorization_contract;
+pub mod lists_contract;
 pub mod solar_contract;
 
 fn known_helper_set_value(value: &home::helpers::v1::HelperValue) -> bool {

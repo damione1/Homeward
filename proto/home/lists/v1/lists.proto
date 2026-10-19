@@ -1,0 +1,220 @@
+syntax = "proto3";
+package home.lists.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/lists/v1;listsv1";
+
+// Wire identities are parsed into the domain's admitted ListID and ItemUID
+// before any operation. The name of a list or item is never its identity.
+message ListId { string value = 1; }
+message ItemUid { string value = 1; }
+
+// Revisions are bound to their identities at the domain boundary.
+message ListRevision {
+  ListId list_id = 1;
+  uint64 number = 2;
+}
+message ItemRevision {
+  ListId list_id = 1;
+  ItemUid item_uid = 2;
+  uint64 number = 3;
+}
+
+enum ListOrigin {
+  LIST_ORIGIN_UNSPECIFIED = 0;
+  LIST_ORIGIN_LOCAL_TODO = 1;
+  LIST_ORIGIN_SHOPPING_LIST = 2;
+  LIST_ORIGIN_NATIVE = 3;
+}
+
+message ListSnapshot {
+  ListId id = 1;
+  ListOrigin origin = 2;
+  optional string legacy_alias = 3;
+  string name = 4;
+  ListRevision revision = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// The domain admits a civil date or an exact PostgreSQL-microsecond instant
+// with an explicit IANA zone. Absence of due means no due value.
+message DueInstant {
+  google.protobuf.Timestamp at = 1;
+  string zone = 2;
+}
+message ItemPayload {
+  string summary = 1;
+  // Presence is required on create/edit. Present false de-completes an item.
+  optional bool completed = 2;
+  // A present empty description differs from an absent description.
+  optional string description = 3;
+  oneof due {
+    string due_date = 4;
+    DueInstant due_instant = 5;
+  }
+  google.protobuf.Timestamp completed_at = 6;
+}
+message ItemSnapshot {
+  ListId list_id = 1;
+  ItemUid uid = 2;
+  ItemPayload value = 3;
+  int64 position = 4;
+  ItemRevision revision = 5;
+}
+
+// Only a known commit returns a receipt. It carries no item or list content.
+message MutationReceipt {
+  ListId list_id = 1;
+  ItemUid item_uid = 2;
+  ListRevision list_revision = 3;
+  ItemRevision item_revision = 4;
+}
+
+enum ListErrorCode {
+  LIST_ERROR_CODE_UNSPECIFIED = 0;
+  LIST_ERROR_CODE_INVALID = 1;
+  LIST_ERROR_CODE_DENIED = 2;
+  LIST_ERROR_CODE_NOT_FOUND = 3;
+  LIST_ERROR_CODE_CONFLICT = 4;
+  LIST_ERROR_CODE_STALE_CURSOR = 5;
+  LIST_ERROR_CODE_CAPACITY = 6;
+  LIST_ERROR_CODE_UNAVAILABLE = 7;
+  LIST_ERROR_CODE_COMMIT_UNKNOWN = 8;
+  LIST_ERROR_CODE_COMMITTED_RESPONSE_WITHHELD = 9;
+  LIST_ERROR_CODE_CLOSED = 10;
+}
+// A Connect error detail. Never contains a snapshot, current revision, SQL,
+// list name, item content or an untrusted server error string.
+message ListError {
+  ListErrorCode code = 1;
+  optional string field_path = 2;
+}
+
+message ListListsRequest {
+  uint32 page_size = 1;
+  string page_token = 2;
+}
+message ListListsResponse {
+  repeated ListSnapshot lists = 1;
+  string next_page_token = 2;
+}
+message CountListsRequest {}
+message CountListsResponse { uint64 count = 1; }
+message GetListRequest { ListId list_id = 1; }
+message GetListResponse { ListSnapshot list = 1; }
+message CreateListRequest { string name = 1; }
+message CreateListResponse { MutationReceipt receipt = 1; }
+message RenameListRequest {
+  ListId list_id = 1;
+  ListRevision expected_revision = 2;
+  string name = 3;
+}
+message RenameListResponse { MutationReceipt receipt = 1; }
+message DeleteListRequest {
+  ListId list_id = 1;
+  ListRevision expected_revision = 2;
+}
+message DeleteListResponse { MutationReceipt receipt = 1; }
+
+message ListItemsRequest {
+  ListId list_id = 1;
+  uint32 page_size = 2;
+  string page_token = 3;
+}
+message ListItemsResponse {
+  repeated ItemSnapshot items = 1;
+  string next_page_token = 2;
+}
+message CountItemsRequest { ListId list_id = 1; }
+message CountItemsResponse { uint64 count = 1; }
+message GetItemRequest {
+  ListId list_id = 1;
+  ItemUid item_uid = 2;
+}
+message GetItemResponse { ItemSnapshot item = 1; }
+message AddItemRequest {
+  ListId list_id = 1;
+  ListRevision expected_list_revision = 2;
+  ItemPayload item = 3;
+}
+message AddItemResponse { MutationReceipt receipt = 1; }
+message EditItemRequest {
+  ListId list_id = 1;
+  ItemUid item_uid = 2;
+  ListRevision expected_list_revision = 3;
+  ItemRevision expected_item_revision = 4;
+  ItemPayload item = 5;
+}
+message EditItemResponse { MutationReceipt receipt = 1; }
+message DeleteItemRequest {
+  ListId list_id = 1;
+  ItemUid item_uid = 2;
+  ListRevision expected_list_revision = 3;
+  ItemRevision expected_item_revision = 4;
+}
+message DeleteItemResponse { MutationReceipt receipt = 1; }
+message SetCompletedRequest {
+  ListId list_id = 1;
+  ItemUid item_uid = 2;
+  ListRevision expected_list_revision = 3;
+  ItemRevision expected_item_revision = 4;
+  optional bool completed = 5;
+}
+message SetCompletedResponse { MutationReceipt receipt = 1; }
+message MoveItemRequest {
+  ListId list_id = 1;
+  ItemUid item_uid = 2;
+  ListRevision expected_list_revision = 3;
+  ItemRevision expected_item_revision = 4;
+  oneof destination {
+    google.protobuf.Empty at_start = 5;
+    ItemUid after_uid = 6;
+  }
+}
+message MoveItemResponse { MutationReceipt receipt = 1; }
+
+// Subscribe first; ready means the client should reload a page while this
+// stream remains open. No replay is promised after reconnect or timeout.
+message WatchListsRequest {
+  oneof scope {
+    google.protobuf.Empty catalog = 1;
+    ListId list_id = 2;
+  }
+}
+message WatchReady {}
+message ListChanged {
+  ListId list_id = 1;
+  ListRevision revision = 2;
+}
+// A terminal invalidation: reload via page RPC and open a fresh stream.
+message ListResyncRequired {}
+message WatchListsResponse {
+  uint64 stream_sequence = 1;
+  oneof frame {
+    WatchReady ready = 2;
+    ListChanged changed = 3;
+    ListResyncRequired resync_required = 4;
+  }
+}
+
+// Authentication, route ceilings and object authorization are supplied by the
+// common public transport and the existing internal lists Service.
+service ListService {
+  rpc ListLists(ListListsRequest) returns (ListListsResponse);
+  rpc CountLists(CountListsRequest) returns (CountListsResponse);
+  rpc GetList(GetListRequest) returns (GetListResponse);
+  rpc CreateList(CreateListRequest) returns (CreateListResponse);
+  rpc RenameList(RenameListRequest) returns (RenameListResponse);
+  rpc DeleteList(DeleteListRequest) returns (DeleteListResponse);
+  rpc ListItems(ListItemsRequest) returns (ListItemsResponse);
+  rpc CountItems(CountItemsRequest) returns (CountItemsResponse);
+  rpc GetItem(GetItemRequest) returns (GetItemResponse);
+  rpc AddItem(AddItemRequest) returns (AddItemResponse);
+  rpc EditItem(EditItemRequest) returns (EditItemResponse);
+  rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
+  rpc SetCompleted(SetCompletedRequest) returns (SetCompletedResponse);
+  rpc MoveItem(MoveItemRequest) returns (MoveItemResponse);
+  rpc WatchLists(WatchListsRequest) returns (stream WatchListsResponse);
+}

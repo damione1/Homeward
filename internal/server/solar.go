@@ -19,6 +19,7 @@ type runDependencies struct {
 	workdayClock             automationtriggers.Clock
 	configureWorkdayCalendar func(context.Context, workday.CalendarReader) error
 	observe                  func(context.Context, *sequencer.Sequencer) error
+	observeLists             func(*listComposition, *sessionCoordinator)
 }
 
 func addConfiguredSolar(plan *RuntimePlan, settings solar.Settings, clock automationtriggers.Clock) error {
