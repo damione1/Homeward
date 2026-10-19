@@ -56,22 +56,41 @@ type Status struct {
 	Checkpoint             uint64
 	Epoch                  string
 	LastError              error
+	ActiveCoverage         LiveCoverage
 }
 
+// LiveCoverage is a volatile, bounded at-risk interval. Its known count is a
+// lower bound from actual evictions, not the width of the interval. It is
+// separate from the durable SQL coverage and never claims a committed gap.
+type LiveCoverage struct {
+	epoch         storage.RecorderEpoch
+	from, through uint64
+	knownLost     uint64
+	hasKnownLost  bool
+	present       bool
+}
+
+func (c LiveCoverage) Bounds() (storage.RecorderEpoch, uint64, uint64, bool) {
+	return c.epoch, c.from, c.through, c.present
+}
+func (c LiveCoverage) KnownLost() (uint64, bool) { return c.knownLost, c.hasKnownLost }
+
 type Recorder struct {
-	sequence     *sequencer.Sequencer
-	writer       Writer
-	limits       Limits
-	epoch        storage.RecorderEpoch
-	sub          *sequencer.Subscription
-	mu           sync.Mutex
-	status       Status
-	stopCtx      context.Context
-	stopBoundary uint64
-	readCtx      context.Context
-	readCancel   context.CancelFunc
-	done         chan struct{}
-	doneErr      error
+	sequence                                           *sequencer.Sequencer
+	writer                                             Writer
+	limits                                             Limits
+	epoch                                              storage.RecorderEpoch
+	sub                                                *sequencer.Subscription
+	mu                                                 sync.Mutex
+	status                                             Status
+	stopCtx                                            context.Context
+	stopBoundary                                       uint64
+	readCtx                                            context.Context
+	readCancel                                         context.CancelFunc
+	done                                               chan struct{}
+	doneErr                                            error
+	activeLossFrom, activeLossThrough, activeKnownLost uint64
+	activeLossPresent, activeKnownValid                bool
 }
 
 type pending struct {
@@ -186,7 +205,20 @@ func (r *Recorder) Status() (Status, error) {
 	r.mu.Lock()
 	status := r.status
 	sub := r.sub
+	activeFrom, activeThrough, activeCount := r.activeLossFrom, r.activeLossThrough, r.activeKnownLost
+	activePresent, activeValid := r.activeLossPresent, r.activeKnownValid
 	r.mu.Unlock()
+	cursor, cursorErr := r.sequence.RecorderCursor()
+	if cursorErr == nil {
+		epochText, through, err := cursor.Components()
+		if err == nil && epochText == status.Epoch && through > status.Checkpoint {
+			status.ActiveCoverage = LiveCoverage{epoch: r.epoch, from: status.Checkpoint + 1, through: through, present: true}
+			if activePresent && activeValid && activeFrom >= status.ActiveCoverage.from && activeThrough <= through {
+				status.ActiveCoverage.knownLost = activeCount
+				status.ActiveCoverage.hasKnownLost = activeCount > 0
+			}
+		}
+	}
 	if sub != nil {
 		queue, err := sub.Status()
 		if err == nil {
@@ -197,6 +229,17 @@ func (r *Recorder) Status() (Status, error) {
 			if queue.Lost > 0 || queue.PendingLoss != nil || !queue.ReplayValid {
 				status.HistoryDegraded = true
 				status.ReconciliationComplete = false
+			}
+			if queue.PendingLoss != nil && status.ActiveCoverage.present {
+				fromEpoch, from, fromErr := queue.PendingLoss.From.Components()
+				toEpoch, through, toErr := queue.PendingLoss.To.Components()
+				if fromErr == nil && toErr == nil && fromEpoch == status.Epoch && toEpoch == status.Epoch &&
+					from >= status.ActiveCoverage.from && through <= status.ActiveCoverage.through &&
+					queue.PendingLoss.Count > 0 &&
+					queue.PendingLoss.Count <= ^uint64(0)-status.ActiveCoverage.knownLost {
+					status.ActiveCoverage.knownLost += queue.PendingLoss.Count
+					status.ActiveCoverage.hasKnownLost = true
+				}
 			}
 		}
 	}
@@ -346,7 +389,10 @@ func (r *Recorder) run(checkpoint uint64) {
 				result = ErrInvalidRecorder
 				return
 			}
-			r.addLoss(loss.Count)
+			if err := r.addLoss(loss); err != nil {
+				result = err
+				return
+			}
 			if p.ready() && p.through > p.from {
 				if err := r.flush(&p, &checkpoint); err != nil {
 					result = err
@@ -414,7 +460,20 @@ func growBackoff(current time.Duration) time.Duration {
 	return current * 2
 }
 
-func (r *Recorder) addLoss(count uint64) {
+func (r *Recorder) addLoss(loss sequencer.Loss) error {
+	fromEpoch, from, err := loss.From.Components()
+	if err != nil {
+		return ErrInvalidRecorder
+	}
+	toEpoch, through, err := loss.To.Components()
+	if err != nil || fromEpoch != r.status.Epoch || toEpoch != r.status.Epoch || from == 0 || through < from || loss.Count == 0 || loss.Count > through-from+1 {
+		return ErrInvalidRecorder
+	}
+	r.recordLoss(from, through, loss.Count)
+	return nil
+}
+
+func (r *Recorder) recordLoss(from, through, count uint64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.status.HistoryDegraded = true
@@ -423,6 +482,35 @@ func (r *Recorder) addLoss(count uint64) {
 		r.status.LostEntries = ^uint64(0)
 	} else {
 		r.status.LostEntries += count
+	}
+	if !r.activeLossPresent {
+		r.activeLossFrom, r.activeLossThrough, r.activeKnownLost = from, through, count
+		r.activeLossPresent, r.activeKnownValid = true, true
+	} else {
+		if from < r.activeLossFrom {
+			r.activeLossFrom = from
+		}
+		if through > r.activeLossThrough {
+			r.activeLossThrough = through
+		}
+		if count > ^uint64(0)-r.activeKnownLost {
+			r.activeKnownValid = false
+		} else {
+			r.activeKnownLost += count
+		}
+	}
+}
+
+func (r *Recorder) trimActiveLoss(checkpoint uint64) {
+	if !r.activeLossPresent {
+		return
+	}
+	if r.activeLossThrough <= checkpoint {
+		r.activeLossFrom, r.activeLossThrough, r.activeKnownLost = 0, 0, 0
+		r.activeLossPresent, r.activeKnownValid = false, false
+	} else if r.activeLossFrom <= checkpoint {
+		r.activeLossFrom = checkpoint + 1
+		r.activeKnownLost, r.activeKnownValid = 0, false
 	}
 }
 
@@ -471,7 +559,7 @@ func (r *Recorder) accept(p *pending, entry sequencer.Entry) error {
 			if len(p.gaps) > 32 {
 				p.collapseToGap()
 			}
-			r.addLoss(1)
+			r.recordLoss(sequence, sequence, 1)
 			return nil
 		}
 		if err != nil {
@@ -487,7 +575,7 @@ func (r *Recorder) accept(p *pending, entry sequencer.Entry) error {
 			if len(p.gaps) > 32 {
 				p.collapseToGap()
 			}
-			r.addLoss(1)
+			r.recordLoss(sequence, sequence, 1)
 			return nil
 		}
 		p.rows = append(p.rows, row)
@@ -639,6 +727,7 @@ func (r *Recorder) flush(p *pending, checkpoint *uint64) error {
 	*checkpoint = batch.Through()
 	r.mu.Lock()
 	r.status.Checkpoint = *checkpoint
+	r.trimActiveLoss(*checkpoint)
 	r.status.PendingBytes = 0
 	if abandoned > ^uint64(0)-r.status.LostEntries {
 		r.status.LostEntries = ^uint64(0)
@@ -766,6 +855,7 @@ func (r *Recorder) reconcile(p *pending, checkpoint *uint64, knownLoss uint64) (
 	*checkpoint = through
 	r.mu.Lock()
 	r.status.Checkpoint = through
+	r.trimActiveLoss(through)
 	if abandoned > ^uint64(0)-r.status.LostEntries {
 		r.status.LostEntries = ^uint64(0)
 	} else {
@@ -871,7 +961,9 @@ func (r *Recorder) drain(ctx context.Context, boundary uint64, p *pending, check
 			if !ok {
 				return ErrInvalidRecorder
 			}
-			r.addLoss(loss.Count)
+			if err := r.addLoss(loss); err != nil {
+				return err
+			}
 			if err := p.addLoss(loss, r.limits, r.status.Epoch); err != nil {
 				return err
 			}
