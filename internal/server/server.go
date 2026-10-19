@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
@@ -377,19 +378,52 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
 		})
 	}
+	listRun, err := newListComposition(store, sessions.authority)
+	if err != nil {
+		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+		})
+	}
+	listDrain := newListRuntimeDrain(listRun)
+	closeListPrepared := func(stopCtx context.Context, cause error, jobs *durableJobsRuntime, triggerDone <-chan struct{}) error {
+		listDone := listDrain.beginClose()
+		runtimeErr := closePreparedRuntimeWithContext(stopCtx, host, authorization, store, cause, reactive, recording, jobs, sessions.mfa, triggerDone, listDone)
+		return errors.Join(runtimeErr, listDrain.close(stopCtx))
+	}
+	if dependencies.observeLists != nil {
+		dependencies.observeLists(listRun, sessions)
+	}
+	if err := ctx.Err(); err != nil {
+		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
+		})
+	}
+	if plan.Public == nil {
+		plan.Public, err = NewPublicPlan(nil, nil, accountTransportAudit{store: store})
+		if err != nil {
+			return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+				return closeListPrepared(stopCtx, err, nil, triggerDone)
+			})
+		}
+	}
+	if err := listRun.Register(plan.Public); err != nil {
+		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
+		})
+	}
 	// Preserve prepared owners until composition succeeds; errors return nil
 	// outputs, but cleanup must still drain the original MFA runtime.
 	composedPublic, composedSessions, err := composeSessionsWithCoordinator(plan.Public, store, sessions)
 	if err != nil {
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
 	plan.Public, sessions = composedPublic, composedSessions
 	public, err := compilePublicPlan(plan.Public, publicSettings)
 	if err != nil {
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
 	// The one command service must be registered before Supervisor freezes Host.
@@ -398,14 +432,14 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	if err != nil {
 		durableJobs.CloseAdmissions()
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, durableJobs, sessions.mfa, triggerDone)
+			return closeListPrepared(stopCtx, err, durableJobs, triggerDone)
 		})
 	}
 	supervisor, err := integrations.NewSupervisor(host, plan.Pilots, integrations.DefaultRetryPolicy(), integrations.RealTimer{}, integrations.RandomJitter{})
 	if err != nil {
 		durableJobs.CloseAdmissions()
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, durableJobs, sessions.mfa, triggerDone)
+			return closeListPrepared(stopCtx, err, durableJobs, triggerDone)
 		})
 	}
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -413,7 +447,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		lifecycleCancel()
 		durableJobs.CloseAdmissions()
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, durableJobs, sessions.mfa, triggerDone)
+			return closeListPrepared(stopCtx, err, durableJobs, triggerDone)
 		})
 	}
 	err = authorization.openAdmissions()
@@ -436,6 +470,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		}
 		sceneDone := beginCloseScriptScenes(plan.AutomationRuns)
 		mfaDone := sessions.mfa.beginClose()
+		listDone := listDrain.beginClose()
 		stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		jobsStop := make(chan error, 1)
 		go func() { jobsStop <- durableJobs.Close(stopCtx) }()
@@ -446,11 +481,12 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		runErr := drainAutomationRuns(stopCtx, runs)
 		sceneErr := drainScriptScenes(stopCtx, plan.AutomationRuns)
 		mfaErr := sessions.mfa.close(stopCtx)
+		listErr := listDrain.close(stopCtx)
 		jobsErr := <-jobsStop
 		recorderErr := drainRecorder(stopCtx, recording)
 		cancel()
-		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, mfaDone, durableJobs.Done(), recording.Done())
-		return errors.Join(err, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, mfaErr, jobsErr, recorderErr)
+		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, mfaDone, listDone, durableJobs.Done(), recording.Done())
+		return errors.Join(err, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, mfaErr, listErr, jobsErr, recorderErr)
 	}
 	var reactiveDone <-chan struct{}
 	if reactive != nil {
@@ -520,6 +556,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	}
 	sceneDone := beginCloseScriptScenes(plan.AutomationRuns)
 	mfaDone := sessions.mfa.beginClose()
+	listDone := listDrain.beginClose()
 	stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	authorizationStop := make(chan error, 1)
 	go func() { authorizationStop <- authorization.Close(stopCtx) }()
@@ -535,11 +572,12 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	runErr := drainAutomationRuns(stopCtx, runs)
 	sceneErr := drainScriptScenes(stopCtx, plan.AutomationRuns)
 	mfaErr := sessions.mfa.close(stopCtx)
+	listErr := listDrain.close(stopCtx)
 	jobsErr := <-jobsStop
 	recorderErr := drainRecorder(stopCtx, recording)
 	cancel()
-	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, mfaDone, durableJobs.Done(), recording.Done())
-	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, mfaErr, jobsErr, recorderErr)
+	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, mfaDone, listDone, durableJobs.Done(), recording.Done())
+	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, mfaErr, listErr, jobsErr, recorderErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured
@@ -745,4 +783,43 @@ func runListener(ctx context.Context, c config.Config, listen ListenFunc, ready 
 	}
 	_, err = runPublicListener(ctx, c, listen, ready, public, settings)
 	return err
+}
+
+// listRuntimeDrain owns exactly one close goroutine. Service.Close can wait
+// beyond the runtime budget on an inherited Authority barrier. Its true Done
+// remains part of Store retention even after close reports that budget.
+type listRuntimeDrain struct {
+	lists *listComposition
+	once  sync.Once
+	done  chan struct{}
+	err   error
+}
+
+func newListRuntimeDrain(lists *listComposition) *listRuntimeDrain {
+	return &listRuntimeDrain{lists: lists, done: make(chan struct{})}
+}
+
+func (d *listRuntimeDrain) beginClose() <-chan struct{} {
+	d.once.Do(func() {
+		go func() {
+			d.err = d.lists.Close()
+			close(d.done)
+		}()
+	})
+	return d.done
+}
+
+func (d *listRuntimeDrain) close(ctx context.Context) error {
+	done := d.beginClose()
+	select {
+	case <-done:
+		return d.err
+	default:
+	}
+	select {
+	case <-done:
+		return d.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
