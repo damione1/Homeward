@@ -17,6 +17,7 @@ import (
 	"github.com/damione1/Homeward/internal/recorder"
 	"github.com/damione1/Homeward/internal/solar"
 	"github.com/damione1/Homeward/internal/storage"
+	"github.com/damione1/Homeward/internal/workday"
 	"github.com/damione1/Homeward/internal/worker"
 
 	"go.yaml.in/yaml/v3"
@@ -34,6 +35,7 @@ type Config struct {
 	public   PublicSettings
 	recorder recorder.Limits
 	solar    *solar.Settings
+	workday  *workday.Settings
 }
 
 var ErrUninitialized = errors.New("configuration: uninitialized")
@@ -54,6 +56,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		Public   *publicInput            `yaml:"public"`
 		Recorder *RecorderInput          `yaml:"recorder"`
 		Solar    yaml.Node               `yaml:"solar"`
+		Workday  yaml.Node               `yaml:"workday"`
 		Workers  []struct {
 			Instance    string   `yaml:"instance"`
 			Executable  string   `yaml:"executable"`
@@ -91,6 +94,10 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 	}
 	result := Config{listen: endpoint, postgres: postgres, dataDir: raw.DataDir}
 	result.solar, err = parseSolarInput(raw.Solar)
+	if err != nil {
+		return Config{}, err
+	}
+	result.workday, err = parseWorkdayInput(raw.Workday)
 	if err != nil {
 		return Config{}, err
 	}
