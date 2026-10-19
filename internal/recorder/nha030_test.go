@@ -233,151 +233,11 @@ func (w *nha030Writer) CloseRecorderEpoch(_ context.Context, _ storage.RecorderE
 }
 
 func TestNHA030TimerFlushAndExcludedKinds(t *testing.T) {
-	host, fixture, err := fake.NewCommandFixture()
-	if err != nil {
-		t.Fatal(err)
-	}
-	writer := &nha030Writer{updated: make(chan struct{}, 8)}
-	recording, err := Start(context.Background(), fixture.Sequencer(), writer, DefaultLimits())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if writer.checkpoint.Sequence != 0 || len(writer.batches) != 1 || !writer.batches[0].HasImage() {
-		t.Fatal("initial image or epoch/0 was not committed before pilot start")
-	}
-	instance, err := domain.ParseIntegrationInstanceID("nha030-fake")
-	if err != nil {
-		t.Fatal(err)
-	}
-	session, err := host.OpenSession(instance)
-	if err != nil {
-		t.Fatal(err)
-	}
-	driver, err := fake.NewDriver(time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC))
-	if err != nil {
-		t.Fatal(err)
-	}
-	started := time.Now()
-	if err := driver.Start(context.Background(), session); err != nil {
-		t.Fatal(err)
-	}
-	deadline := time.NewTimer(3 * time.Second)
-	defer deadline.Stop()
-	for {
-		writer.mu.Lock()
-		count := len(writer.batches)
-		var batch storage.RecorderBatch
-		if count > 1 {
-			batch = writer.batches[1]
-		}
-		writer.mu.Unlock()
-		if count > 1 {
-			if elapsed := time.Since(started); elapsed < 100*time.Millisecond {
-				t.Fatalf("sub-threshold batch flushed before timer: %v", elapsed)
-			}
-			if batch.StateCount() != 1 || batch.HasImage() || batch.Through() < 3 {
-				t.Fatalf("state and excluded kinds were confused: states=%d image=%v through=%d", batch.StateCount(), batch.HasImage(), batch.Through())
-			}
-			break
-		}
-		select {
-		case <-writer.updated:
-		case <-deadline.C:
-			t.Fatal("sub-threshold state did not flush without another report")
-		}
-	}
-	status, err := recording.Status()
-	if err != nil || status.PolicyExcluded < 2 {
-		t.Fatalf("non-state policy coverage absent: %+v %v", status, err)
-	}
-	if err := host.CloseAdmissions(); err != nil {
-		t.Fatal(err)
-	}
-	stopCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := recording.Stop(stopCtx); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-recording.Done():
-	default:
-		t.Fatal("Done remained open after drain")
-	}
+	nha183TimerBoundary(t)
 }
 
 func TestNHA030CountThresholdFlushesFiveHundredStates(t *testing.T) {
-	host, fixture, err := fake.NewCommandFixture()
-	if err != nil {
-		t.Fatal(err)
-	}
-	instance, err := domain.ParseIntegrationInstanceID("nha030-count-threshold")
-	if err != nil {
-		t.Fatal(err)
-	}
-	session, err := host.OpenSession(instance)
-	if err != nil {
-		t.Fatal(err)
-	}
-	driver, err := fake.NewDriver(time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := driver.Start(context.Background(), session); err != nil {
-		t.Fatal(err)
-	}
-	binding, err := driver.Binding()
-	if err != nil {
-		t.Fatal(err)
-	}
-	writer := &nha030Writer{updated: make(chan struct{}, 8)}
-	recording, err := Start(context.Background(), fixture.Sequencer(), writer, DefaultLimits())
-	if err != nil {
-		t.Fatal(err)
-	}
-	quality, err := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
-	if err != nil {
-		t.Fatal(err)
-	}
-	at := time.Date(2026, 10, 18, 12, 0, 1, 0, time.UTC)
-	for i := 0; i < FlushStates; i++ {
-		value := domain.NewSwitchValue(i%2 == 0)
-		observation, err := integrations.NewStateObservation("relay", quality, &value, &at, at, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := session.Publish(context.Background(), binding, observation); err != nil {
-			t.Fatal(err)
-		}
-	}
-	deadline := time.After(3 * time.Second)
-	for {
-		writer.mu.Lock()
-		count := len(writer.batches)
-		states := 0
-		if count > 1 {
-			states = writer.batches[1].StateCount()
-		}
-		writer.mu.Unlock()
-		if count > 1 {
-			if states != FlushStates {
-				t.Fatalf("count threshold split unexpectedly: first batch has %d states", states)
-			}
-			break
-		}
-		select {
-		case <-writer.updated:
-		case <-deadline:
-			t.Fatal("500-state threshold did not flush")
-		}
-	}
-	if err := host.CloseAdmissions(); err != nil {
-		t.Fatal(err)
-	}
-	stopCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := recording.Stop(stopCtx); err != nil {
-		t.Fatal(err)
-	}
+	nha183CountBoundary(t)
 }
 
 func TestNHA030EncodedByteThresholdFlushesBeforeCount(t *testing.T) {
@@ -425,10 +285,10 @@ func TestNHA030EncodedByteThresholdFlushesBeforeCount(t *testing.T) {
 		t.Fatalf("measurement binding: %v %d", err, len(bindings))
 	}
 	writer := &nha030Writer{updated: make(chan struct{}, 8)}
-	recording, err := Start(context.Background(), fixture.Sequencer(), writer, DefaultLimits())
-	if err != nil {
-		t.Fatal(err)
-	}
+	controlled := &nha183Fixture{clock: newNHA183Clock(), host: host, fixture: fixture, writer: writer}
+	controlled.spy = &nha183ObservedWriter{writer: writer, clock: controlled.clock}
+	before := controlled.startRecorder(t)
+	recording := controlled.recording
 	unit, err := units.Parse(longUnit)
 	if err != nil {
 		t.Fatal(err)
@@ -455,26 +315,18 @@ func TestNHA030EncodedByteThresholdFlushesBeforeCount(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	deadline := time.After(3 * time.Second)
-	for {
-		writer.mu.Lock()
-		count := len(writer.batches)
-		var first storage.RecorderBatch
-		if count > 1 {
-			first = writer.batches[1]
-		}
-		writer.mu.Unlock()
-		if count > 1 {
-			if first.StateCount() >= FlushStates || first.StateCount() == 0 || first.EncodedStateBytes() < FlushEncodedBytes {
-				t.Fatalf("encoded threshold did not produce a state batch: states=%d encoded=%d", first.StateCount(), first.EncodedStateBytes())
-			}
-			break
-		}
-		select {
-		case <-writer.updated:
-		case <-deadline:
-			t.Fatal("encoded-byte threshold did not flush")
-		}
+	controlled.awaitPrefix(t, before, 7)
+	batches, checkpoint := nha183Batches(writer)
+	if len(batches) < 2 {
+		t.Fatal("encoded-byte threshold did not flush at frozen time")
+	}
+	first := batches[1]
+	if first.StateCount() >= FlushStates || first.StateCount() == 0 || first.EncodedStateBytes() < FlushEncodedBytes {
+		t.Fatalf("encoded threshold did not produce a state batch: states=%d encoded=%d", first.StateCount(), first.EncodedStateBytes())
+	}
+	expected := nha183ExpectedBatch(t, fixture.Sequencer(), first.Epoch(), first.From(), first.Through())
+	if first.Digest() != expected.Digest() || !checkpoint.Confirms(first) || controlled.clock.snapshot().expired != 0 {
+		t.Fatal("encoded threshold changed content/checkpoint or required a timer expiration")
 	}
 	if err := host.CloseAdmissions(); err != nil {
 		t.Fatal(err)
