@@ -1,0 +1,48 @@
+{
+  "ha": [
+    {
+      "id": "ups-legacy",
+      "raw": {
+        "native": {
+          "type": "float",
+          "value": 0.0
+        },
+        "text": "0.0"
+      }
+    },
+    {
+      "id": "floor-legacy",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 0
+        },
+        "text": "0"
+      }
+    },
+    {
+      "id": "hvac-legacy",
+      "raw": {
+        "native": {
+          "type": "int",
+          "value": 0
+        },
+        "text": "0"
+      }
+    }
+  ],
+  "inputs": {
+    "cases_sha256": "cefb8307ec0f1210da9098e49a0c367447d7059e027884e2e3ea2aad001d4480",
+    "ha_worker_sha256": "1ce968bef1d9f4a7ce20c24b6fb8b94a7adb1b5713874f33c8d63c093b9e68fa"
+  },
+  "reference": {
+    "image_index": "sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0",
+    "image_manifest": "sha256:17100609af8bb79bf5390f5d514b9aaeb00d184ce758f37769cd80c450851db7",
+    "platform": "linux/arm64",
+    "runtime": {
+      "homeassistant": "2026.10.1",
+      "jinja2": "3.1.6",
+      "python": "3.14.6"
+    }
+  }
+}

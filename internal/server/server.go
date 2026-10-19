@@ -181,7 +181,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		workers := c.ExternalWorkers()
 		solarSettings, solarEnabled := c.SolarSettings()
 		workdaySettings, workdayEnabled := c.WorkdaySettings()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || hasActiveHelpers || solarEnabled || workdayEnabled {
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
@@ -228,6 +228,13 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			}
 		}
 	}
+	var derivedConfiguration *derivedPowerConfiguration
+	if c.DerivedPowerProfile().Enabled() {
+		derivedConfiguration, err = addConfiguredDerivedPower(&plan)
+		if err != nil {
+			return closeStoreWithRecorder(store, recording, err)
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return closeStoreWithRecorder(store, recording, err)
 	}
@@ -272,6 +279,11 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	}
 	if plan.Configure != nil {
 		if err := plan.Configure(ctx, host, store); err != nil {
+			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+		}
+	}
+	if derivedConfiguration != nil {
+		if err := derivedConfiguration.prepare(ctx, host, &plan); err != nil {
 			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 	}

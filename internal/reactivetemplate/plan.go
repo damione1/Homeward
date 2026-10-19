@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"time"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/damione1/Homeward/compat/ha/template"
 	"github.com/damione1/Homeward/internal/config/bundle"
@@ -19,8 +20,11 @@ var ErrNotConverged = errors.New("reactive template: dependency cycle did not co
 var ErrWorkBudget = errors.New("reactive template: wake work budget exceeded")
 
 const (
-	MaxPrograms    = 64
-	MaxWorkPerWake = 262144
+	MaxPrograms          = 64
+	MaxWorkPerWake       = 262144
+	MaxReadsPerUpdate    = 128 // compat/ha/template's admitted trace ceiling.
+	MaxRetainedReadBytes = MaxPrograms * MaxReadsPerUpdate * int(unsafe.Sizeof(template.Read{}))
+	MaxQueuedReadBytes   = MaxPrograms * MaxReadsPerUpdate * int(unsafe.Sizeof(template.Read{}))
 )
 
 type ProgramID struct{ value string }
@@ -126,6 +130,40 @@ func (p Plan) WithScriptWaits(zone *time.Location) (Plan, error) {
 }
 func (p Plan) Active() bool { return len(p.definitions) > 0 || p.waitsEnabled }
 
+// WithDefinitions extends an admitted immutable plan in the same engine.
+// NewPlan rechecks the global program and target limits and copies inputs.
+func (p Plan) WithDefinitions(additions []Definition) (Plan, error) {
+	if p.zone == nil || len(additions) == 0 || len(p.definitions)+len(additions) > MaxPrograms {
+		return Plan{}, ErrInvalidPlan
+	}
+	definitions := make([]Definition, 0, len(p.definitions)+len(additions))
+	definitions = append(definitions, p.definitions...)
+	definitions = append(definitions, additions...)
+	next, err := NewPlan(definitions, p.groups, p.zone)
+	if err != nil {
+		return Plan{}, err
+	}
+	next.waitsEnabled = p.waitsEnabled
+	return next, nil
+}
+
+// WithPlan copies permanent definitions from another admitted plan while
+// preserving this plan's groups, zone, and transient wait capability.
+func (p Plan) WithPlan(additions Plan) (Plan, error) {
+	if additions.zone == nil || additions.waitsEnabled {
+		return Plan{}, ErrInvalidPlan
+	}
+	return p.WithDefinitions(additions.definitions)
+}
+
+func (p Plan) ProgramIDs() []ProgramID {
+	ids := make([]ProgramID, len(p.definitions))
+	for i, definition := range p.definitions {
+		ids[i] = definition.id
+	}
+	return ids
+}
+
 type Clock interface {
 	Now() time.Time
 	NewTimer(time.Duration) Timer
@@ -163,6 +201,7 @@ type Update struct {
 	result     template.Result
 	valid      bool
 	quality    domain.Quality
+	reads      []template.Read
 	diagnostic Diagnostic
 	cursor     sequencer.Cursor
 }
@@ -184,11 +223,23 @@ func (u Update) CurrentResult() (template.Result, bool) {
 	}
 	return u.result, true
 }
-func (u Update) Quality() domain.Quality  { return u.quality }
+func (u Update) Quality() domain.Quality { return u.quality }
+
+// Reads is the bounded set evaluated at Cursor, including individual source
+// presence and provenance. The slice is never shared with callers.
+func (u Update) Reads() []template.Read   { return append([]template.Read(nil), u.reads...) }
 func (u Update) Diagnostic() Diagnostic   { return u.diagnostic }
 func (u Update) Cursor() sequencer.Cursor { return u.cursor }
 func (u Update) Equal(other Update) bool {
-	return u.id == other.id && u.valid == other.valid && u.quality == other.quality && u.diagnostic == other.diagnostic && (!u.valid || u.result.Equal(other.result))
+	if u.id != other.id || u.valid != other.valid || u.quality != other.quality || u.diagnostic != other.diagnostic || u.valid && !u.result.Equal(other.result) || len(u.reads) != len(other.reads) {
+		return false
+	}
+	for i := range u.reads {
+		if u.reads[i] != other.reads[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func nilClock(clock Clock) bool {

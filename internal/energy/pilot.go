@@ -273,6 +273,22 @@ func (p *Pilot) run(ctx context.Context, host integrations.SessionHost, counters
 			if e := p.publishPending(ctx, host, item); e != nil {
 				return e
 			}
+		} else {
+			// A restored checkpoint or an entirely new counter has no proven
+			// live source. Publish absence through this counter's own Host binding.
+			before := item.state
+			next, e := MissingSource(before, time.Now().UTC())
+			if e != nil {
+				return e
+			}
+			saved, e := p.repository.Save(ctx, before, next)
+			if e != nil {
+				return e
+			}
+			item.state = saved
+			if e := p.publishPending(ctx, host, item); e != nil {
+				return e
+			}
 		}
 	}
 	for ctx.Err() == nil {

@@ -3,6 +3,7 @@ package reactivetemplate
 import (
 	"errors"
 	"time"
+	"unsafe"
 
 	"github.com/damione1/Homeward/compat/ha/template"
 	"github.com/damione1/Homeward/internal/domain"
@@ -43,7 +44,7 @@ func (e *engine) recomputeAt(now time.Time) ([]Update, error) {
 	values := make(map[ProgramID]candidate, len(definitions))
 	for _, definition := range definitions {
 		if old, ok := e.outputs[definition.id]; ok {
-			values[definition.id] = candidate{result: old.result, valid: old.valid, quality: old.quality, deps: append([]template.Dependency(nil), e.readers[definition.id]...), diagnostic: old.diagnostic}
+			values[definition.id] = candidate{result: old.result, valid: old.valid, quality: old.quality, reads: append([]template.Read(nil), old.reads...), deps: append([]template.Dependency(nil), e.readers[definition.id]...), diagnostic: old.diagnostic}
 		}
 	}
 	maxWork := MaxWorkPerWake
@@ -175,14 +176,22 @@ func (e *engine) recomputeAt(now time.Time) ([]Update, error) {
 	work += watchCost
 	changes := make([]Update, 0, len(definitions))
 	e.activeMinute = false
+	retainedReadBytes := 0
 	for _, definition := range definitions {
 		value := values[definition.id]
+		if len(value.reads) > MaxReadsPerUpdate {
+			return nil, ErrWorkBudget
+		}
+		retainedReadBytes += len(value.reads) * int(unsafe.Sizeof(template.Read{}))
+		if retainedReadBytes > MaxRetainedReadBytes {
+			return nil, ErrWorkBudget
+		}
 		for _, dep := range value.active {
 			if dep.Kind() == template.DependencyMinute {
 				e.activeMinute = true
 			}
 		}
-		update := Update{id: definition.id, result: value.result, valid: value.valid, quality: value.quality, diagnostic: value.diagnostic, cursor: e.snapshot.Cursor}
+		update := Update{id: definition.id, result: value.result, valid: value.valid, quality: value.quality, reads: append([]template.Read(nil), value.reads...), diagnostic: value.diagnostic, cursor: e.snapshot.Cursor}
 		old, exists := e.outputs[definition.id]
 		if !exists || !old.Equal(update) {
 			changes = append(changes, update)
@@ -294,8 +303,9 @@ func (e *engine) renderComponent(base template.ReadView, values map[ProgramID]ca
 				return used + tracked.Steps(), nil
 			}
 			deps := tracked.Dependencies()
-			cost := tracked.Steps() + len(deps) + len(tracked.Reads()) + 1
-			value := candidate{deps: deps, active: deps, quality: qualityFromReads(tracked.Reads()), diagnostic: DiagnosticHealthy}
+			reads := tracked.Reads()
+			cost := tracked.Steps() + len(deps) + len(reads) + 1
+			value := candidate{deps: deps, active: deps, reads: reads, quality: qualityFromReads(reads), diagnostic: DiagnosticHealthy}
 			if renderErr == nil {
 				value.result, value.valid = tracked.Result()
 				cost += value.result.WorkUnits()

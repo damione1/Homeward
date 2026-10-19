@@ -153,9 +153,23 @@ func (l Lease) validFor(report ReportIdentity, reportTick time.Duration) bool {
 	return l.report.valid() && l.report == report && l.startTick == reportTick && l.untilTick > l.startTick
 }
 
-// PendingProjection is the exact quantized live value committed with the
-// checkpoint. A failed Host publication reuses this value, never an integral.
+// PendingKind separates an admitted accumulated value from explicit absence.
+// Its zero value is invalid in memory; repository decoding admits old rows
+// without a kind as PendingValue at the storage boundary.
+type PendingKind uint8
+
+const (
+	PendingUnspecified PendingKind = iota
+	PendingValue
+	PendingMissingSource
+)
+
+func (k PendingKind) valid() bool { return k == PendingValue || k == PendingMissingSource }
+
+// PendingProjection is the exact Host report committed with the checkpoint.
+// A failed publication reuses it; missing source never quantizes as 0 kWh.
 type PendingProjection struct {
+	kind       PendingKind
 	revision   uint64
 	generation uint64
 	quantized  int64
@@ -170,14 +184,25 @@ type PendingProjection struct {
 func (p PendingProjection) Revision() uint64   { return p.revision }
 func (p PendingProjection) Generation() uint64 { return p.generation }
 func (p PendingProjection) Coverage() Coverage { return p.coverage }
+func (p PendingProjection) Kind() PendingKind  { return p.kind }
 
 // Observation is reconstructed solely from committed projection fields.
 // All derived energy remains estimated, even when source power was observed.
 func (p PendingProjection) Observation() (integrations.StateObservation, error) {
-	if p.revision == 0 || p.generation == 0 || p.quantized < 0 || p.quantized > maxQuantized || !p.coverage.valid() ||
+	if !p.kind.valid() || p.revision == 0 || p.generation == 0 || p.quantized < 0 || p.quantized > maxQuantized || !p.coverage.valid() ||
 		p.precision < 0 || p.precision > 9 || p.createdAt.IsZero() ||
 		(p.freshness != domain.FreshnessFresh && p.freshness != domain.FreshnessStale) {
 		return integrations.StateObservation{}, ErrInvalidCheckpoint
+	}
+	if p.kind == PendingMissingSource {
+		if p.quantized != 0 || p.freshness != domain.FreshnessStale {
+			return integrations.StateObservation{}, ErrInvalidCheckpoint
+		}
+		quality, err := domain.NewQuality(domain.AvailabilityUnavailable, domain.FreshnessStale, domain.ProvenanceEstimated)
+		if err != nil {
+			return integrations.StateObservation{}, err
+		}
+		return integrations.NewStateObservation("energy", quality, nil, nil, p.createdAt, nil)
 	}
 	factor := math.Pow10(p.precision)
 	measurement, err := domain.NewMeasurement(float64(p.quantized)/factor, p.unit, p.precision, p.semantic, domain.AggregationSum)
@@ -212,9 +237,12 @@ type Checkpoint struct {
 	fenceCursor      uint64
 	coverage         Coverage
 	diagnostic       Diagnostic
-	pending          PendingProjection
-	hasPending       bool
-	hasEnergy        bool
+	// Current energy presence survives Host acknowledgment; pending is only
+	// the delivery slot. A missing current value can coexist with an old total.
+	currentKind PendingKind
+	pending     PendingProjection
+	hasPending  bool
+	hasEnergy   bool
 }
 
 func newCheckpoint(profile Profile) Checkpoint {
