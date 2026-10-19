@@ -1,5 +1,7 @@
 """Synthetic, device-free Host v1 worker using generated Python gRPC stubs."""
 import argparse
+from concurrent.futures import Future, TimeoutError as FutureTimeout
+import enum
 import json
 import os
 import pathlib
@@ -26,6 +28,165 @@ def mark(path, text):
             output.write(text + "\n")
 
 
+class _CommandPhase(enum.Enum):
+    NEW = "new"
+    PENDING = "pending"
+    METADATA_OBSERVED = "metadata_observed"
+    ADMITTED = "admitted"
+    FAILED = "failed"
+    CLOSED = "closed"
+
+
+class _CommandFailure(enum.Enum):
+    INVALID_TRANSITION = "invalid_transition"
+    CLOSED = "closed"
+    FIRST_HEADERS_MISSING = "first_headers_missing"
+    METADATA_FAILED = "metadata_failed"
+    FIRST_STREAM_ENDED = "first_stream_ended"
+    PROBE_MISSING = "probe_missing"
+    PROBE_MESSAGE = "probe_message"
+    PROBE_STATUS = "probe_status"
+    WAITER_JOIN = "waiter_join"
+    CALL_JOIN = "call_join"
+
+
+class _CommandStreamError(RuntimeError):
+    def __init__(self, reason, code=None):
+        self.reason, self.code = reason, code
+        super().__init__(reason.value + (":" + code.name if code is not None else ""))
+
+
+class _CommandStream:
+    """Private fixture admission; both worker paths use this exact implementation."""
+    def __init__(self, stub, metadata, probe_timeout, deadline=None):
+        if type(probe_timeout) is not int or probe_timeout not in (2, 5):
+            raise ValueError("command probe timeout must be the existing 2 or 5 seconds")
+        self._stub, self._metadata = stub, tuple(metadata)
+        self._probe_timeout = probe_timeout
+        self._deadline = time.monotonic() + 5 if deadline is None else deadline
+        self._phase = _CommandPhase.NEW
+        self._lock = threading.Lock()
+        self._calls, self._threads = [], []
+
+    @property
+    def phase(self):
+        with self._lock:
+            return self._phase
+
+    def _advance(self, before, after):
+        with self._lock:
+            if self._phase is _CommandPhase.CLOSED:
+                raise _CommandStreamError(_CommandFailure.CLOSED)
+            if self._phase is not before:
+                raise _CommandStreamError(_CommandFailure.INVALID_TRANSITION)
+            self._phase = after
+
+    def _remaining(self, reason):
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise _CommandStreamError(reason)
+        return remaining
+
+    def _track(self, call):
+        with self._lock:
+            self._calls.append(call)
+            closed = self._phase is _CommandPhase.CLOSED
+        if closed:
+            call.cancel()
+            raise _CommandStreamError(_CommandFailure.CLOSED)
+        return call
+
+    def _wait(self, function, reason):
+        result = Future()
+
+        def receive():
+            try:
+                result.set_result(function())
+            except BaseException as error:
+                result.set_exception(error)
+
+        thread = threading.Thread(target=receive, daemon=False)
+        with self._lock:
+            if self._phase is _CommandPhase.CLOSED:
+                raise _CommandStreamError(_CommandFailure.CLOSED)
+            self._threads.append(thread)
+            thread.start()
+        try:
+            value = result.result(timeout=self._remaining(reason))
+        except FutureTimeout as error:
+            raise _CommandStreamError(reason) from error
+        thread.join(self._remaining(reason))
+        if thread.is_alive():
+            raise _CommandStreamError(_CommandFailure.WAITER_JOIN)
+        return value
+
+    @staticmethod
+    def _terminal_code(call):
+        if not call.done():
+            raise _CommandStreamError(_CommandFailure.INVALID_TRANSITION)
+        return call.code()
+
+    def _live(self, first):
+        if first.done():
+            raise _CommandStreamError(_CommandFailure.FIRST_STREAM_ENDED, self._terminal_code(first))
+
+    def open(self):
+        self._advance(_CommandPhase.NEW, _CommandPhase.PENDING)
+        try:
+            # No RPC timeout is attached to the long-lived first call.
+            first = self._track(self._stub.Commands(host_pb2.CommandsRequest(), metadata=self._metadata))
+            try:
+                self._wait(lambda: tuple(first.initial_metadata() or ()), _CommandFailure.FIRST_HEADERS_MISSING)
+            except _CommandStreamError:
+                raise
+            except BaseException as error:
+                raise _CommandStreamError(_CommandFailure.METADATA_FAILED) from error
+            self._live(first)
+            self._advance(_CommandPhase.PENDING, _CommandPhase.METADATA_OBSERVED)
+            probe = self._track(self._stub.Commands(host_pb2.CommandsRequest(), metadata=self._metadata,
+                                                  timeout=self._probe_timeout))
+
+            def rejected():
+                try:
+                    next(probe)
+                except grpc.RpcError:
+                    return self._terminal_code(probe)
+                except StopIteration:
+                    return self._terminal_code(probe)
+                raise _CommandStreamError(_CommandFailure.PROBE_MESSAGE)
+
+            code = self._wait(rejected, _CommandFailure.PROBE_MISSING)
+            if code is not grpc.StatusCode.ALREADY_EXISTS:
+                raise _CommandStreamError(_CommandFailure.PROBE_STATUS, code)
+            self._live(first)
+            self._advance(_CommandPhase.METADATA_OBSERVED, _CommandPhase.ADMITTED)
+            return first
+        except BaseException:
+            with self._lock:
+                if self._phase is not _CommandPhase.CLOSED:
+                    self._phase = _CommandPhase.FAILED
+            raise
+
+    def cancel(self):
+        with self._lock:
+            calls = tuple(self._calls)
+        for call in calls:
+            call.cancel()
+
+    def close(self, deadline):
+        with self._lock:
+            self._phase = _CommandPhase.CLOSED
+            calls, threads = tuple(self._calls), tuple(self._threads)
+        for call in calls:
+            call.cancel()
+        for thread in threads:
+            thread.join(max(0, deadline - time.monotonic()))
+        if any(thread.is_alive() for thread in threads):
+            raise _CommandStreamError(_CommandFailure.WAITER_JOIN)
+        if any(not call.done() for call in calls):
+            raise _CommandStreamError(_CommandFailure.CALL_JOIN)
+
+
 def run_conformance(args, stub, metadata, handles, stop_heartbeat):
     """Local simulator control only; every effect still crosses the real Host RPC."""
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as control:
@@ -35,6 +196,17 @@ def run_conformance(args, stub, metadata, handles, stop_heartbeat):
         write_lock = threading.Lock()
         frame_lock = threading.Lock()
         frames = {}
+        admission = _CommandStream(stub, metadata, 5)
+        stop_lock = threading.Lock()
+        stop_deadline = None
+        receiver_errors = []
+
+        def begin_stop():
+            nonlocal stop_deadline
+            with stop_lock:
+                if stop_deadline is None:
+                    stop_deadline = time.monotonic() + 5
+                return stop_deadline
 
         def send(message):
             with write_lock:
@@ -43,27 +215,47 @@ def run_conformance(args, stub, metadata, handles, stop_heartbeat):
 
         def receive_commands():
             try:
-                stream = stub.Commands(host_pb2.CommandsRequest(), metadata=metadata)
-                # The first stream is admitted before this probe can receive
-                # ALREADY_EXISTS. A stream with no queued command has no
-                # response headers yet, so initial_metadata() is not a barrier.
-                try:
-                    next(stub.Commands(host_pb2.CommandsRequest(), metadata=metadata, timeout=5))
-                    raise AssertionError("second command stream was admitted")
-                except grpc.RpcError as error:
-                    assert error.code() == grpc.StatusCode.ALREADY_EXISTS
+                mark(args.marker, "command_stream_opening")
+                stream = admission.open()
+                mark(args.marker, "first_stream_admitted")
                 send({"event": "ready"})
                 for frame in stream:
                     with frame_lock:
                         frames[frame.request.command_id] = frame
                     send({"event": "delivered", "id": frame.request.command_id})
+            except _CommandStreamError as error:
+                mark(args.marker, "command_stream_error:" + str(error))
+                try:
+                    send({"event": "stream_error", "code": error.code.name if error.code is not None else "INTERNAL"})
+                except OSError:
+                    pass
             except grpc.RpcError as error:
                 try:
                     send({"event": "stream_error", "code": error.code().name})
                 except OSError:
                     pass
+            except BaseException as error:
+                mark(args.marker, "command_stream_error:" + type(error).__name__)
+                try:
+                    send({"event": "stream_error", "code": "INTERNAL"})
+                except OSError:
+                    pass
+            finally:
+                deadline = begin_stop()
+                stop_heartbeat.set()
+                try:
+                    admission.close(deadline)
+                except BaseException as error:
+                    receiver_errors.append(error)
+                    mark(args.marker, "command_stream_error:cleanup:" + type(error).__name__)
+                finally:
+                    try:
+                        control.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
 
-        threading.Thread(target=receive_commands, daemon=True).start()
+        receiver = threading.Thread(target=receive_commands, daemon=False)
+        receiver.start()
         try:
             for line in reader:
                 instruction = json.loads(line)
@@ -117,7 +309,25 @@ def run_conformance(args, stub, metadata, handles, stop_heartbeat):
                     continue
                 send({"event": "applied", "id": command_id, "stimulus": stimulus})
         finally:
+            deadline = begin_stop()
             stop_heartbeat.set()
+            try:
+                control.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                admission.close(deadline)
+            finally:
+                receiver.join(max(0, deadline - time.monotonic()))
+                for file in (writer, reader):
+                    try:
+                        file.close()
+                    except OSError:
+                        pass
+            if receiver.is_alive():
+                raise _CommandStreamError(_CommandFailure.WAITER_JOIN)
+            if receiver_errors:
+                raise receiver_errors[0]
 
 
 def main():
@@ -275,22 +485,20 @@ def main():
                 gate.sendall(b"\x00")
                 assert gate.recv(1) == b"\x01"
                 mark(args.marker, "command_gate_released")
-        commands = stub.Commands(host_pb2.CommandsRequest(), metadata=metadata)
+        admission = _CommandStream(stub, metadata, 2)
         try:
-            next(stub.Commands(host_pb2.CommandsRequest(), metadata=metadata, timeout=2))
-            raise AssertionError("second command stream was admitted")
-        except grpc.RpcError as error:
-            assert error.code() == grpc.StatusCode.ALREADY_EXISTS
+            mark(args.marker, "command_stream_opening")
+            commands = admission.open()
+            mark(args.marker, "first_stream_admitted")
             mark(args.marker, "second_stream_rejected")
-        if args.mode == "new_hold":
-            stub.ReportHealth(host_pb2.ReportHealthRequest(
-                status=host_pb2.HEALTH_STATUS_READY,
-                detail="synthetic ready after initial snapshots"),
-                metadata=metadata, timeout=5)
-        if args.mode in ("hold", "new_hold", "many_hold"):
-            while True:
-                time.sleep(1)
-        try:
+            if args.mode == "new_hold":
+                stub.ReportHealth(host_pb2.ReportHealthRequest(
+                    status=host_pb2.HEALTH_STATUS_READY,
+                    detail="synthetic ready after initial snapshots"),
+                    metadata=metadata, timeout=5)
+            if args.mode in ("hold", "new_hold", "many_hold"):
+                while True:
+                    time.sleep(1)
             for frame in commands:
                 assert frame.request.command_id
                 assert frame.binding_handle in handles
@@ -316,10 +524,14 @@ def main():
                                               provenance=state_pb2.PROVENANCE_OBSERVED),
                     switch_on=on, command_correlation=frame.correlation)), metadata=metadata, timeout=5)
                 mark(args.marker, f"state:{number}:{frame.request.command_id}")
+        except _CommandStreamError as error:
+            mark(args.marker, "command_stream_error:" + str(error))
+            raise
         except grpc.RpcError:
             pass
         finally:
             stop_heartbeat.set()
+            admission.close(time.monotonic() + 5)
 
 
 if __name__ == "__main__":
