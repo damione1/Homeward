@@ -93,20 +93,10 @@ func (s *Sequencer) CaptureRecorder(previous *Subscription, after Cursor, maxSna
 		return left < right
 	})
 	cursor := Cursor{epoch: s.epoch, seq: s.seq}
-	var queue []Entry
 	capacity := s.limits.recorder
 	if capacity > MaxRecorderQueueEntries {
 		capacity = MaxRecorderQueueEntries
 	}
-	if previous != nil {
-		// Reuse the admitted mailbox allocation after the image succeeds;
-		// replacement must not temporarily own two full queue bodies.
-		clear(previous.queue)
-		queue = previous.queue[:0]
-	} else {
-		queue = make([]Entry, 0, capacity)
-	}
-	sub := &Subscription{owner: s, class: SubscriptionRecorder, capacity: capacity, queue: queue, maxBytes: maxQueueBytes, wake: make(chan struct{}), replayValid: true}
 	var abandonment *RecorderAbandonment
 	if previous != nil {
 		if after.seq < cursor.seq {
@@ -116,10 +106,23 @@ func (s *Sequencer) CaptureRecorder(previous *Subscription, after Cursor, maxSna
 				abandonment.PendingLoss = &loss
 			}
 		}
-		previous.closed = true
-		clear(previous.queue)
-		previous.queue = nil
+	}
+	var queue recorderQueue
+	if previous != nil {
+		// Detach the sole body only after the image and abandonment succeed.
+		// The old owner is zero before the successor takes ownership.
+		queue = recorderQueue{body: previous.recorder.release()}
 		previous.queueBytes = 0
+	} else {
+		var err error
+		queue, err = newRecorderQueue(capacity)
+		if err != nil {
+			return RecorderCapture{}, err
+		}
+	}
+	sub := &Subscription{owner: s, class: SubscriptionRecorder, capacity: capacity, recorder: queue, maxBytes: maxQueueBytes, wake: make(chan struct{}), replayValid: true}
+	if previous != nil {
+		previous.closed = true
 		delete(s.subs, previous)
 		previous.signal()
 	}

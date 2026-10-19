@@ -131,6 +131,7 @@ type Subscription struct {
 	class       SubscriptionClass
 	capacity    int
 	queue       []Entry
+	recorder    recorderQueue
 	queueBytes  int
 	maxBytes    int
 	wake        chan struct{}
@@ -215,9 +216,16 @@ func (s *Sequencer) subscribe(class SubscriptionClass) (*Subscription, Cursor, e
 	default:
 		return nil, Cursor{}, ErrInvalidInput
 	}
-	sub := &Subscription{owner: s, class: class, capacity: capacity, queue: make([]Entry, 0, capacity), wake: make(chan struct{}), replayValid: true}
+	sub := &Subscription{owner: s, class: class, capacity: capacity, wake: make(chan struct{}), replayValid: true}
 	if class == SubscriptionRecorder {
+		queue, err := newRecorderQueue(capacity)
+		if err != nil {
+			return nil, Cursor{}, err
+		}
+		sub.recorder = queue
 		sub.maxBytes = MaxRecorderQueueBytes
+	} else {
+		sub.queue = make([]Entry, 0, capacity)
 	}
 	s.subs[sub] = struct{}{}
 	return sub, Cursor{epoch: s.epoch, seq: s.seq}, nil
@@ -296,14 +304,15 @@ func (s *Sequencer) publish(entry Entry) {
 				sub.signal()
 				continue
 			}
-			for len(sub.queue) == sub.capacity || entry.estimatedBytes > sub.maxBytes-sub.queueBytes {
-				sub.addLoss(sub.queue[0], LossRecorderOverflow)
-				sub.queueBytes -= sub.queue[0].estimatedBytes
-				copy(sub.queue, sub.queue[1:])
-				sub.queue[len(sub.queue)-1] = Entry{}
-				sub.queue = sub.queue[:len(sub.queue)-1]
+			for sub.recorder.len() == sub.capacity || entry.estimatedBytes > sub.maxBytes-sub.queueBytes {
+				old, ok := sub.recorder.pop()
+				if !ok {
+					panic("invalid recorder queue accounting")
+				}
+				sub.addLoss(old, LossRecorderOverflow)
+				sub.queueBytes -= old.estimatedBytes
 			}
-			sub.queue = append(sub.queue, entry)
+			sub.recorder.push(entry)
 			sub.queueBytes += entry.estimatedBytes
 			sub.signal()
 		case SubscriptionView:
@@ -367,9 +376,16 @@ func (sub *Subscription) Next(ctx context.Context) (Delivery, error) {
 				return Delivery{}, ErrInvalidInput
 			}
 		}
-		if len(sub.queue) > 0 {
+		if sub.class == SubscriptionRecorder {
+			if entry, ok := sub.recorder.pop(); ok {
+				sub.queueBytes -= entry.estimatedBytes
+				valid := sub.replayValid
+				sub.owner.mu.Unlock()
+				return Delivery{kind: DeliveryEntry, entry: entry, replayValid: valid}, nil
+			}
+		} else if len(sub.queue) > 0 {
 			entry := sub.queue[0]
-			if sub.class == SubscriptionView || sub.class == SubscriptionRecorder {
+			if sub.class == SubscriptionView {
 				sub.queueBytes -= entry.estimatedBytes
 			}
 			copy(sub.queue, sub.queue[1:])
@@ -428,7 +444,11 @@ func (sub *Subscription) Status() (SubscriptionStatus, error) {
 	}
 	sub.owner.mu.Lock()
 	defer sub.owner.mu.Unlock()
-	status := SubscriptionStatus{Class: sub.class, Capacity: sub.capacity, Queued: len(sub.queue), QueuedBytes: sub.queueBytes, Lost: sub.lost, Coalesced: sub.coalesced, ReplayValid: sub.replayValid, Degraded: sub.degraded, Closed: sub.closed}
+	queued := len(sub.queue)
+	if sub.class == SubscriptionRecorder {
+		queued = sub.recorder.len()
+	}
+	status := SubscriptionStatus{Class: sub.class, Capacity: sub.capacity, Queued: queued, QueuedBytes: sub.queueBytes, Lost: sub.lost, Coalesced: sub.coalesced, ReplayValid: sub.replayValid, Degraded: sub.degraded, Closed: sub.closed}
 	if sub.loss != nil {
 		loss := *sub.loss
 		status.PendingLoss = &loss
@@ -446,6 +466,9 @@ func (sub *Subscription) Close() error {
 		return ErrSubscriptionClosed
 	}
 	sub.closed = true
+	if sub.class == SubscriptionRecorder {
+		sub.recorder.release()
+	}
 	sub.queue = nil
 	sub.queueBytes = 0
 	delete(sub.owner.subs, sub)
