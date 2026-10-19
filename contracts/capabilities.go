@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	helperwire "github.com/damione1/Homeward/gen/home/helpers/v1"
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	state "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/internal/domain"
@@ -31,6 +32,7 @@ const (
 	ClimateSchema     = "core.climate.v1"
 	MeasurementSchema = "core.measurement.v1"
 	BinarySchema      = "core.binary.v1"
+	HelperSchema      = "core.helper.v1"
 )
 
 var extensionSchema = regexp.MustCompile(`^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*\.v[1-9][0-9]*$`)
@@ -202,6 +204,10 @@ func (c *CapabilityCatalog) AdmitReadOnlyDriverCapability(d *registry.Capability
 		}
 	case *registry.CapabilityDescription_Measurement, *registry.CapabilityDescription_Binary:
 		return nil
+	case *registry.CapabilityDescription_Helper:
+		if constraints.Helper != nil && len(constraints.Helper.Operations) == 0 {
+			return nil
+		}
 	case *registry.CapabilityDescription_Extension:
 		// Even an extension without an advertised action is outside the
 		// closed set of observation contracts admitted for this policy.
@@ -392,6 +398,10 @@ func (c *CapabilityCatalog) validateDescription(d *registry.CapabilityDescriptio
 		if v := constraints.Binary.DeviceClass; v != nil && (strings.TrimSpace(*v) != *v || *v == "") {
 			return errors.New("invalid binary class")
 		}
+	case *registry.CapabilityDescription_Helper:
+		if constraints == nil || d.SchemaId != HelperSchema || !validHelperConstraints(constraints.Helper) {
+			return errors.New("helper schema/constraints mismatch")
+		}
 	case *registry.CapabilityDescription_Extension:
 		if constraints == nil || constraints.Extension == nil || !extensionSchema.MatchString(d.SchemaId) || strings.HasPrefix(d.SchemaId, "core.") {
 			return errors.New("invalid extension schema")
@@ -414,6 +424,157 @@ func uniqueOptions(options []string) bool {
 		seen[option] = true
 	}
 	return true
+}
+
+func admitWireHelperKind(kind helperwire.HelperKind) (domain.HelperKind, error) {
+	switch kind {
+	case helperwire.HelperKind_HELPER_KIND_BOOLEAN:
+		return domain.HelperBoolean, nil
+	case helperwire.HelperKind_HELPER_KIND_NUMBER:
+		return domain.HelperNumber, nil
+	case helperwire.HelperKind_HELPER_KIND_COUNTER:
+		return domain.HelperCounter, nil
+	case helperwire.HelperKind_HELPER_KIND_BUTTON_PRESS:
+		return domain.HelperButtonPress, nil
+	case helperwire.HelperKind_HELPER_KIND_DATE:
+		return domain.HelperDate, nil
+	case helperwire.HelperKind_HELPER_KIND_TIME:
+		return domain.HelperTime, nil
+	case helperwire.HelperKind_HELPER_KIND_DATETIME:
+		return domain.HelperDateTime, nil
+	case helperwire.HelperKind_HELPER_KIND_SELECT:
+		return domain.HelperSelect, nil
+	case helperwire.HelperKind_HELPER_KIND_TEXT:
+		return domain.HelperText, nil
+	default:
+		return domain.HelperInvalid, ErrInvalidCapability
+	}
+}
+
+func validHelperOperation(kind domain.HelperKind, operation helperwire.HelperOperation) bool {
+	switch kind {
+	case domain.HelperBoolean:
+		return operation == helperwire.HelperOperation_HELPER_OPERATION_SET || operation == helperwire.HelperOperation_HELPER_OPERATION_TOGGLE
+	case domain.HelperNumber, domain.HelperDate, domain.HelperTime, domain.HelperDateTime, domain.HelperText:
+		return operation == helperwire.HelperOperation_HELPER_OPERATION_SET
+	case domain.HelperSelect:
+		return operation == helperwire.HelperOperation_HELPER_OPERATION_SET || operation == helperwire.HelperOperation_HELPER_OPERATION_NEXT || operation == helperwire.HelperOperation_HELPER_OPERATION_PREVIOUS
+	case domain.HelperCounter:
+		return operation == helperwire.HelperOperation_HELPER_OPERATION_SET || operation == helperwire.HelperOperation_HELPER_OPERATION_INCREMENT || operation == helperwire.HelperOperation_HELPER_OPERATION_DECREMENT || operation == helperwire.HelperOperation_HELPER_OPERATION_RESET
+	case domain.HelperButtonPress:
+		return operation == helperwire.HelperOperation_HELPER_OPERATION_PRESS
+	default:
+		return false
+	}
+}
+
+func validHelperConstraints(c *helperwire.HelperConstraints) bool {
+	if c == nil || !knownFieldsOnly(c.ProtoReflect()) {
+		return false
+	}
+	kind, err := admitWireHelperKind(c.Kind)
+	if err != nil || len(c.Operations) > 8 {
+		return false
+	}
+	seen := make(map[helperwire.HelperOperation]bool, len(c.Operations))
+	for _, operation := range c.Operations {
+		if seen[operation] || !validHelperOperation(kind, operation) {
+			return false
+		}
+		seen[operation] = true
+	}
+	if c.UnavailableReason != helperwire.HelperReason_HELPER_REASON_UNSPECIFIED {
+		if kind != domain.HelperButtonPress || len(c.Operations) != 0 || c.UnavailableReason != helperwire.HelperReason_HELPER_REASON_NO_AUTHORIZED_TARGET {
+			return false
+		}
+	} else if len(c.Operations) == 0 {
+		return false
+	}
+	if len(c.SelectOptions) > 256 || (kind != domain.HelperSelect && len(c.SelectOptions) != 0) || (kind == domain.HelperSelect && (len(c.SelectOptions) == 0 || !uniqueOptions(c.SelectOptions))) {
+		return false
+	}
+	for _, option := range c.SelectOptions {
+		if _, err := domain.NewHelperSelect(option); err != nil {
+			return false
+		}
+	}
+	if kind == domain.HelperNumber {
+		if c.NumberMinimum == nil || c.NumberMaximum == nil || !finite(*c.NumberMinimum) || !finite(*c.NumberMaximum) || *c.NumberMinimum > *c.NumberMaximum || c.NumberStep == nil || !finite(*c.NumberStep) || *c.NumberStep <= 0 {
+			return false
+		}
+	} else if c.NumberMinimum != nil || c.NumberMaximum != nil || c.NumberStep != nil {
+		return false
+	}
+	if kind == domain.HelperCounter {
+		if c.CounterStep == nil || *c.CounterStep <= 0 || (c.CounterMinimum != nil && c.CounterMaximum != nil && *c.CounterMinimum > *c.CounterMaximum) {
+			return false
+		}
+	} else if c.CounterMinimum != nil || c.CounterMaximum != nil || c.CounterStep != nil {
+		return false
+	}
+	if kind == domain.HelperText {
+		if c.TextMinimumLength == nil || c.TextMaximumLength == nil || *c.TextMinimumLength > *c.TextMaximumLength || *c.TextMaximumLength > 255 {
+			return false
+		}
+	} else if c.TextMinimumLength != nil || c.TextMaximumLength != nil {
+		return false
+	}
+	return true
+}
+
+func helperReasonDetail(reason helperwire.HelperReason) (*actions.ErrorDetail, bool) {
+	switch reason {
+	case helperwire.HelperReason_HELPER_REASON_NO_AUTHORIZED_TARGET:
+		return &actions.ErrorDetail{Reason: "NoAuthorizedTarget"}, true
+	default:
+		return nil, false
+	}
+}
+
+func (c *CapabilityCatalog) AdmitDomainHelper(entity domain.EntityID, endpoint string, value domain.HelperValue) error {
+	kind, err := value.Kind()
+	if err != nil || !c.ready() {
+		return ErrInvalidCapability
+	}
+	id, err := entity.Value()
+	if err != nil {
+		return err
+	}
+	c.mu.RLock()
+	d := c.instances[id][capabilityKey(HelperSchema, endpoint)]
+	c.mu.RUnlock()
+	if d == nil || !validHelperConstraints(d.GetHelper()) {
+		return ErrInvalidCapability
+	}
+	declared, _ := admitWireHelperKind(d.GetHelper().Kind)
+	if declared != kind {
+		return ErrInvalidCapability
+	}
+	constraints := d.GetHelper()
+	switch kind {
+	case domain.HelperNumber:
+		n, _ := value.Number()
+		if n < *constraints.NumberMinimum || n > *constraints.NumberMaximum {
+			return ErrInvalidCapability
+		}
+	case domain.HelperCounter:
+		n, _ := value.Counter()
+		if constraints.CounterMinimum != nil && n < *constraints.CounterMinimum || constraints.CounterMaximum != nil && n > *constraints.CounterMaximum {
+			return ErrInvalidCapability
+		}
+	case domain.HelperSelect:
+		option, _ := value.Select()
+		if !contains(constraints.SelectOptions, option) {
+			return ErrInvalidCapability
+		}
+	case domain.HelperText:
+		v, _ := value.Text()
+		length := uint32(len([]rune(v)))
+		if length < *constraints.TextMinimumLength || length > *constraints.TextMaximumLength {
+			return ErrInvalidCapability
+		}
+	}
+	return nil
 }
 
 func validModes(options []registry.ClimateMode) bool {
@@ -708,6 +869,32 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 			break
 		}
 		if arg.Mode != nil && !contains(constraints.Climate.ModeOptions, *arg.Mode) {
+			break
+		}
+		return nil
+	case *registry.CapabilityDescription_Helper:
+		arg := cmd.Arguments.GetHelper()
+		if arg == nil || !knownFieldsOnly(arg.ProtoReflect()) || !validHelperConstraints(constraints.Helper) || arg.ExpectedHelperRevision == nil || *arg.ExpectedHelperRevision > math.MaxInt64 {
+			break
+		}
+		if constraints.Helper.UnavailableReason == helperwire.HelperReason_HELPER_REASON_NO_AUTHORIZED_TARGET {
+			detail, _ := helperReasonDetail(constraints.Helper.UnavailableReason)
+			return &actions.ContractError{Code: actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY, FieldPath: "arguments.helper", Detail: detail}
+		}
+		kind, _ := admitWireHelperKind(constraints.Helper.Kind)
+		if !validHelperOperation(kind, arg.Operation) || !contains(constraints.Helper.Operations, arg.Operation) {
+			break
+		}
+		if arg.Operation == helperwire.HelperOperation_HELPER_OPERATION_SET {
+			value, _, err := admitHelperWire(arg.Value, false)
+			if err != nil {
+				break
+			}
+			valueKind, _ := value.Kind()
+			if valueKind != kind || c.AdmitDomainHelper(entity, d.Endpoint, value) != nil {
+				break
+			}
+		} else if arg.Value != nil {
 			break
 		}
 		return nil

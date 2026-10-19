@@ -7,6 +7,7 @@
 package registryv1
 
 import (
+	v1 "github.com/damione1/Homeward/gen/home/helpers/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -390,6 +391,7 @@ type CapabilityDescription struct {
 	//	*CapabilityDescription_Measurement
 	//	*CapabilityDescription_Binary
 	//	*CapabilityDescription_Extension
+	//	*CapabilityDescription_Helper
 	Constraints   isCapabilityDescription_Constraints `protobuf_oneof:"constraints"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -537,6 +539,15 @@ func (x *CapabilityDescription) GetExtension() *ExtensionConstraints {
 	return nil
 }
 
+func (x *CapabilityDescription) GetHelper() *v1.HelperConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_Helper); ok {
+			return x.Helper
+		}
+	}
+	return nil
+}
+
 type isCapabilityDescription_Constraints interface {
 	isCapabilityDescription_Constraints()
 }
@@ -569,6 +580,10 @@ type CapabilityDescription_Extension struct {
 	Extension *ExtensionConstraints `protobuf:"bytes,13,opt,name=extension,proto3,oneof"`
 }
 
+type CapabilityDescription_Helper struct {
+	Helper *v1.HelperConstraints `protobuf:"bytes,14,opt,name=helper,proto3,oneof"`
+}
+
 func (*CapabilityDescription_Switch) isCapabilityDescription_Constraints() {}
 
 func (*CapabilityDescription_Light) isCapabilityDescription_Constraints() {}
@@ -582,6 +597,8 @@ func (*CapabilityDescription_Measurement) isCapabilityDescription_Constraints() 
 func (*CapabilityDescription_Binary) isCapabilityDescription_Constraints() {}
 
 func (*CapabilityDescription_Extension) isCapabilityDescription_Constraints() {}
+
+func (*CapabilityDescription_Helper) isCapabilityDescription_Constraints() {}
 
 type NumberBounds struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1191,13 +1208,13 @@ var File_home_registry_v1_registry_proto protoreflect.FileDescriptor
 
 const file_home_registry_v1_registry_proto_rawDesc = "" +
 	"\n" +
-	"\x1fhome/registry/v1/registry.proto\x12\x10home.registry.v1\" \n" +
+	"\x1fhome/registry/v1/registry.proto\x12\x10home.registry.v1\x1a\x1dhome/helpers/v1/helpers.proto\" \n" +
 	"\bEntityId\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\"g\n" +
 	"\tEntityRef\x12\x1d\n" +
 	"\tentity_id\x18\x01 \x01(\tH\x00R\bentityId\x12\x1b\n" +
 	"\bha_alias\x18\x02 \x01(\tH\x00R\ahaAliasB\v\n" +
-	"\treferenceJ\x04\b\x03\x10\x04R\vlegacy_name\"\xb4\x05\n" +
+	"\treferenceJ\x04\b\x03\x10\x04R\vlegacy_name\"\xf2\x05\n" +
 	"\x15CapabilityDescription\x12\x1b\n" +
 	"\tschema_id\x18\x01 \x01(\tR\bschemaId\x12\x14\n" +
 	"\x05major\x18\x02 \x01(\rR\x05major\x12!\n" +
@@ -1212,7 +1229,8 @@ const file_home_registry_v1_registry_proto_rawDesc = "" +
 	" \x01(\v2$.home.registry.v1.ClimateConstraintsH\x00R\aclimate\x12L\n" +
 	"\vmeasurement\x18\v \x01(\v2(.home.registry.v1.MeasurementConstraintsH\x00R\vmeasurement\x12=\n" +
 	"\x06binary\x18\f \x01(\v2#.home.registry.v1.BinaryConstraintsH\x00R\x06binary\x12F\n" +
-	"\textension\x18\r \x01(\v2&.home.registry.v1.ExtensionConstraintsH\x00R\textensionB\r\n" +
+	"\textension\x18\r \x01(\v2&.home.registry.v1.ExtensionConstraintsH\x00R\textension\x12<\n" +
+	"\x06helper\x18\x0e \x01(\v2\".home.helpers.v1.HelperConstraintsH\x00R\x06helperB\r\n" +
 	"\vconstraints\"d\n" +
 	"\fNumberBounds\x12\x18\n" +
 	"\aminimum\x18\x01 \x01(\x01R\aminimum\x12\x18\n" +
@@ -1318,6 +1336,7 @@ var file_home_registry_v1_registry_proto_goTypes = []any{
 	(*MeasurementConstraints)(nil),          // 14: home.registry.v1.MeasurementConstraints
 	(*BinaryConstraints)(nil),               // 15: home.registry.v1.BinaryConstraints
 	(*ExtensionConstraints)(nil),            // 16: home.registry.v1.ExtensionConstraints
+	(*v1.HelperConstraints)(nil),            // 17: home.helpers.v1.HelperConstraints
 }
 var file_home_registry_v1_registry_proto_depIdxs = []int32{
 	8,  // 0: home.registry.v1.CapabilityDescription.switch:type_name -> home.registry.v1.SwitchConstraints
@@ -1327,27 +1346,28 @@ var file_home_registry_v1_registry_proto_depIdxs = []int32{
 	14, // 4: home.registry.v1.CapabilityDescription.measurement:type_name -> home.registry.v1.MeasurementConstraints
 	15, // 5: home.registry.v1.CapabilityDescription.binary:type_name -> home.registry.v1.BinaryConstraints
 	16, // 6: home.registry.v1.CapabilityDescription.extension:type_name -> home.registry.v1.ExtensionConstraints
-	7,  // 7: home.registry.v1.LightConstraints.brightness_percent:type_name -> home.registry.v1.NumberBounds
-	7,  // 8: home.registry.v1.LightConstraints.color_temp_mireds:type_name -> home.registry.v1.NumberBounds
-	7,  // 9: home.registry.v1.LightConstraints.transition_seconds:type_name -> home.registry.v1.NumberBounds
-	7,  // 10: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
-	0,  // 11: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
-	1,  // 12: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
-	12, // 13: home.registry.v1.ClimateConstraints.observed_temperature_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
-	12, // 14: home.registry.v1.ClimateConstraints.observed_setpoint_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
-	13, // 15: home.registry.v1.ClimateConstraints.observed_setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
-	0,  // 16: home.registry.v1.ClimateConstraints.observed_mode_options:type_name -> home.registry.v1.ClimateMode
-	7,  // 17: home.registry.v1.ClimateTemperatureObservation.bounds:type_name -> home.registry.v1.NumberBounds
-	7,  // 18: home.registry.v1.ClimateSetpointRangeConstraints.low_celsius:type_name -> home.registry.v1.NumberBounds
-	7,  // 19: home.registry.v1.ClimateSetpointRangeConstraints.high_celsius:type_name -> home.registry.v1.NumberBounds
-	2,  // 20: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
-	3,  // 21: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
-	7,  // 22: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
-	23, // [23:23] is the sub-list for method output_type
-	23, // [23:23] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	17, // 7: home.registry.v1.CapabilityDescription.helper:type_name -> home.helpers.v1.HelperConstraints
+	7,  // 8: home.registry.v1.LightConstraints.brightness_percent:type_name -> home.registry.v1.NumberBounds
+	7,  // 9: home.registry.v1.LightConstraints.color_temp_mireds:type_name -> home.registry.v1.NumberBounds
+	7,  // 10: home.registry.v1.LightConstraints.transition_seconds:type_name -> home.registry.v1.NumberBounds
+	7,  // 11: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
+	0,  // 12: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
+	1,  // 13: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
+	12, // 14: home.registry.v1.ClimateConstraints.observed_temperature_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
+	12, // 15: home.registry.v1.ClimateConstraints.observed_setpoint_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
+	13, // 16: home.registry.v1.ClimateConstraints.observed_setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
+	0,  // 17: home.registry.v1.ClimateConstraints.observed_mode_options:type_name -> home.registry.v1.ClimateMode
+	7,  // 18: home.registry.v1.ClimateTemperatureObservation.bounds:type_name -> home.registry.v1.NumberBounds
+	7,  // 19: home.registry.v1.ClimateSetpointRangeConstraints.low_celsius:type_name -> home.registry.v1.NumberBounds
+	7,  // 20: home.registry.v1.ClimateSetpointRangeConstraints.high_celsius:type_name -> home.registry.v1.NumberBounds
+	2,  // 21: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
+	3,  // 22: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
+	7,  // 23: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_home_registry_v1_registry_proto_init() }
@@ -1367,6 +1387,7 @@ func file_home_registry_v1_registry_proto_init() {
 		(*CapabilityDescription_Measurement)(nil),
 		(*CapabilityDescription_Binary)(nil),
 		(*CapabilityDescription_Extension)(nil),
+		(*CapabilityDescription_Helper)(nil),
 	}
 	file_home_registry_v1_registry_proto_msgTypes[3].OneofWrappers = []any{}
 	file_home_registry_v1_registry_proto_msgTypes[9].OneofWrappers = []any{}

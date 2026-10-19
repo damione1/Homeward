@@ -873,8 +873,8 @@ func TestNHA151SchemaEnumDrift(t *testing.T) {
 		want []string
 	}{
 		{"config_document_kind", []string{ConfigDocumentKindYAMLSource.String(), ConfigDocumentKindAuthorizationPolicy.String()}},
-		{"config_schema_version", []string{bundle.SchemaDeclarative1.String(), authorization.Schema}},
-		{"config_syntax_profile", []string{parser.SyntaxProfileDeclarative.String(), authorization.SyntaxProfile}},
+		{"config_schema_version", []string{bundle.SchemaDeclarative1.String(), authorization.Schema, bundle.SchemaDeclarative2.String()}},
+		{"config_syntax_profile", []string{parser.SyntaxProfileDeclarative.String(), authorization.SyntaxProfile, parser.SyntaxProfileDeclarative2.String()}},
 	} {
 		rows, err := s.pool.Query(ctx, `SELECT e.enumlabel FROM pg_enum e
 			JOIN pg_type t ON t.oid=e.enumtypid

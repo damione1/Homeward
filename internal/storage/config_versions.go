@@ -265,12 +265,16 @@ func (c *ConfigTx) SaveCandidate(candidate bundle.Candidate, bindings []ConfigDo
 		}
 	}
 	refs = make([]ConfigVersionRef, 0, len(sources))
+	format := configSourceDeclarative
+	if candidate.Schema() == bundle.SchemaDeclarative2 {
+		format = configSourceDeclarative2
+	}
 	for _, source := range sources {
 		b, ok := byPath[source.Path()]
 		if !ok {
 			return nil, &Error{kind: ConfigInvalid}
 		}
-		ref, saveErr := c.saveAdmittedSource(b, configSourceDeclarative, source.Bytes(), source.SHA256(), metadata)
+		ref, saveErr := c.saveAdmittedSource(b, format, source.Bytes(), source.SHA256(), metadata)
 		if saveErr != nil {
 			return nil, saveErr
 		}
@@ -285,12 +289,15 @@ const (
 	configSourceInvalid configSourceFormat = iota
 	configSourceDeclarative
 	configSourceAuthorization
+	configSourceDeclarative2
 )
 
 func (f configSourceFormat) values() (ConfigDocumentKind, string, string, error) {
 	switch f {
 	case configSourceDeclarative:
 		return ConfigDocumentKindYAMLSource, bundle.SchemaDeclarative1.String(), parser.SyntaxProfileDeclarative.String(), nil
+	case configSourceDeclarative2:
+		return ConfigDocumentKindYAMLSource, bundle.SchemaDeclarative2.String(), parser.SyntaxProfileDeclarative2.String(), nil
 	case configSourceAuthorization:
 		return ConfigDocumentKindAuthorizationPolicy, authorization.Schema, authorization.SyntaxProfile, nil
 	case configSourceInvalid:
@@ -631,7 +638,25 @@ func (g ConfigGenerationSnapshot) Restore() (bundle.Candidate, error) {
 		}
 		sources = append(sources, source)
 	}
-	candidate, err := bundle.CompileSources(g.entry, sources)
+	if len(g.versions) == 0 {
+		return bundle.Candidate{}, &Error{kind: ConfigIntegrity}
+	}
+	profile := g.versions[0].profile
+	for _, v := range g.versions {
+		if v.profile != profile {
+			return bundle.Candidate{}, &Error{kind: ConfigIntegrity}
+		}
+	}
+	var candidate bundle.Candidate
+	var err error
+	switch profile {
+	case parser.SyntaxProfileDeclarative:
+		candidate, err = bundle.CompileSources(g.entry, sources)
+	case parser.SyntaxProfileDeclarative2:
+		candidate, err = bundle.CompileSourcesV2(g.entry, sources)
+	default:
+		return bundle.Candidate{}, &Error{kind: ConfigIntegrity}
+	}
 	if err != nil || !candidate.Valid() || candidate.SHA256() != g.candidateHash {
 		return bundle.Candidate{}, &Error{kind: ConfigIntegrity, cause: err}
 	}
@@ -769,7 +794,8 @@ func (s *Store) readConfig(ctx context.Context, target *ConfigGenerationRevision
 				rows.Close()
 				return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
 			}
-			if *schema != bundle.SchemaDeclarative1.String() || profile == nil || *profile != parser.SyntaxProfileDeclarative.String() ||
+			if profile == nil || !((*schema == bundle.SchemaDeclarative1.String() && *profile == parser.SyntaxProfileDeclarative.String()) ||
+				(*schema == bundle.SchemaDeclarative2.String() && *profile == parser.SyntaxProfileDeclarative2.String())) ||
 				author == nil || source == nil || accepted == nil || sha256.Sum256(data) != v.hash {
 				rows.Close()
 				return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
@@ -786,8 +812,13 @@ func (s *Store) readConfig(ctx context.Context, target *ConfigGenerationRevision
 				rows.Close()
 				return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity, cause: err}
 			}
-			v.schema = bundle.SchemaDeclarative1
-			v.profile = parser.SyntaxProfileDeclarative
+			if *schema == bundle.SchemaDeclarative2.String() {
+				v.schema = bundle.SchemaDeclarative2
+				v.profile = parser.SyntaxProfileDeclarative2
+			} else {
+				v.schema = bundle.SchemaDeclarative1
+				v.profile = parser.SyntaxProfileDeclarative
+			}
 			v.accepted = *accepted
 			if parent != nil {
 				v.parent, err = NewConfigVersionRevision(*parent)

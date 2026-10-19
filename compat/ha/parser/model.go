@@ -9,6 +9,7 @@ import (
 
 const Profile = "ha-2026.10/core-1"
 const DeclarativeProfile = "ha-2026.10/declarative-1"
+const DeclarativeProfile2 = "ha-2026.10/declarative-2"
 const BlueprintInstanceProfile = "ha-2026.10/blueprint-instance-1"
 const BlueprintDefinitionProfile = "ha-2026.10/blueprint-definition-1"
 const LogicProfile = "ha-2026.10/logic-1"
@@ -27,6 +28,7 @@ const (
 	SyntaxProfileLogic
 	SyntaxProfileScene
 	SyntaxProfileLovelace
+	SyntaxProfileDeclarative2
 )
 
 func (p SyntaxProfile) String() string {
@@ -35,6 +37,8 @@ func (p SyntaxProfile) String() string {
 		return Profile
 	case SyntaxProfileDeclarative:
 		return DeclarativeProfile
+	case SyntaxProfileDeclarative2:
+		return DeclarativeProfile2
 	case SyntaxProfileBlueprintInstance:
 		return BlueprintInstanceProfile
 	case SyntaxProfileBlueprintDefinition:

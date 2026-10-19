@@ -1,6 +1,8 @@
 syntax = "proto3";
 package home.registry.v1;
 
+import "home/helpers/v1/helpers.proto";
+
 option go_package = "github.com/damione1/Homeward/gen/home/registry/v1;registryv1";
 message EntityId {
   string value = 1;
@@ -31,6 +33,7 @@ message CapabilityDescription {
     MeasurementConstraints measurement = 11;
     BinaryConstraints binary = 12;
     ExtensionConstraints extension = 13;
+    home.helpers.v1.HelperConstraints helper = 14;
   }
 }
 

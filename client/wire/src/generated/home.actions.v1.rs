@@ -1009,6 +1009,14 @@ impl ::buffa::Message for ActionArgs {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::action_args::Arguments::Helper(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -1058,6 +1066,14 @@ impl ::buffa::Message for ActionArgs {
                 __buffa::oneof::action_args::Arguments::SetClimate(x) => {
                     ::buffa::types::put_len_delimited_header(
                         5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::action_args::Arguments::Helper(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -1173,6 +1189,26 @@ impl ::buffa::Message for ActionArgs {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.arguments = ::core::option::Option::Some(
                         __buffa::oneof::action_args::Arguments::SetClimate(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::action_args::Arguments::Helper(ref mut existing),
+                ) = self.arguments
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.arguments = ::core::option::Option::Some(
+                        __buffa::oneof::action_args::Arguments::Helper(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -3508,6 +3544,37 @@ pub mod __buffa {
                             );
                         }
                     }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::action_args::Arguments::Helper(
+                                ref mut existing,
+                            ),
+                        ) = view.arguments
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.arguments = Some(
+                                super::super::__buffa::view::oneof::action_args::Arguments::Helper(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::helpers::v1::__buffa::view::HelperActionView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -3575,6 +3642,15 @@ pub mod __buffa {
                                         v,
                                     ) => {
                                         super::super::__buffa::oneof::action_args::Arguments::SetClimate(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::action_args::Arguments::Helper(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::action_args::Arguments::Helper(
                                             ::buffa::alloc::boxed::Box::new(
                                                 v.to_owned_from_source(__buffa_src)?,
                                             ),
@@ -3651,6 +3727,16 @@ pub mod __buffa {
                                 += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                                     + inner as u64;
                         }
+                        super::super::__buffa::view::oneof::action_args::Arguments::Helper(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
                     }
                 }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -3711,6 +3797,16 @@ pub mod __buffa {
                         ) => {
                             ::buffa::types::put_len_delimited_header(
                                 5u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::action_args::Arguments::Helper(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                6u32,
                                 u64::from(__cache.consume_next()),
                                 buf,
                             );
@@ -5369,6 +5465,13 @@ pub mod __buffa {
                             super::super::super::super::__buffa::view::SetClimateView<'a>,
                         >,
                     ),
+                    Helper(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::helpers::v1::__buffa::view::HelperActionView<
+                                'a,
+                            >,
+                        >,
+                    ),
                 }
             }
         }
@@ -5388,6 +5491,11 @@ pub mod __buffa {
                 SetLight(::buffa::alloc::boxed::Box<super::super::super::SetLight>),
                 SetFan(::buffa::alloc::boxed::Box<super::super::super::SetFan>),
                 SetClimate(::buffa::alloc::boxed::Box<super::super::super::SetClimate>),
+                Helper(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::helpers::v1::HelperAction,
+                    >,
+                ),
             }
             impl ::buffa::Oneof for Arguments {}
             impl From<super::super::super::SetSwitch> for Arguments {
@@ -5442,6 +5550,22 @@ pub mod __buffa {
             impl From<super::super::super::SetClimate>
             for ::core::option::Option<Arguments> {
                 fn from(v: super::super::super::SetClimate) -> Self {
+                    Self::Some(Arguments::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::helpers::v1::HelperAction>
+            for Arguments {
+                fn from(
+                    v: super::super::super::super::super::helpers::v1::HelperAction,
+                ) -> Self {
+                    Self::Helper(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::helpers::v1::HelperAction>
+            for ::core::option::Option<Arguments> {
+                fn from(
+                    v: super::super::super::super::super::helpers::v1::HelperAction,
+                ) -> Self {
                     Self::Some(Arguments::from(v))
                 }
             }

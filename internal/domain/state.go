@@ -103,6 +103,7 @@ const (
 	ValueLight
 	ValueFan
 	ValueClimate
+	ValueHelper
 )
 
 // FanSpeed is closed to the LEAP speeds the Host can prove. The zero value is
@@ -209,12 +210,14 @@ func (v LightValue) Components() (bool, *float64, *uint32, error) {
 // StateValue is a closed sum. Its zero value cannot be published. False and
 // numeric zero are ordinary present values, distinct from an absent value.
 type StateValue struct {
-	kind        ValueKind
-	switchOn    bool
-	measurement Measurement
-	light       LightValue
-	fan         FanSpeed
-	climate     ClimateValue
+	kind           ValueKind
+	switchOn       bool
+	measurement    Measurement
+	light          LightValue
+	fan            FanSpeed
+	climate        ClimateValue
+	helper         *HelperValue
+	helperRevision uint64
 }
 
 func NewSwitchValue(on bool) StateValue { return StateValue{kind: ValueSwitch, switchOn: on} }
@@ -247,6 +250,16 @@ func NewClimateStateValue(climate ClimateValue) (StateValue, error) {
 	return StateValue{kind: ValueClimate, climate: climate}, nil
 }
 
+func NewHelperStateValue(helper HelperValue, persistedRevision uint64) (StateValue, error) {
+	if _, err := helper.Kind(); err != nil || persistedRevision == 0 || persistedRevision > math.MaxInt64 {
+		return StateValue{}, ErrInvalidState
+	}
+	// The pointer is private and the pointee is an admitted immutable copy.
+	// Other state variants remain compact when copied through the journal.
+	owned := helper
+	return StateValue{kind: ValueHelper, helper: &owned, helperRevision: persistedRevision}, nil
+}
+
 func (v StateValue) Kind() (ValueKind, error) {
 	switch v.kind {
 	case ValueSwitch:
@@ -267,6 +280,12 @@ func (v StateValue) Kind() (ValueKind, error) {
 		if _, err := v.climate.Components(); err == nil {
 			return ValueClimate, nil
 		}
+	case ValueHelper:
+		if v.helper != nil {
+			if _, err := v.helper.Kind(); err == nil && v.helperRevision > 0 && v.helperRevision <= math.MaxInt64 {
+				return ValueHelper, nil
+			}
+		}
 	case ValueUnspecified:
 	default:
 	}
@@ -284,6 +303,26 @@ func (v StateValue) Light() (LightValue, bool) { return v.light, v.kind == Value
 func (v StateValue) Fan() (FanSpeed, bool) { return v.fan, v.kind == ValueFan }
 
 func (v StateValue) Climate() (ClimateValue, bool) { return v.climate, v.kind == ValueClimate }
+
+func (v StateValue) Helper() (HelperValue, uint64, bool) {
+	kind, err := v.Kind()
+	if err != nil || kind != ValueHelper || v.helper == nil {
+		return HelperValue{}, 0, false
+	}
+	return *v.helper, v.helperRevision, true
+}
+
+func sameBusinessValue(a, b StateValue) bool {
+	if a.kind != ValueHelper && b.kind != ValueHelper {
+		return a == b
+	}
+	return a.kind == ValueHelper && b.kind == ValueHelper && a.helper != nil && b.helper != nil &&
+		*a.helper == *b.helper
+}
+
+func helperRevisionChanged(a, b StateValue) bool {
+	return a.kind == ValueHelper && b.kind == ValueHelper && a.helperRevision != b.helperRevision
+}
 
 // SourceStamp records a driver's session and optional source sequence. Their
 // ordering policy belongs to the later host sequencer; revision is supplied by
@@ -414,14 +453,17 @@ func ApplyStateReport(entity EntityID, previous *ObservedState, report StateRepo
 	transition := StateTransition{ValueChanged: true, Updated: true}
 	if previous != nil {
 		transition.ValueChanged = previous.quality.availability != report.quality.availability ||
-			previous.hasValue != report.hasValue || (report.hasValue && previous.value != report.value)
-		transition.Updated = transition.ValueChanged || previous.quality != report.quality
+			previous.hasValue != report.hasValue || (report.hasValue && !sameBusinessValue(previous.value, report.value))
+		// The SQL revision is an observable CAS token, not a changed business
+		// value. Refresh last_updated when it changes, preserving last_changed.
+		transition.Updated = transition.ValueChanged || previous.quality != report.quality ||
+			(report.hasValue && previous.hasValue && helperRevisionChanged(previous.value, report.value))
 		result.times.LastChanged = previous.times.LastChanged
 		result.times.LastUpdated = previous.times.LastUpdated
 		result.lastKnown, result.hasLastKnown = previous.lastKnown, previous.hasLastKnown
 		// A quality-only report does not erase the capture time of the same
 		// current value. A later explicit capture time replaces it.
-		if report.observedAt == nil && report.hasValue && previous.hasValue && previous.value == report.value {
+		if report.observedAt == nil && report.hasValue && previous.hasValue && sameBusinessValue(previous.value, report.value) {
 			result.times.ObservedAt = cloneTime(previous.times.ObservedAt)
 		}
 	}

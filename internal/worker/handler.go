@@ -153,6 +153,14 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 		if input == nil || input.Source == nil {
 			return nil, rpcInvalid()
 		}
+		// Host 1.0–1.3 never admitted the native helper capability. The
+		// current protobuf can decode it transitively, but that does not
+		// enlarge any historical worker profile.
+		for _, description := range input.Descriptions {
+			if description != nil && (description.SchemaId == contracts.HelperSchema || description.GetHelper() != nil) {
+				return nil, rpcInvalid()
+			}
+		}
 		key, err := integrations.NewSourceKey(input.Source.Device, input.Source.Entity)
 		if err != nil {
 			return nil, rpcInvalid()

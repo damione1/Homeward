@@ -427,6 +427,29 @@ func retainedScaledCharge(size, additional, factor int) int {
 }
 
 func retainedStateValueBytes(size int, value domain.StateValue) int {
+	// Switch observations dominate sustained mailbox admission and have no
+	// variable-size payload. Avoid validating the helper branch for each one.
+	if _, ok := value.Switch(); ok {
+		return size
+	}
+	if helper, _, ok := value.Helper(); ok {
+		// The admitted helper is a private heap value behind StateValue's
+		// pointer; charge it even though the journal entry only copies that
+		// pointer. The string backing store is charged separately below.
+		size = retainedCharge(size, int(unsafe.Sizeof(domain.HelperValue{})))
+		kind, err := helper.Kind()
+		if err != nil {
+			return MaxJournalBytes + 1
+		}
+		switch kind {
+		case domain.HelperSelect:
+			text, _ := helper.Select()
+			return retainedCharge(size, len(text))
+		case domain.HelperText:
+			text, _ := helper.Text()
+			return retainedCharge(size, len(text))
+		}
+	}
 	if measurement, ok := value.Measurement(); ok {
 		parts, err := measurement.Components()
 		if err != nil {

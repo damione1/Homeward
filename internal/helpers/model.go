@@ -3,71 +3,52 @@
 package helpers
 
 import (
-	"math"
 	"time"
+	"unicode/utf8"
 
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/damione1/Homeward/internal/domain"
 )
 
-// Kind is the single operational vocabulary for the supported value variants.
-type Kind uint8
+// Existing NHA-033 names delegate to the single closed operational sum in domain.
+type Kind = domain.HelperKind
 
 const (
-	KindInvalid Kind = iota
-	KindBoolean
-	KindNumber
-	KindCounter
+	KindInvalid     = domain.HelperInvalid
+	KindBoolean     = domain.HelperBoolean
+	KindNumber      = domain.HelperNumber
+	KindCounter     = domain.HelperCounter
+	KindButtonPress = domain.HelperButtonPress
+	KindDate        = domain.HelperDate
+	KindTime        = domain.HelperTime
+	KindDateTime    = domain.HelperDateTime
+	KindSelect      = domain.HelperSelect
+	KindText        = domain.HelperText
 )
 
-func (k Kind) valid() bool {
-	switch k {
-	case KindBoolean, KindNumber, KindCounter:
-		return true
-	default:
-		return false
-	}
-}
+type Value = domain.HelperValue
 
-// Value is a private tagged sum. Its Go zero value is invalid, whereas explicit
-// Boolean(false), Number(0), and Counter(0) are present values.
-type Value struct {
-	kind    Kind
-	boolean bool
-	number  float64
-	counter int64
-}
-
-func Boolean(value bool) Value  { return Value{kind: KindBoolean, boolean: value} }
-func Counter(value int64) Value { return Value{kind: KindCounter, counter: value} }
+func Boolean(value bool) Value  { return domain.NewHelperBoolean(value) }
+func Counter(value int64) Value { return domain.NewHelperCounter(value) }
 func Number(value float64) (Value, error) {
-	if math.IsNaN(value) || math.IsInf(value, 0) {
+	v, err := domain.NewHelperNumber(value)
+	if err != nil {
 		return Value{}, failure(InvalidValue)
 	}
-	return Value{kind: KindNumber, number: value}, nil
+	return v, nil
 }
-func (v Value) Kind() Kind { return v.kind }
-func (v Value) Valid() bool {
-	switch v.kind {
-	case KindBoolean, KindCounter:
-		return true
-	case KindNumber:
-		return !math.IsNaN(v.number) && !math.IsInf(v.number, 0)
-	default:
-		return false
-	}
-}
-func (v Value) Boolean() (bool, bool)   { return v.boolean, v.kind == KindBoolean }
-func (v Value) Number() (float64, bool) { return v.number, v.kind == KindNumber && v.Valid() }
-func (v Value) Counter() (int64, bool)  { return v.counter, v.kind == KindCounter }
 
 // Definition contains only configuration already admitted by bundle. It cannot
 // be constructed from raw YAML or arbitrary bounds at an operational call site.
 type Definition struct {
-	kind    Kind
-	boolean bundle.BoolHelper
-	number  bundle.NumberHelper
-	counter bundle.CounterHelper
+	kind         Kind
+	boolean      bundle.BoolHelper
+	number       bundle.NumberHelper
+	counter      bundle.CounterHelper
+	button       bundle.ButtonHelper
+	datetime     bundle.DatetimeHelper
+	selectHelper bundle.SelectHelper
+	text         bundle.TextHelper
 }
 
 func BooleanDefinition(value bundle.BoolHelper) (Definition, error) {
@@ -88,6 +69,30 @@ func CounterDefinition(value bundle.CounterHelper) (Definition, error) {
 	}
 	return Definition{kind: KindCounter, counter: value}, nil
 }
+func ButtonDefinition(value bundle.ButtonHelper) (Definition, error) {
+	if !value.Valid() {
+		return Definition{}, failure(InvalidDefinition)
+	}
+	return Definition{kind: KindButtonPress, button: value}, nil
+}
+func DatetimeDefinition(value bundle.DatetimeHelper) (Definition, error) {
+	if !value.Valid() {
+		return Definition{}, failure(InvalidDefinition)
+	}
+	return Definition{kind: value.Mode(), datetime: value}, nil
+}
+func SelectDefinition(value bundle.SelectHelper) (Definition, error) {
+	if !value.Valid() {
+		return Definition{}, failure(InvalidDefinition)
+	}
+	return Definition{kind: KindSelect, selectHelper: value}, nil
+}
+func TextDefinition(value bundle.TextHelper) (Definition, error) {
+	if !value.Valid() {
+		return Definition{}, failure(InvalidDefinition)
+	}
+	return Definition{kind: KindText, text: value}, nil
+}
 func (d Definition) Valid() bool {
 	switch d.kind {
 	case KindBoolean:
@@ -96,11 +101,25 @@ func (d Definition) Valid() bool {
 		return d.number.Valid()
 	case KindCounter:
 		return d.counter.Valid()
+	case KindButtonPress:
+		return d.button.Valid()
+	case KindDate, KindTime, KindDateTime:
+		return d.datetime.Valid() && d.datetime.Mode() == d.kind
+	case KindSelect:
+		return d.selectHelper.Valid()
+	case KindText:
+		return d.text.Valid()
 	default:
 		return false
 	}
 }
 func (d Definition) Kind() Kind { return d.kind }
+func (d Definition) Alias() (domain.HAAlias, error) {
+	if !d.Valid() {
+		return domain.HAAlias{}, failure(InvalidDefinition)
+	}
+	return d.alias(), nil
+}
 func (d Definition) alias() domain.HAAlias {
 	switch d.kind {
 	case KindBoolean:
@@ -109,6 +128,14 @@ func (d Definition) alias() domain.HAAlias {
 		return d.number.ID()
 	case KindCounter:
 		return d.counter.ID()
+	case KindButtonPress:
+		return d.button.ID()
+	case KindDate, KindTime, KindDateTime:
+		return d.datetime.ID()
+	case KindSelect:
+		return d.selectHelper.ID()
+	case KindText:
+		return d.text.ID()
 	default:
 		return domain.HAAlias{}
 	}
@@ -121,16 +148,37 @@ func (d Definition) initial() (Value, bool) {
 	case KindNumber:
 		value, present := d.number.Initial()
 		number, valid := value.Float64()
-		return Value{kind: KindNumber, number: number}, present && valid
+		if !present || !valid {
+			return Value{}, false
+		}
+		v, err := Number(number)
+		return v, err == nil
 	case KindCounter:
 		value, present := d.counter.Initial()
 		return Counter(value), present
+	case KindDate, KindTime, KindDateTime:
+		return d.datetime.Initial()
+	case KindSelect:
+		value, present := d.selectHelper.Initial()
+		if !present {
+			return Value{}, false
+		}
+		v, err := domain.NewHelperSelect(value)
+		return v, err == nil
+	case KindText:
+		value, present := d.text.Initial()
+		if !present {
+			return Value{}, false
+		}
+		v, err := domain.NewHelperText(value)
+		return v, err == nil
 	default:
 		return Value{}, false
 	}
 }
 func (d Definition) accepts(value Value) bool {
-	if !d.Valid() || !value.Valid() || value.kind != d.kind {
+	kind, err := value.Kind()
+	if !d.Valid() || err != nil || kind != d.kind {
 		return false
 	}
 	switch d.kind {
@@ -139,11 +187,28 @@ func (d Definition) accepts(value Value) bool {
 	case KindNumber:
 		minimum, _ := d.number.Min().Float64()
 		maximum, _ := d.number.Max().Float64()
-		return minimum <= value.number && value.number <= maximum
+		number, _ := value.Number()
+		return minimum <= number && number <= maximum
 	case KindCounter:
 		minimum, hasMin := d.counter.Minimum()
 		maximum, hasMax := d.counter.Maximum()
-		return (!hasMin || minimum <= value.counter) && (!hasMax || value.counter <= maximum)
+		counter, _ := value.Counter()
+		return (!hasMin || minimum <= counter) && (!hasMax || counter <= maximum)
+	case KindButtonPress, KindDate, KindTime, KindDateTime:
+		return true
+	case KindSelect:
+		selected, _ := value.Select()
+		for _, option := range d.selectHelper.Options() {
+			if selected == option {
+				return true
+			}
+		}
+		return false
+	case KindText:
+		valueText, _ := value.Text()
+		minimum, maximum := d.text.Bounds()
+		runes := utf8.RuneCountInString(valueText)
+		return runes >= minimum && runes <= maximum
 	default:
 		return false
 	}
@@ -216,14 +281,15 @@ type Snapshot struct {
 }
 
 func (s Snapshot) Valid() bool {
-	if !s.handle.valid() || !s.kind.valid() || !s.revision.validFor(s.handle.entity) {
+	if !s.handle.valid() || !s.kind.Valid() || !s.revision.validFor(s.handle.entity) {
 		return false
 	}
 	switch s.revision.state {
 	case revisionAbsent:
-		return s.value.kind == KindInvalid && s.updatedAt.IsZero()
+		return !s.value.Valid() && s.updatedAt.IsZero()
 	case revisionPresent:
-		return s.value.Valid() && s.value.kind == s.kind && !s.updatedAt.IsZero()
+		kind, err := s.value.Kind()
+		return err == nil && kind == s.kind && !s.updatedAt.IsZero()
 	default:
 		return false
 	}

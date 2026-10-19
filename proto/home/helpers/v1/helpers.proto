@@ -1,0 +1,93 @@
+syntax = "proto3";
+package home.helpers.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/helpers/v1;helpersv1";
+
+// Wire tags are representation only. Operational admission uses domain.HelperKind.
+enum HelperKind {
+  HELPER_KIND_UNSPECIFIED = 0;
+  HELPER_KIND_BOOLEAN = 1;
+  HELPER_KIND_NUMBER = 2;
+  HELPER_KIND_COUNTER = 3;
+  HELPER_KIND_BUTTON_PRESS = 4;
+  HELPER_KIND_DATE = 5;
+  HELPER_KIND_TIME = 6;
+  HELPER_KIND_DATETIME = 7;
+  HELPER_KIND_SELECT = 8;
+  HELPER_KIND_TEXT = 9;
+}
+
+message CivilDate {
+  uint32 year = 1;
+  uint32 month = 2;
+  uint32 day = 3;
+}
+message CivilTime {
+  uint32 hour = 1;
+  uint32 minute = 2;
+  uint32 second = 3;
+}
+message CivilDateTime {
+  CivilDate date = 1;
+  CivilTime time = 2;
+}
+
+message HelperValue {
+  // A missing value branch means absent; false, zero and empty text are present.
+  oneof value {
+    bool boolean = 1;
+    double number = 2;
+    int64 counter = 3;
+    google.protobuf.Timestamp button_pressed_at = 4;
+    CivilDate date = 5;
+    CivilTime time = 6;
+    CivilDateTime datetime = 7;
+    string selected_option = 8;
+    string text = 9;
+  }
+  // The helper_values CAS revision is independent of ObservedState.revision.
+  uint64 helper_revision = 10;
+}
+
+enum HelperOperation {
+  HELPER_OPERATION_UNSPECIFIED = 0;
+  HELPER_OPERATION_SET = 1;
+  HELPER_OPERATION_TOGGLE = 2;
+  HELPER_OPERATION_INCREMENT = 3;
+  HELPER_OPERATION_DECREMENT = 4;
+  HELPER_OPERATION_RESET = 5;
+  HELPER_OPERATION_PRESS = 6;
+  HELPER_OPERATION_NEXT = 7;
+  HELPER_OPERATION_PREVIOUS = 8;
+}
+
+enum HelperReason {
+  HELPER_REASON_UNSPECIFIED = 0;
+  HELPER_REASON_NO_AUTHORIZED_TARGET = 1;
+}
+
+message HelperConstraints {
+  HelperKind kind = 1;
+  repeated HelperOperation operations = 2;
+  optional double number_minimum = 3;
+  optional double number_maximum = 4;
+  optional double number_step = 5;
+  optional int64 counter_minimum = 6;
+  optional int64 counter_maximum = 7;
+  optional int64 counter_step = 8;
+  repeated string select_options = 9;
+  optional uint32 text_minimum_length = 10;
+  optional uint32 text_maximum_length = 11;
+  HelperReason unavailable_reason = 12;
+}
+
+message HelperAction {
+  HelperOperation operation = 1;
+  // Required only for SET. Its helper_revision is zero for commands.
+  HelperValue value = 2;
+  // A distinct SQL CAS precondition. CommandRequest.expected_revision checks
+  // the sequencer observation and cannot stand in for this token.
+  optional uint64 expected_helper_revision = 3;
+}

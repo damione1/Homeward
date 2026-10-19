@@ -1,0 +1,51 @@
+# Retained NHA-097 qualification corpus. UI metadata (id/entity_id/original_name)
+# was converted to HA declarations; the final two booleans and two datetimes
+# came from the retained YAML. This file is not a production allowlist.
+input_boolean:
+  night_mode: {name: Night Mode, icon: "mdi:bed"}
+  away_mode: {name: Away Mode, icon: "mdi:lock"}
+  detection_on: {name: Security detection}
+  basement_tv_playing: {name: Basement TV Playing, icon: "mdi:television"}
+  guests: {name: "Guests?", icon: "mdi:account-group"}
+  heating_season: {name: Heating Season, icon: "mdi:heat-wave"}
+  default_dashboard: {name: Default Dashboard, initial: true}
+  trashs_out: {name: Trashs out, icon: "mdi:delete"}
+  morning_routine_done: {name: Morning routine done today, icon: "mdi:sun-angle"}
+  poubelle_vue_aujourd_hui: {name: "Poubelle vue aujourd'hui", icon: "mdi:delete-outline"}
+  washing_machine_running: {name: Washing Machine Running, icon: "mdi:washing-machine"}
+  gazon_mode_germination: {name: Gazon - Mode germination, icon: "mdi:grass", initial: true}
+  sdb1_occupancy: {name: SDB1 Occupancy, icon: "mdi:shower"}
+  ch4_occupancy: {name: Ch4 Occupancy, icon: "mdi:office-building"}
+input_button:
+  start_bird_s_radio: {name: "Start bird's radio", icon: "mdi:bird"}
+  pause_bird_s_radio: {name: "Pause bird's radio", icon: "mdi:pause"}
+  cast_to_nest_hub: {name: Cast to Nest Hub, icon: "mdi:cast-audio-variant"}
+  trash_out: {name: Trash Out, icon: "mdi:delete"}
+input_datetime:
+  bathroom_heating_time: {name: Bathroom heating time, icon: "mdi:heat-wave", has_date: false, has_time: true}
+  gazon_date_de_semis: {name: Gazon - Date de semis, icon: "mdi:calendar-sprout", has_date: true, has_time: false, initial: '2026-09-01'}
+  sdb1_occupancy_last_time: {name: SDB1 Occupancy last time, has_date: true, has_time: true}
+  ch_occupancy_last_time: {name: Ch4 Occupancy last time, has_date: true, has_time: true}
+input_select:
+  default_dashboard:
+    name: Default Dashboard
+    options: [lovelace, map, dashboard-verrazano, refresh]
+    initial: lovelace
+  time_of_day:
+    name: Time of day
+    icon: "mdi:sun-clock"
+    options: [Night, Morning, Afternoon, Evening]
+input_text:
+  guest_bedroom_remote_last_event:
+    name: Guest Bedroom Remote last event
+    icon: "mdi:remote"
+    min: 0
+    max: 100
+    mode: text
+counter:
+  bathroom_heating_used_today:
+    name: Bathroom heating used today
+    minimum: 0
+    step: 1
+    initial: 0
+    restore: true

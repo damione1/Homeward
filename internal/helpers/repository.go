@@ -197,43 +197,133 @@ func (r *Repository) Reset(ctx context.Context, handle Handle, definition Defini
 
 // sqlValue is a typed SQL boundary, not a second operational value model.
 type sqlValue struct {
-	boolean pgtype.Bool
-	number  pgtype.Float8
-	counter pgtype.Int8
+	boolean    pgtype.Bool
+	number     pgtype.Float8
+	counter    pgtype.Int8
+	button     pgtype.Timestamptz
+	date       pgtype.Date
+	clock      pgtype.Time
+	datetime   pgtype.Timestamp
+	selectText pgtype.Text
+	text       pgtype.Text
 }
 
 func encode(value Value) (int16, sqlValue, error) {
 	if !value.Valid() {
 		return 0, sqlValue{}, failure(InvalidValue)
 	}
-	switch value.kind {
+	kind, _ := value.Kind()
+	switch kind {
 	case KindBoolean:
-		return 1, sqlValue{boolean: pgtype.Bool{Bool: value.boolean, Valid: true}}, nil
+		v, _ := value.Boolean()
+		return 1, sqlValue{boolean: pgtype.Bool{Bool: v, Valid: true}}, nil
 	case KindNumber:
-		return 2, sqlValue{number: pgtype.Float8{Float64: value.number, Valid: true}}, nil
+		v, _ := value.Number()
+		return 2, sqlValue{number: pgtype.Float8{Float64: v, Valid: true}}, nil
 	case KindCounter:
-		return 3, sqlValue{counter: pgtype.Int8{Int64: value.counter, Valid: true}}, nil
+		v, _ := value.Counter()
+		return 3, sqlValue{counter: pgtype.Int8{Int64: v, Valid: true}}, nil
+	case KindButtonPress:
+		v, _ := value.ButtonPress()
+		return 4, sqlValue{button: pgtype.Timestamptz{Time: v, Valid: true}}, nil
+	case KindDate:
+		v, _ := value.Date()
+		y, m, d, _ := v.Components()
+		return 5, sqlValue{date: pgtype.Date{Time: time.Date(y, time.Month(m), d, 0, 0, 0, 0, time.UTC), Valid: true}}, nil
+	case KindTime:
+		v, _ := value.Time()
+		h, m, s, _ := v.Components()
+		return 6, sqlValue{clock: pgtype.Time{Microseconds: int64(h*3600+m*60+s) * 1_000_000, Valid: true}}, nil
+	case KindDateTime:
+		v, _ := value.DateTime()
+		d, c, _ := v.Components()
+		y, month, day, _ := d.Components()
+		h, minute, second, _ := c.Components()
+		return 7, sqlValue{datetime: pgtype.Timestamp{Time: time.Date(y, time.Month(month), day, h, minute, second, 0, time.UTC), Valid: true}}, nil
+	case KindSelect:
+		v, _ := value.Select()
+		return 8, sqlValue{selectText: pgtype.Text{String: v, Valid: true}}, nil
+	case KindText:
+		v, _ := value.Text()
+		return 9, sqlValue{text: pgtype.Text{String: v, Valid: true}}, nil
 	default:
 		return 0, sqlValue{}, failure(InvalidValue)
 	}
 }
 
 func decode(tag int16, value sqlValue) (Value, error) {
+	present := 0
+	for _, valid := range []bool{value.boolean.Valid, value.number.Valid, value.counter.Valid, value.button.Valid, value.date.Valid, value.clock.Valid, value.datetime.Valid, value.selectText.Valid, value.text.Valid} {
+		if valid {
+			present++
+		}
+	}
+	if present != 1 {
+		return Value{}, failure(Corrupt)
+	}
 	switch tag {
 	case 1:
-		if value.boolean.Valid && !value.number.Valid && !value.counter.Valid {
+		if value.boolean.Valid {
 			return Boolean(value.boolean.Bool), nil
 		}
 	case 2:
-		if !value.boolean.Valid && value.number.Valid && !value.counter.Valid {
+		if value.number.Valid {
 			number, err := Number(value.number.Float64)
 			if err == nil {
 				return number, nil
 			}
 		}
 	case 3:
-		if !value.boolean.Valid && !value.number.Valid && value.counter.Valid {
+		if value.counter.Valid {
 			return Counter(value.counter.Int64), nil
+		}
+	case 4:
+		if value.button.Valid && value.button.InfinityModifier == pgtype.Finite {
+			v, err := domain.NewHelperButtonPress(value.button.Time)
+			if err == nil {
+				return v, nil
+			}
+		}
+	case 5:
+		if value.date.Valid && value.date.InfinityModifier == pgtype.Finite {
+			y, m, d := value.date.Time.Date()
+			civil, err := domain.NewCivilDate(y, int(m), d)
+			if err == nil {
+				return domain.NewHelperDate(civil)
+			}
+		}
+	case 6:
+		if value.clock.Valid && value.clock.Microseconds >= 0 && value.clock.Microseconds < 86_400_000_000 && value.clock.Microseconds%1_000_000 == 0 {
+			seconds := value.clock.Microseconds / 1_000_000
+			civil, err := domain.NewCivilTime(int(seconds/3600), int(seconds/60%60), int(seconds%60))
+			if err == nil {
+				return domain.NewHelperTime(civil)
+			}
+		}
+	case 7:
+		if value.datetime.Valid && value.datetime.InfinityModifier == pgtype.Finite && value.datetime.Time.Nanosecond() == 0 {
+			y, month, day := value.datetime.Time.Date()
+			h, minute, second := value.datetime.Time.Clock()
+			date, de := domain.NewCivilDate(y, int(month), day)
+			clock, ce := domain.NewCivilTime(h, minute, second)
+			if de == nil && ce == nil {
+				civil, _ := domain.NewCivilDateTime(date, clock)
+				return domain.NewHelperDateTime(civil)
+			}
+		}
+	case 8:
+		if value.selectText.Valid {
+			selected, err := domain.NewHelperSelect(value.selectText.String)
+			if err == nil {
+				return selected, nil
+			}
+		}
+	case 9:
+		if value.text.Valid {
+			text, err := domain.NewHelperText(value.text.String)
+			if err == nil {
+				return text, nil
+			}
 		}
 	}
 	return Value{}, failure(Corrupt)
@@ -245,8 +335,8 @@ func read(ctx context.Context, tx pgx.Tx, handle Handle, definition Definition) 
 	var payload sqlValue
 	var revision int64
 	var updated pgtype.Timestamptz
-	err := tx.QueryRow(ctx, `SELECT kind,boolean_value,number_value,counter_value,revision,updated_at
-		FROM public.helper_values WHERE entity_id=$1`, entity).Scan(&tag, &payload.boolean, &payload.number, &payload.counter, &revision, &updated)
+	err := tx.QueryRow(ctx, `SELECT kind,boolean_value,number_value,counter_value,button_pressed_at,date_value,time_value,datetime_value,select_value,text_value,revision,updated_at
+		FROM public.helper_values WHERE entity_id=$1`, entity).Scan(&tag, &payload.boolean, &payload.number, &payload.counter, &payload.button, &payload.date, &payload.clock, &payload.datetime, &payload.selectText, &payload.text, &revision, &updated)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Snapshot{handle: handle, kind: definition.kind, revision: Revision{entity: handle.entity, state: revisionAbsent}}, nil
 	}
@@ -279,11 +369,11 @@ func write(ctx context.Context, tx pgx.Tx, handle Handle, definition Definition,
 	revision := previous.number + 1
 	var updated time.Time
 	if previous.state == revisionAbsent {
-		err = tx.QueryRow(ctx, `INSERT INTO public.helper_values(entity_id,kind,boolean_value,number_value,counter_value,revision,updated_at)
-			VALUES($1,$2,$3,$4,$5,$6,clock_timestamp()) RETURNING updated_at`, entity, tag, payload.boolean, payload.number, payload.counter, revision).Scan(&updated)
+		err = tx.QueryRow(ctx, `INSERT INTO public.helper_values(entity_id,kind,boolean_value,number_value,counter_value,button_pressed_at,date_value,time_value,datetime_value,select_value,text_value,revision,updated_at)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,clock_timestamp()) RETURNING updated_at`, entity, tag, payload.boolean, payload.number, payload.counter, payload.button, payload.date, payload.clock, payload.datetime, payload.selectText, payload.text, revision).Scan(&updated)
 	} else {
-		err = tx.QueryRow(ctx, `UPDATE public.helper_values SET kind=$2,boolean_value=$3,number_value=$4,counter_value=$5,revision=$6,updated_at=clock_timestamp()
-			WHERE entity_id=$1 AND revision=$7 RETURNING updated_at`, entity, tag, payload.boolean, payload.number, payload.counter, revision, previous.number).Scan(&updated)
+		err = tx.QueryRow(ctx, `UPDATE public.helper_values SET kind=$2,boolean_value=$3,number_value=$4,counter_value=$5,button_pressed_at=$6,date_value=$7,time_value=$8,datetime_value=$9,select_value=$10,text_value=$11,revision=$12,updated_at=clock_timestamp()
+			WHERE entity_id=$1 AND revision=$13 RETURNING updated_at`, entity, tag, payload.boolean, payload.number, payload.counter, payload.button, payload.date, payload.clock, payload.datetime, payload.selectText, payload.text, revision, previous.number).Scan(&updated)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Snapshot{}, failure(Conflict)
