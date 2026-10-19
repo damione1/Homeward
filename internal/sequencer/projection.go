@@ -71,6 +71,24 @@ func (s *Sequencer) PublishRegistry(ctx context.Context, records []integrations.
 		r, _ := right.Value()
 		return l < r
 	})
+	removed := make([]domain.EntityID, 0)
+	for entity := range s.registry {
+		if _, present := next[entity]; !present {
+			removed = append(removed, entity)
+		}
+	}
+	sort.Slice(removed, func(i, j int) bool {
+		left, _ := removed[i].Value()
+		right, _ := removed[j].Value()
+		return left < right
+	})
+	entry := Entry{kind: KindRegistry, receivedAt: at, registry: changed, registryRemoved: removed}
+	// A changed-only oversized entry has historically been published, then
+	// evicted with an explicit subscriber loss. Preserve that contract; the
+	// new removal suffix must be admitted before replacing the registry image.
+	if len(removed) != 0 && retainedBytes(entry) > MaxJournalBytes {
+		return ErrInvalidInput
+	}
 	// Capabilities of retired/removed identities cannot leak into a new view.
 	for entity := range s.capabilities {
 		if record, ok := next[entity]; !ok || record.Retired() {
@@ -80,7 +98,7 @@ func (s *Sequencer) PublishRegistry(ctx context.Context, records []integrations.
 	s.registry = next
 	s.registryState = registryReady
 	s.rebuildCommandRoutes()
-	s.publish(s.append(Entry{kind: KindRegistry, receivedAt: at, registry: changed}))
+	s.publish(s.append(entry))
 	return nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
+	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/heatingownership"
@@ -39,13 +40,15 @@ func (unconfiguredIdentity) Resolve(context.Context, domain.IntegrationInstanceI
 // server owns those services until Supervisor.Start succeeds; then the
 // supervisor drains them before PostgreSQL closes.
 type RuntimePlan struct {
-	Identity                    integrations.IdentityAuthority
-	Pilots                      []integrations.PilotSpec
-	Configure                   func(context.Context, *integrations.Manager, *storage.Store) error
-	ConfigureCloudAuthorization func(context.Context, CloudAuthorizationComposition) error
-	ConfigureAuthorization      func(context.Context, AuthorizationComposition) error
-	ReactiveTemplates           *ReactiveTemplateComposition
-	Public                      *PublicPlan
+	Identity                          integrations.IdentityAuthority
+	Pilots                            []integrations.PilotSpec
+	Configure                         func(context.Context, *integrations.Manager, *storage.Store) error
+	ConfigureCloudAuthorization       func(context.Context, CloudAuthorizationComposition) error
+	ConfigureAuthorization            func(context.Context, AuthorizationComposition) error
+	ReactiveTemplates                 *ReactiveTemplateComposition
+	AutomationTriggers                *automationtriggers.Plan
+	ConfigureAutomationTriggerResults func(context.Context, AutomationTriggerResults) error
+	Public                            *PublicPlan
 }
 
 // RuntimeFactory is trusted server composition. The default runtime has no
@@ -221,44 +224,76 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	if err != nil {
 		return closePreparedRuntime(host, authorization, store, err, nil, recording)
 	}
+	triggers, err := prepareAutomationTriggers(ctx, plan.AutomationTriggers, sequence, host, plan.Pilots)
+	if err != nil {
+		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
+	}
+	if plan.ConfigureAutomationTriggerResults != nil {
+		if triggers == nil {
+			return closeTriggerPreparedRuntime(host, triggers, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+				return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, ErrInvalidTriggerComposition, reactive, recording, triggerDone)
+			})
+		}
+		if err := plan.ConfigureAutomationTriggerResults(ctx, triggerResultReader{triggers}); err != nil {
+			return closeTriggerPreparedRuntime(host, triggers, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+				return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, triggerDone)
+			})
+		}
+	}
 	authorization.freeze()
 	if err := ctx.Err(); err != nil {
-		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
+		return closeTriggerPreparedRuntime(host, triggers, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, triggerDone)
+		})
 	}
 	plan.Public, sessions, err = composeSessionsWithCoordinator(plan.Public, store, sessions)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
+		return closeTriggerPreparedRuntime(host, triggers, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, triggerDone)
+		})
 	}
 	public, err := compilePublicPlan(plan.Public, publicSettings)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
+		return closeTriggerPreparedRuntime(host, triggers, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, triggerDone)
+		})
 	}
 	supervisor, err := integrations.NewSupervisor(host, plan.Pilots, integrations.DefaultRetryPolicy(), integrations.RealTimer{}, integrations.RandomJitter{})
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
+		return closeTriggerPreparedRuntime(host, triggers, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, triggerDone)
+		})
 	}
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
 	if err := supervisor.Start(ctx); err != nil {
 		lifecycleCancel()
-		return closePreparedRuntime(host, authorization, store, err, reactive, recording)
+		return closeTriggerPreparedRuntime(host, triggers, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, triggerDone)
+		})
 	}
 	if err := authorization.openAdmissions(); err != nil {
 		lifecycleCancel()
 		_ = host.CloseAdmissions()
 		authorization.CloseAdmissions()
 		reactive.CloseAdmissions()
+		triggers.CloseAdmissions()
 		stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		stopErr := supervisor.Stop(stopCtx)
 		authorizationErr := authorization.Close(stopCtx)
 		reactiveErr := reactive.Close(stopCtx)
+		triggerErr := drainAutomationTriggers(stopCtx, triggers)
 		recorderErr := drainRecorder(stopCtx, recording)
 		cancel()
-		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done(), reactive.Done(), recording.Done())
-		return errors.Join(err, stopErr, authorizationErr, reactiveErr, recorderErr)
+		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), recording.Done())
+		return errors.Join(err, stopErr, authorizationErr, reactiveErr, triggerErr, recorderErr)
 	}
 	var reactiveDone <-chan struct{}
 	if reactive != nil {
 		reactiveDone = reactive.Done()
+	}
+	var triggerDone <-chan struct{}
+	if triggers != nil {
+		triggerDone = triggers.ReaderDone()
 	}
 	watchStop := make(chan struct{})
 	watchDone := make(chan struct{})
@@ -269,10 +304,18 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
 			reactive.CloseAdmissions()
+			triggers.CloseAdmissions()
 			lifecycleCancel()
 		case <-reactiveDone:
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
+			triggers.CloseAdmissions()
+			lifecycleCancel()
+		case <-triggerDone:
+			_ = host.CloseAdmissions()
+			authorization.CloseAdmissions()
+			reactive.CloseAdmissions()
+			triggers.CloseAdmissions()
 			lifecycleCancel()
 		case <-watchStop:
 		}
@@ -286,6 +329,7 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	_ = host.CloseAdmissions()
 	authorization.CloseAdmissions()
 	reactive.CloseAdmissions()
+	triggers.CloseAdmissions()
 	close(watchStop)
 	<-watchDone
 	lifecycleCancel()
@@ -298,10 +342,11 @@ func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, rea
 	stopErr := supervisor.Stop(stopCtx)
 	authorizationErr := <-authorizationStop
 	reactiveErr := <-reactiveStop
+	triggerErr := drainAutomationTriggers(stopCtx, triggers)
 	recorderErr := drainRecorder(stopCtx, recording)
 	cancel()
-	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), recording.Done())
-	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr, reactiveErr, recorderErr)
+	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), recording.Done())
+	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr, reactiveErr, triggerErr, recorderErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured
@@ -427,6 +472,11 @@ func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, 
 
 func closePreparedRuntime(host *integrations.Manager, authorization *cloudAuthorizationCoordinator, store *storage.Store, cause error, templates *reactiveTemplateRuntime, recording *recorder.Recorder) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	return closePreparedRuntimeWithContext(ctx, host, authorization, store, cause, templates, recording)
+}
+
+func closePreparedRuntimeWithContext(ctx context.Context, host *integrations.Manager, authorization *cloudAuthorizationCoordinator, store *storage.Store, cause error, templates *reactiveTemplateRuntime, recording *recorder.Recorder, extraDone ...<-chan struct{}) error {
 	if authorization != nil {
 		authorization.CloseAdmissions()
 	}
@@ -449,8 +499,9 @@ func closePreparedRuntime(host *integrations.Manager, authorization *cloudAuthor
 		reactiveErr = <-reactiveStop
 	}
 	recorderErr := drainRecorder(ctx, recording)
-	cancel()
-	retainStoreUntilDrained(store, done, authorization.Done(), templates.Done(), recording.Done())
+	drains := []<-chan struct{}{done, authorization.Done(), templates.Done(), recording.Done()}
+	drains = append(drains, extraDone...)
+	retainStoreUntilDrained(store, drains...)
 	return errors.Join(cause, closeErr, authorizationErr, reactiveErr, recorderErr)
 }
 

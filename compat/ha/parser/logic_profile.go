@@ -11,12 +11,19 @@ func logicRule() *rule {
 	body.fields["max_exceeded"] = scalar()
 	trigger := mapping(map[string]*rule{
 		"trigger": {kind: KindScalar, values: map[string]bool{
-			"time": true, "sun": true, "event": true, "mqtt": true, "device": true,
+			"state": true, "numeric_state": true, "time": true, "time_pattern": true,
+			"sun": true, "event": true, "mqtt": true, "device": true, "calendar": true,
 		}},
 		"at": scalar(), "event": scalar(), "offset": scalar(),
 		"event_type": scalar(), "event_data": &rule{open: true}, "id": scalar(),
 		"topic": scalar(), "payload": scalar(),
 		"domain": scalar(), "device_id": scalar(), "type": scalar(), "subtype": scalar(),
+		"entity_id": scalar(), "from": scalar(), "to": scalar(), "attribute": scalar(),
+		"for": {alternatives: []*rule{scalar(), mapping(map[string]*rule{
+			"hours": scalar(), "minutes": scalar(), "seconds": scalar(),
+		})}},
+		"above": scalar(), "below": scalar(),
+		"hours": scalar(), "minutes": scalar(), "seconds": scalar(),
 	})
 	condition := mapping(map[string]*rule{
 		"condition": {kind: KindScalar, values: map[string]bool{

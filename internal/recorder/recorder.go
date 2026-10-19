@@ -82,7 +82,7 @@ type pending struct {
 	abandoned     uint64
 	needsImage    bool
 	bytes         int
-	firstStateAt  time.Time
+	firstEntryAt  time.Time
 }
 
 // Start prepares the initial subscription and epoch before any producer is
@@ -277,6 +277,15 @@ func (r *Recorder) run(checkpoint uint64) {
 			result = r.drain(stopCtx, boundary, &p, &checkpoint)
 			return
 		}
+		// An uninterrupted stream of policy-excluded edges must not postpone
+		// its SQL checkpoint by repeatedly satisfying Next before its timeout.
+		if p.ready() && !p.firstEntryAt.IsZero() && !time.Now().Before(p.firstEntryAt.Add(flushInterval)) {
+			if err := r.flush(&p, &checkpoint); err != nil {
+				result = err
+				return
+			}
+			continue
+		}
 		if needsImage && !nextImageAttempt.IsZero() && !time.Now().Before(nextImageAttempt) {
 			if p.ready() && p.through > p.from {
 				if err := r.flush(&p, &checkpoint); err != nil {
@@ -298,8 +307,8 @@ func (r *Recorder) run(checkpoint uint64) {
 			continue
 		}
 		wait := flushInterval
-		if !p.firstStateAt.IsZero() {
-			wait = time.Until(p.firstStateAt.Add(flushInterval))
+		if !p.firstEntryAt.IsZero() {
+			wait = time.Until(p.firstEntryAt.Add(flushInterval))
 			if wait < 0 {
 				wait = 0
 			}
@@ -441,6 +450,9 @@ func (r *Recorder) accept(p *pending, entry sequencer.Entry) error {
 	if sequence > p.through {
 		p.through = sequence
 	}
+	if p.firstEntryAt.IsZero() {
+		p.firstEntryAt = time.Now()
+	}
 	if len(p.gaps) == 1 && p.gaps[0].UncertainEnvelope && p.gaps[0].From == p.from+1 {
 		p.gaps[0].Through = p.through
 	}
@@ -480,10 +492,7 @@ func (r *Recorder) accept(p *pending, entry sequencer.Entry) error {
 		}
 		p.rows = append(p.rows, row)
 		p.bytes += charge
-		if p.firstStateAt.IsZero() {
-			p.firstStateAt = time.Now()
-		}
-	case sequencer.KindEvent, sequencer.KindHealth, sequencer.KindRegistry, sequencer.KindCapabilities:
+	case sequencer.KindEvent, sequencer.KindHealth, sequencer.KindRegistry, sequencer.KindCapabilities, sequencer.KindNativeMQTTEdge:
 		if p.excluded == ^uint64(0) {
 			return ErrInvalidRecorder
 		}
@@ -596,7 +605,7 @@ func (p *pending) collapseToGap() {
 	p.rows = nil
 	p.gaps = []storage.RecorderGap{{From: p.from + 1, Through: p.through, KnownLost: known, Reason: storage.RecorderGapAbandoned, UncertainEnvelope: true}}
 	p.bytes = 0
-	p.firstStateAt = time.Time{}
+	p.firstEntryAt = time.Time{}
 }
 
 func (r *Recorder) flush(p *pending, checkpoint *uint64) error {

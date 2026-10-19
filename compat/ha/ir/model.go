@@ -4,6 +4,9 @@
 package ir
 
 import (
+	"time"
+	"unsafe"
+
 	"github.com/damione1/Homeward/compat/ha/template"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/mqtt"
@@ -112,6 +115,21 @@ func (s Source) Inputs() []InputUse {
 	return out
 }
 func (s Source) clone() Source { s.references = s.References(); s.inputs = s.Inputs(); return s }
+func (s Source) planBytes() int {
+	bytes := 2*(len(s.object)+len(s.at.File)+len(s.path)) +
+		len(s.references)*int(unsafe.Sizeof(Reference{})) + len(s.inputs)*int(unsafe.Sizeof(InputUse{}))
+	for _, reference := range s.references {
+		bytes += 2 * len(reference.At.File)
+	}
+	for _, input := range s.inputs {
+		bytes += 2 * (len(input.name) + len(input.at.File) + len(input.declaration.File) + len(input.valueSource.File))
+		bytes += len(input.references) * int(unsafe.Sizeof(Reference{}))
+		for _, reference := range input.references {
+			bytes += 2 * len(reference.At.File)
+		}
+	}
+	return bytes
+}
 
 type Diagnostic struct {
 	code       Code
@@ -261,7 +279,27 @@ func (a Automation) Max() (int, bool)             { return a.max, a.hasMax }
 func (a Automation) MaxExceeded() MaxExceededMode { return a.maxExceeded }
 func (a Automation) Source() Source               { return a.source.clone() }
 func (a Automation) Triggers() []Trigger          { return cloneTriggers(a.triggers) }
-func (a Automation) Conditions() []Condition      { return cloneConditions(a.conditions) }
+
+// TriggerPlanBytes charges the selected trigger projection before the runtime
+// clones it. It includes owned source arrays and dynamic strings, not actions
+// or conditions, which the trigger service never retains.
+func (a Automation) TriggerPlanBytes() (int, int) {
+	bytes := 256
+	for _, trigger := range a.triggers {
+		alias, _ := trigger.entityAlias.Value()
+		device, _ := trigger.deviceID.Value()
+		eventType, _ := trigger.eventType.Value()
+		topic, _ := trigger.topic.Value()
+		dataDevice, _ := trigger.eventData.deviceID.Value()
+		bytes += int(unsafe.Sizeof(Trigger{})) + 256 + 2*(len(a.id)+len(trigger.id)+len(trigger.key)+
+			len(trigger.from)+len(trigger.to)+len(trigger.payload)+len(trigger.subtype)+len(trigger.eventData.command)+
+			len(alias)+len(device)+len(eventType)+len(topic)+len(dataDevice))
+		bytes += len(trigger.eventData.args) * int(unsafe.Sizeof(int64(0)))
+		bytes += trigger.source.planBytes()
+	}
+	return len(a.triggers), bytes
+}
+func (a Automation) Conditions() []Condition { return cloneConditions(a.conditions) }
 func (a Automation) Variables() []Variable {
 	out := make([]Variable, len(a.variables))
 	for i, v := range a.variables {
@@ -292,6 +330,45 @@ const (
 	TriggerEvent
 	TriggerMQTT
 	TriggerDeviceMQTT
+	TriggerState
+	TriggerNumericState
+	TriggerTimePattern
+	TriggerCalendar
+)
+
+// TriggerAttribute is the typed subset of HA state attributes represented by
+// Homeward's observed values. AttributeUnspecified selects the primary state.
+type TriggerAttribute uint8
+
+const (
+	AttributeUnspecified TriggerAttribute = iota
+	AttributeBrightness
+	AttributeColorTemp
+)
+
+type PatternPartKind uint8
+
+const (
+	PatternPartInvalid PatternPartKind = iota
+	PatternPartAny
+	PatternPartExact
+	PatternPartEvery
+)
+
+type PatternPart struct {
+	kind  PatternPartKind
+	value uint8
+}
+
+func (p PatternPart) Kind() PatternPartKind { return p.kind }
+func (p PatternPart) Value() int            { return int(p.value) }
+
+type CalendarEdge uint8
+
+const (
+	CalendarEdgeInvalid CalendarEdge = iota
+	CalendarEdgeStart
+	CalendarEdgeEnd
 )
 
 type EventData struct {
@@ -312,30 +389,53 @@ func (e EventData) Args() ([]int64, bool)     { return append([]int64(nil), e.ar
 func (e EventData) clone() EventData          { e.args, _ = e.Args(); return e }
 
 type Trigger struct {
-	kind             TriggerKind
-	id               string
-	source           Source
-	secondsOfDay     int
-	offsetSeconds    int
-	eventType        EventType
-	deviceID         HADeviceRef
-	topic            mqtt.TopicFilter
-	payload, subtype string
-	hasPayload       bool
-	eventData        EventData
+	kind                                         TriggerKind
+	id                                           string
+	key                                          string
+	source                                       Source
+	entityAlias                                  domain.HAAlias
+	attribute                                    TriggerAttribute
+	from, to                                     string
+	hasFrom, hasTo                               bool
+	above, below                                 float64
+	hasAbove, hasBelow                           bool
+	forDuration                                  time.Duration
+	hasFor                                       bool
+	patternHours, patternMinutes, patternSeconds PatternPart
+	calendarEdge                                 CalendarEdge
+	secondsOfDay                                 int
+	offsetSeconds                                int
+	eventType                                    EventType
+	deviceID                                     HADeviceRef
+	topic                                        mqtt.TopicFilter
+	payload, subtype                             string
+	hasPayload                                   bool
+	eventData                                    EventData
 }
 
-func (t Trigger) Kind() TriggerKind       { return t.kind }
-func (t Trigger) ID() string              { return t.id }
-func (t Trigger) Source() Source          { return t.source.clone() }
-func (t Trigger) SecondsOfDay() int       { return t.secondsOfDay }
-func (t Trigger) OffsetSeconds() int      { return t.offsetSeconds }
-func (t Trigger) EventType() EventType    { return t.eventType }
-func (t Trigger) Topic() mqtt.TopicFilter { return t.topic }
-func (t Trigger) Payload() (string, bool) { return t.payload, t.hasPayload }
-func (t Trigger) DeviceRef() HADeviceRef  { return t.deviceID }
-func (t Trigger) Subtype() string         { return t.subtype }
-func (t Trigger) Data() EventData         { return t.eventData.clone() }
+func (t Trigger) Kind() TriggerKind           { return t.kind }
+func (t Trigger) ID() string                  { return t.id }
+func (t Trigger) Key() string                 { return t.key }
+func (t Trigger) Source() Source              { return t.source.clone() }
+func (t Trigger) EntityAlias() domain.HAAlias { return t.entityAlias }
+func (t Trigger) Attribute() TriggerAttribute { return t.attribute }
+func (t Trigger) From() (string, bool)        { return t.from, t.hasFrom }
+func (t Trigger) To() (string, bool)          { return t.to, t.hasTo }
+func (t Trigger) Above() (float64, bool)      { return t.above, t.hasAbove }
+func (t Trigger) Below() (float64, bool)      { return t.below, t.hasBelow }
+func (t Trigger) For() (time.Duration, bool)  { return t.forDuration, t.hasFor }
+func (t Trigger) Pattern() (hours, minutes, seconds PatternPart) {
+	return t.patternHours, t.patternMinutes, t.patternSeconds
+}
+func (t Trigger) CalendarEdge() CalendarEdge { return t.calendarEdge }
+func (t Trigger) SecondsOfDay() int          { return t.secondsOfDay }
+func (t Trigger) OffsetSeconds() int         { return t.offsetSeconds }
+func (t Trigger) EventType() EventType       { return t.eventType }
+func (t Trigger) Topic() mqtt.TopicFilter    { return t.topic }
+func (t Trigger) Payload() (string, bool)    { return t.payload, t.hasPayload }
+func (t Trigger) DeviceRef() HADeviceRef     { return t.deviceID }
+func (t Trigger) Subtype() string            { return t.subtype }
+func (t Trigger) Data() EventData            { return t.eventData.clone() }
 func (t Trigger) clone() Trigger {
 	t.source = t.source.clone()
 	t.eventData = t.eventData.clone()

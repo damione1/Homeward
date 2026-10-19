@@ -218,7 +218,10 @@ func (s *Service) WatchView(ctx context.Context, actor ActorID, request *statewi
 		return nil, ErrResourceExhausted
 	}
 	releaseReplay := func() { <-s.replaySlots }
-	sub, replay, _, err := s.source.SubscribeViewAfter(cursor.sequence, MaxReplayEntries)
+	// Precharge the full retained suffix before its Entry slice is copied.
+	// Native MQTT payloads are invisible on this wire, but the replay still
+	// holds their journal backing until its cursor has advanced.
+	sub, replay, _, _, err := s.source.SubscribeTriggerViewAfter(cursor.sequence, MaxReplayEntries, MaxReplayBytes)
 	if err != nil {
 		releaseReplay()
 		stop()
@@ -226,6 +229,8 @@ func (s *Service) WatchView(ctx context.Context, actor ActorID, request *statewi
 		case errors.Is(err, sequencer.ErrEpochMismatch):
 			return terminalWatch(statewire.ResyncReason_RESYNC_REASON_EPOCH_CHANGED), nil
 		case errors.Is(err, sequencer.ErrCursorExpired):
+			return terminalWatch(statewire.ResyncReason_RESYNC_REASON_REPLAY_EXPIRED), nil
+		case errors.Is(err, sequencer.ErrTriggerViewBudget):
 			return terminalWatch(statewire.ResyncReason_RESYNC_REASON_REPLAY_EXPIRED), nil
 		case errors.Is(err, sequencer.ErrRegistryUnavailable):
 			return terminalWatch(statewire.ResyncReason_RESYNC_REASON_REGISTRY_UNAVAILABLE), nil
@@ -256,7 +261,7 @@ func (s *Service) WatchView(ctx context.Context, actor ActorID, request *statewi
 				return nil, encodeErr
 			}
 			bytes += proto.Size(wire) + 256
-		case sequencer.KindEvent, sequencer.KindHealth:
+		case sequencer.KindEvent, sequencer.KindHealth, sequencer.KindNativeMQTTEdge:
 			bytes += 256
 		case sequencer.KindUnspecified:
 			sub.Close()
@@ -553,7 +558,7 @@ func (w *Watch) Next(ctx context.Context) (*statewire.WatchViewResponse, error) 
 				return nil, io.EOF
 			}
 			return frame, nil
-		case sequencer.KindEvent, sequencer.KindHealth:
+		case sequencer.KindEvent, sequencer.KindHealth, sequencer.KindNativeMQTTEdge:
 			w.cursor.sequence = entry.Cursor()
 			continue
 		case sequencer.KindUnspecified:
