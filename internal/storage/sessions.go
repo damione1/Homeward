@@ -269,7 +269,7 @@ func (s *Store) AdmitAccess(ctx context.Context, owner SessionOwner, digest acco
         JOIN public.auth_sessions s ON s.id=a.session_id
         JOIN public.auth_accounts c ON c.id=s.account_id
         WHERE a.token_digest=$1 AND s.id=$2 AND s.account_id=$3 AND a.audience=1
-        AND s.revoked_at IS NULL AND c.status=1 AND c.revocation_revision=s.account_revision`,
+        AND `+currentSessionPredicate,
 		raw[:], session, account).Scan(&foundAccount, &foundSession, &accessExpiry, &sessionExpiry, &role)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AccessAdmission{}, ErrSessionNotFound
