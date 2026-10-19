@@ -39,12 +39,13 @@ const (
 
 type Trace struct {
 	Decision    Decision
+	MaxExceeded ir.MaxExceededMode
+	ordinal     TraceOrdinal
 	Automation  string
 	Script      ir.ScriptID
 	TriggerKey  string
 	RunID       RunID
 	Generation  Generation
-	MaxExceeded ir.MaxExceededMode
 	Error       string
 }
 
@@ -88,6 +89,7 @@ type Controller struct {
 	wg              sync.WaitGroup
 	lanes           map[laneKey]*lane
 	traces          []Trace
+	traceOrdinal    atomic.Uint64
 	evicted         uint64
 	next            RunID
 	generation      Generation
@@ -170,10 +172,12 @@ func (c *Controller) recordLocked(trace Trace) {
 	trace.Error = strings.Clone(trace.Error)
 	if len(c.traces) == MaxTraces {
 		copy(c.traces, c.traces[1:])
+		trace.ordinal = c.nextTraceOrdinal()
 		c.traces[len(c.traces)-1] = trace
 		c.evicted++
 		return
 	}
+	trace.ordinal = c.nextTraceOrdinal()
 	c.traces = append(c.traces, trace)
 }
 
