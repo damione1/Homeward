@@ -315,6 +315,8 @@ func captureMember(snapshot sequencer.Snapshot, alias domain.HAAlias) (memberSpe
 	qualified := false
 	wantSchema := ""
 	switch kind {
+	case domain.ValueSolar, domain.ValueSolarEvent:
+		return memberSpec{}, Omission{alias, OmissionCapability, "solar observations have no restore command"}
 	case domain.ValueLight:
 		wantSchema = contracts.LightSchema
 	case domain.ValueSwitch:

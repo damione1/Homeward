@@ -104,6 +104,8 @@ const (
 	ValueFan
 	ValueClimate
 	ValueHelper
+	ValueSolar
+	ValueSolarEvent
 )
 
 // FanSpeed is closed to the LEAP speeds the Host can prove. The zero value is
@@ -210,14 +212,13 @@ func (v LightValue) Components() (bool, *float64, *uint32, error) {
 // StateValue is a closed sum. Its zero value cannot be published. False and
 // numeric zero are ordinary present values, distinct from an absent value.
 type StateValue struct {
-	kind           ValueKind
-	switchOn       bool
-	measurement    Measurement
-	light          LightValue
-	fan            FanSpeed
-	climate        ClimateValue
-	helper         *HelperValue
-	helperRevision uint64
+	kind        ValueKind
+	switchOn    bool
+	measurement Measurement
+	light       LightValue
+	fan         FanSpeed
+	climate     ClimateValue
+	native      nativeStatePayload
 }
 
 func NewSwitchValue(on bool) StateValue { return StateValue{kind: ValueSwitch, switchOn: on} }
@@ -250,17 +251,10 @@ func NewClimateStateValue(climate ClimateValue) (StateValue, error) {
 	return StateValue{kind: ValueClimate, climate: climate}, nil
 }
 
-func NewHelperStateValue(helper HelperValue, persistedRevision uint64) (StateValue, error) {
-	if _, err := helper.Kind(); err != nil || persistedRevision == 0 || persistedRevision > math.MaxInt64 {
-		return StateValue{}, ErrInvalidState
-	}
-	// The pointer is private and the pointee is an admitted immutable copy.
-	// Other state variants remain compact when copied through the journal.
-	owned := helper
-	return StateValue{kind: ValueHelper, helper: &owned, helperRevision: persistedRevision}, nil
-}
-
 func (v StateValue) Kind() (ValueKind, error) {
+	if v.kind >= ValueSwitch && v.kind <= ValueClimate && v.native != nil {
+		return ValueUnspecified, ErrInvalidState
+	}
 	switch v.kind {
 	case ValueSwitch:
 		return ValueSwitch, nil
@@ -280,12 +274,8 @@ func (v StateValue) Kind() (ValueKind, error) {
 		if _, err := v.climate.Components(); err == nil {
 			return ValueClimate, nil
 		}
-	case ValueHelper:
-		if v.helper != nil {
-			if _, err := v.helper.Kind(); err == nil && v.helperRevision > 0 && v.helperRevision <= math.MaxInt64 {
-				return ValueHelper, nil
-			}
-		}
+	case ValueHelper, ValueSolar, ValueSolarEvent:
+		return v.nativeKind()
 	case ValueUnspecified:
 	default:
 	}
@@ -303,26 +293,6 @@ func (v StateValue) Light() (LightValue, bool) { return v.light, v.kind == Value
 func (v StateValue) Fan() (FanSpeed, bool) { return v.fan, v.kind == ValueFan }
 
 func (v StateValue) Climate() (ClimateValue, bool) { return v.climate, v.kind == ValueClimate }
-
-func (v StateValue) Helper() (HelperValue, uint64, bool) {
-	kind, err := v.Kind()
-	if err != nil || kind != ValueHelper || v.helper == nil {
-		return HelperValue{}, 0, false
-	}
-	return *v.helper, v.helperRevision, true
-}
-
-func sameBusinessValue(a, b StateValue) bool {
-	if a.kind != ValueHelper && b.kind != ValueHelper {
-		return a == b
-	}
-	return a.kind == ValueHelper && b.kind == ValueHelper && a.helper != nil && b.helper != nil &&
-		*a.helper == *b.helper
-}
-
-func helperRevisionChanged(a, b StateValue) bool {
-	return a.kind == ValueHelper && b.kind == ValueHelper && a.helperRevision != b.helperRevision
-}
 
 // SourceStamp records a driver's session and optional source sequence. Their
 // ordering policy belongs to the later host sequencer; revision is supplied by

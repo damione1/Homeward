@@ -1,0 +1,2 @@
+event: SOLAR_EVENT_KIND_UNSPECIFIED
+occurrence { at { seconds: 140 } }

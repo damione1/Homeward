@@ -436,7 +436,10 @@ func retainedStateValueBytes(size int, value domain.StateValue) int {
 		// The admitted helper is a private heap value behind StateValue's
 		// pointer; charge it even though the journal entry only copies that
 		// pointer. The string backing store is charged separately below.
-		size = retainedCharge(size, int(unsafe.Sizeof(domain.HelperValue{})))
+		size = retainedCharge(size, int(unsafe.Sizeof(struct {
+			value    domain.HelperValue
+			revision uint64
+		}{})))
 		kind, err := helper.Kind()
 		if err != nil {
 			return MaxJournalBytes + 1
@@ -449,6 +452,12 @@ func retainedStateValueBytes(size int, value domain.StateValue) int {
 			text, _ := helper.Text()
 			return retainedCharge(size, len(text))
 		}
+	}
+	if _, ok := value.Solar(); ok {
+		return retainedCharge(size, int(unsafe.Sizeof(domain.SolarValue{})))
+	}
+	if _, ok := value.SolarEvent(); ok {
+		return retainedCharge(size, int(unsafe.Sizeof(domain.SolarEventValue{})))
 	}
 	if measurement, ok := value.Measurement(); ok {
 		parts, err := measurement.Components()
@@ -669,6 +678,10 @@ func (s *Sequencer) Capture() (Snapshot, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.captureLocked()
+}
+
+func (s *Sequencer) captureLocked() (Snapshot, error) {
 	if s.registryState == registryUnavailable {
 		return Snapshot{}, ErrRegistryUnavailable
 	}

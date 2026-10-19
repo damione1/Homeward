@@ -1,0 +1,10 @@
+horizon: SOLAR_HORIZON_BELOW
+elevation_degrees: -10
+azimuth_degrees: 0
+rising: true
+next_dawn { absent: SOLAR_ABSENCE_REASON_NO_EVENT_WITHIN_SEARCH_HORIZON }
+next_dusk { absent: SOLAR_ABSENCE_REASON_NO_EVENT_WITHIN_SEARCH_HORIZON }
+next_midnight { at { seconds: 200 } }
+next_noon { at { seconds: 100 } }
+next_rising { absent: SOLAR_ABSENCE_REASON_NO_EVENT_WITHIN_SEARCH_HORIZON }
+next_setting { absent: SOLAR_ABSENCE_REASON_NO_EVENT_WITHIN_SEARCH_HORIZON }

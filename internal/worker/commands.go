@@ -32,7 +32,7 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	}
 	// Helper commands are native-only. Reject before creating a delivery or
 	// touching the worker queue, including a mismatched helper wire branch.
-	if request.CapabilitySchemaId == contracts.HelperSchema || request.GetArguments().GetHelper() != nil {
+	if request.CapabilitySchemaId == contracts.HelperSchema || request.CapabilitySchemaId == contracts.SolarSchema || request.CapabilitySchemaId == contracts.SolarEventSchema || request.GetArguments().GetHelper() != nil {
 		return ErrUnavailable
 	}
 	cause, err := command.Causality()

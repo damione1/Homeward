@@ -92,6 +92,48 @@ func observedText(attribute ir.TriggerAttribute, state domain.ObservedState) (st
 			return text, err == nil
 		case kind == domain.ValueClimate:
 			return "", false // No HA climate mode string is inferred from a typed setpoint.
+		case kind == domain.ValueSolar:
+			solar, ok := value.Solar()
+			if !ok {
+				return "", false
+			}
+			input, err := solar.Components()
+			if err != nil {
+				return "", false
+			}
+			switch input.Horizon {
+			case domain.SolarAboveHorizon:
+				return "above_horizon", true
+			case domain.SolarBelowHorizon:
+				return "below_horizon", true
+			case domain.SolarHorizonUnspecified:
+				return "", false
+			default:
+				return "", false
+			}
+		case kind == domain.ValueSolarEvent:
+			event, ok := value.SolarEvent()
+			if !ok {
+				return "", false
+			}
+			_, occurrence, err := event.Components()
+			if err != nil {
+				return "", false
+			}
+			at, reason, occurrenceKind, err := occurrence.Components()
+			if err != nil {
+				return "", false
+			}
+			switch occurrenceKind {
+			case domain.SolarOccurrencePresent:
+				return at.UTC().Format(time.RFC3339Nano), true
+			case domain.SolarOccurrenceAbsent:
+				return "unknown", reason == domain.SolarNoEventWithinSearchHorizon
+			case domain.SolarOccurrenceUnspecified:
+				return "", false
+			default:
+				return "", false
+			}
 		default:
 			return "", false
 		}

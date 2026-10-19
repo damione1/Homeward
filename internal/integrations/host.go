@@ -1189,6 +1189,22 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 				}
 				matched = true
 			}
+		case domain.ValueSolar:
+			if description.SchemaId == contracts.SolarSchema {
+				value, ok := observation.value.Solar()
+				if !ok || h.catalog.AdmitDomainSolar(binding.entity, observation.endpoint, value) != nil {
+					return ErrInvalidInput
+				}
+				matched = true
+			}
+		case domain.ValueSolarEvent:
+			if description.SchemaId == contracts.SolarEventSchema {
+				value, ok := observation.value.SolarEvent()
+				if !ok || h.catalog.AdmitDomainSolarEvent(binding.entity, observation.endpoint, value) != nil {
+					return ErrInvalidInput
+				}
+				matched = true
+			}
 		case domain.ValueUnspecified:
 			return ErrInvalidInput
 		default:

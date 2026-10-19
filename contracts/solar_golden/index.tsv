@@ -1,0 +1,6 @@
+sun-complete	SolarValue	true
+sun-polar-mixed	SolarValue	true
+event-present	SolarEventValue	true
+event-absent	SolarEventValue	true
+event-zero	SolarEventValue	false
+event-future	SolarEventValue	false

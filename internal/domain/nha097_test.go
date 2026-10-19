@@ -17,7 +17,7 @@ func TestNHA097HelperPayloadDoesNotEnlargeEveryObservedState(t *testing.T) {
 	}
 	for _, invalid := range []StateValue{
 		{kind: ValueHelper},
-		{kind: ValueHelper, helper: &HelperValue{}, helperRevision: 1},
+		{kind: ValueHelper, native: &helperStatePayload{value: HelperValue{}, revision: 1}},
 	} {
 		if _, err := invalid.Kind(); err == nil {
 			t.Fatal("nil or zero helper payload admitted")

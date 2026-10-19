@@ -1,0 +1,5717 @@
+{
+  "comparison": {
+    "ha_entity_exhaustion_cases": [
+      "nha105-north-pole-summer",
+      "nha105-south-pole-summer",
+      "nha105-north-pole-winter",
+      "nha105-exhausted-search"
+    ],
+    "max_angle_error_degrees": 0.0,
+    "max_event_error_seconds": 0.0,
+    "max_phase_error_seconds": 0.0
+  },
+  "elapsed_seconds": 1.9217996669467539,
+  "go": {
+    "astral_commit": "3282d7b437349bc035c8a7dff5c27ec9997a2cdf",
+    "astral_version": "2.2",
+    "cases": [
+      {
+        "after_utc": "2024-03-20T12:00:00Z",
+        "date": "2024-03-20",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-03-20T05:43:08.918992Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-03-21T05:42:51.033385Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-20T18:31:25.78723Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-03-20T18:31:25.78723Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-20T00:07:17Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-03-21T00:06:59Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-20T12:07:26Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-03-20T12:07:26Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-20T06:04:12.403887Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-03-21T06:03:54.553185Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-20T18:10:22.291041Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-03-20T18:10:22.291041Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-equator-equinox",
+        "sun": {
+          "azimuth": 85.39,
+          "date_evaluations": 30,
+          "elevation": 88.17,
+          "next": [
+            {
+              "instant_utc": "2024-03-21T05:42:51.033385Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-20T18:31:25.78723Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-21T00:06:59Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-20T12:07:26Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-21T06:03:54.553185Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-20T18:10:22.291041Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-03-20T12:07:26Z",
+          "next_position": "2024-03-20T12:04:00Z",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00Z",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:35:31.619207Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:35:47.196409Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:13:42.3621Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:13:57.640645Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-temperate-summer",
+        "sun": {
+          "azimuth": 82.39,
+          "date_evaluations": 30,
+          "elevation": 26.38,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:35:47.196409Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:13:57.640645Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-21T17:01:48Z",
+          "next_position": "2024-06-21T12:04:00Z",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-12-21T12:00:00Z",
+        "date": "2024-12-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-12-21T12:01:12.328504Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-12-21T12:01:12.328504Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T21:55:38.917129Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-12-21T21:55:38.917129Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T04:58:25Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-12-22T04:58:55Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T16:58:04Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-12-21T16:58:04Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T12:35:44.187351Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-12-21T12:35:44.187351Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T21:21:07.046621Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-12-21T21:21:07.046621Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-temperate-winter",
+        "sun": {
+          "azimuth": 117.16,
+          "date_evaluations": 27,
+          "elevation": -6.19,
+          "next": [
+            {
+              "instant_utc": "2024-12-21T12:01:12.328504Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T21:55:38.917129Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-22T04:58:55Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T16:58:04Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T12:35:44.187351Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T21:21:07.046621Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-12-21T12:01:12.328504Z",
+          "phase": "nautical_twilight",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00Z",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:27:44.074307Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:27:59.72959Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:36:10.749023Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:36:10.749023Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:08:28.355807Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:08:43.665039Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:55:26.835611Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-22T00:55:26.835611Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-altitude-1000",
+        "sun": {
+          "azimuth": 82.39,
+          "date_evaluations": 30,
+          "elevation": 26.38,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:27:59.72959Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:36:10.749023Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:08:43.665039Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T00:55:26.835611Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-21T17:01:48Z",
+          "next_position": "2024-06-21T12:04:00Z",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00Z",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:35:31.619207Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:35:47.196409Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:13:42.3621Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:13:57.640645Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-altitude-negative",
+        "sun": {
+          "azimuth": 82.39,
+          "date_evaluations": 30,
+          "elevation": 26.38,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:35:47.196409Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:13:57.640645Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-21T17:01:48Z",
+          "next_position": "2024-06-21T12:04:00Z",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-03-10T06:59:59Z",
+        "date": "2024-03-10",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-03-10T10:51:08.346295Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-03-10T10:51:08.346295Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T23:29:47.881544Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-03-10T23:29:47.881544Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T05:10:03Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-03-11T05:09:47Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T17:10:14Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-03-10T17:10:14Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T11:20:54.62349Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-03-10T11:20:54.62349Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T22:59:57.281012Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-03-10T22:59:57.281012Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-spring-gap-before",
+        "sun": {
+          "azimuth": 38.51,
+          "date_evaluations": 25,
+          "elevation": -42.36,
+          "next": [
+            {
+              "instant_utc": "2024-03-10T10:51:08.346295Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T23:29:47.881544Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-11T05:09:47Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T17:10:14Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T11:20:54.62349Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T22:59:57.281012Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-03-10T09:42:56.810899Z",
+          "next_position": "2024-03-10T07:19:59Z",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-03-10T07:00:01Z",
+        "date": "2024-03-10",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-03-10T10:51:08.346295Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-03-10T10:51:08.346295Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T23:29:47.881544Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-03-10T23:29:47.881544Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T05:10:03Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-03-11T05:09:47Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T17:10:14Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-03-10T17:10:14Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T11:20:54.62349Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-03-10T11:20:54.62349Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T22:59:57.281012Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-03-10T22:59:57.281012Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-spring-gap-after",
+        "sun": {
+          "azimuth": 38.52,
+          "date_evaluations": 25,
+          "elevation": -42.36,
+          "next": [
+            {
+              "instant_utc": "2024-03-10T10:51:08.346295Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T23:29:47.881544Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-11T05:09:47Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T17:10:14Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T11:20:54.62349Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T22:59:57.281012Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-03-10T09:42:56.810899Z",
+          "next_position": "2024-03-10T07:20:01Z",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-11-03T05:30:00Z",
+        "date": "2024-11-03",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-11-03T11:10:47.423076Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-11-03T11:10:47.423076Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T22:15:38.710488Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-11-03T22:15:38.710488Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T04:43:30Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-11-04T04:43:31Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T16:43:30Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-11-03T16:43:30Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T11:42:12.91101Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-11-03T11:42:12.91101Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T21:44:15.17411Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-11-03T21:44:15.17411Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-fold-first",
+        "sun": {
+          "azimuth": 21.94,
+          "date_evaluations": 25,
+          "elevation": -58.64,
+          "next": [
+            {
+              "instant_utc": "2024-11-03T11:10:47.423076Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T22:15:38.710488Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-04T04:43:31Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T16:43:30Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T11:42:12.91101Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T21:44:15.17411Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-11-03T10:01:57.181271Z",
+          "next_position": "2024-11-03T05:50:00Z",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-11-03T06:30:00Z",
+        "date": "2024-11-03",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-11-03T11:10:47.423076Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-11-03T11:10:47.423076Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T22:15:38.710488Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-11-03T22:15:38.710488Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T04:43:30Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-11-04T04:43:31Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T16:43:30Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-11-03T16:43:30Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T11:42:12.91101Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-11-03T11:42:12.91101Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T21:44:15.17411Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-11-03T21:44:15.17411Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-fold-second",
+        "sun": {
+          "azimuth": 45.55,
+          "date_evaluations": 25,
+          "elevation": -52.72,
+          "next": [
+            {
+              "instant_utc": "2024-11-03T11:10:47.423076Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T22:15:38.710488Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-04T04:43:31Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T16:43:30Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T11:42:12.91101Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T21:44:15.17411Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-11-03T10:01:57.181271Z",
+          "next_position": "2024-11-03T06:50:00Z",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-12-21T12:00:00Z",
+        "date": "2024-12-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-12-20T18:12:32.683528Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-12-21T18:13:02.199869Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T09:43:41.458732Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-12-22T09:44:10.251395Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-20T13:58:07Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-12-21T13:58:37Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T01:58:04Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-12-22T01:58:34Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-20T18:42:51.756607Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-12-21T18:43:21.340863Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T09:13:22.319822Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-12-22T09:13:51.260306Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-southern-summer",
+        "sun": {
+          "azimuth": 210.03,
+          "date_evaluations": 36,
+          "elevation": -25.17,
+          "next": [
+            {
+              "instant_utc": "2024-12-21T18:13:02.199869Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-22T09:44:10.251395Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T13:58:37Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-22T01:58:34Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T18:43:21.340863Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-22T09:13:51.260306Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-12-21T13:58:37Z",
+          "next_position": "2024-12-21T12:20:00Z",
+          "phase": "night",
+          "rising": false,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00Z",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-20T20:39:21.649702Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-21T20:39:34.045591Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T07:24:18.626853Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T07:24:32.854068Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-20T14:01:51Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-21T14:02:04Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T02:01:48Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-22T02:02:01Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-20T21:08:05.07316Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-21T21:08:17.370738Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T06:55:35.201752Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-22T06:55:49.518227Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-southern-winter",
+        "sun": {
+          "azimuth": 254.66,
+          "date_evaluations": 36,
+          "elevation": -61.14,
+          "next": [
+            {
+              "instant_utc": "2024-06-21T20:39:34.045591Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T07:24:32.854068Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T14:02:04Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T02:02:01Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T21:08:17.370738Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T06:55:49.518227Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-21T14:02:04Z",
+          "next_position": "2024-06-21T12:20:00Z",
+          "phase": "night",
+          "rising": false,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-09-22T18:00:00Z",
+        "date": "2024-09-23",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-09-22T19:22:33.324323Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-09-22T19:22:33.324323Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-09-23T08:22:46.08909Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-09-23T08:22:46.08909Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-09-22T13:52:22Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-09-23T13:52:01Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-09-23T01:52:23Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-09-23T01:52:23Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-09-22T19:48:16.090176Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-09-22T19:48:16.090176Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-09-23T07:57:00.242643Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-09-23T07:57:00.242643Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-half-hour-zone",
+        "sun": {
+          "azimuth": 107.12,
+          "date_evaluations": 25,
+          "elevation": -22.64,
+          "next": [
+            {
+              "instant_utc": "2024-09-22T19:22:33.324323Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-09-23T08:22:46.08909Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-09-23T13:52:01Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-09-23T01:52:23Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-09-22T19:48:16.090176Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-09-23T07:57:00.242643Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-09-22T18:23:27.000758Z",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-12-31T23:59:59Z",
+        "date": "2025-01-01",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-12-31T17:36:59.972429Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2025-01-01T17:37:29.14297Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T06:29:53.463889Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2025-01-01T06:29:53.463889Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-31T12:03:27Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2025-01-01T12:03:56Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T00:03:26Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2025-01-01T00:03:26Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-31T17:59:54.170665Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2025-01-01T18:00:22.472399Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T06:06:59.726349Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2025-01-01T06:06:59.726349Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-date-line-east",
+        "sun": {
+          "azimuth": 177.96,
+          "date_evaluations": 30,
+          "elevation": 66.99,
+          "next": [
+            {
+              "instant_utc": "2025-01-01T17:37:29.14297Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T06:29:53.463889Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T12:03:56Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T00:03:26Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T18:00:22.472399Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T06:06:59.726349Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2025-01-01T00:03:26Z",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2025-01-01T00:00:01Z",
+        "date": "2024-12-31",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-12-31T17:36:59.962498Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2025-01-01T17:37:29.133195Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T06:29:53.455247Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2025-01-01T06:29:53.455247Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-31T12:03:26Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2025-01-01T12:03:55Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T00:02:58Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2025-01-01T00:02:58Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-31T17:59:54.161329Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2025-01-01T18:00:22.463266Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T06:06:59.717122Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2025-01-01T06:06:59.717122Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-date-line-west",
+        "sun": {
+          "azimuth": 177.98,
+          "date_evaluations": 30,
+          "elevation": 66.99,
+          "next": [
+            {
+              "instant_utc": "2025-01-01T17:37:29.133195Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T06:29:53.455247Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T12:03:55Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T00:02:58Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T18:00:22.463266Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T06:06:59.717122Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2025-01-01T00:02:58Z",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-02-28T23:59:59Z",
+        "date": "2024-02-28",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-02-28T05:48:11.046899Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-02-29T05:48:01.225881Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-28T18:37:00.512543Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-02-29T18:36:47.728237Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-28T00:12:36Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-02-29T00:12:24Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-28T12:12:41Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-02-29T12:12:30Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-28T06:09:27.591501Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-02-29T06:09:16.578873Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-28T18:15:44.61617Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-02-29T18:15:32.995121Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-leap-before",
+        "sun": {
+          "azimuth": 201.59,
+          "date_evaluations": 36,
+          "elevation": -81.54,
+          "next": [
+            {
+              "instant_utc": "2024-02-29T05:48:01.225881Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T18:36:47.728237Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T00:12:24Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T12:12:30Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T06:09:16.578873Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T18:15:32.995121Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-02-29T00:12:24Z",
+          "phase": "night",
+          "rising": false,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-02-29T00:00:01Z",
+        "date": "2024-02-29",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-02-29T05:48:01.225881Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-02-29T05:48:01.225881Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-29T18:36:47.728237Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-02-29T18:36:47.728237Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-29T00:12:24Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-02-29T00:12:24Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-29T12:12:30Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-02-29T12:12:30Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-29T06:09:16.578873Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-02-29T06:09:16.578873Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-29T18:15:32.995121Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-02-29T18:15:32.995121Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-leap-after",
+        "sun": {
+          "azimuth": 201.54,
+          "date_evaluations": 24,
+          "elevation": -81.54,
+          "next": [
+            {
+              "instant_utc": "2024-02-29T05:48:01.225881Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T18:36:47.728237Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T00:12:24Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T12:12:30Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T06:09:16.578873Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T18:15:32.995121Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-02-29T00:12:24Z",
+          "phase": "night",
+          "rising": false,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2016-06-01T00:00:00Z",
+        "date": "2016-06-01",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2016-08-13T23:05:44.154366Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2016-08-14T22:06:01.472542Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2016-05-31T22:42:43Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2016-06-01T22:42:53Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2016-06-01T10:42:38Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2016-06-01T10:42:38Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2016-07-24T22:59:45.689645Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2016-07-25T22:17:13.503932Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-public-norway-june",
+        "sun": {
+          "azimuth": 17.89,
+          "date_evaluations": 681,
+          "elevation": 2.97,
+          "next": [
+            {
+              "instant_utc": "2016-08-13T23:05:44.154366Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-08-14T22:06:01.472542Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-06-01T22:42:53Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-06-01T10:42:38Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-07-24T22:59:45.689645Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-07-25T22:17:13.503932Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2016-06-01T02:26:49.576562Z",
+          "next_position": "2016-06-01T00:02:00Z",
+          "phase": "small_day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00Z",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-08-15T23:24:38.581672Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-08-15T22:05:02.643726Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-20T22:41:55Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-21T22:42:08Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T10:41:48Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-22T10:42:01Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-07-26T23:06:17.556223Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-07-26T22:30:36.547491Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-synthetic-arctic-june",
+        "sun": {
+          "azimuth": 204.37,
+          "date_evaluations": 533,
+          "elevation": 42.05,
+          "next": [
+            {
+              "instant_utc": "2024-08-15T23:24:38.581672Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-08-15T22:05:02.643726Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T22:42:08Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T10:42:01Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-07-26T23:06:17.556223Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-07-26T22:30:36.547491Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-21T19:21:53.085365Z",
+          "next_position": "2024-06-21T12:04:00Z",
+          "phase": "day",
+          "rising": false,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00Z",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-10-08T06:33:07.551355Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T00:01:55Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T00:02:08Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T12:01:48Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-21T12:01:48Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          }
+        ],
+        "id": "nha105-north-pole-summer",
+        "sun": {
+          "azimuth": 179.52,
+          "date_evaluations": 1906,
+          "elevation": 23.67,
+          "next": [
+            {
+              "instant_utc": "2024-10-08T06:33:07.551355Z",
+              "kind": "present"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            },
+            {
+              "instant_utc": "2024-06-22T00:02:08Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T12:01:48Z",
+              "kind": "present"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          ],
+          "next_change": "2024-06-21T12:01:48Z",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-12-21T12:00:00Z",
+        "date": "2024-12-21",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2025-04-05T10:10:53.729449Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-20T23:58:20Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-12-21T23:58:50Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T11:58:04Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-12-22T11:58:34Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          }
+        ],
+        "id": "nha105-south-pole-summer",
+        "sun": {
+          "azimuth": 359.58,
+          "date_evaluations": 2118,
+          "elevation": 23.68,
+          "next": [
+            {
+              "instant_utc": "2025-04-05T10:10:53.729449Z",
+              "kind": "present"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            },
+            {
+              "instant_utc": "2024-12-21T23:58:50Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-22T11:58:34Z",
+              "kind": "present"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          ],
+          "next_change": "2024-12-21T23:58:50Z",
+          "next_position": "2024-12-21T12:04:00Z",
+          "phase": "day",
+          "rising": false,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-12-21T12:00:00Z",
+        "date": "2024-12-21",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2025-03-05T03:04:03.109818Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2025-10-08T14:50:37.337763Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-20T23:58:20Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-12-21T23:58:50Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T11:58:04Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-12-22T11:58:34Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          }
+        ],
+        "id": "nha105-north-pole-winter",
+        "sun": {
+          "azimuth": 180.42,
+          "date_evaluations": 2411,
+          "elevation": -23.23,
+          "next": [
+            {
+              "instant_utc": "2025-03-05T03:04:03.109818Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-10-08T14:50:37.337763Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T23:58:50Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-22T11:58:34Z",
+              "kind": "present"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          ],
+          "next_change": "2024-12-21T23:58:50Z",
+          "next_position": "2024-12-21T12:20:00Z",
+          "phase": "night",
+          "rising": false,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2016-06-01T00:00:00Z",
+        "date": "2016-06-01",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2016-05-31T22:42:43Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2016-06-01T22:42:53Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2016-06-01T10:42:38Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2016-06-01T10:42:38Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          }
+        ],
+        "id": "nha105-exhausted-search",
+        "sun": {
+          "azimuth": 17.89,
+          "date_evaluations": 3685,
+          "elevation": 2.97,
+          "next": [
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            },
+            {
+              "instant_utc": "2016-06-01T22:42:53Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-06-01T10:42:38Z",
+              "kind": "present"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            },
+            {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          ],
+          "next_change": "2016-06-01T10:42:38Z",
+          "next_position": "2016-06-01T00:04:00Z",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-22T00:50:12.876189Z",
+        "anchor_utc": "2024-06-22T00:50:12.87619Z",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:35:31.619207Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:35:47.196409Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-22T17:02:01Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:13:42.3621Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:13:57.640645Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-setting-before",
+        "sun": {
+          "azimuth": 305.18,
+          "date_evaluations": 32,
+          "elevation": -0.37,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:35:47.196409Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T17:02:01Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:13:57.640645Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-22T00:50:12.87619Z",
+          "phase": "small_day",
+          "rising": false,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-22T00:50:12.87619Z",
+        "anchor_utc": "2024-06-22T00:50:12.87619Z",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:35:31.619207Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:35:47.196409Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-22T17:02:01Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:13:42.3621Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:13:57.640645Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-23T00:50:22.150472Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-setting-equal",
+        "sun": {
+          "azimuth": 305.18,
+          "date_evaluations": 33,
+          "elevation": -0.37,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:35:47.196409Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T17:02:01Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:13:57.640645Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-23T00:50:22.150472Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-22T01:28:23.284278Z",
+          "next_position": "2024-06-22T00:52:12.87619Z",
+          "phase": "twilight",
+          "rising": false,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-22T00:50:12.876191Z",
+        "anchor_utc": "2024-06-22T00:50:12.87619Z",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:35:31.619207Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:35:47.196409Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-22T17:02:01Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:13:42.3621Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:13:57.640645Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:50:12.87619Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-23T00:50:22.150472Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-setting-after",
+        "sun": {
+          "azimuth": 305.18,
+          "date_evaluations": 33,
+          "elevation": -0.37,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:35:47.196409Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:28:23.284278Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T17:02:01Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:13:57.640645Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-23T00:50:22.150472Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-22T01:28:23.284278Z",
+          "next_position": "2024-06-22T00:52:12.876191Z",
+          "phase": "twilight",
+          "rising": false,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2025-01-01T05:03:46Z",
+        "anchor_utc": "2025-01-01T05:03:46Z",
+        "date": "2025-01-01",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2025-01-01T12:04:20.080261Z",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2025-01-01T12:04:20.080261Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T22:03:23.81752Z",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2025-01-01T22:03:23.81752Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T05:03:46Z",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2025-01-02T05:04:14Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T17:03:26Z",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2025-01-01T17:03:26Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T12:38:36.039009Z",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2025-01-01T12:38:36.039009Z",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T21:29:07.45409Z",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2025-01-01T21:29:07.45409Z",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-midnight-equal",
+        "sun": {
+          "azimuth": 0.13,
+          "date_evaluations": 25,
+          "elevation": -67.98,
+          "next": [
+            {
+              "instant_utc": "2025-01-01T12:04:20.080261Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T22:03:23.81752Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-02T05:04:14Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T17:03:26Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T12:38:36.039009Z",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T21:29:07.45409Z",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2025-01-01T10:51:52.288974Z",
+          "next_position": "2025-01-01T05:23:46Z",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      }
+    ],
+    "go_version": "go1.27.2",
+    "profile": "ha-2026.10/core-1",
+    "timezone_data_id": "go1.27.2/sha256:b2d18a7c8fa8142097a48c99609fb3c92db5ee98bc740294e57eab8ae9f94779"
+  },
+  "ha": {
+    "astral": "2.2",
+    "astral_sun_sha256": "ed614bed7553004ef4686e43d916783fb749f49710a419820bccca36f211a9e6",
+    "cases": [
+      {
+        "after_utc": "2024-03-20T12:00:00+00:00",
+        "date": "2024-03-20",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-03-20T05:43:08.918992+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-03-21T05:42:51.033385+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-20T18:31:25.787230+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-03-20T18:31:25.787230+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-20T00:07:17+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-03-21T00:06:59+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-20T12:07:26+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-03-20T12:07:26+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-20T06:04:12.403887+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-03-21T06:03:54.553185+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-20T18:10:22.291041+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-03-20T18:10:22.291041+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-equator-equinox",
+        "position": {
+          "azimuth": 85.39,
+          "elevation": 88.17,
+          "rising": true,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 85.39,
+          "elevation": 88.17,
+          "next": [
+            {
+              "instant_utc": "2024-03-21T05:42:51.033385+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-20T18:31:25.787230+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-21T00:06:59+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-20T12:07:26+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-21T06:03:54.553185+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-20T18:10:22.291041+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-03-20T12:07:26+00:00",
+          "next_position": "2024-03-20T12:04:00+00:00",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00+00:00",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:35:31.619207+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:35:47.196409+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:13:42.362100+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:13:57.640645+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-temperate-summer",
+        "position": {
+          "azimuth": 82.39,
+          "elevation": 26.38,
+          "rising": true,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 82.39,
+          "elevation": 26.38,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:35:47.196409+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:13:57.640645+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-21T17:01:48+00:00",
+          "next_position": "2024-06-21T12:04:00+00:00",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-12-21T12:00:00+00:00",
+        "date": "2024-12-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-12-21T12:01:12.328504+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-12-21T12:01:12.328504+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T21:55:38.917129+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-12-21T21:55:38.917129+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T04:58:25+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-12-22T04:58:55+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T16:58:04+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-12-21T16:58:04+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T12:35:44.187351+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-12-21T12:35:44.187351+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T21:21:07.046621+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-12-21T21:21:07.046621+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-temperate-winter",
+        "position": {
+          "azimuth": 117.16,
+          "elevation": -6.19,
+          "rising": true,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 117.16,
+          "elevation": -6.19,
+          "next": [
+            {
+              "instant_utc": "2024-12-21T12:01:12.328504+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T21:55:38.917129+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-22T04:58:55+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T16:58:04+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T12:35:44.187351+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T21:21:07.046621+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-12-21T12:01:12.328504+00:00",
+          "phase": "nautical_twilight",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00+00:00",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:27:44.074307+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:27:59.729590+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:36:10.749023+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:36:10.749023+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:08:28.355807+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:08:43.665039+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:55:26.835611+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-22T00:55:26.835611+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-altitude-1000",
+        "position": {
+          "azimuth": 82.39,
+          "elevation": 26.38,
+          "rising": true,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 82.39,
+          "elevation": 26.38,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:27:59.729590+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:36:10.749023+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:08:43.665039+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T00:55:26.835611+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-21T17:01:48+00:00",
+          "next_position": "2024-06-21T12:04:00+00:00",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00+00:00",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:35:31.619207+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:35:47.196409+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:13:42.362100+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:13:57.640645+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-altitude-negative",
+        "position": {
+          "azimuth": 82.39,
+          "elevation": 26.38,
+          "rising": true,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 82.39,
+          "elevation": 26.38,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:35:47.196409+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:13:57.640645+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-21T17:01:48+00:00",
+          "next_position": "2024-06-21T12:04:00+00:00",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-03-10T06:59:59+00:00",
+        "date": "2024-03-10",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-03-10T10:51:08.346295+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-03-10T10:51:08.346295+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T23:29:47.881544+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-03-10T23:29:47.881544+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T05:10:03+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-03-11T05:09:47+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T17:10:14+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-03-10T17:10:14+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T11:20:54.623490+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-03-10T11:20:54.623490+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T22:59:57.281012+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-03-10T22:59:57.281012+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-spring-gap-before",
+        "position": {
+          "azimuth": 38.51,
+          "elevation": -42.36,
+          "rising": true,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 38.51,
+          "elevation": -42.36,
+          "next": [
+            {
+              "instant_utc": "2024-03-10T10:51:08.346295+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T23:29:47.881544+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-11T05:09:47+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T17:10:14+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T11:20:54.623490+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T22:59:57.281012+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-03-10T09:42:56.810899+00:00",
+          "next_position": "2024-03-10T07:19:59+00:00",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-03-10T07:00:01+00:00",
+        "date": "2024-03-10",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-03-10T10:51:08.346295+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-03-10T10:51:08.346295+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T23:29:47.881544+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-03-10T23:29:47.881544+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T05:10:03+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-03-11T05:09:47+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T17:10:14+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-03-10T17:10:14+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T11:20:54.623490+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-03-10T11:20:54.623490+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-03-10T22:59:57.281012+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-03-10T22:59:57.281012+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-spring-gap-after",
+        "position": {
+          "azimuth": 38.52,
+          "elevation": -42.36,
+          "rising": true,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 38.52,
+          "elevation": -42.36,
+          "next": [
+            {
+              "instant_utc": "2024-03-10T10:51:08.346295+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T23:29:47.881544+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-11T05:09:47+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T17:10:14+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T11:20:54.623490+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-03-10T22:59:57.281012+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-03-10T09:42:56.810899+00:00",
+          "next_position": "2024-03-10T07:20:01+00:00",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-11-03T05:30:00+00:00",
+        "date": "2024-11-03",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-11-03T11:10:47.423076+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-11-03T11:10:47.423076+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T22:15:38.710488+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-11-03T22:15:38.710488+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T04:43:30+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-11-04T04:43:31+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T16:43:30+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-11-03T16:43:30+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T11:42:12.911010+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-11-03T11:42:12.911010+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T21:44:15.174110+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-11-03T21:44:15.174110+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-fold-first",
+        "position": {
+          "azimuth": 21.94,
+          "elevation": -58.64,
+          "rising": true,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 21.94,
+          "elevation": -58.64,
+          "next": [
+            {
+              "instant_utc": "2024-11-03T11:10:47.423076+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T22:15:38.710488+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-04T04:43:31+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T16:43:30+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T11:42:12.911010+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T21:44:15.174110+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-11-03T10:01:57.181271+00:00",
+          "next_position": "2024-11-03T05:50:00+00:00",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-11-03T06:30:00+00:00",
+        "date": "2024-11-03",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-11-03T11:10:47.423076+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-11-03T11:10:47.423076+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T22:15:38.710488+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-11-03T22:15:38.710488+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T04:43:30+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-11-04T04:43:31+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T16:43:30+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-11-03T16:43:30+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T11:42:12.911010+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-11-03T11:42:12.911010+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-11-03T21:44:15.174110+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-11-03T21:44:15.174110+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-fold-second",
+        "position": {
+          "azimuth": 45.55,
+          "elevation": -52.72,
+          "rising": true,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 45.55,
+          "elevation": -52.72,
+          "next": [
+            {
+              "instant_utc": "2024-11-03T11:10:47.423076+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T22:15:38.710488+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-04T04:43:31+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T16:43:30+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T11:42:12.911010+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-11-03T21:44:15.174110+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-11-03T10:01:57.181271+00:00",
+          "next_position": "2024-11-03T06:50:00+00:00",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-12-21T12:00:00+00:00",
+        "date": "2024-12-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-12-20T18:12:32.683528+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-12-21T18:13:02.199869+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T09:43:41.458732+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-12-22T09:44:10.251395+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-20T13:58:07+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-12-21T13:58:37+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T01:58:04+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-12-22T01:58:34+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-20T18:42:51.756607+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-12-21T18:43:21.340863+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T09:13:22.319822+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-12-22T09:13:51.260306+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-southern-summer",
+        "position": {
+          "azimuth": 210.03,
+          "elevation": -25.17,
+          "rising": false,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 210.03,
+          "elevation": -25.17,
+          "next": [
+            {
+              "instant_utc": "2024-12-21T18:13:02.199869+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-22T09:44:10.251395+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T13:58:37+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-22T01:58:34+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-21T18:43:21.340863+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-12-22T09:13:51.260306+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-12-21T13:58:37+00:00",
+          "next_position": "2024-12-21T12:20:00+00:00",
+          "phase": "night",
+          "rising": false,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00+00:00",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-20T20:39:21.649702+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-21T20:39:34.045591+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T07:24:18.626853+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T07:24:32.854068+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-20T14:01:51+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-21T14:02:04+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T02:01:48+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-22T02:02:01+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-20T21:08:05.073160+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-21T21:08:17.370738+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T06:55:35.201752+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-22T06:55:49.518227+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-southern-winter",
+        "position": {
+          "azimuth": 254.66,
+          "elevation": -61.14,
+          "rising": false,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 254.66,
+          "elevation": -61.14,
+          "next": [
+            {
+              "instant_utc": "2024-06-21T20:39:34.045591+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T07:24:32.854068+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T14:02:04+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T02:02:01+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T21:08:17.370738+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T06:55:49.518227+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-21T14:02:04+00:00",
+          "next_position": "2024-06-21T12:20:00+00:00",
+          "phase": "night",
+          "rising": false,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-09-22T18:00:00+00:00",
+        "date": "2024-09-23",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-09-22T19:22:33.324323+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-09-22T19:22:33.324323+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-09-23T08:22:46.089090+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-09-23T08:22:46.089090+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-09-22T13:52:22+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-09-23T13:52:01+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-09-23T01:52:23+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-09-23T01:52:23+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-09-22T19:48:16.090176+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-09-22T19:48:16.090176+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-09-23T07:57:00.242643+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-09-23T07:57:00.242643+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-half-hour-zone",
+        "position": {
+          "azimuth": 107.12,
+          "elevation": -22.64,
+          "rising": true,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 107.12,
+          "elevation": -22.64,
+          "next": [
+            {
+              "instant_utc": "2024-09-22T19:22:33.324323+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-09-23T08:22:46.089090+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-09-23T13:52:01+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-09-23T01:52:23+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-09-22T19:48:16.090176+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-09-23T07:57:00.242643+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-09-22T18:23:27.000758+00:00",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-12-31T23:59:59+00:00",
+        "date": "2025-01-01",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-12-31T17:36:59.972429+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2025-01-01T17:37:29.142970+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T06:29:53.463889+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2025-01-01T06:29:53.463889+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-31T12:03:27+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2025-01-01T12:03:56+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T00:03:26+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2025-01-01T00:03:26+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-31T17:59:54.170665+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2025-01-01T18:00:22.472399+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T06:06:59.726349+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2025-01-01T06:06:59.726349+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-date-line-east",
+        "position": {
+          "azimuth": 177.96,
+          "elevation": 66.99,
+          "rising": true,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 177.96,
+          "elevation": 66.99,
+          "next": [
+            {
+              "instant_utc": "2025-01-01T17:37:29.142970+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T06:29:53.463889+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T12:03:56+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T00:03:26+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T18:00:22.472399+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T06:06:59.726349+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2025-01-01T00:03:26+00:00",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2025-01-01T00:00:01+00:00",
+        "date": "2024-12-31",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-12-31T17:36:59.962498+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2025-01-01T17:37:29.133195+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T06:29:53.455247+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2025-01-01T06:29:53.455247+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-31T12:03:26+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2025-01-01T12:03:55+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T00:02:58+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2025-01-01T00:02:58+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-31T17:59:54.161329+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2025-01-01T18:00:22.463266+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T06:06:59.717122+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2025-01-01T06:06:59.717122+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-date-line-west",
+        "position": {
+          "azimuth": 177.98,
+          "elevation": 66.99,
+          "rising": true,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 177.98,
+          "elevation": 66.99,
+          "next": [
+            {
+              "instant_utc": "2025-01-01T17:37:29.133195+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T06:29:53.455247+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T12:03:55+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T00:02:58+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T18:00:22.463266+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T06:06:59.717122+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2025-01-01T00:02:58+00:00",
+          "phase": "day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-02-28T23:59:59+00:00",
+        "date": "2024-02-28",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-02-28T05:48:11.046899+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-02-29T05:48:01.225881+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-28T18:37:00.512543+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-02-29T18:36:47.728237+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-28T00:12:36+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-02-29T00:12:24+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-28T12:12:41+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-02-29T12:12:30+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-28T06:09:27.591501+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-02-29T06:09:16.578873+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-28T18:15:44.616170+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-02-29T18:15:32.995121+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-leap-before",
+        "position": {
+          "azimuth": 201.59,
+          "elevation": -81.54,
+          "rising": false,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 201.59,
+          "elevation": -81.54,
+          "next": [
+            {
+              "instant_utc": "2024-02-29T05:48:01.225881+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T18:36:47.728237+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T00:12:24+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T12:12:30+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T06:09:16.578873+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T18:15:32.995121+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-02-29T00:12:24+00:00",
+          "phase": "night",
+          "rising": false,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-02-29T00:00:01+00:00",
+        "date": "2024-02-29",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-02-29T05:48:01.225881+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-02-29T05:48:01.225881+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-29T18:36:47.728237+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-02-29T18:36:47.728237+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-29T00:12:24+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-02-29T00:12:24+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-29T12:12:30+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-02-29T12:12:30+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-29T06:09:16.578873+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-02-29T06:09:16.578873+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-02-29T18:15:32.995121+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-02-29T18:15:32.995121+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-leap-after",
+        "position": {
+          "azimuth": 201.54,
+          "elevation": -81.54,
+          "rising": false,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 201.54,
+          "elevation": -81.54,
+          "next": [
+            {
+              "instant_utc": "2024-02-29T05:48:01.225881+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T18:36:47.728237+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T00:12:24+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T12:12:30+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T06:09:16.578873+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-02-29T18:15:32.995121+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-02-29T00:12:24+00:00",
+          "phase": "night",
+          "rising": false,
+          "state": "below_horizon"
+        }
+      },
+      {
+        "after_utc": "2016-06-01T00:00:00+00:00",
+        "date": "2016-06-01",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2016-08-13T23:05:44.154366+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2016-08-14T22:06:01.472542+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2016-05-31T22:42:43+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2016-06-01T22:42:53+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2016-06-01T10:42:38+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2016-06-01T10:42:38+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2016-07-24T22:59:45.689645+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2016-07-25T22:17:13.503932+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-public-norway-june",
+        "position": {
+          "azimuth": 17.89,
+          "elevation": 2.97,
+          "rising": true,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 17.89,
+          "elevation": 2.97,
+          "next": [
+            {
+              "instant_utc": "2016-08-13T23:05:44.154366+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-08-14T22:06:01.472542+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-06-01T22:42:53+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-06-01T10:42:38+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-07-24T22:59:45.689645+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2016-07-25T22:17:13.503932+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2016-06-01T02:26:49.576562+00:00",
+          "next_position": "2016-06-01T00:02:00+00:00",
+          "phase": "small_day",
+          "rising": true,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00+00:00",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-08-15T23:24:38.581672+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-08-15T22:05:02.643726+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-20T22:41:55+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-21T22:42:08+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T10:41:48+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-22T10:42:01+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-07-26T23:06:17.556223+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-07-26T22:30:36.547491+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-synthetic-arctic-june",
+        "position": {
+          "azimuth": 204.37,
+          "elevation": 42.05,
+          "rising": false,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 204.37,
+          "elevation": 42.05,
+          "next": [
+            {
+              "instant_utc": "2024-08-15T23:24:38.581672+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-08-15T22:05:02.643726+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-21T22:42:08+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T10:42:01+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-07-26T23:06:17.556223+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-07-26T22:30:36.547491+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-21T19:21:53.085365+00:00",
+          "next_position": "2024-06-21T12:04:00+00:00",
+          "phase": "day",
+          "rising": false,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-21T12:00:00+00:00",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-10-08T06:33:07.551355+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T00:01:55+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T00:02:08+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T12:01:48+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-21T12:01:48+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          }
+        ],
+        "id": "nha105-north-pole-summer",
+        "position": {
+          "azimuth": 179.52,
+          "elevation": 23.67,
+          "rising": true,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "error": "no_event_within_search_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-12-21T12:00:00+00:00",
+        "date": "2024-12-21",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2025-04-05T10:10:53.729449+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-20T23:58:20+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-12-21T23:58:50+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T11:58:04+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-12-22T11:58:34+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          }
+        ],
+        "id": "nha105-south-pole-summer",
+        "position": {
+          "azimuth": 359.58,
+          "elevation": 23.68,
+          "rising": false,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "error": "no_event_within_search_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-12-21T12:00:00+00:00",
+        "date": "2024-12-21",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2025-03-05T03:04:03.109818+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2025-10-08T14:50:37.337763+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-20T23:58:20+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-12-21T23:58:50+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-12-21T11:58:04+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-12-22T11:58:34+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          }
+        ],
+        "id": "nha105-north-pole-winter",
+        "position": {
+          "azimuth": 180.42,
+          "elevation": -23.23,
+          "rising": false,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "error": "no_event_within_search_horizon"
+        }
+      },
+      {
+        "after_utc": "2016-06-01T00:00:00+00:00",
+        "date": "2016-06-01",
+        "events": [
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dawn",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "dusk",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2016-05-31T22:42:43+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2016-06-01T22:42:53+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2016-06-01T10:42:38+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2016-06-01T10:42:38+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "rising",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          },
+          {
+            "date": {
+              "kind": "absent",
+              "reason": "no_transit_on_date"
+            },
+            "event": "setting",
+            "next": {
+              "kind": "absent",
+              "reason": "no_event_within_search_horizon"
+            }
+          }
+        ],
+        "id": "nha105-exhausted-search",
+        "position": {
+          "azimuth": 17.89,
+          "elevation": 2.97,
+          "rising": true,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "error": "no_event_within_search_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-22T00:50:12.876189+00:00",
+        "anchor_utc": "2024-06-22T00:50:12.876190+00:00",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:35:31.619207+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:35:47.196409+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-22T17:02:01+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:13:42.362100+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:13:57.640645+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-setting-before",
+        "position": {
+          "azimuth": 305.18,
+          "elevation": -0.37,
+          "rising": false,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 305.18,
+          "elevation": -0.37,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:35:47.196409+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T17:02:01+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:13:57.640645+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-22T00:50:12.876190+00:00",
+          "phase": "small_day",
+          "rising": false,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-22T00:50:12.876190+00:00",
+        "anchor_utc": "2024-06-22T00:50:12.876190+00:00",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:35:31.619207+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:35:47.196409+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-22T17:02:01+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:13:42.362100+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:13:57.640645+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-23T00:50:22.150472+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-setting-equal",
+        "position": {
+          "azimuth": 305.18,
+          "elevation": -0.37,
+          "rising": false,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 305.18,
+          "elevation": -0.37,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:35:47.196409+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T17:02:01+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:13:57.640645+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-23T00:50:22.150472+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-22T01:28:23.284278+00:00",
+          "next_position": "2024-06-22T00:52:12.876190+00:00",
+          "phase": "twilight",
+          "rising": false,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2024-06-22T00:50:12.876191+00:00",
+        "anchor_utc": "2024-06-22T00:50:12.876190+00:00",
+        "date": "2024-06-21",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2024-06-21T08:35:31.619207+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2024-06-22T08:35:47.196409+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T05:01:58+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T17:01:48+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2024-06-22T17:02:01+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-21T09:13:42.362100+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2024-06-22T09:13:57.640645+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2024-06-22T00:50:12.876190+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2024-06-23T00:50:22.150472+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-setting-after",
+        "position": {
+          "azimuth": 305.18,
+          "elevation": -0.37,
+          "rising": false,
+          "state": "above_horizon"
+        },
+        "sun": {
+          "azimuth": 305.18,
+          "elevation": -0.37,
+          "next": [
+            {
+              "instant_utc": "2024-06-22T08:35:47.196409+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T01:28:23.284278+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T05:02:11+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T17:02:01+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-22T09:13:57.640645+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2024-06-23T00:50:22.150472+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2024-06-22T01:28:23.284278+00:00",
+          "next_position": "2024-06-22T00:52:12.876191+00:00",
+          "phase": "twilight",
+          "rising": false,
+          "state": "above_horizon"
+        }
+      },
+      {
+        "after_utc": "2025-01-01T05:03:46+00:00",
+        "anchor_utc": "2025-01-01T05:03:46+00:00",
+        "date": "2025-01-01",
+        "events": [
+          {
+            "date": {
+              "instant_utc": "2025-01-01T12:04:20.080261+00:00",
+              "kind": "present"
+            },
+            "event": "dawn",
+            "next": {
+              "instant_utc": "2025-01-01T12:04:20.080261+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T22:03:23.817520+00:00",
+              "kind": "present"
+            },
+            "event": "dusk",
+            "next": {
+              "instant_utc": "2025-01-01T22:03:23.817520+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T05:03:46+00:00",
+              "kind": "present"
+            },
+            "event": "midnight",
+            "next": {
+              "instant_utc": "2025-01-02T05:04:14+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T17:03:26+00:00",
+              "kind": "present"
+            },
+            "event": "noon",
+            "next": {
+              "instant_utc": "2025-01-01T17:03:26+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T12:38:36.039009+00:00",
+              "kind": "present"
+            },
+            "event": "rising",
+            "next": {
+              "instant_utc": "2025-01-01T12:38:36.039009+00:00",
+              "kind": "present"
+            }
+          },
+          {
+            "date": {
+              "instant_utc": "2025-01-01T21:29:07.454090+00:00",
+              "kind": "present"
+            },
+            "event": "setting",
+            "next": {
+              "instant_utc": "2025-01-01T21:29:07.454090+00:00",
+              "kind": "present"
+            }
+          }
+        ],
+        "id": "nha105-midnight-equal",
+        "position": {
+          "azimuth": 0.13,
+          "elevation": -67.98,
+          "rising": true,
+          "state": "below_horizon"
+        },
+        "sun": {
+          "azimuth": 0.13,
+          "elevation": -67.98,
+          "next": [
+            {
+              "instant_utc": "2025-01-01T12:04:20.080261+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T22:03:23.817520+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-02T05:04:14+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T17:03:26+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T12:38:36.039009+00:00",
+              "kind": "present"
+            },
+            {
+              "instant_utc": "2025-01-01T21:29:07.454090+00:00",
+              "kind": "present"
+            }
+          ],
+          "next_change": "2025-01-01T10:51:52.288974+00:00",
+          "next_position": "2025-01-01T05:23:46+00:00",
+          "phase": "night",
+          "rising": true,
+          "state": "below_horizon"
+        }
+      }
+    ],
+    "ha_sun_entity_sha256": "33cc01877c1a68bd7fc62ef9ab5c88ad2d3828314d4cf7d548ee7ca37ad129a1",
+    "ha_sun_helper_sha256": "cd7947305ec2c01bd3b8b355d774429b93a2080e17ffb7f175053419fd1a3b3e",
+    "homeassistant": "2026.10.1",
+    "python": "3.14.6",
+    "pytz": "2026.5",
+    "timezone_data": {
+      "paths": [
+        "/usr/share/zoneinfo",
+        "/usr/lib/zoneinfo",
+        "/usr/share/lib/zoneinfo",
+        "/etc/zoneinfo"
+      ],
+      "tzdata_package": "2026.5"
+    }
+  },
+  "ha_profile_commit": "abe1fdd7cd6b4de1715c87b6fd87d92699514ef9",
+  "image": {
+    "architecture": "arm64",
+    "index": "sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0",
+    "reference": "ghcr.io/home-assistant/home-assistant@sha256:17100609af8bb79bf5390f5d514b9aaeb00d184ce758f37769cd80c450851db7"
+  },
+  "inputs": {
+    "cases_sha256": "50a0adf28b98c736f676e0642703ae3956e6d00fc43360b53be466e6887d4b98",
+    "ha_worker_sha256": "794c8cade0633a9e1f558ddc22470907fcdcb426f68c7d5b29f0b73988ecff46"
+  },
+  "raw_evidence_directory": "/Users/damien/Library/Caches/codex-build/homeward/qualification/nha105/p0-20261019T032424Z"
+}

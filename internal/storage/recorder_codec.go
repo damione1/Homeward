@@ -223,11 +223,25 @@ func encodeRecorderObserved(state domain.ObservedState, maxPayload int) (recorde
 			return recorderObserved{}, err
 		}
 		encodedKind := int16(kind)
-		if kind == domain.ValueHelper {
+		switch kind {
+		case domain.ValueSwitch, domain.ValueMeasurement, domain.ValueLight, domain.ValueFan, domain.ValueClimate:
+		case domain.ValueHelper:
 			helper, revision, ok := value.Helper()
 			if !ok || !helper.Valid() || revision == 0 || encodedKind != 6 {
 				return recorderObserved{}, ErrRecorderInvalid
 			}
+		case domain.ValueSolar:
+			if _, ok := value.Solar(); !ok || encodedKind != 7 {
+				return recorderObserved{}, ErrRecorderInvalid
+			}
+		case domain.ValueSolarEvent:
+			if _, ok := value.SolarEvent(); !ok || encodedKind != 8 {
+				return recorderObserved{}, ErrRecorderInvalid
+			}
+		case domain.ValueUnspecified:
+			return recorderObserved{}, ErrRecorderInvalid
+		default:
+			return recorderObserved{}, ErrRecorderInvalid
 		}
 		result.valueKind = &encodedKind
 		if kind == domain.ValueMeasurement {

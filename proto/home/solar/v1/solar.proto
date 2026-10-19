@@ -1,0 +1,52 @@
+syntax = "proto3";
+package home.solar.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/solar/v1;solarv1";
+
+enum SolarEventKind {
+  SOLAR_EVENT_KIND_UNSPECIFIED = 0;
+  SOLAR_EVENT_KIND_DAWN = 1;
+  SOLAR_EVENT_KIND_DUSK = 2;
+  SOLAR_EVENT_KIND_MIDNIGHT = 3;
+  SOLAR_EVENT_KIND_NOON = 4;
+  SOLAR_EVENT_KIND_RISING = 5;
+  SOLAR_EVENT_KIND_SETTING = 6;
+}
+enum SolarHorizon {
+  SOLAR_HORIZON_UNSPECIFIED = 0;
+  SOLAR_HORIZON_ABOVE = 1;
+  SOLAR_HORIZON_BELOW = 2;
+}
+enum SolarAbsenceReason {
+  SOLAR_ABSENCE_REASON_UNSPECIFIED = 0;
+  SOLAR_ABSENCE_REASON_NO_TRANSIT_ON_DATE = 1;
+  SOLAR_ABSENCE_REASON_NO_EVENT_WITHIN_SEARCH_HORIZON = 2;
+}
+// A missing observation and a calculated absent event remain distinct.
+message SolarOccurrence {
+  oneof occurrence {
+    google.protobuf.Timestamp at = 1;
+    SolarAbsenceReason absent = 2;
+  }
+}
+// Only computed results cross this boundary; the observer stays private.
+message SolarValue {
+  SolarHorizon horizon = 1;
+  optional double elevation_degrees = 2;
+  optional double azimuth_degrees = 3;
+  optional bool rising = 4;
+  SolarOccurrence next_dawn = 5;
+  SolarOccurrence next_dusk = 6;
+  SolarOccurrence next_midnight = 7;
+  SolarOccurrence next_noon = 8;
+  SolarOccurrence next_rising = 9;
+  SolarOccurrence next_setting = 10;
+}
+message SolarEventValue {
+  SolarEventKind event = 1;
+  SolarOccurrence occurrence = 2;
+}
+message SolarConstraints {}
+message SolarEventConstraints { SolarEventKind event = 1; }
