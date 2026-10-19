@@ -48,6 +48,7 @@ func (p *executionPath) pushIteration(index int) bool {
 // Sources/trigger IDs reference already owned immutable admitted program data.
 // The ring's actual struct size is included in its one-MiB reservation.
 type NodeTrace struct {
+	ordinal    TraceOrdinal
 	run        RunID
 	generation Generation
 	source     ir.Source
@@ -98,6 +99,9 @@ func (i *Interpreter) nodeTrace(run Run, node executableNode, stage NodeStage, e
 func (i *Interpreter) appendNodeTrace(trace NodeTrace) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	// The existing bind supplies the single Controller-owned ordering space.
+	// No Controller mutex is acquired while holding the interpreter mutex.
+	trace.ordinal = i.controller.nextTraceOrdinal()
 	if len(i.traces) == nodeTraceCapacity {
 		i.traces[i.traceNext] = trace
 		i.traceNext = (i.traceNext + 1) % nodeTraceCapacity
