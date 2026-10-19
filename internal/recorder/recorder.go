@@ -78,6 +78,7 @@ func (c LiveCoverage) KnownLost() (uint64, bool) { return c.knownLost, c.hasKnow
 type Recorder struct {
 	sequence                                           *sequencer.Sequencer
 	writer                                             Writer
+	flushClock                                         flushClock
 	limits                                             Limits
 	epoch                                              storage.RecorderEpoch
 	sub                                                *sequencer.Subscription
@@ -101,14 +102,21 @@ type pending struct {
 	abandoned     uint64
 	needsImage    bool
 	bytes         int
-	firstEntryAt  time.Time
+	flushAt       flushDeadline
 }
 
 // Start prepares the initial subscription and epoch before any producer is
 // admitted. A failed SQL start closes the mailbox and returns no Recorder.
 func Start(ctx context.Context, sequence *sequencer.Sequencer, writer Writer, limits Limits) (*Recorder, error) {
-	if nilInterface(ctx) || sequence == nil || !limits.Valid() || nilInterface(writer) {
+	return startWithFlushClock(ctx, sequence, writer, limits, realFlushClock{})
+}
+
+func startWithFlushClock(ctx context.Context, sequence *sequencer.Sequencer, writer Writer, limits Limits, clock flushClock) (*Recorder, error) {
+	if nilInterface(ctx) || sequence == nil || !limits.Valid() || nilInterface(writer) || nilInterface(clock) {
 		return nil, ErrInvalidRecorder
+	}
+	if _, err := newFlushDeadline(clock.now()); err != nil {
+		return nil, err
 	}
 	capture, err := sequence.CaptureRecorder(nil, sequencer.Cursor{}, limits.ImageOrBatchBytes(), limits.QueueBytes())
 	if err != nil {
@@ -171,7 +179,7 @@ func Start(ctx context.Context, sequence *sequencer.Sequencer, writer Writer, li
 		return nil, errors.Join(ErrInvalidRecorder, err)
 	}
 	readCtx, readCancel := context.WithCancel(context.Background())
-	r := &Recorder{sequence: sequence, writer: writer, limits: limits, epoch: epoch, sub: capture.Subscription, readCtx: readCtx, readCancel: readCancel, done: make(chan struct{})}
+	r := &Recorder{sequence: sequence, writer: writer, flushClock: clock, limits: limits, epoch: epoch, sub: capture.Subscription, readCtx: readCtx, readCancel: readCancel, done: make(chan struct{})}
 	r.status = Status{Phase: PhaseRunning, HistoryDegraded: previous.Present || boundary > 0, ReconciliationComplete: true,
 		TotalCapacityBytes: limits.TotalBytes(), QueueCapacityBytes: limits.QueueBytes(), Checkpoint: boundary, Epoch: epochText}
 	go r.run(boundary)
@@ -322,7 +330,7 @@ func (r *Recorder) run(checkpoint uint64) {
 		}
 		// An uninterrupted stream of policy-excluded edges must not postpone
 		// its SQL checkpoint by repeatedly satisfying Next before its timeout.
-		if p.ready() && !p.firstEntryAt.IsZero() && !time.Now().Before(p.firstEntryAt.Add(flushInterval)) {
+		if p.ready() && p.flushAt.due(r.flushClock.now()) {
 			if err := r.flush(&p, &checkpoint); err != nil {
 				result = err
 				return
@@ -349,26 +357,15 @@ func (r *Recorder) run(checkpoint uint64) {
 			}
 			continue
 		}
-		wait := flushInterval
-		if !p.firstEntryAt.IsZero() {
-			wait = time.Until(p.firstEntryAt.Add(flushInterval))
-			if wait < 0 {
-				wait = 0
-			}
-			if wait == 0 && !p.ready() {
-				wait = flushInterval
-			}
-		}
+		imageAt := time.Time{}
 		if needsImage && !nextImageAttempt.IsZero() {
-			until := time.Until(nextImageAttempt)
-			if until < wait {
-				wait = until
-			}
+			imageAt = nextImageAttempt
 		}
-		if wait < 0 {
-			wait = 0
+		nextCtx, cancel, contextErr := r.nextReadContext(p.flushAt, p.ready(), imageAt)
+		if contextErr != nil {
+			result = contextErr
+			return
 		}
-		nextCtx, cancel := context.WithTimeout(r.readCtx, wait)
 		delivery, err := r.sub.Next(nextCtx)
 		cancel()
 		if errors.Is(err, context.Canceled) {
@@ -538,8 +535,11 @@ func (r *Recorder) accept(p *pending, entry sequencer.Entry) error {
 	if sequence > p.through {
 		p.through = sequence
 	}
-	if p.firstEntryAt.IsZero() {
-		p.firstEntryAt = time.Now()
+	if !p.flushAt.present() {
+		p.flushAt, err = newFlushDeadline(r.flushClock.now())
+		if err != nil {
+			return err
+		}
 	}
 	if len(p.gaps) == 1 && p.gaps[0].UncertainEnvelope && p.gaps[0].From == p.from+1 {
 		p.gaps[0].Through = p.through
@@ -693,7 +693,7 @@ func (p *pending) collapseToGap() {
 	p.rows = nil
 	p.gaps = []storage.RecorderGap{{From: p.from + 1, Through: p.through, KnownLost: known, Reason: storage.RecorderGapAbandoned, UncertainEnvelope: true}}
 	p.bytes = 0
-	p.firstEntryAt = time.Time{}
+	p.flushAt = flushDeadline{}
 }
 
 func (r *Recorder) flush(p *pending, checkpoint *uint64) error {
