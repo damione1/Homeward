@@ -59,6 +59,15 @@ func NewPilotSpec(instance domain.IntegrationInstanceID, factory PilotFactory) (
 	return PilotSpec{instance, factory}, nil
 }
 
+// Instance exposes the admitted identity without exposing or invoking the
+// trusted pilot factory during server composition.
+func (p PilotSpec) Instance() (domain.IntegrationInstanceID, error) {
+	if _, err := p.instance.Value(); err != nil || p.factory == nil {
+		return domain.IntegrationInstanceID{}, ErrInvalidInput
+	}
+	return p.instance, nil
+}
+
 type RetryPolicy struct {
 	maxRestarts                int
 	base, maximum, joinTimeout time.Duration

@@ -220,7 +220,7 @@ func (e *engine) rebase() ([]Update, error) {
 			return nil, err
 		}
 		// The sequencer rejects an oversized suffix before allocating its copy.
-		newSub, replay, boundary, err := e.service.sequence.SubscribeViewAfter(snapshot.Cursor, 256)
+		newSub, replay, boundary, _, err := e.service.sequence.SubscribeTriggerViewAfter(snapshot.Cursor, 256, sequencer.MaxViewQueueBytes)
 		if err != nil {
 			if errors.Is(err, sequencer.ErrCursorExpired) {
 				return nil, err
@@ -318,8 +318,12 @@ func (e *engine) apply(entry sequencer.Entry) ([]Update, error) {
 		*e.replayBudget -= 1
 	}
 	e.snapshot.Cursor = entry.Cursor()
-	if entry.Kind() != sequencer.KindState {
+	switch entry.Kind() {
+	case sequencer.KindState:
+	case sequencer.KindEvent, sequencer.KindHealth, sequencer.KindCapabilities, sequencer.KindNativeMQTTEdge:
 		return e.flushDirty()
+	default:
+		return nil, ErrInvalidProjection
 	}
 	id, state, _, ok := entry.State()
 	if !ok {

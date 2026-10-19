@@ -91,26 +91,29 @@ const (
 	KindHealth
 	KindRegistry
 	KindCapabilities
+	KindNativeMQTTEdge
 )
 
 // Entry is an immutable value returned from the journal. Only the matching
 // accessor succeeds for its kind; the payload cannot be mutated by a reader.
 type Entry struct {
-	cursor         Cursor
-	kind           Kind
-	instance       domain.IntegrationInstanceID
-	entity         domain.EntityID
-	source         domain.SourceStamp
-	causality      domain.Causality
-	receivedAt     time.Time
-	admittedTick   time.Duration
-	estimatedBytes int
-	state          domain.ObservedState
-	transition     domain.StateTransition
-	event          integrations.DeviceEvent
-	health         integrations.HealthReport
-	registry       []integrations.RegistryRecord
-	capabilities   []integrations.DiscoveryDeclaration
+	cursor          Cursor
+	kind            Kind
+	instance        domain.IntegrationInstanceID
+	entity          domain.EntityID
+	source          domain.SourceStamp
+	causality       domain.Causality
+	receivedAt      time.Time
+	admittedTick    time.Duration
+	estimatedBytes  int
+	state           domain.ObservedState
+	transition      domain.StateTransition
+	event           integrations.DeviceEvent
+	health          integrations.HealthReport
+	registry        []integrations.RegistryRecord
+	registryRemoved []domain.EntityID
+	capabilities    []integrations.DiscoveryDeclaration
+	nativeMQTTEdge  integrations.NativeMQTTEdge
 }
 
 func (e Entry) Cursor() Cursor { return e.cursor }
@@ -126,7 +129,7 @@ func (e Entry) AdmissionTick() time.Duration { return e.admittedTick }
 // Registry and capability publications carry no integration-report origin.
 func (e Entry) Origin() (domain.IntegrationInstanceID, domain.SourceStamp, domain.Causality, bool) {
 	switch e.kind {
-	case KindState, KindEvent, KindHealth:
+	case KindState, KindEvent, KindHealth, KindNativeMQTTEdge:
 		return e.instance, e.source, e.causality, true
 	case KindRegistry, KindCapabilities, KindUnspecified:
 		return domain.IntegrationInstanceID{}, domain.SourceStamp{}, domain.Causality{}, false
@@ -148,6 +151,19 @@ func (e Entry) Registry() ([]integrations.RegistryRecord, bool) {
 		return nil, false
 	}
 	return append([]integrations.RegistryRecord(nil), e.registry...), true
+}
+func (e Entry) RegistryRemoved() ([]domain.EntityID, bool) {
+	if e.kind != KindRegistry {
+		return nil, false
+	}
+	return append([]domain.EntityID(nil), e.registryRemoved...), true
+}
+func (e Entry) NativeMQTTEdge() (integrations.NativeMQTTEdge, bool) {
+	if e.kind != KindNativeMQTTEdge {
+		return integrations.NativeMQTTEdge{}, false
+	}
+	copy, err := e.nativeMQTTEdge.Clone()
+	return copy, err == nil
 }
 func (e Entry) Capabilities() ([]integrations.DiscoveryDeclaration, bool) {
 	if e.kind != KindCapabilities {
@@ -223,7 +239,23 @@ func (s *Sequencer) Start() (Cursor, error) {
 	return Cursor{epoch: s.epoch}, nil
 }
 
+func missingContext(ctx context.Context) bool {
+	if ctx == nil {
+		return true
+	}
+	v := reflect.ValueOf(ctx)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
 func (s *Sequencer) nextTime(ctx context.Context) (time.Time, error) {
+	if missingContext(ctx) {
+		return time.Time{}, ErrInvalidInput
+	}
 	if err := ctx.Err(); err != nil {
 		return time.Time{}, err
 	}
@@ -348,6 +380,19 @@ func retainedBytes(entry Entry) int {
 				size = retainedCharge(retainedCharge(size, len(a)), 32)
 			}
 		}
+		for _, id := range entry.registryRemoved {
+			name, err := id.Value()
+			if err != nil {
+				return overBudget
+			}
+			size = retainedCharge(size, int(unsafe.Sizeof(id))+len(name)+64)
+		}
+	case KindNativeMQTTEdge:
+		topicBytes, payloadBytes, _, err := entry.nativeMQTTEdge.Sizes()
+		if err != nil {
+			return overBudget
+		}
+		size = retainedCharge(retainedCharge(size, topicBytes), payloadBytes)
 	case KindCapabilities:
 		for _, declaration := range entry.capabilities {
 			_, id, _, _, _ := declaration.Identity()
@@ -533,6 +578,40 @@ func (s *Sequencer) AcceptEvent(ctx context.Context, entity domain.EntityID, acc
 		return err
 	}
 	s.publish(s.append(Entry{kind: KindEvent, instance: instance, entity: entity, source: accepted.Source, causality: causality, receivedAt: at, event: accepted.Event}))
+	return nil
+}
+
+// AcceptNativeMQTTEdge admits one in-process MQTT publication at the same
+// ordered cursor as states and device events. It has no entity projection.
+func (s *Sequencer) AcceptNativeMQTTEdge(ctx context.Context, instance domain.IntegrationInstanceID, source domain.SourceStamp, edge integrations.NativeMQTTEdge) error {
+	if s == nil || s.journal == nil || missingContext(ctx) {
+		return ErrInvalidInput
+	}
+	if _, err := instance.Value(); err != nil {
+		return err
+	}
+	_, _, sequence, err := edge.Sizes()
+	if err != nil {
+		return err
+	}
+	_, stampedSequence, err := source.Components()
+	if err != nil || stampedSequence == nil || *stampedSequence != sequence {
+		return ErrInvalidInput
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	at, err := s.nextTime(ctx)
+	if err != nil {
+		return err
+	}
+	if s.registryState == registryUnavailable {
+		return ErrRegistryUnavailable
+	}
+	entry := Entry{kind: KindNativeMQTTEdge, instance: instance, source: source, receivedAt: at, nativeMQTTEdge: edge}
+	if retainedBytes(entry) > MaxJournalBytes {
+		return ErrInvalidInput
+	}
+	s.publish(s.append(entry))
 	return nil
 }
 

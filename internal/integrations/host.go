@@ -438,6 +438,8 @@ type Manager struct {
 	actions                    *actionTracker
 	supervisor                 *Supervisor
 	durable                    *DurableCommandService
+	nativeMQTTInstance         domain.IntegrationInstanceID
+	nativeMQTTSink             NativeMQTTEdgeSink
 	secrets                    *storage.SecretRepository
 	composition                compositionPhase
 	durableRegistration        durableRegistrationPhase

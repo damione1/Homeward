@@ -8,6 +8,7 @@ import (
 
 	"github.com/damione1/Homeward/compat/ha/parser"
 	"github.com/damione1/Homeward/compat/ha/template"
+	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/mqtt"
 )
 
@@ -110,7 +111,7 @@ func (c *semanticCompiler) triggerList(node parser.Node, required, registerAutom
 	}
 	result := make([]Trigger, 0, len(items))
 	seen := make(map[string]bool, len(items))
-	for _, item := range items {
+	for index, item := range items {
 		trigger, d := c.trigger(item)
 		if d.Valid() {
 			return nil, d
@@ -123,6 +124,9 @@ func (c *semanticCompiler) triggerList(node parser.Node, required, registerAutom
 			if registerAutomationIDs {
 				c.triggerIDs[trigger.id] = true
 			}
+			trigger.key = "id:" + trigger.id
+		} else {
+			trigger.key = fmt.Sprintf("position:%d", index)
 		}
 		result = append(result, trigger)
 	}
@@ -141,8 +145,147 @@ func (c *semanticCompiler) trigger(node parser.Node) (Trigger, Diagnostic) {
 	if d.Valid() {
 		return Trigger{}, d
 	}
+	if idNode, present := node.Lookup("id"); present && !validName(id) {
+		return Trigger{}, c.fail(CodeInvalidValue, "id", idNode, "trigger ID cannot be empty")
+	}
 	trigger := Trigger{id: id, source: c.source(node)}
 	switch selection {
+	case "state":
+		if d = c.mapping(node, "trigger", "id", "entity_id", "attribute", "from", "to", "for"); d.Valid() {
+			return Trigger{}, d
+		}
+		if d = c.triggerEntity(node, &trigger); d.Valid() {
+			return Trigger{}, d
+		}
+		if d = c.triggerAttribute(node, &trigger); d.Valid() {
+			return Trigger{}, d
+		}
+		if from, ok := node.Lookup("from"); ok {
+			trigger.from, d = c.staticTriggerText("from", from)
+			if d.Valid() {
+				return Trigger{}, d
+			}
+			trigger.hasFrom = true
+		}
+		if to, ok := node.Lookup("to"); ok {
+			trigger.to, d = c.staticTriggerText("to", to)
+			if d.Valid() {
+				return Trigger{}, d
+			}
+			trigger.hasTo = true
+		}
+		if d = c.triggerFor(node, &trigger); d.Valid() {
+			return Trigger{}, d
+		}
+		trigger.kind = TriggerState
+	case "numeric_state":
+		if d = c.mapping(node, "trigger", "id", "entity_id", "attribute", "above", "below", "for"); d.Valid() {
+			return Trigger{}, d
+		}
+		if d = c.triggerEntity(node, &trigger); d.Valid() {
+			return Trigger{}, d
+		}
+		if d = c.triggerAttribute(node, &trigger); d.Valid() {
+			return Trigger{}, d
+		}
+		if value, ok := node.Lookup("above"); ok {
+			trigger.above, trigger.hasAbove = scalarNumber(value)
+			if !trigger.hasAbove {
+				return Trigger{}, c.fail(CodeInvalidValue, "above", value, "finite static number required")
+			}
+		}
+		if value, ok := node.Lookup("below"); ok {
+			trigger.below, trigger.hasBelow = scalarNumber(value)
+			if !trigger.hasBelow {
+				return Trigger{}, c.fail(CodeInvalidValue, "below", value, "finite static number required")
+			}
+		}
+		if !trigger.hasAbove && !trigger.hasBelow {
+			return Trigger{}, c.fail(CodeInvalidValue, "above", node, "above or below is required")
+		}
+		if trigger.hasAbove && trigger.hasBelow && trigger.above >= trigger.below {
+			return Trigger{}, c.fail(CodeInvalidValue, "below", node, "above must be below below")
+		}
+		if d = c.triggerFor(node, &trigger); d.Valid() {
+			return Trigger{}, d
+		}
+		trigger.kind = TriggerNumericState
+	case "time_pattern":
+		if d = c.mapping(node, "trigger", "id", "hours", "minutes", "seconds"); d.Valid() {
+			return Trigger{}, d
+		}
+		_, hasHours := node.Lookup("hours")
+		_, hasMinutes := node.Lookup("minutes")
+		_, hasSeconds := node.Lookup("seconds")
+		if !hasHours && !hasMinutes && !hasSeconds {
+			return Trigger{}, c.fail(CodeInvalidValue, "hours", node, "at least one time pattern field is required")
+		}
+		trigger.patternHours, d = c.patternPart(node, "hours", 23, PatternPartAny)
+		if d.Valid() {
+			return Trigger{}, d
+		}
+		minuteDefault := PatternPartAny
+		if hasHours {
+			minuteDefault = PatternPartExact
+		}
+		trigger.patternMinutes, d = c.patternPart(node, "minutes", 59, minuteDefault)
+		if d.Valid() {
+			return Trigger{}, d
+		}
+		secondDefault := PatternPartAny
+		if hasHours || hasMinutes {
+			secondDefault = PatternPartExact
+		}
+		trigger.patternSeconds, d = c.patternPart(node, "seconds", 59, secondDefault)
+		if d.Valid() {
+			return Trigger{}, d
+		}
+		trigger.kind = TriggerTimePattern
+	case "calendar":
+		if d = c.mapping(node, "trigger", "id", "entity_id", "event", "offset"); d.Valid() {
+			return Trigger{}, d
+		}
+		entityText, diag := c.stringField(node, "entity_id", true)
+		if diag.Valid() {
+			return Trigger{}, diag
+		}
+		entityNode, _ := node.Lookup("entity_id")
+		alias, err := domain.ParseHAAlias(entityText)
+		if err != nil {
+			return Trigger{}, c.fail(CodeInvalidValue, "entity_id", entityNode, "invalid calendar alias")
+		}
+		declared, found := c.catalogue.entity(alias)
+		if !found {
+			return Trigger{}, c.fail(CodeUnknownReference, "entity_id", entityNode, "calendar is not in the supplied catalogue")
+		}
+		if declared.status == ReferenceExcluded {
+			return Trigger{}, c.fail(CodeExcludedReference, "entity_id", entityNode, "calendar is excluded")
+		}
+		trigger.entityAlias = alias
+		event, diag := c.stringField(node, "event", true)
+		if diag.Valid() {
+			return Trigger{}, diag
+		}
+		switch event {
+		case "start":
+			trigger.calendarEdge = CalendarEdgeStart
+		case "end":
+			trigger.calendarEdge = CalendarEdgeEnd
+		default:
+			return Trigger{}, c.fail(CodeInvalidValue, "event", node, "calendar event must be start or end")
+		}
+		if offset, ok := node.Lookup("offset"); ok {
+			value, valid := plain(offset)
+			if !valid || containsTemplateSyntax(value) {
+				return Trigger{}, c.fail(CodeUnsupportedTemplate, "offset", offset, "static calendar offset required")
+			}
+			seconds, valid := clockOffset(value)
+			if !valid {
+				return Trigger{}, c.fail(CodeInvalidValue, "offset", offset, "signed HH:MM:SS within 24 hours required")
+			}
+			trigger.offsetSeconds = seconds
+		}
+		trigger.kind = TriggerCalendar
 	case "time":
 		if d = c.mapping(node, "trigger", "id", "at"); d.Valid() {
 			return Trigger{}, d
@@ -278,6 +421,149 @@ func (c *semanticCompiler) trigger(node parser.Node) (Trigger, Diagnostic) {
 		return Trigger{}, c.fail(CodeUnsupportedForm, "trigger", node, "trigger variant outside selected lot")
 	}
 	return trigger, Diagnostic{}
+}
+
+func (c *semanticCompiler) staticTriggerText(field string, node parser.Node) (string, Diagnostic) {
+	value, valid := plain(node)
+	if !valid || !validName(value) {
+		return "", c.fail(CodeInvalidValue, field, node, "nonempty static string required")
+	}
+	if containsTemplateSyntax(value) {
+		return "", c.fail(CodeUnsupportedTemplate, field, node, "templated trigger value is outside the static profile")
+	}
+	return value, Diagnostic{}
+}
+
+func (c *semanticCompiler) triggerEntity(node parser.Node, trigger *Trigger) Diagnostic {
+	id, d := c.stringField(node, "entity_id", true)
+	if d.Valid() {
+		return d
+	}
+	idNode, _ := node.Lookup("entity_id")
+	alias, d := c.requireEntity(id, SupportObserveState, idNode)
+	if d.Valid() {
+		return d
+	}
+	trigger.entityAlias = alias
+	return Diagnostic{}
+}
+
+func (c *semanticCompiler) triggerAttribute(node parser.Node, trigger *Trigger) Diagnostic {
+	attribute, present := node.Lookup("attribute")
+	if !present {
+		return Diagnostic{}
+	}
+	value, d := c.staticTriggerText("attribute", attribute)
+	if d.Valid() {
+		return d
+	}
+	switch value {
+	case "brightness":
+		trigger.attribute = AttributeBrightness
+	case "color_temp":
+		trigger.attribute = AttributeColorTemp
+	default:
+		return c.fail(CodeUnsupportedForm, "attribute", attribute, "attribute is not represented by a typed observed value")
+	}
+	return Diagnostic{}
+}
+
+func (c *semanticCompiler) triggerFor(node parser.Node, trigger *Trigger) Diagnostic {
+	forNode, present := node.Lookup("for")
+	if !present {
+		return Diagnostic{}
+	}
+	var seconds int64
+	switch forNode.Kind() {
+	case parser.KindScalar:
+		value, valid := plain(forNode)
+		if !valid || containsTemplateSyntax(value) {
+			return c.fail(CodeUnsupportedTemplate, "for", forNode, "static HH:MM:SS duration required")
+		}
+		parts := strings.Split(value, ":")
+		if len(parts) != 3 {
+			return c.fail(CodeInvalidValue, "for", forNode, "HH:MM:SS duration required")
+		}
+		var hours, minutes, remain int64
+		var err error
+		hours, err = strconv.ParseInt(parts[0], 10, 64)
+		if err != nil || hours < 0 {
+			return c.fail(CodeInvalidValue, "for", forNode, "nonnegative hours required")
+		}
+		minutes, err = strconv.ParseInt(parts[1], 10, 64)
+		if err != nil || minutes < 0 || minutes > 59 {
+			return c.fail(CodeInvalidValue, "for", forNode, "minutes must be 0–59")
+		}
+		remain, err = strconv.ParseInt(parts[2], 10, 64)
+		if err != nil || remain < 0 || remain > 59 {
+			return c.fail(CodeInvalidValue, "for", forNode, "seconds must be 0–59")
+		}
+		if hours > int64((1<<63-1)/int64(time.Second))/3600 {
+			return c.fail(CodeInvalidValue, "for", forNode, "duration exceeds timer range")
+		}
+		seconds = hours*3600 + minutes*60 + remain
+	case parser.KindMapping:
+		var values [3]int64
+		for i, key := range []string{"hours", "minutes", "seconds"} {
+			value, ok := forNode.Lookup(key)
+			if !ok {
+				continue
+			}
+			n, valid := scalarInt(value)
+			if !valid || n < 0 || i > 0 && n > 59 {
+				return c.fail(CodeInvalidValue, key, value, "nonnegative static duration component required")
+			}
+			values[i] = n
+		}
+		limit := int64((1<<63 - 1) / int64(time.Second))
+		if values[0] > limit/3600 {
+			return c.fail(CodeInvalidValue, "for", forNode, "duration exceeds timer range")
+		}
+		seconds = values[0]*3600 + values[1]*60 + values[2]
+	default:
+		return c.fail(CodeUnsupportedForm, "for", forNode, "static duration required")
+	}
+	if seconds <= 0 || seconds > int64((1<<63-1)/int64(time.Second)) {
+		return c.fail(CodeInvalidValue, "for", forNode, "positive duration within timer range required")
+	}
+	trigger.forDuration = time.Duration(seconds) * time.Second
+	trigger.hasFor = true
+	return Diagnostic{}
+}
+
+func (c *semanticCompiler) patternPart(node parser.Node, field string, maximum int, fallback PatternPartKind) (PatternPart, Diagnostic) {
+	value, present := node.Lookup(field)
+	if !present {
+		return PatternPart{kind: fallback}, Diagnostic{}
+	}
+	scalar, ok := value.Scalar()
+	if !ok || scalar.Kind() != parser.ScalarString && scalar.Kind() != parser.ScalarInteger {
+		return PatternPart{}, c.fail(CodeInvalidValue, field, value, "static time pattern required")
+	}
+	raw := scalar.Text()
+	if containsTemplateSyntax(raw) {
+		return PatternPart{}, c.fail(CodeUnsupportedTemplate, field, value, "templated time pattern is unsupported")
+	}
+	if raw == "*" {
+		return PatternPart{kind: PatternPartAny}, Diagnostic{}
+	}
+	kind := PatternPartExact
+	if strings.HasPrefix(raw, "/") {
+		kind, raw = PatternPartEvery, raw[1:]
+	}
+	if raw == "" {
+		return PatternPart{}, c.fail(CodeInvalidValue, field, value, "time pattern number required")
+	}
+	for _, digit := range raw {
+		if digit < '0' || digit > '9' {
+			return PatternPart{}, c.fail(CodeInvalidValue, field, value, "time pattern number required")
+		}
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 || n > maximum || kind == PatternPartEvery && n == 0 {
+		return PatternPart{}, c.fail(CodeInvalidValue, field, value, "time pattern outside field range")
+	}
+	return PatternPart{kind: kind, value: uint8(n)}, Diagnostic{}
 }
 
 func clockOffset(value string) (int, bool) {

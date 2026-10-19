@@ -11,10 +11,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
+	"github.com/damione1/Homeward/internal/mqtttopic"
 	"github.com/damione1/Homeward/internal/storage"
 )
 
@@ -83,7 +83,7 @@ type Topic struct{ value string }
 type TopicFilter struct{ value string }
 
 func ParseTopic(raw string) (Topic, error) {
-	if !validTopic(raw) || strings.ContainsAny(raw, "+#") {
+	if !mqtttopic.ValidName(raw) {
 		return Topic{}, ErrInvalidTopic
 	}
 	return Topic{raw}, nil
@@ -103,15 +103,7 @@ func ParseTopicFilter(raw string) (TopicFilter, error) {
 }
 
 func validTopic(raw string) bool {
-	if raw == "" || len(raw) > 256 || !utf8.ValidString(raw) || strings.ContainsAny(raw, "\x00\r\n") || strings.HasPrefix(raw, "$share/") {
-		return false
-	}
-	for _, p := range strings.Split(raw, "/") {
-		if p == "" {
-			return false
-		}
-	}
-	return true
+	return mqtttopic.ValidBase(raw)
 }
 
 func (t Topic) Value() (string, error) {
@@ -287,6 +279,15 @@ func (s Settings) Instance() (domain.IntegrationInstanceID, error) {
 		return domain.IntegrationInstanceID{}, ErrInvalidSettings
 	}
 	return s.instance, nil
+}
+
+// Subscriptions returns the admitted broker filters without granting mutation
+// of the Settings value. Trigger plans may only select from this exact set.
+func (s Settings) Subscriptions() ([]TopicFilter, error) {
+	if _, err := s.Instance(); err != nil {
+		return nil, ErrInvalidSettings
+	}
+	return append([]TopicFilter(nil), s.subscriptions...), nil
 }
 
 func (s Settings) String() string {
