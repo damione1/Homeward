@@ -189,6 +189,7 @@ fn session(value: &auth::Session, now: &Timestamp) -> bool {
         || !account_id(&value.account_id)
         || !future(&value.expires_at, now)
         || value.revoked_at.is_set()
+        || !session_authentication(value, now)
     {
         return false;
     }
@@ -525,6 +526,141 @@ pub fn admit_error(value: &auth::AuthError) -> Result<Admitted<auth::AuthError>,
         Ok(Admitted {
             wire: value.clone(),
         })
+    } else {
+        Err(AdmissionError::Invalid)
+    }
+}
+
+/// Newly issued methods only; legacy metadata is handled explicitly below.
+pub fn admit_authentication_satisfaction(
+    value: EnumValue<auth::AuthenticationSatisfaction>,
+) -> Result<auth::AuthenticationSatisfaction, AdmissionError> {
+    match value {
+        EnumValue::Known(auth::AuthenticationSatisfaction::PasswordOnly) => {
+            Ok(auth::AuthenticationSatisfaction::PasswordOnly)
+        }
+        EnumValue::Known(auth::AuthenticationSatisfaction::PasswordFido2) => {
+            Ok(auth::AuthenticationSatisfaction::PasswordFido2)
+        }
+        EnumValue::Known(auth::AuthenticationSatisfaction::PasswordRecoveryCode) => {
+            Ok(auth::AuthenticationSatisfaction::PasswordRecoveryCode)
+        }
+        EnumValue::Known(auth::AuthenticationSatisfaction::Unspecified) | EnumValue::Unknown(_) => {
+            Err(AdmissionError::Invalid)
+        }
+    }
+}
+fn session_authentication(value: &auth::Session, now: &Timestamp) -> bool {
+    match value.authentication_satisfaction {
+        EnumValue::Known(auth::AuthenticationSatisfaction::Unspecified) => {
+            !value.authenticated_at.is_set()
+        }
+        EnumValue::Known(auth::AuthenticationSatisfaction::PasswordOnly)
+        | EnumValue::Known(auth::AuthenticationSatisfaction::PasswordFido2)
+        | EnumValue::Known(auth::AuthenticationSatisfaction::PasswordRecoveryCode) => {
+            match (
+                timestamp(&value.authenticated_at),
+                timestamp(&value.created_at),
+            ) {
+                (Some(authenticated), Some(created)) => {
+                    (authenticated.seconds, authenticated.nanos) == (created.seconds, created.nanos)
+                        && (authenticated.seconds, authenticated.nanos) <= (now.seconds, now.nanos)
+                }
+                _ => false,
+            }
+        }
+        EnumValue::Unknown(_) => false,
+    }
+}
+fn mfa_policy_version(value: &auth::PolicyVersion) -> bool {
+    value.__buffa_unknown_fields.is_empty()
+        && value.revision > 0
+        && value.revision <= i64::MAX as u64
+        && value.source_sha256.len() == 32
+}
+pub fn admit_set_second_factor_policy(
+    value: &auth::SetSecondFactorPolicyRequest,
+) -> Result<Admitted<auth::SetSecondFactorPolicyRequest>, AdmissionError> {
+    if value.__buffa_unknown_fields.is_empty()
+        && value.expected.as_option().is_some_and(mfa_policy_version)
+    {
+        Ok(Admitted {
+            wire: value.clone(),
+        })
+    } else {
+        Err(AdmissionError::Invalid)
+    }
+}
+fn second_factor_policy(value: &auth::SecondFactorPolicy) -> bool {
+    value.__buffa_unknown_fields.is_empty()
+        && value.version.as_option().is_some_and(mfa_policy_version)
+        && timestamp(&value.updated_at).is_some()
+}
+pub fn admit_get_second_factor_policy_response(
+    value: &auth::GetSecondFactorPolicyResponse,
+) -> Result<Admitted<auth::GetSecondFactorPolicyResponse>, AdmissionError> {
+    if value.__buffa_unknown_fields.is_empty()
+        && value.policy.as_option().is_some_and(second_factor_policy)
+    {
+        Ok(Admitted {
+            wire: value.clone(),
+        })
+    } else {
+        Err(AdmissionError::Invalid)
+    }
+}
+pub fn admit_set_second_factor_policy_response(
+    value: &auth::SetSecondFactorPolicyResponse,
+) -> Result<Admitted<auth::SetSecondFactorPolicyResponse>, AdmissionError> {
+    let continuation = match value.continuation {
+        EnumValue::Known(auth::SecondFactorSessionContinuation::Continues)
+        | EnumValue::Known(auth::SecondFactorSessionContinuation::ReauthenticationRequired) => true,
+        EnumValue::Known(auth::SecondFactorSessionContinuation::Unspecified)
+        | EnumValue::Unknown(_) => false,
+    };
+    if continuation
+        && value.__buffa_unknown_fields.is_empty()
+        && value.policy.as_option().is_some_and(second_factor_policy)
+    {
+        Ok(Admitted {
+            wire: value.clone(),
+        })
+    } else {
+        Err(AdmissionError::Invalid)
+    }
+}
+pub fn admit_second_factor_policy_error(
+    value: &auth::SecondFactorPolicyError,
+) -> Result<Admitted<auth::SecondFactorPolicyError>, AdmissionError> {
+    let valid = match value.code {
+        EnumValue::Known(auth::SecondFactorPolicyErrorCode::InvalidVersion)
+        | EnumValue::Known(auth::SecondFactorPolicyErrorCode::VersionConflict) => {
+            value.field == "expected"
+        }
+        EnumValue::Known(auth::SecondFactorPolicyErrorCode::AuthorityUnavailable) => {
+            value.field.is_empty()
+        }
+        EnumValue::Known(auth::SecondFactorPolicyErrorCode::Unspecified)
+        | EnumValue::Unknown(_) => false,
+    };
+    if valid && value.__buffa_unknown_fields.is_empty() {
+        Ok(Admitted {
+            wire: value.clone(),
+        })
+    } else {
+        Err(AdmissionError::Invalid)
+    }
+}
+pub fn admit_reset_second_factor(
+    value: &auth::ResetSecondFactorRequest,
+) -> Result<(), AdmissionError> {
+    if value.__buffa_unknown_fields.is_empty()
+        && value
+            .account_id
+            .as_option()
+            .is_some_and(|id| AccountId::try_from(id).is_ok() && id.value.len() <= 128)
+    {
+        Ok(())
     } else {
         Err(AdmissionError::Invalid)
     }

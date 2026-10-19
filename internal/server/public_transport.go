@@ -490,6 +490,10 @@ func (p *compiledPublic) handler(settings config.PublicSettings, admissions *pub
 			p.deny(w, r, route, nil, PublicErrorPermissionDenied)
 			return
 		}
+		if r.TLS != nil {
+			ctx = context.WithValue(ctx, nativeTLSContextKey{}, nativeTLSAdmission{})
+			r = r.WithContext(ctx)
+		}
 		select {
 		case sem <- struct{}{}:
 			defer func() { <-sem }()

@@ -24,10 +24,16 @@ func (h *accountHandler) accountMutationGuard(ctx context.Context, target contra
 	if h == nil || h.coordinator == nil {
 		return nil, storage.ErrSessionUnavailable
 	}
-	guard, err := h.coordinator.enter(ctx, target)
+	ticket, err := h.coordinator.enterMFAPolicy(ctx)
 	if err != nil {
 		return nil, err
 	}
+	guard, err := h.coordinator.enter(ctx, target)
+	if err != nil {
+		ticket.release()
+		return nil, err
+	}
+	guard.policyTicket = ticket
 	guard.mutation, err = h.coordinator.authority.BeginMutation(target)
 	if err != nil {
 		guard.release()
@@ -636,14 +642,4 @@ func (h *accountHandler) RevokeInvitation(ctx context.Context, request *connect.
 		return nil, accountRPCError(err)
 	}
 	return connect.NewResponse(&authv1.RevokeInvitationResponse{}), nil
-}
-
-// NHA-142 owns this policy. These procedures are deliberately not registered
-// on the public plan by NHA-049.
-func (h *accountHandler) GetSecondFactorPolicy(context.Context, *connect.Request[authv1.GetSecondFactorPolicyRequest]) (*connect.Response[authv1.GetSecondFactorPolicyResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("second factor policy deferred"))
-}
-
-func (h *accountHandler) SetSecondFactorPolicy(context.Context, *connect.Request[authv1.SetSecondFactorPolicyRequest]) (*connect.Response[authv1.SetSecondFactorPolicyResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("second factor policy deferred"))
 }

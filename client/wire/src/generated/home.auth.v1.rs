@@ -399,6 +399,202 @@ impl ::buffa::Enumeration for ScopeOperation {
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
+pub enum SecondFactorSessionContinuation {
+    SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED = 0i32,
+    SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES = 1i32,
+    SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED = 2i32,
+}
+impl SecondFactorSessionContinuation {
+    ///Idiomatic alias for [`Self::SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Continues: Self = Self::SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES;
+    ///Idiomatic alias for [`Self::SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ReauthenticationRequired: Self = Self::SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED;
+}
+impl ::core::default::Default for SecondFactorSessionContinuation {
+    fn default() -> Self {
+        Self::SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for SecondFactorSessionContinuation {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED,
+                )
+            }
+            1i32 => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES,
+                )
+            }
+            2i32 => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED => {
+                "SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED"
+            }
+            Self::SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES => {
+                "SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES"
+            }
+            Self::SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED => {
+                "SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED" => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED,
+                )
+            }
+            "SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES" => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES,
+                )
+            }
+            "SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED" => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED,
+            Self::SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES,
+            Self::SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED,
+        ]
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum SecondFactorPolicyErrorCode {
+    SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED = 0i32,
+    SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION = 1i32,
+    SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT = 2i32,
+    SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE = 3i32,
+}
+impl SecondFactorPolicyErrorCode {
+    ///Idiomatic alias for [`Self::SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const InvalidVersion: Self = Self::SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION;
+    ///Idiomatic alias for [`Self::SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const VersionConflict: Self = Self::SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT;
+    ///Idiomatic alias for [`Self::SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AuthorityUnavailable: Self = Self::SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE;
+}
+impl ::core::default::Default for SecondFactorPolicyErrorCode {
+    fn default() -> Self {
+        Self::SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for SecondFactorPolicyErrorCode {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED,
+                )
+            }
+            1i32 => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION,
+                )
+            }
+            2i32 => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT,
+                )
+            }
+            3i32 => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED => {
+                "SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED"
+            }
+            Self::SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION => {
+                "SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION"
+            }
+            Self::SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT => {
+                "SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT"
+            }
+            Self::SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE => {
+                "SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED" => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED,
+                )
+            }
+            "SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION" => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION,
+                )
+            }
+            "SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT" => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT,
+                )
+            }
+            "SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE" => {
+                ::core::option::Option::Some(
+                    Self::SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED,
+            Self::SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION,
+            Self::SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT,
+            Self::SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE,
+        ]
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
 pub enum FactorKind {
     FACTOR_KIND_UNSPECIFIED = 0i32,
     FACTOR_KIND_FIDO2 = 1i32,
@@ -510,6 +706,114 @@ impl ::buffa::Enumeration for CredentialAudience {
             Self::CREDENTIAL_AUDIENCE_UNSPECIFIED,
             Self::CREDENTIAL_AUDIENCE_INTERACTIVE,
             Self::CREDENTIAL_AUDIENCE_MCP,
+        ]
+    }
+}
+/// Original authentication evidence; refresh never upgrades it or its time.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum AuthenticationSatisfaction {
+    AUTHENTICATION_SATISFACTION_UNSPECIFIED = 0i32,
+    AUTHENTICATION_SATISFACTION_PASSWORD_ONLY = 1i32,
+    AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 = 2i32,
+    AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE = 3i32,
+}
+impl AuthenticationSatisfaction {
+    ///Idiomatic alias for [`Self::AUTHENTICATION_SATISFACTION_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUTHENTICATION_SATISFACTION_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUTHENTICATION_SATISFACTION_PASSWORD_ONLY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PasswordOnly: Self = Self::AUTHENTICATION_SATISFACTION_PASSWORD_ONLY;
+    ///Idiomatic alias for [`Self::AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PasswordFido2: Self = Self::AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2;
+    ///Idiomatic alias for [`Self::AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PasswordRecoveryCode: Self = Self::AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE;
+}
+impl ::core::default::Default for AuthenticationSatisfaction {
+    fn default() -> Self {
+        Self::AUTHENTICATION_SATISFACTION_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for AuthenticationSatisfaction {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHENTICATION_SATISFACTION_UNSPECIFIED,
+                )
+            }
+            1i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHENTICATION_SATISFACTION_PASSWORD_ONLY,
+                )
+            }
+            2i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2,
+                )
+            }
+            3i32 => {
+                ::core::option::Option::Some(
+                    Self::AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::AUTHENTICATION_SATISFACTION_UNSPECIFIED => {
+                "AUTHENTICATION_SATISFACTION_UNSPECIFIED"
+            }
+            Self::AUTHENTICATION_SATISFACTION_PASSWORD_ONLY => {
+                "AUTHENTICATION_SATISFACTION_PASSWORD_ONLY"
+            }
+            Self::AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 => {
+                "AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2"
+            }
+            Self::AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE => {
+                "AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "AUTHENTICATION_SATISFACTION_UNSPECIFIED" => {
+                ::core::option::Option::Some(
+                    Self::AUTHENTICATION_SATISFACTION_UNSPECIFIED,
+                )
+            }
+            "AUTHENTICATION_SATISFACTION_PASSWORD_ONLY" => {
+                ::core::option::Option::Some(
+                    Self::AUTHENTICATION_SATISFACTION_PASSWORD_ONLY,
+                )
+            }
+            "AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2" => {
+                ::core::option::Option::Some(
+                    Self::AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2,
+                )
+            }
+            "AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE" => {
+                ::core::option::Option::Some(
+                    Self::AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::AUTHENTICATION_SATISFACTION_UNSPECIFIED,
+            Self::AUTHENTICATION_SATISFACTION_PASSWORD_ONLY,
+            Self::AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2,
+            Self::AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE,
         ]
     }
 }
@@ -3108,6 +3412,231 @@ impl ::buffa::ExtensionSet for RecoverAccountResponse {
         &mut self.__buffa_unknown_fields
     }
 }
+/// Operator Unix recovery only; password recovery never resets factors.
+#[derive(Clone, PartialEq, Default)]
+pub struct ResetSecondFactorRequest {
+    /// Field 1: `account_id`
+    pub account_id: ::buffa::MessageField<AccountId, ::buffa::Inline<AccountId>>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ResetSecondFactorRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ResetSecondFactorRequest")
+            .field("account_id", &self.account_id)
+            .finish()
+    }
+}
+impl ResetSecondFactorRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ResetSecondFactorRequest";
+}
+::buffa::impl_default_instance!(ResetSecondFactorRequest);
+impl ::buffa::MessageName for ResetSecondFactorRequest {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "ResetSecondFactorRequest";
+    const FULL_NAME: &'static str = "home.auth.v1.ResetSecondFactorRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ResetSecondFactorRequest";
+}
+impl ::buffa::Message for ResetSecondFactorRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.account_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.account_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.account_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.account_id.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.account_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.account_id = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ResetSecondFactorRequest {
+    const PROTO_FQN: &'static str = "home.auth.v1.ResetSecondFactorRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct ResetSecondFactorResponse {
+    /// Field 1: `account`
+    pub account: ::buffa::MessageField<Account, ::buffa::Inline<Account>>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ResetSecondFactorResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ResetSecondFactorResponse")
+            .field("account", &self.account)
+            .finish()
+    }
+}
+impl ResetSecondFactorResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ResetSecondFactorResponse";
+}
+::buffa::impl_default_instance!(ResetSecondFactorResponse);
+impl ::buffa::MessageName for ResetSecondFactorResponse {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "ResetSecondFactorResponse";
+    const FULL_NAME: &'static str = "home.auth.v1.ResetSecondFactorResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ResetSecondFactorResponse";
+}
+impl ::buffa::Message for ResetSecondFactorResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.account.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.account.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.account.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.account.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.account.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.account = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ResetSecondFactorResponse {
+    const PROTO_FQN: &'static str = "home.auth.v1.ResetSecondFactorResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
 /// An administrator may create a ready account directly or invite a person.
 /// Implementations enforce the last-admin and name uniqueness invariants.
 #[derive(Clone, PartialEq, Default)]
@@ -5515,6 +6044,8 @@ pub struct SecondFactorPolicy {
         ::buffa_types::google::protobuf::Timestamp,
         ::buffa::Inline<::buffa_types::google::protobuf::Timestamp>,
     >,
+    /// Field 3: `version`
+    pub version: ::buffa::MessageField<PolicyVersion, ::buffa::Inline<PolicyVersion>>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -5523,6 +6054,7 @@ impl ::core::fmt::Debug for SecondFactorPolicy {
         f.debug_struct("SecondFactorPolicy")
             .field("require_admin_factor", &self.require_admin_factor)
             .field("updated_at", &self.updated_at)
+            .field("version", &self.version)
             .finish()
     }
 }
@@ -5564,6 +6096,14 @@ impl ::buffa::Message for SecondFactorPolicy {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.version.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.version.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5584,6 +6124,14 @@ impl ::buffa::Message for SecondFactorPolicy {
                 buf,
             );
             self.updated_at.write_to(__cache, buf);
+        }
+        if self.version.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.version.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5616,6 +6164,17 @@ impl ::buffa::Message for SecondFactorPolicy {
                     ctx,
                 )?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.version.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5626,6 +6185,7 @@ impl ::buffa::Message for SecondFactorPolicy {
     fn clear(&mut self) {
         self.require_admin_factor = false;
         self.updated_at = ::buffa::MessageField::none();
+        self.version = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5837,6 +6397,8 @@ impl ::buffa::ExtensionSet for GetSecondFactorPolicyResponse {
 pub struct SetSecondFactorPolicyRequest {
     /// Field 1: `require_admin_factor`
     pub require_admin_factor: bool,
+    /// Field 2: `expected`
+    pub expected: ::buffa::MessageField<PolicyVersion, ::buffa::Inline<PolicyVersion>>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -5844,6 +6406,7 @@ impl ::core::fmt::Debug for SetSecondFactorPolicyRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("SetSecondFactorPolicyRequest")
             .field("require_admin_factor", &self.require_admin_factor)
+            .field("expected", &self.expected)
             .finish()
     }
 }
@@ -5870,25 +6433,41 @@ impl ::buffa::Message for SetSecondFactorPolicyRequest {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
         if self.require_admin_factor {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.expected.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.expected.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if self.require_admin_factor {
             ::buffa::types::put_bool_field(1u32, self.require_admin_factor, buf);
+        }
+        if self.expected.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.expected.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5910,6 +6489,17 @@ impl ::buffa::Message for SetSecondFactorPolicyRequest {
                 )?;
                 self.require_admin_factor = ::buffa::types::decode_bool(buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.expected.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5919,6 +6509,7 @@ impl ::buffa::Message for SetSecondFactorPolicyRequest {
     }
     fn clear(&mut self) {
         self.require_admin_factor = false;
+        self.expected = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5938,6 +6529,8 @@ pub struct SetSecondFactorPolicyResponse {
         SecondFactorPolicy,
         ::buffa::Inline<SecondFactorPolicy>,
     >,
+    /// Field 2: `continuation`
+    pub continuation: ::buffa::EnumValue<SecondFactorSessionContinuation>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -5945,6 +6538,7 @@ impl ::core::fmt::Debug for SetSecondFactorPolicyResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("SetSecondFactorPolicyResponse")
             .field("policy", &self.policy)
+            .field("continuation", &self.continuation)
             .finish()
     }
 }
@@ -5983,6 +6577,12 @@ impl ::buffa::Message for SetSecondFactorPolicyResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        {
+            let val = self.continuation.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -6000,6 +6600,12 @@ impl ::buffa::Message for SetSecondFactorPolicyResponse {
                 buf,
             );
             self.policy.write_to(__cache, buf);
+        }
+        {
+            let val = self.continuation.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6025,6 +6631,15 @@ impl ::buffa::Message for SetSecondFactorPolicyResponse {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.continuation = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -6034,11 +6649,135 @@ impl ::buffa::Message for SetSecondFactorPolicyResponse {
     }
     fn clear(&mut self) {
         self.policy = ::buffa::MessageField::none();
+        self.continuation = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }
 impl ::buffa::ExtensionSet for SetSecondFactorPolicyResponse {
     const PROTO_FQN: &'static str = "home.auth.v1.SetSecondFactorPolicyResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct SecondFactorPolicyError {
+    /// Field 1: `code`
+    pub code: ::buffa::EnumValue<SecondFactorPolicyErrorCode>,
+    /// Empty for authority failures; otherwise exactly "expected".
+    ///
+    /// Field 2: `field`
+    pub field: ::buffa::alloc::string::String,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for SecondFactorPolicyError {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("SecondFactorPolicyError")
+            .field("code", &self.code)
+            .field("field", &self.field)
+            .finish()
+    }
+}
+impl SecondFactorPolicyError {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.SecondFactorPolicyError";
+}
+::buffa::impl_default_instance!(SecondFactorPolicyError);
+impl ::buffa::MessageName for SecondFactorPolicyError {
+    const PACKAGE: &'static str = "home.auth.v1";
+    const NAME: &'static str = "SecondFactorPolicyError";
+    const FULL_NAME: &'static str = "home.auth.v1.SecondFactorPolicyError";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.SecondFactorPolicyError";
+}
+impl ::buffa::Message for SecondFactorPolicyError {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.code.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if !self.field.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.field) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.code.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        if !self.field.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.field, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.code = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.field, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.code = ::buffa::EnumValue::from(0);
+        self.field.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for SecondFactorPolicyError {
+    const PROTO_FQN: &'static str = "home.auth.v1.SecondFactorPolicyError";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -7816,6 +8555,13 @@ pub struct Session {
         ::buffa_types::google::protobuf::Timestamp,
         ::buffa::Inline<::buffa_types::google::protobuf::Timestamp>,
     >,
+    /// Field 7: `authentication_satisfaction`
+    pub authentication_satisfaction: ::buffa::EnumValue<AuthenticationSatisfaction>,
+    /// Field 8: `authenticated_at`
+    pub authenticated_at: ::buffa::MessageField<
+        ::buffa_types::google::protobuf::Timestamp,
+        ::buffa::Inline<::buffa_types::google::protobuf::Timestamp>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -7828,6 +8574,8 @@ impl ::core::fmt::Debug for Session {
             .field("expires_at", &self.expires_at)
             .field("revoked_at", &self.revoked_at)
             .field("last_used_at", &self.last_used_at)
+            .field("authentication_satisfaction", &self.authentication_satisfaction)
+            .field("authenticated_at", &self.authenticated_at)
             .finish()
     }
 }
@@ -7906,6 +8654,20 @@ impl ::buffa::Message for Session {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        {
+            let val = self.authentication_satisfaction.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if self.authenticated_at.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.authenticated_at.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7963,6 +8725,20 @@ impl ::buffa::Message for Session {
                 buf,
             );
             self.last_used_at.write_to(__cache, buf);
+        }
+        {
+            let val = self.authentication_satisfaction.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(7u32, val, buf);
+            }
+        }
+        if self.authenticated_at.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                8u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.authenticated_at.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8043,6 +8819,26 @@ impl ::buffa::Message for Session {
                     ctx,
                 )?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.authentication_satisfaction = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.authenticated_at.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -8057,6 +8853,8 @@ impl ::buffa::Message for Session {
         self.expires_at = ::buffa::MessageField::none();
         self.revoked_at = ::buffa::MessageField::none();
         self.last_used_at = ::buffa::MessageField::none();
+        self.authentication_satisfaction = ::buffa::EnumValue::from(0);
+        self.authenticated_at = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -17044,6 +17842,575 @@ pub mod __buffa {
             type View<'a> = RecoverAccountResponseView<'a>;
             type ViewHandle = RecoverAccountResponseOwnedView;
         }
+        /// Operator Unix recovery only; password recovery never resets factors.
+        #[derive(Clone, Debug, Default)]
+        pub struct ResetSecondFactorRequestView<'a> {
+            /// Field 1: `account_id`
+            pub account_id: ::buffa::MessageFieldView<
+                super::super::__buffa::view::AccountIdView<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ResetSecondFactorRequestView<'a> {
+            type Owned = super::super::ResetSecondFactorRequest;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.account_id.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.account_id = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ResetSecondFactorRequest,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ResetSecondFactorRequest,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ResetSecondFactorRequest {
+                    account_id: match self.account_id.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::AccountId,
+                                ::buffa::Inline<super::super::AccountId>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ResetSecondFactorRequestView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.account_id.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.account_id.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.account_id.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.account_id.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ResetSecondFactorRequestView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "ResetSecondFactorRequest";
+            const FULL_NAME: &'static str = "home.auth.v1.ResetSecondFactorRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ResetSecondFactorRequest";
+        }
+        ::buffa::impl_default_view_instance!(ResetSecondFactorRequestView);
+        ::buffa::impl_view_reborrow!(ResetSecondFactorRequestView);
+        /** Self-contained, `'static` owned view of a `ResetSecondFactorRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ResetSecondFactorRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ResetSecondFactorRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ResetSecondFactorRequestOwnedView(
+            ::buffa::OwnedView<ResetSecondFactorRequestView<'static>>,
+        );
+        impl ResetSecondFactorRequestOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ResetSecondFactorRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ResetSecondFactorRequestOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ResetSecondFactorRequest,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ResetSecondFactorRequestOwnedView(
+                        ::buffa::OwnedView::from_owned(msg)?,
+                    ),
+                )
+            }
+            /// Borrow the full [`ResetSecondFactorRequestView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ResetSecondFactorRequestView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ResetSecondFactorRequest {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `account_id`
+            #[must_use]
+            pub fn account_id(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::AccountIdView<'_>,
+            > {
+                &self.0.reborrow().account_id
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<ResetSecondFactorRequestView<'static>>,
+        > for ResetSecondFactorRequestOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<ResetSecondFactorRequestView<'static>>,
+            ) -> Self {
+                ResetSecondFactorRequestOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ResetSecondFactorRequestOwnedView>
+        for ::buffa::OwnedView<ResetSecondFactorRequestView<'static>> {
+            fn from(wrapper: ResetSecondFactorRequestOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<ResetSecondFactorRequestView<'static>>,
+        > for ResetSecondFactorRequestOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<ResetSecondFactorRequestView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ResetSecondFactorRequest {
+            type View<'a> = ResetSecondFactorRequestView<'a>;
+            type ViewHandle = ResetSecondFactorRequestOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct ResetSecondFactorResponseView<'a> {
+            /// Field 1: `account`
+            pub account: ::buffa::MessageFieldView<
+                super::super::__buffa::view::AccountView<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ResetSecondFactorResponseView<'a> {
+            type Owned = super::super::ResetSecondFactorResponse;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.account.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.account = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::AccountView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ResetSecondFactorResponse,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ResetSecondFactorResponse,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ResetSecondFactorResponse {
+                    account: match self.account.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::Account,
+                                ::buffa::Inline<super::super::Account>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ResetSecondFactorResponseView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.account.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.account.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.account.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.account.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ResetSecondFactorResponseView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "ResetSecondFactorResponse";
+            const FULL_NAME: &'static str = "home.auth.v1.ResetSecondFactorResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.ResetSecondFactorResponse";
+        }
+        ::buffa::impl_default_view_instance!(ResetSecondFactorResponseView);
+        ::buffa::impl_view_reborrow!(ResetSecondFactorResponseView);
+        /** Self-contained, `'static` owned view of a `ResetSecondFactorResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ResetSecondFactorResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ResetSecondFactorResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ResetSecondFactorResponseOwnedView(
+            ::buffa::OwnedView<ResetSecondFactorResponseView<'static>>,
+        );
+        impl ResetSecondFactorResponseOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ResetSecondFactorResponseOwnedView(
+                        ::buffa::OwnedView::decode(bytes)?,
+                    ),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ResetSecondFactorResponseOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ResetSecondFactorResponse,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ResetSecondFactorResponseOwnedView(
+                        ::buffa::OwnedView::from_owned(msg)?,
+                    ),
+                )
+            }
+            /// Borrow the full [`ResetSecondFactorResponseView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ResetSecondFactorResponseView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ResetSecondFactorResponse {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `account`
+            #[must_use]
+            pub fn account(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::AccountView<'_>,
+            > {
+                &self.0.reborrow().account
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<ResetSecondFactorResponseView<'static>>,
+        > for ResetSecondFactorResponseOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<ResetSecondFactorResponseView<'static>>,
+            ) -> Self {
+                ResetSecondFactorResponseOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ResetSecondFactorResponseOwnedView>
+        for ::buffa::OwnedView<ResetSecondFactorResponseView<'static>> {
+            fn from(wrapper: ResetSecondFactorResponseOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<ResetSecondFactorResponseView<'static>>,
+        > for ResetSecondFactorResponseOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<ResetSecondFactorResponseView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ResetSecondFactorResponse {
+            type View<'a> = ResetSecondFactorResponseView<'a>;
+            type ViewHandle = ResetSecondFactorResponseOwnedView;
+        }
         /// An administrator may create a ready account directly or invite a person.
         /// Implementations enforce the last-admin and name uniqueness invariants.
         #[derive(Clone, Debug, Default)]
@@ -22604,6 +23971,10 @@ pub mod __buffa {
             pub updated_at: ::buffa::MessageFieldView<
                 ::buffa_types::google::protobuf::__buffa::view::TimestampView<'a>,
             >,
+            /// Field 3: `version`
+            pub version: ::buffa::MessageFieldView<
+                super::super::__buffa::view::PolicyVersionView<'a>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SecondFactorPolicyView<'a> {
@@ -22676,6 +24047,31 @@ pub mod __buffa {
                             }
                         }
                     }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.version.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.version = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::PolicyVersionView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -22715,6 +24111,15 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    version: match self.version.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::PolicyVersion,
+                                ::buffa::Inline<super::super::PolicyVersion>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -22735,6 +24140,14 @@ pub mod __buffa {
                 if self.updated_at.is_set() {
                     let __slot = __cache.reserve();
                     let inner_size = self.updated_at.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.version.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.version.compute_size(__cache);
                     __cache.set(__slot, inner_size);
                     size
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -22761,6 +24174,14 @@ pub mod __buffa {
                         buf,
                     );
                     self.updated_at.write_to(__cache, buf);
+                }
+                if self.version.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        3u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.version.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -22870,6 +24291,15 @@ pub mod __buffa {
                 ::buffa_types::google::protobuf::__buffa::view::TimestampView<'_>,
             > {
                 &self.0.reborrow().updated_at
+            }
+            /// Field 3: `version`
+            #[must_use]
+            pub fn version(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::PolicyVersionView<'_>,
+            > {
+                &self.0.reborrow().version
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<SecondFactorPolicyView<'static>>>
@@ -23409,6 +24839,10 @@ pub mod __buffa {
         pub struct SetSecondFactorPolicyRequestView<'a> {
             /// Field 1: `require_admin_factor`
             pub require_admin_factor: bool,
+            /// Field 2: `expected`
+            pub expected: ::buffa::MessageFieldView<
+                super::super::__buffa::view::PolicyVersionView<'a>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SetSecondFactorPolicyRequestView<'a> {
@@ -23456,6 +24890,31 @@ pub mod __buffa {
                             &mut cur,
                         )?;
                     }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.expected.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.expected = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::PolicyVersionView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -23486,6 +24945,15 @@ pub mod __buffa {
                 let _ = __buffa_src;
                 ::core::result::Result::Ok(super::super::SetSecondFactorPolicyRequest {
                     require_admin_factor: self.require_admin_factor,
+                    expected: match self.expected.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::PolicyVersion,
+                                ::buffa::Inline<super::super::PolicyVersion>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -23496,12 +24964,20 @@ pub mod __buffa {
         }
         impl<'a> ::buffa::ViewEncode<'a> for SetSecondFactorPolicyRequestView<'a> {
             #[allow(clippy::needless_borrow, clippy::let_and_return)]
-            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
                 #[allow(unused_imports)]
                 use ::buffa::Enumeration as _;
                 let mut size = 0u64;
                 if self.require_admin_factor {
                     size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
+                if self.expected.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.expected.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
                 }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
@@ -23509,13 +24985,21 @@ pub mod __buffa {
             #[allow(clippy::needless_borrow)]
             fn write_to(
                 &self,
-                _cache: &mut ::buffa::SizeCache,
+                __cache: &mut ::buffa::SizeCache,
                 buf: &mut impl ::buffa::EncodeSink,
             ) {
                 #[allow(unused_imports)]
                 use ::buffa::Enumeration as _;
                 if self.require_admin_factor {
                     ::buffa::types::put_bool_field(1u32, self.require_admin_factor, buf);
+                }
+                if self.expected.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.expected.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -23623,6 +25107,15 @@ pub mod __buffa {
             pub fn require_admin_factor(&self) -> bool {
                 self.0.reborrow().require_admin_factor
             }
+            /// Field 2: `expected`
+            #[must_use]
+            pub fn expected(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::PolicyVersionView<'_>,
+            > {
+                &self.0.reborrow().expected
+            }
         }
         impl ::core::convert::From<
             ::buffa::OwnedView<SetSecondFactorPolicyRequestView<'static>>,
@@ -23657,6 +25150,10 @@ pub mod __buffa {
             /// Field 1: `policy`
             pub policy: ::buffa::MessageFieldView<
                 super::super::__buffa::view::SecondFactorPolicyView<'a>,
+            >,
+            /// Field 2: `continuation`
+            pub continuation: ::buffa::EnumValue<
+                super::super::SecondFactorSessionContinuation,
             >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
@@ -23721,6 +25218,15 @@ pub mod __buffa {
                             }
                         }
                     }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.continuation = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -23759,6 +25265,7 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    continuation: self.continuation,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -23781,6 +25288,12 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                {
+                    let val = self.continuation.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -23799,6 +25312,12 @@ pub mod __buffa {
                         buf,
                     );
                     self.policy.write_to(__cache, buf);
+                }
+                {
+                    let val = self.continuation.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(2u32, val, buf);
+                    }
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -23910,6 +25429,13 @@ pub mod __buffa {
             > {
                 &self.0.reborrow().policy
             }
+            /// Field 2: `continuation`
+            #[must_use]
+            pub fn continuation(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::SecondFactorSessionContinuation> {
+                self.0.reborrow().continuation
+            }
         }
         impl ::core::convert::From<
             ::buffa::OwnedView<SetSecondFactorPolicyResponseView<'static>>,
@@ -23938,6 +25464,283 @@ pub mod __buffa {
         impl ::buffa::HasMessageView for super::super::SetSecondFactorPolicyResponse {
             type View<'a> = SetSecondFactorPolicyResponseView<'a>;
             type ViewHandle = SetSecondFactorPolicyResponseOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct SecondFactorPolicyErrorView<'a> {
+            /// Field 1: `code`
+            pub code: ::buffa::EnumValue<super::super::SecondFactorPolicyErrorCode>,
+            /// Empty for authority failures; otherwise exactly "expected".
+            ///
+            /// Field 2: `field`
+            pub field: &'a str,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for SecondFactorPolicyErrorView<'a> {
+            type Owned = super::super::SecondFactorPolicyError;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.code = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.field = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::SecondFactorPolicyError,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::SecondFactorPolicyError,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::SecondFactorPolicyError {
+                    code: self.code,
+                    field: self.field.to_string(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for SecondFactorPolicyErrorView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                {
+                    let val = self.code.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                if !self.field.is_empty() {
+                    size
+                        += 1u64 + ::buffa::types::string_encoded_len(&self.field) as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                {
+                    let val = self.code.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(1u32, val, buf);
+                    }
+                }
+                if !self.field.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.field, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for SecondFactorPolicyErrorView<'a> {
+            const PACKAGE: &'static str = "home.auth.v1";
+            const NAME: &'static str = "SecondFactorPolicyError";
+            const FULL_NAME: &'static str = "home.auth.v1.SecondFactorPolicyError";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.auth.v1.SecondFactorPolicyError";
+        }
+        ::buffa::impl_default_view_instance!(SecondFactorPolicyErrorView);
+        ::buffa::impl_view_reborrow!(SecondFactorPolicyErrorView);
+        /** Self-contained, `'static` owned view of a `SecondFactorPolicyError` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`SecondFactorPolicyErrorView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SecondFactorPolicyErrorView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct SecondFactorPolicyErrorOwnedView(
+            ::buffa::OwnedView<SecondFactorPolicyErrorView<'static>>,
+        );
+        impl SecondFactorPolicyErrorOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    SecondFactorPolicyErrorOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    SecondFactorPolicyErrorOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::SecondFactorPolicyError,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    SecondFactorPolicyErrorOwnedView(
+                        ::buffa::OwnedView::from_owned(msg)?,
+                    ),
+                )
+            }
+            /// Borrow the full [`SecondFactorPolicyErrorView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &SecondFactorPolicyErrorView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::SecondFactorPolicyError {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `code`
+            #[must_use]
+            pub fn code(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::SecondFactorPolicyErrorCode> {
+                self.0.reborrow().code
+            }
+            /// Empty for authority failures; otherwise exactly "expected".
+            ///
+            /// Field 2: `field`
+            #[must_use]
+            pub fn field(&self) -> &'_ str {
+                self.0.reborrow().field
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<SecondFactorPolicyErrorView<'static>>,
+        > for SecondFactorPolicyErrorOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<SecondFactorPolicyErrorView<'static>>,
+            ) -> Self {
+                SecondFactorPolicyErrorOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<SecondFactorPolicyErrorOwnedView>
+        for ::buffa::OwnedView<SecondFactorPolicyErrorView<'static>> {
+            fn from(wrapper: SecondFactorPolicyErrorOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<SecondFactorPolicyErrorView<'static>>,
+        > for SecondFactorPolicyErrorOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<SecondFactorPolicyErrorView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::SecondFactorPolicyError {
+            type View<'a> = SecondFactorPolicyErrorView<'a>;
+            type ViewHandle = SecondFactorPolicyErrorOwnedView;
         }
         #[derive(Clone, Debug, Default)]
         pub struct FactorCredentialView<'a> {
@@ -27648,6 +29451,14 @@ pub mod __buffa {
             pub last_used_at: ::buffa::MessageFieldView<
                 ::buffa_types::google::protobuf::__buffa::view::TimestampView<'a>,
             >,
+            /// Field 7: `authentication_satisfaction`
+            pub authentication_satisfaction: ::buffa::EnumValue<
+                super::super::AuthenticationSatisfaction,
+            >,
+            /// Field 8: `authenticated_at`
+            pub authenticated_at: ::buffa::MessageFieldView<
+                ::buffa_types::google::protobuf::__buffa::view::TimestampView<'a>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SessionView<'a> {
@@ -27836,6 +29647,40 @@ pub mod __buffa {
                             }
                         }
                     }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.authentication_satisfaction = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.authenticated_at.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.authenticated_at = ::buffa::MessageFieldView::set(
+                                    <::buffa_types::google::protobuf::__buffa::view::TimestampView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -27913,6 +29758,16 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    authentication_satisfaction: self.authentication_satisfaction,
+                    authenticated_at: match self.authenticated_at.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                ::buffa_types::google::protobuf::Timestamp,
+                                ::buffa::Inline<::buffa_types::google::protobuf::Timestamp>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -27970,6 +29825,20 @@ pub mod __buffa {
                 if self.last_used_at.is_set() {
                     let __slot = __cache.reserve();
                     let inner_size = self.last_used_at.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                {
+                    let val = self.authentication_satisfaction.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                if self.authenticated_at.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.authenticated_at.compute_size(__cache);
                     __cache.set(__slot, inner_size);
                     size
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -28033,6 +29902,20 @@ pub mod __buffa {
                         buf,
                     );
                     self.last_used_at.write_to(__cache, buf);
+                }
+                {
+                    let val = self.authentication_satisfaction.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(7u32, val, buf);
+                    }
+                }
+                if self.authenticated_at.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        8u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.authenticated_at.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -28180,6 +30063,22 @@ pub mod __buffa {
                 ::buffa_types::google::protobuf::__buffa::view::TimestampView<'_>,
             > {
                 &self.0.reborrow().last_used_at
+            }
+            /// Field 7: `authentication_satisfaction`
+            #[must_use]
+            pub fn authentication_satisfaction(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::AuthenticationSatisfaction> {
+                self.0.reborrow().authentication_satisfaction
+            }
+            /// Field 8: `authenticated_at`
+            #[must_use]
+            pub fn authenticated_at(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                ::buffa_types::google::protobuf::__buffa::view::TimestampView<'_>,
+            > {
+                &self.0.reborrow().authenticated_at
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<SessionView<'static>>>
@@ -40909,6 +42808,14 @@ pub use self::__buffa::view::RecoverAccountResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::RecoverAccountResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::ResetSecondFactorRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetSecondFactorRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetSecondFactorResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetSecondFactorResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::CreateAccountRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::CreateAccountRequestOwnedView;
@@ -41004,6 +42911,10 @@ pub use self::__buffa::view::SetSecondFactorPolicyRequestOwnedView;
 pub use self::__buffa::view::SetSecondFactorPolicyResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetSecondFactorPolicyResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SecondFactorPolicyErrorView;
+#[doc(inline)]
+pub use self::__buffa::view::SecondFactorPolicyErrorOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FactorCredentialView;
 #[doc(inline)]

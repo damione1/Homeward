@@ -21,7 +21,11 @@ func composeSessionsWithCoordinator(plan *PublicPlan, store *storage.Store, coor
 		return nil, nil, ErrInvalidPublicPlan
 	}
 	var err error
-	plan, err = registerAuthRoutes(plan, store, coordinator, nil)
+	var provider factorProvider
+	if coordinator.mfa != nil {
+		provider = coordinator.mfa
+	}
+	plan, err = registerAuthRoutes(plan, store, coordinator, provider)
 	if err != nil {
 		return nil, nil, err
 	}

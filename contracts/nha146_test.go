@@ -245,6 +245,7 @@ func TestNHA146EnumCatalogueAndConnect(t *testing.T) {
 		"AuthenticationFailure": 4, "PermissionFailure": 4, "ConflictFailure": 5,
 		"ExpiredResource": 6, "AuthField": 17,
 		"PolicyRightsChange": 3, "AuthorizationPolicyErrorCode": 6, "AuthorizationTerminationReason": 6,
+		"AuthenticationSatisfaction": 4, "SecondFactorSessionContinuation": 3, "SecondFactorPolicyErrorCode": 4,
 	}
 	if enums.Len() != len(counts) {
 		t.Fatalf("auth enum count changed: %d", enums.Len())

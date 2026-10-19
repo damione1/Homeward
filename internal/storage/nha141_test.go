@@ -24,6 +24,9 @@ func TestNHA141LoginKeyCapacityExpiresAtWindowBoundary(t *testing.T) {
 	if _, err := store.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.BootstrapMFAPolicy(ctx); err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	if err := store.InTransaction(ctx, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO public.auth_login_attempts(login_digest,attempts)
@@ -76,6 +79,9 @@ func TestNHA141StoreRotationReplayAndRollingLimit(t *testing.T) {
 	}
 	defer store.Close()
 	if _, err := store.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BootstrapMFAPolicy(ctx); err != nil {
 		t.Fatal(err)
 	}
 	input := nha049AccountInput(t, "NHA141 Administrator", authv1.AccountRole_ACCOUNT_ROLE_ADMIN)
@@ -191,6 +197,9 @@ func TestNHA141StoreChallengeAttemptReservation(t *testing.T) {
 	if _, err := store.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.BootstrapMFAPolicy(ctx); err != nil {
+		t.Fatal(err)
+	}
 	input := nha049AccountInput(t, "NHA141 Challenge Admin", authv1.AccountRole_ACCOUNT_ROLE_ADMIN)
 	record, err := store.BootstrapAdmin(ctx, input)
 	if err != nil {
@@ -232,6 +241,9 @@ func TestNHA141StoreOldestSessionEvictionAndGenerationLimit(t *testing.T) {
 	}
 	defer store.Close()
 	if _, err := store.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BootstrapMFAPolicy(ctx); err != nil {
 		t.Fatal(err)
 	}
 	input := nha049AccountInput(t, "NHA141 Capacity Admin", authv1.AccountRole_ACCOUNT_ROLE_ADMIN)

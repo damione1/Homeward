@@ -8,6 +8,7 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/accounts"
+	"github.com/damione1/Homeward/internal/authmfa"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -24,12 +25,13 @@ var ErrSessionPermission = errors.New("sessions: permission denied")
 var ErrSessionCommitUnknown = errors.New("sessions: commit outcome unknown")
 
 type SessionRecord struct {
-	id        contracts.SessionID
-	account   contracts.AccountID
-	createdAt time.Time
-	expiresAt time.Time
-	revokedAt *time.Time
-	lastUsed  *time.Time
+	id             contracts.SessionID
+	account        contracts.AccountID
+	createdAt      time.Time
+	expiresAt      time.Time
+	revokedAt      *time.Time
+	lastUsed       *time.Time
+	authentication sessionAuthentication
 }
 
 func (r SessionRecord) ID() (contracts.SessionID, error) {
@@ -67,6 +69,7 @@ type AccessAdmission struct {
 	AccessExpiresAt  time.Time
 	SessionExpiresAt time.Time
 	Role             authv1.AccountRole
+	PolicyVersion    authmfa.ExpectedPolicyVersion
 }
 
 type SessionCreation struct {
@@ -150,8 +153,10 @@ func sessionTransaction[T any](s *Store, ctx context.Context, fn func(pgx.Tx) (T
 func scanSession(row pgx.Row) (SessionRecord, error) {
 	var id, account string
 	var created, expires time.Time
-	var revoked, last *time.Time
-	if err := row.Scan(&id, &account, &created, &expires, &revoked, &last); err != nil {
+	var revoked, last, authenticated *time.Time
+	var satisfaction int16
+	var factor, batch, code *string
+	if err := row.Scan(&id, &account, &created, &expires, &revoked, &last, &satisfaction, &authenticated, &factor, &batch, &code); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SessionRecord{}, ErrSessionNotFound
 		}
@@ -165,10 +170,27 @@ func scanSession(row pgx.Row) (SessionRecord, error) {
 	if err != nil {
 		return SessionRecord{}, ErrSessionUnavailable
 	}
-	return SessionRecord{id: sessionID, account: accountID, createdAt: created, expiresAt: expires, revokedAt: revoked, lastUsed: last}, nil
+	evidence := sessionAuthentication{satisfaction: authv1.AuthenticationSatisfaction(satisfaction)}
+	if authenticated != nil {
+		evidence.authenticatedAt = *authenticated
+	}
+	if factor != nil {
+		evidence.factor = *factor
+	}
+	if batch != nil {
+		evidence.batch = *batch
+	}
+	if code != nil {
+		evidence.code = *code
+	}
+	record := SessionRecord{id: sessionID, account: accountID, createdAt: created, expiresAt: expires, revokedAt: revoked, lastUsed: last, authentication: evidence}
+	if _, _, err := record.Authentication(); err != nil {
+		return SessionRecord{}, err
+	}
+	return record, nil
 }
 
-const sessionColumns = `s.id,s.account_id,s.created_at,s.expires_at,s.revoked_at,s.last_used_at`
+const sessionColumns = `s.id,s.account_id,s.created_at,s.expires_at,s.revoked_at,s.last_used_at,s.satisfaction,s.authenticated_at,s.factor_id,s.recovery_batch_id,s.recovery_code_id`
 
 func (s *Store) LookupAccessOwner(ctx context.Context, digest accounts.AccessDigest) (SessionOwner, error) {
 	raw, err := digest.Bytes()
@@ -218,6 +240,9 @@ func (s *Store) ConfirmAccountSettled(ctx context.Context, id contracts.AccountI
 		if err != nil || revision <= 0 {
 			return struct{}{}, ErrSessionUnavailable
 		}
+		if err := readSettledMFAAccountTx(ctx, tx, id); err != nil {
+			return struct{}{}, ErrSessionUnavailable
+		}
 		return struct{}{}, nil
 	})
 	return err
@@ -264,13 +289,16 @@ func (s *Store) AdmitAccess(ctx context.Context, owner SessionOwner, digest acco
 	var foundAccount, foundSession string
 	var accessExpiry, sessionExpiry time.Time
 	var role int16
-	err = s.pool.QueryRow(ctx, `SELECT s.account_id,s.id,a.expires_at,s.expires_at,c.role
+	var policyRevision int64
+	var policyHash []byte
+	err = s.pool.QueryRow(ctx, `SELECT s.account_id,s.id,a.expires_at,s.expires_at,c.role,p.version_revision,v.source_hash
         FROM public.auth_access_credentials a
         JOIN public.auth_sessions s ON s.id=a.session_id
         JOIN public.auth_accounts c ON c.id=s.account_id
+ JOIN public.auth_mfa_policy p ON p.singleton JOIN public.config_versions v ON v.document_id=p.document_id AND v.revision=p.version_revision
         WHERE a.token_digest=$1 AND s.id=$2 AND s.account_id=$3 AND a.audience=1
-        AND `+currentSessionPredicate,
-		raw[:], session, account).Scan(&foundAccount, &foundSession, &accessExpiry, &sessionExpiry, &role)
+        AND `+mfaSessionPredicate,
+		raw[:], session, account).Scan(&foundAccount, &foundSession, &accessExpiry, &sessionExpiry, &role, &policyRevision, &policyHash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AccessAdmission{}, ErrSessionNotFound
 	}
@@ -284,10 +312,71 @@ func (s *Store) AdmitAccess(ctx context.Context, owner SessionOwner, digest acco
 		role != int16(authv1.AccountRole_ACCOUNT_ROLE_ADMIN) && role != int16(authv1.AccountRole_ACCOUNT_ROLE_USER) {
 		return AccessAdmission{}, ErrSessionUnavailable
 	}
-	return AccessAdmission{Owner: owner, AccessExpiresAt: accessExpiry, SessionExpiresAt: sessionExpiry, Role: authv1.AccountRole(role)}, nil
+	version, err := authmfa.NewExpectedPolicyVersion(uint64(policyRevision), policyHash)
+	if err != nil || policyRevision <= 0 {
+		return AccessAdmission{}, ErrSessionUnavailable
+	}
+	return AccessAdmission{Owner: owner, AccessExpiresAt: accessExpiry, SessionExpiresAt: sessionExpiry, Role: authv1.AccountRole(role), PolicyVersion: version}, nil
 }
 
+// sessionAuthentication is created only after the password/factor boundary;
+// it cannot be supplied through public SessionCreation or decoded from headers.
+type sessionAuthentication struct {
+	satisfaction        authv1.AuthenticationSatisfaction
+	authenticatedAt     time.Time
+	factor, batch, code string
+}
+
+func (e sessionAuthentication) valid(now time.Time) bool {
+	if now.IsZero() || e.authenticatedAt.IsZero() || !e.authenticatedAt.Equal(now) {
+		return false
+	}
+	switch e.satisfaction {
+	case authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY:
+		return e.factor == "" && e.batch == "" && e.code == ""
+	case authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2:
+		return e.factor != "" && e.batch == "" && e.code == ""
+	case authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE:
+		return e.factor == "" && e.batch != "" && e.code != ""
+	case authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_UNSPECIFIED:
+		return false
+	default:
+		return false
+	}
+}
+func (r SessionRecord) Authentication() (authv1.AuthenticationSatisfaction, time.Time, error) {
+	switch r.authentication.satisfaction {
+	case authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_UNSPECIFIED:
+		if r.authentication.authenticatedAt.IsZero() {
+			return r.authentication.satisfaction, time.Time{}, nil
+		}
+	case authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY, authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2, authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE:
+		if r.authentication.valid(r.createdAt) {
+			return r.authentication.satisfaction, r.authentication.authenticatedAt, nil
+		}
+	}
+	return authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_UNSPECIFIED, time.Time{}, ErrSessionUnavailable
+}
+
+const mfaSessionPredicate = currentSessionPredicate + ` AND NOT(c.role=1 AND p.require_admin_factor AND NOT c.second_factor_enabled)
+ AND ((s.satisfaction IN(2,3) AND s.authenticated_at=s.created_at) OR (s.satisfaction IN(0,1) AND NOT c.second_factor_enabled AND NOT(c.role=1 AND p.require_admin_factor)))`
+
 func (s *Store) CreateSession(ctx context.Context, input SessionCreation) (CreatedSession, error) {
+	if input.ChallengeID != nil {
+		return CreatedSession{}, ErrSessionInvalid
+	}
+	return sessionTransaction(s, ctx, func(tx pgx.Tx) (CreatedSession, error) {
+		if _, err := lockMFAPolicy(ctx, tx); err != nil {
+			return CreatedSession{}, ErrSessionUnavailable
+		}
+		return s.createSessionTx(ctx, tx, input, sessionAuthentication{satisfaction: authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY, authenticatedAt: input.Now})
+	})
+}
+
+// Caller holds policy(shared) before account/challenge/record locks. This
+// helper never begins or commits a transaction and shares all issuance limits.
+func (s *Store) createSessionTx(ctx context.Context, tx pgx.Tx, input SessionCreation, evidence sessionAuthentication) (CreatedSession, error) {
+
 	id, err := input.ID.Value()
 	accessDigest, accessErr := input.AccessDigest.Bytes()
 	refreshDigest, refreshErr := input.RefreshDigest.Bytes()
@@ -299,94 +388,107 @@ func (s *Store) CreateSession(ctx context.Context, input SessionCreation) (Creat
 	if err != nil {
 		return CreatedSession{}, ErrSessionInvalid
 	}
-	return sessionTransaction(s, ctx, func(tx pgx.Tx) (CreatedSession, error) {
-		var revision int64
-		var status int16
-		var loginText string
-		var factorEnabled bool
-		if err := tx.QueryRow(ctx, `SELECT revocation_revision,status,login_name,second_factor_enabled FROM public.auth_accounts WHERE id=$1 FOR UPDATE`, account).Scan(&revision, &status, &loginText, &factorEnabled); err != nil {
+	var revision int64
+	var status int16
+	var loginText string
+	var factorEnabled, policyRequired bool
+	var role int16
+	if err := tx.QueryRow(ctx, `SELECT c.revocation_revision,c.status,c.login_name,c.second_factor_enabled,c.role,p.require_admin_factor FROM public.auth_accounts c CROSS JOIN public.auth_mfa_policy p WHERE c.id=$1 AND p.singleton FOR UPDATE OF c`, account).Scan(&revision, &status, &loginText, &factorEnabled, &role, &policyRequired); err != nil {
+		return CreatedSession{}, ErrSessionNotFound
+	}
+	if status != 1 || revision != input.Revision.number {
+		return CreatedSession{}, ErrSessionNotFound
+	}
+	if !evidence.valid(input.Now) {
+		return CreatedSession{}, ErrSessionInvalid
+	}
+	needsFactor := factorEnabled || (role == 1 && policyRequired)
+	if role == 1 && policyRequired && !factorEnabled {
+		return CreatedSession{}, ErrSessionNotFound
+	}
+	switch evidence.satisfaction {
+	case authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY:
+		if needsFactor || input.ChallengeID != nil {
 			return CreatedSession{}, ErrSessionNotFound
 		}
-		if status != 1 || revision != input.Revision.number {
+	case authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2, authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE:
+		if !factorEnabled || input.ChallengeID == nil {
 			return CreatedSession{}, ErrSessionNotFound
 		}
-		if input.ChallengeID == nil {
-			if factorEnabled {
-				return CreatedSession{}, ErrSessionNotFound
-			}
-		} else {
-			challengeID, err := input.ChallengeID.Value()
-			if err != nil {
-				return CreatedSession{}, ErrSessionInvalid
-			}
-			command, err := tx.Exec(ctx, `UPDATE public.auth_login_challenges SET consumed_at=$4
-                WHERE id=$1 AND account_id=$2 AND account_revision=$3 AND expires_at>$4
-                AND consumed_at IS NULL AND attempts BETWEEN 1 AND 5`, challengeID, account, revision, input.Now)
-			if err != nil || command.RowsAffected() != 1 {
-				return CreatedSession{}, ErrSessionNotFound
-			}
+	default:
+		return CreatedSession{}, ErrSessionInvalid
+	}
+	if input.ChallengeID != nil {
+		challengeID, err := input.ChallengeID.Value()
+		if err != nil {
+			return CreatedSession{}, ErrSessionInvalid
 		}
-		// Keep consumed refresh digests for the full absolute lifetime. A new
-		// issuance prunes only this locked account's expired families in a
-		// bounded batch; child digests disappear through the schema's cascades.
-		if _, err := tx.Exec(ctx, `DELETE FROM public.auth_sessions WHERE id IN (
-			SELECT id FROM public.auth_sessions WHERE account_id=$1 AND expires_at<=$2
-			ORDER BY expires_at,id LIMIT $3 FOR UPDATE)`, account, input.Now, sessionExpiredPruneBatch); err != nil {
-			return CreatedSession{}, ErrSessionUnavailable
+		command, err := tx.Exec(ctx, `UPDATE public.auth_login_challenges SET consumed_at=$4 WHERE id=$1 AND account_id=$2 AND account_revision=$3 AND expires_at>$4 AND consumed_at IS NULL AND attempts BETWEEN 1 AND 5`, challengeID, account, revision, input.Now)
+		if err != nil || command.RowsAffected() != 1 {
+			return CreatedSession{}, ErrSessionNotFound
 		}
-		// Expired rows no longer count, but their consumed digests stay until the
-		// absolute deadline. New issuance deterministically evicts the oldest.
-		var evicted *contracts.SessionID
-		var oldest string
-		err := tx.QueryRow(ctx, `SELECT id FROM public.auth_sessions WHERE account_id=$1 AND revoked_at IS NULL AND expires_at>$2
+	}
+
+	// Keep consumed refresh digests for the full absolute lifetime. A new
+	// issuance prunes only this locked account's expired families in a
+	// bounded batch; child digests disappear through the schema's cascades.
+	if _, err := tx.Exec(ctx, `DELETE FROM public.auth_sessions WHERE id IN (
+		SELECT id FROM public.auth_sessions WHERE account_id=$1 AND expires_at<=$2
+		ORDER BY expires_at,id LIMIT $3 FOR UPDATE)`, account, input.Now, sessionExpiredPruneBatch); err != nil {
+		return CreatedSession{}, ErrSessionUnavailable
+	}
+	// Expired rows no longer count, but their consumed digests stay until the
+	// absolute deadline. New issuance deterministically evicts the oldest.
+	var evicted *contracts.SessionID
+	var oldest string
+	err = tx.QueryRow(ctx, `SELECT id FROM public.auth_sessions WHERE account_id=$1 AND revoked_at IS NULL AND expires_at>$2
             ORDER BY created_at,id OFFSET $3 LIMIT 1`, account, input.Now, sessionLimitPerAccount-1).Scan(&oldest)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return CreatedSession{}, ErrSessionUnavailable
-		}
-		if err == nil {
-			var victim string
-			if err := tx.QueryRow(ctx, `SELECT id FROM public.auth_sessions WHERE account_id=$1 AND revoked_at IS NULL AND expires_at>$2
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return CreatedSession{}, ErrSessionUnavailable
+	}
+	if err == nil {
+		var victim string
+		if err = tx.QueryRow(ctx, `SELECT id FROM public.auth_sessions WHERE account_id=$1 AND revoked_at IS NULL AND expires_at>$2
                 ORDER BY created_at,id LIMIT 1`, account, input.Now).Scan(&victim); err != nil {
-				return CreatedSession{}, ErrSessionUnavailable
-			}
-			if _, err := tx.Exec(ctx, `UPDATE public.auth_sessions SET revoked_at=$2 WHERE id=$1`, victim, input.Now); err != nil {
-				return CreatedSession{}, ErrSessionUnavailable
-			}
-			parsed, err := contracts.ParseSessionID(victim)
-			if err != nil {
-				return CreatedSession{}, ErrSessionUnavailable
-			}
-			evicted = &parsed
-		}
-		expires := input.Now.Add(sessionAbsoluteLifetime)
-		accessExpires := input.Now.Add(sessionAccessLifetime)
-		if accessExpires.After(expires) {
-			accessExpires = expires
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO public.auth_sessions(id,account_id,account_revision,created_at,expires_at,current_generation)
-            VALUES($1,$2,$3,$4,$5,1)`, id, account, revision, input.Now, expires); err != nil {
 			return CreatedSession{}, ErrSessionUnavailable
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO public.auth_refresh_generations(session_id,generation,token_digest,state,issued_at)
-			VALUES($1,1,$2,1,$3)`, id, refreshDigest[:], input.Now); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE public.auth_sessions SET revoked_at=$2 WHERE id=$1`, victim, input.Now); err != nil {
 			return CreatedSession{}, ErrSessionUnavailable
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO public.auth_access_credentials(session_id,token_digest,audience,expires_at)
-			VALUES($1,$2,1,$3)`, id, accessDigest[:], accessExpires); err != nil {
-			return CreatedSession{}, ErrSessionUnavailable
-		}
-		login, err := accounts.ParseLoginName(loginText)
+		parsed, err := contracts.ParseSessionID(victim)
 		if err != nil {
 			return CreatedSession{}, ErrSessionUnavailable
 		}
-		if err := clearLoginAttempts(ctx, tx, login); err != nil {
-			return CreatedSession{}, err
-		}
-		if err := insertSessionAudit(ctx, tx, input.Account, authActionSessionCreate, authOutcomeAdmitted); err != nil {
-			return CreatedSession{}, err
-		}
-		return CreatedSession{Session: SessionRecord{id: input.ID, account: input.Account, createdAt: input.Now, expiresAt: expires}, AccessExpiresAt: accessExpires, Evicted: evicted}, nil
-	})
+		evicted = &parsed
+	}
+	expires := input.Now.Add(sessionAbsoluteLifetime)
+	accessExpires := input.Now.Add(sessionAccessLifetime)
+	if accessExpires.After(expires) {
+		accessExpires = expires
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO public.auth_sessions(id,account_id,account_revision,created_at,expires_at,current_generation,satisfaction,authenticated_at,factor_id,recovery_batch_id,recovery_code_id)
+ VALUES($1,$2,$3,$4,$5,1,$6,$4,NULLIF($7,''),NULLIF($8,''),NULLIF($9,''))`, id, account, revision, input.Now, expires, int16(evidence.satisfaction), evidence.factor, evidence.batch, evidence.code); err != nil {
+		return CreatedSession{}, ErrSessionUnavailable
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO public.auth_refresh_generations(session_id,generation,token_digest,state,issued_at)
+		VALUES($1,1,$2,1,$3)`, id, refreshDigest[:], input.Now); err != nil {
+		return CreatedSession{}, ErrSessionUnavailable
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO public.auth_access_credentials(session_id,token_digest,audience,expires_at)
+		VALUES($1,$2,1,$3)`, id, accessDigest[:], accessExpires); err != nil {
+		return CreatedSession{}, ErrSessionUnavailable
+	}
+	login, err := accounts.ParseLoginName(loginText)
+	if err != nil {
+		return CreatedSession{}, ErrSessionUnavailable
+	}
+	if err := clearLoginAttempts(ctx, tx, login); err != nil {
+		return CreatedSession{}, err
+	}
+	if err := insertSessionAudit(ctx, tx, input.Account, authActionSessionCreate, authOutcomeAdmitted); err != nil {
+		return CreatedSession{}, err
+	}
+	return CreatedSession{Session: SessionRecord{id: input.ID, account: input.Account, createdAt: input.Now, expiresAt: expires, authentication: evidence}, AccessExpiresAt: accessExpires, Evicted: evicted}, nil
 }
 
 func (s *Store) RotateRefresh(ctx context.Context, input RefreshRotation) (RotatedSession, error) {
@@ -402,9 +504,16 @@ func (s *Store) RotateRefresh(ctx context.Context, input RefreshRotation) (Rotat
 		return RotatedSession{}, ErrSessionInvalid
 	}
 	return sessionTransaction(s, ctx, func(tx pgx.Tx) (RotatedSession, error) {
+		if _, err := lockMFAPolicy(ctx, tx); err != nil {
+			return RotatedSession{}, ErrSessionUnavailable
+		}
 		var revision int64
 		var status int16
 		if err := tx.QueryRow(ctx, `SELECT revocation_revision,status FROM public.auth_accounts WHERE id=$1 FOR UPDATE`, account).Scan(&revision, &status); err != nil {
+			return RotatedSession{}, ErrSessionNotFound
+		}
+		var admitted bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.auth_sessions s JOIN public.auth_accounts c ON c.id=s.account_id CROSS JOIN public.auth_mfa_policy p WHERE p.singleton AND s.id=$1 AND s.account_id=$2 AND `+mfaSessionPredicate+`)`, session, account).Scan(&admitted); err != nil || !admitted {
 			return RotatedSession{}, ErrSessionNotFound
 		}
 		var recordedRevision int64

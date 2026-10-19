@@ -67,7 +67,8 @@ func TestNHA105RecorderUpgrade16To17(t *testing.T) {
 	} else {
 		nha151SQLState(t, err, "23514")
 	}
-	if version, err := store.Migrate(ctx); err != nil || version.Number() != 17 {
+	// Keep this historical upgrade pinned to17 as later migrations are added.
+	if version, err := store.migrate(ctx, migrations[:17]); err != nil || version.Number() != 17 {
 		t.Fatal("additive schema17 failed")
 	}
 	for _, row := range old {

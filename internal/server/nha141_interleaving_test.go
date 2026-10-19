@@ -61,6 +61,9 @@ func TestNHA141AccountGateCommitOrderRollbackAndUnknown(t *testing.T) {
 	if _, err := store.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.BootstrapMFAPolicy(ctx); err != nil {
+		t.Fatal(err)
+	}
 	admin, err := newAccountInput(ctx, "NHA141 Gate Admin", "NHA141 Gate Admin", "NHA141 synthetic gate admin password", authv1.AccountRole_ACCOUNT_ROLE_ADMIN)
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +80,7 @@ func TestNHA141AccountGateCommitOrderRollbackAndUnknown(t *testing.T) {
 		t.Fatal(err)
 	}
 	clock := newNHA141Clock(time.Now().UTC().Truncate(time.Microsecond))
-	coordinator, err := newSessionCoordinatorWithClock(store, clock)
+	coordinator, err := prepareLocalAuthorization(ctx, store, clock)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +309,7 @@ func TestNHA141AccountGateCommitOrderRollbackAndUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restarted, err := newSessionCoordinatorWithClock(store, clock)
+	restarted, err := prepareLocalAuthorization(ctx, store, clock)
 	if err != nil {
 		t.Fatal(err)
 	}

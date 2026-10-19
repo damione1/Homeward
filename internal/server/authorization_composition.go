@@ -6,6 +6,7 @@ import (
 
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/authorization"
+	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
@@ -54,10 +55,30 @@ func authorizationComposition(ctx context.Context, c *sessionCoordinator, source
 // also valid with zero accounts: the first Unix bootstrap publishes its newly
 // committed seed through the same coordinator without restarting Run.
 func prepareLocalAuthorization(ctx context.Context, store *storage.Store, clock sessionClock) (*sessionCoordinator, error) {
+	return prepareLocalAuthorizationWithSettings(ctx, store, clock, config.DefaultPublicSettings())
+}
+
+func prepareLocalAuthorizationWithSettings(ctx context.Context, store *storage.Store, clock sessionClock, settings config.PublicSettings) (*sessionCoordinator, error) {
+	if store == nil {
+		return nil, storage.ErrSessionInvalid
+	}
+	policy, err := store.BootstrapMFAPolicy(ctx)
+	if err != nil {
+		return nil, err
+	}
+	version, err := policy.Version()
+	if err != nil {
+		return nil, err
+	}
+	fence, err := newMFAPolicyFence(version, settings)
+	if err != nil {
+		return nil, err
+	}
 	c, err := newSessionCoordinatorWithClock(store, clock)
 	if err != nil {
 		return nil, err
 	}
+	c.policy = fence
 	if err := store.EnsureAuthorizationPolicies(ctx); err != nil {
 		return nil, err
 	}
