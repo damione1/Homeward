@@ -15,6 +15,7 @@ import (
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/executionhistory"
 	"github.com/damione1/Homeward/internal/heatingownership"
 	"github.com/damione1/Homeward/internal/helpers"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -362,32 +363,48 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			})
 		}
 	}
-	scriptServices := scriptRunServices{host: host, projection: sequence, commands: commands}
+	epoch, err := sequence.CurrentAdmissionEpoch()
+	if err != nil {
+		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+		})
+	}
+	history, err := executionhistory.New(ctx, store, epoch)
+	if err != nil {
+		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+		})
+	}
+	scriptServices := scriptRunServices{host: host, projection: sequence, commands: commands, history: history}
 	if reactive != nil {
 		scriptServices.templates = reactive.service
 	}
 	runs, err = prepareAutomationRuns(ctx, triggers, plan.AutomationRuns, scriptServices)
 	if err != nil {
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+			historyErr := drainExecutionHistoryAfter(stopCtx, history, triggerDone)
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(err, historyErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done())
 		})
 	}
 	authorization.freeze()
 	if err := ctx.Err(); err != nil {
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+			historyErr := drainExecutionHistoryAfter(stopCtx, history, triggerDone)
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(err, historyErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done())
 		})
 	}
 	listRun, err := newListComposition(store, sessions.authority)
 	if err != nil {
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+			historyErr := drainExecutionHistoryAfter(stopCtx, history, triggerDone)
+			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(err, historyErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done())
 		})
 	}
 	listDrain := newListRuntimeDrain(listRun)
 	closeListPrepared := func(stopCtx context.Context, cause error, jobs *durableJobsRuntime, triggerDone <-chan struct{}) error {
 		listDone := listDrain.beginClose()
-		runtimeErr := closePreparedRuntimeWithContext(stopCtx, host, authorization, store, cause, reactive, recording, jobs, sessions.mfa, triggerDone, listDone)
+		historyErr := drainExecutionHistoryAfter(stopCtx, history, triggerDone)
+		runtimeErr := closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(cause, historyErr), reactive, recording, jobs, sessions.mfa, triggerDone, listDone, history.Done())
 		return errors.Join(runtimeErr, listDrain.close(stopCtx))
 	}
 	if dependencies.observeLists != nil {
@@ -454,6 +471,9 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	if err == nil {
 		err = durableJobs.Start(ctx)
 	}
+	if err == nil {
+		err = history.Start()
+	}
 	if err == nil && runs != nil {
 		err = runs.Start(ctx)
 	}
@@ -480,13 +500,14 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		triggerErr := drainAutomationTriggers(stopCtx, triggers)
 		runErr := drainAutomationRuns(stopCtx, runs)
 		sceneErr := drainScriptScenes(stopCtx, plan.AutomationRuns)
+		historyErr := drainExecutionHistoryAfter(stopCtx, history, runs.Done(), sceneDone, triggers.Done())
 		mfaErr := sessions.mfa.close(stopCtx)
 		listErr := listDrain.close(stopCtx)
 		jobsErr := <-jobsStop
 		recorderErr := drainRecorder(stopCtx, recording)
 		cancel()
-		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, mfaDone, listDone, durableJobs.Done(), recording.Done())
-		return errors.Join(err, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, mfaErr, listErr, jobsErr, recorderErr)
+		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done())
+		return errors.Join(err, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr)
 	}
 	var reactiveDone <-chan struct{}
 	if reactive != nil {
@@ -571,13 +592,14 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	triggerErr := drainAutomationTriggers(stopCtx, triggers)
 	runErr := drainAutomationRuns(stopCtx, runs)
 	sceneErr := drainScriptScenes(stopCtx, plan.AutomationRuns)
+	historyErr := drainExecutionHistoryAfter(stopCtx, history, runs.Done(), sceneDone, triggers.Done())
 	mfaErr := sessions.mfa.close(stopCtx)
 	listErr := listDrain.close(stopCtx)
 	jobsErr := <-jobsStop
 	recorderErr := drainRecorder(stopCtx, recording)
 	cancel()
-	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, mfaDone, listDone, durableJobs.Done(), recording.Done())
-	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, mfaErr, listErr, jobsErr, recorderErr)
+	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done())
+	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured

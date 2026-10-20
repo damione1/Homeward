@@ -140,6 +140,7 @@ const (
 
 type preparedMember struct {
 	capturedEntity domain.EntityID
+	commandID      domain.CommandID
 	kind           preparedKind
 	alias          domain.HAAlias
 	source         parser.Position

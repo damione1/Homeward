@@ -58,7 +58,7 @@ func NewInterpreter(input InterpreterInput) (*Interpreter, error) {
 func (i *Interpreter) bind(c *Controller) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if c == nil || i.controller != nil || c.plan.token != i.input.Plan.token {
+	if c == nil || i.controller != nil || c.plan.token != i.input.Plan.token || c.plan.provenance != i.input.Plan.provenance {
 		return ErrInvalidPlan
 	}
 	charge, err := admittedProgramCharge(c.plan)
@@ -209,9 +209,11 @@ func (i *Interpreter) executeNodes(ctx context.Context, nodes []executableNode, 
 		if err := ctx.Err(); err != nil {
 			return flowInvalid, err
 		}
-		if err := work.visit(node.source); err != nil {
+		visit, err := work.nextVisit(node.source)
+		if err != nil {
 			return flowInvalid, err
 		}
+		run.visit = visit
 		i.traceNode(run, node, NodeEntered, nil)
 		flow, err := i.executeNode(ctx, node, run, work)
 		stage := NodeCompleted
@@ -418,7 +420,7 @@ func (i *Interpreter) executeNode(ctx context.Context, node executableNode, run 
 			if err := sending.Err(); err != nil {
 				return flowInvalid, executionCause(ExecutionCommandError, node.source, err)
 			}
-			execution := CommandExecution{run: run.id, generation: run.generation, ordinal: work.ordinal.Add(1), source: node.source, actor: actor, suspend: run.suspend}
+			execution := CommandExecution{run: run.id, parent: run.parent, generation: run.generation, provenance: run.provenance, visit: run.visit, ordinal: work.ordinal.Add(1), source: node.source, actor: actor, suspend: run.suspend}
 			if !i.controller.pool.adjust(0, MaxProgramBytes) {
 				return flowInvalid, ErrCapacity
 			}

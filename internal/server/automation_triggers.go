@@ -119,6 +119,11 @@ func prepareAutomationRuns(ctx context.Context, triggers *automationtriggers.Ser
 	if err != nil {
 		return nil, err
 	}
+	if services.history != nil {
+		if err := runs.AttachHistoryObservationSink(services.history); err != nil {
+			return nil, err
+		}
+	}
 	composition.runtime = runs
 	return runs, nil
 }

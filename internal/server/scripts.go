@@ -8,6 +8,7 @@ import (
 
 	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/automationtriggers"
+	"github.com/damione1/Homeward/internal/executionhistory"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/reactivetemplate"
 	"github.com/damione1/Homeward/internal/scenes"
@@ -100,6 +101,7 @@ type scriptRunServices struct {
 	commands   *integrations.DurableCommandService
 	triggers   *automationtriggers.Service
 	templates  *reactivetemplate.Service
+	history    *executionhistory.Sink
 }
 
 func prepareScriptRuns(ctx context.Context, composition *AutomationRunsComposition, services scriptRunServices) (*automationruns.Controller, error) {
@@ -130,6 +132,11 @@ func prepareScriptRuns(ctx context.Context, composition *AutomationRunsCompositi
 		}
 		concrete.scenes = &scriptSceneRuntime{service: service, done: make(chan struct{})}
 		sceneService = service
+		if services.history != nil {
+			if err := service.AttachHistoryObservationSink(services.history, concrete.input.Plan.Provenance()); err != nil {
+				return nil, errors.Join(ErrInvalidTriggerComposition, err)
+			}
+		}
 	}
 	adapter, err := scriptcommands.New(scriptcommands.Input{
 		Commands:        services.commands,
@@ -139,6 +146,7 @@ func prepareScriptRuns(ctx context.Context, composition *AutomationRunsCompositi
 		Generation:      concrete.input.Commands.generation,
 		Clock:           concrete.input.Clock,
 		CommandDeadline: concrete.input.CommandDeadline,
+		History:         services.history,
 	})
 	if err != nil {
 		return nil, errors.Join(ErrInvalidTriggerComposition, err)
@@ -163,6 +171,11 @@ func prepareScriptRuns(ctx context.Context, composition *AutomationRunsCompositi
 	controller, err := automationruns.NewController(composition.plan, reader, interpreter, interpreter)
 	if err != nil {
 		return nil, errors.Join(ErrInvalidTriggerComposition, err)
+	}
+	if services.history != nil {
+		if err := controller.AttachHistoryObservationSink(services.history); err != nil {
+			return nil, errors.Join(ErrInvalidTriggerComposition, err)
+		}
 	}
 	composition.runtime = controller
 	concrete.interpreter, concrete.state = interpreter, scriptCompositionPrepared

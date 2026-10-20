@@ -163,7 +163,7 @@ func (c *Controller) InvokeScript(ctx context.Context, id ir.ScriptID, parameter
 		return nil, err
 	}
 	reserved = false
-	entry, decision := c.admit(spec, Trigger{script: id}, arena, environment, stack)
+	entry, decision := c.admit(spec, Trigger{script: id}, arena, environment, runAncestry{parent: parent, stack: stack, mode: mode})
 	if entry == nil {
 		return nil, &AdmissionError{decision: decision}
 	}
@@ -236,7 +236,7 @@ func (c *Controller) cancelScript(entry *runEntry) {
 	}
 	if removed {
 		c.live--
-		c.recordLocked(Trace{Decision: DecisionCancelled, Script: entry.run.trigger.script, RunID: entry.run.id, Generation: entry.run.generation})
+		c.recordLocked(Trace{Decision: DecisionCancelled, Script: entry.run.trigger.script, RunID: entry.run.id, Generation: entry.run.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
 	}
 	c.mu.Unlock()
 	entry.cancel()
