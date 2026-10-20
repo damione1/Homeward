@@ -91,6 +91,7 @@ type Input struct {
 	Generation      integrations.GenerationAuthority
 	Clock           automationtriggers.Clock
 	CommandDeadline time.Duration
+	History         HistoryObservationSink
 }
 type Adapter struct{ input Input }
 
@@ -107,7 +108,8 @@ func missing(value any) bool {
 }
 func New(input Input) (*Adapter, error) {
 	if input.Commands == nil || input.Host == nil || input.Projection == nil || missing(input.Generation) || missing(input.Clock) ||
-		input.Clock.Now().IsZero() || input.CommandDeadline <= 0 || input.CommandDeadline > 24*time.Hour {
+		input.Clock.Now().IsZero() || input.CommandDeadline <= 0 || input.CommandDeadline > 24*time.Hour ||
+		(input.History != nil && missing(input.History)) {
 		return nil, failure(InvalidInput, nil)
 	}
 	return &Adapter{input}, nil
@@ -153,73 +155,118 @@ func (a *Adapter) ExecuteCall(ctx context.Context, call ir.Call, execution autom
 		if err != nil {
 			return failure(InvalidInput, err)
 		}
-		switch call.Kind() {
-		case ir.CallLightTurnOn, ir.CallLightTurnOff:
-			slot, err := halight.NewPreparationSlot(a.input.Commands, call, index, execution.Actor(), id, expires)
-			if err != nil {
-				return failure(Refused, err)
+		targetErr := func() error {
+			var observedResponse *actions.CommandResponse
+			var observedErr error
+			if call.Kind() != ir.CallSceneTurnOn {
+				defer func() { a.observeCommand(id, execution, observedCommandOutcome(observedResponse, observedErr)) }()
 			}
-			response, err := slot.Dispatch(ctx)
-			if err := commandResult(response, err); err != nil {
-				return err
+			switch call.Kind() {
+			case ir.CallLightTurnOn, ir.CallLightTurnOff:
+				slot, err := halight.NewPreparationSlot(a.input.Commands, call, index, execution.Actor(), id, expires)
+				if err != nil {
+					return failure(Refused, err)
+				}
+				response, err := slot.Dispatch(ctx)
+				observedResponse, observedErr = response, err
+				if err := commandResult(response, err); err != nil {
+					return err
+				}
+			case ir.CallSwitchTurnOn:
+				capture, err := a.input.Commands.CaptureDirect(ctx, target.Alias(), integrations.DirectSwitch)
+				if err != nil {
+					return failure(Refused, err)
+				}
+				prepared, err := capture.PrepareSwitch(execution.Actor(), id, expires, true)
+				if err != nil {
+					return failure(Refused, err)
+				}
+				response, err := a.input.Commands.DispatchPreparedDirect(ctx, prepared)
+				observedResponse, observedErr = response, err
+				if err := commandResult(response, err); err != nil {
+					return err
+				}
+			case ir.CallClimateSetTemperature:
+				wire, err := a.climate(ctx, target.Alias(), call.Temperature(), id, epoch, expires)
+				if err != nil {
+					return err
+				}
+				response, err := a.input.Commands.Dispatch(ctx, execution.Actor(), wire)
+				observedResponse, observedErr = response, err
+				if err := commandResult(response, err); err != nil {
+					return err
+				}
+			case ir.CallSceneTurnOn:
+				if a.input.Scenes == nil {
+					return failure(Unavailable, nil)
+				}
+				ref, err := a.input.Scenes.Declarative(target.Alias())
+				if err != nil {
+					return failure(Refused, err)
+				}
+				var transition *float64
+				if number := call.TransitionSeconds(); number.Present() {
+					seconds := number.Value()
+					transition = &seconds
+				}
+				slot, err := scenes.NewPreparationSlot(a.input.Scenes, ref, execution.Actor(), id, transition, expires)
+				if err != nil {
+					return failure(Refused, err)
+				}
+				prepared, err := slot.PrepareOnce(ctx)
+				if err != nil {
+					return failure(Refused, err)
+				}
+				result, err := a.input.Scenes.ApplyPreparedWithHistory(ctx, prepared, scenes.HistoryCause{
+					Run: automationruns.HistoryRunRef{Generation: execution.Generation(), RunID: execution.RunID(),
+						ParentID: execution.ParentID(), Provenance: execution.Provenance()},
+					NodeVisit: execution.NodeVisit(), CommandOrdinal: execution.Ordinal(), Source: execution.HistorySource(),
+				})
+				if err != nil {
+					return failure(Refused, err)
+				}
+				if err := sceneResult(result); err != nil {
+					return err
+				}
+			case ir.CallInvalid, ir.CallScript:
+				return failure(InvalidInput, nil)
+			default:
+				return failure(InvalidInput, nil)
 			}
-		case ir.CallSwitchTurnOn:
-			capture, err := a.input.Commands.CaptureDirect(ctx, target.Alias(), integrations.DirectSwitch)
-			if err != nil {
-				return failure(Refused, err)
-			}
-			prepared, err := capture.PrepareSwitch(execution.Actor(), id, expires, true)
-			if err != nil {
-				return failure(Refused, err)
-			}
-			response, err := a.input.Commands.DispatchPreparedDirect(ctx, prepared)
-			if err := commandResult(response, err); err != nil {
-				return err
-			}
-		case ir.CallClimateSetTemperature:
-			wire, err := a.climate(ctx, target.Alias(), call.Temperature(), id, epoch, expires)
-			if err != nil {
-				return err
-			}
-			response, err := a.input.Commands.Dispatch(ctx, execution.Actor(), wire)
-			if err := commandResult(response, err); err != nil {
-				return err
-			}
-		case ir.CallSceneTurnOn:
-			if a.input.Scenes == nil {
-				return failure(Unavailable, nil)
-			}
-			ref, err := a.input.Scenes.Declarative(target.Alias())
-			if err != nil {
-				return failure(Refused, err)
-			}
-			var transition *float64
-			if number := call.TransitionSeconds(); number.Present() {
-				seconds := number.Value()
-				transition = &seconds
-			}
-			slot, err := scenes.NewPreparationSlot(a.input.Scenes, ref, execution.Actor(), id, transition, expires)
-			if err != nil {
-				return failure(Refused, err)
-			}
-			prepared, err := slot.PrepareOnce(ctx)
-			if err != nil {
-				return failure(Refused, err)
-			}
-			result, err := a.input.Scenes.ApplyPrepared(ctx, prepared)
-			if err != nil {
-				return failure(Refused, err)
-			}
-			if err := sceneResult(result); err != nil {
-				return err
-			}
-		case ir.CallInvalid, ir.CallScript:
-			return failure(InvalidInput, nil)
-		default:
-			return failure(InvalidInput, nil)
+			return nil
+		}()
+		if targetErr != nil {
+			return targetErr
 		}
 	}
 	return nil
+}
+
+func observedCommandOutcome(response *actions.CommandResponse, err error) CommandOutcome {
+	if response == nil {
+		if err == nil {
+			return CommandNotAttempted
+		}
+		return CommandIndeterminate
+	}
+	switch response.Status {
+	case actions.ActionStatus_ACTION_STATUS_ACCEPTED:
+		return CommandAccepted
+	case actions.ActionStatus_ACTION_STATUS_DISPATCHED:
+		return CommandDispatched
+	case actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED:
+		return CommandAcknowledged
+	case actions.ActionStatus_ACTION_STATUS_CONFIRMED:
+		return CommandConfirmed
+	case actions.ActionStatus_ACTION_STATUS_INDETERMINATE:
+		return CommandIndeterminate
+	case actions.ActionStatus_ACTION_STATUS_UNSPECIFIED:
+		return CommandOutcomeInvalid
+	case actions.ActionStatus_ACTION_STATUS_FAILED, actions.ActionStatus_ACTION_STATUS_CANCELLED:
+		return CommandRefused
+	default:
+		return CommandOutcomeInvalid
+	}
 }
 
 // Climate uses the existing public route and expected-revision fence. The

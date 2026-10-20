@@ -147,6 +147,7 @@ func (s *Service) prepare(ctx context.Context, ref SceneRef, actor domain.ActorI
 			return nil, err
 		}
 		member := s.prepareMember(ctx, spec, actor, commandID, transition, expiresAt)
+		member.commandID = commandID
 		member.capturedEntity = spec.capturedEntity
 		plan.members = append(plan.members, member)
 	}
@@ -376,6 +377,10 @@ func (s *Service) prepareDirect(ctx context.Context, spec memberSpec, actor doma
 // one fresh equality proof at admission; all other effects use their existing
 // CommandRouter and ledger. ACK is never promoted to physical confirmation.
 func (s *Service) ApplyPrepared(ctx context.Context, prepared PreparedScene) (ApplyResult, error) {
+	return s.ApplyPreparedWithHistory(ctx, prepared, HistoryCause{})
+}
+
+func (s *Service) ApplyPreparedWithHistory(ctx context.Context, prepared PreparedScene, cause HistoryCause) (result ApplyResult, err error) {
 	if s == nil || ctx == nil || prepared.plan == nil || prepared.plan.service != s {
 		return ApplyResult{}, ErrInvalidScene
 	}
@@ -385,17 +390,59 @@ func (s *Service) ApplyPrepared(ctx context.Context, prepared PreparedScene) (Ap
 	}
 	defer finish()
 	plan := prepared.plan
+	observedMembers, succeeded := 0, 0
+	hasIndeterminate := false
+	if s.history != nil {
+		cause = s.historyCause(cause)
+		sceneID, _ := plan.ref.ID()
+		defer func() {
+			outcome := SceneInvocationIndeterminate
+			if err != nil && observedMembers == 0 {
+				outcome = SceneInvocationNotAttempted
+			} else if !hasIndeterminate && observedMembers == len(plan.members) {
+				if err != nil {
+					switch {
+					case succeeded == observedMembers:
+						outcome = SceneInvocationComplete
+					case succeeded > 0:
+						outcome = SceneInvocationPartial
+					default:
+						outcome = SceneInvocationNone
+					}
+				} else {
+					switch result.aggregate {
+					case AggregateComplete:
+						outcome = SceneInvocationComplete
+					case AggregatePartial:
+						outcome = SceneInvocationPartial
+					case AggregateNone:
+						outcome = SceneInvocationNone
+					}
+				}
+			}
+			s.history.ObserveSceneInvocation(SceneInvocationObservation{At: s.clock.Now().UTC(), Cause: cause, SceneID: sceneID, Invocation: plan.invocation, Outcome: outcome})
+		}()
+	}
 	if err := s.authorizePreparedResult(runCtx, plan); err != nil {
 		return ApplyResult{}, err
 	}
 
-	result := ApplyResult{members: make([]MemberResult, 0, len(plan.members))}
-	succeeded := 0
-	for _, member := range plan.members {
+	result = ApplyResult{members: make([]MemberResult, 0, len(plan.members))}
+	for index, member := range plan.members {
 		item, err := s.applyMember(runCtx, plan, member)
+		if item.outcome == OutcomeIndeterminate {
+			hasIndeterminate = true
+		}
+		if s.history != nil && item.outcome != OutcomeInvalid {
+			sceneID, _ := plan.ref.ID()
+			s.history.ObserveSceneMember(SceneMemberObservation{At: s.clock.Now().UTC(), Cause: cause, SceneID: sceneID,
+				Invocation: plan.invocation, CommandID: member.commandID, Index: index, Alias: member.alias,
+				File: member.source.File, Line: member.source.Line, Column: member.source.Column, Outcome: item.outcome})
+		}
 		if err != nil {
 			return ApplyResult{}, err
 		}
+		observedMembers++
 		if item.outcome == OutcomeAlreadySatisfied || item.outcome == OutcomeAccepted || item.outcome == OutcomeDispatched ||
 			item.outcome == OutcomeAcknowledged || item.outcome == OutcomeConfirmed {
 			succeeded++

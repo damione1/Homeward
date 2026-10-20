@@ -109,15 +109,25 @@ type ConditionSource interface {
 
 type CommandExecution struct {
 	run        RunID
+	parent     RunID
 	generation Generation
+	provenance DefinitionProvenance
+	visit      uint64
 	ordinal    uint64
 	source     ir.Source
 	actor      domain.ActorID
 	suspend    func()
 }
 
-func (c CommandExecution) Actor() domain.ActorID { return c.actor }
-func (c CommandExecution) Source() ir.Source     { return c.source }
+func (c CommandExecution) Actor() domain.ActorID            { return c.actor }
+func (c CommandExecution) Source() ir.Source                { return c.source }
+func (c CommandExecution) RunID() RunID                     { return c.run }
+func (c CommandExecution) ParentID() RunID                  { return c.parent }
+func (c CommandExecution) Generation() Generation           { return c.generation }
+func (c CommandExecution) Provenance() DefinitionProvenance { return c.provenance }
+func (c CommandExecution) NodeVisit() uint64                { return c.visit }
+func (c CommandExecution) Ordinal() uint64                  { return c.ordinal }
+func (c CommandExecution) HistorySource() HistorySource     { return sourceForHistory(c.source) }
 
 // Suspend marks the port's first asynchronous boundary, before it may block
 // for storage, transport or a driver. Synchronous ports simply return; their
@@ -187,10 +197,16 @@ type runWork struct {
 }
 
 func (w *runWork) visit(source ir.Source) error {
-	if w.visits.Add(1) > MaxNodeVisits {
-		return executionFailure(ExecutionWorkBudget, source)
+	_, err := w.nextVisit(source)
+	return err
+}
+
+func (w *runWork) nextVisit(source ir.Source) (uint64, error) {
+	visit := w.visits.Add(1)
+	if visit > MaxNodeVisits {
+		return 0, executionFailure(ExecutionWorkBudget, source)
 	}
-	return nil
+	return uint64(visit), nil
 }
 
 func admittedProgramCharge(plan Plan) (int, error) {

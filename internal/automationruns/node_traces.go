@@ -50,7 +50,10 @@ func (p *executionPath) pushIteration(index int) bool {
 type NodeTrace struct {
 	ordinal    TraceOrdinal
 	run        RunID
+	visit      uint64
+	parent     RunID
 	generation Generation
+	provenance DefinitionProvenance
 	source     ir.Source
 	kind       ir.ActionKind
 	stage      NodeStage
@@ -63,13 +66,16 @@ type NodeTrace struct {
 
 const nodeTraceCapacity = min(MaxNodeTraces, nodeTraceCharge/(int(unsafe.Sizeof(NodeTrace{}))+512))
 
-func (t NodeTrace) RunID() RunID                { return t.run }
-func (t NodeTrace) Generation() Generation      { return t.generation }
-func (t NodeTrace) Source() ir.Source           { return t.source }
-func (t NodeTrace) Kind() ir.ActionKind         { return t.kind }
-func (t NodeTrace) Stage() NodeStage            { return t.stage }
-func (t NodeTrace) At() time.Time               { return t.at }
-func (t NodeTrace) Failure() ExecutionErrorKind { return t.failure }
+func (t NodeTrace) RunID() RunID                     { return t.run }
+func (t NodeTrace) Visit() uint64                    { return t.visit }
+func (t NodeTrace) ParentID() RunID                  { return t.parent }
+func (t NodeTrace) Provenance() DefinitionProvenance { return t.provenance }
+func (t NodeTrace) Generation() Generation           { return t.generation }
+func (t NodeTrace) Source() ir.Source                { return t.source }
+func (t NodeTrace) Kind() ir.ActionKind              { return t.kind }
+func (t NodeTrace) Stage() NodeStage                 { return t.stage }
+func (t NodeTrace) At() time.Time                    { return t.at }
+func (t NodeTrace) Failure() ExecutionErrorKind      { return t.failure }
 func (t NodeTrace) Branches() []int {
 	return append([]int(nil), t.path.branches[:t.path.branchDepth]...)
 }
@@ -85,7 +91,7 @@ func (t NodeTrace) WaitValue() (template.Value, bool, error) {
 	return value, true, err
 }
 func (i *Interpreter) nodeTrace(run Run, node executableNode, stage NodeStage, err error) NodeTrace {
-	trace := NodeTrace{run: run.id, generation: run.generation, source: node.source,
+	trace := NodeTrace{run: run.id, visit: run.visit, parent: run.parent, generation: run.generation, provenance: run.provenance, source: node.source,
 		kind: node.kind, stage: stage, at: i.input.Clock.Now().UTC(), path: run.path}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		trace.stage = NodeCancelled
@@ -108,6 +114,9 @@ func (i *Interpreter) appendNodeTrace(trace NodeTrace) {
 		i.evicted++
 	} else {
 		i.traces = append(i.traces, trace)
+	}
+	if i.controller.sink != nil {
+		i.controller.sink.ObserveNode(trace.historyObservation())
 	}
 }
 func (i *Interpreter) traceNode(run Run, node executableNode, stage NodeStage, err error) {

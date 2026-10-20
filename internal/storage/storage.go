@@ -74,7 +74,10 @@ func (s Settings) Valid() bool {
 }
 
 // Store is a bounded connection pool. Call Close on every successful Open.
-type Store struct{ pool *pgxpool.Pool }
+type Store struct {
+	pool             *pgxpool.Pool
+	historyReadSlots chan struct{}
+}
 
 func (s *Store) String() string   { return "postgres: store" }
 func (s *Store) GoString() string { return s.String() }
@@ -123,7 +126,7 @@ func Open(ctx context.Context, settings Settings) (*Store, error) {
 		}
 		return nil, &Error{kind: Unavailable}
 	}
-	return &Store{pool: pool}, nil
+	return &Store{pool: pool, historyReadSlots: make(chan struct{}, 2)}, nil
 }
 
 func (s *Store) Close() {

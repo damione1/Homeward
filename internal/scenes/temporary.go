@@ -10,6 +10,7 @@ import (
 
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/sequencer"
@@ -100,18 +101,20 @@ type temporaryEntry struct {
 }
 type applyLease struct{ cancel context.CancelFunc }
 type Service struct {
-	catalogue   Catalogue
-	capture     CaptureSource
-	generation  integrations.GenerationAuthority
-	commands    CommandPort
-	clock       Clock
-	mu          sync.Mutex
-	temporary   map[domain.HAAlias]*temporaryEntry
-	active      sync.WaitGroup
-	applying    map[*applyLease]struct{}
-	nextVersion uint64
-	retained    int
-	closed      bool
+	catalogue         Catalogue
+	history           HistoryObservationSink
+	historyProvenance automationruns.DefinitionProvenance
+	capture           CaptureSource
+	generation        integrations.GenerationAuthority
+	commands          CommandPort
+	clock             Clock
+	mu                sync.Mutex
+	temporary         map[domain.HAAlias]*temporaryEntry
+	active            sync.WaitGroup
+	applying          map[*applyLease]struct{}
+	nextVersion       uint64
+	retained          int
+	closed            bool
 }
 
 func NewService(catalogue Catalogue, capture CaptureSource, generation integrations.GenerationAuthority, commands CommandPort, clock Clock) (*Service, error) {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/internal/automationtriggers"
@@ -41,6 +42,9 @@ type Trace struct {
 	Decision    Decision
 	MaxExceeded ir.MaxExceededMode
 	ordinal     TraceOrdinal
+	At          time.Time
+	Provenance  DefinitionProvenance
+	ParentID    RunID
 	Automation  string
 	Script      ir.ScriptID
 	TriggerKey  string
@@ -78,6 +82,7 @@ type lane struct {
 type Controller struct {
 	mu              sync.Mutex
 	plan            Plan
+	sink            HistoryObservationSink
 	preparer        Preparer
 	executor        Executor
 	reader          ResultReader
@@ -164,6 +169,12 @@ func (c *Controller) Start(ctx context.Context) error {
 }
 
 func (c *Controller) recordLocked(trace Trace) {
+	if trace.At.IsZero() {
+		trace.At = time.Now().UTC()
+	}
+	if !trace.Provenance.Valid() && trace.RunID == 0 {
+		trace.Provenance = c.plan.provenance
+	}
 	if len(trace.Error) > 256 {
 		trace.Error = trace.Error[:256]
 	}
@@ -175,10 +186,16 @@ func (c *Controller) recordLocked(trace Trace) {
 		trace.ordinal = c.nextTraceOrdinal()
 		c.traces[len(c.traces)-1] = trace
 		c.evicted++
+		if c.sink != nil {
+			c.sink.ObserveDecision(trace.historyObservation())
+		}
 		return
 	}
 	trace.ordinal = c.nextTraceOrdinal()
 	c.traces = append(c.traces, trace)
+	if c.sink != nil {
+		c.sink.ObserveDecision(trace.historyObservation())
+	}
 }
 
 func (c *Controller) Traces() ([]Trace, uint64) {
@@ -260,7 +277,7 @@ func (c *Controller) beginPrepare(result automationtriggers.Result) {
 	default:
 		c.preparing++
 		c.wg.Add(1)
-		c.recordLocked(Trace{Decision: DecisionPreparing, Automation: id, TriggerKey: key})
+		c.recordLocked(Trace{Decision: DecisionPreparing, Automation: id, TriggerKey: key, Provenance: spec.provenance})
 		c.mu.Unlock()
 		go c.prepare(spec, result)
 		return
@@ -282,42 +299,42 @@ func (c *Controller) prepare(spec automationSpec, result automationtriggers.Resu
 	trigger := Trigger{automation: result.Automation(), triggerKey: result.TriggerKey(),
 		payload: string(result.Payload()), at: result.At(), cursor: result.Cursor(), entity: result.Entity()}
 	if len(trigger.payload) > MaxTriggerBytes {
-		c.traceOutcome(DecisionMemorySaturated, trigger, nil)
+		c.traceOutcome(DecisionMemorySaturated, trigger, spec.provenance, nil)
 		return
 	}
 	prepared, err := c.callPrepare(spec, trigger)
 	if err != nil {
-		c.traceOutcome(DecisionPreparationError, trigger, err)
+		c.traceOutcome(DecisionPreparationError, trigger, spec.provenance, err)
 		return
 	}
 	if c.ctx.Err() != nil {
-		c.traceOutcome(DecisionClosed, trigger, c.ctx.Err())
+		c.traceOutcome(DecisionClosed, trigger, spec.provenance, c.ctx.Err())
 		return
 	}
 	switch prepared.Outcome {
 	case PreparationConditionFalse:
 		if len(prepared.Bindings) != 0 {
-			c.traceOutcome(DecisionPreparationError, trigger, ErrInvalidPlan)
+			c.traceOutcome(DecisionPreparationError, trigger, spec.provenance, ErrInvalidPlan)
 		} else {
-			c.traceOutcome(DecisionConditionFalse, trigger, nil)
+			c.traceOutcome(DecisionConditionFalse, trigger, spec.provenance, nil)
 		}
 		return
 	case PreparationReady:
 	default:
-		c.traceOutcome(DecisionPreparationError, trigger, ErrInvalidPlan)
+		c.traceOutcome(DecisionPreparationError, trigger, spec.provenance, ErrInvalidPlan)
 		return
 	}
 	arena, env, err := newRunArena(&c.pool, prepared.Bindings, len(trigger.payload))
 	if err != nil {
-		c.traceOutcome(DecisionPreparationError, trigger, err)
+		c.traceOutcome(DecisionPreparationError, trigger, spec.provenance, err)
 		return
 	}
 	reserved = false
 	c.admit(spec, trigger, arena, env)
 }
 
-func (c *Controller) traceOutcome(decision Decision, trigger Trigger, err error) {
-	trace := Trace{Decision: decision, Automation: trigger.automation, TriggerKey: trigger.triggerKey}
+func (c *Controller) traceOutcome(decision Decision, trigger Trigger, stamp DefinitionProvenance, err error) {
+	trace := Trace{Decision: decision, Automation: trigger.automation, TriggerKey: trigger.triggerKey, Provenance: stamp}
 	if err != nil {
 		trace.Error = err.Error()
 	}
@@ -357,7 +374,13 @@ func (c *Controller) activateLocked(l *lane, entry *runEntry) {
 	c.wg.Add(1)
 }
 
-func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena, env *Environment, stacks ...[]ir.ScriptID) (*runEntry, Decision) {
+type runAncestry struct {
+	parent Run
+	stack  []ir.ScriptID
+	mode   ir.ScriptCallMode
+}
+
+func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena, env *Environment, ancestry ...runAncestry) (*runEntry, Decision) {
 	var start *runEntry
 	var cancel []*runEntry
 	var discard *runEntry
@@ -390,7 +413,7 @@ func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena
 		}
 	}
 	if decision != DecisionAdmitted {
-		trace := Trace{Decision: decision, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey}
+		trace := Trace{Decision: decision, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey, Provenance: spec.provenance}
 		if decision == DecisionSingleBusy || decision == DecisionMaxExceeded {
 			trace.MaxExceeded = effectiveMaxExceeded(spec.maxExceeded)
 		}
@@ -402,11 +425,15 @@ func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena
 	c.next++
 	id := c.next
 	runCtx, runCancel := context.WithCancel(c.ctx)
-	entry := &runEntry{run: Run{id: id, generation: c.generation, trigger: trigger, env: env},
+	entry := &runEntry{run: Run{id: id, generation: c.generation, provenance: spec.provenance, trigger: trigger, env: env},
 		arena: arena, ctx: runCtx, cancel: runCancel, done: make(chan struct{}), ready: make(chan struct{})}
 	entry.run.suspend = func() { entry.acknowledgeStartup(StartupSuspended, nil) }
-	if len(stacks) != 0 {
-		entry.run.stack = append([]ir.ScriptID(nil), stacks[0]...)
+	if len(ancestry) != 0 {
+		entry.run.stack = append([]ir.ScriptID(nil), ancestry[0].stack...)
+		if ancestry[0].parent.id != 0 {
+			entry.run.parent = ancestry[0].parent.id
+			entry.run.provenance = ancestry[0].parent.provenance
+		}
 	}
 	c.live++
 	switch spec.mode {
@@ -426,7 +453,7 @@ func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena
 			discard = l.replacement
 			l.replacement = nil
 			c.live--
-			c.recordLocked(Trace{Decision: DecisionSuperseded, Automation: trigger.automation, Script: trigger.script, RunID: discard.run.id})
+			c.recordLocked(Trace{Decision: DecisionSuperseded, Automation: trigger.automation, Script: trigger.script, RunID: discard.run.id, Generation: discard.run.generation, Provenance: discard.run.provenance, ParentID: discard.run.parent})
 		}
 		if len(l.active) == 0 {
 			c.activateLocked(l, entry)
@@ -439,7 +466,10 @@ func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena
 			}
 		}
 	}
-	c.recordLocked(Trace{Decision: decision, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey, RunID: id, Generation: c.generation})
+	c.recordLocked(Trace{Decision: decision, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey, RunID: id, Generation: c.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
+	if len(ancestry) != 0 && ancestry[0].parent.id != 0 && c.sink != nil {
+		c.sink.ObserveScriptLink(ScriptLinkObservation{At: time.Now().UTC(), Parent: ancestry[0].parent.historyRef(), Child: entry.run.historyRef(), Script: trigger.script, Mode: ancestry[0].mode})
+	}
 	if spec.mode == ir.AutomationQueued && start == nil {
 		entry.acknowledgeStartup(StartupQueuedChange, nil)
 	}
@@ -489,7 +519,7 @@ func (c *Controller) finish(spec automationSpec, entry *runEntry, err error) {
 	l := c.lanes[entry.run.trigger.laneKey()]
 	delete(l.active, entry.run.id)
 	c.live--
-	trace := Trace{Decision: decision, Automation: entry.run.trigger.automation, Script: entry.run.trigger.script, TriggerKey: entry.run.trigger.triggerKey, RunID: entry.run.id, Generation: entry.run.generation}
+	trace := Trace{Decision: decision, Automation: entry.run.trigger.automation, Script: entry.run.trigger.script, TriggerKey: entry.run.trigger.triggerKey, RunID: entry.run.id, Generation: entry.run.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent}
 	trace.Error = errorText
 	c.recordLocked(trace)
 	entry.err = err
@@ -502,7 +532,7 @@ func (c *Controller) finish(spec automationSpec, entry *runEntry, err error) {
 		}
 		if next != nil {
 			c.activateLocked(l, next)
-			c.recordLocked(Trace{Decision: DecisionAdmitted, Automation: next.run.trigger.automation, Script: next.run.trigger.script, RunID: next.run.id, Generation: next.run.generation})
+			c.recordLocked(Trace{Decision: DecisionAdmitted, Automation: next.run.trigger.automation, Script: next.run.trigger.script, RunID: next.run.id, Generation: next.run.generation, Provenance: next.run.provenance, ParentID: next.run.parent})
 		}
 	}
 	c.mu.Unlock()
@@ -551,7 +581,7 @@ func (c *Controller) BeginClose() <-chan struct{} {
 	}
 	c.live -= len(pending)
 	for _, entry := range pending {
-		c.recordLocked(Trace{Decision: DecisionCancelled, Automation: entry.run.trigger.automation, Script: entry.run.trigger.script, RunID: entry.run.id})
+		c.recordLocked(Trace{Decision: DecisionCancelled, Automation: entry.run.trigger.automation, Script: entry.run.trigger.script, RunID: entry.run.id, Generation: entry.run.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
 	}
 	c.mu.Unlock()
 	for _, entry := range pending {

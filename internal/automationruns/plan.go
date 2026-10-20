@@ -120,7 +120,10 @@ type Generation uint64
 
 type Run struct {
 	id         RunID
+	parent     RunID
+	visit      uint64
 	generation Generation
+	provenance DefinitionProvenance
 	trigger    Trigger
 	env        *Environment
 	stack      []ir.ScriptID
@@ -128,14 +131,17 @@ type Run struct {
 	path       executionPath
 }
 
-func (r Run) ID() RunID                 { return r.id }
-func (r Run) Generation() Generation    { return r.generation }
-func (r Run) Trigger() Trigger          { return r.trigger }
-func (r Run) Environment() *Environment { return r.env }
-func (r Run) ScriptID() ir.ScriptID     { return r.trigger.script }
+func (r Run) ID() RunID                        { return r.id }
+func (r Run) ParentID() RunID                  { return r.parent }
+func (r Run) Generation() Generation           { return r.generation }
+func (r Run) Provenance() DefinitionProvenance { return r.provenance }
+func (r Run) Trigger() Trigger                 { return r.trigger }
+func (r Run) Environment() *Environment        { return r.env }
+func (r Run) ScriptID() ir.ScriptID            { return r.trigger.script }
 
 type automationSpec struct {
 	value       ir.Automation
+	provenance  DefinitionProvenance
 	mode        ir.AutomationMode
 	max         int
 	maxExceeded ir.MaxExceededMode
@@ -147,13 +153,14 @@ type automationSpec struct {
 type planToken struct{ admitted bool }
 
 type Plan struct {
-	token   *planToken
-	valid   bool
-	items   map[string]automationSpec
-	scripts map[ir.ScriptID]automationSpec
+	token      *planToken
+	valid      bool
+	provenance DefinitionProvenance
+	items      map[string]automationSpec
+	scripts    map[ir.ScriptID]automationSpec
 }
 
-func (p Plan) Valid() bool { return p.valid && len(p.items)+len(p.scripts) > 0 }
+func (p Plan) Valid() bool { return p.valid && p.provenance.Valid() && len(p.items)+len(p.scripts) > 0 }
 
 func (p Plan) ScriptIDs() []ir.ScriptID {
 	if !p.Valid() {
@@ -188,7 +195,7 @@ func NewPlanWithScripts(automations []ir.Automation, scripts []ir.Script) (Plan,
 	if len(automations)+len(scripts) == 0 || len(automations) > automationtriggers.MaxTriggers || len(scripts) > 64 {
 		return Plan{}, ErrInvalidPlan
 	}
-	p := Plan{token: &planToken{admitted: true}, valid: true, items: make(map[string]automationSpec, len(automations)), scripts: make(map[ir.ScriptID]automationSpec, len(scripts))}
+	p := Plan{token: &planToken{admitted: true}, valid: true, provenance: FixtureProvenance(), items: make(map[string]automationSpec, len(automations)), scripts: make(map[ir.ScriptID]automationSpec, len(scripts))}
 	for _, a := range automations {
 		if !a.Valid() || a.ID() == "" || len(a.ID()) > 256 {
 			return Plan{}, ErrInvalidPlan
@@ -216,7 +223,7 @@ func NewPlanWithScripts(automations []ir.Automation, scripts []ir.Script) (Plan,
 		if max > MaxLiveRuns {
 			return Plan{}, ErrCapacity
 		}
-		p.items[a.ID()] = automationSpec{value: a, mode: a.Mode(), max: max, maxExceeded: a.MaxExceeded()}
+		p.items[a.ID()] = automationSpec{value: a, provenance: p.provenance, mode: a.Mode(), max: max, maxExceeded: a.MaxExceeded()}
 	}
 	for _, script := range scripts {
 		if !script.Valid() {
@@ -248,7 +255,7 @@ func NewPlanWithScripts(automations []ir.Automation, scripts []ir.Script) (Plan,
 		if maximum > MaxLiveRuns {
 			return Plan{}, ErrCapacity
 		}
-		p.scripts[script.ID()] = automationSpec{script: script, mode: script.Mode(), max: maximum, maxExceeded: script.MaxExceeded()}
+		p.scripts[script.ID()] = automationSpec{script: script, provenance: p.provenance, mode: script.Mode(), max: maximum, maxExceeded: script.MaxExceeded()}
 	}
 	return p, nil
 }
