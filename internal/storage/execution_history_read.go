@@ -3,26 +3,31 @@ package storage
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"strconv"
 	"time"
 
+	"github.com/damione1/Homeward/internal/historyquery"
 	"github.com/jackc/pgx/v5"
 )
 
 type HistoryPageCursor struct {
-	epoch                   HistoryEpoch
-	since, cutoff, lastTime time.Time
-	lastOrdinal             uint64
-	commitHigh              int64
-	checkpoint              uint64
+	epoch                          HistoryEpoch
+	since, until, cutoff, lastTime time.Time
+	lastOrdinal                    uint64
+	commitHigh                     int64
+	checkpoint                     uint64
 }
 
 type HistoryPageQuery struct {
-	Epoch  HistoryEpoch
-	Since  time.Time // zero means the current seven-day boundary
-	Cursor *HistoryPageCursor
-	Limit  int
+	Epoch           HistoryEpoch
+	Since           time.Time // zero means the current seven-day boundary
+	Until           time.Time // optional exclusive emission_time upper bound
+	HoldReservation bool      // public reader owns model/wire until Release
+	ClipRetention   bool      // explicit public read scope may include an absent prefix
+	Cursor          *HistoryPageCursor
+	Limit           int
 }
 
 type HistoryReadRecord struct {
@@ -49,6 +54,9 @@ const (
 )
 
 type HistoryPage struct {
+	lease                  *historyReadLease
+	Epoch                  HistoryEpoch
+	AsOf                   time.Time
 	Records                []HistoryReadRecord
 	Losses                 []HistoryReadLoss
 	Next                   *HistoryPageCursor
@@ -61,29 +69,42 @@ type HistoryPage struct {
 	EpochState             HistoryEpochState
 }
 
+func (p HistoryPage) Release() { p.lease.close() }
+
 // ReadExecutionHistoryPage reads lines and coverage under one repeatable-read
 // snapshot. Its high commit bound is held across keyset pages. A SQL purge
 // crossing the cursor's retention boundary invalidates the cursor explicitly.
 func (s *Store) ReadExecutionHistoryPage(ctx context.Context, q HistoryPageQuery) (HistoryPage, error) {
-	if s == nil || s.pool == nil || s.historyReadSlots == nil || !validHistoryContext(ctx) || !q.Epoch.Valid() || q.Limit < 1 || q.Limit > 128 {
+	if s == nil || s.pool == nil || s.historyReadSlots == nil || !validHistoryContext(ctx) || (!q.Epoch.Valid() && q.Epoch != (HistoryEpoch{})) || (!q.Until.IsZero() && !q.Since.Before(q.Until)) || q.Limit < 1 || q.Limit > 128 {
 		return HistoryPage{}, ErrHistoryInvalid
 	}
-	if q.Cursor != nil && (q.Cursor.epoch != q.Epoch || !q.Cursor.since.Equal(q.Since) || q.Cursor.commitHigh < 0) {
+	if q.Cursor != nil && !q.Epoch.Valid() {
+		q.Epoch = q.Cursor.epoch
+	}
+	if q.Cursor != nil && (q.Cursor.epoch != q.Epoch || !q.Cursor.since.Equal(q.Since) || !q.Cursor.until.Equal(q.Until) || q.Cursor.commitHigh < 0) {
 		return HistoryPage{}, ErrHistoryInvalid
 	}
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	select {
-	case s.historyReadSlots <- struct{}{}:
-	case <-ctx.Done():
-		return HistoryPage{}, historyFailure(ErrHistoryUnavailable, ctx.Err())
+	bounded, releaseSlot, err := s.acquireHistoryRead(ctx)
+	if err != nil {
+		if errors.Is(err, historyquery.ErrInvalid) {
+			return HistoryPage{}, historyFailure(ErrHistoryInvalid, err)
+		}
+		// The shared NHA164 reservation uses its own error family. Preserve the
+		// NHA186 storage reader contract and the original deadline/cancel cause.
+		return HistoryPage{}, historyFailure(ErrHistoryUnavailable, err)
 	}
-	defer func() { <-s.historyReadSlots }()
+	ctx = bounded
+	retained := false
+	defer func() {
+		if !retained {
+			releaseSlot()
+		}
+	}()
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return HistoryPage{}, historyFailure(ErrHistoryUnavailable, err)
 	}
-	defer rollback(tx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	var dbCutoff time.Time
 	var high int64
 	var currentEpoch *string
@@ -100,15 +121,25 @@ func (s *Store) ReadExecutionHistoryPage(ctx context.Context, q HistoryPageQuery
 	if dbCutoff.After(cutoff) {
 		cutoff = dbCutoff
 	}
-	page := HistoryPage{Cutoff: cutoff, CommitHigh: high}
+	page := HistoryPage{Cutoff: cutoff, CommitHigh: high, AsOf: time.Now().UTC()}
+	if !q.Epoch.Valid() {
+		if currentEpoch == nil {
+			return HistoryPage{}, ErrHistoryIntegrity
+		}
+		q.Epoch, err = ParseHistoryEpoch(*currentEpoch)
+		if err != nil {
+			return HistoryPage{}, ErrHistoryIntegrity
+		}
+	}
+	page.Epoch = q.Epoch
 	if q.Cursor != nil && cutoff.After(q.Cursor.cutoff) {
 		page.ScopeReduced = true
 	}
-	if !q.Since.IsZero() && q.Since.Before(cutoff) {
+	if !q.ClipRetention && !q.Since.IsZero() && q.Since.Before(cutoff) {
 		return HistoryPage{}, ErrHistoryOutsideRetention
 	}
 	if q.Since.After(cutoff) {
-		cutoff = q.Since.UTC().Truncate(time.Microsecond)
+		cutoff = q.Since.UTC()
 	}
 	var previous *string
 	var checkpoint int64
@@ -156,8 +187,9 @@ func (s *Store) ReadExecutionHistoryPage(ctx context.Context, q HistoryPageQuery
 		object_id,source_file,source_path,source_line,source_column,trigger_key,command_id,scene_invocation,scene_member,
 		branches,iterations,record_digest
 		FROM public.execution_history_records WHERE epoch=$1 AND emission_time >= $2 AND commit_sequence <= $3
-		AND ($4::timestamptz IS NULL OR (emission_time,ordinal) > ($4,$5))
-		ORDER BY emission_time,ordinal LIMIT $6`, q.Epoch.String(), cutoff, high, historyNullableTime(lastTime), int64(lastOrdinal), limit+1)
+		AND ($7::timestamptz IS NULL OR emission_time < $7)
+ AND ($4::timestamptz IS NULL OR (emission_time,ordinal) > ($4,$5))
+		ORDER BY emission_time,ordinal LIMIT $6`, q.Epoch.String(), historyCeilMicro(cutoff), high, historyNullableTime(lastTime), int64(lastOrdinal), limit+1, historyNullableTime(historyCeilMicro(q.Until)))
 	if err != nil {
 		return HistoryPage{}, historyFailure(ErrHistoryUnavailable, err)
 	}
@@ -182,13 +214,17 @@ func (s *Store) ReadExecutionHistoryPage(ctx context.Context, q HistoryPageQuery
 	rows.Close()
 	if more && len(page.Records) > 0 {
 		last := page.Records[len(page.Records)-1].Record.input
-		page.Next = &HistoryPageCursor{epoch: q.Epoch, since: q.Since, cutoff: dbCutoff, lastTime: last.EmissionTime, lastOrdinal: last.ID.Ordinal(), commitHigh: high, checkpoint: page.Checkpoint}
+		page.Next = &HistoryPageCursor{epoch: q.Epoch, since: q.Since, until: q.Until, cutoff: dbCutoff, lastTime: last.EmissionTime, lastOrdinal: last.ID.Ordinal(), commitHigh: high, checkpoint: page.Checkpoint}
 	}
-	if e := readHistoryLoss(ctx, tx, q.Epoch, cutoff, high, &page); e != nil {
+	if e := readHistoryLossUntil(ctx, tx, q.Epoch, cutoff, q.Until, high, &page); e != nil {
 		return HistoryPage{}, e
 	}
 	if e := tx.Commit(ctx); e != nil {
 		return HistoryPage{}, historyFailure(ErrHistoryUnavailable, e)
+	}
+	if q.HoldReservation {
+		page.lease = &historyReadLease{release: releaseSlot}
+		retained = true
 	}
 	return page, nil
 }
@@ -329,9 +365,12 @@ func scanHistoryRecord(rows pgx.Rows, epoch HistoryEpoch) (HistoryReadRecord, er
 }
 
 func readHistoryLoss(ctx context.Context, tx pgx.Tx, epoch HistoryEpoch, cutoff time.Time, high int64, page *HistoryPage) error {
-	rows, err := tx.Query(ctx, `SELECT reason,SUM(known_count)::text,bool_or(uncertain_envelope OR start_time < $2),MIN(start_time),MAX(emission_time)
-		FROM public.execution_history_loss WHERE epoch=$1 AND emission_time >= $2 AND commit_sequence <= $3
-		GROUP BY reason ORDER BY reason`, epoch.String(), cutoff, high)
+	return readHistoryLossUntil(ctx, tx, epoch, cutoff, time.Time{}, high, page)
+}
+func readHistoryLossUntil(ctx context.Context, tx pgx.Tx, epoch HistoryEpoch, cutoff, until time.Time, high int64, page *HistoryPage) error {
+	rows, err := tx.Query(ctx, `SELECT reason,SUM(known_count)::text,bool_or(uncertain_envelope OR start_time < $2 OR ($4::timestamptz IS NOT NULL AND emission_time >= $4)),MIN(start_time),MAX(emission_time)
+		FROM public.execution_history_loss WHERE epoch=$1 AND emission_time >= $2 AND commit_sequence <= $3 AND ($4::timestamptz IS NULL OR start_time < $4)
+		GROUP BY reason ORDER BY reason`, epoch.String(), historyCeilMicro(cutoff), high, historyNullableTime(historyCeilMicro(until)))
 	if err != nil {
 		return historyFailure(ErrHistoryUnavailable, err)
 	}
@@ -354,4 +393,59 @@ func readHistoryLoss(ctx context.Context, tx pgx.Tx, epoch HistoryEpoch, cutoff 
 		return historyFailure(ErrHistoryUnavailable, err)
 	}
 	return nil
+}
+
+// MarshalBinary exports only an admitted position for an encrypted, bound token.
+func (c *HistoryPageCursor) MarshalBinary() ([]byte, error) {
+	if c == nil || !c.epoch.Valid() || c.commitHigh < 0 || c.lastOrdinal == 0 || c.lastOrdinal > uint64(9223372036854775807) || c.lastTime.IsZero() {
+		return nil, ErrHistoryInvalid
+	}
+	out := make([]byte, 16, 100)
+	copy(out, c.epoch.bytes[:])
+	for _, at := range []time.Time{c.since, c.until, c.cutoff, c.lastTime} {
+		raw, err := at.UTC().MarshalBinary()
+		if err != nil || len(raw) != 15 {
+			return nil, ErrHistoryInvalid
+		}
+		out = append(out, raw...)
+	}
+	var n [8]byte
+	for _, v := range []uint64{c.lastOrdinal, uint64(c.commitHigh), c.checkpoint} {
+		binary.BigEndian.PutUint64(n[:], v)
+		out = append(out, n[:]...)
+	}
+	return out, nil
+}
+func ParseHistoryPageCursor(raw []byte) (*HistoryPageCursor, error) {
+	if len(raw) != 100 {
+		return nil, ErrHistoryInvalid
+	}
+	c := &HistoryPageCursor{}
+	copy(c.epoch.bytes[:], raw[:16])
+	for i, at := range []*time.Time{&c.since, &c.until, &c.cutoff, &c.lastTime} {
+		if err := at.UnmarshalBinary(raw[16+i*15 : 31+i*15]); err != nil {
+			return nil, ErrHistoryInvalid
+		}
+		*at = at.UTC()
+	}
+	c.lastOrdinal = binary.BigEndian.Uint64(raw[76:])
+	c.commitHigh = int64(binary.BigEndian.Uint64(raw[84:]))
+	c.checkpoint = binary.BigEndian.Uint64(raw[92:])
+	if _, err := c.MarshalBinary(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// Trace emission times and loss envelopes are stored on the microsecond
+// lattice. Both inclusive lower and exclusive upper comparisons need ceil.
+func historyCeilMicro(at time.Time) time.Time {
+	if at.IsZero() {
+		return at
+	}
+	floor := at.Truncate(time.Microsecond)
+	if at.After(floor) {
+		return floor.Add(time.Microsecond)
+	}
+	return floor
 }

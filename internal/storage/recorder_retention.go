@@ -209,6 +209,18 @@ func (s *Store) PurgeRecorderAggregates(ctx context.Context, cutoff time.Time) (
 			return err
 		}
 		deleted += tag.RowsAffected()
+		// A public analytical cursor binds this revision. Groups, continuation
+		// and break coverage change atomically with invalidation, including a
+		// purge that removed no aggregate rows but removed evidence metadata.
+		if deleted > 0 {
+			changed, revisionErr := tx.Exec(ctx, `UPDATE public.recorder_maintenance_head SET revision=revision+1 WHERE singleton=true`)
+			if revisionErr != nil {
+				return revisionErr
+			}
+			if changed.RowsAffected() != 1 {
+				return recordermaintenance.ErrIntegrity
+			}
+		}
 		return tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.recorder_hourly_aggregates WHERE bucket_end<=$1 UNION ALL SELECT 1 FROM public.recorder_numeric_continuations WHERE last_observation_at<$1 UNION ALL SELECT 1 FROM public.recorder_analytical_breaks WHERE (end_at<$1 OR (end_at=$1 AND start_at<end_at)))`, cutoff).Scan(&more)
 	})
 	if err != nil {
