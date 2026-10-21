@@ -1,0 +1,90 @@
+syntax = "proto3";
+package home.actions.v1;
+
+import "home/actions/v1/actions.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/actions/v1;actionsv1";
+
+// These RPC messages deliberately do not change the Host descriptor graph.
+// Authentication and the actor come exclusively from the common transport.
+message SubmitActionRequest { CommandRequest command = 1; }
+message SubmitActionResponse { CommandResponse result = 1; }
+message GetActionRequest { string command_id = 1; }
+message WatchActionRequest { string command_id = 1; }
+
+enum DurableActionState {
+  DURABLE_ACTION_STATE_UNSPECIFIED = 0;
+  DURABLE_ACTION_STATE_ACCEPTED = 1;
+  DURABLE_ACTION_STATE_DISPATCHING = 2;
+  DURABLE_ACTION_STATE_RESULT = 3;
+  DURABLE_ACTION_STATE_INDETERMINATE = 4;
+}
+enum DurableActionError {
+  DURABLE_ACTION_ERROR_UNSPECIFIED = 0;
+  DURABLE_ACTION_ERROR_NONE = 1;
+  DURABLE_ACTION_ERROR_ROUTE_BUSY = 2;
+  DURABLE_ACTION_ERROR_ROUTE_UNAVAILABLE = 3;
+  DURABLE_ACTION_ERROR_CANCELLED = 4;
+  DURABLE_ACTION_ERROR_DEADLINE = 5;
+  DURABLE_ACTION_ERROR_OTHER = 6;
+  DURABLE_ACTION_ERROR_OUTCOME_INDETERMINATE = 7;
+}
+// A dispatch record never asserts that the physical effect was confirmed.
+message DurableActionResult {
+  DurableActionState state = 1;
+  CommandResponse response = 2;
+  DurableActionError error = 3;
+}
+message ActionProgress {
+  string admission_epoch = 1;
+  ActionStatus status = 2;
+  uint64 sequence = 3;
+  uint64 config_revision = 4;
+}
+// No live tracker entry in the current epoch. This is not a missing durable
+// intention and does not permit redispatch. It makes no claim about its cause.
+message NoLiveActionProgress {}
+message GetActionResponse {
+  DurableActionResult durable = 1;
+  oneof live {
+    ActionProgress progress = 2;
+    NoLiveActionProgress unavailable = 3;
+  }
+}
+message WatchActionResponse {
+  uint64 stream_sequence = 1;
+  oneof frame {
+    ActionProgress progress = 2;
+    NoLiveActionProgress unavailable = 3;
+  }
+}
+enum ActionOperationFailureKind {
+  ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED = 0;
+  ACTION_OPERATION_FAILURE_KIND_LEDGER_UNAVAILABLE = 1;
+  ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN = 2;
+  ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE = 3;
+  ACTION_OPERATION_FAILURE_KIND_ID_CONFLICT = 4;
+  ACTION_OPERATION_FAILURE_KIND_POLICY_CONFLICT = 5;
+  ACTION_OPERATION_FAILURE_KIND_ROUTE_BUSY = 6;
+  ACTION_OPERATION_FAILURE_KIND_ROUTE_UNAVAILABLE = 7;
+  ACTION_OPERATION_FAILURE_KIND_CAPACITY = 8;
+  ACTION_OPERATION_FAILURE_KIND_CANCELLED = 9;
+  ACTION_OPERATION_FAILURE_KIND_DEADLINE = 10;
+  ACTION_OPERATION_FAILURE_KIND_RESULT_UNAVAILABLE = 11;
+  ACTION_OPERATION_FAILURE_KIND_INTENT_TOO_LARGE = 12;
+  ACTION_OPERATION_FAILURE_KIND_CLIENT_SLOW = 13;
+}
+// Connect error detail. A Go response+error keeps its response here. Neither
+// the Connect code nor absence of response establishes that no effect occurred.
+// The client may consult the same command_id; it must not silently resubmit.
+message ActionOperationFailure {
+  ActionOperationFailureKind kind = 1;
+  CommandResponse response = 2;
+}
+
+service ActionService {
+  rpc SubmitAction(SubmitActionRequest) returns (SubmitActionResponse);
+  rpc GetAction(GetActionRequest) returns (GetActionResponse);
+  // Starts with the current live point, without an action replay cursor.
+  rpc WatchAction(WatchActionRequest) returns (stream WatchActionResponse);
+}

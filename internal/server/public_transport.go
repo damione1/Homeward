@@ -573,6 +573,29 @@ func (p *compiledPublic) handler(settings config.PublicSettings, admissions *pub
 			r.Body.Close()
 			r.Body = io.NopCloser(bytes.NewReader(body))
 		}
+		// A lease cancellation must also bound an HTTP/2 Send already blocked
+		// by the peer's flow-control window. Leave the existing error grace for
+		// the structured authorization terminal when it remains writable.
+		interruptWrite := sync.OnceFunc(func() {
+			writeDeadline := time.Now().Add(publicErrorWriteGrace)
+			if original := deadline.Add(publicErrorWriteGrace); original.Before(writeDeadline) {
+				writeDeadline = original
+			}
+			_ = controller.SetWriteDeadline(writeDeadline)
+		})
+		// Readers borrow the same one-shot interrupt for permit/grant changes.
+		// The earliest invalidation wins; later callbacks cannot extend it.
+		r = r.WithContext(context.WithValue(r.Context(), publicWriteInterruptContextKey{}, interruptWrite))
+		writeInterruptDone := make(chan struct{})
+		stopWriteInterrupt := context.AfterFunc(r.Context(), func() {
+			defer close(writeInterruptDone)
+			interruptWrite()
+		})
+		defer func() {
+			if !stopWriteInterrupt() {
+				<-writeInterruptDone
+			}
+		}()
 		tracked := &trackedResponse{ResponseWriter: w}
 		route.handler.ServeHTTP(tracked, r)
 		if ctx.Err() != nil && !tracked.wrote {
