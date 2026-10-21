@@ -1,0 +1,17 @@
+# name outcome transaction generation admitted
+rejected_without_transaction	1	4	0	true
+rejected_known_not_committed	1	1	0	true
+rejected_cannot_be_committed	1	3	0	false
+not_committed	2	1	0	true
+commit_unknown	3	2	0	true
+unknown_is_not_rejection	3	1	0	false
+reconciling	4	3	2	true
+reconciling_without_target	4	3	0	false
+published	5	3	3	true
+later_winner_published_failed_attempt	5	1	4	true
+published_after_unknown_attempt	5	2	4	true
+published_without_transaction	5	4	4	false
+restart_required	6	4	0	true
+zero_outcome	0	1	0	false
+future_outcome	99	3	2	false
+future_transaction	5	99	2	false

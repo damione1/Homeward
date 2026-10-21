@@ -82,13 +82,14 @@ func NewProgramImage(runs automationruns.Plan, triggers automationtriggers.Plan,
 }
 
 type Request struct {
-	definitions DefinitionChoice
-	author      storage.ConfigAuthor
-	source      storage.ConfigSource
-	policies    []PolicyChange
-	program     *ProgramImage
-	registry    func(*registry.ConfigWriter) error
-	admitted    bool
+	definitions           DefinitionChoice
+	author                storage.ConfigAuthor
+	source                storage.ConfigSource
+	policies              []PolicyChange
+	program               *ProgramImage
+	registry              func(*registry.ConfigWriter) error
+	admitted              bool
+	workspacePrecondition *WorkspacePrecondition
 }
 
 // NewWorkspaceRequest is trusted Go composition, not an HTTP authorization

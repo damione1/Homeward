@@ -1,0 +1,242 @@
+syntax = "proto3";
+
+package home.configuration.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/configuration/v1;configurationv1";
+
+enum DocumentKind {
+  DOCUMENT_KIND_UNSPECIFIED = 0;
+  DOCUMENT_KIND_YAML_SOURCE = 1;
+  DOCUMENT_KIND_AUTHORIZATION_POLICY = 2;
+  DOCUMENT_KIND_MFA_POLICY = 3;
+  DOCUMENT_KIND_OPERATIONAL_YAML = 4;
+  DOCUMENT_KIND_BOOTSTRAP_LAUNCH = 5;
+}
+
+enum DirtyState {
+  DIRTY_STATE_UNSPECIFIED = 0;
+  DIRTY_STATE_CLEAN = 1;
+  DIRTY_STATE_UNVALIDATED = 2;
+  DIRTY_STATE_REJECTED = 3;
+  DIRTY_STATE_RECONCILING = 4;
+  DIRTY_STATE_UNAVAILABLE = 5;
+}
+
+message DocumentId { string value = 1; }
+message DocumentVersion {
+  int64 revision = 1;
+  // Exact source bytes, never a manifest or semantic digest.
+  bytes source_sha256 = 2;
+}
+message ActiveGeneration {
+  int64 revision = 1;
+  bytes manifest_sha256 = 2;
+}
+message WorkspaceObservation {
+  bytes source_sha256 = 1;
+  google.protobuf.Timestamp updated_at = 2;
+  DirtyState dirty = 3;
+}
+enum WorkspaceUnobservedReason {
+  WORKSPACE_UNOBSERVED_REASON_UNSPECIFIED = 0;
+  // SQL metadata is readable, but this owner has no physical locator for this
+  // document. Absence of an observation is never a claim that YAML is clean.
+  WORKSPACE_UNOBSERVED_REASON_NO_PHYSICAL_LOCATOR = 1;
+  WORKSPACE_UNOBSERVED_REASON_SOURCE_UNAVAILABLE = 2;
+}
+message WorkspaceUnobserved { WorkspaceUnobservedReason reason = 1; }
+message Document {
+  DocumentId id = 1;
+  DocumentKind kind = 2;
+  string schema_version = 3;
+  string syntax_profile = 4;
+  DocumentVersion version = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  bool active = 7;
+  oneof workspace_state {
+    // Invalid YAML can have an exact-byte observation without being admitted.
+    WorkspaceObservation workspace = 8;
+    WorkspaceUnobserved workspace_unobserved = 10;
+  }
+  // A keyed opaque reference to the protected source. It is not source bytes,
+  // a secret name, a path, or an editable redacted YAML replacement.
+  bytes protected_source_reference = 9;
+}
+
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_INVALID_ARGUMENT = 1;
+  ERROR_CODE_DENIED = 2;
+  ERROR_CODE_NOT_FOUND = 3;
+  ERROR_CODE_CONFLICT = 4;
+  ERROR_CODE_UNAVAILABLE = 5;
+  ERROR_CODE_RECONCILIATION_REQUIRED = 6;
+  ERROR_CODE_INCOMPLETE_GENERATION = 7;
+  ERROR_CODE_CAPACITY = 8;
+}
+message ConfigurationError {
+  ErrorCode code = 1;
+  // Conflict supplies the current public revision/hash. Never parser/SQL text.
+  DocumentVersion current = 2;
+}
+enum ActivationOutcome {
+  ACTIVATION_OUTCOME_UNSPECIFIED = 0;
+  ACTIVATION_OUTCOME_REJECTED_BEFORE_COMMIT = 1;
+  ACTIVATION_OUTCOME_NOT_COMMITTED = 2;
+  ACTIVATION_OUTCOME_COMMIT_UNKNOWN = 3;
+  ACTIVATION_OUTCOME_COMMITTED_RECONCILING = 4;
+  ACTIVATION_OUTCOME_PUBLISHED = 5;
+  ACTIVATION_OUTCOME_RESTART_REQUIRED = 6;
+}
+enum TransactionOutcome {
+  TRANSACTION_OUTCOME_UNSPECIFIED = 0;
+  TRANSACTION_OUTCOME_NOT_COMMITTED = 1;
+  TRANSACTION_OUTCOME_COMMIT_UNKNOWN = 2;
+  TRANSACTION_OUTCOME_COMMITTED = 3;
+  TRANSACTION_OUTCOME_NO_TRANSACTION = 4;
+}
+enum DiagnosticCode {
+  DIAGNOSTIC_CODE_UNSPECIFIED = 0;
+  DIAGNOSTIC_CODE_CANDIDATE_REJECTED = 1;
+  DIAGNOSTIC_CODE_WORKSPACE_CHANGED = 2;
+  DIAGNOSTIC_CODE_RECONCILIATION_REQUIRED = 3;
+  DIAGNOSTIC_CODE_ACTIVATION_UNAVAILABLE = 4;
+}
+message ActivationResult {
+  ActivationOutcome outcome = 1;
+  TransactionOutcome transaction = 2;
+  // Absent when no target generation exists yet.
+  optional int64 generation_revision = 3;
+  repeated DiagnosticCode diagnostics = 4;
+}
+message ReadDocumentRequest { DocumentId id = 1; }
+message ReadDocumentResponse {
+  Document document = 1;
+  ActiveGeneration active_generation = 2;
+  // Authenticated process-epoch token binds journal position and authoritative
+  // SQL/workspace cut. A changed cut at subscribe returns typed resync.
+  string resume_token = 3;
+}
+message PageRequest {
+  uint32 page_size = 1;
+  optional string page_token = 2;
+}
+message PageContinuation {
+  oneof result {
+    string next_page_token = 1;
+    google.protobuf.Empty complete = 2;
+  }
+}
+message ListDocumentsRequest { PageRequest page = 1; }
+message ListDocumentsResponse {
+  repeated Document documents = 1;
+  PageContinuation continuation = 2;
+}
+enum VersionAvailability {
+  VERSION_AVAILABILITY_UNSPECIFIED = 0;
+  VERSION_AVAILABILITY_RETAINED = 1;
+  VERSION_AVAILABILITY_PURGED = 2;
+}
+message HistoricalVersion {
+  DocumentId id = 1;
+  DocumentVersion version = 2;
+  VersionAvailability availability = 3;
+  // Absent when the source row was purged. No invented timestamp/schema.
+  google.protobuf.Timestamp updated_at = 4;
+  string schema_version = 5;
+}
+enum GenerationAvailability {
+  GENERATION_AVAILABILITY_UNSPECIFIED = 0;
+  GENERATION_AVAILABILITY_COMPLETE = 1;
+  GENERATION_AVAILABILITY_PARTIALLY_PURGED = 2;
+}
+message HistoricalGeneration {
+  ActiveGeneration generation = 1;
+  GenerationAvailability availability = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+message ListVersionsRequest { DocumentId id = 1; PageRequest page = 2; }
+message ListVersionsResponse {
+  repeated HistoricalVersion versions = 1;
+  PageContinuation continuation = 2;
+}
+message ListGenerationsRequest { PageRequest page = 1; }
+message ListGenerationsResponse {
+  repeated HistoricalGeneration generations = 1;
+  PageContinuation continuation = 2;
+}
+message Schema {
+  DocumentKind kind = 1;
+  string schema_version = 2;
+  string syntax_profile = 3;
+  // Global Config API writes only the selected operational workspace. Launch,
+  // human policies and domain-specific logic retain their existing authorities.
+  bool editable_operational_workspace = 4;
+}
+message ListSchemasRequest { PageRequest page = 1; }
+message ListSchemasResponse { repeated Schema schemas = 1; PageContinuation continuation = 2; }
+message WriteDocumentRequest {
+  DocumentId id = 1;
+  DocumentVersion expected = 2;
+  // Required independently of admitted source: permits correcting dirty YAML
+  // without silently replacing an external edit since the last observation.
+  bytes expected_workspace_sha256 = 3;
+  // Full exact bytes explicitly supplied by the administrator. A public
+  // protected_source_reference/projection is never accepted as replacement.
+  bytes exact_yaml_source = 4;
+}
+message WriteDocumentResponse { ActivationResult activation = 1; ReadDocumentResponse current = 2; }
+message RestoreDocumentRequest {
+  DocumentId id = 1;
+  DocumentVersion expected = 2;
+  bytes expected_workspace_sha256 = 3;
+  ActiveGeneration historical = 4;
+}
+message RestoreDocumentResponse { ActivationResult activation = 1; ReadDocumentResponse current = 2; }
+enum ResyncReason {
+  RESYNC_REASON_UNSPECIFIED = 0;
+  RESYNC_REASON_EPOCH_CHANGED = 1;
+  RESYNC_REASON_TOKEN_INVALID = 2;
+  RESYNC_REASON_HISTORY_LOST = 3;
+  RESYNC_REASON_AUTHORITY_CHANGED = 4;
+  RESYNC_REASON_ACTIVATION_SIGNAL = 5;
+  RESYNC_REASON_CLOSED = 6;
+}
+message DocumentChange {
+  DocumentId id = 1;
+  DocumentVersion version = 2;
+  DirtyState dirty = 3;
+  // Separate from the admitted source hash. Absent while reconciliation cannot
+  // establish which filesystem bytes are current.
+  optional bytes observed_workspace_sha256 = 4;
+}
+message ChangeBatch { repeated DocumentChange changes = 1; string resume_token = 2; }
+message ResyncRequired { ResyncReason reason = 1; }
+message WatchReady { string resume_token = 1; }
+message WatchConfigurationRequest { string resume_token = 1; }
+message WatchConfigurationResponse {
+  oneof result {
+    ChangeBatch changes = 1;
+    ResyncRequired resync_required = 2;
+    // Confirms both subscriptions were installed and authority rechecked. This
+    // acknowledges the supplied cursor; it does not advance over replay data.
+    WatchReady ready = 3;
+  }
+}
+
+// One common TLS-required PublicPlan. Human admin GLOBAL_CONFIGURATION reads
+// and writes, with current authorization and session lease at every emission.
+// No listener, MCP route, internal routine principal or second activation owner.
+service ConfigurationService {
+  rpc ReadDocument(ReadDocumentRequest) returns (ReadDocumentResponse);
+  rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
+  rpc ListVersions(ListVersionsRequest) returns (ListVersionsResponse);
+  rpc ListGenerations(ListGenerationsRequest) returns (ListGenerationsResponse);
+  rpc ListSchemas(ListSchemasRequest) returns (ListSchemasResponse);
+  rpc WriteDocument(WriteDocumentRequest) returns (WriteDocumentResponse);
+  rpc RestoreDocument(RestoreDocumentRequest) returns (RestoreDocumentResponse);
+  rpc WatchConfiguration(WatchConfigurationRequest) returns (stream WatchConfigurationResponse);
+}
