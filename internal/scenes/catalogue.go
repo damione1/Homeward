@@ -74,3 +74,45 @@ func (c Catalogue) Definition(id domain.HAAlias) (hascene.Definition, bool) {
 func (c Catalogue) IDs() []domain.HAAlias {
 	return append([]domain.HAAlias(nil), c.order...)
 }
+
+// NewCatalogue holds definitions already admitted by the HA scene loader.
+// CompileSelected remains the authority for the twelve MVP definitions.
+func NewCatalogue(definitions []hascene.Definition) (Catalogue, error) {
+	if len(definitions) == 0 || len(definitions) > 12 {
+		return Catalogue{}, ErrInvalidScene
+	}
+	result := Catalogue{definitions: make(map[domain.HAAlias]hascene.Definition, len(definitions)), order: make([]domain.HAAlias, 0, len(definitions))}
+	for _, definition := range definitions {
+		id, err := definition.Source().ID()
+		if err != nil || id != definition.ID() {
+			return Catalogue{}, ErrInvalidScene
+		}
+		if len(definition.Members()) == 0 || len(definition.Members()) > maxSceneMembers {
+			return Catalogue{}, ErrInvalidScene
+		}
+		if _, exists := result.definitions[id]; exists {
+			return Catalogue{}, ErrInvalidScene
+		}
+		result.definitions[id] = definition
+		result.order = append(result.order, id)
+	}
+	return result, nil
+}
+func (c Catalogue) valid() bool {
+	if len(c.definitions) == 0 || len(c.definitions) > 12 || len(c.order) != len(c.definitions) {
+		return false
+	}
+	seen := make(map[domain.HAAlias]bool, len(c.order))
+	for _, id := range c.order {
+		definition, ok := c.definitions[id]
+		if !ok || seen[id] || definition.ID() != id {
+			return false
+		}
+		source, err := definition.Source().ID()
+		if err != nil || source != id {
+			return false
+		}
+		seen[id] = true
+	}
+	return true
+}

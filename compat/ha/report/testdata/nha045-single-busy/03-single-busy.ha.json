@@ -1,0 +1,347 @@
+{
+  "schema": "nha045/v1",
+  "scenario": "03-single-busy",
+  "fixture_sha256": "e63ebf343dbe30612d79cdd4efe7a1e5b9f25f03333c6226b574319170191f2c",
+  "runtime": {
+    "name": "ha",
+    "version": "2026.10.1",
+    "python": "3.14.6",
+    "jinja": "3.1.6",
+    "source_sha256": [
+      {
+        "path": "homeassistant.helpers.script",
+        "sha256": "75376abc1686bcfde2f5d235863728b630b91f703ad03eb1a4b6a22eb8387ee3"
+      },
+      {
+        "path": "homeassistant.components.script",
+        "sha256": "8afceb2f5a092830ca98f5ddd6349f131f5d8d555dda92c31782e71efc8df69e"
+      },
+      {
+        "path": "homeassistant.helpers.script_variables",
+        "sha256": "c70c73cdd5979f05fd16997762c4cddb9a0dd1bfb4b7f23d7a11c4ec325bf9ea"
+      },
+      {
+        "path": "homeassistant.components.automation",
+        "sha256": "d0bd002c7ee1f7b053d076815a5fb76f81d73808a1ee286ebc1d788241f52da9"
+      },
+      {
+        "path": "homeassistant.helpers.event",
+        "sha256": "caafbdd2437c4912e21dceca588577f24270a743e80a217e308175818de9e269"
+      },
+      {
+        "path": "homeassistant.helpers.trace",
+        "sha256": "3735ccdf467c2e5242055948803e08b6fd9e83a8d404d81562edebd1f924a6f1"
+      },
+      {
+        "path": "homeassistant.components.homeassistant.triggers.state",
+        "sha256": "dc72a3a3f606b486165bf72d304cf7643cf7d4592971675f1ccab51aed9fffd8"
+      },
+      {
+        "path": "homeassistant.components.homeassistant.triggers.event",
+        "sha256": "c99566aebd9a26857fc9b64f5d0af7bbb46d46e1464291f4aadab49acc89aff2"
+      },
+      {
+        "path": "homeassistant.components.automation.trace",
+        "sha256": "f8da595e040a7ab80f2f9c963c18209bf554ef83d6ab0f0f0f422bc5df4124cd"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "key": "a",
+      "raw": "ha-ffff8d93c6e0",
+      "parent": null,
+      "callsite": null,
+      "object": "script.nha045_root"
+    }
+  ],
+  "facts": [
+    {
+      "key": "state/switch.nha045_effect/1",
+      "kind": "state",
+      "run": null,
+      "at_ms": 0,
+      "object": "house",
+      "node": "state",
+      "data": {
+        "entity": "switch.nha045_effect",
+        "state": "off"
+      }
+    },
+    {
+      "key": "state/switch.nha045_gate/1",
+      "kind": "state",
+      "run": null,
+      "at_ms": 0,
+      "object": "house",
+      "node": "state",
+      "data": {
+        "entity": "switch.nha045_gate",
+        "state": "off"
+      }
+    },
+    {
+      "key": "a/admission",
+      "kind": "admission",
+      "run": "ha-ffff8d93c6e0",
+      "at_ms": 0,
+      "object": "script.nha045_root",
+      "node": "admission",
+      "data": {
+        "outcome": "accepted"
+      }
+    },
+    {
+      "key": "a/start",
+      "kind": "start",
+      "run": "ha-ffff8d93c6e0",
+      "at_ms": 0,
+      "object": "script.nha045_root",
+      "node": "entry",
+      "data": {}
+    },
+    {
+      "key": "b/admission",
+      "kind": "admission",
+      "run": null,
+      "at_ms": 1000,
+      "object": "script.nha045_root",
+      "node": "admission",
+      "data": {
+        "outcome": "single_busy"
+      }
+    },
+    {
+      "key": "a/action/switch.nha045_effect/1",
+      "kind": "action",
+      "run": "ha-ffff8d93c6e0",
+      "at_ms": 5000,
+      "object": "script.nha045_root",
+      "node": "switch.nha045_effect/1",
+      "data": {
+        "outcome": "completed",
+        "entity": "switch.nha045_effect",
+        "service": "switch.turn_on"
+      }
+    },
+    {
+      "key": "state/switch.nha045_effect/2",
+      "kind": "state",
+      "run": "ha-ffff8d93c6e0",
+      "at_ms": 5000,
+      "object": "house",
+      "node": "state",
+      "data": {
+        "entity": "switch.nha045_effect",
+        "state": "on"
+      }
+    },
+    {
+      "key": "a/terminal",
+      "kind": "terminal",
+      "run": "ha-ffff8d93c6e0",
+      "at_ms": 5000,
+      "object": "script.nha045_root",
+      "node": "terminal",
+      "data": {
+        "outcome": "finished"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "before": "a/start",
+      "after": "a/terminal"
+    },
+    {
+      "before": "a/start",
+      "after": "a/action/switch.nha045_effect/1"
+    },
+    {
+      "before": "a/action/switch.nha045_effect/1",
+      "after": "a/terminal"
+    },
+    {
+      "before": "a/action/switch.nha045_effect/1",
+      "after": "state/switch.nha045_effect/2"
+    }
+  ],
+  "orders": [
+    {
+      "scope": "control",
+      "keys": [
+        "state/switch.nha045_effect/1",
+        "state/switch.nha045_gate/1",
+        "a/start",
+        "a/terminal"
+      ]
+    },
+    {
+      "scope": "node/a/root",
+      "keys": [
+        "a/action/switch.nha045_effect/1"
+      ]
+    }
+  ],
+  "evicted": 0,
+  "terminal": true,
+  "raw": {
+    "cancellations": [],
+    "cleanup": {
+      "entities_removed": true,
+      "hass_stopped": true,
+      "subscriptions_closed": true,
+      "tasks_done": true,
+      "timers_terminal": true
+    },
+    "network": {
+      "interfaces": [
+        "lo"
+      ],
+      "ipv4_routes": "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT                                                       \n",
+      "ipv6_routes": "00000000000000000000000000000000 00 00000000000000000000000000000000 00 00000000000000000000000000000000 ffffffff 00000001 00000000 00200200       lo\n00000000000000000000000000000001 80 00000000000000000000000000000000 00 00000000000000000000000000000000 00000000 00000002 00000000 80200001       lo\n00000000000000000000000000000000 00 00000000000000000000000000000000 00 00000000000000000000000000000000 ffffffff 00000001 00000000 00200200       lo\n",
+      "loopback_only": true
+    },
+    "nodes": [
+      {
+        "at_ms": 0,
+        "path": "0",
+        "phase": "enter"
+      },
+      {
+        "at_ms": 5000,
+        "path": "1",
+        "phase": "enter"
+      }
+    ],
+    "order": {
+      "decision_evicted": 0,
+      "healthy": true,
+      "joined": true,
+      "node_evicted": 0,
+      "points": [
+        {
+          "key": "state/switch.nha045_effect/1",
+          "ordinal": 1
+        },
+        {
+          "key": "state/switch.nha045_gate/1",
+          "ordinal": 2
+        },
+        {
+          "key": "a/start",
+          "ordinal": 3
+        },
+        {
+          "key": "state/switch.nha045_effect/2",
+          "ordinal": 4
+        },
+        {
+          "key": "a/action/switch.nha045_effect/1",
+          "ordinal": 5
+        },
+        {
+          "key": "a/terminal",
+          "ordinal": 6
+        }
+      ],
+      "producer": "ha-worker/ffff8ee15a90",
+      "state_causes": [
+        {
+          "action": "a/action/switch.nha045_effect/1",
+          "state": "state/switch.nha045_effect/2"
+        }
+      ]
+    },
+    "phases": [
+      {
+        "at_ms": 0,
+        "brightness": null,
+        "count": 0,
+        "entity": "",
+        "id": "phase-001",
+        "kind": "invoke",
+        "object": "script.nha045_root",
+        "run": "a",
+        "state": ""
+      },
+      {
+        "at_ms": 0,
+        "brightness": null,
+        "count": 0,
+        "entity": "",
+        "id": "phase-002",
+        "kind": "await_startup",
+        "object": "script.nha045_root",
+        "run": "a",
+        "state": ""
+      },
+      {
+        "at_ms": 1000,
+        "brightness": null,
+        "count": 0,
+        "entity": "",
+        "id": "phase-003",
+        "kind": "advance",
+        "object": "",
+        "run": "",
+        "state": ""
+      },
+      {
+        "at_ms": 1000,
+        "brightness": null,
+        "count": 0,
+        "entity": "",
+        "id": "phase-004",
+        "kind": "invoke",
+        "object": "script.nha045_root",
+        "run": "b",
+        "state": ""
+      },
+      {
+        "at_ms": 1000,
+        "brightness": null,
+        "count": 0,
+        "entity": "",
+        "id": "phase-005",
+        "kind": "await_startup",
+        "object": "script.nha045_root",
+        "run": "b",
+        "state": ""
+      },
+      {
+        "at_ms": 5000,
+        "brightness": null,
+        "count": 0,
+        "entity": "",
+        "id": "phase-006",
+        "kind": "advance",
+        "object": "",
+        "run": "",
+        "state": ""
+      },
+      {
+        "at_ms": 5000,
+        "brightness": null,
+        "count": 0,
+        "entity": "",
+        "id": "phase-007",
+        "kind": "await_terminal",
+        "object": "script.nha045_root",
+        "run": "a",
+        "state": ""
+      }
+    ],
+    "producer": "ha-worker/ffff8ee15a90",
+    "registrations": [],
+    "timers": [
+      {
+        "callback": "homeassistant.helpers.script._set_result_unless_done",
+        "cancelled": true,
+        "deadline_ms": 5000,
+        "fired": true,
+        "run": "ha-ffff8d93c6e0"
+      }
+    ]
+  }
+}

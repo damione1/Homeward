@@ -200,6 +200,7 @@ type SourceFile struct {
 }
 
 func (s SourceFile) Path() string              { return s.path }
+func (s SourceFile) ByteLen() int              { return len(s.data) }
 func (s SourceFile) Bytes() []byte             { return append([]byte(nil), s.data...) }
 func (s SourceFile) SHA256() [sha256.Size]byte { return s.hash }
 
