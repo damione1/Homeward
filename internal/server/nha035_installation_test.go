@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -106,7 +107,7 @@ func TestNHA035SnapshotConcurrentActivationUsesOneGeneration(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer snapshot.Close()
-	if snapshot.Generation().Revision() != before.revision {
+	if snapshot.Generation().Revision() != before.revision || snapshot.Generation().ManifestSHA256() != before.manifest {
 		t.Fatal("snapshot did not establish A")
 	}
 	// A real Owner029 activation commits B while the exporting transaction A
@@ -125,24 +126,26 @@ func TestNHA035SnapshotConcurrentActivationUsesOneGeneration(t *testing.T) {
 	if after.revision == before.revision {
 		t.Fatal("B did not commit")
 	}
-	// A dirty workspace after B must never replace either snapshot's SQL bytes.
+	afterSnapshot, e := r.store.BeginBackupSnapshot(ctx, secrets)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer afterSnapshot.Close()
+	if afterSnapshot.Generation().Revision() != after.revision || afterSnapshot.Generation().ManifestSHA256() != after.manifest {
+		t.Fatal("snapshot did not establish B")
+	}
+	// Establish both SQL cuts before editing the workspace. The watcher may
+	// publish this valid edit as C while either archive is exported; neither
+	// snapshot may include those later bytes, even after they become active.
 	r.edit(t, "# NHA035 DIRTY WORKSPACE MUST NOT BE ARCHIVED\n")
 	for _, test := range []struct {
 		name   string
 		source *storage.BackupSnapshot
-		want   storage.ConfigGenerationRevision
-	}{{"before", snapshot, before.revision}, {"after", nil, after.revision}} {
+		want   nha029C5RestoreMark
+	}{{"before", snapshot, before}, {"after", afterSnapshot, after}} {
 		t.Run(test.name, func(t *testing.T) {
-			selected := test.source
-			if selected == nil {
-				var err error
-				selected, err = r.store.BeginBackupSnapshot(ctx, secrets)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
 			id, _ := backups.NewArtifactID()
-			sealed, err := service.CreateFromSnapshot(ctx, selected, tools, id)
+			sealed, err := service.CreateFromSnapshot(ctx, test.source, tools, id)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -160,10 +163,17 @@ func TestNHA035SnapshotConcurrentActivationUsesOneGeneration(t *testing.T) {
 				t.Fatal(err)
 			}
 			var manifest struct {
-				Generation int64 `json:"generation"`
+				Generation     int64  `json:"generation"`
+				ManifestSHA256 string `json:"manifest_sha256"`
 			}
-			if err = json.Unmarshal(raw, &manifest); err != nil || manifest.Generation != test.want.Number() {
-				t.Fatalf("wrong snapshot generation: %d", manifest.Generation)
+			if err = json.Unmarshal(raw, &manifest); err != nil {
+				t.Fatal(err)
+			}
+			if manifest.Generation != test.want.revision.Number() {
+				t.Fatalf("wrong snapshot generation: got %d want %d", manifest.Generation, test.want.revision.Number())
+			}
+			if manifest.ManifestSHA256 != fmt.Sprintf("%x", test.want.manifest) {
+				t.Fatal("archive manifest differs from snapshot SQL authority")
 			}
 			raw, err = os.ReadFile(filepath.Join(destination, "configuration.yaml"))
 			if err != nil {
@@ -171,6 +181,9 @@ func TestNHA035SnapshotConcurrentActivationUsesOneGeneration(t *testing.T) {
 			}
 			if bytes.Contains(raw, []byte("DIRTY WORKSPACE")) {
 				t.Fatal("dirty filesystem replaced SQL sources")
+			}
+			if sha256.Sum256(raw) != test.want.source {
+				t.Fatal("restored YAML differs from snapshot SQL source")
 			}
 			restored, err := storage.Open(ctx, nha035Settings(t, target.Port))
 			if err != nil {
@@ -181,7 +194,7 @@ func TestNHA035SnapshotConcurrentActivationUsesOneGeneration(t *testing.T) {
 			if err != nil || !present || active.Revision() != result.Generation() {
 				t.Fatal("restored DB generation differs from manifest fence")
 			}
-			if active.ManifestSHA256() != (map[string][32]byte{"before": before.manifest, "after": after.manifest})[test.name] {
+			if active.ManifestSHA256() != test.want.manifest {
 				t.Fatal("DB and YAML generations were spliced")
 			}
 		})

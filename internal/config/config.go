@@ -91,11 +91,11 @@ func decodeRawConfig(data []byte) (rawConfig, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&raw); err != nil {
-		return rawConfig{}, ErrInvalidYAML
+		return rawConfig{}, &yamlSourceRejection{}
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
-		return rawConfig{}, fmt.Errorf("configuration: exactly one YAML document required")
+		return rawConfig{}, &yamlSourceRejection{}
 	}
 	return raw, nil
 }

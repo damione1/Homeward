@@ -91,7 +91,7 @@ func (s Settings) GoString() string { return s.String() }
 func ParseSettings(input Input) (Settings, error) {
 	zone, err := calendars.ParseZone(input.Timezone)
 	if err != nil {
-		return Settings{}, failure(InvalidProfile)
+		return Settings{}, &Error{code: InvalidProfile, cause: err}
 	}
 	return Settings{zone: zone, profile: retainedCAWeekdays}, nil
 }

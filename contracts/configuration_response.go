@@ -50,6 +50,9 @@ func configurationDocument(d *wire.Document) bool {
 		if d.Kind != wire.DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML || d.Id.Value != "operational.main" || !configurationDirty(workspace.Dirty) || !configurationHash(workspace.SourceSha256) || !configurationTime(workspace.UpdatedAt) {
 			return false
 		}
+		if !configurationWorkspaceDiagnostic(d.Id, workspace) {
+			return false
+		}
 		if workspace.Dirty == wire.DirtyState_DIRTY_STATE_CLEAN && string(d.Version.SourceSha256) != string(workspace.SourceSha256) {
 			return false
 		}

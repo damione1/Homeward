@@ -16,17 +16,18 @@ import (
 )
 
 type Service struct {
-	admitted  bool
-	store     *storage.Store
-	owner     *configactivation.Owner
-	replay    *storage.ConfigReplayRepository
-	workspace *Workspace
-	journal   *Journal
-	mutation  chan struct{}
-	key       [32]byte
-	dirtyMu   sync.Mutex
-	rejected  [32]byte
-	last      Change
+	admitted   bool
+	store      *storage.Store
+	owner      *configactivation.Owner
+	replay     *storage.ConfigReplayRepository
+	workspace  *Workspace
+	journal    *Journal
+	mutation   chan struct{}
+	key        [32]byte
+	dirtyMu    sync.Mutex
+	rejected   [32]byte
+	last       Change
+	diagnostic WorkspaceDiagnostic
 }
 type Input struct {
 	Store   *storage.Store
@@ -85,6 +86,7 @@ type Snapshot struct {
 	dirty       DirtyState
 	position    Cursor
 	token       string
+	diagnostic  WorkspaceDiagnostic
 }
 
 func (s Snapshot) Document() storage.ConfigDocumentMetadata     { return s.document }
@@ -94,6 +96,9 @@ func (s Snapshot) CatalogCut() storage.ConfigDocumentCut        { return s.catal
 func (s Snapshot) Workspace() Observation                       { return s.observation }
 func (s Snapshot) Dirty() DirtyState                            { return s.dirty }
 func (s Snapshot) ResumeToken() string                          { return s.token }
+func (s Snapshot) Diagnostic() (WorkspaceDiagnostic, bool) {
+	return s.diagnostic, s.diagnostic.kind != DiagnosticUnknown
+}
 
 func operationalID() storage.ConfigDocumentID {
 	id, _ := storage.NewConfigDocumentID("operational.main")
@@ -139,6 +144,7 @@ func (s *Service) Read(ctx context.Context, id storage.ConfigDocumentID) (Snapsh
 		if err != nil || int64(generation) != state.Generation().Number() || manifest != state.ManifestSHA256() {
 			return Snapshot{}, &Error{kind: Unavailable}
 		}
+		var diagnostic WorkspaceDiagnostic
 		dirty := DirtyUnavailable
 		observed, _ := observation.SHA256()
 		if observationErr == nil {
@@ -147,8 +153,11 @@ func (s *Service) Read(ctx context.Context, id storage.ConfigDocumentID) (Snapsh
 				dirty = Clean
 			}
 			s.dirtyMu.Lock()
-			if dirty != Clean && s.rejected == observed {
+			if dirty != Clean && s.rejected == observed && s.diagnostic.matches(observation) && s.diagnostic.kind == CandidateRejected {
 				dirty = DirtyRejected
+			}
+			if dirty != Clean && s.diagnostic.matches(observation) {
+				diagnostic = s.diagnostic
 			}
 			s.dirtyMu.Unlock()
 			if observation.ReconciliationPending() {
@@ -163,7 +172,10 @@ func (s *Service) Read(ctx context.Context, id storage.ConfigDocumentID) (Snapsh
 		catalogue := state.Cut().SHA256()
 		_, _ = h.Write(catalogue[:])
 		_, _ = h.Write(observed[:])
-		_, _ = h.Write([]byte{byte(dirty)})
+		_, _ = h.Write([]byte{byte(dirty), byte(diagnostic.kind)})
+		if observedAt, ok := observation.UpdatedAt(); ok {
+			_, _ = h.Write([]byte(observedAt.Format(time.RFC3339Nano)))
+		}
 		var cut [32]byte
 		copy(cut[:], h.Sum(nil))
 		bound, err := through.Bind(cut)
@@ -177,8 +189,9 @@ func (s *Service) Read(ctx context.Context, id storage.ConfigDocumentID) (Snapsh
 		if id != operationalID() {
 			observation = Observation{}
 			dirty = DirtyUnknown
+			diagnostic = WorkspaceDiagnostic{}
 		}
-		return Snapshot{document: state.Document(), generation: state.Generation(), manifest: manifest, catalog: state.Cut(), observation: observation, dirty: dirty, position: bound, token: token}, nil
+		return Snapshot{document: state.Document(), generation: state.Generation(), manifest: manifest, catalog: state.Cut(), observation: observation, dirty: dirty, position: bound, token: token, diagnostic: diagnostic}, nil
 	}
 	return Snapshot{}, &Error{kind: Unavailable}
 }
@@ -289,11 +302,7 @@ func (s *Service) writeLocked(ctx context.Context, expected ExpectedDocument, ra
 		}
 	}
 	finishErr := edit.Finish(sqlSource, known && readErr == nil)
-	if result.Outcome() == configactivation.RejectedBeforeCommit {
-		s.dirtyMu.Lock()
-		s.rejected = sha256.Sum256(raw)
-		s.dirtyMu.Unlock()
-	}
+	s.recordObservedResult(Observation{hash: edit.source.hash, updated: edit.source.updated, present: true}, result, activationErr)
 	if finishErr != nil {
 		change, err := NewChange(expected.id, expected.revision, expected.source, [32]byte{}, DirtyReconciling)
 		if err == nil {
@@ -360,6 +369,8 @@ func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
+	change.observedAt, _ = snapshot.observation.UpdatedAt()
+	change.diagnostic = snapshot.diagnostic.kind
 	s.dirtyMu.Lock()
 	defer s.dirtyMu.Unlock()
 	if change != s.last {
@@ -428,11 +439,7 @@ func (s *Service) ActivateObserved(ctx context.Context, expected ExpectedDocumen
 		return configactivation.Result{}, err
 	}
 	result, err := s.owner.Activate(ctx, request)
-	if result.Outcome() == configactivation.RejectedBeforeCommit {
-		s.dirtyMu.Lock()
-		s.rejected = observed
-		s.dirtyMu.Unlock()
-	}
+	s.recordObservedResult(current.observation, result, err)
 	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	_, _ = s.Refresh(refreshCtx)
 	cancel()

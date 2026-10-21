@@ -119,6 +119,35 @@ fn timestamp(value: &buffa_types::google::protobuf::Timestamp) -> bool {
         && (0..1_000_000_000).contains(&value.nanos)
         && (value.seconds != -62_135_596_800 || value.nanos != 0)
 }
+fn workspace_diagnostic(document: &wire::Document, workspace: &wire::WorkspaceObservation) -> bool {
+    let Some(diagnostic) = workspace.diagnostic.as_option() else {
+        return true;
+    };
+    if !diagnostic.__buffa_unknown_fields.is_empty()
+        || workspace.dirty == EnumValue::Known(wire::DirtyState::Clean)
+        || !diagnostic.document.as_option().is_some_and(id)
+        || diagnostic.document.value != document.id.value
+        || !hash(&diagnostic.observed_source_sha256)
+        || diagnostic.observed_source_sha256 != workspace.source_sha256
+        || !diagnostic.observed_at.as_option().is_some_and(timestamp)
+        || diagnostic.observed_at != workspace.updated_at
+    {
+        return false;
+    }
+    match diagnostic.code {
+        EnumValue::Known(wire::DiagnosticCode::CandidateRejected) => matches!(
+            workspace.dirty,
+            EnumValue::Known(wire::DirtyState::Rejected | wire::DirtyState::Reconciling)
+        ),
+        EnumValue::Known(
+            wire::DiagnosticCode::WorkspaceChanged
+            | wire::DiagnosticCode::ReconciliationRequired
+            | wire::DiagnosticCode::ActivationUnavailable,
+        ) => true,
+        EnumValue::Known(wire::DiagnosticCode::Unspecified) | EnumValue::Unknown(_) => false,
+    }
+}
+
 fn schema(value: &wire::Document) -> bool {
     match value.kind {
         EnumValue::Known(wire::DocumentKind::YamlSource) => {
@@ -174,6 +203,7 @@ pub fn admit_configuration_read(
                 || !hash(&workspace.source_sha256)
                 || !workspace.updated_at.as_option().is_some_and(timestamp)
                 || !dirty(workspace.dirty)
+                || !workspace_diagnostic(document, workspace)
                 || workspace.dirty == EnumValue::Known(wire::DirtyState::Clean)
                     && document.version.source_sha256 != workspace.source_sha256
             {

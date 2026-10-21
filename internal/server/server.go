@@ -758,7 +758,12 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	if err == nil && plan.ConfigureActivation != nil {
 		err = plan.ConfigureActivation(ctx, activation)
 	}
+	var configurationWatcher *configurationWatcherRuntime
+	if err == nil {
+		configurationWatcher, err = startConfigurationWatcher(lifecycleCtx, documents, dependencies.configurationWatcherClock)
+	}
 	if err != nil {
+		configurationWatcher.BeginClose()
 		activation.BeginClose()
 		maintenance.BeginClose()
 		durableJobs.CloseAdmissions()
@@ -776,6 +781,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		mfaDone := sessions.mfa.beginClose()
 		listDone := listDrain.beginClose()
 		stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		watcherErr := configurationWatcher.Close(stopCtx)
 		jobsStop := make(chan error, 1)
 		go func() { jobsStop <- durableJobs.Close(stopCtx) }()
 		activationErr := activation.Close(stopCtx)
@@ -793,8 +799,8 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		maintenanceErr := drainRecorderMaintenance(stopCtx, maintenance)
 		recorderErr := drainRecorder(stopCtx, recording)
 		cancel()
-		retainStoreUntilDrained(store, remoteRuntime.Done(), activation.Done(), supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
-		return errors.Join(err, activationErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr, remoteErr)
+		retainStoreUntilDrained(store, remoteRuntime.Done(), configurationWatcher.Done(), activation.Done(), supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
+		return errors.Join(err, watcherErr, activationErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr, remoteErr)
 	}
 	var reactiveDone <-chan struct{}
 	if reactive != nil {
@@ -893,6 +899,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		publicDone, listenerErr = runPublicListenerPrepared(lifecycleCtx, launch, listen, listenerReady, public, publicSettings, servingTransport)
 	}
 	_ = observed.health.PublishDraining()
+	configurationWatcher.BeginClose()
 	activation.BeginClose()
 	maintenance.BeginClose()
 	durableJobs.CloseAdmissions()
@@ -912,6 +919,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	mfaDone := sessions.mfa.beginClose()
 	listDone := listDrain.beginClose()
 	stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	watcherErr := configurationWatcher.Close(stopCtx)
 	authorizationStop := make(chan error, 1)
 	go func() { authorizationStop <- authorization.Close(stopCtx) }()
 	reactiveStop := make(chan error, 1)
@@ -934,8 +942,8 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	maintenanceErr := drainRecorderMaintenance(stopCtx, maintenance)
 	recorderErr := drainRecorder(stopCtx, recording)
 	cancel()
-	retainStoreUntilDrained(store, remoteRuntime.Done(), activation.Done(), publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
-	return errors.Join(listenerErr, operatorErr, activationErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr, remoteErr)
+	retainStoreUntilDrained(store, remoteRuntime.Done(), configurationWatcher.Done(), activation.Done(), publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
+	return errors.Join(listenerErr, operatorErr, watcherErr, activationErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr, remoteErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured

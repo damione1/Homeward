@@ -737,10 +737,13 @@ func (x *ActiveGeneration) GetManifestSha256() []byte {
 }
 
 type WorkspaceObservation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SourceSha256  []byte                 `protobuf:"bytes,1,opt,name=source_sha256,json=sourceSha256,proto3" json:"source_sha256,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Dirty         DirtyState             `protobuf:"varint,3,opt,name=dirty,proto3,enum=home.configuration.v1.DirtyState" json:"dirty,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	SourceSha256 []byte                 `protobuf:"bytes,1,opt,name=source_sha256,json=sourceSha256,proto3" json:"source_sha256,omitempty"`
+	UpdatedAt    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Dirty        DirtyState             `protobuf:"varint,3,opt,name=dirty,proto3,enum=home.configuration.v1.DirtyState" json:"dirty,omitempty"`
+	// Diagnostic binds the exact observed source, independently of the SQL active
+	// version. It is absent on clean or replaced candidates; never parser text.
+	Diagnostic    *WorkspaceDiagnostic `protobuf:"bytes,4,opt,name=diagnostic,proto3" json:"diagnostic,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -796,6 +799,81 @@ func (x *WorkspaceObservation) GetDirty() DirtyState {
 	return DirtyState_DIRTY_STATE_UNSPECIFIED
 }
 
+func (x *WorkspaceObservation) GetDiagnostic() *WorkspaceDiagnostic {
+	if x != nil {
+		return x.Diagnostic
+	}
+	return nil
+}
+
+type WorkspaceDiagnostic struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Document             *DocumentId            `protobuf:"bytes,1,opt,name=document,proto3" json:"document,omitempty"`
+	ObservedSourceSha256 []byte                 `protobuf:"bytes,2,opt,name=observed_source_sha256,json=observedSourceSha256,proto3" json:"observed_source_sha256,omitempty"`
+	ObservedAt           *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	Code                 DiagnosticCode         `protobuf:"varint,4,opt,name=code,proto3,enum=home.configuration.v1.DiagnosticCode" json:"code,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *WorkspaceDiagnostic) Reset() {
+	*x = WorkspaceDiagnostic{}
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkspaceDiagnostic) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkspaceDiagnostic) ProtoMessage() {}
+
+func (x *WorkspaceDiagnostic) ProtoReflect() protoreflect.Message {
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkspaceDiagnostic.ProtoReflect.Descriptor instead.
+func (*WorkspaceDiagnostic) Descriptor() ([]byte, []int) {
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *WorkspaceDiagnostic) GetDocument() *DocumentId {
+	if x != nil {
+		return x.Document
+	}
+	return nil
+}
+
+func (x *WorkspaceDiagnostic) GetObservedSourceSha256() []byte {
+	if x != nil {
+		return x.ObservedSourceSha256
+	}
+	return nil
+}
+
+func (x *WorkspaceDiagnostic) GetObservedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ObservedAt
+	}
+	return nil
+}
+
+func (x *WorkspaceDiagnostic) GetCode() DiagnosticCode {
+	if x != nil {
+		return x.Code
+	}
+	return DiagnosticCode_DIAGNOSTIC_CODE_UNSPECIFIED
+}
+
 type WorkspaceUnobserved struct {
 	state         protoimpl.MessageState    `protogen:"open.v1"`
 	Reason        WorkspaceUnobservedReason `protobuf:"varint,1,opt,name=reason,proto3,enum=home.configuration.v1.WorkspaceUnobservedReason" json:"reason,omitempty"`
@@ -805,7 +883,7 @@ type WorkspaceUnobserved struct {
 
 func (x *WorkspaceUnobserved) Reset() {
 	*x = WorkspaceUnobserved{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[4]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -817,7 +895,7 @@ func (x *WorkspaceUnobserved) String() string {
 func (*WorkspaceUnobserved) ProtoMessage() {}
 
 func (x *WorkspaceUnobserved) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[4]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -830,7 +908,7 @@ func (x *WorkspaceUnobserved) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceUnobserved.ProtoReflect.Descriptor instead.
 func (*WorkspaceUnobserved) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{4}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *WorkspaceUnobserved) GetReason() WorkspaceUnobservedReason {
@@ -863,7 +941,7 @@ type Document struct {
 
 func (x *Document) Reset() {
 	*x = Document{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[5]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -875,7 +953,7 @@ func (x *Document) String() string {
 func (*Document) ProtoMessage() {}
 
 func (x *Document) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[5]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -888,7 +966,7 @@ func (x *Document) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Document.ProtoReflect.Descriptor instead.
 func (*Document) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{5}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Document) GetId() *DocumentId {
@@ -1000,7 +1078,7 @@ type ConfigurationError struct {
 
 func (x *ConfigurationError) Reset() {
 	*x = ConfigurationError{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[6]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1012,7 +1090,7 @@ func (x *ConfigurationError) String() string {
 func (*ConfigurationError) ProtoMessage() {}
 
 func (x *ConfigurationError) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[6]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1025,7 +1103,7 @@ func (x *ConfigurationError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationError.ProtoReflect.Descriptor instead.
 func (*ConfigurationError) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{6}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ConfigurationError) GetCode() ErrorCode {
@@ -1055,7 +1133,7 @@ type ActivationResult struct {
 
 func (x *ActivationResult) Reset() {
 	*x = ActivationResult{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[7]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1067,7 +1145,7 @@ func (x *ActivationResult) String() string {
 func (*ActivationResult) ProtoMessage() {}
 
 func (x *ActivationResult) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[7]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1080,7 +1158,7 @@ func (x *ActivationResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationResult.ProtoReflect.Descriptor instead.
 func (*ActivationResult) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{7}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ActivationResult) GetOutcome() ActivationOutcome {
@@ -1120,7 +1198,7 @@ type ReadDocumentRequest struct {
 
 func (x *ReadDocumentRequest) Reset() {
 	*x = ReadDocumentRequest{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[8]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1132,7 +1210,7 @@ func (x *ReadDocumentRequest) String() string {
 func (*ReadDocumentRequest) ProtoMessage() {}
 
 func (x *ReadDocumentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[8]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1145,7 +1223,7 @@ func (x *ReadDocumentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadDocumentRequest.ProtoReflect.Descriptor instead.
 func (*ReadDocumentRequest) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{8}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ReadDocumentRequest) GetId() *DocumentId {
@@ -1168,7 +1246,7 @@ type ReadDocumentResponse struct {
 
 func (x *ReadDocumentResponse) Reset() {
 	*x = ReadDocumentResponse{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[9]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1180,7 +1258,7 @@ func (x *ReadDocumentResponse) String() string {
 func (*ReadDocumentResponse) ProtoMessage() {}
 
 func (x *ReadDocumentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[9]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1193,7 +1271,7 @@ func (x *ReadDocumentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadDocumentResponse.ProtoReflect.Descriptor instead.
 func (*ReadDocumentResponse) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{9}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ReadDocumentResponse) GetDocument() *Document {
@@ -1227,7 +1305,7 @@ type PageRequest struct {
 
 func (x *PageRequest) Reset() {
 	*x = PageRequest{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[10]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1239,7 +1317,7 @@ func (x *PageRequest) String() string {
 func (*PageRequest) ProtoMessage() {}
 
 func (x *PageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[10]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1252,7 +1330,7 @@ func (x *PageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PageRequest.ProtoReflect.Descriptor instead.
 func (*PageRequest) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{10}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *PageRequest) GetPageSize() uint32 {
@@ -1282,7 +1360,7 @@ type PageContinuation struct {
 
 func (x *PageContinuation) Reset() {
 	*x = PageContinuation{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[11]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1294,7 +1372,7 @@ func (x *PageContinuation) String() string {
 func (*PageContinuation) ProtoMessage() {}
 
 func (x *PageContinuation) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[11]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1307,7 +1385,7 @@ func (x *PageContinuation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PageContinuation.ProtoReflect.Descriptor instead.
 func (*PageContinuation) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{11}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *PageContinuation) GetResult() isPageContinuation_Result {
@@ -1360,7 +1438,7 @@ type ListDocumentsRequest struct {
 
 func (x *ListDocumentsRequest) Reset() {
 	*x = ListDocumentsRequest{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[12]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1372,7 +1450,7 @@ func (x *ListDocumentsRequest) String() string {
 func (*ListDocumentsRequest) ProtoMessage() {}
 
 func (x *ListDocumentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[12]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1385,7 +1463,7 @@ func (x *ListDocumentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDocumentsRequest.ProtoReflect.Descriptor instead.
 func (*ListDocumentsRequest) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{12}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListDocumentsRequest) GetPage() *PageRequest {
@@ -1405,7 +1483,7 @@ type ListDocumentsResponse struct {
 
 func (x *ListDocumentsResponse) Reset() {
 	*x = ListDocumentsResponse{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[13]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1417,7 +1495,7 @@ func (x *ListDocumentsResponse) String() string {
 func (*ListDocumentsResponse) ProtoMessage() {}
 
 func (x *ListDocumentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[13]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1430,7 +1508,7 @@ func (x *ListDocumentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDocumentsResponse.ProtoReflect.Descriptor instead.
 func (*ListDocumentsResponse) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{13}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListDocumentsResponse) GetDocuments() []*Document {
@@ -1461,7 +1539,7 @@ type HistoricalVersion struct {
 
 func (x *HistoricalVersion) Reset() {
 	*x = HistoricalVersion{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[14]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1473,7 +1551,7 @@ func (x *HistoricalVersion) String() string {
 func (*HistoricalVersion) ProtoMessage() {}
 
 func (x *HistoricalVersion) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[14]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1486,7 +1564,7 @@ func (x *HistoricalVersion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HistoricalVersion.ProtoReflect.Descriptor instead.
 func (*HistoricalVersion) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{14}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *HistoricalVersion) GetId() *DocumentId {
@@ -1535,7 +1613,7 @@ type HistoricalGeneration struct {
 
 func (x *HistoricalGeneration) Reset() {
 	*x = HistoricalGeneration{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[15]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1547,7 +1625,7 @@ func (x *HistoricalGeneration) String() string {
 func (*HistoricalGeneration) ProtoMessage() {}
 
 func (x *HistoricalGeneration) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[15]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1560,7 +1638,7 @@ func (x *HistoricalGeneration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HistoricalGeneration.ProtoReflect.Descriptor instead.
 func (*HistoricalGeneration) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{15}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *HistoricalGeneration) GetGeneration() *ActiveGeneration {
@@ -1594,7 +1672,7 @@ type ListVersionsRequest struct {
 
 func (x *ListVersionsRequest) Reset() {
 	*x = ListVersionsRequest{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[16]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1606,7 +1684,7 @@ func (x *ListVersionsRequest) String() string {
 func (*ListVersionsRequest) ProtoMessage() {}
 
 func (x *ListVersionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[16]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1619,7 +1697,7 @@ func (x *ListVersionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListVersionsRequest.ProtoReflect.Descriptor instead.
 func (*ListVersionsRequest) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{16}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListVersionsRequest) GetId() *DocumentId {
@@ -1646,7 +1724,7 @@ type ListVersionsResponse struct {
 
 func (x *ListVersionsResponse) Reset() {
 	*x = ListVersionsResponse{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[17]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1658,7 +1736,7 @@ func (x *ListVersionsResponse) String() string {
 func (*ListVersionsResponse) ProtoMessage() {}
 
 func (x *ListVersionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[17]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1671,7 +1749,7 @@ func (x *ListVersionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListVersionsResponse.ProtoReflect.Descriptor instead.
 func (*ListVersionsResponse) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{17}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListVersionsResponse) GetVersions() []*HistoricalVersion {
@@ -1697,7 +1775,7 @@ type ListGenerationsRequest struct {
 
 func (x *ListGenerationsRequest) Reset() {
 	*x = ListGenerationsRequest{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[18]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1709,7 +1787,7 @@ func (x *ListGenerationsRequest) String() string {
 func (*ListGenerationsRequest) ProtoMessage() {}
 
 func (x *ListGenerationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[18]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1722,7 +1800,7 @@ func (x *ListGenerationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGenerationsRequest.ProtoReflect.Descriptor instead.
 func (*ListGenerationsRequest) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{18}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListGenerationsRequest) GetPage() *PageRequest {
@@ -1742,7 +1820,7 @@ type ListGenerationsResponse struct {
 
 func (x *ListGenerationsResponse) Reset() {
 	*x = ListGenerationsResponse{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[19]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1754,7 +1832,7 @@ func (x *ListGenerationsResponse) String() string {
 func (*ListGenerationsResponse) ProtoMessage() {}
 
 func (x *ListGenerationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[19]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1767,7 +1845,7 @@ func (x *ListGenerationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGenerationsResponse.ProtoReflect.Descriptor instead.
 func (*ListGenerationsResponse) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{19}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListGenerationsResponse) GetGenerations() []*HistoricalGeneration {
@@ -1798,7 +1876,7 @@ type Schema struct {
 
 func (x *Schema) Reset() {
 	*x = Schema{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[20]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1810,7 +1888,7 @@ func (x *Schema) String() string {
 func (*Schema) ProtoMessage() {}
 
 func (x *Schema) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[20]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1823,7 +1901,7 @@ func (x *Schema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Schema.ProtoReflect.Descriptor instead.
 func (*Schema) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{20}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Schema) GetKind() DocumentKind {
@@ -1863,7 +1941,7 @@ type ListSchemasRequest struct {
 
 func (x *ListSchemasRequest) Reset() {
 	*x = ListSchemasRequest{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[21]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1875,7 +1953,7 @@ func (x *ListSchemasRequest) String() string {
 func (*ListSchemasRequest) ProtoMessage() {}
 
 func (x *ListSchemasRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[21]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1888,7 +1966,7 @@ func (x *ListSchemasRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSchemasRequest.ProtoReflect.Descriptor instead.
 func (*ListSchemasRequest) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{21}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListSchemasRequest) GetPage() *PageRequest {
@@ -1908,7 +1986,7 @@ type ListSchemasResponse struct {
 
 func (x *ListSchemasResponse) Reset() {
 	*x = ListSchemasResponse{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[22]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1920,7 +1998,7 @@ func (x *ListSchemasResponse) String() string {
 func (*ListSchemasResponse) ProtoMessage() {}
 
 func (x *ListSchemasResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[22]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1933,7 +2011,7 @@ func (x *ListSchemasResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSchemasResponse.ProtoReflect.Descriptor instead.
 func (*ListSchemasResponse) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{22}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ListSchemasResponse) GetSchemas() []*Schema {
@@ -1966,7 +2044,7 @@ type WriteDocumentRequest struct {
 
 func (x *WriteDocumentRequest) Reset() {
 	*x = WriteDocumentRequest{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[23]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1978,7 +2056,7 @@ func (x *WriteDocumentRequest) String() string {
 func (*WriteDocumentRequest) ProtoMessage() {}
 
 func (x *WriteDocumentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[23]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1991,7 +2069,7 @@ func (x *WriteDocumentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteDocumentRequest.ProtoReflect.Descriptor instead.
 func (*WriteDocumentRequest) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{23}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *WriteDocumentRequest) GetId() *DocumentId {
@@ -2032,7 +2110,7 @@ type WriteDocumentResponse struct {
 
 func (x *WriteDocumentResponse) Reset() {
 	*x = WriteDocumentResponse{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[24]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2044,7 +2122,7 @@ func (x *WriteDocumentResponse) String() string {
 func (*WriteDocumentResponse) ProtoMessage() {}
 
 func (x *WriteDocumentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[24]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2057,7 +2135,7 @@ func (x *WriteDocumentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteDocumentResponse.ProtoReflect.Descriptor instead.
 func (*WriteDocumentResponse) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{24}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *WriteDocumentResponse) GetActivation() *ActivationResult {
@@ -2086,7 +2164,7 @@ type RestoreDocumentRequest struct {
 
 func (x *RestoreDocumentRequest) Reset() {
 	*x = RestoreDocumentRequest{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[25]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2098,7 +2176,7 @@ func (x *RestoreDocumentRequest) String() string {
 func (*RestoreDocumentRequest) ProtoMessage() {}
 
 func (x *RestoreDocumentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[25]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2111,7 +2189,7 @@ func (x *RestoreDocumentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreDocumentRequest.ProtoReflect.Descriptor instead.
 func (*RestoreDocumentRequest) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{25}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *RestoreDocumentRequest) GetId() *DocumentId {
@@ -2152,7 +2230,7 @@ type RestoreDocumentResponse struct {
 
 func (x *RestoreDocumentResponse) Reset() {
 	*x = RestoreDocumentResponse{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[26]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2164,7 +2242,7 @@ func (x *RestoreDocumentResponse) String() string {
 func (*RestoreDocumentResponse) ProtoMessage() {}
 
 func (x *RestoreDocumentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[26]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2177,7 +2255,7 @@ func (x *RestoreDocumentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreDocumentResponse.ProtoReflect.Descriptor instead.
 func (*RestoreDocumentResponse) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{26}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *RestoreDocumentResponse) GetActivation() *ActivationResult {
@@ -2208,7 +2286,7 @@ type DocumentChange struct {
 
 func (x *DocumentChange) Reset() {
 	*x = DocumentChange{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[27]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2220,7 +2298,7 @@ func (x *DocumentChange) String() string {
 func (*DocumentChange) ProtoMessage() {}
 
 func (x *DocumentChange) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[27]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2233,7 +2311,7 @@ func (x *DocumentChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DocumentChange.ProtoReflect.Descriptor instead.
 func (*DocumentChange) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{27}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DocumentChange) GetId() *DocumentId {
@@ -2274,7 +2352,7 @@ type ChangeBatch struct {
 
 func (x *ChangeBatch) Reset() {
 	*x = ChangeBatch{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[28]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2286,7 +2364,7 @@ func (x *ChangeBatch) String() string {
 func (*ChangeBatch) ProtoMessage() {}
 
 func (x *ChangeBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[28]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2299,7 +2377,7 @@ func (x *ChangeBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChangeBatch.ProtoReflect.Descriptor instead.
 func (*ChangeBatch) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{28}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ChangeBatch) GetChanges() []*DocumentChange {
@@ -2325,7 +2403,7 @@ type ResyncRequired struct {
 
 func (x *ResyncRequired) Reset() {
 	*x = ResyncRequired{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[29]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2337,7 +2415,7 @@ func (x *ResyncRequired) String() string {
 func (*ResyncRequired) ProtoMessage() {}
 
 func (x *ResyncRequired) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[29]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2350,7 +2428,7 @@ func (x *ResyncRequired) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResyncRequired.ProtoReflect.Descriptor instead.
 func (*ResyncRequired) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{29}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ResyncRequired) GetReason() ResyncReason {
@@ -2369,7 +2447,7 @@ type WatchReady struct {
 
 func (x *WatchReady) Reset() {
 	*x = WatchReady{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[30]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2381,7 +2459,7 @@ func (x *WatchReady) String() string {
 func (*WatchReady) ProtoMessage() {}
 
 func (x *WatchReady) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[30]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2394,7 +2472,7 @@ func (x *WatchReady) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchReady.ProtoReflect.Descriptor instead.
 func (*WatchReady) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{30}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *WatchReady) GetResumeToken() string {
@@ -2413,7 +2491,7 @@ type WatchConfigurationRequest struct {
 
 func (x *WatchConfigurationRequest) Reset() {
 	*x = WatchConfigurationRequest{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[31]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2425,7 +2503,7 @@ func (x *WatchConfigurationRequest) String() string {
 func (*WatchConfigurationRequest) ProtoMessage() {}
 
 func (x *WatchConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[31]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2438,7 +2516,7 @@ func (x *WatchConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*WatchConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{31}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *WatchConfigurationRequest) GetResumeToken() string {
@@ -2462,7 +2540,7 @@ type WatchConfigurationResponse struct {
 
 func (x *WatchConfigurationResponse) Reset() {
 	*x = WatchConfigurationResponse{}
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[32]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2474,7 +2552,7 @@ func (x *WatchConfigurationResponse) String() string {
 func (*WatchConfigurationResponse) ProtoMessage() {}
 
 func (x *WatchConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_configuration_v1_configuration_proto_msgTypes[32]
+	mi := &file_home_configuration_v1_configuration_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2487,7 +2565,7 @@ func (x *WatchConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*WatchConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{32}
+	return file_home_configuration_v1_configuration_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *WatchConfigurationResponse) GetResult() isWatchConfigurationResponse_Result {
@@ -2561,12 +2639,21 @@ const file_home_configuration_v1_configuration_proto_rawDesc = "" +
 	"\rsource_sha256\x18\x02 \x01(\fR\fsourceSha256\"W\n" +
 	"\x10ActiveGeneration\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x03R\brevision\x12'\n" +
-	"\x0fmanifest_sha256\x18\x02 \x01(\fR\x0emanifestSha256\"\xaf\x01\n" +
+	"\x0fmanifest_sha256\x18\x02 \x01(\fR\x0emanifestSha256\"\xfb\x01\n" +
 	"\x14WorkspaceObservation\x12#\n" +
 	"\rsource_sha256\x18\x01 \x01(\fR\fsourceSha256\x129\n" +
 	"\n" +
 	"updated_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x127\n" +
-	"\x05dirty\x18\x03 \x01(\x0e2!.home.configuration.v1.DirtyStateR\x05dirty\"_\n" +
+	"\x05dirty\x18\x03 \x01(\x0e2!.home.configuration.v1.DirtyStateR\x05dirty\x12J\n" +
+	"\n" +
+	"diagnostic\x18\x04 \x01(\v2*.home.configuration.v1.WorkspaceDiagnosticR\n" +
+	"diagnostic\"\x82\x02\n" +
+	"\x13WorkspaceDiagnostic\x12=\n" +
+	"\bdocument\x18\x01 \x01(\v2!.home.configuration.v1.DocumentIdR\bdocument\x124\n" +
+	"\x16observed_source_sha256\x18\x02 \x01(\fR\x14observedSourceSha256\x12;\n" +
+	"\vobserved_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"observedAt\x129\n" +
+	"\x04code\x18\x04 \x01(\x0e2%.home.configuration.v1.DiagnosticCodeR\x04code\"_\n" +
 	"\x13WorkspaceUnobserved\x12H\n" +
 	"\x06reason\x18\x01 \x01(\x0e20.home.configuration.v1.WorkspaceUnobservedReasonR\x06reason\"\xd8\x04\n" +
 	"\bDocument\x121\n" +
@@ -2778,7 +2865,7 @@ func file_home_configuration_v1_configuration_proto_rawDescGZIP() []byte {
 }
 
 var file_home_configuration_v1_configuration_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_home_configuration_v1_configuration_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_home_configuration_v1_configuration_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_home_configuration_v1_configuration_proto_goTypes = []any{
 	(DocumentKind)(0),                  // 0: home.configuration.v1.DocumentKind
 	(DirtyState)(0),                    // 1: home.configuration.v1.DirtyState
@@ -2794,116 +2881,121 @@ var file_home_configuration_v1_configuration_proto_goTypes = []any{
 	(*DocumentVersion)(nil),            // 11: home.configuration.v1.DocumentVersion
 	(*ActiveGeneration)(nil),           // 12: home.configuration.v1.ActiveGeneration
 	(*WorkspaceObservation)(nil),       // 13: home.configuration.v1.WorkspaceObservation
-	(*WorkspaceUnobserved)(nil),        // 14: home.configuration.v1.WorkspaceUnobserved
-	(*Document)(nil),                   // 15: home.configuration.v1.Document
-	(*ConfigurationError)(nil),         // 16: home.configuration.v1.ConfigurationError
-	(*ActivationResult)(nil),           // 17: home.configuration.v1.ActivationResult
-	(*ReadDocumentRequest)(nil),        // 18: home.configuration.v1.ReadDocumentRequest
-	(*ReadDocumentResponse)(nil),       // 19: home.configuration.v1.ReadDocumentResponse
-	(*PageRequest)(nil),                // 20: home.configuration.v1.PageRequest
-	(*PageContinuation)(nil),           // 21: home.configuration.v1.PageContinuation
-	(*ListDocumentsRequest)(nil),       // 22: home.configuration.v1.ListDocumentsRequest
-	(*ListDocumentsResponse)(nil),      // 23: home.configuration.v1.ListDocumentsResponse
-	(*HistoricalVersion)(nil),          // 24: home.configuration.v1.HistoricalVersion
-	(*HistoricalGeneration)(nil),       // 25: home.configuration.v1.HistoricalGeneration
-	(*ListVersionsRequest)(nil),        // 26: home.configuration.v1.ListVersionsRequest
-	(*ListVersionsResponse)(nil),       // 27: home.configuration.v1.ListVersionsResponse
-	(*ListGenerationsRequest)(nil),     // 28: home.configuration.v1.ListGenerationsRequest
-	(*ListGenerationsResponse)(nil),    // 29: home.configuration.v1.ListGenerationsResponse
-	(*Schema)(nil),                     // 30: home.configuration.v1.Schema
-	(*ListSchemasRequest)(nil),         // 31: home.configuration.v1.ListSchemasRequest
-	(*ListSchemasResponse)(nil),        // 32: home.configuration.v1.ListSchemasResponse
-	(*WriteDocumentRequest)(nil),       // 33: home.configuration.v1.WriteDocumentRequest
-	(*WriteDocumentResponse)(nil),      // 34: home.configuration.v1.WriteDocumentResponse
-	(*RestoreDocumentRequest)(nil),     // 35: home.configuration.v1.RestoreDocumentRequest
-	(*RestoreDocumentResponse)(nil),    // 36: home.configuration.v1.RestoreDocumentResponse
-	(*DocumentChange)(nil),             // 37: home.configuration.v1.DocumentChange
-	(*ChangeBatch)(nil),                // 38: home.configuration.v1.ChangeBatch
-	(*ResyncRequired)(nil),             // 39: home.configuration.v1.ResyncRequired
-	(*WatchReady)(nil),                 // 40: home.configuration.v1.WatchReady
-	(*WatchConfigurationRequest)(nil),  // 41: home.configuration.v1.WatchConfigurationRequest
-	(*WatchConfigurationResponse)(nil), // 42: home.configuration.v1.WatchConfigurationResponse
-	(*timestamppb.Timestamp)(nil),      // 43: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),              // 44: google.protobuf.Empty
+	(*WorkspaceDiagnostic)(nil),        // 14: home.configuration.v1.WorkspaceDiagnostic
+	(*WorkspaceUnobserved)(nil),        // 15: home.configuration.v1.WorkspaceUnobserved
+	(*Document)(nil),                   // 16: home.configuration.v1.Document
+	(*ConfigurationError)(nil),         // 17: home.configuration.v1.ConfigurationError
+	(*ActivationResult)(nil),           // 18: home.configuration.v1.ActivationResult
+	(*ReadDocumentRequest)(nil),        // 19: home.configuration.v1.ReadDocumentRequest
+	(*ReadDocumentResponse)(nil),       // 20: home.configuration.v1.ReadDocumentResponse
+	(*PageRequest)(nil),                // 21: home.configuration.v1.PageRequest
+	(*PageContinuation)(nil),           // 22: home.configuration.v1.PageContinuation
+	(*ListDocumentsRequest)(nil),       // 23: home.configuration.v1.ListDocumentsRequest
+	(*ListDocumentsResponse)(nil),      // 24: home.configuration.v1.ListDocumentsResponse
+	(*HistoricalVersion)(nil),          // 25: home.configuration.v1.HistoricalVersion
+	(*HistoricalGeneration)(nil),       // 26: home.configuration.v1.HistoricalGeneration
+	(*ListVersionsRequest)(nil),        // 27: home.configuration.v1.ListVersionsRequest
+	(*ListVersionsResponse)(nil),       // 28: home.configuration.v1.ListVersionsResponse
+	(*ListGenerationsRequest)(nil),     // 29: home.configuration.v1.ListGenerationsRequest
+	(*ListGenerationsResponse)(nil),    // 30: home.configuration.v1.ListGenerationsResponse
+	(*Schema)(nil),                     // 31: home.configuration.v1.Schema
+	(*ListSchemasRequest)(nil),         // 32: home.configuration.v1.ListSchemasRequest
+	(*ListSchemasResponse)(nil),        // 33: home.configuration.v1.ListSchemasResponse
+	(*WriteDocumentRequest)(nil),       // 34: home.configuration.v1.WriteDocumentRequest
+	(*WriteDocumentResponse)(nil),      // 35: home.configuration.v1.WriteDocumentResponse
+	(*RestoreDocumentRequest)(nil),     // 36: home.configuration.v1.RestoreDocumentRequest
+	(*RestoreDocumentResponse)(nil),    // 37: home.configuration.v1.RestoreDocumentResponse
+	(*DocumentChange)(nil),             // 38: home.configuration.v1.DocumentChange
+	(*ChangeBatch)(nil),                // 39: home.configuration.v1.ChangeBatch
+	(*ResyncRequired)(nil),             // 40: home.configuration.v1.ResyncRequired
+	(*WatchReady)(nil),                 // 41: home.configuration.v1.WatchReady
+	(*WatchConfigurationRequest)(nil),  // 42: home.configuration.v1.WatchConfigurationRequest
+	(*WatchConfigurationResponse)(nil), // 43: home.configuration.v1.WatchConfigurationResponse
+	(*timestamppb.Timestamp)(nil),      // 44: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),              // 45: google.protobuf.Empty
 }
 var file_home_configuration_v1_configuration_proto_depIdxs = []int32{
-	43, // 0: home.configuration.v1.WorkspaceObservation.updated_at:type_name -> google.protobuf.Timestamp
+	44, // 0: home.configuration.v1.WorkspaceObservation.updated_at:type_name -> google.protobuf.Timestamp
 	1,  // 1: home.configuration.v1.WorkspaceObservation.dirty:type_name -> home.configuration.v1.DirtyState
-	2,  // 2: home.configuration.v1.WorkspaceUnobserved.reason:type_name -> home.configuration.v1.WorkspaceUnobservedReason
-	10, // 3: home.configuration.v1.Document.id:type_name -> home.configuration.v1.DocumentId
-	0,  // 4: home.configuration.v1.Document.kind:type_name -> home.configuration.v1.DocumentKind
-	11, // 5: home.configuration.v1.Document.version:type_name -> home.configuration.v1.DocumentVersion
-	43, // 6: home.configuration.v1.Document.updated_at:type_name -> google.protobuf.Timestamp
-	13, // 7: home.configuration.v1.Document.workspace:type_name -> home.configuration.v1.WorkspaceObservation
-	14, // 8: home.configuration.v1.Document.workspace_unobserved:type_name -> home.configuration.v1.WorkspaceUnobserved
-	3,  // 9: home.configuration.v1.ConfigurationError.code:type_name -> home.configuration.v1.ErrorCode
-	11, // 10: home.configuration.v1.ConfigurationError.current:type_name -> home.configuration.v1.DocumentVersion
-	4,  // 11: home.configuration.v1.ActivationResult.outcome:type_name -> home.configuration.v1.ActivationOutcome
-	5,  // 12: home.configuration.v1.ActivationResult.transaction:type_name -> home.configuration.v1.TransactionOutcome
-	6,  // 13: home.configuration.v1.ActivationResult.diagnostics:type_name -> home.configuration.v1.DiagnosticCode
-	10, // 14: home.configuration.v1.ReadDocumentRequest.id:type_name -> home.configuration.v1.DocumentId
-	15, // 15: home.configuration.v1.ReadDocumentResponse.document:type_name -> home.configuration.v1.Document
-	12, // 16: home.configuration.v1.ReadDocumentResponse.active_generation:type_name -> home.configuration.v1.ActiveGeneration
-	44, // 17: home.configuration.v1.PageContinuation.complete:type_name -> google.protobuf.Empty
-	20, // 18: home.configuration.v1.ListDocumentsRequest.page:type_name -> home.configuration.v1.PageRequest
-	15, // 19: home.configuration.v1.ListDocumentsResponse.documents:type_name -> home.configuration.v1.Document
-	21, // 20: home.configuration.v1.ListDocumentsResponse.continuation:type_name -> home.configuration.v1.PageContinuation
-	10, // 21: home.configuration.v1.HistoricalVersion.id:type_name -> home.configuration.v1.DocumentId
-	11, // 22: home.configuration.v1.HistoricalVersion.version:type_name -> home.configuration.v1.DocumentVersion
-	7,  // 23: home.configuration.v1.HistoricalVersion.availability:type_name -> home.configuration.v1.VersionAvailability
-	43, // 24: home.configuration.v1.HistoricalVersion.updated_at:type_name -> google.protobuf.Timestamp
-	12, // 25: home.configuration.v1.HistoricalGeneration.generation:type_name -> home.configuration.v1.ActiveGeneration
-	8,  // 26: home.configuration.v1.HistoricalGeneration.availability:type_name -> home.configuration.v1.GenerationAvailability
-	43, // 27: home.configuration.v1.HistoricalGeneration.created_at:type_name -> google.protobuf.Timestamp
-	10, // 28: home.configuration.v1.ListVersionsRequest.id:type_name -> home.configuration.v1.DocumentId
-	20, // 29: home.configuration.v1.ListVersionsRequest.page:type_name -> home.configuration.v1.PageRequest
-	24, // 30: home.configuration.v1.ListVersionsResponse.versions:type_name -> home.configuration.v1.HistoricalVersion
-	21, // 31: home.configuration.v1.ListVersionsResponse.continuation:type_name -> home.configuration.v1.PageContinuation
-	20, // 32: home.configuration.v1.ListGenerationsRequest.page:type_name -> home.configuration.v1.PageRequest
-	25, // 33: home.configuration.v1.ListGenerationsResponse.generations:type_name -> home.configuration.v1.HistoricalGeneration
-	21, // 34: home.configuration.v1.ListGenerationsResponse.continuation:type_name -> home.configuration.v1.PageContinuation
-	0,  // 35: home.configuration.v1.Schema.kind:type_name -> home.configuration.v1.DocumentKind
-	20, // 36: home.configuration.v1.ListSchemasRequest.page:type_name -> home.configuration.v1.PageRequest
-	30, // 37: home.configuration.v1.ListSchemasResponse.schemas:type_name -> home.configuration.v1.Schema
-	21, // 38: home.configuration.v1.ListSchemasResponse.continuation:type_name -> home.configuration.v1.PageContinuation
-	10, // 39: home.configuration.v1.WriteDocumentRequest.id:type_name -> home.configuration.v1.DocumentId
-	11, // 40: home.configuration.v1.WriteDocumentRequest.expected:type_name -> home.configuration.v1.DocumentVersion
-	17, // 41: home.configuration.v1.WriteDocumentResponse.activation:type_name -> home.configuration.v1.ActivationResult
-	19, // 42: home.configuration.v1.WriteDocumentResponse.current:type_name -> home.configuration.v1.ReadDocumentResponse
-	10, // 43: home.configuration.v1.RestoreDocumentRequest.id:type_name -> home.configuration.v1.DocumentId
-	11, // 44: home.configuration.v1.RestoreDocumentRequest.expected:type_name -> home.configuration.v1.DocumentVersion
-	12, // 45: home.configuration.v1.RestoreDocumentRequest.historical:type_name -> home.configuration.v1.ActiveGeneration
-	17, // 46: home.configuration.v1.RestoreDocumentResponse.activation:type_name -> home.configuration.v1.ActivationResult
-	19, // 47: home.configuration.v1.RestoreDocumentResponse.current:type_name -> home.configuration.v1.ReadDocumentResponse
-	10, // 48: home.configuration.v1.DocumentChange.id:type_name -> home.configuration.v1.DocumentId
-	11, // 49: home.configuration.v1.DocumentChange.version:type_name -> home.configuration.v1.DocumentVersion
-	1,  // 50: home.configuration.v1.DocumentChange.dirty:type_name -> home.configuration.v1.DirtyState
-	37, // 51: home.configuration.v1.ChangeBatch.changes:type_name -> home.configuration.v1.DocumentChange
-	9,  // 52: home.configuration.v1.ResyncRequired.reason:type_name -> home.configuration.v1.ResyncReason
-	38, // 53: home.configuration.v1.WatchConfigurationResponse.changes:type_name -> home.configuration.v1.ChangeBatch
-	39, // 54: home.configuration.v1.WatchConfigurationResponse.resync_required:type_name -> home.configuration.v1.ResyncRequired
-	40, // 55: home.configuration.v1.WatchConfigurationResponse.ready:type_name -> home.configuration.v1.WatchReady
-	18, // 56: home.configuration.v1.ConfigurationService.ReadDocument:input_type -> home.configuration.v1.ReadDocumentRequest
-	22, // 57: home.configuration.v1.ConfigurationService.ListDocuments:input_type -> home.configuration.v1.ListDocumentsRequest
-	26, // 58: home.configuration.v1.ConfigurationService.ListVersions:input_type -> home.configuration.v1.ListVersionsRequest
-	28, // 59: home.configuration.v1.ConfigurationService.ListGenerations:input_type -> home.configuration.v1.ListGenerationsRequest
-	31, // 60: home.configuration.v1.ConfigurationService.ListSchemas:input_type -> home.configuration.v1.ListSchemasRequest
-	33, // 61: home.configuration.v1.ConfigurationService.WriteDocument:input_type -> home.configuration.v1.WriteDocumentRequest
-	35, // 62: home.configuration.v1.ConfigurationService.RestoreDocument:input_type -> home.configuration.v1.RestoreDocumentRequest
-	41, // 63: home.configuration.v1.ConfigurationService.WatchConfiguration:input_type -> home.configuration.v1.WatchConfigurationRequest
-	19, // 64: home.configuration.v1.ConfigurationService.ReadDocument:output_type -> home.configuration.v1.ReadDocumentResponse
-	23, // 65: home.configuration.v1.ConfigurationService.ListDocuments:output_type -> home.configuration.v1.ListDocumentsResponse
-	27, // 66: home.configuration.v1.ConfigurationService.ListVersions:output_type -> home.configuration.v1.ListVersionsResponse
-	29, // 67: home.configuration.v1.ConfigurationService.ListGenerations:output_type -> home.configuration.v1.ListGenerationsResponse
-	32, // 68: home.configuration.v1.ConfigurationService.ListSchemas:output_type -> home.configuration.v1.ListSchemasResponse
-	34, // 69: home.configuration.v1.ConfigurationService.WriteDocument:output_type -> home.configuration.v1.WriteDocumentResponse
-	36, // 70: home.configuration.v1.ConfigurationService.RestoreDocument:output_type -> home.configuration.v1.RestoreDocumentResponse
-	42, // 71: home.configuration.v1.ConfigurationService.WatchConfiguration:output_type -> home.configuration.v1.WatchConfigurationResponse
-	64, // [64:72] is the sub-list for method output_type
-	56, // [56:64] is the sub-list for method input_type
-	56, // [56:56] is the sub-list for extension type_name
-	56, // [56:56] is the sub-list for extension extendee
-	0,  // [0:56] is the sub-list for field type_name
+	14, // 2: home.configuration.v1.WorkspaceObservation.diagnostic:type_name -> home.configuration.v1.WorkspaceDiagnostic
+	10, // 3: home.configuration.v1.WorkspaceDiagnostic.document:type_name -> home.configuration.v1.DocumentId
+	44, // 4: home.configuration.v1.WorkspaceDiagnostic.observed_at:type_name -> google.protobuf.Timestamp
+	6,  // 5: home.configuration.v1.WorkspaceDiagnostic.code:type_name -> home.configuration.v1.DiagnosticCode
+	2,  // 6: home.configuration.v1.WorkspaceUnobserved.reason:type_name -> home.configuration.v1.WorkspaceUnobservedReason
+	10, // 7: home.configuration.v1.Document.id:type_name -> home.configuration.v1.DocumentId
+	0,  // 8: home.configuration.v1.Document.kind:type_name -> home.configuration.v1.DocumentKind
+	11, // 9: home.configuration.v1.Document.version:type_name -> home.configuration.v1.DocumentVersion
+	44, // 10: home.configuration.v1.Document.updated_at:type_name -> google.protobuf.Timestamp
+	13, // 11: home.configuration.v1.Document.workspace:type_name -> home.configuration.v1.WorkspaceObservation
+	15, // 12: home.configuration.v1.Document.workspace_unobserved:type_name -> home.configuration.v1.WorkspaceUnobserved
+	3,  // 13: home.configuration.v1.ConfigurationError.code:type_name -> home.configuration.v1.ErrorCode
+	11, // 14: home.configuration.v1.ConfigurationError.current:type_name -> home.configuration.v1.DocumentVersion
+	4,  // 15: home.configuration.v1.ActivationResult.outcome:type_name -> home.configuration.v1.ActivationOutcome
+	5,  // 16: home.configuration.v1.ActivationResult.transaction:type_name -> home.configuration.v1.TransactionOutcome
+	6,  // 17: home.configuration.v1.ActivationResult.diagnostics:type_name -> home.configuration.v1.DiagnosticCode
+	10, // 18: home.configuration.v1.ReadDocumentRequest.id:type_name -> home.configuration.v1.DocumentId
+	16, // 19: home.configuration.v1.ReadDocumentResponse.document:type_name -> home.configuration.v1.Document
+	12, // 20: home.configuration.v1.ReadDocumentResponse.active_generation:type_name -> home.configuration.v1.ActiveGeneration
+	45, // 21: home.configuration.v1.PageContinuation.complete:type_name -> google.protobuf.Empty
+	21, // 22: home.configuration.v1.ListDocumentsRequest.page:type_name -> home.configuration.v1.PageRequest
+	16, // 23: home.configuration.v1.ListDocumentsResponse.documents:type_name -> home.configuration.v1.Document
+	22, // 24: home.configuration.v1.ListDocumentsResponse.continuation:type_name -> home.configuration.v1.PageContinuation
+	10, // 25: home.configuration.v1.HistoricalVersion.id:type_name -> home.configuration.v1.DocumentId
+	11, // 26: home.configuration.v1.HistoricalVersion.version:type_name -> home.configuration.v1.DocumentVersion
+	7,  // 27: home.configuration.v1.HistoricalVersion.availability:type_name -> home.configuration.v1.VersionAvailability
+	44, // 28: home.configuration.v1.HistoricalVersion.updated_at:type_name -> google.protobuf.Timestamp
+	12, // 29: home.configuration.v1.HistoricalGeneration.generation:type_name -> home.configuration.v1.ActiveGeneration
+	8,  // 30: home.configuration.v1.HistoricalGeneration.availability:type_name -> home.configuration.v1.GenerationAvailability
+	44, // 31: home.configuration.v1.HistoricalGeneration.created_at:type_name -> google.protobuf.Timestamp
+	10, // 32: home.configuration.v1.ListVersionsRequest.id:type_name -> home.configuration.v1.DocumentId
+	21, // 33: home.configuration.v1.ListVersionsRequest.page:type_name -> home.configuration.v1.PageRequest
+	25, // 34: home.configuration.v1.ListVersionsResponse.versions:type_name -> home.configuration.v1.HistoricalVersion
+	22, // 35: home.configuration.v1.ListVersionsResponse.continuation:type_name -> home.configuration.v1.PageContinuation
+	21, // 36: home.configuration.v1.ListGenerationsRequest.page:type_name -> home.configuration.v1.PageRequest
+	26, // 37: home.configuration.v1.ListGenerationsResponse.generations:type_name -> home.configuration.v1.HistoricalGeneration
+	22, // 38: home.configuration.v1.ListGenerationsResponse.continuation:type_name -> home.configuration.v1.PageContinuation
+	0,  // 39: home.configuration.v1.Schema.kind:type_name -> home.configuration.v1.DocumentKind
+	21, // 40: home.configuration.v1.ListSchemasRequest.page:type_name -> home.configuration.v1.PageRequest
+	31, // 41: home.configuration.v1.ListSchemasResponse.schemas:type_name -> home.configuration.v1.Schema
+	22, // 42: home.configuration.v1.ListSchemasResponse.continuation:type_name -> home.configuration.v1.PageContinuation
+	10, // 43: home.configuration.v1.WriteDocumentRequest.id:type_name -> home.configuration.v1.DocumentId
+	11, // 44: home.configuration.v1.WriteDocumentRequest.expected:type_name -> home.configuration.v1.DocumentVersion
+	18, // 45: home.configuration.v1.WriteDocumentResponse.activation:type_name -> home.configuration.v1.ActivationResult
+	20, // 46: home.configuration.v1.WriteDocumentResponse.current:type_name -> home.configuration.v1.ReadDocumentResponse
+	10, // 47: home.configuration.v1.RestoreDocumentRequest.id:type_name -> home.configuration.v1.DocumentId
+	11, // 48: home.configuration.v1.RestoreDocumentRequest.expected:type_name -> home.configuration.v1.DocumentVersion
+	12, // 49: home.configuration.v1.RestoreDocumentRequest.historical:type_name -> home.configuration.v1.ActiveGeneration
+	18, // 50: home.configuration.v1.RestoreDocumentResponse.activation:type_name -> home.configuration.v1.ActivationResult
+	20, // 51: home.configuration.v1.RestoreDocumentResponse.current:type_name -> home.configuration.v1.ReadDocumentResponse
+	10, // 52: home.configuration.v1.DocumentChange.id:type_name -> home.configuration.v1.DocumentId
+	11, // 53: home.configuration.v1.DocumentChange.version:type_name -> home.configuration.v1.DocumentVersion
+	1,  // 54: home.configuration.v1.DocumentChange.dirty:type_name -> home.configuration.v1.DirtyState
+	38, // 55: home.configuration.v1.ChangeBatch.changes:type_name -> home.configuration.v1.DocumentChange
+	9,  // 56: home.configuration.v1.ResyncRequired.reason:type_name -> home.configuration.v1.ResyncReason
+	39, // 57: home.configuration.v1.WatchConfigurationResponse.changes:type_name -> home.configuration.v1.ChangeBatch
+	40, // 58: home.configuration.v1.WatchConfigurationResponse.resync_required:type_name -> home.configuration.v1.ResyncRequired
+	41, // 59: home.configuration.v1.WatchConfigurationResponse.ready:type_name -> home.configuration.v1.WatchReady
+	19, // 60: home.configuration.v1.ConfigurationService.ReadDocument:input_type -> home.configuration.v1.ReadDocumentRequest
+	23, // 61: home.configuration.v1.ConfigurationService.ListDocuments:input_type -> home.configuration.v1.ListDocumentsRequest
+	27, // 62: home.configuration.v1.ConfigurationService.ListVersions:input_type -> home.configuration.v1.ListVersionsRequest
+	29, // 63: home.configuration.v1.ConfigurationService.ListGenerations:input_type -> home.configuration.v1.ListGenerationsRequest
+	32, // 64: home.configuration.v1.ConfigurationService.ListSchemas:input_type -> home.configuration.v1.ListSchemasRequest
+	34, // 65: home.configuration.v1.ConfigurationService.WriteDocument:input_type -> home.configuration.v1.WriteDocumentRequest
+	36, // 66: home.configuration.v1.ConfigurationService.RestoreDocument:input_type -> home.configuration.v1.RestoreDocumentRequest
+	42, // 67: home.configuration.v1.ConfigurationService.WatchConfiguration:input_type -> home.configuration.v1.WatchConfigurationRequest
+	20, // 68: home.configuration.v1.ConfigurationService.ReadDocument:output_type -> home.configuration.v1.ReadDocumentResponse
+	24, // 69: home.configuration.v1.ConfigurationService.ListDocuments:output_type -> home.configuration.v1.ListDocumentsResponse
+	28, // 70: home.configuration.v1.ConfigurationService.ListVersions:output_type -> home.configuration.v1.ListVersionsResponse
+	30, // 71: home.configuration.v1.ConfigurationService.ListGenerations:output_type -> home.configuration.v1.ListGenerationsResponse
+	33, // 72: home.configuration.v1.ConfigurationService.ListSchemas:output_type -> home.configuration.v1.ListSchemasResponse
+	35, // 73: home.configuration.v1.ConfigurationService.WriteDocument:output_type -> home.configuration.v1.WriteDocumentResponse
+	37, // 74: home.configuration.v1.ConfigurationService.RestoreDocument:output_type -> home.configuration.v1.RestoreDocumentResponse
+	43, // 75: home.configuration.v1.ConfigurationService.WatchConfiguration:output_type -> home.configuration.v1.WatchConfigurationResponse
+	68, // [68:76] is the sub-list for method output_type
+	60, // [60:68] is the sub-list for method input_type
+	60, // [60:60] is the sub-list for extension type_name
+	60, // [60:60] is the sub-list for extension extendee
+	0,  // [0:60] is the sub-list for field type_name
 }
 
 func init() { file_home_configuration_v1_configuration_proto_init() }
@@ -2911,18 +3003,18 @@ func file_home_configuration_v1_configuration_proto_init() {
 	if File_home_configuration_v1_configuration_proto != nil {
 		return
 	}
-	file_home_configuration_v1_configuration_proto_msgTypes[5].OneofWrappers = []any{
+	file_home_configuration_v1_configuration_proto_msgTypes[6].OneofWrappers = []any{
 		(*Document_Workspace)(nil),
 		(*Document_WorkspaceUnobserved)(nil),
 	}
-	file_home_configuration_v1_configuration_proto_msgTypes[7].OneofWrappers = []any{}
-	file_home_configuration_v1_configuration_proto_msgTypes[10].OneofWrappers = []any{}
-	file_home_configuration_v1_configuration_proto_msgTypes[11].OneofWrappers = []any{
+	file_home_configuration_v1_configuration_proto_msgTypes[8].OneofWrappers = []any{}
+	file_home_configuration_v1_configuration_proto_msgTypes[11].OneofWrappers = []any{}
+	file_home_configuration_v1_configuration_proto_msgTypes[12].OneofWrappers = []any{
 		(*PageContinuation_NextPageToken)(nil),
 		(*PageContinuation_Complete)(nil),
 	}
-	file_home_configuration_v1_configuration_proto_msgTypes[27].OneofWrappers = []any{}
-	file_home_configuration_v1_configuration_proto_msgTypes[32].OneofWrappers = []any{
+	file_home_configuration_v1_configuration_proto_msgTypes[28].OneofWrappers = []any{}
+	file_home_configuration_v1_configuration_proto_msgTypes[33].OneofWrappers = []any{
 		(*WatchConfigurationResponse_Changes)(nil),
 		(*WatchConfigurationResponse_ResyncRequired)(nil),
 		(*WatchConfigurationResponse_Ready)(nil),
@@ -2933,7 +3025,7 @@ func file_home_configuration_v1_configuration_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_configuration_v1_configuration_proto_rawDesc), len(file_home_configuration_v1_configuration_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   33,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

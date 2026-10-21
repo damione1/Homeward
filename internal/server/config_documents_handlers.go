@@ -197,7 +197,11 @@ func (h *configDocumentsHandler) documentWire(document storage.ConfigDocumentMet
 		hash, present := observation.SHA256()
 		if present {
 			updated, _ := observation.UpdatedAt()
-			result.WorkspaceState = &wire.Document_Workspace{Workspace: &wire.WorkspaceObservation{SourceSha256: append([]byte(nil), hash[:]...), UpdatedAt: timestamppb.New(updated), Dirty: configDirty(snapshot.Dirty())}}
+			workspace := &wire.WorkspaceObservation{SourceSha256: append([]byte(nil), hash[:]...), UpdatedAt: timestamppb.New(updated), Dirty: configDirty(snapshot.Dirty())}
+			if diagnostic, ok := snapshot.Diagnostic(); ok {
+				workspace.Diagnostic = configWorkspaceDiagnostic(diagnostic)
+			}
+			result.WorkspaceState = &wire.Document_Workspace{Workspace: workspace}
 		} else if snapshot.Dirty() == configdocuments.DirtyUnavailable {
 			result.WorkspaceState = &wire.Document_WorkspaceUnobserved{WorkspaceUnobserved: &wire.WorkspaceUnobserved{Reason: wire.WorkspaceUnobservedReason_WORKSPACE_UNOBSERVED_REASON_SOURCE_UNAVAILABLE}}
 		}
