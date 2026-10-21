@@ -39,7 +39,7 @@ func authorizationComposition(ctx context.Context, c *sessionCoordinator, source
 	if c == nil || c.authority == nil || source == nil {
 		return nil, authorization.ErrInvalid
 	}
-	snapshot, err := source.Capture()
+	snapshot, err := source.CaptureBounded(view.MaxSnapshotBytes)
 	if err != nil {
 		return nil, err
 	}

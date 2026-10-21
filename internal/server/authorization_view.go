@@ -48,7 +48,7 @@ func (a *policyViewAuthorizer) CurrentGrant(ctx context.Context, actor view.Acto
 	if err := current.AdmitRoute(permission); err != nil {
 		return view.Grant{}, err
 	}
-	snapshot, err := a.source.Capture()
+	snapshot, err := a.source.CaptureBounded(view.MaxSnapshotBytes)
 	if err != nil {
 		return view.Grant{}, err
 	}

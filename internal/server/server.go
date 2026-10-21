@@ -366,7 +366,12 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	}
 	if activation != nil {
 		defer activation.BeginClose()
-		if commandComposition != nil {
+		if commandComposition == nil {
+			commandComposition, err = NewDurableCommandsComposition(DurableCommandsInput{Generation: activation, Clock: realSessionClock{}})
+			if err != nil {
+				return closeStoreWithRecorder(store, recording, err)
+			}
+		} else {
 			commandComposition.generation = activation
 		}
 		if plan.ReactiveTemplates == nil {
@@ -615,6 +620,17 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
+	}
+	if activation != nil {
+		core, coreErr := prepareCoreRPC(ctx, sessions, sequence, plan.Identity, activation, commands)
+		if coreErr == nil {
+			coreErr = registerCoreRPCRoutes(plan.Public, core)
+		}
+		if coreErr != nil {
+			return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+				return closeListPrepared(stopCtx, coreErr, nil, triggerDone)
+			})
+		}
 	}
 	historyReads, historyReadErr := newHistoryRuntime(store, sessions.authority, sequence, activation.CurrentConfig)
 	if historyReadErr == nil {
