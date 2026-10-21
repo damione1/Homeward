@@ -118,7 +118,7 @@ type Service struct {
 }
 
 func NewService(catalogue Catalogue, capture CaptureSource, generation integrations.GenerationAuthority, commands CommandPort, clock Clock) (*Service, error) {
-	if len(catalogue.definitions) != 12 || nilPort(capture) || nilPort(generation) || nilPort(commands) || nilPort(clock) {
+	if !catalogue.valid() || nilPort(capture) || nilPort(generation) || nilPort(commands) || nilPort(clock) {
 		return nil, ErrInvalidScene
 	}
 	return &Service{catalogue: catalogue, capture: capture, generation: generation,

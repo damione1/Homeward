@@ -100,6 +100,34 @@ func (s Selection) DispositionFor(id domain.HAAlias) (Disposition, bool) {
 	return value, ok
 }
 
+// Entry is one admitted identity in the frozen partition. It grants neither
+// execution support nor activation. Its zero value has no valid identity.
+type Entry struct {
+	id          domain.HAAlias
+	disposition Disposition
+}
+
+func (e Entry) ID() domain.HAAlias       { return e.id }
+func (e Entry) Disposition() Disposition { return e.disposition }
+
+// Entries returns an independently owned, stable view of all 89 decisions.
+// Callers must not parse a second copy of the selection to enumerate deferrals.
+func (s Selection) Entries() []Entry {
+	if !s.valid {
+		return nil
+	}
+	entries := make([]Entry, 0, len(s.byID))
+	for id, disposition := range s.byID {
+		entries = append(entries, Entry{id: id, disposition: disposition})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		a, _ := entries[i].id.Value()
+		b, _ := entries[j].id.Value()
+		return a < b
+	})
+	return entries
+}
+
 type rawAmendment struct {
 	Version             int           `json:"version"`
 	BaselineLogicSHA256 string        `json:"baseline_logic_sha256"`

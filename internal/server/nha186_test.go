@@ -517,11 +517,20 @@ func TestNHA186RunLateSceneEmitsBeforeHistoryAndStoreClose(t *testing.T) {
 	}
 	rig := nha042StartServer(t, environment, "- stop: done\n", "", nha042ServerOptions{sceneCatalogue: &catalogue, blockedDriver: true})
 	rig.run.waitReady(t)
+	epochText, err := rig.identity.Sequence().CurrentAdmissionEpoch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	epoch, err := storage.ParseHistoryEpoch(epochText)
+	if err != nil {
+		t.Fatal(err)
+	}
 	sending, actor, err := (&nha042ServerAuthority{environment.principal}).Context(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := scriptScenesRuntime(rig.composition).service
+	runtime := scriptScenesRuntime(rig.composition)
+	service := runtime.service
 	alias, _ := domain.ParseHAAlias(nha042ServerAlias)
 	member, err := scenes.NewExplicitSwitch(alias, true)
 	if err != nil {
@@ -551,6 +560,12 @@ func TestNHA186RunLateSceneEmitsBeforeHistoryAndStoreClose(t *testing.T) {
 	if err := nha034ProbeRunStore(rig.store); err != nil {
 		t.Fatal("Store closed under live producer", err)
 	}
+	select {
+	case <-runtime.done:
+		t.Fatal("scene Close joined before its real effect returned")
+	default:
+	}
+	lateFrom := time.Now().UTC()
 	rig.driver.unblock()
 	select {
 	case err := <-applied:
@@ -560,23 +575,86 @@ func TestNHA186RunLateSceneEmitsBeforeHistoryAndStoreClose(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("late scene did not join")
 	}
+	lateThrough := time.Now().UTC()
+	nha034WaitSignal(t, runtime.done, "late scene Close completion")
 	nha034WaitRunStoreClosed(t, rig.store)
 	ids := rig.driver.snapshot()
 	if len(ids) != 1 {
 		t.Fatalf("late fake effects=%d", len(ids))
 	}
 	state, response := nha042ServerIntent(t, environment.observer, ids[0])
-	var count, memberOutcome, invocationOutcome int
-	if err := environment.observer.QueryRow(context.Background(), `SELECT count(*),COALESCE(MAX(scene_outcome),0),COALESCE(MAX(scene_aggregate),0) FROM public.execution_history_records WHERE scene_invocation='nha186-late-scene'`).Scan(&count, &memberOutcome, &invocationOutcome); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("late scene persisted member=%d invocation=%d ledger state=%s status=%s effects=%d", memberOutcome, invocationOutcome, state, response.Status, len(ids))
 	// This fake driver ignores cancellation and returns nil after release.
 	// The real 024 service durably records DISPATCHED; it does not confirm a
-	// physical state. History must preserve that actual response after Close.
-	if count != 2 || memberOutcome != 5 || invocationOutcome != 1 || state != "result" || response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
-		t.Fatalf("late scene history count=%d member/invocation=%d/%d ledger=%s/%s", count, memberOutcome, invocationOutcome, state, response.Status)
+	// physical state. This outcome remains mandatory even if history refuses
+	// an observation at its nonblocking admission boundary.
+	if state != "result" || response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
+		t.Fatalf("late scene ledger=%s/%s", state, response.Status)
 	}
+	// Inventory this exact epoch after the real Store owner has closed. There
+	// is no routine trigger in this fixture. Prove that there are no other
+	// producers before attributing any durable loss to these two observations.
+	nha034WaitSignal(t, rig.composition.Done(), "late fixture native producer completion")
+	nativeNodes, nodesEvicted := rig.composition.NodeTraces()
+	nativeDecisions, decisionsEvicted := rig.composition.Traces()
+	if nodesEvicted != 0 || decisionsEvicted != 0 || len(nativeNodes) != 0 || len(nativeDecisions) != 0 {
+		t.Fatalf("late scene has unrelated native emissions: nodes=%d decisions=%d evicted=%d/%d", len(nativeNodes), len(nativeDecisions), nodesEvicted, decisionsEvicted)
+	}
+	settings, err := environment.config.PostgresSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := storage.Open(context.Background(), settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	records, losses := nha186ReadAllWithCoverage(t, reopened, epoch)
+	t.Logf("late scene durable inventory epoch=%s nodes=%d decisions=%d records=%d losses=%+v emission-window=[%s,%s]", epoch, len(nativeNodes), len(nativeDecisions), len(records), losses, lateFrom, lateThrough)
+	commandID, err := ids[0].Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := map[storage.HistoryRecordKind]storage.HistoryRecordInput{
+		storage.HistorySceneMember: {
+			Kind: storage.HistorySceneMember, SceneOutcome: 5, Provenance: storage.HistoryUnboundFixture,
+			ObjectID: nha042ServerAlias, CommandID: commandID, SceneInvocation: "nha186-late-scene",
+		},
+		storage.HistorySceneInvocation: {
+			Kind: storage.HistorySceneInvocation, SceneAggregate: 1, Provenance: storage.HistoryUnboundFixture,
+			ObjectID: "scene.nha186_late", CommandID: "nha186-late-scene", SceneInvocation: "nha186-late-scene",
+		},
+	}
+	for index, row := range records {
+		want, ok := expected[row.Kind]
+		if !ok {
+			t.Fatalf("duplicate or unrelated late scene row: %+v", row)
+		}
+		want.ID, err = storage.NewHistoryTraceID(epoch, uint64(index+1))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want.EmissionTime = row.EmissionTime
+		if row.EmissionTime.Location() != time.UTC || row.EmissionTime.Before(lateFrom.Truncate(time.Microsecond)) || row.EmissionTime.After(lateThrough) || !reflect.DeepEqual(row, want) {
+			t.Fatalf("late scene row changed or emitted outside live producer: got=%+v want=%+v", row, want)
+		}
+		delete(expected, row.Kind)
+	}
+	// Both facts must be accounted for: a unique exact row or a known durable
+	// contention loss. With no other producer, no loss can mask an unrelated
+	// missing emission. Closing/full/invalid/oversize losses remain failures;
+	// a silent drop or a Store/history owner joining early remains a failure.
+	var durableRejected uint64
+	for _, loss := range losses {
+		from, through := loss.From.UTC(), loss.Through.UTC()
+		if loss.Reason != storage.HistoryLossContention || !loss.UncertainEnvelope || loss.KnownCount == 0 || from.After(through) || from.After(lateThrough) || through.Before(lateFrom.Truncate(time.Microsecond)) || loss.KnownCount > 2-durableRejected {
+			t.Fatalf("unexpected loss in late scene fixture: %+v", loss)
+		}
+		durableRejected += loss.KnownCount
+	}
+	if uint64(len(expected)) != durableRejected {
+		t.Fatalf("late scene missing=%d durable contention count=%d records=%+v losses=%+v", len(expected), durableRejected, records, losses)
+	}
+	t.Logf("late scene accounted records=%d contention=%d ledger=%s/%s effects=%d", len(records), durableRejected, state, response.Status, len(ids))
 }
 
 func TestNHA186RunPreparationFailureRetainsNoHistoryOwner(t *testing.T) {

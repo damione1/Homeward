@@ -38,6 +38,82 @@ def require(condition, detail):
         raise QualificationFailure(detail)
 
 
+@dataclass(frozen=True)
+class QualificationProfile:
+    name: str
+    schema: str
+    worker: Path
+    source_roots: tuple
+    expected_count: object
+
+
+def admit_profile(name):
+    require(type(name) is str and name in {"nha045", "nha047"}, "unknown qualification profile")
+    if name == "nha045":
+        return QualificationProfile(name, "nha045/v1", HERE / "ha_worker.py", (HERE,), 10)
+    return QualificationProfile(name, "nha047/v1", HERE.parent / "nha047" / "ha_worker.py",
+                                (HERE, HERE.parent / "nha047", HERE.parent / "report"), None)
+
+
+def current_profile(runner):
+    profile = getattr(runner, "profile", admit_profile("nha045"))
+    require(type(profile) is QualificationProfile and profile == admit_profile(profile.name),
+            "qualification profile boundary changed")
+    return profile
+
+
+def admit_profile_contract(profile, contract):
+    require(type(profile) is QualificationProfile and profile == admit_profile(profile.name), "invalid profile")
+    require(type(contract) is dict and contract.get("schema") == profile.schema
+            and contract.get("image") == IMAGE and contract.get("ha_version") == "2026.10.1", "profile contract drift")
+    if profile.name == "nha045":
+        return None
+    require(set(contract) == {"schema", "image", "ha_version", "go_version", "constructions", "cases",
+                              "demands", "python", "jinja", "sources"}, "unexpected profile contract fields")
+    require(contract["go_version"] == "go1.27.2" and contract["python"] == "3.14.6"
+            and contract["jinja"] == "3.1.6", "profile runtime drift")
+    constructions = contract["constructions"]
+    require(type(constructions) is list and 0 < len(constructions) <= 256, "profile constructions absent")
+    numbers, names = set(), set()
+    for row in constructions:
+        require(type(row) is dict and set(row) == {"value", "name"}
+                and type(row["value"]) is int and 0 < row["value"] < 256
+                and type(row["name"]) is str and re.fullmatch(r"[a-z][a-z0-9_]{0,127}", row["name"])
+                and row["value"] not in numbers and row["name"] not in names, "invalid profile construction")
+        numbers.add(row["value"])
+        names.add(row["name"])
+    demands = contract["demands"]
+    require(type(demands) is list and 0 < len(demands) <= 32, "profile demands absent")
+    names, tokens = set(), set()
+    for row in demands:
+        require(type(row) is dict and set(row) == {"name", "token"}
+                and type(row["name"]) is str and re.fullmatch(r"[A-Z][A-Za-z0-9]{0,63}", row["name"])
+                and type(row["token"]) is str and re.fullmatch(r"[a-z][a-z0-9_]{0,63}", row["token"])
+                and row["name"] not in names and row["token"] not in tokens, "invalid profile demand")
+        names.add(row["name"])
+        tokens.add(row["token"])
+    sources = contract["sources"]
+    require(type(sources) is list and 0 < len(sources) <= 32, "profile sources absent")
+    paths = set()
+    for row in sources:
+        require(type(row) is dict and set(row) == {"path", "sha256"}
+                and type(row["path"]) is str and re.fullmatch(r"homeassistant(?:\.[a-z0-9_]+)+", row["path"])
+                and type(row["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", row["sha256"])
+                and row["path"] not in paths, "invalid profile source")
+        paths.add(row["path"])
+    require("homeassistant.core" in paths, "profile core source absent")
+    cases = contract["cases"]
+    require(type(cases) is list and 0 < len(cases) <= 128, "profile cases absent")
+    admitted = {}
+    for row in cases:
+        require(type(row) is dict and set(row) == {"id", "sha256"}
+                and type(row["id"]) is str and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,127}", row["id"])
+                and type(row["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", row["sha256"])
+                and row["id"] not in admitted, "invalid profile case")
+        admitted[row["id"]] = row["sha256"]
+    return admitted
+
+
 def encode(value):
     return json.dumps(value, sort_keys=True, allow_nan=False, indent=2).encode() + b"\n"
 
@@ -110,7 +186,8 @@ def confirms_container_absence(result, identity):
 
 
 class Runner:
-    def __init__(self, probe, evidence):
+    def __init__(self, probe, evidence, *, profile="nha045"):
+        self.profile = admit_profile(profile)
         require(sys.version_info[:3] == (3, 12, 8), "reuse the pinned Python 3.12.8 driver")
         self.lease = os.environ.get("HOMEWARD_NHA045_ROOT_LEASE", "")
         require(bool(re.fullmatch(r"[A-Za-z0-9_-]{8,100}", self.lease)), "root heavy lease absent")
@@ -127,7 +204,8 @@ class Runner:
         self.commands = []
         self.budgets = []
         self.source_hashes = {str(path): sha256(path.read_bytes()).hexdigest()
-                              for path in sorted(HERE.rglob("*")) if path.is_file() and "__pycache__" not in path.parts}
+                              for root in self.profile.source_roots for path in sorted(root.rglob("*"))
+                              if path.is_file() and "__pycache__" not in path.parts}
 
     def socket_check(self):
         require(os.environ.get("DOCKER_HOST") in (None, "", "unix://" + str(SOCKET)), "non-local DOCKER_HOST override")
@@ -252,6 +330,7 @@ class Runner:
         (self.evidence / "containers.json").write_bytes(encode(self.containers))
 
     def isolated(self, label, *, mode="run", payload=None, python=False, failure_ok=False):
+        profile = current_profile(self)
         self.budget()
         require(sha256(self.probe.read_bytes()).hexdigest() == self.probe_hash, "probe artifact changed")
         name = "nha045-" + uuid.uuid4().hex
@@ -262,7 +341,7 @@ class Runner:
                      "--memory", str(MEMORY), "--memory-swap", str(MEMORY),
                      "--tmpfs", "/tmp:rw,nosuid,nodev,size=67108864", "--label", "homeward.nha045.lease=" + self.lease]
         if python:
-            arguments += ["--entrypoint", "python3", IMAGE, "-c", (HERE / "ha_worker.py").read_text()]
+            arguments += ["--entrypoint", "python3", IMAGE, "-c", profile.worker.read_text()]
         else:
             arguments += ["--mount", f"type=bind,source={self.probe},target=/nha045-probe,readonly",
                           "--entrypoint", "/nha045-probe", IMAGE, "--mode", mode]
@@ -342,16 +421,27 @@ class Runner:
         result = self.isolated(label, mode="compare", payload=payload, failure_ok=expect_failure)
         (self.evidence / (label + ".json")).write_bytes(result.stdout)
         parsed = load_json(result.stdout)
+        accepted = result.code == 0 and parsed["equivalent"] is True
+        if current_profile(self).name == "nha047" and result.code == 0 and parsed.get("expected_refusal") is True:
+            accepted = parsed["equivalent"] is False and bool(parsed["differences"])
         require((result.code != 0 and parsed["equivalent"] is False and parsed["differences"]) if expect_failure
-                else (result.code == 0 and parsed["equivalent"] is True), "unexpected comparator terminal")
+                else accepted, "unexpected comparator terminal")
         return parsed
 
     def collect(self):
         self.preflight()
         contract = load_json(self.isolated("contract", mode="contract").stdout)
         require(contract["image"] == IMAGE, "worker contract image drift")
+        profile = current_profile(self)
+        admitted = admit_profile_contract(profile, contract)
         rows = load_json(self.isolated("corpus", mode="corpus").stdout)
-        require(len(rows) == 10 and len({row["id"] for row in rows}) == 10, "ten distinct fixtures required")
+        if profile.name == "nha045":
+            require(len(rows) == 10 and len({row["id"] for row in rows}) == 10, "ten distinct fixtures required")
+        else:
+            require(type(rows) is list and len(rows) == len(admitted)
+                    and len({row["id"] for row in rows}) == len(rows), "profile corpus cardinality")
+            require(all(set(row) == {"id", "sha256", "fixture"} and admitted.get(row["id"]) == row["sha256"]
+                        for row in rows), "profile corpus/manifest drift")
         (self.evidence / "contract.json").write_bytes(encode(contract))
         (self.evidence / "corpus.json").write_bytes(encode(rows))
         captures = {}
@@ -371,6 +461,8 @@ class Runner:
             (self.evidence / (row["id"] + ".go.json")).write_bytes(go)
             self.compare(row["id"] + "-comparison", fixture, ha, go)
             captures[row["id"]] = (fixture, ha, go)
+        if profile.name == "nha047":
+            return self.finish047(contract, captures)
         original, ha, _ = captures["01-restart-delay"]
         mutant = load_json(original)
         changed = 0
@@ -399,15 +491,46 @@ class Runner:
         (self.evidence / "result.json").write_bytes(encode(result))
         return result
 
+    def finish047(self, contract, captures):
+        # Fault injection acts on an actually observed request, never Expected.
+        fixture, ha, go = captures["time-18-true"]
+        token = next(row["token"] for row in contract["demands"] if row["name"] == "ClimateTemperature")
+        def mutated(observed):
+            value = load_json(observed)
+            matches = [row for row in value["demands"] if row["kind"] == token and row["value"] == 18]
+            require(len(matches) == 1, "capture mutant requires one observed setpoint18")
+            matches[0]["value"] = 19
+            return encode(value)
+        mutant = mutated(go)
+        (self.evidence / "mutant.go.json").write_bytes(mutant)
+        diff = self.compare("mutant-comparison", fixture, ha, mutant, expect_failure=True)
+        require(any(row["side"] == "go" for row in diff["differences"]), "capture mutant lacks semantic request diff")
+        replay = self.isolated("mutant-replay-go", payload=fixture).stdout
+        replay_mutant = mutated(replay)
+        (self.evidence / "mutant-replay.go.json").write_bytes(replay_mutant)
+        repeated = self.compare("mutant-replay-comparison", fixture, ha, replay_mutant, expect_failure=True)
+        require(diff == repeated, "capture mutant diff is not replayable")
+        self.budget()
+        require(all(row["terminal"] for row in self.containers), "container terminal audit incomplete")
+        require(all(sha256(Path(path).read_bytes()).hexdigest() == digest for path, digest in self.source_hashes.items()), "qualification sources changed")
+        result = {"schema": contract["schema"], "status": "passed", "cases": len(captures),
+                  "mutant_kind": "observed_go_demand_fault_injection", "mutant_failed": True,
+                  "mutant_replay_equal": True, "containers_terminal": True,
+                  "source_sha256": self.source_hashes, "probe_sha256": self.probe_hash,
+                  "commands": len(self.commands), "lease": self.lease}
+        (self.evidence / "result.json").write_bytes(encode(result))
+        return result
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--collect", action="store_true")
     parser.add_argument("--probe", type=Path, required=True)
     parser.add_argument("--evidence-dir", type=Path, required=True)
+    parser.add_argument("--profile", choices=("nha045", "nha047"), default="nha045")
     arguments = parser.parse_args()
     parser.error("explicit --collect is required") if not arguments.collect else None
-    runner = Runner(arguments.probe, arguments.evidence_dir)
+    runner = Runner(arguments.probe, arguments.evidence_dir, profile=arguments.profile)
     try:
         print(json.dumps(runner.collect(), sort_keys=True))
     except BaseException as error:

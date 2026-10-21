@@ -1,0 +1,385 @@
+{
+  "schema": "nha045/v1",
+  "scenario": "03-single-busy",
+  "fixture_sha256": "e63ebf343dbe30612d79cdd4efe7a1e5b9f25f03333c6226b574319170191f2c",
+  "runtime": {
+    "name": "go",
+    "version": "go1.27.2",
+    "python": null,
+    "jinja": null,
+    "source_sha256": [
+      {
+        "path": "probe",
+        "sha256": "902b6de7a8627f21942325358c98f16c914c0ae747e47a12a457bf66fb158163"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "key": "a",
+      "raw": "1/1",
+      "parent": null,
+      "callsite": null,
+      "object": "script.nha045_root"
+    }
+  ],
+  "facts": [
+    {
+      "key": "a/start",
+      "kind": "start",
+      "run": "1/1",
+      "at_ms": 0,
+      "object": "script.nha045_root",
+      "node": "entry",
+      "data": {}
+    },
+    {
+      "key": "a/admission",
+      "kind": "admission",
+      "run": "1/1",
+      "at_ms": 0,
+      "object": "script.nha045_root",
+      "node": "admission",
+      "data": {
+        "outcome": "accepted"
+      }
+    },
+    {
+      "key": "b/admission",
+      "kind": "admission",
+      "run": null,
+      "at_ms": 1000,
+      "object": "script.nha045_root",
+      "node": "admission",
+      "data": {
+        "outcome": "single_busy"
+      }
+    },
+    {
+      "key": "a/action/switch.nha045_effect/1",
+      "kind": "action",
+      "run": "1/1",
+      "at_ms": 5000,
+      "object": "script.nha045_root",
+      "node": "switch.nha045_effect/1",
+      "data": {
+        "outcome": "completed",
+        "entity": "switch.nha045_effect",
+        "service": "switch.turn_on"
+      }
+    },
+    {
+      "key": "state/switch.nha045_effect/1",
+      "kind": "state",
+      "run": null,
+      "at_ms": 0,
+      "object": "house",
+      "node": "state",
+      "data": {
+        "entity": "switch.nha045_effect",
+        "state": "off"
+      }
+    },
+    {
+      "key": "state/switch.nha045_gate/1",
+      "kind": "state",
+      "run": null,
+      "at_ms": 0,
+      "object": "house",
+      "node": "state",
+      "data": {
+        "entity": "switch.nha045_gate",
+        "state": "off"
+      }
+    },
+    {
+      "key": "state/switch.nha045_effect/2",
+      "kind": "state",
+      "run": "1/1",
+      "at_ms": 5000,
+      "object": "house",
+      "node": "state",
+      "data": {
+        "entity": "switch.nha045_effect",
+        "state": "on"
+      }
+    },
+    {
+      "key": "a/terminal",
+      "kind": "terminal",
+      "run": "1/1",
+      "at_ms": 5000,
+      "object": "script.nha045_root",
+      "node": "terminal",
+      "data": {
+        "outcome": "finished"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "before": "a/start",
+      "after": "a/terminal"
+    },
+    {
+      "before": "a/start",
+      "after": "a/action/switch.nha045_effect/1"
+    },
+    {
+      "before": "a/action/switch.nha045_effect/1",
+      "after": "a/terminal"
+    },
+    {
+      "before": "a/action/switch.nha045_effect/1",
+      "after": "state/switch.nha045_effect/2"
+    }
+  ],
+  "orders": [
+    {
+      "scope": "control",
+      "keys": [
+        "state/switch.nha045_effect/1",
+        "state/switch.nha045_gate/1",
+        "a/start",
+        "a/terminal"
+      ]
+    },
+    {
+      "scope": "node/a/root",
+      "keys": [
+        "a/action/switch.nha045_effect/1"
+      ]
+    }
+  ],
+  "evicted": 0,
+  "terminal": true,
+  "raw": {
+    "producer": "go-controller/0x4f9e1f6d1b00",
+    "order": {
+      "producer": "go-controller/0x4f9e1f6d1b00",
+      "healthy": true,
+      "joined": true,
+      "decision_evicted": 0,
+      "node_evicted": 0,
+      "points": [
+        {
+          "key": "a/action/switch.nha045_effect/1",
+          "ordinal": 6
+        },
+        {
+          "key": "a/terminal",
+          "ordinal": 7
+        },
+        {
+          "key": "a/start",
+          "ordinal": 1
+        }
+      ],
+      "state_causes": [
+        {
+          "state": "state/switch.nha045_effect/2",
+          "action": "a/action/switch.nha045_effect/1"
+        }
+      ]
+    },
+    "phases": [
+      {
+        "id": "phase-001",
+        "kind": "invoke",
+        "at_ms": 0,
+        "run": "a",
+        "object": "script.nha045_root",
+        "entity": "",
+        "state": "",
+        "brightness": null,
+        "count": 0
+      },
+      {
+        "id": "phase-002",
+        "kind": "await_startup",
+        "at_ms": 0,
+        "run": "a",
+        "object": "script.nha045_root",
+        "entity": "",
+        "state": "",
+        "brightness": null,
+        "count": 0
+      },
+      {
+        "id": "phase-003",
+        "kind": "advance",
+        "at_ms": 1000,
+        "run": "",
+        "object": "",
+        "entity": "",
+        "state": "",
+        "brightness": null,
+        "count": 0
+      },
+      {
+        "id": "phase-004",
+        "kind": "invoke",
+        "at_ms": 1000,
+        "run": "b",
+        "object": "script.nha045_root",
+        "entity": "",
+        "state": "",
+        "brightness": null,
+        "count": 0
+      },
+      {
+        "id": "phase-005",
+        "kind": "await_startup",
+        "at_ms": 1000,
+        "run": "b",
+        "object": "script.nha045_root",
+        "entity": "",
+        "state": "",
+        "brightness": null,
+        "count": 0
+      },
+      {
+        "id": "phase-006",
+        "kind": "advance",
+        "at_ms": 5000,
+        "run": "",
+        "object": "",
+        "entity": "",
+        "state": "",
+        "brightness": null,
+        "count": 0
+      },
+      {
+        "id": "phase-007",
+        "kind": "await_terminal",
+        "at_ms": 5000,
+        "run": "a",
+        "object": "script.nha045_root",
+        "entity": "",
+        "state": "",
+        "brightness": null,
+        "count": 0
+      }
+    ],
+    "timers": [
+      {
+        "id": 1,
+        "deadline_ms": 5000,
+        "fired": true,
+        "stopped": true
+      }
+    ],
+    "nodes": [
+      {
+        "ordinal": 2,
+        "run": "1/1",
+        "object": "script.nha045_root",
+        "path": "$.sequence[0]",
+        "kind": 10,
+        "stage": 1,
+        "failure": 0,
+        "branches": null,
+        "iterations": null
+      },
+      {
+        "ordinal": 4,
+        "run": "1/1",
+        "object": "script.nha045_root",
+        "path": "$.sequence[0]",
+        "kind": 10,
+        "stage": 2,
+        "failure": 0,
+        "branches": null,
+        "iterations": null
+      },
+      {
+        "ordinal": 5,
+        "run": "1/1",
+        "object": "script.nha045_root",
+        "path": "$.sequence[1]",
+        "kind": 9,
+        "stage": 1,
+        "failure": 0,
+        "branches": null,
+        "iterations": null
+      },
+      {
+        "ordinal": 6,
+        "run": "1/1",
+        "object": "script.nha045_root",
+        "path": "$.sequence[1]",
+        "kind": 9,
+        "stage": 2,
+        "failure": 0,
+        "branches": null,
+        "iterations": null
+      }
+    ],
+    "actions": [
+      {
+        "Raw": "1/1",
+        "Entity": "switch.nha045_effect",
+        "Source": "$.sequence[1]",
+        "AtMS": 5000,
+        "Failed": false
+      }
+    ],
+    "states": [
+      {
+        "Entity": "switch.nha045_effect",
+        "State": "off",
+        "Raw": "",
+        "Brightness": null,
+        "AtMS": 0,
+        "ControlBefore": 0,
+        "ControlAfter": 0
+      },
+      {
+        "Entity": "switch.nha045_gate",
+        "State": "off",
+        "Raw": "",
+        "Brightness": null,
+        "AtMS": 0,
+        "ControlBefore": 0,
+        "ControlAfter": 0
+      },
+      {
+        "Entity": "switch.nha045_effect",
+        "State": "on",
+        "Raw": "1/1",
+        "Brightness": null,
+        "AtMS": 5000,
+        "ControlBefore": 2,
+        "ControlAfter": 2
+      }
+    ],
+    "commands": [
+      {
+        "key": "a/action/switch.nha045_effect/1",
+        "run": "1/1",
+        "object": "script.nha045_root",
+        "source": "$.sequence[1]",
+        "call": 1,
+        "entry": 5,
+        "issue": 6,
+        "branches": [],
+        "iterations": []
+      }
+    ],
+    "network": {
+      "interfaces": [
+        "lo"
+      ],
+      "ipv4_routes": "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT                                                       \n",
+      "ipv6_routes": "00000000000000000000000000000000 00 00000000000000000000000000000000 00 00000000000000000000000000000000 ffffffff 00000001 00000000 00200200       lo\n00000000000000000000000000000001 80 00000000000000000000000000000000 00 00000000000000000000000000000000 00000000 00000002 00000000 80200001       lo\n00000000000000000000000000000000 00 00000000000000000000000000000000 00 00000000000000000000000000000000 ffffffff 00000001 00000000 00200200       lo\n",
+      "loopback_only": true
+    },
+    "cleanup": {
+      "controller_done": true,
+      "triggers_done": true,
+      "templates_done": true,
+      "session_done": true,
+      "timers_terminal": true
+    }
+  }
+}

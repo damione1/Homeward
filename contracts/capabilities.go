@@ -1030,6 +1030,12 @@ func contains[T comparable](values []T, wanted T) bool {
 	return false
 }
 
+// WithinNumberBounds applies command admission's numeric bounds and step to
+// an already admitted capability description. It performs no dispatch.
+func WithinNumberBounds(value float64, bounds *registry.NumberBounds) bool {
+	return withinBounds(value, bounds)
+}
+
 func withinBounds(value float64, bounds *registry.NumberBounds) bool {
 	if !finite(value) || bounds == nil || value < bounds.Minimum || value > bounds.Maximum {
 		return false
