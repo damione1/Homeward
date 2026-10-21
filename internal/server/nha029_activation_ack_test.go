@@ -294,6 +294,7 @@ const (
 	nha029C5SQLActive
 	nha029C5SQLAttempt
 	nha029C5SQLPolicyAudit
+	nha029C5SQLActiveRead
 	nha029C5SQLDocumentRead
 	nha029C5SQLCommit
 	nha029C5SQLRollback
@@ -456,6 +457,8 @@ func nha029C5SQLClassify(raw []byte) nha029C5SQLStatement {
 		return nha029C5SQLCommit
 	case sql == "rollback":
 		return nha029C5SQLRollback
+	case sql == "select generation_revision from public.config_active where singleton":
+		return nha029C5SQLActiveRead
 	case strings.HasPrefix(sql, "select d.id,d.last_revision,d.kind::text,") && strings.Contains(sql, "from public.config_documents d join public.config_versions v") && strings.HasSuffix(sql, "where d.id=$1"):
 		return nha029C5SQLDocumentRead
 	case strings.Contains(sql, "insert into public.config_activation_policy_changes"):

@@ -208,7 +208,7 @@ func (s StartupInputs) CaptureWorkspace() (ExactWorkspaceSource, error) {
 	}
 	operational, err := ParseOperationalWithEnv(raw, s.lookup)
 	if err != nil {
-		return ExactWorkspaceSource{}, err
+		return ExactWorkspaceSource{}, capturedWorkspaceFailure(raw, err)
 	}
 	return ExactWorkspaceSource{raw: bytes.Clone(raw), hash: sha256.Sum256(raw), logicalPath: s.logicalPath,
 		physicalPath: s.workspacePath, operational: operational}, nil
@@ -351,41 +351,55 @@ func readStartupFile(path string, strictSidecar bool) ([]byte, error) {
 	if path == "" || !filepath.IsAbs(path) || strings.ContainsRune(path, '\x00') {
 		return nil, ErrStartupSource
 	}
-	var f *os.File
-	var err error
+	// Both operational and launch reads pin the selected directory and admit
+	// the leaf before opening. os.Root may resolve a symlink internally despite
+	// O_NOFOLLOW, so compare Lstat and descriptor identity on both sides too.
+	parent := filepath.Dir(path)
+	parentInfo, err := os.Stat(parent)
 	if strictSidecar {
-		parent := filepath.Dir(path)
-		parentInfo, statErr := os.Lstat(parent)
-		if statErr != nil {
-			return nil, statErr
-		}
-		if !parentInfo.IsDir() || parentInfo.Mode().Perm()&0022 != 0 || !trustedStartupOwner(parentInfo) {
-			return nil, ErrStartupSource
-		}
-		root, openErr := os.OpenRoot(parent)
-		if openErr != nil {
-			return nil, ErrStartupSource
-		}
-		defer root.Close()
-		dir, openErr := root.Open(".")
-		if openErr != nil {
-			return nil, ErrStartupSource
-		}
-		openedParent, statErr := dir.Stat()
-		_ = dir.Close()
-		if statErr != nil || !os.SameFile(parentInfo, openedParent) {
-			return nil, ErrStartupSource
-		}
-		f, err = root.OpenFile(filepath.Base(path), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
-	} else {
-		f, err = os.Open(path)
+		parentInfo, err = os.Lstat(parent)
 	}
+	if err != nil || !parentInfo.IsDir() {
+		return nil, ErrStartupSource
+	}
+	if strictSidecar && (parentInfo.Mode().Perm()&0022 != 0 || !trustedStartupOwner(parentInfo)) {
+		return nil, ErrStartupSource
+	}
+	root, err := os.OpenRoot(parent)
 	if err != nil {
-		return nil, err
+		return nil, ErrStartupSource
 	}
+	defer root.Close()
+	dir, err := root.Open(".")
+	if err != nil {
+		return nil, ErrStartupSource
+	}
+	openedParent, statErr := dir.Stat()
+	_ = dir.Close()
+	if statErr != nil || !os.SameFile(parentInfo, openedParent) {
+		return nil, ErrStartupSource
+	}
+	name := filepath.Base(path)
+	leaf, err := root.Lstat(name)
+	if err != nil {
+		// Only actual leaf absence admits the existing default-sidecar fallback.
+		// Preserve the safe sentinel, never a PathError or selected private path.
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, errors.Join(ErrStartupSource, os.ErrNotExist)
+		}
+		return nil, ErrStartupSource
+	}
+	if !leaf.Mode().IsRegular() || leaf.Size() < 1 || leaf.Size() > maxStartupSourceBytes {
+		return nil, ErrStartupSource
+	}
+	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, ErrStartupSource
+	}
+
 	defer f.Close()
 	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > maxStartupSourceBytes {
+	if err != nil || !info.Mode().IsRegular() || !os.SameFile(leaf, info) || info.Size() < 1 || info.Size() > maxStartupSourceBytes {
 		return nil, ErrStartupSource
 	}
 	if strictSidecar && (info.Mode().Perm()&0022 != 0 || !trustedStartupOwner(info)) {
@@ -394,6 +408,11 @@ func readStartupFile(path string, strictSidecar bool) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(f, maxStartupSourceBytes+1))
 	if err != nil || len(data) == 0 || len(data) > maxStartupSourceBytes {
 		return nil, ErrStartupSource
+	}
+	after, statErr := f.Stat()
+	current, pathErr := root.Lstat(name)
+	if statErr != nil || pathErr != nil || !current.Mode().IsRegular() || !os.SameFile(info, after) || !os.SameFile(after, current) || info.Size() != after.Size() || !info.ModTime().Equal(after.ModTime()) || !after.ModTime().Equal(current.ModTime()) || after.Size() != current.Size() {
+		return nil, ErrStartupSourceChanged
 	}
 	return data, nil
 }

@@ -39,6 +39,15 @@ message WorkspaceObservation {
   bytes source_sha256 = 1;
   google.protobuf.Timestamp updated_at = 2;
   DirtyState dirty = 3;
+  // Diagnostic binds the exact observed source, independently of the SQL active
+  // version. It is absent on clean or replaced candidates; never parser text.
+  WorkspaceDiagnostic diagnostic = 4;
+}
+message WorkspaceDiagnostic {
+  DocumentId document = 1;
+  bytes observed_source_sha256 = 2;
+  google.protobuf.Timestamp observed_at = 3;
+  DiagnosticCode code = 4;
 }
 enum WorkspaceUnobservedReason {
   WORKSPACE_UNOBSERVED_REASON_UNSPECIFIED = 0;

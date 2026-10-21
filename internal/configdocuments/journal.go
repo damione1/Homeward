@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"sync"
+	"time"
 
 	"github.com/damione1/Homeward/internal/storage"
 )
@@ -40,11 +41,13 @@ func validDirty(state DirtyState) bool {
 }
 
 type Change struct {
-	id        storage.ConfigDocumentID
-	revision  storage.ConfigVersionRevision
-	hash      [32]byte
-	workspace [32]byte
-	dirty     DirtyState
+	id         storage.ConfigDocumentID
+	revision   storage.ConfigVersionRevision
+	hash       [32]byte
+	workspace  [32]byte
+	dirty      DirtyState
+	observedAt time.Time
+	diagnostic DiagnosticKind
 }
 
 func NewChange(id storage.ConfigDocumentID, revision storage.ConfigVersionRevision, source, workspace [32]byte, dirty DirtyState) (Change, error) {
