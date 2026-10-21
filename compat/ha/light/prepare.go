@@ -23,6 +23,9 @@ func (s *PreparationSlot) prepare(ctx context.Context) (PreparedAction, error) {
 	if ctx == nil {
 		return PreparedAction{}, ErrInvalidSlot
 	}
+	if s.internal != nil && !s.internal.SameOccurrence(s.origin, ctx) {
+		return PreparedAction{}, ErrInvalidSlot
+	}
 	capture, err := s.service.CaptureLight(ctx, s.alias)
 	if err != nil {
 		return PreparedAction{}, err
@@ -85,6 +88,9 @@ func (s *PreparationSlot) prepare(ctx context.Context) (PreparedAction, error) {
 // Dispatch reuses the exact cached command. A failed first preparation stays
 // failed; callers cannot supply only an ID and reconstruct a relative step.
 func (s *PreparationSlot) Dispatch(ctx context.Context) (*actions.CommandResponse, error) {
+	if s == nil || s.internal != nil && !s.internal.SameOccurrence(s.origin, ctx) {
+		return nil, ErrInvalidSlot
+	}
 	prepared, err := s.PrepareOnce(ctx)
 	if err != nil {
 		return nil, err

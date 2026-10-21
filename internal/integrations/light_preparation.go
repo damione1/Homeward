@@ -30,6 +30,7 @@ type LightPreparationProjection interface {
 // not change this capture; the final lease must compare it with the current one.
 type LightCapture struct {
 	router         *CommandRouter
+	internal       *internalOccurrence
 	alias          domain.HAAlias
 	entity         domain.EntityID
 	binding        Binding
@@ -48,13 +49,17 @@ func (r *CommandRouter) CaptureLight(ctx context.Context, alias domain.HAAlias) 
 		if resultErr == nil {
 			resultErr = r.filterCapture(ctx, result.entity, result.description, &result.state, &result.hasState)
 		}
-		resultErr = r.captureError(resultErr)
+		resultErr = r.captureError(ctx, resultErr)
 		if resultErr != nil {
 			result = LightCapture{}
 		}
 	}()
 	if r == nil || r.host == nil || ctx == nil {
 		return LightCapture{}, ErrInvalidInput
+	}
+	internal, err := r.internalFromContext(ctx)
+	if err != nil {
+		return LightCapture{}, err
 	}
 	if _, err := alias.Value(); err != nil {
 		return LightCapture{}, ErrInvalidInput
@@ -138,7 +143,7 @@ func (r *CommandRouter) CaptureLight(ctx context.Context, alias domain.HAAlias) 
 			return err
 		}
 		capture = LightCapture{
-			router: r, alias: alias, entity: entity, binding: binding,
+			router: r, internal: internal, alias: alias, entity: entity, binding: binding,
 			description: proto.Clone(description).(*wireregistry.CapabilityDescription),
 			profile:     profile, state: state, hasState: hasState,
 			epoch: epoch, configRevision: revision,
@@ -241,6 +246,9 @@ func (p PreparedLight) Actor() (domain.ActorID, error) {
 	if p.route == nil || p.request == nil {
 		return domain.ActorID{}, ErrInvalidInput
 	}
+	if p.route.capture.internal != nil {
+		return domain.ActorID{}, ErrCommandAuthorizationDenied
+	}
 	return p.actor, nil
 }
 
@@ -279,7 +287,7 @@ func (c LightCapture) PrepareHAWithCT(actor domain.ActorID, id domain.CommandID,
 	if c.router == nil || c.profile == nil || c.description == nil || expiresAt.IsZero() || !expiresAt.After(c.router.clock.Now()) {
 		return PreparedLight{}, ErrInvalidInput
 	}
-	if _, err := actor.Value(); err != nil {
+	if !captureActorValid(actor, c.internal) {
 		return PreparedLight{}, ErrInvalidInput
 	}
 	idText, err := id.Value()
@@ -376,7 +384,7 @@ func (c LightCapture) PrepareNative(actor domain.ActorID, id domain.CommandID, e
 	if c.router == nil || c.profile == nil || c.description == nil || expiresAt.IsZero() || !expiresAt.After(c.router.clock.Now()) {
 		return PreparedLight{}, ErrInvalidInput
 	}
-	if _, err := actor.Value(); err != nil {
+	if !captureActorValid(actor, c.internal) {
 		return PreparedLight{}, ErrInvalidInput
 	}
 	idText, err := id.Value()

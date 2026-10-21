@@ -13,7 +13,7 @@ import (
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	var listener net.ListenConfig
-	code := runHomed(ctx, os.Args[1:], os.Stdout, os.Stderr, homedDependencies{read: os.ReadFile, run: server.Run, listen: listener.Listen})
+	code := runHomed(ctx, os.Args[1:], os.Stdout, os.Stderr, homedDependencies{read: os.ReadFile, runStartup: server.RunWithStartup, listen: listener.Listen})
 	cancel()
 	if code != 0 {
 		os.Exit(code)

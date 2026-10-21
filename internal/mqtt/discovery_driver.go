@@ -28,7 +28,7 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 	if p == nil || p.Pilot == nil || p.mapper == nil || ctx == nil {
 		return ErrInvalidSettings
 	}
-	_, _, entity, err := command.Identity()
+	_, entity, err := command.RouteIdentity()
 	if err != nil {
 		return err
 	}

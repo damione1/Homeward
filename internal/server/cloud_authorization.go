@@ -106,23 +106,25 @@ type cloudAuthorizationBinding struct {
 	generation   uint64
 }
 type cloudAuthorizationInvocation struct {
+	done       chan struct{}
 	client     *integrations.CloudClient
 	generation uint64
 	cancel     context.CancelFunc
 	attempt    *integrations.CloudAuthorizationAttempt
 }
 type cloudAuthorizationCoordinator struct {
-	host          *integrations.Manager
-	limits        integrations.CloudAuthorizationLimits
-	ctx           context.Context
-	cancel        context.CancelFunc
-	mu            sync.Mutex
-	registrations map[domain.IntegrationInstanceID]*cloudAuthorizationBinding
-	active        map[storage.SecretHandle]*cloudAuthorizationInvocation
-	frozen        bool
-	open          bool
-	closed        bool
-	done          chan struct{}
+	pendingReplacement *cloudRegistrationReplacement
+	host               *integrations.Manager
+	limits             integrations.CloudAuthorizationLimits
+	ctx                context.Context
+	cancel             context.CancelFunc
+	mu                 sync.Mutex
+	registrations      map[domain.IntegrationInstanceID]*cloudAuthorizationBinding
+	active             map[storage.SecretHandle]*cloudAuthorizationInvocation
+	frozen             bool
+	open               bool
+	closed             bool
+	done               chan struct{}
 }
 
 func newCloudAuthorizationCoordinator(ctx context.Context, host *integrations.Manager, limits integrations.CloudAuthorizationLimits) (*cloudAuthorizationCoordinator, error) {
@@ -309,7 +311,12 @@ func (c *cloudAuthorizationCoordinator) authorize(ctx context.Context, instance 
 		return CloudAuthorizationReceipt{}, ErrCloudAuthorizationBusy
 	}
 	invokeCtx, cancel := context.WithTimeout(ctx, c.limits.Input().TotalTimeout)
-	active := &cloudAuthorizationInvocation{client: binding.client, generation: binding.generation, cancel: cancel}
+	if c.pendingReplacement != nil && c.pendingReplacement.quiescing && c.pendingReplacement.touches(instance) {
+		c.mu.Unlock()
+		cancel()
+		return CloudAuthorizationReceipt{}, ErrCloudAuthorizationClosed
+	}
+	active := &cloudAuthorizationInvocation{client: binding.client, generation: binding.generation, cancel: cancel, done: make(chan struct{})}
 	c.active[handle] = active
 	owner, provider := binding.owner, binding.registration.provider
 	c.mu.Unlock()
@@ -333,6 +340,7 @@ func (c *cloudAuthorizationCoordinator) authorize(ctx context.Context, instance 
 			c.finishLocked()
 		}
 		c.mu.Unlock()
+		close(active.done)
 	}()
 	attempt, err := owner.Begin(invokeCtx)
 	if err != nil {

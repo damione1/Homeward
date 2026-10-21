@@ -297,7 +297,7 @@ type helperCommitConfirmation struct {
 }
 
 func (c helperCommitConfirmation) QualifyProtocolConfirmation(command integrations.AdmittedCommand) error {
-	id, _, entity, err := command.Identity()
+	id, entity, err := command.RouteIdentity()
 	if err != nil || id != c.commandID || entity != c.entity || !c.committed.Valid() ||
 		c.committed.handle != c.handle || c.handle.entity != c.entity || c.committed.kind != c.kind {
 		return failure(Corrupt)
@@ -333,7 +333,7 @@ func (p *Pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	if p == nil || nilContext(ctx) || !command.ReadyForTransport() {
 		return integrations.ErrInactiveSession
 	}
-	commandID, _, entity, err := command.Identity()
+	commandID, entity, err := command.RouteIdentity()
 	if err != nil {
 		return err
 	}

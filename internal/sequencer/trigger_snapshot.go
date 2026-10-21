@@ -16,6 +16,7 @@ var ErrTriggerViewBudget = errors.New("sequencer trigger view exceeds its admitt
 // health reports are cloned. EstimatedBytes is conservative accounting, not a
 // measurement of the Go heap allocator's physical footprint.
 type TriggerSnapshot struct {
+	registryReady  bool
 	Cursor         Cursor
 	States         map[domain.EntityID]domain.ObservedState
 	Registry       map[domain.EntityID]integrations.RegistryRecord
@@ -26,6 +27,9 @@ type TriggerSnapshot struct {
 }
 
 func (s TriggerSnapshot) EstimatedBytes() int { return s.estimatedBytes }
+
+// RegistryReady reports the registry state captured under the same sequencer lock.
+func (s TriggerSnapshot) RegistryReady() bool { return s.registryReady }
 
 const triggerMapBaseCharge = 512
 
@@ -128,6 +132,6 @@ func (s *Sequencer) CaptureTriggerView(maxBytes int) (TriggerSnapshot, error) {
 		item, _ := EstimateTriggerRegistryBytes(record)
 		recordCharges[id] = item
 	}
-	return TriggerSnapshot{Cursor: Cursor{epoch: s.epoch, seq: s.seq}, States: states, Registry: registry,
+	return TriggerSnapshot{registryReady: s.registryState == registryReady, Cursor: Cursor{epoch: s.epoch, seq: s.seq}, States: states, Registry: registry,
 		StateCharges: stateCharges, RecordCharges: recordCharges, CapturedTick: s.MonotonicNow(), estimatedBytes: charge}, nil
 }

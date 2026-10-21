@@ -54,7 +54,7 @@ func TestNHA045FixtureCaptureProvenance(t *testing.T) {
 		t.Fatalf("precondition: revised YAML did not compile: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := revisedRig.close(); err != nil {
+		if err := revisedRig.dispose(); err != nil {
 			t.Error(err)
 		}
 	})

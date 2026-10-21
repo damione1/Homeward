@@ -315,7 +315,7 @@ func (c *CloudClient) Act(ctx context.Context, command AdmittedCommand, request 
 	if !c.valid() || ctx == nil || !c.requestAllowed(request) || command.binding.instance != c.session.instance || command.binding.session != c.session.id {
 		return CloudResponse{}, &CloudError{kind: CloudInvalid}
 	}
-	if _, _, _, err := command.Identity(); err != nil {
+	if _, _, err := command.RouteIdentity(); err != nil {
 		return CloudResponse{}, &CloudError{kind: CloudInvalid}
 	}
 	budget, cancel := context.WithTimeout(ctx, c.policy.limits.value.TotalTimeout)

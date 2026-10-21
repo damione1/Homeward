@@ -89,12 +89,12 @@ type nha034RunHandle struct {
 	err    error // Published by closing done; read only after observing done.
 }
 
-func nha034LaunchRun(t *testing.T, cfg config.Config, listen ListenFunc, factory RuntimeFactory) *nha034RunHandle {
+func nha034LaunchRun(t *testing.T, cfg config.StartupInputs, listen ListenFunc, factory RuntimeFactory) *nha034RunHandle {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	run := &nha034RunHandle{cancel: cancel, ready: make(chan struct{}), done: make(chan struct{})}
 	go func() {
-		run.err = RunWithFactory(ctx, cfg, listen, func(net.Addr) { close(run.ready) }, factory)
+		run.err = RunWithStartupFactory(ctx, cfg, listen, func(net.Addr) { close(run.ready) }, factory)
 		close(run.done)
 	}()
 	t.Cleanup(func() {
@@ -245,7 +245,7 @@ func TestNHA034RunRestartsDurableBackupAndCancelsOrdinaryWait(t *testing.T) {
 	firstPilot := nha034NewOrdinaryWaitPilot()
 	firstTimer := &nha034ServerTimer{entered: make(chan time.Duration, jobs.Workers), tick: make(chan struct{}, jobs.Workers)}
 	firstServicesReady := make(chan DurableJobsServices, 1)
-	first := nha034LaunchRun(t, cfg, listener.Listen, makeFactory(firstPilot, firstTimer, jobs.Created, firstServicesReady))
+	first := nha034LaunchRun(t, cfg.startup, listener.Listen, makeFactory(firstPilot, firstTimer, jobs.Created, firstServicesReady))
 	first.waitReady(t)
 	firstServices := nha034RunServices(t, firstServicesReady)
 	nha034WaitRunPolls(t, firstTimer)
@@ -270,7 +270,7 @@ func TestNHA034RunRestartsDurableBackupAndCancelsOrdinaryWait(t *testing.T) {
 	secondPilot := nha034NewOrdinaryWaitPilot()
 	secondTimer := &nha034ServerTimer{entered: make(chan time.Duration, jobs.Workers), tick: make(chan struct{}, jobs.Workers)}
 	secondServicesReady := make(chan DurableJobsServices, 1)
-	second := nha034LaunchRun(t, cfg, listener.Listen, makeFactory(secondPilot, secondTimer, jobs.AlreadyPresent, secondServicesReady))
+	second := nha034LaunchRun(t, cfg.startup, listener.Listen, makeFactory(secondPilot, secondTimer, jobs.AlreadyPresent, secondServicesReady))
 	second.waitReady(t)
 	secondServices := nha034RunServices(t, secondServicesReady)
 	nha034WaitRunPolls(t, secondTimer)
@@ -369,7 +369,7 @@ func TestNHA034RunRetainsStoreUntilTimedOutJobActuallyDrains(t *testing.T) {
 		t.Fatal(err)
 	}
 	var listener net.ListenConfig
-	run := nha034LaunchRun(t, cfg, listener.Listen, func(_ context.Context, store *storage.Store) (RuntimePlan, error) {
+	run := nha034LaunchRun(t, cfg.startup, listener.Listen, func(_ context.Context, store *storage.Store) (RuntimePlan, error) {
 		storeReady <- store
 		return RuntimePlan{Identity: unconfiguredIdentity{}, DurableJobs: composition}, nil
 	})
@@ -435,7 +435,7 @@ func TestNHA034RunPreparationFailureClosesJobsAndStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	var listenerCalls atomic.Int32
-	run := nha034LaunchRun(t, cfg, func(context.Context, string, string) (net.Listener, error) {
+	run := nha034LaunchRun(t, cfg.startup, func(context.Context, string, string) (net.Listener, error) {
 		listenerCalls.Add(1)
 		return nil, errors.New("NHA034 preparation reached listener")
 	}, func(_ context.Context, store *storage.Store) (RuntimePlan, error) {

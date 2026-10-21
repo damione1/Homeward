@@ -25,6 +25,8 @@ type PreparationSlot struct {
 	service       *Service
 	ref           SceneRef
 	actor         domain.ActorID
+	internal      bool
+	origin        context.Context
 	invocation    domain.CommandID
 	expiresAt     time.Time
 	hasTransition bool
@@ -56,8 +58,32 @@ func NewPreparationSlot(service *Service, ref SceneRef, actor domain.ActorID, in
 	return slot, nil
 }
 
+func NewInternalPreparationSlot(ctx context.Context, service *Service, ref SceneRef, invocation domain.CommandID, transition *float64, expiresAt time.Time) (*PreparationSlot, error) {
+	if service == nil || service.internal == nil || !service.internal.ValidContext(ctx) || ref.kind != SceneDeclarative ||
+		nilPort(service.clock) || expiresAt.IsZero() || !expiresAt.After(service.clock.Now()) {
+		return nil, ErrInvalidScene
+	}
+	if _, err := ref.ID(); err != nil {
+		return nil, err
+	}
+	if _, err := invocation.Value(); err != nil {
+		return nil, err
+	}
+	if transition != nil && (math.IsNaN(*transition) || math.IsInf(*transition, 0) || *transition < 0 || *transition > 6553) {
+		return nil, ErrInvalidScene
+	}
+	slot := &PreparationSlot{service: service, ref: ref, internal: true, origin: ctx, invocation: invocation, expiresAt: expiresAt}
+	if transition != nil {
+		slot.hasTransition, slot.transition = true, *transition
+	}
+	return slot, nil
+}
+
 func (slot *PreparationSlot) PrepareOnce(ctx context.Context) (PreparedScene, error) {
 	if slot == nil || slot.service == nil || ctx == nil {
+		return PreparedScene{}, ErrInvalidScene
+	}
+	if slot.internal && (slot.service.internal == nil || !slot.service.internal.SameOccurrence(slot.origin, ctx)) {
 		return PreparedScene{}, ErrInvalidScene
 	}
 	slot.once.Do(func() {
@@ -65,7 +91,7 @@ func (slot *PreparationSlot) PrepareOnce(ctx context.Context) (PreparedScene, er
 		if slot.hasTransition {
 			transition = &slot.transition
 		}
-		plan, err := slot.service.prepare(ctx, slot.ref, slot.actor, slot.invocation, transition, slot.expiresAt)
+		plan, err := slot.service.prepare(ctx, slot.ref, slot.actor, slot.internal, slot.invocation, transition, slot.expiresAt)
 		slot.prepared, slot.err = PreparedScene{plan: plan}, err
 	})
 	if slot.err == nil {
@@ -92,7 +118,13 @@ func (s *Service) currentSpecs(ctx context.Context, ref SceneRef) ([]memberSpec,
 		return nil, err
 	}
 	if ref.kind == SceneDeclarative {
+		s.mu.Lock()
 		definition, ok := s.catalogue.Definition(ref.id)
+		closed := s.closed
+		s.mu.Unlock()
+		if closed {
+			return nil, ErrSceneClosed
+		}
 		if !ok || definition.Source().Digest() != ref.digest {
 			return nil, ErrSceneUnavailable
 		}
@@ -125,7 +157,7 @@ func (s *Service) currentSpecs(ctx context.Context, ref SceneRef) ([]memberSpec,
 	return specs, err
 }
 
-func (s *Service) prepare(ctx context.Context, ref SceneRef, actor domain.ActorID, invocation domain.CommandID, transition *float64, expiresAt time.Time) (*scenePlan, error) {
+func (s *Service) prepare(ctx context.Context, ref SceneRef, actor domain.ActorID, internal bool, invocation domain.CommandID, transition *float64, expiresAt time.Time) (*scenePlan, error) {
 	s.mu.Lock()
 	closed := s.closed
 	s.mu.Unlock()
@@ -139,8 +171,11 @@ func (s *Service) prepare(ctx context.Context, ref SceneRef, actor domain.ActorI
 	if len(specs) == 0 || len(specs) > maxSceneMembers {
 		return nil, ErrInvalidScene
 	}
-	plan := &scenePlan{service: s, ref: ref, actor: actor, invocation: invocation, expiresAt: expiresAt,
+	plan := &scenePlan{service: s, ref: ref, actor: actor, internal: internal, invocation: invocation, expiresAt: expiresAt,
 		members: make([]preparedMember, 0, len(specs))}
+	if internal {
+		plan.origin = ctx
+	}
 	for i, spec := range specs {
 		commandID, err := memberCommandID(invocation, i)
 		if err != nil {

@@ -230,7 +230,7 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	done := make(chan error, 1)
 	var listen net.ListenConfig
 	go func() {
-		done <- RunWithFactory(ctx, settings, listen.Listen, func(addr net.Addr) { ready <- addr }, func(_ context.Context, store *storage.Store) (RuntimePlan, error) {
+		done <- RunWithStartupFactory(ctx, settings.startup, listen.Listen, func(addr net.Addr) { ready <- addr }, func(_ context.Context, store *storage.Store) (RuntimePlan, error) {
 			plan, err := NewPublicPlan(nil, nil, accountTransportAudit{store: store})
 			if err != nil {
 				return RuntimePlan{}, err
@@ -584,7 +584,9 @@ func TestNHA141DefaultRunComposesSessionProvider(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var listen net.ListenConfig
-	go func() { done <- Run(ctx, settings, listen.Listen, func(addr net.Addr) { ready <- addr }) }()
+	go func() {
+		done <- RunWithStartup(ctx, settings.startup, listen.Listen, func(addr net.Addr) { ready <- addr })
+	}()
 	var address net.Addr
 	select {
 	case address = <-ready:

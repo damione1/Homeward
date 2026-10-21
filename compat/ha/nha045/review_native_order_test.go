@@ -60,7 +60,7 @@ func joinedNativeOrderFixture(t *testing.T, index int) (*rig, nativeObservation)
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := r.close(); err != nil {
+		if err := r.dispose(); err != nil {
 			t.Error(err)
 		}
 	})

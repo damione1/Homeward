@@ -18,7 +18,7 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	if ctx == nil {
 		return ErrUnavailable
 	}
-	id, _, entity, err := command.Identity()
+	id, entity, err := command.RouteIdentity()
 	if err != nil {
 		return err
 	}

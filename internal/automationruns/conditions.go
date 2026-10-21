@@ -8,6 +8,7 @@ import (
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/compat/ha/template"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/reactivetemplate"
 )
 
 // Admission conservatively counts names across the bounded program, including
@@ -142,7 +143,13 @@ func (i *Interpreter) evaluateConditions(ctx context.Context, conditions []execu
 				return false, nil
 			}
 		case ir.ConditionState, ir.ConditionTemplate:
-			tracked, err := i.input.Conditions.EvaluateCondition(ctx, condition.program, bindings)
+			var tracked template.TrackedResult
+			var err error
+			if shared, ok := i.input.Conditions.(*reactivetemplate.Service); ok {
+				tracked, err = shared.EvaluateConditionAtZone(ctx, condition.program, bindings, i.input.Zone)
+			} else {
+				tracked, err = i.input.Conditions.EvaluateCondition(ctx, condition.program, bindings)
+			}
 			if err != nil {
 				return false, executionCause(ExecutionConditionError, condition.source, err)
 			}

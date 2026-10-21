@@ -106,14 +106,6 @@ type reactiveClock struct{ base *manualClock }
 func (c reactiveClock) Now() time.Time                                  { return c.base.Now() }
 func (c reactiveClock) NewTimer(d time.Duration) reactivetemplate.Timer { return c.base.NewTimer(d) }
 
-// This is the historical 868 constructor port, not an automation owner or a
-// permission policy. Remove this mounting argument when the merged API does.
-type baselineAuthority struct{ actor domain.ActorID }
-
-func (a baselineAuthority) Context(ctx context.Context) (context.Context, domain.ActorID, error) {
-	return ctx, a.actor, nil
-}
-
 type entityBinding struct {
 	alias    string
 	entity   domain.EntityID
@@ -209,28 +201,30 @@ func (r nativeRefusal) outcome() (Outcome, error) {
 }
 
 type rig struct {
-	f            Fixture
-	clock        *manualClock
-	host         *integrations.Manager
-	fixture      *fake.Fixture
-	session      *integrations.Session
-	entities     []entityBinding
-	triggers     *automationtriggers.Service
-	reactive     *reactivetemplate.Service
-	controller   *automationruns.Controller
-	interpreter  *automationruns.Interpreter
-	scripts      map[string]ir.Script
-	automations  []ir.Automation
-	handles      map[string]*automationruns.ScriptHandle
-	refusals     map[runKey]nativeRefusal
-	identities   []runIdentity
-	mu           sync.Mutex
-	actions      []observedAction
-	states       []observedState
-	cancelled    []string
-	controlMarks []controlMark
-	phaseLog     []phase
-	closed       bool
+	f               Fixture
+	clock           *manualClock
+	host            *integrations.Manager
+	fixture         *fake.Fixture
+	session         *integrations.Session
+	entities        []entityBinding
+	triggers        *automationtriggers.Service
+	reactive        *reactivetemplate.Service
+	controller      *automationruns.Controller
+	interpreter     *automationruns.Interpreter
+	observation     automationruns.NativeObservation
+	observationHeld bool
+	scripts         map[string]ir.Script
+	automations     []ir.Automation
+	handles         map[string]*automationruns.ScriptHandle
+	refusals        map[runKey]nativeRefusal
+	identities      []runIdentity
+	mu              sync.Mutex
+	actions         []observedAction
+	states          []observedState
+	cancelled       []string
+	controlMarks    []controlMark
+	phaseLog        []phase
+	closed          bool
 }
 
 func rawID(g automationruns.Generation, id automationruns.RunID) string {
@@ -404,7 +398,7 @@ func buildRig(ctx context.Context, f Fixture) (r *rig, err error) {
 	r = &rig{f: f, clock: &manualClock{origin: f.origin}, scripts: make(map[string]ir.Script), handles: make(map[string]*automationruns.ScriptHandle), refusals: make(map[runKey]nativeRefusal)}
 	defer func() {
 		if err != nil {
-			err = errors.Join(err, r.close())
+			err = errors.Join(err, r.dispose())
 		}
 	}()
 	r.host, r.fixture, err = fake.NewCommandFixtureWithClock(r.clock)
@@ -541,11 +535,7 @@ func buildRig(ctx context.Context, f Fixture) (r *rig, err error) {
 	if err != nil {
 		return r, err
 	}
-	actor, err := domain.ParseActorID("nha045-baseline-constructor-port")
-	if err != nil {
-		return r, err
-	}
-	r.interpreter, err = automationruns.NewInterpreter(automationruns.InterpreterInput{Plan: plan, TriggerWaits: r.triggers, TemplateWaits: r.reactive, Conditions: r.reactive, Authority: baselineAuthority{actor}, Commands: r, Clock: r.clock, Zone: f.zone})
+	r.interpreter, err = automationruns.NewInterpreter(automationruns.InterpreterInput{Plan: plan, TriggerWaits: r.triggers, TemplateWaits: r.reactive, Conditions: r.reactive, Commands: r, Clock: r.clock, Zone: f.zone})
 	if err != nil {
 		return r, err
 	}
@@ -557,9 +547,39 @@ func buildRig(ctx context.Context, f Fixture) (r *rig, err error) {
 	if err != nil {
 		return r, err
 	}
+	r.observation, err = r.controller.RetainNativeObservation(r.interpreter)
+	if err != nil {
+		return r, err
+	}
+	r.observationHeld = true
 	err = r.controller.Start(ctx)
 	return r, err
 }
+
+// dispose ends the explicit observation only after close has joined execution.
+// close itself preserves the native storage for the subsequent qualification.
+func (r *rig) dispose() error {
+	if r == nil {
+		return nil
+	}
+	closeErr := r.close()
+	if !r.observationHeld {
+		return closeErr
+	}
+	releaseErr := r.observation.Release()
+	r.observationHeld = false
+	r.observation = automationruns.NativeObservation{}
+	if releaseErr != nil {
+		return errors.Join(closeErr, fail(CleanupFailed, releaseErr.Error()))
+	}
+	if closeErr == nil && r.interpreter != nil {
+		if nodes, _ := r.interpreter.NodeTraces(); len(nodes) != 0 {
+			return fail(CleanupFailed, "released native observation kept its interpreter ring")
+		}
+	}
+	return closeErr
+}
+
 func (r *rig) close() error {
 	if r == nil || r.closed {
 		return nil
@@ -1371,7 +1391,7 @@ func Run(ctx context.Context, f Fixture) (capture Capture, err error) {
 	if e != nil {
 		return Capture{}, e
 	}
-	defer func() { err = errors.Join(err, r.close()) }()
+	defer func() { err = errors.Join(err, r.dispose()) }()
 	for _, phase := range f.phases {
 		if e = r.step(ctx, phase); e != nil {
 			return Capture{}, fmt.Errorf("%s: %w", phase.id.value, e)

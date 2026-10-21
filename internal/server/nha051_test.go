@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/damione1/Homeward/internal/config"
+	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/storage"
@@ -20,14 +20,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func nha051ServerConfig(t *testing.T, port int, dataDir string) config.Config {
+func nha051ServerConfig(t *testing.T, port int, dataDir string) nha029RunFixture {
 	t.Helper()
 	data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", dataDir, port))
-	c, err := config.ParseWithEnv(data, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
-	if err != nil {
-		t.Fatal(err)
-	}
-	return c
+	return nha029RunFixtureFromRaw(t, data)
 }
 
 func nha051ServerHandle(t *testing.T, instance, name string) storage.SecretHandle {
@@ -121,7 +117,9 @@ func TestNHA051RunWithFactoryBootstrapsBeforePilotAndReady(t *testing.T) {
 			return RuntimePlan{Identity: unconfiguredIdentity{}, Pilots: []integrations.PilotSpec{spec}}, nil
 		}
 		var lc net.ListenConfig
-		go func() { done <- RunWithFactory(ctx, c, lc.Listen, func(a net.Addr) { ready <- a }, factory) }()
+		go func() {
+			done <- RunWithStartupFactory(ctx, c.startup, lc.Listen, func(a net.Addr) { ready <- a }, factory)
+		}()
 		select {
 		case err := <-pilot.read:
 			if err != nil {
@@ -167,17 +165,26 @@ func TestNHA051RunWithFactoryBootstrapsBeforePilotAndReady(t *testing.T) {
 		t.Fatal(err)
 	}
 	called := false
-	err = RunWithFactory(context.Background(), c, func(context.Context, string, string) (net.Listener, error) { called = true; return nil, nil }, func(net.Addr) { called = true }, func(context.Context, *storage.Store) (RuntimePlan, error) { called = true; return RuntimePlan{}, nil })
-	if err == nil || called || !strings.Contains(err.Error(), "persistent key") {
+	err = RunWithStartupFactory(context.Background(), c.startup, func(context.Context, string, string) (net.Listener, error) { called = true; return nil, nil }, func(net.Addr) { called = true }, func(context.Context, *storage.Store) (RuntimePlan, error) { called = true; return RuntimePlan{}, nil })
+	if !errors.Is(err, configactivation.ErrStartupIntegrity) || called {
 		t.Fatalf("missing key reached ready/composition: %v", err)
+	}
+	if _, statErr := os.Stat(file); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("missing key was regenerated: %v", statErr)
+	}
+	if strings.Contains(err.Error(), canary) {
+		t.Fatal("startup error leaked credential")
 	}
 	wrong := []byte("HOMEWARD_SECRETS_KEY_V1=" + base64.StdEncoding.EncodeToString(make([]byte, 32)) + "\n")
 	if err := os.WriteFile(file, wrong, 0600); err != nil {
 		t.Fatal(err)
 	}
-	err = RunWithFactory(context.Background(), c, func(context.Context, string, string) (net.Listener, error) { called = true; return nil, nil }, func(net.Addr) { called = true }, func(context.Context, *storage.Store) (RuntimePlan, error) { called = true; return RuntimePlan{}, nil })
-	if err == nil || called || !strings.Contains(err.Error(), "persistent key") {
+	err = RunWithStartupFactory(context.Background(), c.startup, func(context.Context, string, string) (net.Listener, error) { called = true; return nil, nil }, func(net.Addr) { called = true }, func(context.Context, *storage.Store) (RuntimePlan, error) { called = true; return RuntimePlan{}, nil })
+	if !errors.Is(err, configactivation.ErrStartupIntegrity) || called {
 		t.Fatalf("wrong key reached ready/composition: %v", err)
+	}
+	if actual, readErr := os.ReadFile(file); readErr != nil || string(actual) != string(wrong) {
+		t.Fatalf("wrong key file was replaced: %v", readErr)
 	}
 	if strings.Contains(err.Error(), canary) {
 		t.Fatal("startup error leaked credential")
@@ -221,7 +228,9 @@ func TestNHA051RevocationDuringBlockedReadReturnsNoValue(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var lc net.ListenConfig
-	go func() { done <- RunWithFactory(ctx, c, lc.Listen, func(a net.Addr) { ready <- a }, factory) }()
+	go func() {
+		done <- RunWithStartupFactory(ctx, c.startup, lc.Listen, func(a net.Addr) { ready <- a }, factory)
+	}()
 	var host integrations.SessionHost
 	select {
 	case host = <-started:
@@ -390,7 +399,9 @@ func TestNHA051AuditInsertFailureClosesCrossInstanceAccess(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var lc net.ListenConfig
-	go func() { done <- RunWithFactory(ctx, c, lc.Listen, func(a net.Addr) { ready <- a }, factory) }()
+	go func() {
+		done <- RunWithStartupFactory(ctx, c.startup, lc.Listen, func(a net.Addr) { ready <- a }, factory)
+	}()
 	var result struct {
 		value storage.SecretValue
 		err   error

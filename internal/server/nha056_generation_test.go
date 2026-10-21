@@ -20,7 +20,7 @@ import (
 
 // This only activates the retained local-helper corpus, with no physical
 // driver, cloud account, MQTT broker, or external HA configuration.
-func nha056ActivateLocalGeneration(t *testing.T, cfg config.Config) uint64 {
+func nha056ActivateLocalGeneration(t *testing.T, cfg nha029RunFixture) uint64 {
 	t.Helper()
 	settings, err := cfg.PostgresSettings()
 	if err != nil {
@@ -38,6 +38,32 @@ func nha056ActivateLocalGeneration(t *testing.T, cfg config.Config) uint64 {
 	defer store.Close()
 	if _, err := store.Migrate(ctx); err != nil {
 		t.Fatal(err)
+	}
+	// Seed a genuine pre-029 legacy generation only after establishing its
+	// existing027 key/DB pair from this admitted exact operational source.
+	// An active generation without that pair is HistoryWithoutKey and must
+	// remain a startup refusal; Run will perform the real source-bearing
+	// LegacyV1-to-CompiledV2 upgrade and preserve these legacy refs below.
+	if cfg.startup.Origin() != config.BootstrapOriginLegacyCombined {
+		t.Fatal("local legacy fixture requires its admitted combined source")
+	}
+	captured, err := cfg.startup.CaptureWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dataDir, err := cfg.DataDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	admission, err := storage.FreshSecretStartup(captured.SHA256(), storage.SecretStartupLegacyCombined)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BootstrapSecretsForStartup(ctx, dataDir, admission); err != nil {
+		t.Fatal("local legacy source did not establish the admitted key/DB pair", err)
+	}
+	if state, err := store.ProbeStartupSecretState(ctx, dataDir); err != nil || state != storage.SecretStartupEstablishedPair {
+		t.Fatal("legacy fixture key/DB identity is not established", err)
 	}
 	document, err := storage.NewConfigDocumentID("nha056.local-generation")
 	if err != nil {
@@ -78,15 +104,50 @@ func nha056ActivateLocalGeneration(t *testing.T, cfg config.Config) uint64 {
 	if err != nil || outcome != storage.TransactionCommitted || revision == 0 {
 		t.Fatal("local generation was not actually committed", err)
 	}
+	legacy, present, err := store.ReadActiveConfig(ctx)
+	if err != nil || !present || uint64(legacy.Revision().Number()) != revision || legacy.ManifestFormat() != storage.ConfigManifestLegacyV1 || legacy.Availability() != storage.ConfigGenerationComplete {
+		t.Fatal("local fixture did not commit a complete real legacy generation", err)
+	}
 	return revision
 }
+func nha056AdmittedSQLRevision(t *testing.T, store *storage.Store, prior uint64) uint64 {
+	t.Helper()
+	active, present, err := store.ReadActiveConfig(context.Background())
+	if err != nil || !present || active.Availability() != storage.ConfigGenerationComplete || active.ManifestFormat() != storage.ConfigManifestCompiledV2 || uint64(active.Revision().Number()) <= prior {
+		t.Fatalf("source-bearing startup lacks actual complete SQL publication: present=%t prior=%d err=%v", present, prior, err)
+	}
+	if prior != 0 {
+		revision, err := storage.NewConfigGenerationRevision(int64(prior))
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacy, err := store.ReadConfigGeneration(context.Background(), revision)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, old := range legacy.Versions() {
+			found := false
+			for _, current := range active.Versions() {
+				if current.Ref() == old.Ref() && current.SHA256() == old.SHA256() {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("startup generation lost a real legacy source/version/hash")
+			}
+		}
+	}
+	return uint64(active.Revision().Number())
+}
+
 func TestNHA056TLSHealthPublishesActualActiveGenerationAndDeniesBroadUser(t *testing.T) {
 	cluster := testpg.Start(t)
 	data := shortPrivateDataDir(t)
 	roots := nha181CertificateFixture(t, data)
 	cfg := nha181Config(t, cluster.Port, data, "127.0.0.1:0", nha181TLSYAML())
 	revision := nha056ActivateLocalGeneration(t, cfg)
-	run := nha162StartDefaultRun(t, cfg)
+	run := nha162StartDefaultRun(t, cfg.startup)
+	revision = nha056AdmittedSQLRevision(t, run.observed.sessions.store, revision)
 	client := nha162RunClient(t, roots, run.address)
 	base := "https://" + run.address.String()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

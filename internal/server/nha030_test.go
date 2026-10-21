@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/recorder"
@@ -29,14 +28,10 @@ func (nha030ProjectedIdentity) AttachProjection(ctx context.Context, sink integr
 	return sink.PublishRegistry(ctx, nil)
 }
 
-func nha030ServerConfig(t *testing.T, port int) config.Config {
+func nha030ServerConfig(t *testing.T, port int) nha029RunFixture {
 	t.Helper()
 	data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", shortPrivateDataDir(t), port))
-	value, err := config.ParseWithEnv(data, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
-	if err != nil {
-		t.Fatal(err)
-	}
-	return value
+	return nha029RunFixtureFromRaw(t, data)
 }
 
 func nha030ServerObserver(t *testing.T, port int) *pgx.Conn {
@@ -115,9 +110,9 @@ func TestNHA030RunAndFailurePathsOwnRecorderEpoch(t *testing.T) {
 			result := make(chan error, 1)
 			go func() {
 				if mode == "default" {
-					result <- Run(ctx, cfg, listen, func(net.Addr) { close(ready) })
+					result <- RunWithStartup(ctx, cfg.startup, listen, func(net.Addr) { close(ready) })
 				} else {
-					result <- RunWithFactory(ctx, cfg, listen, func(net.Addr) { close(ready) }, factory)
+					result <- RunWithStartupFactory(ctx, cfg.startup, listen, func(net.Addr) { close(ready) }, factory)
 				}
 			}()
 			finished := false
@@ -192,7 +187,7 @@ func TestNHA030RunStopsBoundedlyWhenPostgresDisappears(t *testing.T) {
 	ready := make(chan struct{})
 	result := make(chan error, 1)
 	var listener net.ListenConfig
-	go func() { result <- Run(ctx, cfg, listener.Listen, func(net.Addr) { close(ready) }) }()
+	go func() { result <- RunWithStartup(ctx, cfg.startup, listener.Listen, func(net.Addr) { close(ready) }) }()
 	finished := false
 	t.Cleanup(func() {
 		if finished {

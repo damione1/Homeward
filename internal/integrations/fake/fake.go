@@ -429,7 +429,7 @@ func (d *Driver) Dispatch(ctx context.Context, command integrations.AdmittedComm
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	_, _, entity, err := command.Identity()
+	_, entity, err := command.RouteIdentity()
 	if err != nil {
 		return err
 	}

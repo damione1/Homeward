@@ -43,7 +43,7 @@ func TestNHA056TLSClientReusesPublishedActualControllerHandle(t *testing.T) {
 	done := make(chan error, 1)
 	ready := make(chan net.Addr, 1)
 	go func() {
-		done <- RunWithFactory(runCtx, cfg, (&net.ListenConfig{}).Listen, func(addr net.Addr) { ready <- addr }, factory)
+		done <- RunWithStartupFactory(runCtx, cfg.startup, (&net.ListenConfig{}).Listen, func(addr net.Addr) { ready <- addr }, factory)
 	}()
 	t.Cleanup(func() {
 		stop()

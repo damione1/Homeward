@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/compat/ha/template"
-	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/derivedpower"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -111,17 +110,14 @@ func TestNHA107SharesOneTemplateEngineWithPermanentAndWait(t *testing.T) {
 func TestNHA107RunComposesThreePowerOutputsAndMissingHVACEnergy(t *testing.T) {
 	cluster := testpg.Start(t)
 	configuration := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\nderived_power: mvp-v1\nenergy:\n  - source: sensor.hvac_power_consumption\n    output: sensor.hvac_energy_consumption\n    precision: 3\n    max_gap: 1h\n    time_basis: receipt\n", shortPrivateDataDir(t), cluster.Port))
-	c, err := config.ParseWithEnv(configuration, func(key string) (string, bool) { return testpg.Password(), key == "HOMEWARD_TEST_PASSWORD" })
-	if err != nil {
-		t.Fatal(err)
-	}
+	startup := nha029RunStartupFromRaw(t, configuration)
 	sequenceReady := make(chan *sequencer.Sequencer, 1)
 	ready := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	var listener net.ListenConfig
 	go func() {
-		done <- runWithDependencies(ctx, c, listener.Listen, func(net.Addr) { close(ready) }, nil, runDependencies{
+		done <- runWithDependencies(ctx, startup, listener.Listen, func(net.Addr) { close(ready) }, nil, runDependencies{
 			observe: func(_ context.Context, sequence *sequencer.Sequencer) error { sequenceReady <- sequence; return nil },
 		})
 	}()

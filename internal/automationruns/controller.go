@@ -64,6 +64,8 @@ func effectiveMaxExceeded(mode ir.MaxExceededMode) ir.MaxExceededMode {
 type runEntry struct {
 	observationTerminal bool
 	run                 Run
+	image               *programImage
+	spec                automationSpec
 	arena               *runArena
 	ctx                 context.Context
 	cancel              context.CancelFunc
@@ -79,36 +81,38 @@ type lane struct {
 	active      map[RunID]*runEntry
 	queue       []*runEntry
 	replacement *runEntry
+	imageOwners int
 }
 
 type Controller struct {
-	observation       *observability.Cells
-	observationHandle observability.ControllerHandle
-	mu                sync.Mutex
-	plan              Plan
-	sink              HistoryObservationSink
-	preparer          Preparer
-	executor          Executor
-	reader            ResultReader
-	pool              memoryPool
-	ctx               context.Context
-	cancel            context.CancelFunc
-	done              chan struct{}
-	doneOnce          sync.Once
-	wg                sync.WaitGroup
-	lanes             map[laneKey]*lane
-	traces            []Trace
-	traceOrdinal      atomic.Uint64
-	evicted           uint64
-	next              RunID
-	generation        Generation
-	preparing, live   int
-	started, closed   bool
-	err               error
+	observation                   *observability.Cells
+	observationHandle             observability.ControllerHandle
+	mu                            sync.Mutex
+	active                        *programImage
+	pending                       *ImageReservation
+	admission                     *imageAdmission
+	plan                          Plan
+	sink                          HistoryObservationSink
+	reader                        ResultReader
+	pool                          memoryPool
+	ctx                           context.Context
+	cancel                        context.CancelFunc
+	done                          chan struct{}
+	doneOnce                      sync.Once
+	wg                            sync.WaitGroup
+	lanes                         map[laneKey]*lane
+	traces                        []Trace
+	traceOrdinal                  atomic.Uint64
+	evicted                       uint64
+	next                          RunID
+	generation                    Generation
+	preparing, live               int
+	started, closed, closeStarted bool
+	err                           error
 }
 
 func NewController(plan Plan, reader ResultReader, preparer Preparer, executor Executor) (*Controller, error) {
-	if !plan.Valid() || nilPort(preparer) || nilPort(executor) ||
+	if !plan.Valid() || len(plan.items)+len(plan.scripts) == 0 || nilPort(preparer) || nilPort(executor) ||
 		(len(plan.items) != 0 && (nilPort(reader) || reader.Done() == nil)) {
 		return nil, ErrInvalidPlan
 	}
@@ -120,17 +124,26 @@ func NewController(plan Plan, reader ResultReader, preparer Preparer, executor E
 	}
 	lanes := make(map[laneKey]*lane, len(plan.items)+len(plan.scripts))
 	for id := range plan.items {
-		lanes[laneKey{executionAutomation, id}] = &lane{active: make(map[RunID]*runEntry)}
+		lanes[laneKey{executionAutomation, id}] = &lane{active: make(map[RunID]*runEntry), imageOwners: 1}
 	}
 	for id := range plan.scripts {
 		name, _ := id.Value()
-		lanes[laneKey{executionScript, name}] = &lane{active: make(map[RunID]*runEntry)}
+		lanes[laneKey{executionScript, name}] = &lane{active: make(map[RunID]*runEntry), imageOwners: 1}
 	}
-	c := &Controller{plan: plan, reader: reader, preparer: preparer, executor: executor,
+	c := &Controller{plan: plan, reader: reader,
 		lanes: lanes, traces: make([]Trace, 0, MaxTraces), done: make(chan struct{}), generation: Generation(nextGeneration.Add(1))}
+	// Keep Done open until terminal close has joined candidate compilation and
+	// cross-service image publication, including after the run reader exits.
+	c.wg.Add(1)
 	if !c.pool.adjust(0, controllerCharge) {
 		return nil, ErrCapacity
 	}
+	image := &programImage{plan: plan, preparer: preparer, executor: executor, generation: c.generation, refs: 1, lifecycle: programImagePublished,
+		ownKeys: make(map[laneKey]bool, len(lanes))}
+	for key := range lanes {
+		image.ownKeys[key] = true
+	}
+	c.active = image
 	if interpreter, ok := executor.(*Interpreter); ok {
 		preparation, same := preparer.(*Interpreter)
 		if !same || preparation != interpreter {
@@ -139,6 +152,7 @@ func NewController(plan Plan, reader ResultReader, preparer Preparer, executor E
 		if err := interpreter.bind(c); err != nil {
 			return nil, err
 		}
+		image.interpreter, image.charge = interpreter, interpreter.charge
 	}
 	return c, nil
 }
@@ -169,6 +183,10 @@ func (c *Controller) Start(ctx context.Context) error {
 		go func() { defer c.wg.Done(); <-c.ctx.Done() }()
 	}
 	go func() { c.wg.Wait(); c.doneOnce.Do(func() { close(c.done) }) }()
+	go func() {
+		<-c.ctx.Done()
+		c.BeginClose()
+	}()
 	return nil
 }
 
@@ -267,8 +285,23 @@ func (c *Controller) readLoop() {
 // reading the result's payload or calling a potentially blocking port.
 func (c *Controller) beginPrepare(result automationtriggers.Result) {
 	id, key := result.Automation(), result.TriggerKey()
-	c.mu.Lock()
-	spec, known := c.plan.items[id]
+	if err := c.lockProgramAdmission(c.ctx); err != nil {
+		// Admission failed before any image or definition was selected.
+		c.traceOutcome(DecisionPreparationError, Trigger{automation: id, triggerKey: key}, DefinitionProvenance{}, err)
+		return
+	}
+	image := c.active
+	if image == nil {
+		c.recordLocked(Trace{Decision: DecisionClosed, Automation: id, TriggerKey: key})
+		c.mu.Unlock()
+		return
+	}
+	if image.triggerIdentity != nil && result.PlanIdentity() != nil && result.PlanIdentity() != image.triggerIdentity {
+		c.recordLocked(Trace{Decision: DecisionTriggerMissed, Automation: id, TriggerKey: key})
+		c.mu.Unlock()
+		return
+	}
+	spec, known := image.plan.items[id]
 	switch {
 	case c.closed:
 		c.recordLocked(Trace{Decision: DecisionClosed, Automation: id, TriggerKey: key})
@@ -279,18 +312,20 @@ func (c *Controller) beginPrepare(result automationtriggers.Result) {
 	case !c.pool.adjust(0, preparationCharge):
 		c.recordLocked(Trace{Decision: DecisionMemorySaturated, Automation: id, TriggerKey: key})
 	default:
+		c.retainImageLocked(image)
 		c.preparing++
 		c.wg.Add(1)
 		c.recordLocked(Trace{Decision: DecisionPreparing, Automation: id, TriggerKey: key, Provenance: spec.provenance})
 		c.mu.Unlock()
-		go c.prepare(spec, result)
+		go c.prepare(image, spec, result)
 		return
 	}
 	c.mu.Unlock()
 }
 
-func (c *Controller) prepare(spec automationSpec, result automationtriggers.Result) {
+func (c *Controller) prepare(image *programImage, spec automationSpec, result automationtriggers.Result) {
 	defer c.wg.Done()
+	defer c.releaseImage(image)
 	reserved := true
 	defer func() {
 		if reserved {
@@ -298,6 +333,7 @@ func (c *Controller) prepare(spec automationSpec, result automationtriggers.Resu
 		}
 		c.mu.Lock()
 		c.preparing--
+		c.signalProgramAdmissionsLocked()
 		c.mu.Unlock()
 	}()
 	trigger := Trigger{automation: result.Automation(), triggerKey: result.TriggerKey(),
@@ -306,7 +342,7 @@ func (c *Controller) prepare(spec automationSpec, result automationtriggers.Resu
 		c.traceOutcome(DecisionMemorySaturated, trigger, spec.provenance, nil)
 		return
 	}
-	prepared, err := c.callPrepare(spec, trigger)
+	prepared, err := c.callPrepare(image, spec, trigger)
 	if err != nil {
 		c.traceOutcome(DecisionPreparationError, trigger, spec.provenance, err)
 		return
@@ -334,7 +370,7 @@ func (c *Controller) prepare(spec automationSpec, result automationtriggers.Resu
 		return
 	}
 	reserved = false
-	c.admit(spec, trigger, arena, env)
+	c.admitImage(image, spec, trigger, arena, env)
 }
 
 func (c *Controller) traceOutcome(decision Decision, trigger Trigger, stamp DefinitionProvenance, err error) {
@@ -347,29 +383,29 @@ func (c *Controller) traceOutcome(decision Decision, trigger Trigger, stamp Defi
 	c.mu.Unlock()
 }
 
-func (c *Controller) callPrepare(spec automationSpec, trigger Trigger) (prepared Preparation, err error) {
+func (c *Controller) callPrepare(image *programImage, spec automationSpec, trigger Trigger) (prepared Preparation, err error) {
 	defer func() {
 		if recover() != nil {
 			prepared, err = Preparation{}, ErrPortPanic
 		}
 	}()
-	return c.preparer.Prepare(c.ctx, spec.value, trigger)
+	return image.preparer.Prepare(c.ctx, spec.value, trigger)
 }
 
-func (c *Controller) callExecute(spec automationSpec, entry *runEntry) (err error) {
+func (c *Controller) callExecute(entry *runEntry) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = ErrPortPanic
 		}
 	}()
-	if spec.script.Valid() {
-		port, ok := c.executor.(ScriptExecutor)
+	if entry.spec.script.Valid() {
+		port, ok := entry.image.executor.(ScriptExecutor)
 		if !ok || nilPort(port) {
 			return ErrInvalidPlan
 		}
-		return port.ExecuteScript(entry.ctx, spec.script, entry.run)
+		return port.ExecuteScript(entry.ctx, entry.spec.script, entry.run)
 	}
-	return c.executor.Execute(entry.ctx, spec.value, entry.run)
+	return entry.image.executor.Execute(entry.ctx, entry.spec.value, entry.run)
 }
 
 func (c *Controller) activateLocked(l *lane, entry *runEntry) {
@@ -385,13 +421,30 @@ type runAncestry struct {
 }
 
 func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena, env *Environment, ancestry ...runAncestry) (*runEntry, Decision) {
+	c.mu.Lock()
+	image := c.active
+	if image != nil {
+		c.retainImageLocked(image)
+	} else {
+		c.recordLocked(Trace{Decision: DecisionClosed, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey})
+	}
+	c.mu.Unlock()
+	if image == nil {
+		arena.close()
+		return nil, DecisionClosed
+	}
+	defer c.releaseImage(image)
+	return c.admitImage(image, spec, trigger, arena, env, ancestry...)
+}
+
+func (c *Controller) admitImage(image *programImage, spec automationSpec, trigger Trigger, arena *runArena, env *Environment, ancestry ...runAncestry) (*runEntry, Decision) {
 	var start *runEntry
 	var cancel []*runEntry
 	var discard *runEntry
 	c.mu.Lock()
 	l := c.lanes[trigger.laneKey()]
 	decision := DecisionAdmitted
-	if c.closed || c.ctx.Err() != nil || l == nil {
+	if c.closed || c.ctx.Err() != nil || l == nil || image == nil || image.refs <= 0 {
 		decision = DecisionClosed
 	} else if c.live == MaxLiveRuns {
 		decision = DecisionMemorySaturated
@@ -434,7 +487,8 @@ func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena
 	c.next++
 	id := c.next
 	runCtx, runCancel := context.WithCancel(c.ctx)
-	entry := &runEntry{run: Run{id: id, generation: c.generation, provenance: spec.provenance, trigger: trigger, env: env},
+	c.retainImageLocked(image)
+	entry := &runEntry{run: Run{id: id, generation: image.generation, provenance: spec.provenance, trigger: trigger, env: env, image: image}, image: image, spec: spec,
 		arena: arena, ctx: runCtx, cancel: runCancel, done: make(chan struct{}), ready: make(chan struct{})}
 	entry.run.suspend = func() { entry.acknowledgeStartup(StartupSuspended, nil) }
 	if len(ancestry) != 0 {
@@ -476,7 +530,7 @@ func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena
 			}
 		}
 	}
-	c.recordLocked(Trace{Decision: decision, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey, RunID: id, Generation: c.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
+	c.recordLocked(Trace{Decision: decision, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey, RunID: id, Generation: image.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
 	if len(ancestry) != 0 && ancestry[0].parent.id != 0 && c.sink != nil {
 		c.sink.ObserveScriptLink(ScriptLinkObservation{At: time.Now().UTC(), Parent: ancestry[0].parent.historyRef(), Child: entry.run.historyRef(), Script: trigger.script, Mode: ancestry[0].mode})
 	}
@@ -493,27 +547,28 @@ func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena
 		discard.acknowledgeStartup(StartupCancelledBeforeExecution, ErrClosed)
 		discard.arena.close()
 		close(discard.done)
+		c.releaseImage(discard.image)
 	}
 	if start != nil {
-		go c.execute(spec, start)
+		go c.execute(start)
 	}
 	return entry, decision
 }
 
-func (c *Controller) execute(spec automationSpec, entry *runEntry) {
+func (c *Controller) execute(entry *runEntry) {
 	defer c.wg.Done()
 	var err error
 	if entry.ctx.Err() == nil {
-		err = c.callExecute(spec, entry)
+		err = c.callExecute(entry)
 		entry.acknowledgeStartup(StartupTerminated, err)
 	} else {
 		err = entry.ctx.Err()
 		entry.acknowledgeStartup(StartupCancelledBeforeExecution, entry.ctx.Err())
 	}
-	c.finish(spec, entry, err)
+	c.finish(entry, err)
 }
 
-func (c *Controller) finish(spec automationSpec, entry *runEntry, err error) {
+func (c *Controller) finish(entry *runEntry, err error) {
 	var next *runEntry
 	var errorText string
 	if err != nil {
@@ -536,9 +591,9 @@ func (c *Controller) finish(spec automationSpec, entry *runEntry, err error) {
 	entry.err = err
 	entry.acknowledgeStartup(StartupTerminated, entry.err)
 	if !c.closed && c.ctx.Err() == nil && len(l.active) == 0 {
-		if spec.mode == ir.AutomationQueued && len(l.queue) != 0 {
+		if len(l.queue) != 0 {
 			next, l.queue = l.queue[0], l.queue[1:]
-		} else if spec.mode == ir.AutomationRestart && l.replacement != nil {
+		} else if l.replacement != nil {
 			next, l.replacement = l.replacement, nil
 		}
 		if next != nil {
@@ -546,12 +601,14 @@ func (c *Controller) finish(spec automationSpec, entry *runEntry, err error) {
 			c.recordLocked(Trace{Decision: DecisionAdmitted, Automation: next.run.trigger.automation, Script: next.run.trigger.script, RunID: next.run.id, Generation: next.run.generation, Provenance: next.run.provenance, ParentID: next.run.parent})
 		}
 	}
+	c.pruneLaneLocked(entry.run.trigger.laneKey())
 	c.mu.Unlock()
 	entry.cancel()
 	entry.arena.close()
 	close(entry.done)
+	c.releaseImage(entry.image)
 	if next != nil {
-		go c.execute(spec, next)
+		go c.execute(next)
 	}
 }
 
@@ -561,6 +618,13 @@ func (c *Controller) CloseAdmissions() {
 	}
 	c.mu.Lock()
 	c.closed = true
+	if c.admission != nil {
+		c.admission.phase = imageAdmissionResolved
+		c.signalProgramAdmissionsLocked()
+		c.releaseAdmissionLocked(c.admission)
+		c.admission = nil
+	}
+	c.signalProgramAdmissionsLocked()
 	c.mu.Unlock()
 }
 
@@ -569,11 +633,51 @@ func (c *Controller) BeginClose() <-chan struct{} {
 		return nil
 	}
 	var pending []*runEntry
+	var finished []*programImage
 	c.mu.Lock()
-	c.closed = true
-	if !c.started {
-		c.doneOnce.Do(func() { close(c.done) })
+	if c.closeStarted {
 		c.mu.Unlock()
+		return c.done
+	}
+	c.closeStarted = true
+	c.wg.Add(1) // close itself joins image cleanup before Done
+	if c.active != nil {
+		active := c.active
+		c.active = nil
+		if image := c.releaseImageLocked(active); image != nil {
+			finished = append(finished, image)
+		}
+	}
+	if c.pending != nil {
+		published := c.pending.state == imageReservationPublished
+		c.pending.state = imageReservationReleased
+		if c.pending.image != nil && !published {
+			if image := c.releaseImageLocked(c.pending.image); image != nil {
+				finished = append(finished, image)
+			}
+		}
+		c.pending = nil
+	}
+	c.closed = true
+	if c.admission != nil {
+		c.admission.phase = imageAdmissionResolved
+		c.signalProgramAdmissionsLocked()
+		c.releaseAdmissionLocked(c.admission)
+		c.admission = nil
+	}
+	if !c.started {
+		c.mu.Unlock()
+		for _, image := range finished {
+			finishImageRelease(c, image)
+		}
+		c.wg.Done()
+		c.wg.Done() // controller lifetime
+		// A candidate can still be compiling outside mu. Its reservation owns
+		// one wait-group reference, including the rejection cleanup.
+		go func() {
+			c.wg.Wait()
+			c.doneOnce.Do(func() { close(c.done) })
+		}()
 		return c.done
 	}
 	if c.cancel != nil {
@@ -596,13 +700,19 @@ func (c *Controller) BeginClose() <-chan struct{} {
 		c.recordLocked(Trace{Decision: DecisionCancelled, Automation: entry.run.trigger.automation, Script: entry.run.trigger.script, RunID: entry.run.id, Generation: entry.run.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
 	}
 	c.mu.Unlock()
+	for _, image := range finished {
+		finishImageRelease(c, image)
+	}
 	for _, entry := range pending {
 		entry.cancel()
 		entry.err = ErrClosed
 		entry.acknowledgeStartup(StartupCancelledBeforeExecution, ErrClosed)
 		entry.arena.close()
 		close(entry.done)
+		c.releaseImage(entry.image)
 	}
+	c.wg.Done()
+	c.wg.Done() // controller lifetime
 	return c.done
 }
 

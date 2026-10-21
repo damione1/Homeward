@@ -10,7 +10,6 @@ import (
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/compat/ha/template"
 	"github.com/damione1/Homeward/internal/automationtriggers"
-	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/reactivetemplate"
 )
 
@@ -94,12 +93,6 @@ func (e *ExecutionError) Error() string {
 	return "script execution: invalid error"
 }
 
-// ExecutionAuthority supplies current sending authority. It does not own a
-// household object and supplies no hidden session or household account.
-type ExecutionAuthority interface {
-	Context(context.Context) (context.Context, domain.ActorID, error)
-}
-
 // ConditionSource is implemented by the composed NHA-044 service over its one
 // sequencer projection. Evaluation stays in its serialized engine; immutable
 // tracked results escape, while large source snapshots do not.
@@ -115,11 +108,9 @@ type CommandExecution struct {
 	visit      uint64
 	ordinal    uint64
 	source     ir.Source
-	actor      domain.ActorID
 	suspend    func()
 }
 
-func (c CommandExecution) Actor() domain.ActorID            { return c.actor }
 func (c CommandExecution) Source() ir.Source                { return c.source }
 func (c CommandExecution) RunID() RunID                     { return c.run }
 func (c CommandExecution) ParentID() RunID                  { return c.parent }
@@ -152,9 +143,9 @@ type CommandExecutor interface {
 type InterpreterInput struct {
 	Plan          Plan
 	TriggerWaits  *automationtriggers.Service
+	TriggerPlan   automationtriggers.Plan
 	TemplateWaits *reactivetemplate.Service
 	Conditions    ConditionSource
-	Authority     ExecutionAuthority
 	Commands      CommandExecutor
 	Clock         automationtriggers.Clock
 	Zone          *time.Location
@@ -180,6 +171,7 @@ type executableNode struct {
 	count               int
 	delay               time.Duration
 	waitProgram         template.Program
+	admittedWait        *automationtriggers.AdmittedWait
 	timeout             time.Duration
 	hasTimeout          bool
 	continueOnTimeout   bool

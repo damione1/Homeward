@@ -187,27 +187,28 @@ type Snapshot struct {
 }
 
 type Sequencer struct {
-	observationHealth *observability.HealthCell
-	observation       *observability.Cells
-	mu                sync.Mutex
-	clock             Clock
-	started           time.Time
-	lastTick          time.Duration
-	epoch             [16]byte
-	seq               uint64
-	journal           []Entry
-	journalSizes      []int
-	journalBytes      int
-	count             int
-	states            map[domain.EntityID]domain.ObservedState
-	health            map[domain.IntegrationInstanceID]integrations.HealthReport
-	registry          map[domain.EntityID]integrations.RegistryRecord
-	capabilities      map[domain.EntityID][]*wireregistry.CapabilityDescription
-	commandRoutes     map[commandRouteSlot]map[domain.EntityID]struct{}
-	commandAliases    map[domain.HAAlias]domain.EntityID
-	registryState     registryProjectionState
-	limits            QueueLimits
-	subs              map[*Subscription]struct{}
+	observationHealth        *observability.HealthCell
+	observation              *observability.Cells
+	mu                       sync.Mutex
+	clock                    Clock
+	started                  time.Time
+	lastTick                 time.Duration
+	epoch                    [16]byte
+	seq                      uint64
+	journal                  []Entry
+	journalSizes             []int
+	journalBytes             int
+	count                    int
+	states                   map[domain.EntityID]domain.ObservedState
+	health                   map[domain.IntegrationInstanceID]integrations.HealthReport
+	registry                 map[domain.EntityID]integrations.RegistryRecord
+	capabilities             map[domain.EntityID][]*wireregistry.CapabilityDescription
+	commandRoutes            map[commandRouteSlot]map[domain.EntityID]struct{}
+	commandAliases           map[domain.HAAlias]domain.EntityID
+	registryState            registryProjectionState
+	configurationPublication *ConfigurationPublication
+	limits                   QueueLimits
+	subs                     map[*Subscription]struct{}
 }
 
 func New(clock Clock, journalCapacity int) (*Sequencer, error) {
@@ -700,7 +701,7 @@ func (s *Sequencer) Capture() (Snapshot, error) {
 }
 
 func (s *Sequencer) captureLocked() (Snapshot, error) {
-	if s.registryState == registryUnavailable {
+	if s.registryState == registryUnavailable || s.configurationPublication != nil {
 		return Snapshot{}, ErrRegistryUnavailable
 	}
 	states := make(map[domain.EntityID]domain.ObservedState, len(s.states))

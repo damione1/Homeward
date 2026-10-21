@@ -195,6 +195,7 @@ func (c *Controller) ObservationTrace(run RunID) ([]observability.TraceRow, obse
 		return nil, observability.TraceCutMetadata{}, false, ErrInvalidPlan
 	}
 	c.mu.Lock()
+	var generation Generation
 	for _, trace := range c.traces {
 		if trace.RunID != run {
 			continue
@@ -202,6 +203,9 @@ func (c *Controller) ObservationTrace(run RunID) ([]observability.TraceRow, obse
 		if len(rows) == 512 {
 			truncated = true
 			continue
+		}
+		if trace.Generation != 0 {
+			generation = trace.Generation
 		}
 		row, err := observationControllerRow(trace, c.TraceOrderState())
 		if err != nil {
@@ -211,16 +215,76 @@ func (c *Controller) ObservationTrace(run RunID) ([]observability.TraceRow, obse
 		rows = append(rows, row)
 	}
 	controllerEvicted := c.evicted
+	// The bounded controller ring may have evicted every decision for this
+	// run. Its image can still be owned by the run or a causal descendant.
+	// Snapshot only images already owned by the active plan or live lanes;
+	// explicit post-Close native observers do not extend this product reader.
+	var images [MaxLiveRuns + 1]*programImage
+	imageCount := 0
+	var snapshotErr error
+	retain := func(candidate *programImage) {
+		if snapshotErr != nil || candidate == nil || candidate.interpreter == nil || c.closed {
+			return
+		}
+		for index := 0; index < imageCount; index++ {
+			if images[index] == candidate {
+				return
+			}
+		}
+		if imageCount == len(images) || !c.retainImageLocked(candidate) {
+			snapshotErr = ErrInvalidPlan
+			return
+		}
+		images[imageCount] = candidate
+		imageCount++
+	}
+	retain(c.active)
+	for _, lane := range c.lanes {
+		for _, entry := range lane.active {
+			retain(entry.image)
+		}
+		for _, entry := range lane.queue {
+			retain(entry.image)
+		}
+		if lane.replacement != nil {
+			retain(lane.replacement.image)
+		}
+	}
+	if imageCount != 0 {
+		c.wg.Add(1)
+	}
 	c.mu.Unlock()
+	if imageCount != 0 {
+		defer c.wg.Done()
+		defer func() {
+			for index := 0; index < imageCount; index++ {
+				c.releaseImage(images[index])
+			}
+		}()
+	}
+	if snapshotErr != nil {
+		return nil, observability.TraceCutMetadata{}, false, snapshotErr
+	}
 	controllerAt := time.Now().UTC()
-	var nodeEvicted uint64
-	if interpreter, ok := c.executor.(*Interpreter); ok && interpreter != nil {
+	var nodeEvicted, historicalEvicted uint64
+	var nodeImage *programImage
+	var historicalAt time.Time
+	nodeAt := time.Now().UTC()
+	for index := 0; index < imageCount; index++ {
+		image := images[index]
+		interpreter := image.interpreter
 		interpreter.mu.Lock()
+		matched := false
 		for index := 0; index < len(interpreter.traces); index++ {
 			trace := interpreter.traces[(interpreter.traceNext+index)%len(interpreter.traces)]
 			if trace.run != run {
 				continue
 			}
+			if nodeImage != nil && nodeImage != image || generation != 0 && generation != image.generation {
+				interpreter.mu.Unlock()
+				return nil, observability.TraceCutMetadata{}, false, ErrInvalidPlan
+			}
+			nodeImage, matched = image, true
 			if len(rows) == 512 {
 				truncated = true
 				continue
@@ -232,10 +296,20 @@ func (c *Controller) ObservationTrace(run RunID) ([]observability.TraceRow, obse
 			}
 			rows = append(rows, row)
 		}
-		nodeEvicted = interpreter.evicted
+		evicted := interpreter.evicted
 		interpreter.mu.Unlock()
+		capturedAt := time.Now().UTC()
+		if matched {
+			nodeEvicted, nodeAt = evicted, capturedAt
+		} else if generation != 0 && generation == image.generation {
+			historicalEvicted, historicalAt = evicted, capturedAt
+		}
 	}
-	nodeAt := time.Now().UTC()
+	if nodeImage == nil && !historicalAt.IsZero() {
+		// A retained controller decision can still identify its ring when
+		// every node of this run has been evicted from that same image.
+		nodeEvicted, nodeAt = historicalEvicted, historicalAt
+	}
 	if c.TraceOrderState() == TraceOrderExhausted {
 		order = TraceOrderExhausted
 	}

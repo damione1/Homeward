@@ -35,6 +35,8 @@ const (
 	ConfigDocumentKindYAMLSource
 	ConfigDocumentKindAuthorizationPolicy
 	ConfigDocumentKindMFAPolicy
+	ConfigDocumentKindOperationalYAML
+	ConfigDocumentKindBootstrapLaunch
 )
 
 func (k ConfigDocumentKind) String() string {
@@ -45,6 +47,10 @@ func (k ConfigDocumentKind) String() string {
 		return "authorization_policy"
 	case ConfigDocumentKindMFAPolicy:
 		return "mfa_policy"
+	case ConfigDocumentKindOperationalYAML:
+		return "operational_yaml"
+	case ConfigDocumentKindBootstrapLaunch:
+		return "bootstrap_launch"
 	default:
 		return ""
 	}
@@ -58,6 +64,10 @@ func parseConfigDocumentKind(text string) (ConfigDocumentKind, error) {
 		return ConfigDocumentKindMFAPolicy, nil
 	case ConfigDocumentKindAuthorizationPolicy.String():
 		return ConfigDocumentKindAuthorizationPolicy, nil
+	case ConfigDocumentKindOperationalYAML.String():
+		return ConfigDocumentKindOperationalYAML, nil
+	case ConfigDocumentKindBootstrapLaunch.String():
+		return ConfigDocumentKindBootstrapLaunch, nil
 	default:
 		return ConfigDocumentKindInvalid, &Error{kind: ConfigIntegrity}
 	}
@@ -168,11 +178,13 @@ func (r ConfigVersionRef) Valid() bool                     { return r.document.V
 // ConfigTx is owned by one callback and one goroutine. It has no Commit or
 // Rollback method; a retained handle fails after the callback returns.
 type ConfigTx struct {
-	ctx     context.Context
-	tx      pgx.Tx
-	live    bool
-	failure error
-	touched map[string]ConfigDocumentID
+	ctx        context.Context
+	tx         pgx.Tx
+	store      *Store
+	live       bool
+	failure    error
+	touched    map[string]ConfigDocumentID
+	activation *configActivationReceipt
 }
 
 func (c *ConfigTx) valid() error {
@@ -199,7 +211,10 @@ func (s *Store) InConfigTransactionOutcome(ctx context.Context, fn func(*ConfigT
 		return TransactionNotCommitted, &Error{kind: ConfigInvalid}
 	}
 	return s.InTransactionOutcome(ctx, func(tx pgx.Tx) error {
-		return withConfigTx(ctx, tx, fn)
+		return withConfigTx(ctx, tx, func(c *ConfigTx) error {
+			c.store = s
+			return fn(c)
+		})
 	})
 }
 
@@ -219,6 +234,9 @@ func withConfigTx(ctx context.Context, tx pgx.Tx, fn func(*ConfigTx) error) erro
 	}
 	if c.failure != nil {
 		return c.failure
+	}
+	if c.activation != nil && c.activation.auditRequired && !c.activation.audited {
+		return &Error{kind: ConfigInvalid}
 	}
 	ids := make([]string, 0, len(c.touched))
 	for id := range c.touched {
@@ -297,6 +315,7 @@ const (
 	configSourceAuthorization
 	configSourceDeclarative2
 	configSourceMFA
+	configSourceBootstrapLaunch
 )
 
 func (f configSourceFormat) values() (ConfigDocumentKind, string, string, error) {
@@ -309,6 +328,8 @@ func (f configSourceFormat) values() (ConfigDocumentKind, string, string, error)
 		return ConfigDocumentKindMFAPolicy, authmfa.PolicySchema, authmfa.PolicySyntaxProfile, nil
 	case configSourceAuthorization:
 		return ConfigDocumentKindAuthorizationPolicy, authorization.Schema, authorization.SyntaxProfile, nil
+	case configSourceBootstrapLaunch:
+		return ConfigDocumentKindBootstrapLaunch, configBootstrapSchema, configBootstrapProfile, nil
 	case configSourceInvalid:
 		return ConfigDocumentKindInvalid, "", "", &Error{kind: ConfigInvalid}
 	default:
@@ -382,7 +403,9 @@ func (c *ConfigTx) prune(id ConfigDocumentID) error {
 		         ) OR EXISTS (
 		           SELECT 1 FROM public.authorization_policy_active p
 		           WHERE p.document_id=v.document_id AND p.version_revision=v.revision
-		         ) OR EXISTS (SELECT 1 FROM public.auth_mfa_policy p WHERE p.document_id=v.document_id AND p.version_revision=v.revision) THEN 0 ELSE 1 END, v.revision DESC) AS keep_rank
+		         ) OR EXISTS (SELECT 1 FROM public.auth_mfa_policy p WHERE p.document_id=v.document_id AND p.version_revision=v.revision)
+		         OR EXISTS (SELECT 1 FROM public.config_bootstrap_active b WHERE b.singleton AND b.document_id=v.document_id AND b.version_revision=v.revision)
+		         THEN 0 ELSE 1 END, v.revision DESC) AS keep_rank
 		FROM public.config_versions v WHERE v.document_id=$1
 	)
 	DELETE FROM public.config_versions v USING ranked r
@@ -422,6 +445,116 @@ func configManifestHash(entry string, items []configManifestItem) [sha256.Size]b
 	var out [sha256.Size]byte
 	copy(out[:], h.Sum(nil))
 	return out
+}
+
+func configCompiledManifestHash(entry string, compiled [sha256.Size]byte, items []configManifestItem) [sha256.Size]byte {
+	ordered := append([]configManifestItem(nil), items...)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].ref.document.document < ordered[j].ref.document.document })
+	h := sha256.New()
+	writeHashField(h, []byte("homeward/config-manifest/v2"))
+	writeHashField(h, []byte(entry))
+	writeHashField(h, compiled[:])
+	var number [8]byte
+	binary.BigEndian.PutUint64(number[:], uint64(len(ordered)))
+	_, _ = h.Write(number[:])
+	for _, item := range ordered {
+		writeHashField(h, []byte(item.ref.document.document))
+		writeHashField(h, []byte(item.path))
+		binary.BigEndian.PutUint64(number[:], uint64(item.ref.revision.version))
+		_, _ = h.Write(number[:])
+		_, _ = h.Write(item.hash[:])
+	}
+	var out [sha256.Size]byte
+	copy(out[:], h.Sum(nil))
+	return out
+}
+
+// RegisterCompiledGeneration seals one operational document plus the exact
+// admitted definition revisions. The caller supplies a digest of its compiled
+// candidate; SQL validates source membership and bounds before sealing.
+func (c *ConfigTx) RegisterCompiledGeneration(entry string, compiled [sha256.Size]byte, refs []ConfigVersionRef) (result ConfigGenerationRevision, err error) {
+	defer func() { c.remember(err) }()
+	if err := c.valid(); err != nil {
+		return ConfigGenerationRevision{}, err
+	}
+	if _, err := parser.NewSourceFile(entry, nil); err != nil || compiled == ([sha256.Size]byte{}) || len(refs) == 0 || len(refs) > configSourceLimitCount {
+		return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
+	}
+	items := make([]configManifestItem, 0, len(refs))
+	seen := make(map[string]struct{}, len(refs))
+	var totalBytes, operational int
+	for _, ref := range refs {
+		if !ref.Valid() {
+			return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
+		}
+		if _, duplicate := seen[ref.document.document]; duplicate {
+			return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
+		}
+		seen[ref.document.document] = struct{}{}
+		var item configManifestItem
+		var kind, schema, profile, representation string
+		var digest, plain, ciphertext []byte
+		item.ref = ref
+		err = c.tx.QueryRow(c.ctx, `SELECT d.logical_path,d.kind::text,v.schema_version::text,v.syntax_profile::text,
+			v.source_representation::text,v.source_hash,v.yaml_source,v.ciphertext
+			FROM public.config_versions v JOIN public.config_documents d ON d.id=v.document_id
+			WHERE v.document_id=$1 AND v.revision=$2`, ref.document.document, ref.revision.version).
+			Scan(&item.path, &kind, &schema, &profile, &representation, &digest, &plain, &ciphertext)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ConfigGenerationRevision{}, &Error{kind: ConfigIncomplete}
+		}
+		if err != nil {
+			return ConfigGenerationRevision{}, err
+		}
+		if _, err := parser.NewSourceFile(item.path, nil); err != nil || len(digest) != sha256.Size {
+			return ConfigGenerationRevision{}, &Error{kind: ConfigIntegrity}
+		}
+		copy(item.hash[:], digest)
+		switch {
+		case kind == ConfigDocumentKindYAMLSource.String() && representation == configPlainSQL &&
+			((schema == bundle.SchemaDeclarative1.String() && profile == parser.SyntaxProfileDeclarative.String()) ||
+				(schema == bundle.SchemaDeclarative2.String() && profile == parser.SyntaxProfileDeclarative2.String())):
+			if sha256.Sum256(plain) != item.hash || len(plain) > 1<<20 {
+				return ConfigGenerationRevision{}, &Error{kind: ConfigIntegrity}
+			}
+			totalBytes += len(plain)
+		case kind == ConfigDocumentKindOperationalYAML.String() && representation == configProtectedSQL &&
+			schema == configOperationalSchema && profile == configOperationalProfile:
+			if len(ciphertext) < 29 || len(ciphertext) > (1<<20)+28 {
+				return ConfigGenerationRevision{}, &Error{kind: ConfigIntegrity}
+			}
+			totalBytes += len(ciphertext) - 28
+			operational++
+		default:
+			return ConfigGenerationRevision{}, &Error{kind: ConfigIntegrity}
+		}
+		if totalBytes > configSourceLimitBytes {
+			return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
+		}
+		items = append(items, item)
+	}
+	if operational != 1 {
+		return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
+	}
+	manifest := configCompiledManifestHash(entry, compiled, items)
+	var revision int64
+	err = c.tx.QueryRow(c.ctx, `INSERT INTO public.config_generations(entry_path,candidate_hash,manifest_hash,entry_count,manifest_format)
+		VALUES($1,$2,$3,$4,$5::public.config_manifest_format) RETURNING revision`,
+		entry, compiled[:], manifest[:], len(items), configCompiledManifest).Scan(&revision)
+	if err != nil {
+		return ConfigGenerationRevision{}, configWriteError(err)
+	}
+	for _, item := range items {
+		if _, err := c.tx.Exec(c.ctx, `INSERT INTO public.config_generation_entries
+			(generation_revision,document_id,version_revision,source_hash) VALUES($1,$2,$3,$4)`,
+			revision, item.ref.document.document, item.ref.revision.version, item.hash[:]); err != nil {
+			return ConfigGenerationRevision{}, configWriteError(err)
+		}
+	}
+	if _, err := c.tx.Exec(c.ctx, `UPDATE public.config_generations SET sealed=true WHERE revision=$1`, revision); err != nil {
+		return ConfigGenerationRevision{}, configWriteError(err)
+	}
+	return ConfigGenerationRevision{generation: revision}, nil
 }
 
 // RegisterGeneration binds every admitted source to its exact persisted
@@ -517,16 +650,17 @@ const (
 type ExpectedConfigActive struct {
 	kind     configActiveExpectationKind
 	revision ConfigGenerationRevision
+	manifest [sha256.Size]byte
 }
 
 func ExpectNoConfigActive() ExpectedConfigActive {
 	return ExpectedConfigActive{kind: configActiveExpectationAbsent}
 }
-func ExpectConfigActive(revision ConfigGenerationRevision) (ExpectedConfigActive, error) {
-	if !revision.Valid() {
+func ExpectConfigActive(revision ConfigGenerationRevision, manifest [sha256.Size]byte) (ExpectedConfigActive, error) {
+	if !revision.Valid() || manifest == ([sha256.Size]byte{}) {
 		return ExpectedConfigActive{}, &Error{kind: ConfigInvalid}
 	}
-	return ExpectedConfigActive{kind: configActiveExpectationRevision, revision: revision}, nil
+	return ExpectedConfigActive{kind: configActiveExpectationRevision, revision: revision, manifest: manifest}, nil
 }
 
 func (c *ConfigTx) ActivateGeneration(expected ExpectedConfigActive, target ConfigGenerationRevision) (err error) {
@@ -534,10 +668,10 @@ func (c *ConfigTx) ActivateGeneration(expected ExpectedConfigActive, target Conf
 	if err := c.valid(); err != nil {
 		return err
 	}
-	if !target.Valid() ||
-		(expected.kind == configActiveExpectationAbsent && expected.revision.Valid()) ||
+	if !target.Valid() || c.activation != nil ||
+		(expected.kind == configActiveExpectationAbsent && (expected.revision.Valid() || expected.manifest != ([sha256.Size]byte{}))) ||
 		(expected.kind != configActiveExpectationAbsent &&
-			(expected.kind != configActiveExpectationRevision || !expected.revision.Valid())) {
+			(expected.kind != configActiveExpectationRevision || !expected.revision.Valid() || expected.manifest == ([sha256.Size]byte{}))) {
 		return &Error{kind: ConfigInvalid}
 	}
 	var current *int64
@@ -549,8 +683,27 @@ func (c *ConfigTx) ActivateGeneration(expected ExpectedConfigActive, target Conf
 			(current == nil || *current != expected.revision.generation)) {
 		return &Error{kind: ConfigConflict}
 	}
+	if expected.kind == configActiveExpectationRevision {
+		var manifest []byte
+		if err := c.tx.QueryRow(c.ctx, `SELECT manifest_hash FROM public.config_generations WHERE revision=$1 AND sealed`, *current).Scan(&manifest); err != nil {
+			return &Error{kind: ConfigIntegrity, cause: err}
+		}
+		if len(manifest) != sha256.Size || !bytes.Equal(manifest, expected.manifest[:]) {
+			return &Error{kind: ConfigConflict}
+		}
+	}
 	if current != nil && target.generation <= *current {
 		return &Error{kind: ConfigConflict}
+	}
+	var targetManifest []byte
+	var targetFormat string
+	if err := c.tx.QueryRow(c.ctx, `SELECT manifest_hash,manifest_format::text FROM public.config_generations
+		WHERE revision=$1 AND sealed`, target.generation).Scan(&targetManifest, &targetFormat); err != nil {
+		return &Error{kind: ConfigIntegrity, cause: err}
+	}
+	if len(targetManifest) != sha256.Size ||
+		(targetFormat != configLegacyManifest && targetFormat != configCompiledManifest) {
+		return &Error{kind: ConfigIntegrity}
 	}
 	tag, err := c.tx.Exec(c.ctx, `UPDATE public.config_active SET generation_revision=$1,activated_at=clock_timestamp()
 		WHERE singleton`, target.generation)
@@ -560,25 +713,32 @@ func (c *ConfigTx) ActivateGeneration(expected ExpectedConfigActive, target Conf
 	if tag.RowsAffected() != 1 {
 		return &Error{kind: ConfigIntegrity}
 	}
+	c.activation = &configActivationReceipt{
+		expected:      expected,
+		target:        target,
+		auditRequired: targetFormat == configCompiledManifest,
+	}
+	copy(c.activation.manifest[:], targetManifest)
 	return nil
 }
 
 // ConfigVersionSnapshot returns exact bytes by copy. Missing historical
 // versions carry their identity and hash, but no bytes.
 type ConfigVersionSnapshot struct {
-	ref       ConfigVersionRef
-	path      string
-	hash      [sha256.Size]byte
-	yaml      []byte
-	present   bool
-	parent    ConfigVersionRevision
-	hasParent bool
-	author    ConfigAuthor
-	source    ConfigSource
-	kind      ConfigDocumentKind
-	schema    bundle.Schema
-	profile   parser.SyntaxProfile
-	accepted  time.Time
+	ref            ConfigVersionRef
+	path           string
+	hash           [sha256.Size]byte
+	yaml           []byte
+	present        bool
+	parent         ConfigVersionRevision
+	hasParent      bool
+	author         ConfigAuthor
+	source         ConfigSource
+	kind           ConfigDocumentKind
+	representation ConfigSourceRepresentation
+	schema         bundle.Schema
+	profile        parser.SyntaxProfile
+	accepted       time.Time
 }
 
 func (v ConfigVersionSnapshot) Ref() ConfigVersionRef     { return v.ref }
@@ -586,7 +746,7 @@ func (v ConfigVersionSnapshot) Path() string              { return v.path }
 func (v ConfigVersionSnapshot) SHA256() [sha256.Size]byte { return v.hash }
 func (v ConfigVersionSnapshot) Present() bool             { return v.present }
 func (v ConfigVersionSnapshot) Bytes() ([]byte, bool) {
-	if !v.present {
+	if !v.present || v.representation != ConfigSourcePlainV1 {
 		return nil, false
 	}
 	return bytes.Clone(v.yaml), true
@@ -595,9 +755,16 @@ func (v ConfigVersionSnapshot) Parent() (ConfigVersionRevision, bool) { return v
 func (v ConfigVersionSnapshot) Author() (ConfigAuthor, bool)          { return v.author, v.present }
 func (v ConfigVersionSnapshot) Source() (ConfigSource, bool)          { return v.source, v.present }
 func (v ConfigVersionSnapshot) Kind() (ConfigDocumentKind, bool)      { return v.kind, v.present }
-func (v ConfigVersionSnapshot) Schema() (bundle.Schema, bool)         { return v.schema, v.present }
-func (v ConfigVersionSnapshot) Profile() (parser.SyntaxProfile, bool) { return v.profile, v.present }
-func (v ConfigVersionSnapshot) AcceptedAt() (time.Time, bool)         { return v.accepted, v.present }
+func (v ConfigVersionSnapshot) Representation() (ConfigSourceRepresentation, bool) {
+	return v.representation, v.present
+}
+func (v ConfigVersionSnapshot) Schema() (bundle.Schema, bool) {
+	return v.schema, v.present && v.kind == ConfigDocumentKindYAMLSource
+}
+func (v ConfigVersionSnapshot) Profile() (parser.SyntaxProfile, bool) {
+	return v.profile, v.present && v.kind == ConfigDocumentKindYAMLSource
+}
+func (v ConfigVersionSnapshot) AcceptedAt() (time.Time, bool) { return v.accepted, v.present }
 
 type ConfigGenerationAvailability uint8
 
@@ -608,19 +775,21 @@ const (
 )
 
 type ConfigGenerationSnapshot struct {
-	revision      ConfigGenerationRevision
-	entry         string
-	candidateHash [sha256.Size]byte
-	manifestHash  [sha256.Size]byte
-	created       time.Time
-	versions      []ConfigVersionSnapshot
-	availability  ConfigGenerationAvailability
+	revision       ConfigGenerationRevision
+	entry          string
+	candidateHash  [sha256.Size]byte
+	manifestHash   [sha256.Size]byte
+	created        time.Time
+	versions       []ConfigVersionSnapshot
+	availability   ConfigGenerationAvailability
+	manifestFormat ConfigManifestFormat
 }
 
 func (g ConfigGenerationSnapshot) Revision() ConfigGenerationRevision         { return g.revision }
 func (g ConfigGenerationSnapshot) Entry() string                              { return g.entry }
 func (g ConfigGenerationSnapshot) CandidateSHA256() [sha256.Size]byte         { return g.candidateHash }
 func (g ConfigGenerationSnapshot) ManifestSHA256() [sha256.Size]byte          { return g.manifestHash }
+func (g ConfigGenerationSnapshot) ManifestFormat() ConfigManifestFormat       { return g.manifestFormat }
 func (g ConfigGenerationSnapshot) CreatedAt() time.Time                       { return g.created }
 func (g ConfigGenerationSnapshot) Availability() ConfigGenerationAvailability { return g.availability }
 func (g ConfigGenerationSnapshot) Versions() []ConfigVersionSnapshot {
@@ -635,6 +804,9 @@ func (g ConfigGenerationSnapshot) Restore() (bundle.Candidate, error) {
 	}
 	if g.availability == ConfigGenerationIncomplete {
 		return bundle.Candidate{}, &Error{kind: ConfigIncomplete}
+	}
+	if g.manifestFormat != ConfigManifestLegacyV1 {
+		return bundle.Candidate{}, &Error{kind: ConfigProtected}
 	}
 	sources := make([]parser.SourceFile, 0, len(g.versions))
 	for _, v := range g.versions {
@@ -720,20 +892,39 @@ func (s *Store) readConfig(ctx context.Context, target *ConfigGenerationRevision
 	} else {
 		revision = target.generation
 	}
-	g := ConfigGenerationSnapshot{revision: ConfigGenerationRevision{generation: revision}}
+	g, err := readConfigGenerationTx(ctx, tx, ConfigGenerationRevision{generation: revision})
+	if err != nil {
+		return ConfigGenerationSnapshot{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ConfigGenerationSnapshot{}, &Error{kind: Unavailable, cause: err}
+	}
+	return g, nil
+}
+
+// readConfigGenerationTx validates one generation in the caller's existing SQL
+// snapshot. It neither selects the active pointer nor commits that snapshot.
+func readConfigGenerationTx(ctx context.Context, tx pgx.Tx, revision ConfigGenerationRevision) (ConfigGenerationSnapshot, error) {
+	g := ConfigGenerationSnapshot{revision: revision}
 	var candidateHash, manifestHash []byte
 	var count int
 	var sealed bool
-	err = tx.QueryRow(ctx, `SELECT entry_path,candidate_hash,manifest_hash,entry_count,sealed,created_at
-		FROM public.config_generations WHERE revision=$1`, revision).
-		Scan(&g.entry, &candidateHash, &manifestHash, &count, &sealed, &g.created)
+	var manifestFormat string
+	err := tx.QueryRow(ctx, `SELECT
+		CASE WHEN octet_length(entry_path) BETWEEN 1 AND 4096 THEN entry_path ELSE '' END,
+		CASE WHEN octet_length(candidate_hash)=32 THEN candidate_hash END,
+		CASE WHEN octet_length(manifest_hash)=32 THEN manifest_hash END,
+		entry_count,sealed,created_at,manifest_format::text
+		FROM public.config_generations WHERE revision=$1`, revision.generation).
+		Scan(&g.entry, &candidateHash, &manifestHash, &count, &sealed, &g.created, &manifestFormat)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ConfigGenerationSnapshot{}, &Error{kind: ConfigNotFound}
 	}
 	if err != nil {
 		return ConfigGenerationSnapshot{}, &Error{kind: Unavailable, cause: err}
 	}
-	if !sealed || count < 1 || count > configSourceLimitCount ||
+	g.manifestFormat, err = parseConfigManifestFormat(manifestFormat)
+	if err != nil || !sealed || count < 1 || count > configSourceLimitCount ||
 		len(candidateHash) != sha256.Size || len(manifestHash) != sha256.Size {
 		return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
 	}
@@ -742,17 +933,24 @@ func (s *Store) readConfig(ctx context.Context, target *ConfigGenerationRevision
 	}
 	copy(g.candidateHash[:], candidateHash)
 	copy(g.manifestHash[:], manifestHash)
+	// Inspect only metadata/lengths first. No source bytea is returned until
+	// every row and the aggregate source budget fit the admitted limits.
+	if err := preflightConfigSourcesTx(ctx, tx, revision, count); err != nil {
+		return ConfigGenerationSnapshot{}, err
+	}
 	rows, err := tx.Query(ctx, `SELECT e.document_id,d.logical_path,d.kind::text,e.version_revision,e.source_hash,
-		v.yaml_source,v.parent_revision,v.author,v.source,v.accepted_at,v.schema_version::text,v.syntax_profile::text
+		v.yaml_source,v.parent_revision,v.author,v.source,v.accepted_at,v.schema_version::text,v.syntax_profile::text,
+		v.source_representation::text,octet_length(v.ciphertext)
 		FROM public.config_generation_entries e
 		JOIN public.config_documents d ON d.id=e.document_id
 		LEFT JOIN public.config_versions v ON v.document_id=e.document_id AND v.revision=e.version_revision
-		WHERE e.generation_revision=$1 ORDER BY e.document_id LIMIT $2`, revision, count+1)
+		WHERE e.generation_revision=$1 ORDER BY e.document_id LIMIT $2`, revision.generation, count+1)
 	if err != nil {
 		return ConfigGenerationSnapshot{}, &Error{kind: Unavailable, cause: err}
 	}
 	items := make([]configManifestItem, 0, count)
 	totalBytes := 0
+	operationalManifestCount := 0
 	for rows.Next() {
 		var v ConfigVersionSnapshot
 		var documentText string
@@ -763,8 +961,10 @@ func (s *Store) readConfig(ctx context.Context, target *ConfigGenerationRevision
 		var parent *int64
 		var author, source, schema, profile *string
 		var accepted *time.Time
+		var representation *string
+		var ciphertextBytes *int
 		err := rows.Scan(&documentText, &v.path, &kind, &revisionNumber, &hashBytes,
-			&data, &parent, &author, &source, &accepted, &schema, &profile)
+			&data, &parent, &author, &source, &accepted, &schema, &profile, &representation, &ciphertextBytes)
 		if err != nil {
 			rows.Close()
 			return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity, cause: err}
@@ -793,27 +993,62 @@ func (s *Store) readConfig(ctx context.Context, target *ConfigGenerationRevision
 		}
 		copy(v.hash[:], hashBytes)
 		v.kind, err = parseConfigDocumentKind(kind)
-		if err == nil && v.kind != ConfigDocumentKindYAMLSource {
-			err = &Error{kind: ConfigIntegrity}
-		}
 		if err != nil {
 			rows.Close()
 			return ConfigGenerationSnapshot{}, err
 		}
+		// The document kind is immutable and survives retention of an old
+		// version. Count manifest membership even when the LEFT JOIN found no
+		// source row, so normal collection remains diagnosable as incomplete.
+		if v.kind == ConfigDocumentKindOperationalYAML {
+			operationalManifestCount++
+		}
 		if schema != nil {
-			totalBytes += len(data)
+			if representation == nil {
+				rows.Close()
+				return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
+			}
+			v.representation, err = parseConfigSourceRepresentation(*representation)
+			if err != nil {
+				rows.Close()
+				return ConfigGenerationSnapshot{}, err
+			}
+			if v.representation == ConfigSourceProtectedOperationalV1 {
+				if v.kind != ConfigDocumentKindOperationalYAML || *schema != configOperationalSchema ||
+					profile == nil || *profile != configOperationalProfile || data != nil ||
+					ciphertextBytes == nil || *ciphertextBytes < 29 || *ciphertextBytes > (1<<20)+28 ||
+					g.manifestFormat != ConfigManifestCompiledV2 {
+					rows.Close()
+					return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
+				}
+				totalBytes += *ciphertextBytes - 28
+			} else {
+				if v.kind != ConfigDocumentKindYAMLSource || data == nil || ciphertextBytes != nil ||
+					profile == nil || !((*schema == bundle.SchemaDeclarative1.String() && *profile == parser.SyntaxProfileDeclarative.String()) ||
+					(*schema == bundle.SchemaDeclarative2.String() && *profile == parser.SyntaxProfileDeclarative2.String())) ||
+					sha256.Sum256(data) != v.hash {
+					rows.Close()
+					return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
+				}
+				totalBytes += len(data)
+				v.yaml = bytes.Clone(data)
+				if *schema == bundle.SchemaDeclarative2.String() {
+					v.schema = bundle.SchemaDeclarative2
+					v.profile = parser.SyntaxProfileDeclarative2
+				} else {
+					v.schema = bundle.SchemaDeclarative1
+					v.profile = parser.SyntaxProfileDeclarative
+				}
+			}
 			if totalBytes > configSourceLimitBytes {
 				rows.Close()
 				return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
 			}
-			if profile == nil || !((*schema == bundle.SchemaDeclarative1.String() && *profile == parser.SyntaxProfileDeclarative.String()) ||
-				(*schema == bundle.SchemaDeclarative2.String() && *profile == parser.SyntaxProfileDeclarative2.String())) ||
-				author == nil || source == nil || accepted == nil || sha256.Sum256(data) != v.hash {
+			if author == nil || source == nil || accepted == nil {
 				rows.Close()
 				return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
 			}
 			v.present = true
-			v.yaml = bytes.Clone(data)
 			v.author, err = NewConfigAuthor(*author)
 			if err != nil {
 				rows.Close()
@@ -823,13 +1058,6 @@ func (s *Store) readConfig(ctx context.Context, target *ConfigGenerationRevision
 			if err != nil {
 				rows.Close()
 				return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity, cause: err}
-			}
-			if *schema == bundle.SchemaDeclarative2.String() {
-				v.schema = bundle.SchemaDeclarative2
-				v.profile = parser.SyntaxProfileDeclarative2
-			} else {
-				v.schema = bundle.SchemaDeclarative1
-				v.profile = parser.SyntaxProfileDeclarative
 			}
 			v.accepted = *accepted
 			if parent != nil {
@@ -851,14 +1079,109 @@ func (s *Store) readConfig(ctx context.Context, target *ConfigGenerationRevision
 		return ConfigGenerationSnapshot{}, &Error{kind: Unavailable, cause: err}
 	}
 	rows.Close()
-	if len(g.versions) != count || configManifestHash(g.entry, items) != g.manifestHash {
+	if len(g.versions) != count ||
+		(g.manifestFormat == ConfigManifestCompiledV2 && operationalManifestCount != 1) ||
+		(g.manifestFormat == ConfigManifestLegacyV1 && operationalManifestCount != 0) {
+		return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
+	}
+	var expectedManifest [sha256.Size]byte
+	if g.manifestFormat == ConfigManifestCompiledV2 {
+		expectedManifest = configCompiledManifestHash(g.entry, g.candidateHash, items)
+	} else {
+		expectedManifest = configManifestHash(g.entry, items)
+	}
+	if expectedManifest != g.manifestHash {
 		return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
 	}
 	if g.availability == ConfigGenerationUnknown {
 		g.availability = ConfigGenerationComplete
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return ConfigGenerationSnapshot{}, &Error{kind: Unavailable, cause: err}
-	}
 	return g, nil
+}
+
+// preflightConfigSourcesTx returns no YAML or ciphertext. CASE bounds the
+// remaining variable-size metadata even when a privileged fixture has damaged
+// SQL constraints. A collected source stays distinguishable from malformed data.
+func preflightConfigSourcesTx(ctx context.Context, tx pgx.Tx, revision ConfigGenerationRevision, count int) error {
+	rows, err := tx.Query(ctx, `SELECT
+		CASE WHEN octet_length(e.document_id) BETWEEN 1 AND 255 THEN e.document_id ELSE '' END,
+		CASE WHEN octet_length(d.logical_path) BETWEEN 1 AND 4096 THEN d.logical_path ELSE '' END,
+		d.kind::text,e.version_revision,
+		CASE WHEN octet_length(e.source_hash)=32 THEN e.source_hash END,
+		v.revision,octet_length(v.yaml_source),octet_length(v.ciphertext),
+		CASE WHEN octet_length(v.source_hash)=32 THEN v.source_hash END,
+		v.schema_version::text,v.syntax_profile::text,v.source_representation::text,
+		CASE WHEN octet_length(v.author) BETWEEN 1 AND 255 THEN v.author ELSE '' END,
+		CASE WHEN octet_length(v.source) BETWEEN 1 AND 255 THEN v.source ELSE '' END,
+		octet_length(v.key_id),octet_length(v.salt),v.suite::text
+		FROM public.config_generation_entries e
+		JOIN public.config_documents d ON d.id=e.document_id
+		LEFT JOIN public.config_versions v ON v.document_id=e.document_id AND v.revision=e.version_revision
+		WHERE e.generation_revision=$1 ORDER BY e.document_id LIMIT $2`, revision.generation, count+1)
+	if err != nil {
+		return &Error{kind: Unavailable, cause: err}
+	}
+	defer rows.Close()
+	seen, total := 0, 0
+	for rows.Next() {
+		var document, path, kind string
+		var version int64
+		var memberHash, versionHash []byte
+		var present *int64
+		var plainBytes, cipherBytes, keyBytes, saltBytes *int
+		var schema, profile, representation, author, source, suite *string
+		if err := rows.Scan(&document, &path, &kind, &version, &memberHash,
+			&present, &plainBytes, &cipherBytes, &versionHash, &schema, &profile,
+			&representation, &author, &source, &keyBytes, &saltBytes, &suite); err != nil {
+			return &Error{kind: ConfigIntegrity, cause: err}
+		}
+		seen++
+		if seen > count || !configLabel(document, 255) || version <= 0 || len(memberHash) != sha256.Size {
+			return &Error{kind: ConfigIntegrity}
+		}
+		if _, err := parser.NewSourceFile(path, nil); err != nil {
+			return &Error{kind: ConfigIntegrity, cause: err}
+		}
+		if _, err := parseConfigDocumentKind(kind); err != nil {
+			return err
+		}
+		if present == nil {
+			continue // Normal GC: membership will remain Incomplete in the reader.
+		}
+		if len(versionHash) != sha256.Size || !bytes.Equal(memberHash, versionHash) ||
+			schema == nil || profile == nil || representation == nil || author == nil || source == nil ||
+			!configLabel(*author, 255) || !configLabel(*source, 255) {
+			return &Error{kind: ConfigIntegrity}
+		}
+		switch *representation {
+		case configPlainSQL:
+			if kind != ConfigDocumentKindYAMLSource.String() || plainBytes == nil || *plainBytes > 1<<20 ||
+				cipherBytes != nil || keyBytes != nil || saltBytes != nil || suite != nil ||
+				!((*schema == bundle.SchemaDeclarative1.String() && *profile == parser.SyntaxProfileDeclarative.String()) ||
+					(*schema == bundle.SchemaDeclarative2.String() && *profile == parser.SyntaxProfileDeclarative2.String())) {
+				return &Error{kind: ConfigIntegrity}
+			}
+			total += *plainBytes
+		case configProtectedSQL:
+			if kind != ConfigDocumentKindOperationalYAML.String() || *schema != configOperationalSchema ||
+				*profile != configOperationalProfile || plainBytes != nil || cipherBytes == nil ||
+				*cipherBytes < 29 || *cipherBytes > (1<<20)+28 || keyBytes == nil || *keyBytes != 32 ||
+				saltBytes == nil || *saltBytes != 32 || suite == nil || *suite != secretSuiteSQL {
+				return &Error{kind: ConfigIntegrity}
+			}
+			total += *cipherBytes - 28
+		default:
+			return &Error{kind: ConfigIntegrity}
+		}
+		if total > configSourceLimitBytes {
+			return &Error{kind: ConfigIntegrity}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return &Error{kind: Unavailable, cause: err}
+	}
+	if seen != count {
+		return &Error{kind: ConfigIntegrity}
+	}
+	return nil
 }

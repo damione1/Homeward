@@ -32,15 +32,17 @@ type Service interface {
 // sync.Once retains either its immutable result or its first refusal. There is
 // no global ID map and no retry path that reconstructs a lost slot.
 type PreparationSlot struct {
-	once    sync.Once
-	service Service
-	call    ir.Call
-	alias   domain.HAAlias
-	actor   domain.ActorID
-	id      domain.CommandID
-	expires time.Time
-	result  PreparedAction
-	err     error
+	once     sync.Once
+	service  Service
+	call     ir.Call
+	alias    domain.HAAlias
+	actor    domain.ActorID
+	internal *integrations.InternalAutomationPort
+	origin   context.Context
+	id       domain.CommandID
+	expires  time.Time
+	result   PreparedAction
+	err      error
 }
 
 type PreparedAction struct {
@@ -78,6 +80,24 @@ func NewPreparationSlot(service Service, call ir.Call, targetIndex int, actor do
 		return nil, ErrInvalidSlot
 	}
 	return &PreparationSlot{service: service, call: call, alias: alias, actor: actor, id: id, expires: expires}, nil
+}
+
+func NewInternalPreparationSlot(ctx context.Context, port *integrations.InternalAutomationPort, service *integrations.DurableCommandService, call ir.Call, targetIndex int, id domain.CommandID, expires time.Time) (*PreparationSlot, error) {
+	if service == nil || port == nil || !port.BelongsTo(service) || !port.ValidContext(ctx) || expires.IsZero() || targetIndex < 0 || (call.Kind() != ir.CallLightTurnOn && call.Kind() != ir.CallLightTurnOff) {
+		return nil, ErrInvalidSlot
+	}
+	targets := call.Targets()
+	if targetIndex >= len(targets) {
+		return nil, ErrInvalidSlot
+	}
+	alias := targets[targetIndex].Alias()
+	if _, err := alias.Value(); err != nil {
+		return nil, ErrInvalidSlot
+	}
+	if _, err := id.Value(); err != nil {
+		return nil, ErrInvalidSlot
+	}
+	return &PreparationSlot{service: service, call: call, alias: alias, internal: port, origin: ctx, id: id, expires: expires}, nil
 }
 
 func nilService(service Service) bool {

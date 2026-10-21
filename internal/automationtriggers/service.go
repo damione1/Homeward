@@ -44,6 +44,7 @@ const (
 // result grants no command, scene, or script capability.
 type Result struct {
 	kind                   ResultKind
+	plan                   *PlanIdentity
 	reason                 DegradedReason
 	automation, triggerKey string
 	at                     time.Time
@@ -52,14 +53,15 @@ type Result struct {
 	payload                []byte
 }
 
-func (r Result) Kind() ResultKind         { return r.kind }
-func (r Result) Reason() DegradedReason   { return r.reason }
-func (r Result) Automation() string       { return r.automation }
-func (r Result) TriggerKey() string       { return r.triggerKey }
-func (r Result) At() time.Time            { return r.at }
-func (r Result) Cursor() sequencer.Cursor { return r.cursor }
-func (r Result) Entity() domain.EntityID  { return r.entity }
-func (r Result) Payload() []byte          { return append([]byte(nil), r.payload...) }
+func (r Result) Kind() ResultKind            { return r.kind }
+func (r Result) PlanIdentity() *PlanIdentity { return r.plan }
+func (r Result) Reason() DegradedReason      { return r.reason }
+func (r Result) Automation() string          { return r.automation }
+func (r Result) TriggerKey() string          { return r.triggerKey }
+func (r Result) At() time.Time               { return r.at }
+func (r Result) Cursor() sequencer.Cursor    { return r.cursor }
+func (r Result) Entity() domain.EntityID     { return r.entity }
+func (r Result) Payload() []byte             { return append([]byte(nil), r.payload...) }
 
 type pendingFor struct {
 	deadline         time.Duration
@@ -80,7 +82,13 @@ type calendarKey struct {
 }
 
 type Service struct {
-	permanentRules                                       int
+	permanentSlots                                       map[int]bool
+	activePlanImage                                      *retainedPlan
+	pendingPlan                                          *PlanRetention
+	planImages                                           map[*PlanIdentity]*retainedPlan
+	planCharge                                           int
+	stagingCharge                                        int
+	detachedStagingCharge                                int
 	waitOwners                                           map[int]*WaitHandle
 	waits                                                map[uint64]*WaitHandle
 	nextWait                                             uint64
@@ -97,10 +105,13 @@ type Service struct {
 	sunDone                                              chan struct{}
 	startDone                                            chan struct{}
 	cancelSun                                            context.CancelFunc
+	sunOwner                                             *WaitHandle
+	publicationContext                                   context.Context
 	starting, started, closed, admissionsOpen, suspended bool
 	planning                                             bool
 	suspendReason                                        DegradedReason
 	generation                                           uint64
+	publicationEpoch                                     uint64
 	sub                                                  *sequencer.Subscription
 	cursor                                               sequencer.Cursor
 	states                                               map[domain.EntityID]domain.ObservedState
@@ -135,13 +146,20 @@ func NewService(plan Plan, seq *sequencer.Sequencer, clock Clock) (*Service, err
 		return nil, ErrInvalidPlan
 	}
 	permanentRules := len(plan.rules)
+	image := &retainedPlan{plan: plan, refs: 1}
 	// The service owns its mutable runtime slots; the admitted plan remains an
 	// immutable value shared with server composition and ID consistency checks.
 	rules := make([]rule, MaxTriggers)
 	copy(rules, plan.rules)
 	plan.rules = rules
 	shutdownCtx, requestShutdown := context.WithCancel(context.Background())
-	return &Service{permanentRules: permanentRules, waitOwners: make(map[int]*WaitHandle), waits: make(map[uint64]*WaitHandle), plan: plan, seq: seq, clock: clock, generation: 1,
+	permanentSlots := make(map[int]bool, permanentRules)
+	for index := 0; index < permanentRules; index++ {
+		permanentSlots[index] = true
+	}
+	return &Service{permanentSlots: permanentSlots,
+		activePlanImage: image, planImages: map[*PlanIdentity]*retainedPlan{plan.token: image}, planCharge: plan.charge,
+		waitOwners: make(map[int]*WaitHandle), waits: make(map[uint64]*WaitHandle), plan: plan, seq: seq, clock: clock, generation: 1, publicationEpoch: 1,
 		shutdownCtx: shutdownCtx, requestShutdown: requestShutdown,
 		states: make(map[domain.EntityID]domain.ObservedState), registry: make(map[domain.EntityID]integrations.RegistryRecord),
 		stateCharges: make(map[domain.EntityID]int), recordCharges: make(map[domain.EntityID]int),
@@ -172,7 +190,7 @@ func (s *Service) Start(ctx context.Context) error {
 		close(s.startDone)
 		s.mu.Unlock()
 	}()
-	snapshotLimit := MaxEngineCharge - sequencer.MaxViewQueueBytes - runtimeFixedCharge - s.plan.charge - 256
+	snapshotLimit := MaxEngineCharge - sequencer.MaxViewQueueBytes - runtimeFixedCharge - s.planCharge - s.stagingCharge - 256
 	if snapshotLimit < 512 {
 		return ErrCapacity
 	}
@@ -313,7 +331,7 @@ func (s *Service) resynchronize(old *sequencer.Subscription) error {
 	s.projectionBytes = 0
 	s.mu.Unlock()
 	s.mu.Lock()
-	snapshotLimit := MaxEngineCharge - sequencer.MaxViewQueueBytes - runtimeFixedCharge - s.plan.charge - s.seenBytes - s.resultBytes - s.occurrenceCountLocked()*calendarOccurrenceCharge - 256
+	snapshotLimit := MaxEngineCharge - sequencer.MaxViewQueueBytes - runtimeFixedCharge - s.planCharge - s.stagingCharge - s.seenBytes - s.resultBytes - s.occurrenceCountLocked()*calendarOccurrenceCharge - 256
 	s.mu.Unlock()
 	if snapshotLimit < 512 {
 		return ErrCapacity
@@ -405,6 +423,7 @@ func (s *Service) Close() error {
 	}
 	s.closed, s.admissionsOpen = true, false
 	s.closeWaitsLocked(ErrServiceClosed)
+	s.closePlanImagesLocked()
 	if s.cancelSun != nil {
 		s.cancelSun()
 	}

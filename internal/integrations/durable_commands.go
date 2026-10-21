@@ -11,6 +11,7 @@ import (
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/proto"
@@ -32,7 +33,7 @@ type DurableCommandService struct {
 	runtime  *storage.CommandRuntime
 	epoch    string
 	active   int
-	closing  bool
+	gate     durableGate
 	closed   chan struct{}
 	closeErr error
 }
@@ -42,7 +43,20 @@ func NewDurableCommandService(ctx context.Context, host *Manager, generation Gen
 }
 
 func NewDurableCommandServiceWithClock(ctx context.Context, host *Manager, generation GenerationAuthority, store *storage.Store, clock CommandClock) (*DurableCommandService, error) {
-	if ctx == nil || store == nil {
+	return newDurableCommandService(ctx, host, generation, store, clock, DurableGateLimits{})
+}
+
+// NewDurableCommandServiceWithClockAndGate is the Run-owned composition path.
+// The limits are admitted before acquiring Host or the SQL runtime.
+func NewDurableCommandServiceWithClockAndGate(ctx context.Context, host *Manager, generation GenerationAuthority, store *storage.Store, clock CommandClock, limits DurableGateLimits) (*DurableCommandService, error) {
+	if !limits.valid() {
+		return nil, ErrInvalidInput
+	}
+	return newDurableCommandService(ctx, host, generation, store, clock, limits)
+}
+
+func newDurableCommandService(ctx context.Context, host *Manager, generation GenerationAuthority, store *storage.Store, clock CommandClock, limits DurableGateLimits) (*DurableCommandService, error) {
+	if nilInterface(ctx) || store == nil {
 		return nil, ErrInvalidInput
 	}
 	if err := ctx.Err(); err != nil {
@@ -92,16 +106,18 @@ func NewDurableCommandServiceWithClock(ctx context.Context, host *Manager, gener
 		return nil, errors.Join(durableTransactionError(outcome), err, runtime.Close())
 	}
 	_ = host.observation.AddDurableRecoveredIndeterminate(recovered)
-	service := &DurableCommandService{router: router, store: store, runtime: runtime, epoch: epoch, closed: make(chan struct{})}
+	service := &DurableCommandService{router: router, store: store, runtime: runtime, epoch: epoch, closed: make(chan struct{}), gate: durableGate{state: gateOpen, changed: make(chan struct{}), limits: limits}}
+	router.internal = &InternalAutomationPort{service: service}
 	if err := host.completeDurable(service); err != nil {
 		return nil, errors.Join(err, runtime.Close())
 	}
 	return service, nil
 }
 
-// Done closes after active dispatches have recorded their final durable result
-// and the runtime release attempt has ended. Call Close with a live context to
-// obtain the recorded release result; Done alone does not prove release.
+// Done closes after admission waiters and occurrences have left, each active
+// dispatch's last result-persistence attempt has ended, and the runtime release
+// attempt has ended. Call Close with a live context to obtain the recorded
+// release result; Done alone does not prove release.
 func (s *DurableCommandService) Done() <-chan struct{} {
 	if s == nil {
 		return nil
@@ -109,34 +125,25 @@ func (s *DurableCommandService) Done() <-chan struct{} {
 	return s.closed
 }
 
-// Close rejects new admissions immediately and waits up to ctx's deadline.
-// It does not cancel an active driver. A timed-out Close retains the DB session
-// guard until every active dispatch returns, then closes the guard in background.
+// Close rejects new admissions immediately and wakes paused waiters. It does
+// not cancel an admitted occurrence or driver. A timed-out Close retains the
+// DB guard until their last dispatch and result-persistence attempt return.
 func (s *DurableCommandService) Close(ctx context.Context) error {
-	if s == nil || ctx == nil || s.router == nil || s.store == nil || s.closed == nil {
+	if s == nil || nilInterface(ctx) || s.router == nil || s.store == nil || s.closed == nil {
 		return ErrInvalidInput
 	}
 	s.mu.Lock()
-	if !s.closing {
-		s.closing = true
-		if s.active == 0 {
-			runtime := s.runtime
-			s.runtime = nil
-			s.mu.Unlock()
-			go s.finishClose(runtime)
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			select {
-			case <-s.closed:
-				return s.closeResult()
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
+	if s.gate.state != gateClosing {
+		s.gate.state = gateClosing
+		s.gate.pause = nil
+		s.gateChangedLocked()
 	}
+	runtime := s.finishIfDrainedLocked()
 	done := s.closed
 	s.mu.Unlock()
+	if runtime != nil {
+		go s.finishClose(runtime)
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -154,30 +161,15 @@ func (s *DurableCommandService) closeResult() error {
 	return s.closeErr
 }
 
-func (s *DurableCommandService) begin() (*storage.CommandRuntime, error) {
-	if s == nil || s.router == nil || s.store == nil || s.closed == nil {
-		return nil, ErrInvalidInput
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closing || s.runtime == nil {
-		return nil, ErrDurableLedgerUnavailable
-	}
-	s.active++
-	return s.runtime, nil
-}
-
 func (s *DurableCommandService) end() {
 	s.mu.Lock()
 	s.active--
-	if !s.closing || s.active != 0 {
-		s.mu.Unlock()
-		return
-	}
-	runtime := s.runtime
-	s.runtime = nil
+	s.gateChangedLocked()
+	runtime := s.finishIfDrainedLocked()
 	s.mu.Unlock()
-	go s.finishClose(runtime)
+	if runtime != nil {
+		go s.finishClose(runtime)
+	}
 }
 
 func (s *DurableCommandService) finishClose(runtime *storage.CommandRuntime) {
@@ -216,6 +208,9 @@ func (s *DurableCommandService) Status(ctx context.Context, id domain.CommandID)
 			return DurableCommandStatus{}, false, ErrCommandAuthorizationDenied
 		}
 		return DurableCommandStatus{}, false, nil
+	}
+	if record.OriginKind() != storage.IntentOriginExternalActor {
+		return DurableCommandStatus{}, false, ErrCommandAuthorizationDenied
 	}
 	target, present, targetErr := record.AuthorizationTarget()
 	if targetErr != nil {
@@ -299,7 +294,7 @@ func (s *DurableCommandService) RecordedPreparedLight(ctx context.Context, prepa
 	if err != nil || prepared.actor != prepared.route.actor {
 		return nil, false, ErrInvalidInput
 	}
-	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedLightCommand(prepared.route)), prepared.actor, wire)
+	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedLightCommand(prepared.route)), prepared.actor, wire, preparedLightCommand(prepared.route))
 }
 
 func (s *DurableCommandService) RecordedPreparedFan(ctx context.Context, prepared PreparedFan) (*actions.CommandResponse, bool, error) {
@@ -310,7 +305,7 @@ func (s *DurableCommandService) RecordedPreparedFan(ctx context.Context, prepare
 	if err != nil || prepared.actor != prepared.route.actor {
 		return nil, false, ErrInvalidInput
 	}
-	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedFanCommand(prepared.route)), prepared.actor, wire)
+	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedFanCommand(prepared.route)), prepared.actor, wire, preparedFanCommand(prepared.route))
 }
 
 func (s *DurableCommandService) RecordedPreparedDirect(ctx context.Context, prepared PreparedDirect) (*actions.CommandResponse, bool, error) {
@@ -321,10 +316,10 @@ func (s *DurableCommandService) RecordedPreparedDirect(ctx context.Context, prep
 	if err != nil || prepared.actor != prepared.route.actor {
 		return nil, false, ErrInvalidInput
 	}
-	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedDirectCommand(prepared.route)), prepared.actor, wire)
+	return s.recordedPrepared(preparedAuthorizationContext(ctx, preparedDirectCommand(prepared.route)), prepared.actor, wire, preparedDirectCommand(prepared.route))
 }
 
-func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest) (*actions.CommandResponse, bool, error) {
+func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest, route *preparedCommandRoute) (*actions.CommandResponse, bool, error) {
 	if s == nil || ctx == nil || wire == nil || s.store == nil || s.router == nil {
 		return nil, false, ErrInvalidInput
 	}
@@ -335,11 +330,23 @@ func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor doma
 	if err != nil {
 		return nil, false, ErrInvalidInput
 	}
-	actorText, err := actor.Value()
-	if err != nil {
-		return nil, false, ErrInvalidInput
+	internal, err := s.router.internalFromContext(ctx)
+	if err != nil || route == nil || route.internal() != internal || (internal != nil && actor != (domain.ActorID{})) {
+		return nil, false, ErrCommandAuthorizationDenied
 	}
-	fingerprint, err := commandFingerprint(actorText, wire)
+	var fingerprint []byte
+	var originKey storage.InternalAutomationOriginKey
+	if internal != nil {
+		var sealed storage.InternalAutomationFingerprint
+		originKey, sealed, err = internal.fingerprint(id, wire)
+		fingerprint = sealed.Bytes()
+	} else {
+		actorText, actorErr := actor.Value()
+		if actorErr != nil {
+			return nil, false, ErrInvalidInput
+		}
+		fingerprint, err = commandFingerprint(actorText, wire)
+	}
 	if err != nil {
 		return nil, false, ErrInvalidInput
 	}
@@ -351,27 +358,51 @@ func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor doma
 		return nil, false, ErrDurableLedgerUnavailable
 	}
 	if !found {
-		if err := s.router.authorizeMissingRecord(ctx, actor, wire); err != nil {
-			return nil, false, err
+		if internal == nil {
+			if err := s.router.authorizeMissingRecord(ctx, actor, wire); err != nil {
+				return nil, false, err
+			}
 		}
 		return nil, false, nil
+	}
+	if internal != nil {
+		storedKey, present := record.InternalOriginKey()
+		if !present || storedKey != originKey {
+			return nil, false, ErrCommandAuthorizationDenied
+		}
+	} else if record.OriginKind() != storage.IntentOriginExternalActor {
+		return nil, false, ErrCommandAuthorizationDenied
 	}
 	target, present, targetErr := record.AuthorizationTarget()
 	if targetErr != nil {
 		return nil, false, ErrCommandAuthorizationDenied
 	}
-	if err := s.router.authorizeStored(ctx, record.Fingerprint(), target, present); err != nil {
-		return nil, false, err
+	if internal != nil && (!present || target != route.authorizationTarget()) {
+		return nil, false, ErrCommandAuthorizationDenied
+	}
+	if internal == nil {
+		if err := s.router.authorizeStored(ctx, record.Fingerprint(), target, present); err != nil {
+			return nil, false, err
+		}
 	}
 	response, err := replayDurable(id, record, fingerprint)
 	return response, true, err
 }
 
 func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedCommandRoute) (response *actions.CommandResponse, resultErr error) {
-	if s == nil || ctx == nil || request == nil {
+	if s == nil || nilInterface(ctx) || request == nil || s.router == nil {
 		return nil, ErrInvalidInput
 	}
-	runtime, err := s.begin()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	ctx = preparedAuthorizationContext(ctx, preparedRoute)
+	internal, err := s.router.internalFromContext(ctx)
+	if err != nil || (internal != nil && actor != (domain.ActorID{})) ||
+		(preparedRoute != nil && preparedRoute.internal() != internal) {
+		return nil, ErrCommandAuthorizationDenied
+	}
+	runtime, err := s.begin(ctx, internal)
 	if err != nil {
 		return nil, err
 	}
@@ -379,10 +410,17 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	ctx = preparedAuthorizationContext(ctx, preparedRoute)
-	target, err := s.router.authorizeRequest(ctx, actor, request, authv1.ScopeOperation_SCOPE_OPERATION_WRITE)
+	var target authorization.CommandTarget
+	if internal != nil {
+		target, err = s.router.resolvedAuthorizationTarget(request)
+	} else {
+		target, err = s.router.authorizeRequest(ctx, actor, request, authv1.ScopeOperation_SCOPE_OPERATION_WRITE)
+	}
 	if err != nil {
 		return nil, err
+	}
+	if internal != nil && preparedRoute != nil && target != preparedRoute.authorizationTarget() {
+		return nil, ErrCommandAuthorizationDenied
 	}
 	// Bound attacker-controlled wire size before cloning or deterministic
 	// encoding. The encoded fingerprint below has its own exact bound.
@@ -397,11 +435,19 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	if err != nil {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "command_id"), nil
 	}
-	actorText, err := actor.Value()
-	if err != nil {
-		return commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "actor"), nil
+	var fingerprint []byte
+	var originKey storage.InternalAutomationOriginKey
+	var internalFingerprint storage.InternalAutomationFingerprint
+	if internal != nil {
+		originKey, internalFingerprint, err = internal.fingerprint(id, wire)
+		fingerprint = internalFingerprint.Bytes()
+	} else {
+		actorText, actorErr := actor.Value()
+		if actorErr != nil {
+			return commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "actor"), nil
+		}
+		fingerprint, err = commandFingerprint(actorText, wire)
 	}
-	fingerprint, err := commandFingerprint(actorText, wire)
 	if err != nil {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "command"), nil
 	}
@@ -427,12 +473,25 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 		return nil, ErrDurableLedgerUnavailable
 	}
 	if found {
+		if internal != nil {
+			storedKey, present := record.InternalOriginKey()
+			if !present || storedKey != originKey {
+				return nil, ErrCommandAuthorizationDenied
+			}
+		} else if record.OriginKind() != storage.IntentOriginExternalActor {
+			return nil, ErrCommandAuthorizationDenied
+		}
 		stored, present, targetErr := record.AuthorizationTarget()
 		if targetErr != nil {
 			return nil, ErrCommandAuthorizationDenied
 		}
-		if err := s.router.authorizeStored(ctx, record.Fingerprint(), stored, present); err != nil {
-			return nil, err
+		if internal != nil && (!present || stored != target) {
+			return nil, ErrCommandAuthorizationDenied
+		}
+		if internal == nil {
+			if err := s.router.authorizeStored(ctx, record.Fingerprint(), stored, present); err != nil {
+				return nil, err
+			}
 		}
 		return replayDurable(id, record, fingerprint)
 	}
@@ -449,7 +508,9 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	}
 	var created bool
 	var outcome storage.TransactionOutcome
-	if _, _, targetErr := target.Values(); targetErr == nil {
+	if internal != nil {
+		record, created, outcome, err = s.store.AcceptInternalAutomationIntent(ctx, id, originKey, s.epoch, internalFingerprint, target)
+	} else if _, _, targetErr := target.Values(); targetErr == nil {
 		record, created, outcome, err = s.store.AcceptAuthorizedCommandIntent(ctx, id, actor, s.epoch, fingerprint, target)
 	} else {
 		record, created, outcome, err = s.store.AcceptCommandIntent(ctx, id, actor, s.epoch, fingerprint)
@@ -459,12 +520,25 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 		return nil, durableTransactionError(outcome)
 	}
 	if !created {
+		if internal != nil {
+			storedKey, present := record.InternalOriginKey()
+			if !present || storedKey != originKey {
+				return nil, ErrCommandAuthorizationDenied
+			}
+		} else if record.OriginKind() != storage.IntentOriginExternalActor {
+			return nil, ErrCommandAuthorizationDenied
+		}
 		stored, present, targetErr := record.AuthorizationTarget()
 		if targetErr != nil {
 			return nil, ErrCommandAuthorizationDenied
 		}
-		if err := s.router.authorizeStored(ctx, record.Fingerprint(), stored, present); err != nil {
-			return nil, err
+		if internal != nil && (!present || stored != target) {
+			return nil, ErrCommandAuthorizationDenied
+		}
+		if internal == nil {
+			if err := s.router.authorizeStored(ctx, record.Fingerprint(), stored, present); err != nil {
+				return nil, err
+			}
 		}
 		return replayDurable(id, record, fingerprint)
 	}

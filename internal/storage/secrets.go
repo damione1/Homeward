@@ -205,6 +205,20 @@ func (r *SecretRepository) Valid() bool {
 // BootstrapSecrets serializes DB/file reconciliation across server processes.
 // The configured directory's parent is an operator-controlled persistent mount.
 func (s *Store) BootstrapSecrets(ctx context.Context, dataDir string) (*SecretRepository, error) {
+	return s.bootstrapSecrets(ctx, dataDir, nil)
+}
+
+// BootstrapSecretsForStartup keeps the NHA-027 file/key format but refuses an
+// orphan file, an orphan database key or established activation history without
+// a key. The admission decision is repeated under the NHA-027 SQL lock.
+func (s *Store) BootstrapSecretsForStartup(ctx context.Context, dataDir string, admission SecretStartupAdmission) (*SecretRepository, error) {
+	if !admission.valid() {
+		return nil, &Error{kind: SecretInvalid}
+	}
+	return s.bootstrapSecrets(ctx, dataDir, &admission)
+}
+
+func (s *Store) bootstrapSecrets(ctx context.Context, dataDir string, admission *SecretStartupAdmission) (*SecretRepository, error) {
 	if ctx == nil || s == nil || s.pool == nil || !filepath.IsAbs(dataDir) || filepath.Clean(dataDir) != dataDir || strings.ContainsRune(dataDir, '\x00') {
 		return nil, &Error{kind: SecretInvalid}
 	}
@@ -231,6 +245,18 @@ func (s *Store) BootstrapSecrets(ctx context.Context, dataDir string) (*SecretRe
 		}
 		initialized := e == nil
 		key, e = readMasterFile(root)
+		if admission != nil {
+			state, stateErr := classifyStartupSecretState(ctx, tx, initialized, dbID, key, e)
+			if stateErr != nil {
+				callbackErr = stateErr
+				return stateErr
+			}
+			if state != SecretStartupEstablishedPair &&
+				!(state == SecretStartupFreshPair && admission.kind == secretStartupFreshEligible) {
+				callbackErr = &Error{kind: SecretKeyMismatch}
+				return callbackErr
+			}
+		}
 		switch {
 		case e == nil:
 		case errors.Is(e, os.ErrNotExist) && !initialized:
@@ -625,6 +651,7 @@ const (
 	protectedIntegrationCredential
 	protectedMFACredential
 	protectedMFACeremony
+	protectedConfigSource
 )
 
 func (p protectedPurpose) domain() (string, error) {
@@ -635,6 +662,8 @@ func (p protectedPurpose) domain() (string, error) {
 		return "homeward/mfa-credential/aes256gcm/v1", nil
 	case protectedMFACeremony:
 		return "homeward/mfa-ceremony/aes256gcm/v1", nil
+	case protectedConfigSource:
+		return "homeward/config-source/aes256gcm/v1", nil
 	default:
 		return "", &Error{kind: SecretInvalid}
 	}

@@ -43,7 +43,6 @@ func NewDurableCommandsComposition(input DurableCommandsInput) (*DurableCommands
 type ScriptRunsInput struct {
 	Plan            automationruns.Plan
 	Commands        *DurableCommandsComposition
-	Authority       automationruns.ExecutionAuthority
 	Clock           automationtriggers.Clock
 	Zone            *time.Location
 	CommandDeadline time.Duration
@@ -74,7 +73,7 @@ type scriptRunsComposition struct {
 func NewScriptRunsComposition(input ScriptRunsInput) (*AutomationRunsComposition, error) {
 	if !input.Plan.Valid() || input.Commands == nil ||
 		nilReactiveInterface(input.Commands.generation) || nilReactiveInterface(input.Commands.clock) ||
-		nilReactiveInterface(input.Authority) || nilReactiveInterface(input.Clock) ||
+		nilReactiveInterface(input.Clock) ||
 		input.Zone == nil || input.Clock.Now().IsZero() || input.Commands.clock.Now().IsZero() ||
 		input.CommandDeadline <= 0 || input.CommandDeadline > 24*time.Hour {
 		return nil, ErrInvalidTriggerComposition
@@ -124,9 +123,13 @@ func prepareScriptRuns(ctx context.Context, composition *AutomationRunsCompositi
 		!services.templates.SupportsScriptWaits(concrete.input.Zone.String()) {
 		return nil, ErrInvalidTriggerComposition
 	}
+	internal, err := services.commands.InternalAutomationPort()
+	if err != nil {
+		return nil, errors.Join(ErrInvalidTriggerComposition, err)
+	}
 	var sceneService *scenes.Service
 	if concrete.input.Scenes != nil {
-		service, err := scenes.NewService(*concrete.input.Scenes, services.projection, concrete.input.Commands.generation, services.commands, concrete.input.Clock)
+		service, err := scenes.NewServiceForInternal(*concrete.input.Scenes, services.projection, concrete.input.Commands.generation, services.commands, internal, concrete.input.Clock)
 		if err != nil {
 			return nil, errors.Join(ErrInvalidTriggerComposition, err)
 		}
@@ -140,6 +143,7 @@ func prepareScriptRuns(ctx context.Context, composition *AutomationRunsCompositi
 	}
 	adapter, err := scriptcommands.New(scriptcommands.Input{
 		Commands:        services.commands,
+		Internal:        internal,
 		Scenes:          sceneService,
 		Host:            services.host,
 		Projection:      services.projection,
@@ -156,7 +160,6 @@ func prepareScriptRuns(ctx context.Context, composition *AutomationRunsCompositi
 		TriggerWaits:  services.triggers,
 		TemplateWaits: services.templates,
 		Conditions:    services.templates,
-		Authority:     concrete.input.Authority,
 		Commands:      adapter,
 		Clock:         concrete.input.Clock,
 		Zone:          concrete.input.Zone,
@@ -189,11 +192,15 @@ func (c *AutomationRunsComposition) NodeTraces() ([]automationruns.NodeTrace, ui
 		return nil, 0
 	}
 	c.mu.Lock()
+	runtime := c.runtime
 	var interpreter *automationruns.Interpreter
 	if c.scripts != nil {
 		interpreter = c.scripts.interpreter
 	}
 	c.mu.Unlock()
+	if runtime != nil {
+		return runtime.NodeTraces()
+	}
 	return interpreter.NodeTraces()
 }
 
@@ -225,6 +232,17 @@ func prepareDurableCommands(ctx context.Context, host *integrations.Manager, sto
 		return nil, nil
 	}
 	return integrations.NewDurableCommandServiceWithClock(ctx, host, composition.generation, store, composition.clock)
+}
+
+func prepareDurableCommandsWithGate(ctx context.Context, host *integrations.Manager, store *storage.Store, composition *DurableCommandsComposition, maxWaiters int, drainTimeout time.Duration) (*integrations.DurableCommandService, error) {
+	if composition == nil {
+		return nil, nil
+	}
+	limits, err := integrations.NewDurableGateLimits(maxWaiters, drainTimeout)
+	if err != nil {
+		return nil, err
+	}
+	return integrations.NewDurableCommandServiceWithClockAndGate(ctx, host, composition.generation, store, composition.clock, limits)
 }
 
 // Scene.Close waits for real applications. Keep its wait outside composition

@@ -43,10 +43,7 @@ func (p *nha026ServerPilot) Stop(context.Context) error { p.stopped.Add(1); retu
 func TestNHA026RunWithFactoryUsesProductionDatabaseListenerAndSupervisorPath(t *testing.T) {
 	cluster := testpg.Start(t)
 	data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", shortPrivateDataDir(t), cluster.Port))
-	configValue, err := config.ParseWithEnv(data, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
-	if err != nil {
-		t.Fatal(err)
-	}
+	startup := nha029RunStartupFromRaw(t, data)
 	pilot := &nha026ServerPilot{started: make(chan struct{})}
 	instance, err := domain.ParseIntegrationInstanceID("nha026-server-fixture")
 	if err != nil {
@@ -70,7 +67,7 @@ func TestNHA026RunWithFactoryUsesProductionDatabaseListenerAndSupervisorPath(t *
 	done := make(chan error, 1)
 	var lc net.ListenConfig
 	go func() {
-		done <- RunWithFactory(ctx, configValue, lc.Listen, func(addr net.Addr) { ready <- addr }, factory)
+		done <- RunWithStartupFactory(ctx, startup, lc.Listen, func(addr net.Addr) { ready <- addr }, factory)
 	}()
 	for _, ch := range []<-chan struct{}{factoryCalled, pilot.started} {
 		select {
@@ -116,6 +113,7 @@ func TestNHA026RunOwnsPreparedDurableServiceThroughFailureAndShutdown(t *testing
 			if err != nil {
 				t.Fatal(err)
 			}
+			startup := nha029RunStartupFromRaw(t, data)
 			pilot := &nha026ServerPilot{started: make(chan struct{})}
 			instance, err := domain.ParseIntegrationInstanceID("nha026-server-durable")
 			if err != nil {
@@ -149,7 +147,7 @@ func TestNHA026RunOwnsPreparedDurableServiceThroughFailureAndShutdown(t *testing
 			done := make(chan error, 1)
 			var lc net.ListenConfig
 			go func() {
-				done <- RunWithFactory(ctx, configValue, lc.Listen, func(addr net.Addr) { ready <- addr }, factory)
+				done <- RunWithStartupFactory(ctx, startup, lc.Listen, func(addr net.Addr) { ready <- addr }, factory)
 			}()
 			if mode == "serving-stop" {
 				select {

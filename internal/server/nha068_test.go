@@ -29,6 +29,7 @@ func TestNHA068RunActivatesConfiguredMQTTWithoutFactory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startup := nha029RunStartupFromRaw(t, data)
 	pg, err := c.PostgresSettings()
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +65,7 @@ func TestNHA068RunActivatesConfiguredMQTTWithoutFactory(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var lc net.ListenConfig
-	go func() { done <- Run(ctx, c, lc.Listen, func(a net.Addr) { ready <- a }) }()
+	go func() { done <- RunWithStartup(ctx, startup, lc.Listen, func(a net.Addr) { ready <- a }) }()
 	select {
 	case <-ready:
 	case err := <-done:

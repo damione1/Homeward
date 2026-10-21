@@ -73,14 +73,21 @@ func TestNHA056ActualAutomationPendingPressureCancelsOnce(t *testing.T) {
 	}
 	for range 10 {
 		queues, metrics, err := c.ObservationMetrics()
-		if err != nil || queues[0].GetInstalled().QueuedEntries.GetValue() != 0 {
-			t.Fatal("automation queue did not drain", err)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(queues) == 0 {
+			t.Fatal("automation queue aggregate absent")
+		}
+		notInstalled, ok := queues[0].GetResult().(*obs.QueueAggregate_NotInstalled)
+		if !ok || notInstalled == nil || notInstalled.NotInstalled == nil {
+			t.Fatal("closed automation lanes retained an installed queue")
 		}
 		found := false
 		for _, kind := range metrics.GetInstalled().Kinds {
 			if kind.Kind == obs.RunKind_RUN_KIND_AUTOMATION {
 				found = true
-				if kind.CancelledTotal.GetExact() != 3 || kind.Active.GetValue() != 0 {
+				if kind.CancelledTotal.GetExact() != 3 || kind.Active.GetValue() != 0 || kind.Pending.GetValue() != 0 {
 					t.Fatal("automation terminal removal recounted or lost")
 				}
 			}

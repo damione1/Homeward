@@ -90,18 +90,12 @@ func nha181Client(roots *x509.CertPool) *http.Client {
 	}, Timeout: 3 * time.Second}
 }
 
-func nha181Config(t *testing.T, postgresPort int, dataDir, listen, public string) config.Config {
+func nha181Config(t *testing.T, postgresPort int, dataDir, listen, public string) nha029RunFixture {
 	t.Helper()
 	yaml := fmt.Sprintf("listen: %q\ndata_dir: %q\n%s"+
 		"postgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n",
 		listen, dataDir, public, postgresPort)
-	value, err := config.ParseWithEnv([]byte(yaml), func(name string) (string, bool) {
-		return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD"
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return value
+	return nha029RunFixtureFromRaw(t, []byte(yaml))
 }
 
 func nha181TLSYAML() string {
@@ -125,7 +119,7 @@ func TestNHA181RejectsUnsafeTransportBeforeDatabaseOrListener(t *testing.T) {
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
 			settings := nha181Config(t, 1, dataDir, fixture.bind, fixture.public)
-			err := Run(context.Background(), settings, listen, nil)
+			err := RunWithStartup(context.Background(), settings.startup, listen, nil)
 			if !errors.Is(err, fixture.want) || calls.Load() != 0 {
 				t.Fatalf("pre-resource rejection: err=%v listeners=%d", err, calls.Load())
 			}
@@ -141,7 +135,7 @@ func TestNHA181TLSFileAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if prepared, err := preparePublicServingTransport(settings, public); err != nil || prepared.mode != config.PublicTransportTLS || prepared.tlsConfig.MinVersion != tls.VersionTLS13 {
+	if prepared, err := preparePublicServingTransport(settings.Config, public); err != nil || prepared.mode != config.PublicTransportTLS || prepared.tlsConfig.MinVersion != tls.VersionTLS13 {
 		t.Fatalf("valid TLS files not admitted: %v", err)
 	}
 	certPath := filepath.Join(dataDir, nha181CertificateName)
@@ -235,13 +229,13 @@ func TestNHA181TLSFileAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			fixture.set(t)
-			if _, err := preparePublicServingTransport(settings, public); !errors.Is(err, ErrPublicTLSUnsafe) {
+			if _, err := preparePublicServingTransport(settings.Config, public); !errors.Is(err, ErrPublicTLSUnsafe) {
 				t.Fatalf("unsafe %s admitted: %v", fixture.path, err)
 			}
 		})
 	}
 	nha181CertificateFixtureFor(t, dataDir, time.Now().Add(-2*time.Hour), time.Now().Add(-time.Hour))
-	if _, err := preparePublicServingTransport(settings, public); !errors.Is(err, ErrPublicTLSUnsafe) {
+	if _, err := preparePublicServingTransport(settings.Config, public); !errors.Is(err, ErrPublicTLSUnsafe) {
 		t.Fatalf("expired certificate admitted: %v", err)
 	}
 }
@@ -292,7 +286,7 @@ func TestNHA181TLSLeafMatchesClientEKURules(t *testing.T) {
 			if (clientErr == nil) != fixture.admitted {
 				t.Fatalf("client verification did not match fixture: %v", clientErr)
 			}
-			_, err = preparePublicServingTransport(settings, public)
+			_, err = preparePublicServingTransport(settings.Config, public)
 			if fixture.admitted && err != nil || !fixture.admitted && !errors.Is(err, ErrPublicTLSUnsafe) {
 				t.Fatalf("startup admission disagrees with client verifier: %v", err)
 			}
@@ -360,7 +354,9 @@ func TestNHA181RunH2CRefusesInvitationWithoutBody(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var listen net.ListenConfig
-	go func() { done <- Run(ctx, settings, listen.Listen, func(addr net.Addr) { ready <- addr }) }()
+	go func() {
+		done <- RunWithStartup(ctx, settings.startup, listen.Listen, func(addr net.Addr) { ready <- addr })
+	}()
 	var address net.Addr
 	select {
 	case address = <-ready:
@@ -435,7 +431,7 @@ func TestNHA181RunTLSConnectStreamAndDrain(t *testing.T) {
 	done := make(chan error, 1)
 	var listen net.ListenConfig
 	go func() {
-		done <- RunWithFactory(ctx, settings, listen.Listen, func(addr net.Addr) { ready <- addr }, func(context.Context, *storage.Store) (RuntimePlan, error) {
+		done <- RunWithStartupFactory(ctx, settings.startup, listen.Listen, func(addr net.Addr) { ready <- addr }, func(context.Context, *storage.Store) (RuntimePlan, error) {
 			return RuntimePlan{Identity: unconfiguredIdentity{}, Public: plan}, nil
 		})
 	}()

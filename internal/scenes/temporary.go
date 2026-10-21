@@ -102,6 +102,7 @@ type temporaryEntry struct {
 type applyLease struct{ cancel context.CancelFunc }
 type Service struct {
 	catalogue         Catalogue
+	internal          *integrations.InternalAutomationPort
 	history           HistoryObservationSink
 	historyProvenance automationruns.DefinitionProvenance
 	capture           CaptureSource
@@ -115,6 +116,7 @@ type Service struct {
 	nextVersion       uint64
 	retained          int
 	closed            bool
+	pendingCatalogue  *CatalogueReservation
 }
 
 func NewService(catalogue Catalogue, capture CaptureSource, generation integrations.GenerationAuthority, commands CommandPort, clock Clock) (*Service, error) {
@@ -126,9 +128,29 @@ func NewService(catalogue Catalogue, capture CaptureSource, generation integrati
 		applying: make(map[*applyLease]struct{})}, nil
 }
 
+// NewServiceForInternal borrows the exact durable service's private occurrence
+// port. Human scene entry points continue through NewService and their ACL.
+func NewServiceForInternal(catalogue Catalogue, capture CaptureSource, generation integrations.GenerationAuthority,
+	commands *integrations.DurableCommandService, port *integrations.InternalAutomationPort, clock Clock) (*Service, error) {
+	if commands == nil || port == nil || !port.BelongsTo(commands) {
+		return nil, ErrInvalidScene
+	}
+	service, err := NewService(catalogue, capture, generation, commands, clock)
+	if err != nil {
+		return nil, err
+	}
+	service.internal = port
+	return service, nil
+}
+
 func (s *Service) Declarative(id domain.HAAlias) (SceneRef, error) {
 	if s == nil {
 		return SceneRef{}, ErrInvalidScene
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return SceneRef{}, ErrSceneClosed
 	}
 	def, ok := s.catalogue.Definition(id)
 	if !ok {
@@ -165,7 +187,10 @@ func (s *Service) CreateTemporary(ctx context.Context, id domain.HAAlias, explic
 		len(explicit)+len(captureAliases) == 0 || len(explicit)+len(captureAliases) > maxSceneMembers {
 		return SceneRef{}, nil, ErrInvalidScene
 	}
-	if _, exists := s.catalogue.Definition(id); exists {
+	s.mu.Lock()
+	_, exists := s.catalogue.Definition(id)
+	s.mu.Unlock()
+	if exists {
 		return SceneRef{}, nil, ErrSceneConflict
 	}
 	seen := make(map[domain.HAAlias]bool, len(explicit)+len(captureAliases))
@@ -247,6 +272,9 @@ func (s *Service) CreateTemporary(ctx context.Context, id domain.HAAlias, explic
 			defer s.mu.Unlock()
 			if s.closed {
 				return ErrSceneClosed
+			}
+			if _, exists := s.catalogue.Definition(id); exists {
+				return ErrSceneConflict
 			}
 			s.purgeLocked(now, epoch, revision)
 			prior := s.temporary[id]

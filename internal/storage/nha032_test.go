@@ -78,7 +78,9 @@ func TestNHA032Migration20To21PreservesHistoryAndReopens(t *testing.T) {
 	if err = s.pool.QueryRow(ctx, `SELECT applied_at FROM public.homeward_schema_migrations WHERE version=20`).Scan(&applied20); err != nil {
 		t.Fatal(err)
 	}
-	if version, err := s.Migrate(ctx); err != nil || version.Number() != 21 {
+	// Keep this historical upgrade at the registered032 boundary.029 proves
+	// the later21→22 step separately, including its normal latest-plan reopen.
+	if version, err := s.migrate(ctx, migrations[:21]); err != nil || version.Number() != 21 {
 		t.Fatalf("production upgrade20 to21: %d %v", version.Number(), err)
 	}
 	var tables, versions int
@@ -93,7 +95,7 @@ func TestNHA032Migration20To21PreservesHistoryAndReopens(t *testing.T) {
 	}
 	defer reopened.Close()
 	for range 2 {
-		if version, err := reopened.Migrate(ctx); err != nil || version.Number() != 21 {
+		if version, err := reopened.migrate(ctx, migrations[:21]); err != nil || version.Number() != 21 {
 			t.Fatalf("production reopen/repeat: %d %v", version.Number(), err)
 		}
 	}
@@ -135,7 +137,7 @@ func TestNHA032Migration21RollsBackDDLAndVersion(t *testing.T) {
 	if _, err := s.pool.Exec(ctx, `CREATE TABLE public.recorder_hourly_aggregates(sentinel text PRIMARY KEY); INSERT INTO public.recorder_hourly_aggregates VALUES('nha032-preserved-collision'); INSERT INTO public.registry_devices(id) VALUES('nha032-rollback-business-sentinel')`); err != nil {
 		t.Fatal(err)
 	}
-	_, err := s.Migrate(ctx)
+	_, err := s.migrate(ctx, migrations[:21])
 	var migrationErr *Error
 	if !errors.As(err, &migrationErr) || migrationErr.Kind() != MigrationFailed {
 		t.Fatalf("registered migration collision not rolled back: %v", err)
@@ -147,7 +149,7 @@ func TestNHA032Migration21RollsBackDDLAndVersion(t *testing.T) {
 	if _, err = s.pool.Exec(ctx, `DROP TABLE public.recorder_hourly_aggregates`); err != nil {
 		t.Fatal(err)
 	}
-	if version, err := s.Migrate(ctx); err != nil || version.Number() != 21 {
+	if version, err := s.migrate(ctx, migrations[:21]); err != nil || version.Number() != 21 {
 		t.Fatalf("production migration did not recover after collision removal: %d %v", version.Number(), err)
 	}
 }

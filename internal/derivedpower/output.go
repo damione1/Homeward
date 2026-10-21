@@ -68,6 +68,14 @@ func NewPublisher(bindings []Binding) (*Publisher, error) {
 // Prepare resolves bindings before reactive publications can enter their
 // bounded output queue, and checks Host's resolved IDs against the registry.
 func (p *Publisher) Prepare(ctx context.Context, host *integrations.Manager) error {
+	return p.prepare(ctx, host, false)
+}
+
+func (p *Publisher) PrepareCommitted(ctx context.Context, host *integrations.Manager) error {
+	return p.prepare(ctx, host, true)
+}
+
+func (p *Publisher) prepare(ctx context.Context, host *integrations.Manager, committed bool) error {
 	if p == nil || host == nil || nilPowerContext(ctx) || p.session != nil {
 		return ErrInvalidPower
 	}
@@ -79,6 +87,12 @@ func (p *Publisher) Prepare(ctx context.Context, host *integrations.Manager) err
 	if err != nil {
 		return err
 	}
+	prepared := false
+	defer func() {
+		if !prepared {
+			_ = host.Revoke(session)
+		}
+	}()
 	candidates := make([]integrations.Candidate, 0, len(p.configured))
 	for _, binding := range p.configured {
 		candidate, err := integrations.NewCandidate(binding.key, []*wireregistry.CapabilityDescription{{
@@ -93,7 +107,12 @@ func (p *Publisher) Prepare(ctx context.Context, host *integrations.Manager) err
 		}
 		candidates = append(candidates, candidate)
 	}
-	outputs, err := session.Discover(ctx, candidates)
+	var outputs []integrations.Binding
+	if committed {
+		outputs, err = host.DiscoverConfiguration(ctx, session, candidates)
+	} else {
+		outputs, err = session.Discover(ctx, candidates)
+	}
 	if err != nil || len(outputs) != len(p.outputs) {
 		if err != nil {
 			return err
@@ -108,7 +127,22 @@ func (p *Publisher) Prepare(ctx context.Context, host *integrations.Manager) err
 		p.outputs[i] = output
 	}
 	p.session = session
+	prepared = true
 	return nil
+}
+
+func (p *Publisher) Retire(host *integrations.Manager) error {
+	if p == nil || host == nil {
+		return ErrInvalidPower
+	}
+	if p.session == nil {
+		return nil
+	}
+	err := host.Revoke(p.session)
+	if err == nil {
+		p.session = nil
+	}
+	return err
 }
 
 func (p *Publisher) Publish(ctx context.Context, update reactivetemplate.Update) error {

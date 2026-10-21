@@ -51,9 +51,9 @@ func TestNHA031RunCompositionAndShutdown(t *testing.T) {
 			var listener net.ListenConfig
 			go func() {
 				if withFactory {
-					result <- RunWithFactory(ctx, cfg, listener.Listen, func(net.Addr) { close(ready) }, factory)
+					result <- RunWithStartupFactory(ctx, cfg.startup, listener.Listen, func(net.Addr) { close(ready) }, factory)
 				} else {
-					result <- Run(ctx, cfg, listener.Listen, func(net.Addr) { close(ready) })
+					result <- RunWithStartup(ctx, cfg.startup, listener.Listen, func(net.Addr) { close(ready) })
 				}
 			}()
 			finished := false

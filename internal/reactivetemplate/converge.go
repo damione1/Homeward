@@ -287,7 +287,11 @@ func (e *engine) renderComponent(base template.ReadView, values map[ProgramID]ca
 				e.degradeComponent(values, component, DiagnosticWorkBudget)
 				return used, nil
 			}
-			inputs, err := template.NewInputsFromReadView(view, definition.variables, now, e.service.plan.zone)
+			zone := e.service.plan.zone
+			if definition.zone != nil {
+				zone = definition.zone
+			}
+			inputs, err := template.NewInputsFromReadView(view, definition.variables, now, zone)
 			if err != nil {
 				return used, err
 			}

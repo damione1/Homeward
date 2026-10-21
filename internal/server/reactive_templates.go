@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/damione1/Homeward/internal/derivedpower"
 	"reflect"
 	"sync"
 
@@ -102,11 +103,21 @@ func nilReactiveInterface(value any) bool {
 }
 
 type reactiveTemplateRuntime struct {
-	service *reactivetemplate.Service
-	cancel  context.CancelFunc
-	done    chan struct{}
-	mu      sync.Mutex
-	err     error
+	service    *reactivetemplate.Service
+	cancel     context.CancelFunc
+	done       chan struct{}
+	mu         sync.Mutex
+	err        error
+	forwarding chan *templateForwardingPause
+	paused     *templateForwardingPause
+	output     ReactiveTemplateOutput
+	derived    *derivedpower.Publisher
+}
+
+type templateForwardingPause struct {
+	before uint64
+	ack    chan struct{}
+	resume chan struct{}
 }
 
 func startReactiveTemplates(ctx context.Context, identity integrations.IdentityAuthority, host *integrations.Manager, sequence *sequencer.Sequencer, composition *ReactiveTemplateComposition) (*reactiveTemplateRuntime, error) {
@@ -137,15 +148,54 @@ func startReactiveTemplates(ctx context.Context, identity integrations.IdentityA
 		cancel()
 		return nil, err
 	}
-	runtime := &reactiveTemplateRuntime{service: service, cancel: cancel, done: make(chan struct{})}
+	runtime := &reactiveTemplateRuntime{service: service, cancel: cancel, done: make(chan struct{}), forwarding: make(chan *templateForwardingPause), output: composition.output, derived: derivedOutputPublisher(composition.output)}
 	go func() {
 		defer close(runtime.done)
 		failed := false
-		for update := range service.Updates() {
+		var pause *templateForwardingPause
+		for {
+			var update reactivetemplate.Update
+			var ok bool
+			select {
+			case request := <-runtime.forwarding:
+				pause = request
+				close(request.ack) // all previously dequeued A forwarding joined
+				continue
+			case update, ok = <-service.Updates():
+				if !ok {
+					goto outputClosed
+				}
+			}
+			if pause != nil {
+				select {
+				case <-pause.resume:
+					pause = nil
+				default:
+				}
+				if pause != nil {
+					if update.Publication() <= pause.before {
+						continue
+					}
+					// Hold at most this one B value. Its remaining image is in
+					// the existing bounded service queue; no second output queue.
+					select {
+					case <-pause.resume:
+						pause = nil
+					case <-runCtx.Done():
+						continue
+					}
+				}
+			}
 			if failed {
 				continue
 			}
-			if err := composition.output.PublishReactiveTemplate(runCtx, host, update); err != nil {
+			if update.Publication() != service.Publication() {
+				continue
+			}
+			runtime.mu.Lock()
+			output := runtime.output
+			runtime.mu.Unlock()
+			if err := output.PublishReactiveTemplate(runCtx, host, update); err != nil {
 				runtime.mu.Lock()
 				runtime.err = err
 				runtime.mu.Unlock()
@@ -153,6 +203,7 @@ func startReactiveTemplates(ctx context.Context, identity integrations.IdentityA
 				service.CloseAdmissions()
 			}
 		}
+	outputClosed:
 		if err := service.Error(); err != nil {
 			runtime.mu.Lock()
 			runtime.err = errors.Join(runtime.err, err)
@@ -161,6 +212,98 @@ func startReactiveTemplates(ctx context.Context, identity integrations.IdentityA
 		<-service.Done()
 	}()
 	return runtime, nil
+}
+
+type inactiveReactiveOutput struct{}
+
+func (inactiveReactiveOutput) PublishReactiveTemplate(context.Context, *integrations.Manager, reactivetemplate.Update) error {
+	return ErrReactiveTemplateComposition
+}
+
+func derivedOutputPublisher(output ReactiveTemplateOutput) *derivedpower.Publisher {
+	switch value := output.(type) {
+	case derivedPowerOutput:
+		return value.publisher
+	case derivedReactiveOutput:
+		return derivedOutputPublisher(value.derived)
+	default:
+		return nil
+	}
+}
+
+func (r *reactiveTemplateRuntime) replaceDerivedOutput(publisher *derivedpower.Publisher, ids []reactivetemplate.ProgramID, baseIDs []reactivetemplate.ProgramID) error {
+	if r == nil {
+		return ErrReactiveTemplateComposition
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.paused == nil {
+		return ErrReactiveTemplateComposition
+	}
+	base := r.output
+	switch value := base.(type) {
+	case derivedPowerOutput:
+		base = inactiveReactiveOutput{}
+	case derivedReactiveOutput:
+		base = value.previous
+	}
+	if publisher == nil {
+		r.output = base
+	} else {
+		r.output = derivedReactiveOutput{previous: base, derived: derivedPowerOutput{publisher: publisher}, priorIDs: append([]reactivetemplate.ProgramID(nil), baseIDs...), newIDs: append([]reactivetemplate.ProgramID(nil), ids...)}
+	}
+	r.derived = publisher
+	return nil
+}
+
+// PauseForActivation joins an A callback already removed from Updates. While
+// paused the one pump discards A and retains B in its existing queue.
+func (r *reactiveTemplateRuntime) PauseForActivation(ctx context.Context) error {
+	if r == nil || r.service == nil || r.done == nil || r.forwarding == nil || r.cancel == nil || nilReactiveInterface(ctx) {
+		return ErrReactiveTemplateComposition
+	}
+	r.mu.Lock()
+	if r.paused != nil {
+		r.mu.Unlock()
+		return ErrReactiveTemplateComposition
+	}
+	p := &templateForwardingPause{before: r.service.Publication(), ack: make(chan struct{}), resume: make(chan struct{})}
+	r.paused = p
+	r.mu.Unlock()
+	select {
+	case r.forwarding <- p:
+		// Once handed to the pump, acknowledge actual drain even if ctx
+		// expires. No untracked callback survives a successful cut.
+		select {
+		case <-p.ack:
+			return nil
+		case <-r.done:
+			return ErrReactiveTemplateComposition
+		}
+	case <-ctx.Done():
+		r.mu.Lock()
+		if r.paused == p {
+			r.paused = nil
+		}
+		r.mu.Unlock()
+		return ctx.Err()
+	case <-r.done:
+		return ErrReactiveTemplateComposition
+	}
+}
+
+func (r *reactiveTemplateRuntime) ResumeAfterActivation() error {
+	if r == nil {
+		return ErrReactiveTemplateComposition
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.paused == nil {
+		return ErrReactiveTemplateComposition
+	}
+	close(r.paused.resume)
+	r.paused = nil
+	return nil
 }
 
 func (r *reactiveTemplateRuntime) CloseAdmissions() {

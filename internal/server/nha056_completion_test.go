@@ -19,7 +19,6 @@ import (
 	wire "github.com/damione1/Homeward/gen/home/integrations/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
-	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/observability"
@@ -45,7 +44,7 @@ func (l *nha056ClosingListener) unblock() { l.allow.Do(func() { close(l.release)
 
 // This seam retains the real composed owners; it does not replace a driver,
 // generation, admission gate, listener handler, or observability response.
-func nha056ObservedDefaultRun(t *testing.T, cfg config.Config) (*nha162Running, *observationRuntime, *nha056ClosingListener) {
+func nha056ObservedDefaultRun(t *testing.T, cfg nha029RunFixture) (*nha162Running, *observationRuntime, *nha056ClosingListener) {
 	t.Helper()
 	ctx, stop := context.WithCancel(context.Background())
 	run := &nha162Running{stop: stop, done: make(chan error, 1)}
@@ -61,7 +60,7 @@ func nha056ObservedDefaultRun(t *testing.T, cfg config.Config) (*nha162Running, 
 		return listener, nil
 	}
 	go func() {
-		run.done <- runWithDependencies(ctx, cfg, listen, func(addr net.Addr) { ready <- addr }, nil, runDependencies{observeRuntime: func(runtime *observationRuntime) { owners <- runtime }})
+		run.done <- runWithDependencies(ctx, cfg.startup, listen, func(addr net.Addr) { ready <- addr }, nil, runDependencies{observeRuntime: func(runtime *observationRuntime) { owners <- runtime }})
 	}()
 	t.Cleanup(func() {
 		listener.unblock()
@@ -89,6 +88,7 @@ func TestNHA056RealRunCloudFailuresKeepReadyAndCoreDrainsBeforeListenerClose(t *
 	cfg := nha181Config(t, cluster.Port, data, "127.0.0.1:0", nha181TLSYAML())
 	revision := nha056ActivateLocalGeneration(t, cfg)
 	run, runtime, listener := nha056ObservedDefaultRun(t, cfg)
+	revision = nha056AdmittedSQLRevision(t, runtime.store, revision)
 	client := nha162RunClient(t, roots, run.address)
 	base := "https://" + run.address.String()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -229,7 +229,7 @@ func TestNHA056RealNativeTLSRejectsOpaqueBearerBeforeReaderAdmission(t *testing.
 	data := shortPrivateDataDir(t)
 	roots := nha181CertificateFixture(t, data)
 	cfg := nha181Config(t, cluster.Port, data, "127.0.0.1:0", nha181TLSYAML())
-	run := nha162StartDefaultRun(t, cfg)
+	run := nha162StartDefaultRun(t, cfg.startup)
 	client := nha162RunClient(t, roots, run.address)
 	base := "https://" + run.address.String()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

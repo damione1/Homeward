@@ -118,7 +118,7 @@ func (h *nha105RunHandle) stop(t *testing.T) {
 		t.Error("configured solar Run did not join")
 	}
 }
-func nha105StartRun(t *testing.T, c config.Config, at time.Time) *nha105RunHandle {
+func nha105StartRun(t *testing.T, startup config.StartupInputs, at time.Time) *nha105RunHandle {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &nha105RunHandle{cancel: cancel, done: make(chan error, 1), clock: &nha105RunClock{wall: at}}
@@ -127,7 +127,7 @@ func nha105StartRun(t *testing.T, c config.Config, at time.Time) *nha105RunHandl
 	ready := make(chan struct{})
 	dependencies := runDependencies{sequenceClock: h.clock, solarClock: h.clock, maintenanceClock: h.clock, observe: func(_ context.Context, s *sequencer.Sequencer) error { sequence <- s; return nil }}
 	go func() {
-		h.done <- runWithDependencies(ctx, c, (&net.ListenConfig{}).Listen, func(net.Addr) { close(ready) }, nil, dependencies)
+		h.done <- runWithDependencies(ctx, startup, (&net.ListenConfig{}).Listen, func(net.Addr) { close(ready) }, nil, dependencies)
 	}()
 	select {
 	case <-ready:
@@ -162,12 +162,9 @@ func nha105RunSnapshot(t *testing.T, h *nha105RunHandle) sequencer.Snapshot {
 func TestNHA105ConfiguredRunPublishesSevenSelectedAliases(t *testing.T) {
 	cluster := testpg.Start(t)
 	raw := fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\nsolar: {latitude: 0, longitude: 0, elevation_meters: 1000, timezone: America/New_York}\n", shortPrivateDataDir(t), cluster.Port)
-	c, err := config.ParseWithEnv([]byte(raw), func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
-	if err != nil {
-		t.Fatal("synthetic bootstrap failed")
-	}
+	startup := nha029RunStartupFromRaw(t, []byte(raw))
 	observer := nha030ServerObserver(t, cluster.Port)
-	first := nha105StartRun(t, c, time.Date(2024, 3, 10, 12, 0, 0, 0, time.UTC))
+	first := nha105StartRun(t, startup, time.Date(2024, 3, 10, 12, 0, 0, 0, time.UTC))
 	snapshot := nha105RunSnapshot(t, first)
 	ids := make([]domain.EntityID, 0, 7)
 	aliases := make(map[string]string, 7)
@@ -284,7 +281,7 @@ func TestNHA105ConfiguredRunPublishesSevenSelectedAliases(t *testing.T) {
 	if _, err := contracts.AdmitWireSolarEventValue(stored.GetSolarEvent()); err != nil {
 		t.Fatal(err)
 	}
-	second := nha105StartRun(t, c, time.Date(2024, 3, 11, 14, 0, 0, 0, time.UTC))
+	second := nha105StartRun(t, startup, time.Date(2024, 3, 11, 14, 0, 0, 0, time.UTC))
 	reopened := nha105RunSnapshot(t, second)
 	for id, record := range reopened.Registry {
 		_, current, _, _ := record.Aliases()

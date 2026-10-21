@@ -12,7 +12,6 @@ import (
 	"github.com/damione1/Homeward/compat/ha/template"
 	"github.com/damione1/Homeward/contracts"
 	wire "github.com/damione1/Homeward/gen/home/registry/v1"
-	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/reactivetemplate"
@@ -169,10 +168,7 @@ func TestNHA044TypedNilCompositionBoundaries(t *testing.T) {
 func TestNHA044RealRunUsesOneProjectionAndPublishesFinalHostRevision(t *testing.T) {
 	cluster := testpg.Start(t)
 	data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", shortPrivateDataDir(t), cluster.Port))
-	cfg, err := config.ParseWithEnv(data, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
-	if err != nil {
-		t.Fatal(err)
-	}
+	startup := nha029RunStartupFromRaw(t, data)
 	instance, _ := domain.ParseIntegrationInstanceID("nha044-calculated")
 	key, _ := integrations.NewSourceKey("calculated", "power")
 	sourceInstance, _ := domain.ParseIntegrationInstanceID("nha044-input")
@@ -229,7 +225,9 @@ func TestNHA044RealRunUsesOneProjectionAndPublishesFinalHostRevision(t *testing.
 	done := make(chan error, 1)
 	ready := make(chan struct{})
 	var listener net.ListenConfig
-	go func() { done <- RunWithFactory(ctx, cfg, listener.Listen, func(net.Addr) { close(ready) }, factory) }()
+	go func() {
+		done <- RunWithStartupFactory(ctx, startup, listener.Listen, func(net.Addr) { close(ready) }, factory)
+	}()
 	select {
 	case <-ready:
 	case <-time.After(15 * time.Second):
@@ -347,10 +345,7 @@ func TestNHA044RunListenerFailureCancelsOutputAndRetainsStoreUntilDone(t *testin
 		t.Run(name, func(t *testing.T) {
 			cluster := testpg.Start(t)
 			data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", shortPrivateDataDir(t), cluster.Port))
-			cfg, err := config.ParseWithEnv(data, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
-			if err != nil {
-				t.Fatal(err)
-			}
+			startup := nha029RunStartupFromRaw(t, data)
 			output := &nha044BlockedOutput{entered: make(chan struct{}), release: make(chan struct{}), finished: make(chan struct{}), cooperative: cooperative}
 			storeReady := make(chan *storage.Store, 1)
 			factory := func(_ context.Context, store *storage.Store) (RuntimePlan, error) {
@@ -394,7 +389,7 @@ func TestNHA044RunListenerFailureCancelsOutputAndRetainsStoreUntilDone(t *testin
 			defer cancel()
 			done := make(chan error, 1)
 			go func() {
-				done <- RunWithFactory(ctx, cfg, listen, func(net.Addr) { t.Error("failed listener became ready") }, factory)
+				done <- RunWithStartupFactory(ctx, startup, listen, func(net.Addr) { t.Error("failed listener became ready") }, factory)
 			}()
 			var store *storage.Store
 			select {
@@ -463,10 +458,7 @@ func TestNHA044RunListenerFailureCancelsOutputAndRetainsStoreUntilDone(t *testin
 func TestNHA044PreparationFailureCancelsBlockedOutput(t *testing.T) {
 	cluster := testpg.Start(t)
 	data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", shortPrivateDataDir(t), cluster.Port))
-	cfg, err := config.ParseWithEnv(data, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
-	if err != nil {
-		t.Fatal(err)
-	}
+	startup := nha029RunStartupFromRaw(t, data)
 	output := &nha044BlockedOutput{entered: make(chan struct{}), release: make(chan struct{}), finished: make(chan struct{}), cooperative: true}
 	badPublic := &PublicPlan{}
 	badPublic.mu.Lock()
@@ -512,7 +504,7 @@ func TestNHA044PreparationFailureCancelsBlockedOutput(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		var listener net.ListenConfig
-		done <- RunWithFactory(ctx, cfg, listener.Listen, func(net.Addr) { t.Error("invalid public plan became ready") }, factory)
+		done <- RunWithStartupFactory(ctx, startup, listener.Listen, func(net.Addr) { t.Error("invalid public plan became ready") }, factory)
 	}()
 	select {
 	case <-output.entered:

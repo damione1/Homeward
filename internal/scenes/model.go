@@ -1,6 +1,7 @@
 package scenes
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -161,6 +162,8 @@ type satisfactionSlot struct {
 }
 type scenePlan struct {
 	service    *Service
+	internal   bool
+	origin     context.Context
 	ref        SceneRef
 	actor      domain.ActorID
 	invocation domain.CommandID

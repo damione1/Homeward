@@ -51,6 +51,22 @@ func (h *HealthCell) PublishReady(revision ActiveRevision) error {
 	h.server = &obs.ServerHealth{Readiness: obs.ServerReadiness_SERVER_READINESS_READY, Generation: &obs.GenerationPresence{Result: &obs.GenerationPresence_Present{Present: &obs.ActiveRevision{Value: revision.value}}}}
 	return nil
 }
+
+// PublishActiveRevision receives only the configuration owner's completed
+// publication. Preserve readiness and causes: a loaded replacement cannot
+// turn STARTING, CORE_UNAVAILABLE or DRAINING into READY.
+func (h *HealthCell) PublishActiveRevision(revision ActiveRevision) error {
+	if !h.valid() || revision.value == 0 {
+		return invalid(obs.ObservabilityField_OBSERVABILITY_FIELD_REVISION)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if old := h.server.Generation.GetPresent(); old != nil && old.Value > revision.value {
+		return invalid(obs.ObservabilityField_OBSERVABILITY_FIELD_REVISION)
+	}
+	h.server.Generation = &obs.GenerationPresence{Result: &obs.GenerationPresence_Present{Present: &obs.ActiveRevision{Value: revision.value}}}
+	return nil
+}
 func (h *HealthCell) PublishDraining() error {
 	if !h.valid() {
 		return invalid(obs.ObservabilityField_OBSERVABILITY_FIELD_HEALTH)

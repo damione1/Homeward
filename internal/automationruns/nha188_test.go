@@ -82,6 +82,67 @@ func nha188Close(t *testing.T, c *Controller) {
 	}
 }
 
+// Observation owns an ordinary image reference until the post-Close native
+// assertions finish. The actual ring stays charged until its final release.
+func nha188RetainImageForObservation(t *testing.T, c *Controller, i *Interpreter) func() {
+	t.Helper()
+	c.mu.Lock()
+	image := c.active
+	if image == nil || image.interpreter != i || !c.retainImageLocked(image) {
+		c.mu.Unlock()
+		t.Fatal("observation could not retain the actual active image")
+	}
+	c.mu.Unlock()
+	var once sync.Once
+	release := func() { once.Do(func() { c.releaseImage(image) }) }
+	// Registered after the rig: a failed assertion drops this reference before
+	// the rig's existing shutdown joins its own active/run references.
+	t.Cleanup(release)
+	return func() {
+		t.Helper()
+		select {
+		case <-c.Done():
+		default:
+			t.Fatal("observation release preceded the real Controller join")
+		}
+		c.mu.Lock()
+		lastOwner := c.closed && c.active == nil && c.pending == nil && c.live == 0 && image.refs == 1
+		charge := image.charge
+		c.mu.Unlock()
+		i.mu.Lock()
+		retained := i.controller == c && i.image == image && i.charge > 0 && cap(i.traces) == nodeTraceCapacity
+		i.mu.Unlock()
+		c.pool.mu.Lock()
+		before := c.pool.used
+		c.pool.mu.Unlock()
+		if !lastOwner || !retained || before != controllerCharge+charge {
+			t.Fatalf("observation did not retain a real charged image: last=%v retained=%v pool=%d image=%d", lastOwner, retained, before, charge)
+		}
+		decisions, decisionLoss := c.Traces()
+		nodes, nodeLoss := i.NodeTraces()
+		nodeCopy := append([]NodeTrace(nil), nodes...)
+		previous, order := c.traceOrdinal.Load(), c.TraceOrderState()
+		release()
+		afterDecisions, afterDecisionLoss := c.Traces()
+		afterNodes, afterNodeLoss := i.NodeTraces()
+		c.mu.Lock()
+		noOwners := image.refs == 0
+		c.mu.Unlock()
+		i.mu.Lock()
+		released := i.controller == c && i.image == nil && i.waitPlan == nil && i.charge == 0 && cap(i.traces) == 0 && i.traceNext == 0
+		i.mu.Unlock()
+		c.pool.mu.Lock()
+		after := c.pool.used
+		c.pool.mu.Unlock()
+		if !noOwners || !released || after != controllerCharge || before-after != charge {
+			t.Fatalf("last observation reference retained memory: refs=%v released=%v before=%d image=%d after=%d", noOwners, released, before, charge, after)
+		}
+		if c.traceOrdinal.Load() != previous || c.TraceOrderState() != order || !reflect.DeepEqual(decisions, afterDecisions) || afterDecisionLoss != decisionLoss || len(afterNodes) != 0 || afterNodeLoss != nodeLoss || !reflect.DeepEqual(nodes, nodeCopy) {
+			t.Fatal("image release changed native observations, ordering, or loss")
+		}
+	}
+}
+
 func nha188Invoke(t *testing.T, c *Controller, id ir.ScriptID) *ScriptHandle {
 	t.Helper()
 	handle, err := c.InvokeScript(context.Background(), id, nil, Run{}, ir.ScriptCallDirect)
@@ -175,6 +236,7 @@ func TestNHA188FinalWaitTimeoutEmissionPrecedesTerminal(t *testing.T) {
 			}
 			program := nha042Compile(t, "script.nha188_timeout", "sequence:\n"+test.wait+"  timeout: {seconds: 60}\n  continue_on_timeout: "+continuation+"\n", []ir.ScriptID{id})
 			rig := nha042FullRig(t, []ir.Script{program}, &nha042Commands{})
+			releaseObservation := nha188RetainImageForObservation(t, rig.controller, rig.interpreter)
 			handle := nha188Invoke(t, rig.controller, id)
 			nha188Suspended(t, handle)
 			rig.clock.advance(60 * time.Second)
@@ -197,12 +259,14 @@ func TestNHA188FinalWaitTimeoutEmissionPrecedesTerminal(t *testing.T) {
 				t.Fatal("cleanup manufactured an observation missing at the semantic terminal")
 			}
 			rig.clock.mu.Lock()
-			defer rig.clock.mu.Unlock()
 			for _, timer := range rig.clock.timers {
 				if !timer.stopped.Load() {
+					rig.clock.mu.Unlock()
 					t.Fatal("joined wait retained a timer")
 				}
 			}
+			rig.clock.mu.Unlock()
+			releaseObservation()
 		})
 	}
 }
@@ -226,6 +290,7 @@ func TestNHA188ParentChildFinalWaitCancellationSameTick(t *testing.T) {
 			parent := nha042Compile(t, "script.nha188_parent", parentBody, ids)
 			programs = append(programs, parent)
 			rig := nha042FullRig(t, programs, &nha042Commands{})
+			releaseObservation := nha188RetainImageForObservation(t, rig.controller, rig.interpreter)
 			handle := nha188Invoke(t, rig.controller, parentID)
 			nha188Suspended(t, handle)
 			waitHandle, waitProgram := handle, parent
@@ -266,6 +331,7 @@ func TestNHA188ParentChildFinalWaitCancellationSameTick(t *testing.T) {
 			if !reflect.DeepEqual(beforeClose, nha188Snapshot(t, rig.controller, rig.interpreter)) || len(rig.effects()) != 0 {
 				t.Fatal("cancellation cleanup added late observations or actions")
 			}
+			releaseObservation()
 		})
 	}
 }
@@ -277,6 +343,7 @@ func TestNHA188RealRunInterleavingAndParallelJoin(t *testing.T) {
 	waiter := nha042Compile(t, "script.nha188_waiting", "sequence:\n- wait_template: '{{ false }}'\n", ids)
 	parallel := nha042Compile(t, "script.nha188_parallel", "sequence:\n- parallel:\n  - sequence:\n    - variables: {left: 1}\n  - sequence:\n    - variables: {right: 2}\n", ids)
 	rig := nha042FullRig(t, []ir.Script{waiter, parallel}, &nha042Commands{})
+	releaseObservation := nha188RetainImageForObservation(t, rig.controller, rig.interpreter)
 	first := nha188Invoke(t, rig.controller, waitID)
 	nha188Suspended(t, first)
 	second := nha188Invoke(t, rig.controller, parallelID)
@@ -326,6 +393,7 @@ func TestNHA188RealRunInterleavingAndParallelJoin(t *testing.T) {
 		}
 	}
 	// No sibling-to-sibling relation is asserted: their scheduling is independent.
+	releaseObservation()
 }
 
 // Direction is read only from native observations and their Controller scope.
@@ -357,6 +425,7 @@ func TestNHA188SyntheticInversionPreservesNativeDirection(t *testing.T) {
 	id, _ := ir.ParseScriptID("script.nha188_negative")
 	program := nha042Compile(t, "script.nha188_negative", "sequence:\n- wait_template: '{{ false }}'\n", []ir.ScriptID{id})
 	rig := nha042FullRig(t, []ir.Script{program}, &nha042Commands{})
+	releaseObservation := nha188RetainImageForObservation(t, rig.controller, rig.interpreter)
 	handle := nha188Invoke(t, rig.controller, id)
 	nha188Suspended(t, handle)
 	<-handle.Cancel()
@@ -382,6 +451,7 @@ func TestNHA188SyntheticInversionPreservesNativeDirection(t *testing.T) {
 	if nha188ObservedDirection(observed, observed, TraceOrdinal{}, terminal.Ordinal()) != nha188OrderInvalid || nha188ObservedDirection(observed, observed, exit.Ordinal(), exit.Ordinal()) != nha188OrderInvalid {
 		t.Fatal("absent or equal ordinals manufactured an ordering proof")
 	}
+	releaseObservation()
 }
 
 func TestNHA188OrdinalAdmissionStatesAndSaturatingCAS(t *testing.T) {
@@ -450,6 +520,7 @@ func TestNHA188ConcurrentNativeRingsUseOneOrdinalSpace(t *testing.T) {
 	id, _ := ir.ParseScriptID("script.nha188_contention")
 	program := nha042Compile(t, "script.nha188_contention", "sequence:\n- stop: done\n", []ir.ScriptID{id})
 	controller, interpreter := nha042Runtime(t, []ir.Script{program}, &nha042Commands{})
+	releaseObservation := nha188RetainImageForObservation(t, controller, interpreter)
 	// Both producers use their real bounded emitters and existing ring locks.
 	// A start barrier creates contention without sleep or per-emission hooks.
 	start := make(chan struct{})
@@ -494,6 +565,7 @@ func TestNHA188ConcurrentNativeRingsUseOneOrdinalSpace(t *testing.T) {
 	if len(observation.decisions) != emissions || len(observation.nodes) != emissions || controller.traceOrdinal.Load() != 2*emissions {
 		t.Fatal("native rings did not share one allocation space")
 	}
+	releaseObservation()
 }
 
 func TestNHA188ExhaustionDoesNotChangeFinalWaitResultOrCleanup(t *testing.T) {
@@ -506,6 +578,7 @@ func TestNHA188ExhaustionDoesNotChangeFinalWaitResultOrCleanup(t *testing.T) {
 			id, _ := ir.ParseScriptID("script.nha188_exhaustion")
 			program := nha042Compile(t, "script.nha188_exhaustion", "sequence:\n- wait_template: '{{ false }}'\n  timeout: {seconds: 60}\n  continue_on_timeout: false\n", []ir.ScriptID{id})
 			rig := nha042FullRig(t, []ir.Script{program}, &nha042Commands{})
+			releaseObservation := nha188RetainImageForObservation(t, rig.controller, rig.interpreter)
 			rig.controller.pool.mu.Lock()
 			baseline := rig.controller.pool.used
 			rig.controller.pool.mu.Unlock()
@@ -562,6 +635,7 @@ func TestNHA188ExhaustionDoesNotChangeFinalWaitResultOrCleanup(t *testing.T) {
 			if after != baseline || rig.controller.live != 0 || len(rig.effects()) != 0 {
 				t.Fatalf("exhaustion prevented joined resource cleanup: before=%d after=%d live=%d", baseline, after, rig.controller.live)
 			}
+			releaseObservation()
 		})
 	}
 }
@@ -598,26 +672,44 @@ func TestNHA188SnapshotsBindIdentityAndPlanLifetime(t *testing.T) {
 	oldNodes := append([]NodeTrace(nil), one.nodes...)
 	one.decisions[0].Decision, one.decisions[0].ordinal = DecisionInvalid, TraceOrdinal{}
 	one.nodes[0].stage, one.nodes[0].ordinal = NodeStageInvalid, TraceOrdinal{}
-	if fresh := nha188Snapshot(t, first, interpreter); !reflect.DeepEqual(oldDecisions, fresh.decisions) || !reflect.DeepEqual(oldNodes, fresh.nodes) {
+	one = nha188Snapshot(t, first, interpreter)
+	if !reflect.DeepEqual(oldDecisions, one.decisions) || !reflect.DeepEqual(oldNodes, one.nodes) {
 		t.Fatal("snapshots shared mutable ring backing")
 	}
-	// A plan replacement on this idle Controller preserves its lifetime counter.
-	// It contains the same admitted scripts; this test does not exercise 029 activation.
+	// Publish the same scripts as a new causal image on this Controller. Keep
+	// copied A observations: its released interpreter need not retain its ring.
 	replacement, err := NewPlanWithScripts(nil, []ir.Script{program})
 	if err != nil {
 		t.Fatal(err)
 	}
+	input := interpreter.input
+	input.Plan = replacement
+	replacementInterpreter, err := NewInterpreter(input)
+	if err != nil {
+		t.Fatal(err)
+	}
 	previous := first.traceOrdinal.Load()
-	first.mu.Lock()
-	first.plan = replacement
-	first.generation++ // a new causal image retains the same Controller owner
-	first.mu.Unlock()
+	reserved, err := first.ReserveImage(replacement, replacementInterpreter, replacementInterpreter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reserved.Publish(); err != nil {
+		t.Fatal(err)
+	}
 	if err := nha042Joined(t, nha188Invoke(t, first, id)); err != nil {
 		t.Fatal(err)
 	}
-	fresh := nha188Snapshot(t, first, interpreter)
-	if fresh.decisions[len(oldDecisions)].Generation == oldDecisions[0].Generation || nha188Value(t, fresh.decisions[len(oldDecisions)].Ordinal()) <= previous || !reflect.DeepEqual(oldDecisions, fresh.decisions[:len(oldDecisions)]) || !reflect.DeepEqual(oldNodes, fresh.nodes[:len(oldNodes)]) {
-		t.Fatal("plan assignment reset ordering or mutated previously copied observations")
+	fresh := nha188Snapshot(t, first, replacementInterpreter)
+	if len(fresh.decisions) <= len(oldDecisions) || len(fresh.nodes) == 0 {
+		t.Fatal("published B image produced no native observations")
+	}
+	if fresh.decisions[len(oldDecisions)].Generation == oldDecisions[0].Generation || nha188Value(t, fresh.decisions[len(oldDecisions)].Ordinal()) <= previous || !reflect.DeepEqual(oldDecisions, fresh.decisions[:len(oldDecisions)]) || !reflect.DeepEqual(oldDecisions, one.decisions) || !reflect.DeepEqual(oldNodes, one.nodes) {
+		t.Fatal("image publication reset ordering or mutated previously copied observations")
+	}
+	for _, node := range fresh.nodes {
+		if node.Generation() != fresh.decisions[len(oldDecisions)].Generation || nha188Value(t, node.Ordinal()) <= previous {
+			t.Fatal("B node observations lost the shared Controller counter or causal image")
+		}
 	}
 	if nha188ObservedDirection(one, fresh, oldDecisions[0].Ordinal(), fresh.decisions[len(oldDecisions)].Ordinal()) != nha188Before {
 		t.Fatal("causal image generation was mistaken for Controller ordering identity")
@@ -630,13 +722,16 @@ func TestNHA188RingBoundsEvictionsAndMeasuredReservations(t *testing.T) {
 	id, _ := ir.ParseScriptID("script.nha188_budget")
 	program := nha042Compile(t, "script.nha188_budget", "sequence:\n- stop: done\n", []ir.ScriptID{id})
 	controller, interpreter := nha042Runtime(t, []ir.Script{program}, &nha042Commands{})
+	releaseObservation := nha188RetainImageForObservation(t, controller, interpreter)
 	if cap(controller.traces) != MaxTraces || cap(interpreter.traces) != nodeTraceCapacity || nodeTraceCapacity != min(MaxNodeTraces, nodeTraceCharge/(int(unsafe.Sizeof(NodeTrace{}))+512)) || nodeTraceCapacity < 1 {
 		t.Fatal("native trace backing escaped measured reservation/capacity")
 	}
 	// Keep the exact pre-188 layouts as the accounting baseline. NHA-186 adds
 	// emission time, immutable image provenance, ancestry and a sink port;
 	// NHA-056 adds process cells and a Controller handle. The decision ordinal
-	// must still fit in the original Trace padding.
+	// must still fit in the original Trace padding. The Controller baseline
+	// includes 029 image ownership/close state, excluding the measured sink,
+	// ordinal and process observation fields.
 	type originalTraceLayout struct {
 		Decision    Decision
 		Automation  string
@@ -647,32 +742,33 @@ func TestNHA188RingBoundsEvictionsAndMeasuredReservations(t *testing.T) {
 		MaxExceeded ir.MaxExceededMode
 		Error       string
 	}
-	type originalControllerLayout struct {
-		mu              sync.Mutex
-		plan            Plan
-		preparer        Preparer
-		executor        Executor
-		reader          ResultReader
-		pool            memoryPool
-		ctx             context.Context
-		cancel          context.CancelFunc
-		done            chan struct{}
-		doneOnce        sync.Once
-		wg              sync.WaitGroup
-		lanes           map[laneKey]*lane
-		traces          []Trace
-		evicted         uint64
-		next            RunID
-		generation      Generation
-		preparing, live int
-		started, closed bool
-		err             error
+	type controllerLayoutWithoutOrdinal struct {
+		mu                            sync.Mutex
+		active                        *programImage
+		pending                       *ImageReservation
+		admission                     *imageAdmission
+		plan                          Plan
+		reader                        ResultReader
+		pool                          memoryPool
+		ctx                           context.Context
+		cancel                        context.CancelFunc
+		done                          chan struct{}
+		doneOnce                      sync.Once
+		wg                            sync.WaitGroup
+		lanes                         map[laneKey]*lane
+		traces                        []Trace
+		evicted                       uint64
+		next                          RunID
+		generation                    Generation
+		preparing, live               int
+		started, closed, closeStarted bool
+		err                           error
 	}
 	historyTraceBytes := unsafe.Sizeof(Trace{}.At) + unsafe.Sizeof(Trace{}.Provenance) + unsafe.Sizeof(Trace{}.ParentID)
 	historyControllerBytes := unsafe.Sizeof(controller.sink)
 	observationControllerBytes := unsafe.Sizeof(controller.observation) + unsafe.Sizeof(controller.observationHandle)
 	expectedTraceBytes := unsafe.Sizeof(originalTraceLayout{}) + historyTraceBytes
-	expectedControllerBytes := unsafe.Sizeof(originalControllerLayout{}) + unsafe.Sizeof(controller.traceOrdinal) + historyControllerBytes + observationControllerBytes
+	expectedControllerBytes := unsafe.Sizeof(controllerLayoutWithoutOrdinal{}) + unsafe.Sizeof(controller.traceOrdinal) + historyControllerBytes + observationControllerBytes
 	if unsafe.Sizeof(Trace{}) != expectedTraceBytes || unsafe.Sizeof(Controller{}) != expectedControllerBytes {
 		t.Fatalf("trace layout grew beyond explicit history/observation fields: Trace=%d want%d Controller=%d want%d", unsafe.Sizeof(Trace{}), expectedTraceBytes, unsafe.Sizeof(Controller{}), expectedControllerBytes)
 	}
@@ -691,13 +787,14 @@ func TestNHA188RingBoundsEvictionsAndMeasuredReservations(t *testing.T) {
 	// are baseline accounting limits, not a new proven bound for this patch.
 	const maxPublicLanes = automationtriggers.MaxTriggers + 64 // NewPlanWithScripts
 	publicLaneStructs := maxPublicLanes * (int(unsafe.Sizeof(laneKey{})) + int(unsafe.Sizeof(lane{})))
-	t.Logf("measured Trace=%d (base=%d), NodeTrace=%d Controller=%d (base=%d), counter=%d; ring+error allowance=%d/%d node image=%d/%d capacity=%d pool=%d; public lane structs=%d across %d lanes EXCLUDING runtime map backing/retained-plan metadata (baseline limit)", unsafe.Sizeof(Trace{}), unsafe.Sizeof(originalTraceLayout{}), unsafe.Sizeof(NodeTrace{}), unsafe.Sizeof(Controller{}), unsafe.Sizeof(originalControllerLayout{}), unsafe.Sizeof(controller.traceOrdinal), traceBytes, controllerCharge, nodeBytes, nodeTraceCharge, nodeTraceCapacity, MaxMemoryBytes, publicLaneStructs, maxPublicLanes)
+	t.Logf("measured Trace=%d (base=%d), NodeTrace=%d Controller=%d (base=%d), counter=%d; ring+error allowance=%d/%d node image=%d/%d capacity=%d pool=%d; public lane structs=%d across %d lanes EXCLUDING runtime map backing/retained-plan metadata (baseline limit)", unsafe.Sizeof(Trace{}), unsafe.Sizeof(originalTraceLayout{}), unsafe.Sizeof(NodeTrace{}), unsafe.Sizeof(Controller{}), unsafe.Sizeof(controllerLayoutWithoutOrdinal{}), unsafe.Sizeof(controller.traceOrdinal), traceBytes, controllerCharge, nodeBytes, nodeTraceCharge, nodeTraceCapacity, MaxMemoryBytes, publicLaneStructs, maxPublicLanes)
 	// Existing bind rejects an unavailable reservation before making copies/maps.
 	unbound, err := NewInterpreter(interpreter.input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	full := &Controller{plan: interpreter.input.Plan, generation: controller.generation}
+	full := &Controller{plan: interpreter.input.Plan, generation: controller.generation, done: make(chan struct{})}
+	full.active = &programImage{plan: full.plan, generation: full.generation, refs: 1, lifecycle: programImagePublished}
 	if !full.pool.adjust(0, MaxMemoryBytes) {
 		t.Fatal("failed to fill the test-only pool")
 	}
@@ -741,6 +838,7 @@ func TestNHA188RingBoundsEvictionsAndMeasuredReservations(t *testing.T) {
 	if baseline != after || after > MaxMemoryBytes {
 		t.Fatalf("trace production grew the reserved pool: before=%d after=%d", baseline, after)
 	}
+	releaseObservation()
 }
 
 func TestNHA188FinalWaitSourceCompletionSameTick(t *testing.T) {
@@ -759,6 +857,7 @@ func TestNHA188FinalWaitSourceCompletionSameTick(t *testing.T) {
 			}
 			program := nha042Compile(t, "script.nha188_completed", body, []ir.ScriptID{id})
 			rig := nha042FullRig(t, []ir.Script{program}, &nha042Commands{})
+			releaseObservation := nha188RetainImageForObservation(t, rig.controller, rig.interpreter)
 			rig.state(t, false)
 			handle := nha188Invoke(t, rig.controller, id)
 			nha188Suspended(t, handle)
@@ -785,6 +884,7 @@ func TestNHA188FinalWaitSourceCompletionSameTick(t *testing.T) {
 			if !reflect.DeepEqual(beforeClose, nha188Snapshot(t, rig.controller, rig.interpreter)) || len(rig.effects()) != 0 {
 				t.Fatal("source completion appeared only through cleanup or an extra action")
 			}
+			releaseObservation()
 		})
 	}
 }

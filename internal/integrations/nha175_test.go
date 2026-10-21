@@ -1291,7 +1291,7 @@ func TestNHA175RunWithFactoryJoinsStreamsBeforePostgresClose(t *testing.T) {
 	cluster := testpg.Start(t)
 	dataDir := testpg.ShortPrivateDataDir(t)
 	input := fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", dataDir, cluster.Port)
-	c, err := config.ParseWithEnv([]byte(input), func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
+	startup, err := config.NewDetachedStartup([]byte(input), "configuration.yaml", nil, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1317,7 +1317,7 @@ func TestNHA175RunWithFactoryJoinsStreamsBeforePostgresClose(t *testing.T) {
 	done := make(chan error, 1)
 	var lc net.ListenConfig
 	go func() {
-		done <- server.RunWithFactory(ctx, c, lc.Listen, func(address net.Addr) { ready <- address }, factory)
+		done <- server.RunWithStartupFactory(ctx, startup, lc.Listen, func(address net.Addr) { ready <- address }, factory)
 	}()
 	if err := nha096Wait(t, pilot.started); err != nil {
 		t.Fatal(err)

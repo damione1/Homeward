@@ -42,7 +42,7 @@ type nha162Running struct {
 
 // This uses the same default assembly as Run: no factory, pilot, binding,
 // external source or device action. The observer only retains actual owners.
-func nha162StartDefaultRun(t *testing.T, settings config.Config) *nha162Running {
+func nha162StartDefaultRun(t *testing.T, settings config.StartupInputs) *nha162Running {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	run := &nha162Running{stop: cancel, done: make(chan error, 1)}
@@ -166,7 +166,7 @@ func TestNHA162DefaultRunTLSCRUDWatchAndRestart(t *testing.T) {
 	settings := nha181Config(t, cluster.Port, dataDir, "127.0.0.1:0", nha181TLSYAML())
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
-	run := nha162StartDefaultRun(t, settings)
+	run := nha162StartDefaultRun(t, settings.startup)
 	client := nha162RunClient(t, roots, run.address)
 	url := "https://" + run.address.String()
 	auth := authv1connect.NewAuthServiceClient(client, url)
@@ -247,7 +247,7 @@ func TestNHA162DefaultRunTLSCRUDWatchAndRestart(t *testing.T) {
 		t.Fatal("Run left its public Watch stream alive")
 	}
 
-	restarted := nha162StartDefaultRun(t, settings)
+	restarted := nha162StartDefaultRun(t, settings.startup)
 	restartedHTTP := nha162RunClient(t, roots, restarted.address)
 	restartedURL := "https://" + restarted.address.String()
 	auth = authv1connect.NewAuthServiceClient(restartedHTTP, restartedURL)
@@ -306,7 +306,7 @@ func TestNHA162RunCompositionFailuresCloseListOwner(t *testing.T) {
 				listened = true
 				return nil, listenerFailure
 			}
-			err := runWithDependencies(ctx, settings, listen, func(net.Addr) { ready = true }, factory, dependencies)
+			err := runWithDependencies(ctx, settings.startup, listen, func(net.Addr) { ready = true }, factory, dependencies)
 			want := listenerFailure
 			switch stage {
 			case "cancel-after-create":
@@ -342,7 +342,7 @@ func TestNHA162RunRetainsStoreThroughListAuthorityBarrier(t *testing.T) {
 	dataDir := shortPrivateDataDir(t)
 	roots := nha181CertificateFixture(t, dataDir)
 	settings := nha181Config(t, cluster.Port, dataDir, "127.0.0.1:0", nha181TLSYAML())
-	run := nha162StartDefaultRun(t, settings)
+	run := nha162StartDefaultRun(t, settings.startup)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	client := nha162RunClient(t, roots, run.address)

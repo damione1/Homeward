@@ -41,6 +41,7 @@ func (k DirectKind) schema() string {
 
 type DirectCapture struct {
 	router         *CommandRouter
+	internal       *internalOccurrence
 	kind           DirectKind
 	alias          domain.HAAlias
 	entity         domain.EntityID
@@ -59,13 +60,17 @@ func (r *CommandRouter) CaptureDirect(ctx context.Context, alias domain.HAAlias,
 		if resultErr == nil {
 			resultErr = r.filterCapture(ctx, result.entity, result.description, &result.state, &result.hasState)
 		}
-		resultErr = r.captureError(resultErr)
+		resultErr = r.captureError(ctx, resultErr)
 		if resultErr != nil {
 			result = DirectCapture{}
 		}
 	}()
 	if r == nil || r.host == nil || ctx == nil || kind.schema() == "" {
 		return DirectCapture{}, ErrInvalidInput
+	}
+	internal, err := r.internalFromContext(ctx)
+	if err != nil {
+		return DirectCapture{}, err
 	}
 	if _, err := alias.Value(); err != nil {
 		return DirectCapture{}, ErrInvalidInput
@@ -134,7 +139,7 @@ func (r *CommandRouter) CaptureDirect(ctx context.Context, alias domain.HAAlias,
 		if err != nil {
 			return err
 		}
-		capture = DirectCapture{router: r, kind: kind, alias: alias, entity: entity, binding: binding,
+		capture = DirectCapture{router: r, internal: internal, kind: kind, alias: alias, entity: entity, binding: binding,
 			session: session, designated: h.commandOwners[slot],
 			description: proto.Clone(description).(*wireregistry.CapabilityDescription),
 			state:       state, hasState: hasState, epoch: epoch, configRevision: revision}
@@ -164,6 +169,9 @@ func (p PreparedDirect) Actor() (domain.ActorID, error) {
 	if p.route == nil || p.request == nil {
 		return domain.ActorID{}, ErrInvalidInput
 	}
+	if p.route.capture.internal != nil {
+		return domain.ActorID{}, ErrCommandAuthorizationDenied
+	}
 	return p.actor, nil
 }
 
@@ -180,7 +188,11 @@ func (p PreparedDirect) ProveSwitchSatisfied(ctx context.Context) (bool, uint64,
 		return false, 0, ErrInvalidInput
 	}
 	original := p.route.capture
-	if original.router.host.commandAuthority() != nil {
+	internal, originErr := original.router.internalFromContext(ctx)
+	if originErr != nil || internal != original.internal {
+		return false, 0, ErrCommandAuthorizationDenied
+	}
+	if internal == nil && original.router.host.commandAuthority() != nil {
 		bound := preparedAuthorizationContext(ctx, preparedDirectCommand(p.route))
 		target, ok := bound.Value(expectedAuthorizationTargetKey{}).(authorization.CommandTarget)
 		if !ok {
@@ -234,6 +246,16 @@ func (c DirectCapture) PrepareSwitch(actor domain.ActorID, id domain.CommandID, 
 	}
 	return c.prepare(actor, id, expiresAt, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetSwitch{SetSwitch: &actions.SetSwitch{On: on}}})
 }
+
+// PrepareInternalSwitch requires the same live, private occurrence that made
+// the capture. Its caller never supplies a human ActorID or zero-value role.
+func (c DirectCapture) PrepareInternalSwitch(ctx context.Context, port *InternalAutomationPort, id domain.CommandID, expiresAt time.Time, on bool) (PreparedDirect, error) {
+	if c.kind != DirectSwitch || port == nil || !port.ValidContext(ctx) || c.internal == nil ||
+		c.internal != validInternalOccurrence(ctx, port) {
+		return PreparedDirect{}, ErrCommandAuthorizationDenied
+	}
+	return c.prepare(domain.ActorID{}, id, expiresAt, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetSwitch{SetSwitch: &actions.SetSwitch{On: on}}})
+}
 func (c DirectCapture) PrepareFan(actor domain.ActorID, id domain.CommandID, expiresAt time.Time, speed domain.FanSpeed) (PreparedDirect, error) {
 	if c.kind != DirectFan {
 		return PreparedDirect{}, ErrInvalidInput
@@ -248,8 +270,8 @@ func (c DirectCapture) prepare(actor domain.ActorID, id domain.CommandID, expire
 	if c.router == nil || c.description == nil || !c.hasState || expiresAt.IsZero() || !expiresAt.After(c.router.clock.Now()) {
 		return PreparedDirect{}, ErrInvalidInput
 	}
-	if _, err := actor.Value(); err != nil {
-		return PreparedDirect{}, err
+	if !captureActorValid(actor, c.internal) {
+		return PreparedDirect{}, ErrInvalidInput
 	}
 	idText, err := id.Value()
 	if err != nil {

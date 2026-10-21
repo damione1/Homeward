@@ -151,7 +151,7 @@ func TestNHA105DeclarativeHistoryRemainsExact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected, _ := ExpectConfigActive(first)
+	expected := nha151ExpectedActive(t, store, ctx, first)
 	_, second := nha151Write(t, store, ctx, v2, binding, expected)
 	for _, item := range []struct {
 		generation ConfigGenerationRevision

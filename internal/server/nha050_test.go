@@ -260,7 +260,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 		done := make(chan error, 1)
 		var listener net.ListenConfig
 		go func() {
-			done <- RunWithFactory(runCtx, settings, listener.Listen, func(addr net.Addr) { ready <- addr }, factory)
+			done <- RunWithStartupFactory(runCtx, settings.startup, listener.Listen, func(addr net.Addr) { ready <- addr }, factory)
 		}()
 		select {
 		case address = <-ready:
