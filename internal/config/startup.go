@@ -89,7 +89,7 @@ func (s StartupInputs) Valid() bool {
 		return false
 	}
 	return s.launch.listen.IsValid() && s.launch.postgres.Valid() && s.launch.dataDir != "" &&
-		s.launch.public.valid && s.launch.recorder.Valid()
+		s.launch.public.valid && s.launch.recorder.Valid() && s.launch.backupProviders.Valid()
 }
 
 func (s StartupInputs) LaunchConfig() (Config, error) {
@@ -335,7 +335,8 @@ func sidecarFromRaw(raw rawConfig) ([]byte, error) {
 		DataDir  string                  `yaml:"data_dir"`
 		Public   *publicInput            `yaml:"public,omitempty"`
 		Recorder *RecorderInput          `yaml:"recorder,omitempty"`
-	}{raw.Listen, raw.Postgres, raw.DataDir, raw.Public, raw.Recorder}
+		Backups  yaml.Node               `yaml:"backups,omitempty"`
+	}{raw.Listen, raw.Postgres, raw.DataDir, raw.Public, raw.Recorder, raw.Backups}
 	data, err := yaml.Marshal(launch)
 	if err != nil || len(data) == 0 || len(data) > maxStartupSourceBytes {
 		return nil, ErrStartupSource

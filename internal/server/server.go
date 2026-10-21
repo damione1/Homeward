@@ -14,6 +14,7 @@ import (
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/automationtriggers"
+	"github.com/damione1/Homeward/internal/backups"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
@@ -52,6 +53,7 @@ func (unconfiguredIdentity) Resolve(context.Context, domain.IntegrationInstanceI
 // drains the command service. Run also joins its job scheduler before closing
 // PostgreSQL, using the same shutdown budget for both owners.
 type RuntimePlan struct {
+	ConfigureBackups                  func(context.Context, *backups.Registry) error
 	Identity                          integrations.IdentityAuthority
 	Pilots                            []integrations.PilotSpec
 	Configure                         func(context.Context, *integrations.Manager, *storage.Store) error
@@ -97,7 +99,7 @@ func validRunContext(ctx context.Context) bool {
 	return true
 }
 
-func runWithDependencies(ctx context.Context, startup config.StartupInputs, listen ListenFunc, ready func(net.Addr), factory RuntimeFactory, dependencies runDependencies) error {
+func runWithDependencies(ctx context.Context, startup config.StartupInputs, listen ListenFunc, ready func(net.Addr), factory RuntimeFactory, dependencies runDependencies) (returnedErr error) {
 	if !validRunContext(ctx) || listen == nil || !startup.Valid() {
 		return ErrInvalidContext
 	}
@@ -172,6 +174,16 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		store.Close()
 		return err
 	}
+	backupProviders, err := prepareBackupProviders(ctx, launch)
+	if err != nil {
+		store.Close()
+		return err
+	}
+	defer func() {
+		if closeErr := backupProviders.Close(); closeErr != nil {
+			returnedErr = errors.Join(returnedErr, closeErr)
+		}
+	}()
 	if dependencies.sequenceClock == nil {
 		dependencies.sequenceClock = sequencer.RealClock{}
 	}
@@ -274,6 +286,11 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 					return closeStoreWithRecorder(store, recording, err)
 				}
 			}
+		}
+	}
+	if plan.ConfigureBackups != nil {
+		if err := plan.ConfigureBackups(ctx, backupProviders); err != nil {
+			return closeStoreWithRecorder(store, recording, err)
 		}
 	}
 	var derivedConfiguration *derivedPowerConfiguration
