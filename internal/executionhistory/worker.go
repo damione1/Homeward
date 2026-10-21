@@ -41,8 +41,14 @@ func (s *Sink) freeze(now time.Time) bool {
 		lost := s.activeLoss[reason].Swap(0)
 		if lost != 0 {
 			losses = append(losses, storage.HistoryLoss{Reason: reason, KnownCount: lost,
-				From: s.lossStart, Through: now, UncertainEnvelope: true})
+				From: s.lossStart, UncertainEnvelope: true})
 		}
+	}
+	// Producers can reject on TryLock while this transfer holds s.mu. Date
+	// the envelope after every Swap so it covers all rejections included.
+	through := time.Now().UTC()
+	for i := range losses {
+		losses[i].Through = through
 	}
 	batch, err := storage.NewHistoryBatch(s.epoch, s.nextBatch+1, records, losses)
 	if err != nil {
