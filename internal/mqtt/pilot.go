@@ -10,8 +10,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
+	"github.com/damione1/Homeward/internal/observability"
 	"github.com/eclipse/paho.golang/packets"
 	"github.com/eclipse/paho.golang/paho"
 )
@@ -118,17 +120,21 @@ const (
 )
 
 type Pilot struct {
-	settings     Settings
-	handler      ObservationHandler
-	mu           sync.Mutex
-	conn         net.Conn
-	client       *paho.Client
-	phase        pilotPhase
-	startDone    chan struct{}
-	startCancel  context.CancelFunc
-	shutdownOnce sync.Once
-	fault        chan error
-	commandGate  chan struct{}
+	observation             *observability.Cells
+	observationQueue        chan delivery
+	observationConsumerDone chan struct{}
+	observationInstalled    bool
+	settings                Settings
+	handler                 ObservationHandler
+	mu                      sync.Mutex
+	conn                    net.Conn
+	client                  *paho.Client
+	phase                   pilotPhase
+	startDone               chan struct{}
+	startCancel             context.CancelFunc
+	shutdownOnce            sync.Once
+	fault                   chan error
+	commandGate             chan struct{}
 }
 
 func NewPilot(settings Settings, handler ObservationHandler) (*Pilot, error) {
@@ -242,6 +248,18 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 		}
 	}()
 	queue := make(chan delivery, queueCapacity)
+	p.mu.Lock()
+	p.observationQueue = queue
+	p.observationInstalled = true
+	p.observationConsumerDone = make(chan struct{})
+	p.mu.Unlock()
+	_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 1, 0, queueCapacity, 0, 0)
+	consumerStarted := false
+	defer func() {
+		if !consumerStarted {
+			close(p.observationConsumerDone)
+		}
+	}()
 	client := paho.NewClient(paho.ClientConfig{
 		Conn:                       packets.NewThreadSafeConn(&packetConn{Conn: conn}),
 		ClientID:                   p.settings.clientID,
@@ -262,10 +280,16 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 				class = ObservationRestored
 			}
 			item := delivery{packet: received.Packet, observation: Observation{topic: topic, payload: append([]byte(nil), received.Packet.Payload...), class: class}}
+			p.mu.Lock()
 			select {
 			case queue <- item:
+				_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 0, 1, 0, 0, 0)
+				p.mu.Unlock()
 				return true, nil
 			default:
+				_ = p.observation.AddQueueRejected(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 1)
+				_ = p.observation.AddQueueLost(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 1)
+				p.mu.Unlock()
 				p.fail(ErrObservationGap)
 				return true, ErrObservationGap
 			}
@@ -312,12 +336,19 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 	if ack == nil || ack.ReasonCode != 0 || ack.SessionPresent || phase != pilotConnected {
 		return ErrBrokerConnection
 	}
+	consumerStarted = true
 	if err := tasks.Go(func(ctx context.Context) error {
+		defer close(p.observationConsumerDone)
 		for {
 			select {
 			case <-ctx.Done():
 				return nil
+			case <-client.Done():
+				return nil
 			case item := <-queue:
+				p.mu.Lock()
+				_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 0, -1, 0, 0, 0)
+				p.mu.Unlock()
 				if err := p.handler.Observe(ctx, host, item.observation); err != nil {
 					p.fail(err)
 					return err
@@ -332,6 +363,7 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 			}
 		}
 	}); err != nil {
+		consumerStarted = false
 		return err
 	}
 	if err := tasks.Go(func(ctx context.Context) error {
@@ -488,7 +520,7 @@ func (p *Pilot) Stop(ctx context.Context) error {
 		return ErrInvalidSettings
 	}
 	if phase == pilotCreated {
-		return nil
+		return p.joinObservationQueue(ctx)
 	}
 	p.shutdown(true)
 	// A physical write may have been uncertain when the socket closed. Join it
@@ -511,14 +543,14 @@ func (p *Pilot) Stop(ctx context.Context) error {
 		p.mu.Lock()
 		p.phase = pilotStopped
 		p.mu.Unlock()
-		return nil
+		return p.joinObservationQueue(ctx)
 	}
 	select {
 	case <-client.Done():
 		p.mu.Lock()
 		p.phase = pilotStopped
 		p.mu.Unlock()
-		return nil
+		return p.joinObservationQueue(ctx)
 	case <-ctx.Done():
 		return ctx.Err()
 	}

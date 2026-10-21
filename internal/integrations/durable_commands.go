@@ -10,6 +10,7 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/proto"
@@ -72,6 +73,7 @@ func NewDurableCommandServiceWithClock(ctx context.Context, host *Manager, gener
 		if errors.As(err, &storageErr) && storageErr.Kind() == storage.CommandRuntimeBusy {
 			return nil, ErrDurableRuntimeBusy
 		}
+		host.observeDurableTransaction(storage.TransactionNotCommitted, err)
 		return nil, ErrDurableLedgerUnavailable
 	}
 	uncertain := &actions.CommandResponse{Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}
@@ -79,10 +81,17 @@ func NewDurableCommandServiceWithClock(ctx context.Context, host *Manager, gener
 	if err != nil {
 		return nil, errors.Join(ErrInvalidInput, err, runtime.Close())
 	}
-	outcome, err := store.RecoverCommandIntents(ctx, runtime, encoded)
+	recovered, outcome, err := store.RecoverCommandIntentsCounted(ctx, runtime, encoded)
+	// Recovery's guard Ping may wrap a caller cancellation as Unavailable.
+	// Cancellation before COMMIT is no outage fact; an unknown COMMIT must
+	// remain visible even when that same caller context has expired.
+	if outcome != storage.TransactionNotCommitted || ctx.Err() == nil {
+		host.observeDurableTransaction(outcome, err)
+	}
 	if outcome != storage.TransactionCommitted || err != nil {
 		return nil, errors.Join(durableTransactionError(outcome), err, runtime.Close())
 	}
+	_ = host.observation.AddDurableRecoveredIndeterminate(recovered)
 	service := &DurableCommandService{router: router, store: store, runtime: runtime, epoch: epoch, closed: make(chan struct{})}
 	if err := host.completeDurable(service); err != nil {
 		return nil, errors.Join(err, runtime.Close())
@@ -192,11 +201,14 @@ type DurableCommandStatus struct {
 }
 
 func (s *DurableCommandService) Status(ctx context.Context, id domain.CommandID) (DurableCommandStatus, bool, error) {
-	if s == nil || ctx == nil || s.store == nil {
+	if s == nil || ctx == nil || s.store == nil || s.router == nil {
 		return DurableCommandStatus{}, false, ErrInvalidInput
 	}
 	record, found, err := s.store.CommandIntent(ctx, id)
 	if err != nil {
+		if ctx.Err() == nil {
+			s.router.host.observeDurableTransaction(storage.TransactionNotCommitted, err)
+		}
 		return DurableCommandStatus{}, false, ErrDurableLedgerUnavailable
 	}
 	if !found {
@@ -313,7 +325,7 @@ func (s *DurableCommandService) RecordedPreparedDirect(ctx context.Context, prep
 }
 
 func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor domain.ActorID, wire *actions.CommandRequest) (*actions.CommandResponse, bool, error) {
-	if s == nil || ctx == nil || wire == nil || s.store == nil {
+	if s == nil || ctx == nil || wire == nil || s.store == nil || s.router == nil {
 		return nil, false, ErrInvalidInput
 	}
 	if err := ctx.Err(); err != nil {
@@ -333,6 +345,9 @@ func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor doma
 	}
 	record, found, err := s.store.CommandIntent(ctx, id)
 	if err != nil {
+		if ctx.Err() == nil {
+			s.router.host.observeDurableTransaction(storage.TransactionNotCommitted, err)
+		}
 		return nil, false, ErrDurableLedgerUnavailable
 	}
 	if !found {
@@ -352,7 +367,7 @@ func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor doma
 	return response, true, err
 }
 
-func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedCommandRoute) (*actions.CommandResponse, error) {
+func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedCommandRoute) (response *actions.CommandResponse, resultErr error) {
 	if s == nil || ctx == nil || request == nil {
 		return nil, ErrInvalidInput
 	}
@@ -397,12 +412,18 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 		return nil, err
 	}
 	if err := runtime.Ping(ctx); err != nil {
+		if ctx.Err() == nil {
+			s.router.host.observeDurableTransaction(storage.TransactionNotCommitted, err)
+		}
 		return nil, ErrDurableLedgerUnavailable
 	}
 	// Lookup precedes the current-epoch check: an old ID may be consulted, but
 	// it must never become a fresh dispatch in the new epoch.
 	record, found, err := s.store.CommandIntent(ctx, id)
 	if err != nil {
+		if ctx.Err() == nil {
+			s.router.host.observeDurableTransaction(storage.TransactionNotCommitted, err)
+		}
 		return nil, ErrDurableLedgerUnavailable
 	}
 	if found {
@@ -433,6 +454,7 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	} else {
 		record, created, outcome, err = s.store.AcceptCommandIntent(ctx, id, actor, s.epoch, fingerprint)
 	}
+	s.router.host.observeDurableTransaction(outcome, err)
 	if outcome != storage.TransactionCommitted || err != nil {
 		return nil, durableTransactionError(outcome)
 	}
@@ -446,9 +468,15 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 		}
 		return replayDurable(id, record, fingerprint)
 	}
+	defer func() {
+		if response != nil && response.Status == actions.ActionStatus_ACTION_STATUS_INDETERMINATE || errors.Is(resultErr, ErrCommandOutcomeIndeterminate) || errors.Is(resultErr, ErrDurableCommitUnknown) {
+			_ = s.router.host.observation.AddFirstAttemptIndeterminate(obs.AttemptLedger_ATTEMPT_LEDGER_DURABLE)
+		}
+	}()
 	// The dispatching commit deliberately precedes every final route fence.
 	// A crash here may overstate uncertainty, but can never cause a resend.
 	moved, outcome, err := s.store.MoveCommandIntent(ctx, id, storage.IntentAccepted, storage.IntentDispatching, nil, storage.IntentNoError)
+	s.router.host.observeDurableTransaction(outcome, err)
 	if outcome != storage.TransactionCommitted || err != nil {
 		return nil, durableTransactionError(outcome)
 	}
@@ -456,6 +484,9 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 		return nil, ErrDurableLedgerUnavailable
 	}
 	if err := runtime.Ping(ctx); err != nil {
+		if ctx.Err() == nil {
+			s.router.host.observeDurableTransaction(storage.TransactionNotCommitted, err)
+		}
 		return nil, ErrDurableLedgerUnavailable
 	}
 	response, dispatchErr := s.router.dispatchOnce(withExpectedAuthorizationTarget(ctx, target), actor, wire, preparedRoute)
@@ -477,6 +508,7 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	defer cancel()
 	errorKind := classifyDurableError(dispatchErr, response)
 	moved, outcome, err = s.store.MoveCommandIntent(finishCtx, id, storage.IntentDispatching, terminal, encoded, errorKind)
+	s.router.host.observeDurableTransaction(outcome, err)
 	if outcome != storage.TransactionCommitted || err != nil || !moved {
 		return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}, ErrCommandOutcomeIndeterminate
 	}

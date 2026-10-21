@@ -2,37 +2,20 @@ package main
 
 import (
 	"context"
-	"errors"
-	"flag"
-	"github.com/damione1/Homeward/internal/config"
-	"github.com/damione1/Homeward/internal/server"
-	"log"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/damione1/Homeward/internal/server"
 )
 
 func main() {
-	path := flag.String("config", "config/example.yaml", "initial YAML configuration")
-	flag.Parse()
-	data, err := os.ReadFile(*path)
-	if err != nil {
-		log.Fatal(err)
-	}
-	c, err := config.Parse(data)
-	if err != nil {
-		log.Fatal(err)
-	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-	var lc net.ListenConfig
-	if err := server.Run(ctx, c, lc.Listen, func(a net.Addr) { log.Printf("public transport ready %s", a) }); err != nil {
-		if errors.Is(err, context.Canceled) {
-			log.Print("shutdown complete")
-			return
-		}
-		log.Fatal(err)
+	var listener net.ListenConfig
+	code := runHomed(ctx, os.Args[1:], os.Stdout, os.Stderr, homedDependencies{read: os.ReadFile, run: server.Run, listen: listener.Listen})
+	cancel()
+	if code != 0 {
+		os.Exit(code)
 	}
-	log.Print("shutdown complete")
 }

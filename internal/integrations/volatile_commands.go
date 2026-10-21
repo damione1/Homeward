@@ -10,6 +10,7 @@ import (
 
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"google.golang.org/protobuf/proto"
@@ -447,6 +448,7 @@ func (l *volatileCommandLedger) runFirst(entry *volatileEntry, router *CommandRo
 		l.mu.Lock()
 		entry.response, entry.err = response, dispatchErr
 		if response != nil && response.Status == actions.ActionStatus_ACTION_STATUS_INDETERMINATE {
+			_ = router.host.observation.AddFirstAttemptIndeterminate(obs.AttemptLedger_ATTEMPT_LEDGER_VOLATILE)
 			entry.state = volatileIndeterminate
 		} else {
 			entry.state = volatileCompleted

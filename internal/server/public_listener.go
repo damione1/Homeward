@@ -9,7 +9,9 @@ import (
 	"sync"
 	"time"
 
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/config"
+	"github.com/damione1/Homeward/internal/observability"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -85,7 +87,12 @@ func runPublicListenerPrepared(
 		defer sessions.end()
 		routeHandler.ServeHTTP(w, r)
 	})
+	var diagnosticJournal *observability.Journal
+	if public.observation != nil {
+		diagnosticJournal = public.observation.journal
+	}
 	server := &http.Server{
+		ErrorLog: observationErrorLog(diagnosticJournal, obs.LogComponent_LOG_COMPONENT_PUBLIC_TRANSPORT),
 		// The outer cap also bounds h2c's first-request read before the
 		// inner route handler is reached.
 		Handler:           http.MaxBytesHandler(sessionHandler, settings.MaxRequestBytes()),

@@ -7,7 +7,9 @@ import (
 	"sync"
 	"time"
 
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/observability"
 )
 
 var (
@@ -158,6 +160,7 @@ func DefaultTaskLimits() TaskLimits {
 }
 
 type Supervisor struct {
+	journal     *observability.Journal
 	mu          sync.Mutex
 	host        *Manager
 	policy      RetryPolicy
@@ -201,6 +204,7 @@ func NewSupervisorWithLimits(host *Manager, specs []PilotSpec, policy RetryPolic
 	if host.supervisor != nil || host.admission != admissionOpen {
 		return nil, ErrSupervisorState
 	}
+	s.journal = host.journal
 	host.supervisor = s
 	return s, nil
 }
@@ -237,6 +241,28 @@ func (s *Supervisor) Status(instance domain.IntegrationInstanceID) (PilotStatus,
 func (s *Supervisor) set(run *pilotRun, phase PilotPhase) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if run.phase != phase {
+		code := obs.LogCode_LOG_CODE_UNSPECIFIED
+		switch phase {
+		case PilotStarting:
+			code = obs.LogCode_LOG_CODE_PILOT_STARTING
+		case PilotRunning:
+			code = obs.LogCode_LOG_CODE_PILOT_RUNNING
+		case PilotRetrying:
+			code = obs.LogCode_LOG_CODE_PILOT_RETRYING
+		case PilotDegraded:
+			code = obs.LogCode_LOG_CODE_PILOT_DEGRADED
+		case PilotStopped:
+			code = obs.LogCode_LOG_CODE_PILOT_STOPPED
+		}
+		if code != 0 {
+			level := obs.LogLevel_LOG_LEVEL_INFO
+			if phase == PilotRetrying || phase == PilotDegraded {
+				level = obs.LogLevel_LOG_LEVEL_WARNING
+			}
+			s.emitObservation(code, level)
+		}
+	}
 	run.phase = phase
 }
 
@@ -388,9 +414,14 @@ func (s *Supervisor) run(run *pilotRun) {
 		s.mu.Lock()
 		run.attempts++
 		run.phase = PilotStarting
+		s.emitObservation(obs.LogCode_LOG_CODE_PILOT_STARTING, obs.LogLevel_LOG_LEVEL_INFO)
 		s.mu.Unlock()
 		pilot, factoryErr := constructPilot(run.spec.factory)
+		if factoryErr == nil && s.journal != nil {
+			factoryErr = composePilotObservation(pilot, s.host.observation, s.journal)
+		}
 		if factoryErr != nil {
+			s.emitObservation(obs.LogCode_LOG_CODE_PILOT_FACTORY_FAILED, obs.LogLevel_LOG_LEVEL_ERROR)
 			if err := s.host.ReportPilotDegraded(run.spec.instance); err != nil {
 				s.record(err)
 			}
@@ -547,6 +578,25 @@ func constructPilot(factory PilotFactory) (pilot Pilot, err error) {
 		return nil, ErrPilotFactory
 	}
 	return pilot, nil
+}
+
+func composePilotObservation(pilot Pilot, cells *observability.Cells, journal *observability.Journal) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = ErrPilotFactory
+		}
+	}()
+	observed, ok := pilot.(PilotObservationComposition)
+	if !ok {
+		return nil
+	}
+	if nilInterface(observed) {
+		return ErrPilotFactory
+	}
+	if err := observed.AttachObservation(cells, journal); err != nil {
+		return ErrPilotFactory
+	}
+	return nil
 }
 
 func supervisedCommandDriver(pilot Pilot) (driver CommandDriver, err error) {

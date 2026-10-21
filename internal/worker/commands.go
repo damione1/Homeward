@@ -8,6 +8,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	wire "github.com/damione1/Homeward/gen/home/integrations/v1"
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/integrations"
 )
 
@@ -99,17 +100,24 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	}
 	if len(p.pending) >= maxPending || len(p.correlations) >= maxCorrelations || len(p.queue) >= cap(p.queue) {
 		p.mu.Unlock()
+		_ = p.observation.AddQueueRejected(obs.QueueClass_QUEUE_CLASS_WORKER_COMMANDS, 1)
 		return ErrCapacity
 	}
 	if _, exists := p.pending[idText]; exists {
 		p.mu.Unlock()
+		_ = p.observation.AddQueueRejected(obs.QueueClass_QUEUE_CLASS_WORKER_COMMANDS, 1)
 		return ErrCapacity
 	}
 	p.pending[idText] = item
+	if p.observationInstalled {
+		p.observationPending++
+		_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_WORKER_COMMANDS, 0, 0, 0, 0, 1)
+	}
 	p.correlations[correlationText] = correlation{entity: entityText, expires: expires}
 	p.mu.Unlock()
 	select {
 	case p.queue <- item:
+		p.observeWorkerQueued(item)
 	case <-ctx.Done():
 		p.dropPending(idText, correlationText, item)
 		return ctx.Err()
@@ -139,6 +147,7 @@ func (p *pilot) dropPending(id, cause string, item *delivery) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.pending[id] == item {
+		p.observeWorkerRemoveLocked(item)
 		delete(p.pending, id)
 		if !item.delivered {
 			delete(p.correlations, cause)
@@ -159,6 +168,10 @@ func (p *pilot) Commands(ctx context.Context, r *connect.Request[wire.CommandsRe
 	if p.streaming || p.streamEver {
 		p.mu.Unlock()
 		return connect.NewError(connect.CodeAlreadyExists, ErrUnavailable)
+	}
+	if p.observation != nil && !p.observationInstalled {
+		p.observationInstalled = true
+		_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_WORKER_COMMANDS, 1, 0, maxPending, 0, 0)
 	}
 	p.streaming = true
 	p.streamEver = true
@@ -185,6 +198,7 @@ func (p *pilot) Commands(ctx context.Context, r *connect.Request[wire.CommandsRe
 		case <-p.ctx.Done():
 			return nil
 		case item := <-p.queue:
+			p.observeWorkerDequeued(item)
 			if !p.deliveryEligible(item) {
 				p.dropPending(item.frame.Request.CommandId, item.frame.Correlation, item)
 				select {
@@ -206,6 +220,10 @@ func (p *pilot) Commands(ctx context.Context, r *connect.Request[wire.CommandsRe
 				item.ctx.Err() == nil && time.Now().Before(item.expires)
 			if current {
 				item.delivered = true
+				if p.observationInstalled {
+					p.observationInflight++
+					_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_WORKER_COMMANDS, 0, 0, 0, 1, 0)
+				}
 			}
 			p.mu.Unlock()
 			if !current {
@@ -265,6 +283,7 @@ func (p *pilot) CompleteCommand(_ context.Context, r *connect.Request[wire.Compl
 		p.mu.Unlock()
 		return nil, rpcUnavailable()
 	}
+	p.observeWorkerRemoveLocked(item)
 	delete(p.pending, r.Msg.CommandId)
 	p.mu.Unlock()
 	if acknowledged {

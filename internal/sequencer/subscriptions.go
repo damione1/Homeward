@@ -3,6 +3,7 @@ package sequencer
 import (
 	"context"
 	"errors"
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 )
 
 var (
@@ -127,20 +128,21 @@ type SubscriptionStatus struct {
 // Subscription is a bounded mailbox. It starts no goroutine. The sequencer
 // mutex protects its queue and lifecycle, while Next waits outside that lock.
 type Subscription struct {
-	owner       *Sequencer
-	class       SubscriptionClass
-	capacity    int
-	queue       []Entry
-	recorder    recorderQueue
-	queueBytes  int
-	maxBytes    int
-	wake        chan struct{}
-	closed      bool
-	degraded    bool
-	replayValid bool
-	loss        *Loss
-	lost        uint64
-	coalesced   uint64
+	lastDelivered uint64
+	owner         *Sequencer
+	class         SubscriptionClass
+	capacity      int
+	queue         []Entry
+	recorder      recorderQueue
+	queueBytes    int
+	maxBytes      int
+	wake          chan struct{}
+	closed        bool
+	degraded      bool
+	replayValid   bool
+	loss          *Loss
+	lost          uint64
+	coalesced     uint64
 }
 
 func (s *Sequencer) SubscribeUI() (*Subscription, Cursor, error) {
@@ -187,7 +189,7 @@ func (s *Sequencer) SubscribeViewAfter(cursor Cursor, maxEntries int) (*Subscrip
 		seq := cursor.seq + i + 1
 		replay = append(replay, s.journal[(seq-1)%uint64(len(s.journal))])
 	}
-	sub := &Subscription{owner: s, class: SubscriptionView, capacity: s.limits.ui, queue: make([]Entry, 0, s.limits.ui), wake: make(chan struct{}), replayValid: true}
+	sub := &Subscription{lastDelivered: s.seq, owner: s, class: SubscriptionView, capacity: s.limits.ui, queue: make([]Entry, 0, s.limits.ui), wake: make(chan struct{}), replayValid: true}
 	s.subs[sub] = struct{}{}
 	return sub, replay, Cursor{epoch: s.epoch, seq: s.seq}, nil
 }
@@ -216,7 +218,7 @@ func (s *Sequencer) subscribe(class SubscriptionClass) (*Subscription, Cursor, e
 	default:
 		return nil, Cursor{}, ErrInvalidInput
 	}
-	sub := &Subscription{owner: s, class: class, capacity: capacity, wake: make(chan struct{}), replayValid: true}
+	sub := &Subscription{lastDelivered: s.seq, owner: s, class: class, capacity: capacity, wake: make(chan struct{}), replayValid: true}
 	if class == SubscriptionRecorder {
 		queue, err := newRecorderQueue(capacity)
 		if err != nil {
@@ -237,6 +239,9 @@ func (sub *Subscription) signal() {
 }
 
 func (sub *Subscription) addLoss(entry Entry, reason LossReason) {
+	if class, err := subscriptionObservationClass(sub.class); err == nil {
+		_ = sub.owner.observation.AddQueueLost(class, 1)
+	}
 	if sub.loss == nil {
 		sub.loss = &Loss{From: entry.cursor, To: entry.cursor, Count: 1, Reason: reason}
 	} else {
@@ -264,7 +269,10 @@ func (s *Sequencer) publish(entry Entry) {
 				for i, old := range sub.queue {
 					if old.kind == KindState && old.entity == entry.entity {
 						sub.addLoss(old, LossUIResync)
-						sub.coalesced++
+						if sub.coalesced < ^uint64(0) {
+							sub.coalesced++
+						}
+						_ = s.observation.AddQueueCoalesced(obs.QueueClass_QUEUE_CLASS_UI, 1)
 						copy(sub.queue[i:], sub.queue[i+1:])
 						sub.queue[len(sub.queue)-1] = Entry{}
 						sub.queue = sub.queue[:len(sub.queue)-1]
@@ -379,6 +387,7 @@ func (sub *Subscription) Next(ctx context.Context) (Delivery, error) {
 		if sub.class == SubscriptionRecorder {
 			if entry, ok := sub.recorder.pop(); ok {
 				sub.queueBytes -= entry.estimatedBytes
+				sub.lastDelivered = entry.cursor.seq
 				valid := sub.replayValid
 				sub.owner.mu.Unlock()
 				return Delivery{kind: DeliveryEntry, entry: entry, replayValid: valid}, nil
@@ -391,6 +400,7 @@ func (sub *Subscription) Next(ctx context.Context) (Delivery, error) {
 			copy(sub.queue, sub.queue[1:])
 			sub.queue[len(sub.queue)-1] = Entry{}
 			sub.queue = sub.queue[:len(sub.queue)-1]
+			sub.lastDelivered = entry.cursor.seq
 			valid := sub.replayValid
 			sub.owner.mu.Unlock()
 			return Delivery{kind: DeliveryEntry, entry: entry, replayValid: valid}, nil
@@ -435,6 +445,7 @@ func (sub *Subscription) Poll() (Delivery, <-chan struct{}, error) {
 	copy(sub.queue, sub.queue[1:])
 	sub.queue[len(sub.queue)-1] = Entry{}
 	sub.queue = sub.queue[:len(sub.queue)-1]
+	sub.lastDelivered = entry.cursor.seq
 	return Delivery{kind: DeliveryEntry, entry: entry, replayValid: sub.replayValid}, nil, nil
 }
 

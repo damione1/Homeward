@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
+	"github.com/damione1/Homeward/internal/observability"
 	"github.com/damione1/Homeward/internal/storage"
 )
 
@@ -35,6 +37,10 @@ type operatorListener struct {
 // It binds within the already validated 0700 data directory before public
 // readiness, then admits only local peers whose kernel UID is our effective UID.
 func startOperatorListener(ctx context.Context, dataDir string, store *storage.Store, coordinator *sessionCoordinator) (*operatorListener, error) {
+	return startOperatorListenerObserved(ctx, dataDir, store, coordinator, nil)
+}
+
+func startOperatorListenerObserved(ctx context.Context, dataDir string, store *storage.Store, coordinator *sessionCoordinator, journal *observability.Journal) (*operatorListener, error) {
 	if ctx == nil || store == nil || coordinator == nil {
 		return nil, ErrInvalidContext
 	}
@@ -80,6 +86,7 @@ func startOperatorListener(ctx context.Context, dataDir string, store *storage.S
 	_, handler := authv1connect.NewOperatorAccountServiceHandler(&accountHandler{store: store, coordinator: coordinator})
 	active := newPublicAdmissions()
 	server := &http.Server{
+		ErrorLog: observationErrorLog(journal, obs.LogComponent_LOG_COMPONENT_OPERATOR_TRANSPORT),
 		Handler: http.MaxBytesHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !active.begin() {
 				http.Error(w, "operator shutting down", http.StatusServiceUnavailable)

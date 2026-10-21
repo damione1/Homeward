@@ -418,17 +418,6 @@ func (r *CommandRuntime) Close() error {
 // RecoverCommandIntents only runs while the runtime session guard is held.
 // It never invokes a driver and leaves accepted intentions for consultation.
 func (s *Store) RecoverCommandIntents(ctx context.Context, runtime *CommandRuntime, response []byte) (TransactionOutcome, error) {
-	if len(response) == 0 || runtime == nil || runtime.owner != s {
-		return TransactionNotCommitted, &Error{kind: InvalidSettings}
-	}
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	if err := runtime.pingLocked(ctx); err != nil {
-		return TransactionNotCommitted, err
-	}
-	return s.InTransactionOutcome(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `UPDATE public.command_intents SET state='indeterminate', response=$1, result_error='indeterminate', updated_at=now()
-			WHERE state='dispatching'`, response)
-		return err
-	})
+	_, outcome, err := s.RecoverCommandIntentsCounted(ctx, runtime, response)
+	return outcome, err
 }

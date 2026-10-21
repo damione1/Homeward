@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Real child process/SIGTERM and cold-start proof on an isolated PostgreSQL cluster."""
+import json
 import os
 import pathlib
-import re
 import selectors
 import signal
 import socket
@@ -13,6 +13,24 @@ import time
 
 def run(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True)
+
+
+def expect_process_event(output, code, level):
+    lines = output.splitlines()
+    assert len(lines) == 1, "expected exactly one closed process diagnostic"
+    event = json.loads(lines[0])
+    assert set(event) == {"code", "level", "component", "occurredAt", "author"}
+    assert event["code"] == code and event["level"] == level, "unexpected process diagnostic"
+    assert event["component"] == "LOG_COMPONENT_PROCESS"
+    assert event["author"] == {"process": {}}
+    assert isinstance(event["occurredAt"], str) and event["occurredAt"]
+
+
+def expect_public_released(port):
+    with socket.socket() as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("127.0.0.1", port))
+        sock.listen(1)
 
 
 def start_postgres(data, log, options):
@@ -62,8 +80,13 @@ with tempfile.TemporaryDirectory(prefix="nha027-bootstrap-") as directory:
     pg_options = f"-h 127.0.0.1 -p {pg_port} -c unix_socket_directories=''"
     start_postgres(data, log, pg_options)
     try:
+        # The closed process event deliberately carries no address. The fixture
+        # owns its configured loopback port and verifies that exact listener.
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            public_port = sock.getsockname()[1]
         cfg = root / "config.yaml"
-        settings = ("listen: '127.0.0.1:0'\n"
+        settings = (f"listen: '127.0.0.1:{public_port}'\n"
                     f"data_dir: '{root / 'a'}'\npostgres:\n"
                     "  host: '127.0.0.1'\n"
                     f"  port: {pg_port}\n"
@@ -85,24 +108,30 @@ with tempfile.TemporaryDirectory(prefix="nha027-bootstrap-") as directory:
                     chunk = os.read(proc.stdout.fileno(), 4096)
                     assert chunk, "process exited before startup"
                     data_read += chunk
+                    assert len(data_read) <= 4096, "process diagnostic exceeded its closed bound"
                 line = data_read.decode()
                 assert password not in line
-                port = int(re.search(r"public transport ready 127\.0\.0\.1:(\d+)", line)[1])
+                expect_process_event(line, "LOG_CODE_PROCESS_READY", "LOG_LEVEL_INFO")
+                with socket.create_connection(("127.0.0.1", public_port), timeout=2):
+                    pass
             finally:
                 selector.close()
             proc.send_signal(signal.SIGTERM)
             output = proc.communicate(timeout=5)[0]
-            assert proc.returncode == 0 and "shutdown complete" in output and password not in output
+            assert proc.returncode == 0 and password not in output
+            expect_process_event(output, "LOG_CODE_PROCESS_STOPPED", "LOG_LEVEL_INFO")
         finally:
             if proc.poll() is None:
                 proc.kill()
                 proc.wait()
+        expect_public_released(public_port)
 
         cfg.write_text(settings + "unknown: true\n")
         result = subprocess.run([str(binary), "-config", str(cfg)], capture_output=True, text=True, timeout=5, env=env)
-        assert result.returncode != 0 and "unknown field" in result.stderr and password not in result.stderr
-        with socket.socket() as sock:
-            sock.bind(("127.0.0.1", port))
+        assert result.returncode != 0 and not result.stdout.strip()
+        assert password not in result.stdout + result.stderr
+        expect_process_event(result.stderr, "LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED", "LOG_LEVEL_ERROR")
+        expect_public_released(public_port)
         cfg.write_text(settings)
         pg_env = env.copy()
         pg_env["PGPASSWORD"] = password
@@ -111,13 +140,17 @@ with tempfile.TemporaryDirectory(prefix="nha027-bootstrap-") as directory:
         future_version = current + 1
         subprocess.run(psql + ["-c", f"INSERT INTO public.homeward_schema_migrations(version) VALUES ({future_version})"], check=True, capture_output=True, text=True, env=pg_env)
         future = subprocess.run([str(binary), "-config", str(cfg)], capture_output=True, text=True, timeout=10, env=env)
-        assert future.returncode != 0 and f"schema version {future_version} is newer" in future.stderr
-        assert "public transport ready" not in future.stderr and password not in future.stderr
+        assert future.returncode != 0 and not future.stdout.strip()
+        assert password not in future.stdout + future.stderr
+        expect_process_event(future.stderr, "LOG_CODE_PROCESS_RUNTIME_START_FAILED", "LOG_LEVEL_ERROR")
+        expect_public_released(public_port)
     finally:
         run("pg_ctl", "-D", str(root / "data"), "-m", "immediate", "-w", "stop")
 
     cfg.write_text(settings)
     result = subprocess.run([str(binary), "-config", str(cfg)], capture_output=True, text=True, timeout=10, env=env)
-    assert result.returncode != 0 and "postgres: unavailable" in result.stderr
-    assert "public transport ready" not in result.stderr and password not in result.stderr
+    assert result.returncode != 0 and not result.stdout.strip()
+    assert password not in result.stdout + result.stderr
+    expect_process_event(result.stderr, "LOG_CODE_PROCESS_RUNTIME_START_FAILED", "LOG_LEVEL_ERROR")
+    expect_public_released(public_port)
 print("isolated PostgreSQL startup, SIGTERM, invalid YAML, future schema, and unavailable DB: pass")

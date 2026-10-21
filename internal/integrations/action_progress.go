@@ -14,6 +14,7 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/observability"
 )
 
 var (
@@ -226,6 +227,7 @@ type actionEntry struct {
 	subs             map[*ActionSubscription]struct{}
 }
 type actionTracker struct {
+	observation   *observability.Cells
 	mu            sync.Mutex
 	clock         ActionClock
 	entries       map[domain.CommandID]*actionEntry
@@ -323,6 +325,9 @@ func terminalAction(status actions.ActionStatus) bool {
 func (t *actionTracker) advance(e *actionEntry, status actions.ActionStatus) {
 	if terminalAction(e.snapshot.Status) || e.snapshot.Status == status {
 		return
+	}
+	if status == actions.ActionStatus_ACTION_STATUS_INDETERMINATE {
+		_ = t.observation.AddActionProgressIndeterminate()
 	}
 	e.snapshot.Status = status
 	e.snapshot.Sequence++

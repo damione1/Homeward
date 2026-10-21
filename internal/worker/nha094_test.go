@@ -112,12 +112,15 @@ func startWorkerRigWithCapture(t *testing.T, mode string, capture bool) workerRi
 	return startWorkerRigWithGate(t, mode, capture, "", "", nil)
 }
 
-func startWorkerRigWithGate(t *testing.T, mode string, capture bool, commandGate, marker string, onWaiting func()) workerRig {
+func startWorkerRigWithGate(t *testing.T, mode string, capture bool, commandGate, marker string, onWaiting func(), setup ...func(*integrations.Manager)) workerRig {
 	t.Helper()
 	ctx := context.Background()
 	host, fixture, err := fake.NewCommandFixture()
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, configure := range setup {
+		configure(host)
 	}
 	instance, err := domain.ParseIntegrationInstanceID("nha094-synthetic-worker")
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -110,6 +111,9 @@ func (s *Sequencer) InvalidateRegistry() {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.observationHealth != nil {
+		_ = s.observationHealth.PublishCoreUnavailable(obs.CoreCause_CORE_CAUSE_REGISTRY_UNAVAILABLE)
+	}
 	s.registryState = registryUnavailable
 	for sub := range s.subs {
 		if sub.class == SubscriptionView && !sub.closed {

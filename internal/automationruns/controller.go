@@ -10,6 +10,7 @@ import (
 
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/internal/automationtriggers"
+	"github.com/damione1/Homeward/internal/observability"
 )
 
 var nextGeneration atomic.Uint64
@@ -61,16 +62,17 @@ func effectiveMaxExceeded(mode ir.MaxExceededMode) ir.MaxExceededMode {
 }
 
 type runEntry struct {
-	run       Run
-	arena     *runArena
-	ctx       context.Context
-	cancel    context.CancelFunc
-	done      chan struct{}
-	started   bool
-	ready     chan struct{}
-	readyOnce sync.Once
-	err       error
-	startup   StartupOutcome
+	observationTerminal bool
+	run                 Run
+	arena               *runArena
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	done                chan struct{}
+	started             bool
+	ready               chan struct{}
+	readyOnce           sync.Once
+	err                 error
+	startup             StartupOutcome
 }
 
 type lane struct {
@@ -80,27 +82,29 @@ type lane struct {
 }
 
 type Controller struct {
-	mu              sync.Mutex
-	plan            Plan
-	sink            HistoryObservationSink
-	preparer        Preparer
-	executor        Executor
-	reader          ResultReader
-	pool            memoryPool
-	ctx             context.Context
-	cancel          context.CancelFunc
-	done            chan struct{}
-	doneOnce        sync.Once
-	wg              sync.WaitGroup
-	lanes           map[laneKey]*lane
-	traces          []Trace
-	traceOrdinal    atomic.Uint64
-	evicted         uint64
-	next            RunID
-	generation      Generation
-	preparing, live int
-	started, closed bool
-	err             error
+	observation       *observability.Cells
+	observationHandle observability.ControllerHandle
+	mu                sync.Mutex
+	plan              Plan
+	sink              HistoryObservationSink
+	preparer          Preparer
+	executor          Executor
+	reader            ResultReader
+	pool              memoryPool
+	ctx               context.Context
+	cancel            context.CancelFunc
+	done              chan struct{}
+	doneOnce          sync.Once
+	wg                sync.WaitGroup
+	lanes             map[laneKey]*lane
+	traces            []Trace
+	traceOrdinal      atomic.Uint64
+	evicted           uint64
+	next              RunID
+	generation        Generation
+	preparing, live   int
+	started, closed   bool
+	err               error
 }
 
 func NewController(plan Plan, reader ResultReader, preparer Preparer, executor Executor) (*Controller, error) {
@@ -413,6 +417,11 @@ func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena
 		}
 	}
 	if decision != DecisionAdmitted {
+		if decision == DecisionMaxExceeded || decision == DecisionMemorySaturated || decision == DecisionSingleBusy {
+			if _, class, err := observedRunKind(trigger.laneKey().kind); err == nil {
+				_ = c.observation.AddQueueRejected(class, 1)
+			}
+		}
 		trace := Trace{Decision: decision, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey, Provenance: spec.provenance}
 		if decision == DecisionSingleBusy || decision == DecisionMaxExceeded {
 			trace.MaxExceeded = effectiveMaxExceeded(spec.maxExceeded)
@@ -453,6 +462,7 @@ func (c *Controller) admit(spec automationSpec, trigger Trigger, arena *runArena
 			discard = l.replacement
 			l.replacement = nil
 			c.live--
+			c.observeTerminalLocked(discard, DecisionSuperseded)
 			c.recordLocked(Trace{Decision: DecisionSuperseded, Automation: trigger.automation, Script: trigger.script, RunID: discard.run.id, Generation: discard.run.generation, Provenance: discard.run.provenance, ParentID: discard.run.parent})
 		}
 		if len(l.active) == 0 {
@@ -519,6 +529,7 @@ func (c *Controller) finish(spec automationSpec, entry *runEntry, err error) {
 	l := c.lanes[entry.run.trigger.laneKey()]
 	delete(l.active, entry.run.id)
 	c.live--
+	c.observeTerminalLocked(entry, decision)
 	trace := Trace{Decision: decision, Automation: entry.run.trigger.automation, Script: entry.run.trigger.script, TriggerKey: entry.run.trigger.triggerKey, RunID: entry.run.id, Generation: entry.run.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent}
 	trace.Error = errorText
 	c.recordLocked(trace)
@@ -581,6 +592,7 @@ func (c *Controller) BeginClose() <-chan struct{} {
 	}
 	c.live -= len(pending)
 	for _, entry := range pending {
+		c.observeTerminalLocked(entry, DecisionCancelled)
 		c.recordLocked(Trace{Decision: DecisionCancelled, Automation: entry.run.trigger.automation, Script: entry.run.trigger.script, RunID: entry.run.id, Generation: entry.run.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
 	}
 	c.mu.Unlock()

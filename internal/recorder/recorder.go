@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
+	"github.com/damione1/Homeward/internal/observability"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
 )
@@ -76,6 +78,9 @@ func (c LiveCoverage) Bounds() (storage.RecorderEpoch, uint64, uint64, bool) {
 func (c LiveCoverage) KnownLost() (uint64, bool) { return c.knownLost, c.hasKnownLost }
 
 type Recorder struct {
+	observation                                        *observability.Cells
+	observationHealth                                  *observability.HealthCell
+	observationAt                                      time.Time
 	sequence                                           *sequencer.Sequencer
 	writer                                             Writer
 	flushClock                                         flushClock
@@ -112,7 +117,25 @@ func Start(ctx context.Context, sequence *sequencer.Sequencer, writer Writer, li
 }
 
 func startWithFlushClock(ctx context.Context, sequence *sequencer.Sequencer, writer Writer, limits Limits, clock flushClock) (*Recorder, error) {
+	cells, err := sequence.ObservationCells()
+	if err != nil {
+		return nil, ErrInvalidRecorder
+	}
+	return startObserved(ctx, sequence, writer, limits, clock, cells, nil)
+}
+
+func StartObserved(ctx context.Context, sequence *sequencer.Sequencer, writer Writer, limits Limits, cells *observability.Cells, health *observability.HealthCell) (*Recorder, error) {
+	return startObserved(ctx, sequence, writer, limits, realFlushClock{}, cells, health)
+}
+func startObserved(ctx context.Context, sequence *sequencer.Sequencer, writer Writer, limits Limits, clock flushClock, cells *observability.Cells, health *observability.HealthCell) (*Recorder, error) {
+	if _, err := cells.Epoch(); err != nil {
+		return nil, ErrInvalidRecorder
+	}
 	if nilInterface(ctx) || sequence == nil || !limits.Valid() || nilInterface(writer) || nilInterface(clock) {
+		return nil, ErrInvalidRecorder
+	}
+	sequenceCells, err := sequence.ObservationCells()
+	if err != nil || sequenceCells != cells {
 		return nil, ErrInvalidRecorder
 	}
 	if _, err := newFlushDeadline(clock.now()); err != nil {
@@ -179,9 +202,10 @@ func startWithFlushClock(ctx context.Context, sequence *sequencer.Sequencer, wri
 		return nil, errors.Join(ErrInvalidRecorder, err)
 	}
 	readCtx, readCancel := context.WithCancel(context.Background())
-	r := &Recorder{sequence: sequence, writer: writer, flushClock: clock, limits: limits, epoch: epoch, sub: capture.Subscription, readCtx: readCtx, readCancel: readCancel, done: make(chan struct{})}
+	r := &Recorder{observation: cells, observationHealth: health, observationAt: time.Now().UTC(), sequence: sequence, writer: writer, flushClock: clock, limits: limits, epoch: epoch, sub: capture.Subscription, readCtx: readCtx, readCancel: readCancel, done: make(chan struct{})}
 	r.status = Status{Phase: PhaseRunning, HistoryDegraded: previous.Present || boundary > 0, ReconciliationComplete: true,
 		TotalCapacityBytes: limits.TotalBytes(), QueueCapacityBytes: limits.QueueBytes(), Checkpoint: boundary, Epoch: epochText}
+	r.observeConfirmedBatch(batch)
 	go r.run(boundary)
 	return r, nil
 }
@@ -272,6 +296,7 @@ func (r *Recorder) Stop(ctx context.Context) error {
 	if r.stopCtx == nil {
 		r.stopCtx, r.stopBoundary = ctx, through
 		r.status.Phase = PhaseStopping
+		r.observationAt = time.Now().UTC()
 		r.readCancel()
 	}
 	r.mu.Unlock()
@@ -296,6 +321,10 @@ func (r *Recorder) phase(phase Phase, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.status.Phase = phase
+	r.observationAt = time.Now().UTC()
+	if r.observationHealth != nil && phase == PhaseBackoff {
+		_ = r.observationHealth.PublishDurableFact(obs.DurableAvailability_DURABLE_AVAILABILITY_UNAVAILABLE, r.observationAt)
+	}
 	if err != nil {
 		r.status.LastError = err
 		r.status.HistoryDegraded = true
@@ -309,6 +338,7 @@ func (r *Recorder) run(checkpoint uint64) {
 		_ = r.sub.Close()
 		r.mu.Lock()
 		r.doneErr = result
+		r.observationAt = time.Now().UTC()
 		if result != nil {
 			r.status.Phase = PhaseFailed
 			r.status.LastError = result
@@ -470,6 +500,9 @@ func (r *Recorder) addLoss(loss sequencer.Loss) error {
 	return nil
 }
 
+// recordLoss tracks the active coverage/status only. Mailbox losses have
+// already been counted by their producer; staging abandonment is counted at
+// its own drop site, so delivery/reconciliation never recounts either.
 func (r *Recorder) recordLoss(from, through, count uint64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -559,6 +592,7 @@ func (r *Recorder) accept(p *pending, entry sequencer.Entry) error {
 			if len(p.gaps) > 32 {
 				p.collapseToGap()
 			}
+			r.observation.AddRecorderLost(1)
 			r.recordLoss(sequence, sequence, 1)
 			return nil
 		}
@@ -575,6 +609,7 @@ func (r *Recorder) accept(p *pending, entry sequencer.Entry) error {
 			if len(p.gaps) > 32 {
 				p.collapseToGap()
 			}
+			r.observation.AddRecorderLost(1)
 			r.recordLoss(sequence, sequence, 1)
 			return nil
 		}
@@ -586,6 +621,7 @@ func (r *Recorder) accept(p *pending, entry sequencer.Entry) error {
 		}
 		p.excluded++
 		r.mu.Lock()
+		r.observation.AddRecorderExcluded(1)
 		if r.status.PolicyExcluded < ^uint64(0) {
 			r.status.PolicyExcluded++
 		}
@@ -729,6 +765,7 @@ func (r *Recorder) flush(p *pending, checkpoint *uint64) error {
 	r.status.Checkpoint = *checkpoint
 	r.trimActiveLoss(*checkpoint)
 	r.status.PendingBytes = 0
+	r.observation.AddRecorderLost(abandoned)
 	if abandoned > ^uint64(0)-r.status.LostEntries {
 		r.status.LostEntries = ^uint64(0)
 	} else {
@@ -856,6 +893,7 @@ func (r *Recorder) reconcile(p *pending, checkpoint *uint64, knownLoss uint64) (
 	r.mu.Lock()
 	r.status.Checkpoint = through
 	r.trimActiveLoss(through)
+	r.observation.AddRecorderLost(abandoned)
 	if abandoned > ^uint64(0)-r.status.LostEntries {
 		r.status.LostEntries = ^uint64(0)
 	} else {
@@ -886,6 +924,7 @@ func (r *Recorder) write(batch storage.RecorderBatch) error {
 			verifyCancel()
 			if checkErr == nil {
 				if checkpoint.Confirms(batch) {
+					r.observeConfirmedBatch(batch)
 					r.phase(PhaseRunning, nil)
 					return nil
 				}
@@ -907,6 +946,7 @@ func (r *Recorder) write(batch storage.RecorderBatch) error {
 			cancel()
 			err = writeErr
 			if outcome == storage.TransactionCommitted && err == nil {
+				r.observeConfirmedBatch(batch)
 				r.phase(PhaseRunning, nil)
 				return nil
 			}
@@ -919,7 +959,10 @@ func (r *Recorder) write(batch storage.RecorderBatch) error {
 			return err
 		}
 		r.mu.Lock()
-		r.status.Retries++
+		if r.status.Retries < ^uint64(0) {
+			r.status.Retries++
+		}
+		r.observation.AddRecorderRetries()
 		r.status.HistoryDegraded = true
 		r.status.LastError = err
 		r.mu.Unlock()
