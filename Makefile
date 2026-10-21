@@ -3,7 +3,7 @@ check: export PYTHONDONTWRITEBYTECODE=1
 check:
 	sh scripts/ensure-worker-python.sh
 	PYTHONDONTWRITEBYTECODE=1 "$$(cat .tools/worker-python/python-path)" -m unittest -q testworker.caseta_worker_test
-	test -z "$$(gofmt -l cmd internal contracts compat sdk examples qualification/fido2)"
+	test -z "$$(gofmt -l cmd internal contracts compat sdk examples scope qualification/fido2)"
 	test -z "$$(gofmt -l qualification/ecobee/fixture_test.go qualification/ecobee/identity_test.go qualification/ecobee/lifecycle_test.go qualification/ecobee/poll.go qualification/ecobee/poll_test.go qualification/ecobee/profile.go qualification/ecobee/profile_test.go)"
 	go vet ./...
 	go test -race ./...

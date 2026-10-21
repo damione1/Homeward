@@ -33,11 +33,22 @@ type Input struct {
 }
 
 func BuildMVP(catalogue ir.Catalogue, configuration ConfigurationRef, declarations []Declaration, evidence nha047.Evidence, candidates []Candidate, blueprints []parser.SourceFile) (Report, error) {
-	selection, err := logicselection.LoadV1()
+	return BuildMVPForScope(scope.BaselineV1(), catalogue, configuration, declarations, evidence, candidates, blueprints)
+}
+
+// BuildMVPForScope selects a published documentary scope without activating it.
+func BuildMVPForScope(revision scope.Revision, catalogue ir.Catalogue, configuration ConfigurationRef, declarations []Declaration, evidence nha047.Evidence, candidates []Candidate, blueprints []parser.SourceFile) (Report, error) {
+	manifest, err := registry.LoadManifest(revision)
 	if err != nil {
 		return Report{}, err
 	}
-	manifest, err := registry.ParseManifest(scope.ManifestV1())
+	return BuildMVPWithManifest(manifest, catalogue, configuration, declarations, evidence, candidates, blueprints)
+}
+
+// BuildMVPWithManifest reports the immutable Manifest actually used by a
+// composed repository. ConfigurationRef continues to identify configuration.
+func BuildMVPWithManifest(manifest registry.Manifest, catalogue ir.Catalogue, configuration ConfigurationRef, declarations []Declaration, evidence nha047.Evidence, candidates []Candidate, blueprints []parser.SourceFile) (Report, error) {
+	selection, err := logicselection.LoadV1()
 	if err != nil {
 		return Report{}, err
 	}
@@ -127,11 +138,15 @@ func Build(input Input) (Report, error) {
 			return Report{}, ErrInvalidInput
 		}
 	}
+	summary, err := buildScopeSummary(input.Manifest, input.Selection)
+	if err != nil {
+		return Report{}, err
+	}
 	b := builder{input: input, entities: map[domain.HAAlias]ir.Entity{}, declarations: map[domain.HAAlias]Declaration{}, candidates: map[domain.HAAlias]Candidate{}}
 	for _, entity := range input.Catalogue.Entities() {
 		b.entities[entity.Alias()] = entity
 	}
-	if len(input.Declarations) > 850 || len(input.Candidates) > 17 || len(input.Blueprints) > 256 {
+	if len(input.Catalogue.Entities()) > summary.counts.Entities || len(input.Declarations) > summary.counts.Entities || len(input.Candidates) > 17 || len(input.Blueprints) > 256 {
 		return Report{}, ErrLimit
 	}
 	for _, d := range input.Declarations {
@@ -155,7 +170,7 @@ func Build(input Input) (Report, error) {
 		}
 		b.candidates[c.id] = c
 	}
-	result := Report{configuration: input.Configuration, baseline: nha047.Hash(scope.LogicV1()), manifest: nha047.Digest(manifestDigest), objects: make([]Object, 0, 17), deferred: make([]domain.HAAlias, 0, 72)}
+	result := Report{scopeSummary: summary, configuration: input.Configuration, baseline: nha047.Hash(scope.LogicV1()), manifest: nha047.Digest(manifestDigest), objects: make([]Object, 0, 17), deferred: make([]domain.HAAlias, 0, 72)}
 	// Hash the admitted partition plus definition identities, not unrelated JSON
 	// bytes. The renderer names this digest kind explicitly.
 	type selectionRow struct {

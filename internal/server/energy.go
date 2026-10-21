@@ -18,13 +18,17 @@ import (
 // configured and before Supervisor.Start. It resolves every alias through the
 // registry. The three MVP rows are data supplied by config, not engine cases.
 func configuredEnergySpecs(ctx context.Context, c config.Config, store *storage.Store, sequence *sequencer.Sequencer) ([]integrations.PilotSpec, error) {
+	manifest, err := registry.LoadManifest(scope.BaselineV1())
+	if err != nil {
+		return nil, err
+	}
+	return configuredEnergySpecsWithManifest(ctx, c, store, sequence, manifest)
+}
+
+func configuredEnergySpecsWithManifest(ctx context.Context, c config.Config, store *storage.Store, sequence *sequencer.Sequencer, manifest registry.Manifest) ([]integrations.PilotSpec, error) {
 	rows := c.EnergyBindings()
 	if len(rows) == 0 {
 		return nil, nil
-	}
-	manifest, err := registry.ParseManifest(scope.ManifestV1())
-	if err != nil {
-		return nil, err
 	}
 	identities, err := registry.NewRepository(store, manifest)
 	if err != nil {

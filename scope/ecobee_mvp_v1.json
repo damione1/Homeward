@@ -1,0 +1,279 @@
+{
+  "schema": "homeward.scope-amendment/v1",
+  "revision": "ecobee_mvp_v1",
+  "baseline": {
+    "revision": "v1",
+    "manifest_sha256": "d2f15358239b29797906a31f9318d6ad7a8b81be76f9d39421b0aa6d22f52cfa",
+    "ids_sha256": "4cdcd750642c903a58195e404717042b9c7e2fa045799132f38f73291e069d31"
+  },
+  "decision": {
+    "file": "Décisions serveur et priorités.md",
+    "section": "Amendement Ecobee au périmètre initial",
+    "line": 52,
+    "sha256": "8ed66c2d5f9ff44af5b209a9b76a04d073f1cc79de5843eb9f57a2be4053cd84"
+  },
+  "qualification": {
+    "ticket": "NHA-009",
+    "commit": "cf65857901c2c761c6d8526fb49f8742b6af76c5",
+    "profile": "qualification/ecobee/profile.go",
+    "profile_sha256": "a004d734b27cbc7ddbbade33ed98d5b6188b0c5c87ad1cd54838a2d5c57164cb"
+  },
+  "additions": [
+    {
+      "entity_id": "climate.home",
+      "source": "homekit_controller"
+    }
+  ],
+  "removals": [],
+  "aliases": [],
+  "profile": {
+    "thermostat_service": "4A",
+    "linked_fan_services": [
+      "40",
+      "B7"
+    ],
+    "fields": [
+      {
+        "name": "thermal_activity",
+        "hap_type": "F",
+        "format": "uint8",
+        "unit": "",
+        "required": true,
+        "qualified_control": false,
+        "limitation": "Observed activity is distinct from requested mode; F=0 without a present, fresh AF does not establish idle. Qualified numeric states: 0, 1, 2; other states remain unknown."
+      },
+      {
+        "name": "requested_mode",
+        "hap_type": "33",
+        "format": "uint8",
+        "unit": "",
+        "required": true,
+        "qualified_control": true,
+        "limitation": "SetClimate represents mode; discovered write permissions and valid states remain required. Qualified numeric states: 0, 1, 2, 3; other states are refused."
+      },
+      {
+        "name": "current_temperature",
+        "hap_type": "11",
+        "format": "float",
+        "unit": "celsius",
+        "required": true,
+        "qualified_control": false,
+        "limitation": "Observation only; absent, null, error, unknown, invalid and stale remain distinct."
+      },
+      {
+        "name": "target_temperature",
+        "hap_type": "35",
+        "format": "float",
+        "unit": "celsius",
+        "required": true,
+        "qualified_control": true,
+        "limitation": "SetClimate represents a single setpoint; discovered finite minimum, maximum and positive step remain required."
+      },
+      {
+        "name": "display_units",
+        "hap_type": "36",
+        "format": "uint8",
+        "unit": "",
+        "required": true,
+        "qualified_control": false,
+        "limitation": "Display metadata only; all admitted temperatures remain Celsius. Qualified numeric states: 0, 1; other states remain unknown."
+      },
+      {
+        "name": "relative_humidity",
+        "hap_type": "10",
+        "format": "float",
+        "unit": "percentage",
+        "required": false,
+        "qualified_control": false,
+        "limitation": "Optional observed humidity, bounded to 0..100; no humidity target or additional sensor alias."
+      },
+      {
+        "name": "heat_threshold",
+        "hap_type": "12",
+        "format": "float",
+        "unit": "celsius",
+        "required": false,
+        "qualified_control": true,
+        "limitation": "Optional observed threshold is representable; threshold writes need a future action contract and driver136."
+      },
+      {
+        "name": "cool_threshold",
+        "hap_type": "D",
+        "format": "float",
+        "unit": "celsius",
+        "required": false,
+        "qualified_control": true,
+        "limitation": "Optional observed threshold is representable; heat must not exceed cool; writes need a future action contract and driver136."
+      },
+      {
+        "name": "observed_fan",
+        "hap_type": "AF",
+        "format": "uint8",
+        "unit": "",
+        "required": false,
+        "qualified_control": false,
+        "limitation": "Optional observed fan; service40/B7 must be explicitly linked to thermostat4A. Qualified numeric states: 0, 1, 2; other states remain unknown."
+      },
+      {
+        "name": "target_fan",
+        "hap_type": "BF",
+        "format": "uint8",
+        "unit": "",
+        "required": false,
+        "qualified_control": true,
+        "limitation": "Optional target fan; service40/B7 must be explicitly linked; current SetClimate cannot execute this target; driver136 and an action contract remain required. Qualified numeric states: 0, 1; other states are refused."
+      }
+    ],
+    "limits": [
+      "Documentary admission only; no driver, pairing, route, physical action or automation activation.",
+      "The NHA-009 harness is not a production thermostat driver; the raw client remains NO-GO for a real thermostat.",
+      "Permissions, format, unit, finite discovered bounds and minStep must be admitted from actual discovery by driver136.",
+      "Observed activity must retain domain climate semantics and presence/quality; absent or stale never means idle or zero power.",
+      "Current SetClimate supports mode and one temperature setpoint; optional fan targets and threshold writes remain requirements for driver136 and the appropriate action contract.",
+      "NHA-107 needs Available/Fresh/Observed HVAC activity; its HA adapter maps domain FanOnly to legacy fan. NHA-108 integrates that estimated power. Configured 15400/3200/400/0 W are estimates requiring qualification, never measured power or a fallback for missing_source."
+    ]
+  },
+  "consumers": [
+    {
+      "entity_id": "scene.climate_day_temperature",
+      "via": [],
+      "disabled_action_in_path": false,
+      "source": {
+        "file": "scope/logic_mvp_sources/scene.climate_day_temperature.yaml",
+        "section": "scene.climate_day_temperature",
+        "line": 4,
+        "sha256": "602502db5ba3fe0bef92e14ad6a7ddbf7119a566e91aa2c0e796ca876a0e6c72"
+      }
+    },
+    {
+      "entity_id": "scene.climate_night_temperature",
+      "via": [],
+      "disabled_action_in_path": false,
+      "source": {
+        "file": "scope/logic_mvp_sources/scene.climate_night_temperature.yaml",
+        "section": "scene.climate_night_temperature",
+        "line": 4,
+        "sha256": "27a1fd308dcbc9deb2d73b6c764b06700151784c38e2b72f582f090273c10816"
+      }
+    },
+    {
+      "entity_id": "automation.turn_on_hvac",
+      "via": [],
+      "disabled_action_in_path": false,
+      "source": {
+        "file": "Automatisations.md",
+        "section": "automation.turn_on_hvac",
+        "line": 1735,
+        "sha256": "fffce72af21710694df36c9ea89a74c66cbee17ec666fed4e298d3400868ba17"
+      }
+    },
+    {
+      "entity_id": "automation.turn_off_hvac",
+      "via": [
+        "scene.climate_night_temperature"
+      ],
+      "disabled_action_in_path": false,
+      "source": {
+        "file": "Automatisations.md",
+        "section": "automation.turn_off_hvac",
+        "line": 1650,
+        "sha256": "fffce72af21710694df36c9ea89a74c66cbee17ec666fed4e298d3400868ba17"
+      }
+    },
+    {
+      "entity_id": "automation.good_morning_work_day",
+      "via": [
+        "scene.climate_day_temperature"
+      ],
+      "disabled_action_in_path": false,
+      "source": {
+        "file": "Automatisations.md",
+        "section": "automation.good_morning_work_day",
+        "line": 671,
+        "sha256": "fffce72af21710694df36c9ea89a74c66cbee17ec666fed4e298d3400868ba17"
+      }
+    },
+    {
+      "entity_id": "automation.morning_routine",
+      "via": [
+        "scene.climate_day_temperature"
+      ],
+      "disabled_action_in_path": false,
+      "source": {
+        "file": "Automatisations.md",
+        "section": "automation.morning_routine",
+        "line": 968,
+        "sha256": "fffce72af21710694df36c9ea89a74c66cbee17ec666fed4e298d3400868ba17"
+      }
+    },
+    {
+      "entity_id": "script.morning_routine_weekend",
+      "via": [
+        "scene.climate_day_temperature"
+      ],
+      "disabled_action_in_path": true,
+      "source": {
+        "file": "Scripts et scènes.md",
+        "section": "script.morning_routine_weekend",
+        "line": 229,
+        "sha256": "0cef3cb2421f48d9c98e2d98df2764cd049aa2888a73920a7f38a009d40d0871"
+      }
+    },
+    {
+      "entity_id": "script.morning_routine_work_day",
+      "via": [
+        "scene.climate_day_temperature"
+      ],
+      "disabled_action_in_path": true,
+      "source": {
+        "file": "Scripts et scènes.md",
+        "section": "script.morning_routine_work_day",
+        "line": 268,
+        "sha256": "0cef3cb2421f48d9c98e2d98df2764cd049aa2888a73920a7f38a009d40d0871"
+      }
+    },
+    {
+      "entity_id": "automation.automatic_morning_routine",
+      "via": [
+        "script.morning_routine_work_day",
+        "scene.climate_day_temperature"
+      ],
+      "disabled_action_in_path": true,
+      "source": {
+        "file": "Automatisations.md",
+        "section": "automation.automatic_morning_routine",
+        "line": 244,
+        "sha256": "fffce72af21710694df36c9ea89a74c66cbee17ec666fed4e298d3400868ba17"
+      }
+    }
+  ],
+  "technical_consumers": [
+    {
+      "entity_id": "sensor.hvac_power_consumption",
+      "via": [
+        "climate.home"
+      ],
+      "ticket": "NHA-107",
+      "source": {
+        "file": "internal/derivedpower/projection.go",
+        "section": "HVAC observed activity projection",
+        "line": 27,
+        "sha256": "1691019aeee32af319a2e1c381034baaa6abd3ce5600a4aa0b1c01e3adab50ae"
+      }
+    },
+    {
+      "entity_id": "sensor.hvac_energy_consumption",
+      "via": [
+        "sensor.hvac_power_consumption",
+        "climate.home"
+      ],
+      "ticket": "NHA-108",
+      "source": {
+        "file": "internal/config/energy.go",
+        "section": "HVAC power to energy pair",
+        "line": 38,
+        "sha256": "76c578d20a40c42004d3d760a80a4dd7fd72b5c4f4a003d001389247d9d116e6"
+      }
+    }
+  ]
+}

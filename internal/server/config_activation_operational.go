@@ -34,6 +34,7 @@ import (
 // activation owner. Constructors below only prepare the delivered factories;
 // no pilot, client, process, Host discovery or credential mutation starts here.
 type configuredOperationalCompiler struct {
+	manifest      registry.Manifest
 	repository    *registry.Repository
 	store         *storage.Store
 	sequence      *sequencer.Sequencer
@@ -108,11 +109,7 @@ func (p *configuredOperationalPublication) Publish(ctx context.Context) error {
 		p.workdayStarted = true
 		var reader workday.CalendarReader
 		if p.workday != nil {
-			manifest, err := registry.ParseManifest(scope.ManifestV1())
-			if err != nil {
-				return err
-			}
-			repository, err := calendars.NewRepository(p.compiler.store, manifest)
+			repository, err := calendars.NewRepository(p.compiler.store, p.compiler.manifest)
 			if err != nil {
 				return err
 			}
@@ -185,6 +182,9 @@ func (p *configuredOperationalPublication) Supersede(ctx context.Context) ([]dom
 func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, old, next config.Config,
 	oldDefinitions, nextDefinitions bundle.Candidate, baseTemplates reactivetemplate.Plan, triggerPlan automationtriggers.Plan, forcedInstances []domain.IntegrationInstanceID, committed *registry.CommittedBindings) (configactivation.OperationalImage, error) {
 	if c == nil || c.repository == nil || c.store == nil || c.sequence == nil || nilReactiveInterface(ctx) {
+		return configactivation.OperationalImage{}, configactivation.ErrOperationalComposition
+	}
+	if _, ok := c.manifest.Revision(); !ok {
 		return configactivation.OperationalImage{}, configactivation.ErrOperationalComposition
 	}
 	publication := &configuredOperationalPublication{compiler: c}
@@ -551,7 +551,7 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 		var registration *CloudAuthorizationRegistration
 		var preparedHilo *hiloComposition
 		if hasNewHilo {
-			preparedHilo, err = newHiloComposition(newHilo, c.store, c.sequence, c.catalog, c.repository)
+			preparedHilo, err = newHiloCompositionWithManifest(c.manifest, newHilo, c.store, c.sequence, c.catalog, c.repository)
 			if err != nil {
 				return configactivation.OperationalImage{}, err
 			}
@@ -737,11 +737,7 @@ func (c *configuredOperationalCompiler) prepareEnergy(configuration config.Confi
 }
 
 func (c *configuredOperationalCompiler) prepareNeviweb(settings neviweb.Settings) (integrations.PilotSpec, error) {
-	manifest, err := registry.ParseManifest(scope.ManifestV1())
-	if err != nil {
-		return integrations.PilotSpec{}, err
-	}
-	decision, err := heatingownership.Parse(scope.HeatingOwnershipV1(), manifest)
+	decision, err := heatingownership.ParseForManifest(scope.HeatingOwnershipV1(), c.manifest)
 	if err != nil {
 		return integrations.PilotSpec{}, err
 	}

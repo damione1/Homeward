@@ -68,6 +68,7 @@ type objectWire struct {
 }
 
 type reportWire struct {
+	Scope               scopeWire    `json:"scope"`
 	Schema              string       `json:"schema"`
 	Profile             string       `json:"profile"`
 	BaselineSHA256      string       `json:"baseline_logic_sha256"`
@@ -86,7 +87,11 @@ func (r Report) wire() (reportWire, error) {
 	if !r.Valid() {
 		return reportWire{}, ErrInvalidReport
 	}
-	w := reportWire{Schema: Schema, Profile: parser.Profile, BaselineSHA256: r.baseline.String(), SelectionSHA256: r.selection.String(), SelectionDigestKind: "admitted_partition_and_definition_metadata", ManifestIDsSHA256: r.manifest.String(), Configuration: r.configuration.id, Revision: r.configuration.revision, ConfigurationSHA256: r.configuration.digest.String(), Objects: []objectWire{}, Deferred: []string{}, Limits: []string{
+	scopeSummary, err := r.scopeWire()
+	if err != nil {
+		return reportWire{}, err
+	}
+	w := reportWire{Scope: scopeSummary, Schema: Schema, Profile: parser.Profile, BaselineSHA256: r.baseline.String(), SelectionSHA256: r.selection.String(), SelectionDigestKind: "admitted_partition_and_definition_metadata", ManifestIDsSHA256: r.manifest.String(), Configuration: r.configuration.id, Revision: r.configuration.revision, ConfigurationSHA256: r.configuration.digest.String(), Objects: []objectWire{}, Deferred: []string{}, Limits: []string{
 		"Construction-level compatibility under the explicit catalogue and declared conversion profiles; not whole-object runtime equivalence.",
 		"No live device, driver route, physical action, business activation or authorization is qualified by this report.",
 		"Deferred objects have no semantic verdict; all 89 baseline objects remain inactive.",
@@ -176,6 +181,42 @@ func RenderText(writer io.Writer, r Report) error {
 	// The JSON size gate bounds the text before writing anything to the caller.
 	_ = data
 	if _, err = fmt.Fprintf(writer, "Homeward — rapport de compatibilité\nProfil : %s ; configuration : %s / %d\n17 définitions ; 72 objets reportés ; aucune activation.\n\n", w.Profile, w.Configuration, w.Revision); err != nil {
+		return err
+	}
+	if _, err = fmt.Fprintf(writer, "Périmètre : %s ; %d entités / %d sources documentaires / %d diagnostics\n  Baseline : %s ; SHA fichier %s ; SHA IDs %s\n  SHA IDs effectif : %s\n  Diff actif : ajouts %v ; retraits %v ; aliases supplémentaires %v\n", w.Scope.Revision, w.Scope.Entities, w.Scope.Sources, w.Scope.Diagnostics, w.Scope.BaselineRevision, w.Scope.BaselineManifestSHA256, w.Scope.BaselineIDsSHA256, w.Scope.EffectiveIDsSHA256, w.Scope.Added, w.Scope.Removed, w.Scope.Aliases); err != nil {
+		return err
+	}
+	if w.Scope.Decision != nil && w.Scope.Qualification != nil {
+		if _, err = fmt.Fprintf(writer, "  Amendement documentaire : %s\n  Décision : %s:%d — %s (%s)\n  Qualification : %s / %s — %s (%s)\n", w.Scope.AmendmentSHA256, w.Scope.Decision.File, w.Scope.Decision.Line, w.Scope.Decision.Section, w.Scope.Decision.SHA256, w.Scope.Qualification.Ticket, w.Scope.Qualification.Commit, w.Scope.Qualification.Profile, w.Scope.Qualification.ProfileSHA256); err != nil {
+			return err
+		}
+	}
+	if w.Scope.ThermostatService != "" {
+		if _, err = fmt.Fprintf(writer, "  Service thermostat : %s ; services fan explicitement liés : %v\n", w.Scope.ThermostatService, w.Scope.LinkedFanServices); err != nil {
+			return err
+		}
+	}
+	for _, field := range w.Scope.Fields {
+		if _, err = fmt.Fprintf(writer, "  Champ HAP %s / %s ; requis=%t ; contrôle qualifié009=%t ; unité=%s : %s\n", field.Name, field.HAPType, field.Required, field.QualifiedControl, field.Unit, field.Limitation); err != nil {
+			return err
+		}
+	}
+	for _, limit := range w.Scope.Limits {
+		if _, err = fmt.Fprintf(writer, "  Limite du profil : %s\n", limit); err != nil {
+			return err
+		}
+	}
+	for _, consumer := range w.Scope.Consumers {
+		if _, err = fmt.Fprintf(writer, "  Consommateur %s : %s ; %s ; inactif ; via %v ; action désactivée dans la chaîne=%t\n    Source : %s:%d — %s (%s)\n", consumer.ID, consumer.Disposition, consumer.Status, consumer.Via, consumer.DisabledActionInPath, consumer.Source.File, consumer.Source.Line, consumer.Source.Section, consumer.Source.SHA256); err != nil {
+			return err
+		}
+	}
+	for _, consumer := range w.Scope.Technical {
+		if _, err = fmt.Fprintf(writer, "  Estimation %s (%s) : %s ; via %v\n    Source : %s:%d — %s (%s)\n", consumer.ID, consumer.Ticket, consumer.Status, consumer.Via, consumer.Source.File, consumer.Source.Line, consumer.Source.Section, consumer.Source.SHA256); err != nil {
+			return err
+		}
+	}
+	if _, err = fmt.Fprintln(writer); err != nil {
 		return err
 	}
 	for _, o := range w.Objects {

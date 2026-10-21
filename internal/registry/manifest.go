@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/scope"
 )
 
 var ErrInvalidManifest = errors.New("invalid registry manifest")
@@ -35,10 +36,13 @@ func (s SourceName) Value() (string, bool) {
 // Manifest is a parsed admission boundary. Its zero value grants no identities.
 // A later scope amendment must be parsed and supplied explicitly by composition.
 type Manifest struct {
-	aliases map[HAAlias]struct{}
-	sources map[HAAlias]SourceName
-	digest  [sha256.Size]byte
-	parsed  bool
+	aliases   map[HAAlias]struct{}
+	sources   map[HAAlias]SourceName
+	digest    [sha256.Size]byte
+	parsed    bool
+	revision  scope.Revision
+	lineage   map[HAAlias]struct{}
+	amendment scope.EcobeeAmendment
 }
 
 func ParseManifest(data []byte) (Manifest, error) {
@@ -73,7 +77,12 @@ func ParseManifest(data []byte) (Manifest, error) {
 	if hex.EncodeToString(digest[:]) != raw.Digest {
 		return Manifest{}, ErrInvalidManifest
 	}
-	return Manifest{aliases: known, sources: sources, digest: digest, parsed: true}, nil
+	result := Manifest{aliases: known, sources: sources, digest: digest, parsed: true}
+	fileDigest := sha256.Sum256(data)
+	if hex.EncodeToString(fileDigest[:]) == scope.BaselineManifestSHA256 {
+		result.revision = scope.BaselineV1()
+	}
+	return result, nil
 }
 
 // SourceFor reports only provenance supplied by ParseManifest. It does not infer

@@ -268,6 +268,7 @@ func (o Object) Constructions() []Construction {
 func (o Object) clone() Object { o.nodes = o.Constructions(); return o }
 
 type Report struct {
+	scopeSummary  scopeSummary
 	configuration ConfigurationRef
 	baseline      nha047.Digest
 	selection     nha047.Digest

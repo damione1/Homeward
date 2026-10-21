@@ -31,12 +31,16 @@ type listComposition struct {
 // authentication. This composition has no pilot, background worker or device
 // action, so it can exist even when the Host has no configured integration.
 func newListComposition(store *storage.Store, authority *authorization.Authority) (*listComposition, error) {
-	if store == nil || authority == nil {
-		return nil, ErrInvalidPublicPlan
-	}
-	manifest, err := registry.ParseManifest(scope.ManifestV1())
+	manifest, err := registry.LoadManifest(scope.BaselineV1())
 	if err != nil {
 		return nil, err
+	}
+	return newListCompositionWithManifest(store, authority, manifest)
+}
+
+func newListCompositionWithManifest(store *storage.Store, authority *authorization.Authority, manifest registry.Manifest) (*listComposition, error) {
+	if store == nil || authority == nil {
+		return nil, ErrInvalidPublicPlan
 	}
 	repo, err := lists.NewRepository(store, manifest)
 	if err != nil {
@@ -118,6 +122,9 @@ func (c *listComposition) checkImportBinding(ctx context.Context, alias domain.H
 	}
 	records, err := c.registry.List(ctx)
 	if err != nil {
+		if errors.Is(err, registry.ErrAliasConflict) {
+			return errors.Join(ErrListImportBinding, err)
+		}
 		return err
 	}
 	seen := false
