@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/damione1/Homeward/internal/backups"
 	"github.com/damione1/Homeward/internal/hilo"
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/neviweb"
@@ -24,19 +25,20 @@ import (
 )
 
 type Config struct {
-	listen       netip.AddrPort
-	postgres     storage.Settings
-	dataDir      string
-	mqtt         *mqtt.Settings
-	neviweb      *neviweb.Settings
-	hilo         *hilo.Settings
-	workers      []worker.Config
-	energy       []EnergyBinding
-	derivedPower DerivedPowerProfile
-	public       PublicSettings
-	recorder     recorder.Limits
-	solar        *solar.Settings
-	workday      *workday.Settings
+	backupProviders backups.Configuration
+	listen          netip.AddrPort
+	postgres        storage.Settings
+	dataDir         string
+	mqtt            *mqtt.Settings
+	neviweb         *neviweb.Settings
+	hilo            *hilo.Settings
+	workers         []worker.Config
+	energy          []EnergyBinding
+	derivedPower    DerivedPowerProfile
+	public          PublicSettings
+	recorder        recorder.Limits
+	solar           *solar.Settings
+	workday         *workday.Settings
 }
 
 var ErrUninitialized = errors.New("configuration: uninitialized")
@@ -47,6 +49,7 @@ func Parse(data []byte) (Config, error) { return ParseWithEnv(data, os.LookupEnv
 // rawConfig is the one strict YAML boundary for combined legacy files,
 // launch sidecars and exact operational source replay.
 type rawConfig struct {
+	Backups      yaml.Node               `yaml:"backups"`
 	Listen       string                  `yaml:"listen"`
 	Postgres     storage.ConnectionInput `yaml:"postgres"`
 	DataDir      string                  `yaml:"data_dir"`
@@ -149,6 +152,10 @@ func parseLaunch(raw rawConfig, lookup func(string) (string, bool)) (Config, err
 		return Config{}, fmt.Errorf("configuration: data_dir must be an absolute normalized persistent directory")
 	}
 	result := Config{listen: endpoint, postgres: postgres, dataDir: raw.DataDir}
+	result.backupProviders, err = parseBackupProvidersInput(raw.Backups, raw.DataDir)
+	if err != nil {
+		return Config{}, err
+	}
 	result.recorder, err = ParseRecorderInput(raw.Recorder)
 	if err != nil {
 		return Config{}, err
