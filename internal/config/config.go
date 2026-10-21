@@ -54,6 +54,7 @@ func Parse(data []byte) (Config, error) { return ParseWithEnv(data, os.LookupEnv
 // rawConfig is the one strict YAML boundary for combined legacy files,
 // launch sidecars and exact operational source replay.
 type rawConfig struct {
+	DisabledIntegrations    []string                `yaml:"disabled_integrations"`
 	RemoteCalendar          yaml.Node               `yaml:"remote_calendar"`
 	ScopeRevision           yaml.Node               `yaml:"scope_revision"`
 	BackupRecoveryRecipient yaml.Node               `yaml:"backup_recovery_recipient"`
@@ -141,7 +142,7 @@ func ParseBootstrapLaunchWithEnv(data []byte, lookup func(string) (string, bool)
 		return Config{}, err
 	}
 	if raw.MQTT != nil || raw.Neviweb != nil || raw.Hilo != nil || raw.Energy != nil ||
-		raw.RemoteCalendar.Kind != 0 || raw.DerivedPower.Kind != 0 || raw.Solar.Kind != 0 || raw.Workday.Kind != 0 || raw.Workers != nil {
+		raw.RemoteCalendar.Kind != 0 || raw.DerivedPower.Kind != 0 || raw.Solar.Kind != 0 || raw.Workday.Kind != 0 || raw.Workers != nil || raw.DisabledIntegrations != nil {
 		return Config{}, ErrInvalidYAML
 	}
 	return parseLaunch(raw, lookup)
@@ -285,7 +286,7 @@ func parseOperational(raw rawConfig) (Config, error) {
 		}
 		result.workers = append(result.workers, configured)
 	}
-	return result, nil
+	return selectEnabledIntegrations(raw.DisabledIntegrations, result)
 }
 
 func (c Config) ExternalWorkers() []worker.Config { return append([]worker.Config(nil), c.workers...) }

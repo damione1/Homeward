@@ -1,0 +1,133 @@
+syntax = "proto3";
+package home.integrationadmin.v1;
+
+import "home/configuration/v1/configuration.proto";
+import "home/observability/v1/observability.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/integrationadmin/v1;integrationadminv1";
+
+// Administrative configuration only. HostService stays on its private socket.
+enum DesiredState {
+  DESIRED_STATE_UNSPECIFIED = 0;
+  DESIRED_STATE_ENABLED = 1;
+  DESIRED_STATE_DISABLED = 2;
+}
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_INVALID_ARGUMENT = 1;
+  ERROR_CODE_DENIED = 2;
+  ERROR_CODE_UNKNOWN_TYPE = 3;
+  ERROR_CODE_NOT_FOUND = 4;
+  ERROR_CODE_ALREADY_EXISTS = 5;
+  ERROR_CODE_CONFLICT = 6;
+  ERROR_CODE_UNAVAILABLE = 7;
+  ERROR_CODE_WORKSPACE_INVALID = 8;
+  ERROR_CODE_TYPE_UNDECLARED = 9;
+}
+message IntegrationError {
+  ErrorCode code = 1;
+  home.configuration.v1.DocumentVersion current = 2;
+}
+message SecretReference {
+  // The descriptor's credential field, not an arbitrary YAML path.
+  string field = 1;
+  string integration_instance_id = 2;
+  string name = 3;
+}
+message PublicConfiguration {
+  string schema_version = 1;
+  // Strict, bounded configuration fragment. Credential fields are absent;
+  // their references are carried only in secrets. Never a global document.
+  bytes yaml_source = 2;
+  repeated SecretReference secrets = 3;
+}
+message IntegrationType {
+  string type_id = 1;
+  string manifest_version = 2;
+  string schema_version = 3;
+  bytes json_schema = 4;
+  bytes schema_sha256 = 5;
+  // Supported capability schema IDs; instance declarations remain authoritative.
+  repeated string capability_schema_ids = 6;
+}
+message OpaqueConfiguration {
+  // No executable, args, inferred driver manifest or resolved credentials.
+  repeated SecretReference secrets = 1;
+}
+message IntegrationInstance {
+  string type_id = 1;
+  string integration_instance_id = 2;
+  DesiredState desired_state = 3;
+  oneof configuration {
+    PublicConfiguration editable = 4;
+    OpaqueConfiguration opaque = 5;
+  }
+  home.observability.v1.IntegrationReportPresence report = 6;
+  home.observability.v1.IntegrationSupervision supervision = 7;
+}
+message MutationPrecondition {
+  home.configuration.v1.DocumentVersion expected = 1;
+  bytes expected_workspace_sha256 = 2;
+}
+message ListIntegrationTypesRequest {}
+message ListIntegrationTypesResponse { repeated IntegrationType types = 1; }
+message GetIntegrationTypeRequest { string type_id = 1; }
+message GetIntegrationTypeResponse { IntegrationType type = 1; }
+message ListInstancesRequest {}
+message ListInstancesResponse {
+  repeated IntegrationInstance instances = 1;
+  home.configuration.v1.ReadDocumentResponse document = 2;
+}
+message GetInstanceRequest { string integration_instance_id = 1; }
+message GetInstanceResponse {
+  IntegrationInstance instance = 1;
+  home.configuration.v1.ReadDocumentResponse document = 2;
+}
+message CreateInstanceRequest {
+  string type_id = 1;
+  string integration_instance_id = 2;
+  DesiredState desired_state = 3;
+  PublicConfiguration configuration = 4;
+  MutationPrecondition precondition = 5;
+}
+message CreateInstanceResponse {
+  home.configuration.v1.ActivationResult activation = 1;
+  home.configuration.v1.ReadDocumentResponse document = 2;
+}
+message UpdateInstanceRequest {
+  string type_id = 1;
+  string integration_instance_id = 2;
+  PublicConfiguration configuration = 3;
+  MutationPrecondition precondition = 4;
+}
+message UpdateInstanceResponse {
+  home.configuration.v1.ActivationResult activation = 1;
+  home.configuration.v1.ReadDocumentResponse document = 2;
+}
+message DeleteInstanceRequest {
+  string integration_instance_id = 1;
+  MutationPrecondition precondition = 2;
+}
+message DeleteInstanceResponse {
+  home.configuration.v1.ActivationResult activation = 1;
+  home.configuration.v1.ReadDocumentResponse document = 2;
+}
+message SetInstanceEnabledRequest {
+  string integration_instance_id = 1;
+  DesiredState desired_state = 2;
+  MutationPrecondition precondition = 3;
+}
+message SetInstanceEnabledResponse {
+  home.configuration.v1.ActivationResult activation = 1;
+  home.configuration.v1.ReadDocumentResponse document = 2;
+}
+service IntegrationService {
+  rpc ListIntegrationTypes(ListIntegrationTypesRequest) returns (ListIntegrationTypesResponse);
+  rpc GetIntegrationType(GetIntegrationTypeRequest) returns (GetIntegrationTypeResponse);
+  rpc ListInstances(ListInstancesRequest) returns (ListInstancesResponse);
+  rpc GetInstance(GetInstanceRequest) returns (GetInstanceResponse);
+  rpc CreateInstance(CreateInstanceRequest) returns (CreateInstanceResponse);
+  rpc UpdateInstance(UpdateInstanceRequest) returns (UpdateInstanceResponse);
+  rpc DeleteInstance(DeleteInstanceRequest) returns (DeleteInstanceResponse);
+  rpc SetInstanceEnabled(SetInstanceEnabledRequest) returns (SetInstanceEnabledResponse);
+}
