@@ -2,6 +2,7 @@ package calendars
 
 import (
 	"context"
+	"github.com/damione1/Homeward/internal/storage"
 	"sync"
 
 	"github.com/jackc/pgx/v5"
@@ -20,9 +21,11 @@ type imageLedger struct {
 	active int
 }
 type imageLease struct {
-	owner  *imageLedger
-	charge int64
-	once   sync.Once
+	owner     *imageLedger
+	charge    int64
+	requested uint64
+	prepaid   int64 // SQL preflight credit consumed before extending the same lease
+	once      sync.Once
 }
 
 var images imageLedger
@@ -38,11 +41,17 @@ func (l *imageLedger) reserve(charge int64) (*imageLease, error) {
 	}
 	l.active++
 	l.used += charge
-	return &imageLease{owner: l, charge: charge}, nil
+	return &imageLease{owner: l, charge: charge, requested: uint64(charge)}, nil
 }
 func (l *imageLease) release() {
 	if l != nil {
-		l.once.Do(func() { l.owner.mu.Lock(); defer l.owner.mu.Unlock(); l.owner.active--; l.owner.used -= l.charge })
+		l.once.Do(func() {
+			l.owner.mu.Lock()
+			defer l.owner.mu.Unlock()
+			l.owner.active--
+			l.owner.used -= l.charge
+			l.charge = 0
+		})
 	}
 }
 
@@ -72,14 +81,20 @@ func imageCharge(ctx context.Context, tx pgx.Tx, id CalendarID) (int64, error) {
 }
 
 type calendarImage struct {
-	calendar CalendarSnapshot
-	events   []EventSnapshot
-	lookup   EventSnapshot
-	lease    *imageLease
+	calendar     CalendarSnapshot
+	events       []EventSnapshot
+	lookup       EventSnapshot
+	lease        *imageLease
+	remote       *remoteImage
+	remoteHeader storage.RemoteCalendarHeader
 }
 
 func (i *calendarImage) close() {
 	if i != nil {
+		if i.remote != nil {
+			i.remote.close()
+			return
+		}
 		i.lease.release()
 	}
 }
@@ -88,9 +103,13 @@ func (r *Repository) loadImage(ctx context.Context, id CalendarID, target *Event
 		return nil, failure(InvalidInput)
 	}
 	image := &calendarImage{}
+	operationContext := ctx
 	err := r.transaction(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		if _, err := r.identity(ctx, tx, id.entity, &id, false); err != nil {
 			return err
+		}
+		if id.origin == RemoteICS {
+			return r.loadRemoteImage(ctx, tx, id, target, image, operationContext)
 		}
 		calendar, err := readCalendar(ctx, tx, id, false)
 		if err != nil {
@@ -349,14 +368,19 @@ func (r *Repository) GetEvent(ctx context.Context, key EventKey) (EventSnapshot,
 		return EventSnapshot{}, err
 	}
 	defer image.close()
+	ctx = imageContext(ctx, image)
 	for _, snapshot := range image.events {
 		if snapshot.key == key {
 			if snapshot.revision.presence == Present {
-				if err := validateEvent(ctx, snapshot.definition, newBudget(ctx)); err != nil {
+				if err := validateEvent(ctx, snapshot.definition, imageBudget(ctx, image)); err != nil {
 					return EventSnapshot{}, decodeFailure(err)
 				}
 			}
-			snapshot.definition = cloneEvent(snapshot.definition)
+			var copyErr error
+			snapshot.definition, copyErr = copyResultEvent(image, snapshot.definition)
+			if copyErr != nil {
+				return EventSnapshot{}, copyErr
+			}
 			return snapshot, nil
 		}
 	}
@@ -375,12 +399,21 @@ func (r *Repository) ListEvents(ctx context.Context, id CalendarID) ([]EventSnap
 		return nil, err
 	}
 	defer image.close()
-	if err := validateImage(ctx, image, newBudget(ctx)); err != nil {
+	ctx = imageContext(ctx, image)
+	if err := validateImage(ctx, image, imageBudget(ctx, image)); err != nil {
+		return nil, err
+	}
+	if err := reserveResultBytes(image, int64(len(image.events))*512); err != nil {
 		return nil, err
 	}
 	result := make([]EventSnapshot, len(image.events))
+	copies := newRemoteResultCopies(image)
 	for i, snapshot := range image.events {
-		snapshot.definition = cloneEvent(snapshot.definition)
+		var copyErr error
+		snapshot.definition, copyErr = copies.event(snapshot.definition)
+		if copyErr != nil {
+			return nil, copyErr
+		}
 		result[i] = snapshot
 	}
 	return result, nil

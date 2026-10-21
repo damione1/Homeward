@@ -27,6 +27,7 @@ import (
 )
 
 type Config struct {
+	remoteCalendar  *remoteCalendarSettings
 	backupRecovery  *backuparchive.RecoveryPublic
 	backupProviders backups.Configuration
 	scopeRevision   scope.Revision
@@ -53,6 +54,7 @@ func Parse(data []byte) (Config, error) { return ParseWithEnv(data, os.LookupEnv
 // rawConfig is the one strict YAML boundary for combined legacy files,
 // launch sidecars and exact operational source replay.
 type rawConfig struct {
+	RemoteCalendar          yaml.Node               `yaml:"remote_calendar"`
 	ScopeRevision           yaml.Node               `yaml:"scope_revision"`
 	BackupRecoveryRecipient yaml.Node               `yaml:"backup_recovery_recipient"`
 	Backups                 yaml.Node               `yaml:"backups"`
@@ -113,6 +115,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 	launch.mqtt, launch.neviweb, launch.hilo = operational.mqtt, operational.neviweb, operational.hilo
 	launch.workers, launch.energy, launch.derivedPower = operational.workers, operational.energy, operational.derivedPower
 	launch.solar, launch.workday = operational.solar, operational.workday
+	launch.remoteCalendar = operational.remoteCalendar
 	return launch, nil
 }
 
@@ -138,7 +141,7 @@ func ParseBootstrapLaunchWithEnv(data []byte, lookup func(string) (string, bool)
 		return Config{}, err
 	}
 	if raw.MQTT != nil || raw.Neviweb != nil || raw.Hilo != nil || raw.Energy != nil ||
-		raw.DerivedPower.Kind != 0 || raw.Solar.Kind != 0 || raw.Workday.Kind != 0 || raw.Workers != nil {
+		raw.RemoteCalendar.Kind != 0 || raw.DerivedPower.Kind != 0 || raw.Solar.Kind != 0 || raw.Workday.Kind != 0 || raw.Workers != nil {
 		return Config{}, ErrInvalidYAML
 	}
 	return parseLaunch(raw, lookup)
@@ -196,6 +199,10 @@ func parseOperational(raw rawConfig) (Config, error) {
 	}
 	var result Config
 	var err error
+	result.remoteCalendar, err = parseRemoteCalendarInput(raw.RemoteCalendar)
+	if err != nil {
+		return Config{}, err
+	}
 	result.solar, err = parseSolarInput(raw.Solar)
 	if err != nil {
 		return Config{}, err

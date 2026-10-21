@@ -1,0 +1,135 @@
+{
+  "status": "EXPECTED_BEFORE_EXECUTION",
+  "source": "RFC5545, pinned HA/ical, independent Gregorian400-year identity; no candidate execution",
+  "oracles": [
+    {
+      "file": "18-master-cancelled.ics",
+      "outcome": "occurrences",
+      "expected": [],
+      "expected_initial": "RED: prototype emits three base instances"
+    },
+    {
+      "file": "19-master-cancelled-active-override.ics",
+      "outcome": "occurrences",
+      "expected": [
+        {
+          "uid": "cancelled-master",
+          "start": "2026-10-05T12:00:00Z",
+          "end": "2026-10-05T13:00:00Z",
+          "origin": "2026-10-03T09:00:00",
+          "summary": "active override"
+        }
+      ],
+      "expected_initial": "RED: prototype also emits the cancelled base"
+    },
+    {
+      "file": "20-duration-p1d-vs-pt24h.ics",
+      "outcome": "occurrences",
+      "expected": [
+        {
+          "uid": "civil-day",
+          "start": "2026-03-07T17:00:00Z",
+          "end": "2026-03-08T16:00:00Z",
+          "origin": "2026-03-07T12:00:00",
+          "summary": "civil day"
+        },
+        {
+          "uid": "exact-day",
+          "start": "2026-03-07T17:00:00Z",
+          "end": "2026-03-08T17:00:00Z",
+          "origin": "2026-03-07T12:00:00",
+          "summary": "exact day"
+        }
+      ],
+      "expected_initial": "RED: PT24H rejected"
+    },
+    {
+      "file": "21-duration-positive-sign.ics",
+      "outcome": "occurrences",
+      "expected": [
+        {
+          "uid": "positive-sign",
+          "start": "2026-03-07T17:00:00Z",
+          "end": "2026-03-08T16:00:00Z",
+          "origin": "2026-03-07T12:00:00",
+          "summary": "positive sign"
+        }
+      ],
+      "expected_initial": "RED: +P1D rejected"
+    },
+    {
+      "file": "22-duration-pt90m.ics",
+      "outcome": "occurrences",
+      "expected": [
+        {
+          "uid": "ninety-minutes",
+          "start": "2026-03-07T17:00:00Z",
+          "end": "2026-03-07T18:30:00Z",
+          "origin": "2026-03-07T17:00:00",
+          "summary": "ninety minutes"
+        }
+      ],
+      "expected_initial": "GREEN control"
+    },
+    {
+      "file": "23-duration-overflow.ics",
+      "outcome": "rejected",
+      "expected_initial": "RED on 64-bit: hours*3600 wraps to 3584 seconds"
+    },
+    {
+      "file": "24-recurrence-id-utc.ics",
+      "outcome": "occurrences",
+      "expected": [
+        {
+          "uid": "normalized-origin",
+          "start": "2026-10-02T13:00:00Z",
+          "end": "2026-10-02T14:00:00Z",
+          "origin": "2026-10-02T09:00:00",
+          "summary": "master"
+        },
+        {
+          "uid": "normalized-origin",
+          "start": "2026-10-06T14:00:00Z",
+          "end": "2026-10-06T15:00:00Z",
+          "origin": "2026-10-03T09:00:00",
+          "summary": "moved"
+        }
+      ],
+      "expected_initial": "GREEN control"
+    },
+    {
+      "file": "25-recurrence-id-chicago.ics",
+      "outcome": "occurrences",
+      "expected": [
+        {
+          "uid": "normalized-origin",
+          "start": "2026-10-02T13:00:00Z",
+          "end": "2026-10-02T14:00:00Z",
+          "origin": "2026-10-02T09:00:00",
+          "summary": "master"
+        },
+        {
+          "uid": "normalized-origin",
+          "start": "2026-10-06T14:00:00Z",
+          "end": "2026-10-06T15:00:00Z",
+          "origin": "2026-10-03T09:00:00",
+          "summary": "moved"
+        }
+      ],
+      "expected_initial": "RED: local 08:00 is not projected to base-zone 09:00"
+    },
+    {
+      "file": "26-observance-after-default-until.ics",
+      "outcome": "required_onset",
+      "zone": "Custom/LongSparse",
+      "through_year": 2496,
+      "required_onset": "2496-02-29T02:00:00Z",
+      "expected_initial": "RED: omitted library Until clips at about2388;400-year Gregorian repetition makes this onset normative"
+    },
+    {
+      "file": "27-empty-observance-predicate.ics",
+      "outcome": "rejected",
+      "expected_initial": "Outcome may be GREEN late; separate internal admission test requires rejection before any Next"
+    }
+  ]
+}

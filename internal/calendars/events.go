@@ -81,6 +81,9 @@ func (r *Repository) mutateEvent(ctx context.Context, key EventKey, expected Rev
 	if kind != eventCreate && kind != eventUpdate && kind != eventDelete || !expected.validFor(key.calendar, key.uid) || kind != eventDelete && !event.Valid() {
 		return EventSnapshot{}, failure(InvalidInput)
 	}
+	if kind != eventDelete && event.contentKind != contentLocal {
+		return EventSnapshot{}, failure(Incompatible)
+	}
 	// This reservation includes the admitted input, returned copy and SQL codecs.
 	charge := eventBaseCharge
 	if kind != eventDelete {

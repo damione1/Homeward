@@ -34,20 +34,21 @@ import (
 // activation owner. Constructors below only prepare the delivered factories;
 // no pilot, client, process, Host discovery or credential mutation starts here.
 type configuredOperationalCompiler struct {
-	manifest      registry.Manifest
-	repository    *registry.Repository
-	store         *storage.Store
-	sequence      *sequencer.Sequencer
-	host          *integrations.Manager
-	catalog       *contracts.CapabilityCatalog
-	authorization *cloudAuthorizationCoordinator
-	templates     *reactiveTemplateRuntime
-	secrets       *storage.SecretRepository
-	solarClock    automationtriggers.Clock
-	workdayClock  automationtriggers.Clock
-	workday       *activationWorkdayCalendar
-	supervisor    *integrations.Supervisor
-	triggerPlan   automationtriggers.Plan
+	remoteCalendar *remoteCalendarRuntime
+	manifest       registry.Manifest
+	repository     *registry.Repository
+	store          *storage.Store
+	sequence       *sequencer.Sequencer
+	host           *integrations.Manager
+	catalog        *contracts.CapabilityCatalog
+	authorization  *cloudAuthorizationCoordinator
+	templates      *reactiveTemplateRuntime
+	secrets        *storage.SecretRepository
+	solarClock     automationtriggers.Clock
+	workdayClock   automationtriggers.Clock
+	workday        *activationWorkdayCalendar
+	supervisor     *integrations.Supervisor
+	triggerPlan    automationtriggers.Plan
 }
 
 type configuredOperationalPublication struct {
@@ -330,6 +331,11 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 			}
 		}
 	}
+	if request, enabled, requestErr := remoteCalendarBinding(next); requestErr != nil {
+		return configactivation.OperationalImage{}, requestErr
+	} else if enabled {
+		requests = append(requests, request)
+	}
 	var bindings *registry.PreparedBindings
 	if committed != nil {
 		bindings, err = committed.PrepareBindings(requests)
@@ -356,6 +362,13 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 		} else if hadPrevious {
 			remove = append(remove, previous)
 		}
+	}
+	remoteInstance, hadRemote, remoteChanged, remoteSpec, remoteErr := c.prepareRemoteCalendar(old, next, bindings, forced)
+	if remoteErr != nil {
+		return configactivation.OperationalImage{}, remoteErr
+	}
+	if remoteChanged {
+		replace(remoteInstance, hadRemote, remoteSpec)
 	}
 	oldWorkers := make(map[domain.IntegrationInstanceID]worker.Config)
 	for _, configured := range old.ExternalWorkers() {

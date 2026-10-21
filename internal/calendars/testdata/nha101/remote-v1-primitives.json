@@ -1,0 +1,9 @@
+{
+  "text_absent": "00",
+  "text_present_empty": "010000",
+  "text_present_A": "01000141",
+  "date_civil_zero": "00010101",
+  "point_fold_civil": "0207ea0b01011e00",
+  "point_fold_first": "0307ea0b01011e0007ea0b01051e0000000000",
+  "point_fold_second": "0307ea0b01011e0007ea0b01061e0000000000"
+}

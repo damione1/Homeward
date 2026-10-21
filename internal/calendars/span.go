@@ -2,6 +2,7 @@ package calendars
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -15,12 +16,112 @@ const (
 
 // Span is a private temporal sum. All-day dates do not acquire an inferred
 // timezone. Timed spans retain both their instants and declared local anchor.
+type spanMode uint8
+
+const (
+	spanInvalid spanMode = iota
+	spanAllDay
+	spanExact
+	spanPoint
+	spanNominal
+)
+
+type temporalSource uint8
+
+const (
+	sourceInvalid temporalSource = iota
+	sourceZoned
+	sourceUTC
+	sourceTZID
+	sourceFloating
+)
+
 type Span struct {
+	mode               spanMode
+	source             temporalSource
 	kind               TemporalKind
 	startDate, endDate CivilDate
 	anchor             LocalDateTime
 	start, end         Instant
 	zone               Zone
+	endZone            Zone
+	nominal            NominalLength
+}
+
+// NominalLength applies civil days first, then exact seconds, at each
+// occurrence. It cannot be confused with an elapsed time.Duration.
+type NominalLength struct {
+	days, seconds int
+	admitted      bool
+}
+
+func NewNominalLength(days, seconds int) (NominalLength, error) {
+	if days < 0 || days > 366 || seconds < 0 || seconds > 366*86400-days*86400 || days == 0 && seconds == 0 {
+		return NominalLength{}, failure(InvalidDate)
+	}
+	return NominalLength{days: days, seconds: seconds, admitted: true}, nil
+}
+func (n NominalLength) Valid() bool {
+	return n.admitted && n.days >= 0 && n.days <= 366 && n.seconds >= 0 && n.seconds <= 366*86400-n.days*86400 && (n.days > 0 || n.seconds > 0)
+}
+func (n NominalLength) Days() int    { return n.days }
+func (n NominalLength) Seconds() int { return n.seconds }
+
+func nominalEnd(ctx context.Context, anchor LocalDateTime, start Instant, length NominalLength, zone Zone) (Instant, error) {
+	if !length.Valid() || !anchor.Valid() || !start.Valid() || !zone.Valid() {
+		return Instant{}, failure(InvalidDate)
+	}
+	end := start.value
+	if length.days > 0 {
+		wall := anchor.wallUTC().AddDate(0, 0, length.days)
+		next := localFromTime(wall)
+		if !next.Valid() {
+			return Instant{}, failure(InvalidDate)
+		}
+		resolved, present, err := resolveWall(ctx, next, zone, true)
+		if err != nil {
+			return Instant{}, err
+		}
+		if !present {
+			return Instant{}, failure(InvalidDate)
+		}
+		end = resolved.value
+	}
+	return NewInstant(end.Add(time.Duration(length.seconds) * time.Second))
+}
+
+func TimedPoint(ctx context.Context, anchor LocalDateTime, zone Zone) (Span, error) {
+	if err := contextValid(ctx); err != nil {
+		return Span{}, err
+	}
+	start, present, err := resolveWall(ctx, anchor, zone, true)
+	if err != nil {
+		return Span{}, err
+	}
+	if !present {
+		return Span{}, failure(InvalidDate)
+	}
+	return Span{kind: Timed, mode: spanPoint, source: sourceZoned, anchor: anchor, start: start, end: start, zone: zone}, nil
+}
+func TimedNominalSpan(ctx context.Context, anchor LocalDateTime, length NominalLength, zone Zone) (Span, error) {
+	if err := contextValid(ctx); err != nil {
+		return Span{}, err
+	}
+	start, present, err := resolveWall(ctx, anchor, zone, true)
+	if err != nil {
+		return Span{}, err
+	}
+	if !present {
+		return Span{}, failure(InvalidDate)
+	}
+	end, err := nominalEnd(ctx, anchor, start, length, zone)
+	if err != nil {
+		return Span{}, err
+	}
+	if !end.value.After(start.value) || end.value.Sub(start.value) > 366*24*time.Hour+52*time.Hour {
+		return Span{}, failure(InvalidDate)
+	}
+	return Span{kind: Timed, mode: spanNominal, source: sourceZoned, anchor: anchor, start: start, end: end, zone: zone, nominal: length}, nil
 }
 
 func AllDaySpan(start, end CivilDate) (Span, error) {
@@ -30,7 +131,7 @@ func AllDaySpan(start, end CivilDate) (Span, error) {
 	if !start.Valid() || end.ordinal() <= start.ordinal() || end.ordinal()-start.ordinal() > 366 {
 		return Span{}, failure(InvalidDate)
 	}
-	return Span{kind: AllDay, startDate: start, endDate: end}, nil
+	return Span{kind: AllDay, mode: spanAllDay, startDate: start, endDate: end}, nil
 }
 func TimedSpan(ctx context.Context, anchor LocalDateTime, end Instant, zone Zone) (Span, error) {
 	if err := contextValid(ctx); err != nil {
@@ -52,13 +153,17 @@ func TimedSpan(ctx context.Context, anchor LocalDateTime, end Instant, zone Zone
 	if !end.value.After(start.value) || end.value.Sub(start.value) > 366*24*time.Hour {
 		return Span{}, failure(InvalidDate)
 	}
-	return Span{kind: Timed, anchor: anchor, start: start, end: end, zone: zone}, nil
+	return Span{kind: Timed, mode: spanExact, source: sourceZoned, anchor: anchor, start: start, end: end, zone: zone}, nil
 }
 func TimedInstants(ctx context.Context, start, end Instant, zone Zone) (Span, error) {
 	if !start.Valid() || !zone.Valid() {
 		return Span{}, failure(InvalidDate)
 	}
-	span, err := TimedSpan(ctx, localFromTime(start.value.In(zone.location)), end, zone)
+	local, err := zone.localAt(ctx, start.value)
+	if err != nil {
+		return Span{}, err
+	}
+	span, err := TimedSpan(ctx, local, end, zone)
 	if err != nil {
 		return Span{}, err
 	}
@@ -68,14 +173,35 @@ func TimedInstants(ctx context.Context, start, end Instant, zone Zone) (Span, er
 	return span, nil
 }
 func (s Span) Valid() bool {
-	switch s.kind {
-	case AllDay:
-		return s.startDate.Valid() && s.endDate.Valid() && s.endDate.ordinal() > s.startDate.ordinal() && s.endDate.ordinal()-s.startDate.ordinal() <= 366 && s.anchor == (LocalDateTime{}) && s.start == (Instant{}) && s.end == (Instant{}) && !s.zone.Valid()
-	case Timed:
-		return s.anchor.Valid() && s.start.Valid() && s.end.Valid() && s.zone.Valid() && s.end.value.After(s.start.value) && s.end.value.Sub(s.start.value) <= 366*24*time.Hour && s.startDate == (CivilDate{}) && s.endDate == (CivilDate{})
-	default:
+	switch s.mode {
+	case spanAllDay:
+		return s.kind == AllDay && s.source == sourceInvalid && s.startDate.Valid() && s.endDate.Valid() && s.endDate.ordinal() > s.startDate.ordinal() && s.endDate.ordinal()-s.startDate.ordinal() <= 366 && s.anchor == (LocalDateTime{}) && s.start == (Instant{}) && s.end == (Instant{}) && s.zone == (Zone{}) && s.endZone == (Zone{}) && s.nominal == (NominalLength{})
+	case spanExact, spanPoint, spanNominal:
+		if s.endZone != (Zone{}) && !s.endZone.Valid() {
+			return false
+		}
+		if s.kind != Timed || !s.anchor.Valid() || !s.start.Valid() || !s.end.Valid() || !s.zone.Valid() || s.startDate != (CivilDate{}) || s.endDate != (CivilDate{}) {
+			return false
+		}
+		switch s.source {
+		case sourceZoned, sourceUTC, sourceTZID, sourceFloating:
+		case sourceInvalid:
+			return false
+		default:
+			return false
+		}
+		switch s.mode {
+		case spanPoint:
+			return s.end == s.start && s.nominal == (NominalLength{}) && s.endZone == (Zone{})
+		case spanExact:
+			return s.nominal == (NominalLength{}) && s.end.value.After(s.start.value) && s.end.value.Sub(s.start.value) <= 366*24*time.Hour
+		case spanNominal:
+			return s.nominal.Valid() && s.endZone == (Zone{}) && s.end.value.After(s.start.value) && s.end.value.Sub(s.start.value) <= 366*24*time.Hour+52*time.Hour
+		}
+	case spanInvalid:
 		return false
 	}
+	return false
 }
 func (s Span) Kind() TemporalKind {
 	if !s.Valid() {
@@ -89,7 +215,11 @@ func (s Span) Dates() (CivilDate, CivilDate, bool) {
 func (s Span) Instants() (Instant, Instant, Zone, bool) {
 	return s.start, s.end, s.zone, s.Valid() && s.kind == Timed
 }
-func (s Span) Anchor() (LocalDateTime, bool) { return s.anchor, s.Valid() && s.kind == Timed }
+func (s Span) Anchor() (LocalDateTime, bool)  { return s.anchor, s.Valid() && s.kind == Timed }
+func (s Span) IsPoint() bool                  { return s.Valid() && s.kind == Timed && s.mode == spanPoint }
+func (s Span) Nominal() (NominalLength, bool) { return s.nominal, s.Valid() && s.nominal.Valid() }
+func (s Span) Floating() bool                 { return s.Valid() && s.source == sourceFloating }
+func (s Span) EndZone() (Zone, bool)          { return s.endZone, s.Valid() && s.endZone.Valid() }
 func (s Span) point() Point {
 	if s.kind == AllDay {
 		return Point{kind: AllDay, date: s.startDate}
@@ -99,10 +229,22 @@ func (s Span) point() Point {
 
 // Point is a recurrence's original date or declared local time. It is scoped
 // to a series when paired with EventKey, never identified by its moved start.
+// originCivil is the intentional default for existing civil Point literals.
+// A resolved origin distinguishes an explicit second-fold RDATE without a
+// second recurrence engine or a silent change to its effective instant.
+type pointOrigin uint8
+
+const (
+	originCivil pointOrigin = iota
+	originResolved
+)
+
 type Point struct {
-	kind  TemporalKind
-	date  CivilDate
-	local LocalDateTime
+	origin   pointOrigin
+	resolved Instant
+	kind     TemporalKind
+	date     CivilDate
+	local    LocalDateTime
 }
 
 func DatePoint(value CivilDate) (Point, error) {
@@ -120,9 +262,18 @@ func TimePoint(value LocalDateTime) (Point, error) {
 func (p Point) Valid() bool {
 	switch p.kind {
 	case AllDay:
-		return p.date.Valid() && p.local == (LocalDateTime{})
+		return p.origin == originCivil && p.resolved == (Instant{}) && p.date.Valid() && p.local == (LocalDateTime{})
 	case Timed:
-		return p.local.Valid() && p.date == (CivilDate{})
+		if !p.local.Valid() || p.date != (CivilDate{}) {
+			return false
+		}
+		switch p.origin {
+		case originCivil:
+			return p.resolved == (Instant{})
+		case originResolved:
+			return p.resolved.Valid()
+		}
+		return false
 	default:
 		return false
 	}
@@ -140,6 +291,9 @@ func (p Point) String() string {
 	if p.kind == AllDay {
 		return p.date.String()
 	}
+	if p.origin == originResolved {
+		return p.local.String() + "@" + p.resolved.String()
+	}
 	return p.local.String()
 }
 func ParsePoint(kind TemporalKind, value string) (Point, error) {
@@ -151,6 +305,17 @@ func ParsePoint(kind TemporalKind, value string) (Point, error) {
 		}
 		return DatePoint(d)
 	case Timed:
+		if local, instant, ok := strings.Cut(value, "@"); ok {
+			wall, e := ParseLocalDateTime(local)
+			if e != nil {
+				return Point{}, e
+			}
+			at, e := ParseInstant(instant)
+			if e != nil {
+				return Point{}, e
+			}
+			return Point{kind: Timed, origin: originResolved, local: wall, resolved: at}, nil
+		}
 		t, err := ParseLocalDateTime(value)
 		if err != nil {
 			return Point{}, err

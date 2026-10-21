@@ -1,0 +1,115 @@
+{
+  "status": "EXPECTED_BEFORE_EXECUTION",
+  "entries": [
+    {
+      "file": "01-body-limit.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "02-body-plus-one.ics",
+      "guard": "BodyTooLarge",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "03-parameter-amplification.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "04-parameter-key-storm.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "05-quoted-delimiters.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "06-logical-limit.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "07-logical-plus-one.ics",
+      "guard": "TooManyLines",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "08-line-limit.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "09-line-plus-one.ics",
+      "guard": "LineTooLarge",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "10-physical-limit.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "11-physical-plus-one.ics",
+      "guard": "TooManyLines",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "12-depth-limit.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "13-depth-plus-one.ics",
+      "guard": "TooDeep",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "14-components-limit.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "15-components-plus-one.ics",
+      "guard": "TooManyComponents",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "16-events-limit.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "17-events-plus-one.ics",
+      "guard": "TooManyEvents",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "18-zones-limit.ics",
+      "guard": "admit",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "19-zones-plus-one.ics",
+      "guard": "TooManyZones",
+      "phase": "guard+parser"
+    },
+    {
+      "file": "20-eight-zones-conversion.ics",
+      "guard": "admit",
+      "phase": "guard+parser+admission"
+    },
+    {
+      "file": "21-override-content-conversion.ics",
+      "guard": "admit",
+      "phase": "guard+parser+admission"
+    },
+    {
+      "file": "22-sparse-observance-allocation.ics",
+      "guard": "admit",
+      "phase": "guard+parser+admission"
+    }
+  ]
+}

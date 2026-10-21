@@ -24,12 +24,14 @@ const (
 	ExceptionInvalid ExceptionKind = iota
 	CancelOccurrence
 	MoveOccurrence
+	ReplaceOccurrence
 )
 
 type Exception struct {
 	kind        ExceptionKind
 	original    Point
 	replacement Span
+	content     EventContent
 }
 
 func Cancel(point Point) (Exception, error) {
@@ -44,6 +46,14 @@ func Move(point Point, replacement Span) (Exception, error) {
 	}
 	return Exception{kind: MoveOccurrence, original: point, replacement: replacement}, nil
 }
+
+// Replace is a complete imported VEVENT override. Absent fields remain absent.
+func Replace(point Point, replacement Span, content EventContent) (Exception, error) {
+	if !point.Valid() || !replacement.Valid() || point.kind != replacement.kind || !content.Valid() {
+		return Exception{}, failure(InvalidOccurrence)
+	}
+	return Exception{kind: ReplaceOccurrence, original: point, replacement: replacement, content: content}, nil
+}
 func (e Exception) Kind() ExceptionKind {
 	if !e.valid() {
 		return ExceptionInvalid
@@ -52,7 +62,10 @@ func (e Exception) Kind() ExceptionKind {
 }
 func (e Exception) Original() Point { return e.original }
 func (e Exception) Replacement() (Span, bool) {
-	return e.replacement, e.valid() && e.kind == MoveOccurrence
+	return e.replacement, e.valid() && (e.kind == MoveOccurrence || e.kind == ReplaceOccurrence)
+}
+func (e Exception) Content() (EventContent, bool) {
+	return e.content, e.valid() && e.kind == ReplaceOccurrence
 }
 func (e Exception) valid() bool {
 	if !e.original.Valid() {
@@ -60,9 +73,11 @@ func (e Exception) valid() bool {
 	}
 	switch e.kind {
 	case CancelOccurrence:
-		return e.replacement == (Span{})
+		return e.replacement == (Span{}) && e.content == (EventContent{})
 	case MoveOccurrence:
-		return e.replacement.Valid() && e.replacement.kind == e.original.kind
+		return e.replacement.Valid() && e.replacement.kind == e.original.kind && e.content == (EventContent{})
+	case ReplaceOccurrence:
+		return e.replacement.Valid() && e.replacement.kind == e.original.kind && e.content.Valid()
 	default:
 		return false
 	}
@@ -77,8 +92,25 @@ type EventInput struct {
 	Additions, Exclusions          []Point
 	Exceptions                     []Exception
 }
+type eventContentKind uint8
+
+const (
+	contentInvalid eventContentKind = iota
+	contentLocal
+	contentImported
+)
+
+type ImportedEventInput struct {
+	Content               EventContent
+	Span                  Span
+	Rule                  Rule
+	Additions, Exclusions []Point
+	Exceptions            []Exception
+}
 type Event struct {
 	admitted                       bool
+	contentKind                    eventContentKind
+	content                        EventContent
 	summary, description, location string
 	span                           Span
 	rule                           Rule
@@ -106,7 +138,48 @@ func canonicalPoints(input []Point, kind TemporalKind) ([]Point, error) {
 	return slices.Compact(points), nil
 }
 func admitEventStructure(input EventInput) (Event, error) {
-	if !textValid(input.Summary, 512, true) || !textValid(input.Description, 4096, false) || !textValid(input.Location, 512, false) || !input.Span.Valid() || !input.Rule.validFor(input.Span) {
+	return admitEventContent(input, contentLocal, EventContent{})
+}
+func localSpanSerializable(s Span) bool {
+	if s.mode == spanAllDay {
+		return s.Valid()
+	}
+	return s.Valid() && s.mode == spanExact && s.source == sourceZoned && s.zone.embedded == nil && s.endZone == (Zone{})
+}
+func admitEventContent(input EventInput, kind eventContentKind, content EventContent) (Event, error) {
+	if !input.Span.Valid() || !input.Rule.validFor(input.Span) {
+		return Event{}, failure(InvalidInput)
+	}
+	summary, description, location := input.Summary, input.Description, input.Location
+	switch kind {
+	case contentLocal:
+		// Existing SQL codec owns only legacy local variants. Never permit an
+		// imported Point/span/content to lose fields through that codec.
+		if !localSpanSerializable(input.Span) {
+			return Event{}, failure(Incompatible)
+		}
+		for _, list := range [][]Point{input.Additions, input.Exclusions} {
+			for _, point := range list {
+				if point.origin != originCivil {
+					return Event{}, failure(Incompatible)
+				}
+			}
+		}
+		for _, exception := range input.Exceptions {
+			if exception.kind == ReplaceOccurrence || exception.original.origin != originCivil || exception.kind == MoveOccurrence && !localSpanSerializable(exception.replacement) {
+				return Event{}, failure(Incompatible)
+			}
+		}
+		if content != (EventContent{}) || !textValid(summary, 512, true) || !textValid(description, 4096, false) || !textValid(location, 512, false) {
+			return Event{}, failure(InvalidInput)
+		}
+	case contentImported:
+		if !content.Valid() || summary != "" || description != "" || location != "" {
+			return Event{}, failure(InvalidInput)
+		}
+	case contentInvalid:
+		return Event{}, failure(InvalidInput)
+	default:
 		return Event{}, failure(InvalidInput)
 	}
 	if len(input.Additions) > MaxDates || len(input.Exclusions) > MaxDates || len(input.Exceptions) > MaxExceptions {
@@ -130,34 +203,74 @@ func admitEventStructure(input EventInput) (Event, error) {
 			return Event{}, failure(InvalidOccurrence)
 		}
 	}
-	event := Event{admitted: true, summary: strings.Clone(input.Summary), description: strings.Clone(input.Description), location: strings.Clone(input.Location), span: input.Span, rule: cloneRule(input.Rule), additions: additions, exclusions: exclusions, exceptions: exceptions}
+	event := Event{admitted: true, contentKind: kind, content: content, summary: strings.Clone(summary), description: strings.Clone(description), location: strings.Clone(location), span: input.Span, rule: cloneRule(input.Rule), additions: additions, exclusions: exclusions, exceptions: exceptions}
 	return event, nil
 }
 func NewEvent(ctx context.Context, input EventInput) (Event, error) {
+	return newEvent(ctx, input, contentLocal, EventContent{})
+}
+func NewImportedEvent(ctx context.Context, input ImportedEventInput) (Event, error) {
+	owned, release, err := admissionScope(ctx)
+	if err != nil {
+		return Event{}, err
+	}
+	defer release()
+	ctx = owned
+	raw := EventInput{Span: input.Span, Rule: input.Rule, Additions: input.Additions, Exclusions: input.Exclusions, Exceptions: input.Exceptions}
+	return newEvent(ctx, raw, contentImported, input.Content)
+}
+func newEvent(ctx context.Context, input EventInput, kind eventContentKind, content EventContent) (Event, error) {
 	if err := contextValid(ctx); err != nil {
 		return Event{}, err
 	}
 	if len(input.Additions) > MaxDates || len(input.Exclusions) > MaxDates || len(input.Exceptions) > MaxExceptions || len(input.Summary) > 512 || len(input.Description) > 4096 || len(input.Location) > 512 {
 		return Event{}, failure(CapacityExceeded)
 	}
-	charge := eventBaseCharge + 3*int64(len(input.Summary)+len(input.Description)+len(input.Location)+1024+256) + int64(len(input.Additions)+len(input.Exclusions))*pointCharge + int64(len(input.Exceptions))*exceptionCharge
+	contentBytes := len(input.Summary) + len(input.Description) + len(input.Location)
+	if kind == contentImported {
+		if !content.Valid() {
+			return Event{}, failure(InvalidInput)
+		}
+		contentBytes = content.byteLength()
+	}
+	for _, exception := range input.Exceptions {
+		if exception.kind == ReplaceOccurrence {
+			contentBytes += exception.content.byteLength()
+		}
+	}
+	charge := eventBaseCharge + 3*int64(contentBytes+1024+256) + int64(len(input.Additions)+len(input.Exclusions))*pointCharge + int64(len(input.Exceptions))*exceptionCharge
 	lease, err := images.reserve(charge)
 	if err != nil {
 		return Event{}, err
 	}
 	defer lease.release()
-	event, err := admitEventStructure(input)
+	event, err := admitEventContent(input, kind, content)
 	if err != nil {
 		return Event{}, err
 	}
-	budget := newBudget(ctx)
-	if err := validateEvent(ctx, event, budget); err != nil {
+	budget := zoneBudget(ctx)
+	ctx = withCalendarBudget(ctx, budget)
+	if err = validateEvent(ctx, event, budget); err != nil {
 		return Event{}, err
 	}
 	return event, nil
 }
 func (e Event) Valid() bool {
-	if !e.admitted || !textValid(e.summary, 512, true) || !textValid(e.description, 4096, false) || !textValid(e.location, 512, false) || !e.span.Valid() || !e.rule.validFor(e.span) || len(e.additions) > MaxDates || len(e.exclusions) > MaxDates || len(e.exceptions) > MaxExceptions {
+	if !e.admitted || !e.span.Valid() || !e.rule.validFor(e.span) || len(e.additions) > MaxDates || len(e.exclusions) > MaxDates || len(e.exceptions) > MaxExceptions {
+		return false
+	}
+	switch e.contentKind {
+	case contentLocal:
+		if e.content != (EventContent{}) || !textValid(e.summary, 512, true) || !textValid(e.description, 4096, false) || !textValid(e.location, 512, false) {
+			return false
+		}
+	case contentImported:
+		if !e.content.Valid() || e.summary != "" || e.description != "" || e.location != "" {
+			return false
+		}
+	case contentInvalid:
+		return false
+	default:
 		return false
 	}
 	for _, points := range [][]Point{e.additions, e.exclusions} {
@@ -174,9 +287,27 @@ func (e Event) Valid() bool {
 	}
 	return true
 }
-func (e Event) Summary() string         { return e.summary }
-func (e Event) Description() string     { return e.description }
-func (e Event) Location() string        { return e.location }
+func (e Event) Summary() string {
+	if e.contentKind == contentImported {
+		return e.content.summary.ValueOrEmpty()
+	}
+	return e.summary
+}
+func (e Event) Description() string {
+	if e.contentKind == contentImported {
+		return e.content.description.ValueOrEmpty()
+	}
+	return e.description
+}
+func (e Event) Location() string {
+	if e.contentKind == contentImported {
+		return e.content.location.ValueOrEmpty()
+	}
+	return e.location
+}
+func (e Event) Content() (EventContent, bool) {
+	return e.content, e.contentKind == contentImported && e.Valid()
+}
 func (e Event) Span() Span              { return e.span }
 func (e Event) Rule() Rule              { return cloneRule(e.rule) }
 func (e Event) Additions() []Point      { return slices.Clone(e.additions) }
@@ -190,7 +321,16 @@ func cloneEvent(e Event) Event {
 	return e
 }
 func (e Event) ramCharge() int64 {
-	return eventBaseCharge + 3*int64(len(e.summary)+len(e.description)+len(e.location)+len(e.rule.canonical)+len(e.span.zone.name)+len(TimezoneDataID)) + int64(len(e.additions)+len(e.exclusions))*pointCharge + int64(len(e.exceptions))*exceptionCharge
+	contentBytes := len(e.summary) + len(e.description) + len(e.location)
+	if e.contentKind == contentImported {
+		contentBytes = e.content.byteLength()
+	}
+	for _, exception := range e.exceptions {
+		if exception.kind == ReplaceOccurrence {
+			contentBytes += exception.content.byteLength()
+		}
+	}
+	return eventBaseCharge + 3*int64(contentBytes+len(e.rule.canonical)+len(e.span.zone.name)+len(e.span.zone.DataID())) + int64(len(e.additions)+len(e.exclusions))*pointCharge + int64(len(e.exceptions))*exceptionCharge
 }
 
 type CalendarSnapshot struct {
@@ -198,10 +338,18 @@ type CalendarSnapshot struct {
 	name      string
 	revision  Revision
 	updatedAt time.Time
+	remote    RemoteState
 }
 
 func (s CalendarSnapshot) Valid() bool {
 	if !s.id.Valid() || !s.revision.validFor(s.id, EventUID{}) {
+		return false
+	}
+	if s.id.origin == RemoteICS {
+		if !s.remote.Valid() || s.revision.presence != Present {
+			return false
+		}
+	} else if s.remote != (RemoteState{}) {
 		return false
 	}
 	if s.revision.presence == Absent {
@@ -210,6 +358,9 @@ func (s CalendarSnapshot) Valid() bool {
 	return textValid(s.name, 512, true) && !s.updatedAt.IsZero()
 }
 func (s CalendarSnapshot) ID() CalendarID { return s.id }
+func (s CalendarSnapshot) RemoteState() (RemoteState, bool) {
+	return s.remote, s.Valid() && s.id.origin == RemoteICS
+}
 func (s CalendarSnapshot) Name() (string, bool) {
 	return s.name, s.Valid() && s.revision.presence == Present
 }
