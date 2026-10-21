@@ -58,6 +58,7 @@ func NewCloudAuthorizationOwner(host *Manager, client *CloudClient, expectedPoli
 	if !client.live() {
 		return nil, &CloudError{kind: CloudSessionInactive}
 	}
+	_ = expectedPolicy.AttachObservation(host.observation)
 	return &CloudAuthorizationOwner{host: host, client: client, policy: expectedPolicy, handle: handle, profile: profile, limits: limits}, nil
 }
 func (o *CloudAuthorizationOwner) String() string   { return "[REDACTED CLOUD AUTHORIZATION OWNER]" }

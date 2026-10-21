@@ -19,6 +19,7 @@ import (
 	wire "github.com/damione1/Homeward/gen/home/integrations/v1"
 	"github.com/damione1/Homeward/gen/home/integrations/v1/integrationsv1connect"
 	"github.com/damione1/Homeward/internal/integrations"
+	"github.com/damione1/Homeward/internal/observability"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/netutil"
@@ -39,12 +40,14 @@ const (
 )
 
 type delivery struct {
-	frame     *wire.CommandsResponse
-	result    chan error
-	delivered bool
-	command   integrations.AdmittedCommand
-	ctx       context.Context
-	expires   time.Time
+	observationQueued   bool
+	observationDequeued bool
+	frame               *wire.CommandsResponse
+	result              chan error
+	delivered           bool
+	command             integrations.AdmittedCommand
+	ctx                 context.Context
+	expires             time.Time
 }
 type correlation struct {
 	entity  string
@@ -52,43 +55,49 @@ type correlation struct {
 }
 
 type pilot struct {
-	config        Config
-	mu            sync.Mutex
-	discoverMu    sync.Mutex
-	host          integrations.SessionHost
-	ctx           context.Context
-	active        bool
-	handshaken    bool
-	hostMinor     uint32
-	ready         bool
-	token         string
-	capabilities  map[wire.Capability]bool
-	frameLimit    uint32
-	lastHeartbeat time.Time
-	bindings      map[string]integrations.Binding
-	sources       map[integrations.SourceKey][]byte
-	entityHandles map[string][]byte
-	correlations  map[string]correlation
-	pending       map[string]*delivery
-	queue         chan *delivery
-	streaming     bool
-	streamEver    bool
-	streamReady   chan struct{}
-	transportLost chan struct{}
-	transportOnce sync.Once
-	handshakeDone chan struct{}
-	process       *exec.Cmd
-	waitDone      chan struct{}
-	groupDone     chan struct{}
-	exitErr       error
-	listener      *trackedListener
-	server        *http.Server
-	serveDone     chan struct{}
-	directory     string
-	rpcSlots      chan struct{}
-	rpcWG         sync.WaitGroup
-	rpcDone       chan struct{}
-	rpcOnce       sync.Once
+	observation          *observability.Cells
+	observationInstalled bool
+	observationPending   uint64
+	observationInflight  uint64
+	observationQueued    uint64
+	config               Config
+	journal              *observability.Journal
+	mu                   sync.Mutex
+	discoverMu           sync.Mutex
+	host                 integrations.SessionHost
+	ctx                  context.Context
+	active               bool
+	handshaken           bool
+	hostMinor            uint32
+	ready                bool
+	token                string
+	capabilities         map[wire.Capability]bool
+	frameLimit           uint32
+	lastHeartbeat        time.Time
+	bindings             map[string]integrations.Binding
+	sources              map[integrations.SourceKey][]byte
+	entityHandles        map[string][]byte
+	correlations         map[string]correlation
+	pending              map[string]*delivery
+	queue                chan *delivery
+	streaming            bool
+	streamEver           bool
+	streamReady          chan struct{}
+	transportLost        chan struct{}
+	transportOnce        sync.Once
+	handshakeDone        chan struct{}
+	process              *exec.Cmd
+	waitDone             chan struct{}
+	groupDone            chan struct{}
+	exitErr              error
+	listener             *trackedListener
+	server               *http.Server
+	serveDone            chan struct{}
+	directory            string
+	rpcSlots             chan struct{}
+	rpcWG                sync.WaitGroup
+	rpcDone              chan struct{}
+	rpcOnce              sync.Once
 }
 
 func newPilot(config Config) *pilot {
@@ -159,6 +168,7 @@ func (p *pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 	mux.Handle(path, handler)
 	server := &http.Server{ReadHeaderTimeout: rpcTimeout, IdleTimeout: leaseTimeout,
 		MaxHeaderBytes: 8192,
+		ErrorLog:       p.diagnosticErrorLog(),
 		Handler: h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.ProtoMajor != 2 || !strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
 				http.Error(w, "gRPC required", http.StatusUnsupportedMediaType)
@@ -325,6 +335,7 @@ func (p *pilot) Stop(ctx context.Context) error {
 			return ErrJoinTimeout
 		}
 	}
+	p.releaseWorkerObservation()
 	if directory != "" {
 		_ = os.RemoveAll(directory)
 	}

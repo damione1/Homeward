@@ -314,6 +314,7 @@ func validPublicRoute(kind RouteKind, method RouteMethod, exactPath string, acce
 }
 
 type compiledPublic struct {
+	observation   *observationRuntime
 	authenticator Authenticator
 	authorizer    Authorizer
 	auditor       Auditor

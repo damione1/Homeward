@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/config"
@@ -21,6 +22,7 @@ import (
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/neviweb"
+	"github.com/damione1/Homeward/internal/observability"
 	"github.com/damione1/Homeward/internal/recorder"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
@@ -102,6 +104,10 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	observed, err := newObservationRuntime()
+	if err != nil {
+		return err
+	}
 	servingTransport, err := preparePublicServingTransport(c, publicSettings)
 	if err != nil {
 		return err
@@ -134,16 +140,21 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	if dependencies.workdayClock == nil {
 		dependencies.workdayClock = automationtriggers.RealClock{}
 	}
-	sequence, err := sequencer.New(dependencies.sequenceClock, 16384)
+	sequence, err := sequencer.NewWithObservation(dependencies.sequenceClock, 16384, sequencer.DefaultQueueLimits(), observed.cells)
 	if err != nil {
 		store.Close()
 		return err
 	}
-	recording, err := prepareRecorder(ctx, sequence, store, recorderLimits)
+	if err := sequence.AttachObservationHealth(observed.health); err != nil {
+		store.Close()
+		return err
+	}
+	recording, err := recorder.StartObserved(ctx, sequence, store, recorderLimits, observed.cells, observed.health)
 	if err != nil {
 		store.Close()
 		return err
 	}
+	observed.sequence, observed.recording, observed.store = sequence, recording, store
 	hiloSettings, hiloEnabled := c.HiloSettings()
 	units, err := newRunUnitCatalog(hiloEnabled)
 	if err != nil {
@@ -169,6 +180,10 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		var hasActiveHelpers bool
 		if hasActiveGeneration {
 			activeCandidate, e = activeGeneration.Restore()
+			if e != nil {
+				return closeStoreWithRecorder(store, recording, e)
+			}
+			observed.revision, e = observability.NewActiveRevision(uint64(activeGeneration.Revision().Number()))
 			if e != nil {
 				return closeStoreWithRecorder(store, recording, e)
 			}
@@ -268,6 +283,13 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		// No route has admitted work yet; join this newly created owner before DB.
 		mfaErr := sessions.mfa.close(context.Background())
 		return closeStoreWithRecorder(store, recording, errors.Join(err, mfaErr))
+	}
+	if err := host.AttachObservation(observed.cells, observed.journal); err != nil {
+		return closePreparedRuntime(host, nil, store, err, nil, recording, nil, sessions.mfa)
+	}
+	observed.host, observed.authority = host, sessions.authority
+	if err := host.AttachObservationHealth(observed.health); err != nil {
+		return closePreparedRuntime(host, nil, store, err, nil, recording, nil, sessions.mfa)
 	}
 	if err := host.AttachSecrets(secrets); err != nil {
 		return closePreparedRuntime(host, nil, store, err, nil, recording, nil, sessions.mfa)
@@ -380,12 +402,16 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		scriptServices.templates = reactive.service
 	}
 	runs, err = prepareAutomationRuns(ctx, triggers, plan.AutomationRuns, scriptServices)
+	if err == nil && runs != nil {
+		err = runs.AttachObservation(observed.cells)
+	}
 	if err != nil {
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			historyErr := drainExecutionHistoryAfter(stopCtx, history, triggerDone)
 			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(err, historyErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done())
 		})
 	}
+	observed.runs = runs
 	authorization.freeze()
 	if err := ctx.Err(); err != nil {
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
@@ -428,6 +454,11 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
+	if err := registerObservationRoutes(plan.Public, observed); err != nil {
+		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
+		})
+	}
 	// Preserve prepared owners until composition succeeds; errors return nil
 	// outputs, but cleanup must still drain the original MFA runtime.
 	composedPublic, composedSessions, err := composeSessionsWithCoordinator(plan.Public, store, sessions)
@@ -443,6 +474,8 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
+	observed.public = public
+	public.observation = observed
 	// The one command service must be registered before Supervisor freezes Host.
 	// Jobs borrow it; Supervisor owns its drain. No SQL runs under Host's lock.
 	durableJobs, err := newDurableJobsRuntimeWithCommands(ctx, store, host, sessions, plan.DurableJobs, commands)
@@ -458,6 +491,10 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, durableJobs, triggerDone)
 		})
+	}
+	observed.supervisor = supervisor
+	if dependencies.observeRuntime != nil {
+		dependencies.observeRuntime(observed)
 	}
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
 	if err := supervisor.Start(ctx); err != nil {
@@ -518,12 +555,27 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		triggerDone = triggers.ReaderDone()
 	}
 	runsDone := runs.Done()
+	listenerReady := func(address net.Addr) {
+		if _, err := observed.revision.Wire(); err == nil {
+			projectionReady, err := sequence.ObservationProjectionReady()
+			if err == nil && projectionReady && host.ObservationCoreOpen() {
+				_ = observed.health.PublishReady(observed.revision)
+			} else {
+				_ = observed.health.PublishCoreUnavailable(obs.CoreCause_CORE_CAUSE_REGISTRY_UNAVAILABLE)
+			}
+		}
+		observed.emit(obs.LogCode_LOG_CODE_PROCESS_READY, obs.LogLevel_LOG_LEVEL_INFO)
+		if ready != nil {
+			ready(address)
+		}
+	}
 	watchStop := make(chan struct{})
 	watchDone := make(chan struct{})
 	go func() {
 		defer close(watchDone)
 		select {
 		case <-ctx.Done():
+			_ = observed.health.PublishDraining()
 			durableJobs.CloseAdmissions()
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
@@ -532,6 +584,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			runs.CloseAdmissions()
 			lifecycleCancel()
 		case <-reactiveDone:
+			_ = observed.health.PublishCoreUnavailable(obs.CoreCause_CORE_CAUSE_OWNERS_NOT_STARTED)
 			durableJobs.CloseAdmissions()
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
@@ -539,6 +592,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			runs.CloseAdmissions()
 			lifecycleCancel()
 		case <-triggerDone:
+			_ = observed.health.PublishCoreUnavailable(obs.CoreCause_CORE_CAUSE_OWNERS_NOT_STARTED)
 			durableJobs.CloseAdmissions()
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
@@ -547,6 +601,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			runs.CloseAdmissions()
 			lifecycleCancel()
 		case <-runsDone:
+			_ = observed.health.PublishCoreUnavailable(obs.CoreCause_CORE_CAUSE_OWNERS_NOT_STARTED)
 			durableJobs.CloseAdmissions()
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
@@ -557,12 +612,13 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		case <-watchStop:
 		}
 	}()
-	operator, operatorStartErr := startOperatorListener(lifecycleCtx, dataDir, store, sessions)
+	operator, operatorStartErr := startOperatorListenerObserved(lifecycleCtx, dataDir, store, sessions, observed.journal)
 	publicDone := closedPublicDone()
 	listenerErr := operatorStartErr
 	if operatorStartErr == nil {
-		publicDone, listenerErr = runPublicListenerPrepared(lifecycleCtx, c, listen, ready, public, publicSettings, servingTransport)
+		publicDone, listenerErr = runPublicListenerPrepared(lifecycleCtx, c, listen, listenerReady, public, publicSettings, servingTransport)
 	}
+	_ = observed.health.PublishDraining()
 	durableJobs.CloseAdmissions()
 	_ = host.CloseAdmissions()
 	authorization.CloseAdmissions()
@@ -681,6 +737,9 @@ func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, 
 		policy, e := integrations.NewCloudPolicy(admitted, []integrations.CloudAccountBinding{accountBinding}, integrations.RealCloudClock{}, integrations.RealCloudTimer{}, integrations.RandomJitter{})
 		if e != nil {
 			return RuntimePlan{}, e
+		}
+		if cells, err := sequence.ObservationCells(); err == nil {
+			_ = policy.AttachObservation(cells)
 		}
 		factory, e := neviweb.NewPilotFactory(settings, repository, decision, cloud[0].catalog, policy, quota)
 		if e != nil {

@@ -235,6 +235,7 @@ func (c *Controller) cancelScript(entry *runEntry) {
 		}
 	}
 	if removed {
+		c.observeTerminalLocked(entry, DecisionCancelled)
 		c.live--
 		c.recordLocked(Trace{Decision: DecisionCancelled, Script: entry.run.trigger.script, RunID: entry.run.id, Generation: entry.run.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
 	}

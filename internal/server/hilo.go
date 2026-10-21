@@ -69,6 +69,9 @@ func newHiloComposition(settings hilo.Settings, store *storage.Store, sequence *
 	if err != nil {
 		return nil, err
 	}
+	if cells, err := sequence.ObservationCells(); err == nil {
+		_ = policy.AttachObservation(cells)
+	}
 	leases, err := hilo.NewLeaseRegistry(sequence, instance, settings.LeaseWindow())
 	if err != nil {
 		return nil, err

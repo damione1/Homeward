@@ -16,9 +16,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/damione1/Homeward/contracts"
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/observability"
 	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/proto"
 )
@@ -417,6 +419,9 @@ type retiringSource struct {
 }
 
 type Manager struct {
+	observationHealth          *observability.HealthCell
+	observation                *observability.Cells
+	journal                    *observability.Journal
 	mu                         sync.Mutex
 	admission                  admissionPhase
 	authority                  IdentityAuthority
@@ -487,7 +492,17 @@ func NewHost(authority IdentityAuthority, sink Sink, catalog *contracts.Capabili
 	if nilInterface(authority) || nilInterface(sink) || !catalog.Ready() {
 		return nil, ErrInvalidInput
 	}
-	return &Manager{authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), lightProfiles: make(map[domain.EntityID]*lightEncodingSnapshot), fanProfiles: make(map[domain.EntityID]*fanProfileSnapshot), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: newActionTracker(realActionClock{})}, nil
+	observationEpoch, err := observability.NewProcessObservationEpoch()
+	if err != nil {
+		return nil, err
+	}
+	cells, err := observability.NewCells(observationEpoch)
+	if err != nil {
+		return nil, err
+	}
+	tracker := newActionTracker(realActionClock{})
+	tracker.observation = cells
+	return &Manager{observation: cells, authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), lightProfiles: make(map[domain.EntityID]*lightEncodingSnapshot), fanProfiles: make(map[domain.EntityID]*fanProfileSnapshot), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: tracker}, nil
 }
 
 // CloseAdmissions linearizes shutdown with both command-policy claims and the
@@ -498,6 +513,9 @@ func (h *Manager) CloseAdmissions() error {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.observationHealth != nil {
+		_ = h.observationHealth.PublishCoreUnavailable(obs.CoreCause_CORE_CAUSE_CONTROL_ADMISSIONS_CLOSED)
+	}
 	h.admission = admissionClosed
 	return nil
 }

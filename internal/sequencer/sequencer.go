@@ -17,6 +17,7 @@ import (
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
+	"github.com/damione1/Homeward/internal/observability"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -186,25 +187,27 @@ type Snapshot struct {
 }
 
 type Sequencer struct {
-	mu             sync.Mutex
-	clock          Clock
-	started        time.Time
-	lastTick       time.Duration
-	epoch          [16]byte
-	seq            uint64
-	journal        []Entry
-	journalSizes   []int
-	journalBytes   int
-	count          int
-	states         map[domain.EntityID]domain.ObservedState
-	health         map[domain.IntegrationInstanceID]integrations.HealthReport
-	registry       map[domain.EntityID]integrations.RegistryRecord
-	capabilities   map[domain.EntityID][]*wireregistry.CapabilityDescription
-	commandRoutes  map[commandRouteSlot]map[domain.EntityID]struct{}
-	commandAliases map[domain.HAAlias]domain.EntityID
-	registryState  registryProjectionState
-	limits         QueueLimits
-	subs           map[*Subscription]struct{}
+	observationHealth *observability.HealthCell
+	observation       *observability.Cells
+	mu                sync.Mutex
+	clock             Clock
+	started           time.Time
+	lastTick          time.Duration
+	epoch             [16]byte
+	seq               uint64
+	journal           []Entry
+	journalSizes      []int
+	journalBytes      int
+	count             int
+	states            map[domain.EntityID]domain.ObservedState
+	health            map[domain.IntegrationInstanceID]integrations.HealthReport
+	registry          map[domain.EntityID]integrations.RegistryRecord
+	capabilities      map[domain.EntityID][]*wireregistry.CapabilityDescription
+	commandRoutes     map[commandRouteSlot]map[domain.EntityID]struct{}
+	commandAliases    map[domain.HAAlias]domain.EntityID
+	registryState     registryProjectionState
+	limits            QueueLimits
+	subs              map[*Subscription]struct{}
 }
 
 func New(clock Clock, journalCapacity int) (*Sequencer, error) {
@@ -212,6 +215,21 @@ func New(clock Clock, journalCapacity int) (*Sequencer, error) {
 }
 
 func NewWithLimits(clock Clock, journalCapacity int, limits QueueLimits) (*Sequencer, error) {
+	epoch, err := observability.NewProcessObservationEpoch()
+	if err != nil {
+		return nil, err
+	}
+	cells, err := observability.NewCells(epoch)
+	if err != nil {
+		return nil, err
+	}
+	return NewWithObservation(clock, journalCapacity, limits, cells)
+}
+
+func NewWithObservation(clock Clock, journalCapacity int, limits QueueLimits, cells *observability.Cells) (*Sequencer, error) {
+	if _, err := cells.Epoch(); err != nil {
+		return nil, ErrInvalidInput
+	}
 	if clock == nil || journalCapacity < 1 || journalCapacity > MaxJournalCapacity || !limits.valid() {
 		return nil, ErrInvalidInput
 	}
@@ -222,7 +240,7 @@ func NewWithLimits(clock Clock, journalCapacity int, limits QueueLimits) (*Seque
 			return nil, ErrInvalidInput
 		}
 	}
-	s := &Sequencer{clock: clock, started: time.Now(), journal: make([]Entry, journalCapacity), journalSizes: make([]int, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), registry: make(map[domain.EntityID]integrations.RegistryRecord), capabilities: make(map[domain.EntityID][]*wireregistry.CapabilityDescription), commandRoutes: make(map[commandRouteSlot]map[domain.EntityID]struct{}), commandAliases: make(map[domain.HAAlias]domain.EntityID), limits: limits, subs: make(map[*Subscription]struct{})}
+	s := &Sequencer{observation: cells, clock: clock, started: time.Now(), journal: make([]Entry, journalCapacity), journalSizes: make([]int, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), registry: make(map[domain.EntityID]integrations.RegistryRecord), capabilities: make(map[domain.EntityID][]*wireregistry.CapabilityDescription), commandRoutes: make(map[commandRouteSlot]map[domain.EntityID]struct{}), commandAliases: make(map[domain.HAAlias]domain.EntityID), limits: limits, subs: make(map[*Subscription]struct{})}
 	if _, err := rand.Read(s.epoch[:]); err != nil {
 		return nil, err
 	}

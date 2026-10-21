@@ -635,7 +635,8 @@ func TestNHA188RingBoundsEvictionsAndMeasuredReservations(t *testing.T) {
 	}
 	// Keep the exact pre-188 layouts as the accounting baseline. NHA-186 adds
 	// emission time, immutable image provenance, ancestry and a sink port;
-	// the decision ordinal must still fit in the original Trace padding.
+	// NHA-056 adds process cells and a Controller handle. The decision ordinal
+	// must still fit in the original Trace padding.
 	type originalTraceLayout struct {
 		Decision    Decision
 		Automation  string
@@ -669,12 +670,13 @@ func TestNHA188RingBoundsEvictionsAndMeasuredReservations(t *testing.T) {
 	}
 	historyTraceBytes := unsafe.Sizeof(Trace{}.At) + unsafe.Sizeof(Trace{}.Provenance) + unsafe.Sizeof(Trace{}.ParentID)
 	historyControllerBytes := unsafe.Sizeof(controller.sink)
+	observationControllerBytes := unsafe.Sizeof(controller.observation) + unsafe.Sizeof(controller.observationHandle)
 	expectedTraceBytes := unsafe.Sizeof(originalTraceLayout{}) + historyTraceBytes
-	expectedControllerBytes := unsafe.Sizeof(originalControllerLayout{}) + unsafe.Sizeof(controller.traceOrdinal) + historyControllerBytes
+	expectedControllerBytes := unsafe.Sizeof(originalControllerLayout{}) + unsafe.Sizeof(controller.traceOrdinal) + historyControllerBytes + observationControllerBytes
 	if unsafe.Sizeof(Trace{}) != expectedTraceBytes || unsafe.Sizeof(Controller{}) != expectedControllerBytes {
-		t.Fatalf("trace layout grew beyond explicit history fields: Trace=%d want%d Controller=%d want%d", unsafe.Sizeof(Trace{}), expectedTraceBytes, unsafe.Sizeof(Controller{}), expectedControllerBytes)
+		t.Fatalf("trace layout grew beyond explicit history/observation fields: Trace=%d want%d Controller=%d want%d", unsafe.Sizeof(Trace{}), expectedTraceBytes, unsafe.Sizeof(Controller{}), expectedControllerBytes)
 	}
-	t.Logf("NHA186 measured fields: time=%d provenance=%d parent=%d Trace=%d/%d; sink=%d ordinal=%d Controller=%d/%d", unsafe.Sizeof(Trace{}.At), unsafe.Sizeof(Trace{}.Provenance), unsafe.Sizeof(Trace{}.ParentID), unsafe.Sizeof(Trace{}), expectedTraceBytes, historyControllerBytes, unsafe.Sizeof(controller.traceOrdinal), unsafe.Sizeof(Controller{}), expectedControllerBytes)
+	t.Logf("NHA186/056 measured fields: time=%d provenance=%d parent=%d Trace=%d/%d; sink=%d observation=%d ordinal=%d Controller=%d/%d", unsafe.Sizeof(Trace{}.At), unsafe.Sizeof(Trace{}.Provenance), unsafe.Sizeof(Trace{}.ParentID), unsafe.Sizeof(Trace{}), expectedTraceBytes, historyControllerBytes, observationControllerBytes, unsafe.Sizeof(controller.traceOrdinal), unsafe.Sizeof(Controller{}), expectedControllerBytes)
 	// The trace ring retains bounded cloned errors. Sources and identity
 	// strings still reference their existing admitted owners; this patch does
 	// not add any identity/payload copy. Error allocation gets allocator margin.

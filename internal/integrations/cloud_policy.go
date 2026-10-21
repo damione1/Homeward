@@ -7,7 +7,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/observability"
 	"github.com/damione1/Homeward/internal/storage"
 )
 
@@ -238,6 +240,7 @@ func (w realCloudWait) C() <-chan time.Time               { return w.timer.C }
 func (w realCloudWait) Stop() bool                        { return w.timer.Stop() }
 
 type CloudPolicy struct {
+	observation  *observability.Cells
 	mu           sync.Mutex
 	limits       CloudLimits
 	streamLimits CloudStreamLimits
@@ -289,10 +292,12 @@ func (p *CloudPolicy) scope(instance domain.IntegrationInstanceID) (cloudScopeKe
 	state := p.states[key]
 	if state == nil {
 		if len(p.states) >= 1024 {
+			_ = p.observation.AddQueueRejected(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 1)
 			return cloudScopeKey{}, nil, &CloudError{kind: CloudQueueFull}
 		}
 		state = &cloudScopeState{changed: make(chan struct{})}
 		p.states[key] = state
+		_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 1, 0, int64(p.limits.value.MaxQueued), 0, 0)
 	}
 	return key, state, nil
 }
@@ -313,6 +318,7 @@ func (p *CloudPolicy) acquire(ctx context.Context, sessionDone <-chan struct{}, 
 		if err := ctx.Err(); err != nil {
 			if queued {
 				state.queued--
+				_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 0, -1, 0, 0, 0)
 			}
 			p.mu.Unlock()
 			return nil, &CloudError{kind: CloudBudgetExhausted}
@@ -321,6 +327,7 @@ func (p *CloudPolicy) acquire(ctx context.Context, sessionDone <-chan struct{}, 
 		case <-sessionDone:
 			if queued {
 				state.queued--
+				_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 0, -1, 0, 0, 0)
 			}
 			p.mu.Unlock()
 			return nil, &CloudError{kind: CloudSessionInactive}
@@ -330,26 +337,32 @@ func (p *CloudPolicy) acquire(ctx context.Context, sessionDone <-chan struct{}, 
 		if state.inFlight < p.limits.value.MaxInFlight && !now.Before(state.notBefore) {
 			if queued {
 				state.queued--
+				_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 0, -1, 0, 0, 0)
 			}
 			state.inFlight++
+			_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 0, 0, 0, 1, 0)
 			p.mu.Unlock()
 			return func() {
 				p.mu.Lock()
 				state.inFlight--
+				_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 0, 0, 0, -1, 0)
 				p.signal(state)
 				p.mu.Unlock()
 			}, nil
 		}
 		if !queued {
 			if state.queued >= p.limits.value.MaxQueued {
+				_ = p.observation.AddQueueRejected(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 1)
 				p.mu.Unlock()
 				return nil, &CloudError{kind: CloudQueueFull}
 			}
 			state.queued++
+			_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 0, 1, 0, 0, 0)
 			queued = true
 		}
 		if !now.Before(queueUntil) {
 			state.queued--
+			_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 0, -1, 0, 0, 0)
 			p.mu.Unlock()
 			return nil, &CloudError{kind: CloudQuotaDeferred, retryAt: state.notBefore}
 		}
@@ -363,6 +376,7 @@ func (p *CloudPolicy) acquire(ctx context.Context, sessionDone <-chan struct{}, 
 		if nilInterface(timer) || timer.C() == nil {
 			p.mu.Lock()
 			state.queued--
+			_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_CLOUD_REQUESTS, 0, -1, 0, 0, 0)
 			p.mu.Unlock()
 			return nil, &CloudError{kind: CloudInvalid}
 		}

@@ -20,6 +20,7 @@ import (
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
+	"github.com/damione1/Homeward/internal/observability"
 )
 
 type discoveryRegistry interface {
@@ -120,6 +121,7 @@ type DiscoveryMapper struct {
 	transitionLights map[integrations.SourceKey]transitionProfile
 	repository       discoveryRegistry
 	logger           *slog.Logger
+	journal          *observability.Journal
 	documents        map[Topic][]*componentRuntime
 	documentDigests  map[Topic][sha256.Size]byte
 	snapshots        map[Topic]cachedSnapshot
@@ -215,6 +217,13 @@ func (m *DiscoveryMapper) DiagnosticRecords() []DiscoveryDiagnosticRecord {
 }
 
 func (m *DiscoveryMapper) diagnose(code DiscoveryDiagnostic, topic Topic, component string) {
+	if m == nil {
+		return
+	}
+	safeCode, err := discoveryLogCode(code)
+	if err != nil {
+		return
+	}
 	if len(component) > 128 || !utf8.ValidString(component) {
 		component = ""
 	}
@@ -229,8 +238,10 @@ func (m *DiscoveryMapper) diagnose(code DiscoveryDiagnostic, topic Topic, compon
 		m.diagnostics = m.diagnostics[:127]
 	}
 	m.diagnostics = append(m.diagnostics, DiscoveryDiagnosticRecord{Code: code, Topic: topic, Component: component})
-	topicText, _ := topic.Value()
-	m.logger.Warn("MQTT discovery diagnostic", "code", code.String(), "topic", topicText, "component", component)
+	if m.logger != nil {
+		m.logger.Warn("MQTT discovery diagnostic", "code", code.String())
+	}
+	m.emitDiscoveryDiagnostic(safeCode)
 }
 
 func (m *DiscoveryMapper) rebuild() error {

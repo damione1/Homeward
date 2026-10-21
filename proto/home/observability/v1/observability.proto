@@ -1,0 +1,1062 @@
+syntax = "proto3";
+package home.observability.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "home/auth/v1/auth.proto";
+import "home/integrations/v1/host.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/observability/v1;observabilityv1";
+
+// These are read projections, never command authority or an event bus. Enum
+// zero, unknown operational enums, absent required oneofs, and unknown input
+// fields are rejected at admission. Generated codecs retain wire unknowns.
+// No message admits a provider error, payload, arbitrary attribute map, device
+// name, MQTT topic, URL, credential, command fingerprint, or command response.
+
+// A process-local, nonzero 128-bit identity. It changes only on process restart,
+// independently of configuration, subscriptions, pilots, and Controllers.
+message ProcessObservationEpoch {
+  bytes value = 1;
+}
+
+// A source admission position, not a time, metric label, or process epoch.
+// epoch is exactly 16 nonzero bytes; sequence zero is a valid initial boundary.
+// Existing sequencer.Cursor and storage.RecorderEpoch admit source identities.
+message AdmissionPosition {
+  bytes epoch = 1;
+  uint64 sequence = 2;
+}
+
+// A capability-free identity bound to one real Controller and this process.
+// Exactly 32 bytes: process epoch and an independent nonzero 128-bit owner ID.
+// A causal configuration-generation change does not replace this handle.
+message ControllerHandle {
+  bytes value = 1;
+}
+
+enum ReadUnavailableReason {
+  READ_UNAVAILABLE_REASON_UNSPECIFIED = 0;
+  READ_UNAVAILABLE_REASON_NOT_OBSERVED = 1;
+  READ_UNAVAILABLE_REASON_PRODUCER_STOPPED = 2;
+  READ_UNAVAILABLE_REASON_INTEGRITY = 3;
+  READ_UNAVAILABLE_REASON_CORE_UNAVAILABLE = 4;
+  READ_UNAVAILABLE_REASON_STORAGE_UNAVAILABLE = 5;
+  READ_UNAVAILABLE_REASON_AUTHORITY_UNAVAILABLE = 6;
+  READ_UNAVAILABLE_REASON_TIME_BUDGET = 7;
+  READ_UNAVAILABLE_REASON_COMPLETION_UNKNOWN = 8;
+}
+
+message ReadUnavailable {
+  ReadUnavailableReason reason = 1;
+}
+
+// Stable errors contain schema metadata only, never rejected input or a cause.
+enum ObservabilityErrorCode {
+  OBSERVABILITY_ERROR_CODE_UNSPECIFIED = 0;
+  OBSERVABILITY_ERROR_CODE_INVALID_ARGUMENT = 1;
+  OBSERVABILITY_ERROR_CODE_DENIED = 2;
+  OBSERVABILITY_ERROR_CODE_UNAUTHENTICATED = 3;
+  OBSERVABILITY_ERROR_CODE_UNAVAILABLE = 4;
+  OBSERVABILITY_ERROR_CODE_CAPACITY = 5;
+  OBSERVABILITY_ERROR_CODE_STALE_CURSOR = 6;
+  OBSERVABILITY_ERROR_CODE_CLOSED = 7;
+  OBSERVABILITY_ERROR_CODE_INTEGRITY = 8;
+  OBSERVABILITY_ERROR_CODE_DEADLINE_EXCEEDED = 9;
+}
+
+enum ObservabilityField {
+  OBSERVABILITY_FIELD_UNSPECIFIED = 0;
+  OBSERVABILITY_FIELD_NONE = 1;
+  OBSERVABILITY_FIELD_PAGE_SIZE = 2;
+  OBSERVABILITY_FIELD_PAGE_TOKEN = 3;
+  OBSERVABILITY_FIELD_AUDIT_SOURCE = 4;
+  OBSERVABILITY_FIELD_INTEGRATION_INSTANCE_ID = 5;
+  OBSERVABILITY_FIELD_CONTROLLER_HANDLE = 6;
+  OBSERVABILITY_FIELD_RUN_ID = 7;
+  OBSERVABILITY_FIELD_COVERAGE_FROM = 8;
+  OBSERVABILITY_FIELD_COVERAGE_THROUGH = 9;
+  OBSERVABILITY_FIELD_CODE = 10;
+  OBSERVABILITY_FIELD_LEVEL = 11;
+  OBSERVABILITY_FIELD_COMPONENT = 12;
+  OBSERVABILITY_FIELD_OCCURRED_AT = 13;
+  OBSERVABILITY_FIELD_AUTHOR = 14;
+  OBSERVABILITY_FIELD_METRICS = 15;
+  OBSERVABILITY_FIELD_HEALTH = 16;
+  OBSERVABILITY_FIELD_COUNTER = 17;
+  OBSERVABILITY_FIELD_QUEUE_CLASS = 18;
+  OBSERVABILITY_FIELD_GAP_REASON = 19;
+  OBSERVABILITY_FIELD_CAPTURE = 20;
+  OBSERVABILITY_FIELD_BINDING = 21;
+  OBSERVABILITY_FIELD_PROCESS_EPOCH = 22;
+  OBSERVABILITY_FIELD_REVISION = 23;
+}
+
+message ObservabilityError {
+  ObservabilityErrorCode code = 1;
+  ObservabilityField field = 2;
+}
+
+enum Liveness {
+  LIVENESS_UNSPECIFIED = 0;
+  // Processing this read proves only the process is live at this cut.
+  LIVENESS_LIVE = 1;
+}
+
+enum ServerReadiness {
+  SERVER_READINESS_UNSPECIFIED = 0;
+  SERVER_READINESS_STARTING = 1;
+  SERVER_READINESS_READY = 2;
+  SERVER_READINESS_DRAINING = 3;
+  SERVER_READINESS_CORE_UNAVAILABLE = 4;
+}
+
+enum CoreCause {
+  CORE_CAUSE_UNSPECIFIED = 0;
+  CORE_CAUSE_GENERATION_NOT_LOADED = 1;
+  CORE_CAUSE_REGISTRY_UNAVAILABLE = 2;
+  CORE_CAUSE_CONTROL_ADMISSIONS_CLOSED = 3;
+  CORE_CAUSE_OWNERS_NOT_STARTED = 4;
+  CORE_CAUSE_LISTENER_NOT_READY = 5;
+  CORE_CAUSE_SHUTTING_DOWN = 6;
+}
+
+message ActiveRevision {
+  // An actually admitted active revision, in 1..INT64_MAX. Never invented.
+  uint64 value = 1;
+}
+
+message GenerationPresence {
+  oneof result {
+    ActiveRevision present = 1;
+    google.protobuf.Empty not_loaded = 2;
+  }
+}
+
+enum DurableAvailability {
+  DURABLE_AVAILABILITY_UNSPECIFIED = 0;
+  DURABLE_AVAILABILITY_AVAILABLE = 1;
+  DURABLE_AVAILABILITY_DEGRADED = 2;
+  DURABLE_AVAILABILITY_UNAVAILABLE = 3;
+  DURABLE_AVAILABILITY_NOT_CONFIGURED = 4;
+  DURABLE_AVAILABILITY_UNKNOWN = 5;
+}
+
+message DurableHealth {
+  DurableAvailability availability = 1;
+  // UNKNOWN requires not_observed. All other values require the UTC instant of
+  // a real admitted local fact. This is not a permanent database probe.
+  oneof evidence {
+    google.protobuf.Timestamp observed_at = 2;
+    google.protobuf.Empty not_observed = 3;
+  }
+}
+
+enum PilotPhase {
+  PILOT_PHASE_UNSPECIFIED = 0;
+  PILOT_PHASE_STARTING = 1;
+  PILOT_PHASE_RUNNING = 2;
+  PILOT_PHASE_RETRYING = 3;
+  PILOT_PHASE_DEGRADED = 4;
+  PILOT_PHASE_STOPPED = 5;
+}
+
+message PilotPhaseCount {
+  PilotPhase phase = 1;
+  uint64 instances = 2;
+}
+
+enum RecorderPhase {
+  RECORDER_PHASE_UNSPECIFIED = 0;
+  RECORDER_PHASE_RUNNING = 1;
+  RECORDER_PHASE_WRITING = 2;
+  RECORDER_PHASE_BACKOFF = 3;
+  RECORDER_PHASE_STOPPING = 4;
+  RECORDER_PHASE_FAILED = 5;
+  RECORDER_PHASE_STOPPED = 6;
+}
+
+enum RecorderHealthState {
+  RECORDER_HEALTH_STATE_UNSPECIFIED = 0;
+  RECORDER_HEALTH_STATE_OPERATING = 1;
+  RECORDER_HEALTH_STATE_DEGRADED = 2;
+  RECORDER_HEALTH_STATE_FAILED = 3;
+}
+
+message RecorderHealthFact {
+  RecorderPhase phase = 1;
+  RecorderHealthState state = 2;
+  google.protobuf.Timestamp observed_at = 3;
+}
+
+message RecorderHealth {
+  oneof result {
+    RecorderHealthFact observed = 1;
+    google.protobuf.Empty not_installed = 2;
+    ReadUnavailable unavailable = 3;
+  }
+}
+
+message ServerHealth {
+  ServerReadiness readiness = 1;
+  GenerationPresence generation = 2;
+  // At most six distinct known causes; READY requires no causes and a present
+  // generation, open core admissions/owners/projection, and the ready listener.
+  repeated CoreCause causes = 3;
+}
+
+message HealthSnapshot {
+  ProcessObservationEpoch process_epoch = 1;
+  Liveness liveness = 2;
+  ServerHealth server = 3;
+  DurableHealth durable = 4;
+  RecorderHealth recorder = 5;
+  // Exactly one entry per known nonzero phase, not a metric per integration.
+  repeated PilotPhaseCount pilots = 6;
+}
+
+message GetHealthRequest {}
+message GetHealthResponse {
+  // Serialized response at most 16 KiB. External integration health is not a
+  // cause of global unready; durable failure can coexist with core READY.
+  HealthSnapshot health = 1;
+}
+
+message GetIntegrationHealthRequest {
+  // An open domain.IntegrationInstanceID, bounded to 256 UTF-8 bytes here.
+  string integration_instance_id = 1;
+}
+
+message IntegrationReport {
+  home.integrations.v1.HealthStatus status = 1;
+  // The source's private detail is deliberately absent from the schema.
+  oneof admission_time {
+    google.protobuf.Timestamp admitted_at = 2;
+    google.protobuf.Empty not_recorded = 3;
+  }
+}
+
+message IntegrationReportPresence {
+  oneof result {
+    IntegrationReport present = 1;
+    google.protobuf.Empty no_report = 2;
+  }
+}
+
+message SupervisedIntegration {
+  PilotPhase phase = 1;
+  uint64 attempts = 2;
+  uint64 tasks = 3;
+}
+
+message IntegrationSupervision {
+  oneof result {
+    SupervisedIntegration supervised = 1;
+    google.protobuf.Empty not_supervised = 2;
+  }
+}
+
+message GetIntegrationHealthResponse {
+  // Serialized response at most 8 KiB. NoReport is unknown, never Ready;
+  // Running is a lifecycle phase, never inferred to be a health report.
+  IntegrationReportPresence report = 1;
+  IntegrationSupervision supervision = 2;
+}
+
+// The following six messages express measurement presence without disguising
+// not-installed, not-measured, or unavailable as numeric zero.
+message SaturatedCounter {
+  // Must equal UINT64_MAX. Reaching that value exactly is still an exact
+  // counter; only a subsequent attempted overflow produces this variant.
+  uint64 value = 1;
+}
+
+message CounterMeasurement {
+  oneof result {
+    uint64 exact = 1;
+    SaturatedCounter saturated = 2;
+    google.protobuf.Empty not_measured = 3;
+    ReadUnavailable unavailable = 4;
+  }
+}
+
+message GaugeMeasurement {
+  oneof result {
+    uint64 value = 1;
+    google.protobuf.Empty not_measured = 2;
+    ReadUnavailable unavailable = 3;
+  }
+}
+
+message PositionMeasurement {
+  oneof result {
+    AdmissionPosition value = 1;
+    ReadUnavailable unavailable = 2;
+  }
+}
+
+message LagMeasurement {
+  oneof result {
+    // Source admission positions, never milliseconds or lost-event counts.
+    uint64 same_epoch_positions = 1;
+    google.protobuf.Empty invalidated = 2;
+    google.protobuf.Empty epoch_mismatch = 3;
+    ReadUnavailable unavailable = 4;
+  }
+}
+
+message KnownLost {
+  oneof result {
+    // A strictly positive measured lower bound; never an interval's width.
+    uint64 lower_bound = 1;
+    google.protobuf.Empty not_known = 2;
+  }
+}
+
+enum QueueClass {
+  QUEUE_CLASS_UNSPECIFIED = 0;
+  QUEUE_CLASS_UI = 1;
+  QUEUE_CLASS_EDGE = 2;
+  QUEUE_CLASS_RECORDER = 3;
+  QUEUE_CLASS_VIEW = 4;
+  QUEUE_CLASS_AUTOMATION_PENDING = 5;
+  QUEUE_CLASS_SCRIPT_PENDING = 6;
+  QUEUE_CLASS_MQTT_INBOUND = 7;
+  QUEUE_CLASS_WORKER_COMMANDS = 8;
+  QUEUE_CLASS_CLOUD_REQUESTS = 9;
+}
+
+message InstalledQueueMetrics {
+  // Nine common numeric slots per class, plus worker in-flight/pending and
+  // cloud in-flight only. Every field is
+  // present; an inapplicable slot uses not_measured. Bytes are only reported
+  // when actually accounted by the owner. No IDs, URIs, or error labels.
+  GaugeMeasurement active_queues = 1;
+  GaugeMeasurement queued_entries = 2;
+  GaugeMeasurement capacity_entries = 3;
+  CounterMeasurement rejected_total = 4;
+  CounterMeasurement lost_deliveries_total = 5;
+  CounterMeasurement coalesced_total = 6;
+  GaugeMeasurement degraded_queues = 7;
+  GaugeMeasurement queued_accounted_bytes = 8;
+  GaugeMeasurement capacity_accounted_bytes = 9;
+  // Applicable only to WorkerCommands and CloudRequests; otherwise NotMeasured.
+  GaugeMeasurement in_flight_entries = 10;
+  // Applicable only to WorkerCommands; includes queued and handed-off commands
+  // still admitted as pending, independently of stale cancelled channel items.
+  GaugeMeasurement pending_entries = 11;
+}
+
+message QueueAggregate {
+  QueueClass queue_class = 1;
+  oneof result {
+    InstalledQueueMetrics installed = 2;
+    google.protobuf.Empty not_installed = 3;
+    ReadUnavailable unavailable = 4;
+  }
+}
+
+message QueueLag {
+  // Only UI, Edge, Recorder, and View, once each. If any member is invalidated,
+  // the class is invalidated instead of reporting another member's healthy max.
+  QueueClass queue_class = 1;
+  oneof result {
+    LagMeasurement installed = 2;
+    google.protobuf.Empty not_installed = 3;
+    ReadUnavailable unavailable = 4;
+  }
+}
+
+enum GapReason {
+  GAP_REASON_UNSPECIFIED = 0;
+  GAP_REASON_OVERFLOW = 1;
+  GAP_REASON_RECONCILIATION = 2;
+  GAP_REASON_ABANDONED = 3;
+}
+
+message CommittedGapMetrics {
+  GapReason reason = 1;
+  CounterMeasurement rows_total = 2;
+  CounterMeasurement known_lost_lower_bound_total = 3;
+  CounterMeasurement rows_without_known_count_total = 4;
+}
+
+message ActiveCoverageInterval {
+  // A volatile at-risk interval, not a committed historical gap.
+  AdmissionPosition from = 1;
+  AdmissionPosition through = 2;
+  KnownLost known_lost = 3;
+}
+
+message ActiveCoverage {
+  oneof result {
+    ActiveCoverageInterval at_risk = 1;
+    google.protobuf.Empty no_active_risk = 2;
+    ReadUnavailable unavailable = 3;
+  }
+}
+
+message InstalledRecorderMetrics {
+  // Eleven numeric slots. Positions carry source epoch context, not labels.
+  GaugeMeasurement queued_bytes = 1;
+  GaugeMeasurement pending_bytes = 2;
+  GaugeMeasurement total_capacity_bytes = 3;
+  GaugeMeasurement queue_capacity_bytes = 4;
+  GaugeMeasurement queued_entries = 5;
+  CounterMeasurement retries_total = 6;
+  CounterMeasurement lost_entries_total = 7;
+  CounterMeasurement policy_excluded_total = 8;
+  PositionMeasurement checkpoint = 9;
+  PositionMeasurement tail = 10;
+  LagMeasurement recorder_lag_positions = 11;
+  // Three reasons, three cumulative counters each. Count only confirmed
+  // runtime commits, never retries, historical scans, or ActiveCoverage.
+  repeated CommittedGapMetrics committed_gaps = 12;
+  ActiveCoverage active_coverage = 13;
+}
+
+message RecorderMetrics {
+  oneof result {
+    InstalledRecorderMetrics installed = 1;
+    google.protobuf.Empty not_installed = 2;
+    ReadUnavailable unavailable = 3;
+  }
+}
+
+enum AttemptLedger {
+  ATTEMPT_LEDGER_UNSPECIFIED = 0;
+  ATTEMPT_LEDGER_VOLATILE = 1;
+  ATTEMPT_LEDGER_DURABLE = 2;
+}
+
+message FirstAttemptMetrics {
+  AttemptLedger ledger = 1;
+  CounterMeasurement indeterminate_total = 2;
+}
+
+message ActionMetrics {
+  // These are three distinct, nonadditive populations: live progression,
+  // responses to first attempts, and old dispatching rows recovered durably.
+  CounterMeasurement progress_indeterminate_total = 1;
+  // Exactly Volatile and Durable once each. Replays do not increment.
+  repeated FirstAttemptMetrics first_attempts = 2;
+  CounterMeasurement durable_recovered_indeterminate_total = 3;
+}
+
+enum RunKind {
+  RUN_KIND_UNSPECIFIED = 0;
+  RUN_KIND_AUTOMATION = 1;
+  RUN_KIND_SCRIPT = 2;
+}
+
+message RunKindMetrics {
+  RunKind kind = 1;
+  GaugeMeasurement active = 2;
+  // FIFO plus replacement, distinct from active and preparing.
+  GaugeMeasurement pending = 3;
+  CounterMeasurement cancelled_total = 4;
+  CounterMeasurement superseded_total = 5;
+}
+
+message InstalledRunMetrics {
+  // Exactly Automation and Script. Totals survive native trace eviction,
+  // owner replacement, and reads; NodeCancelled is not another cancelled run.
+  repeated RunKindMetrics kinds = 1;
+  GaugeMeasurement preparing = 2;
+  // Stable identity of this actual Controller, independent of causal revision.
+  // Context for targeted trace reads; no metric series or authority is added.
+  ControllerHandle controller = 3;
+}
+
+message RunMetrics {
+  oneof result {
+    InstalledRunMetrics installed = 1;
+    google.protobuf.Empty not_installed = 2;
+    ReadUnavailable unavailable = 3;
+  }
+}
+
+message JournalMetrics {
+  GaugeMeasurement retained_rows = 1;
+  GaugeMeasurement charged_bytes = 2;
+  CounterMeasurement evicted_total = 3;
+}
+
+enum MetricOwner {
+  METRIC_OWNER_UNSPECIFIED = 0;
+  METRIC_OWNER_SEQUENCER = 1;
+  METRIC_OWNER_RECORDER = 2;
+  METRIC_OWNER_ACTIONS = 3;
+  METRIC_OWNER_AUTOMATION_RUNS = 4;
+  METRIC_OWNER_MQTT = 5;
+  METRIC_OWNER_WORKER = 6;
+  METRIC_OWNER_CLOUD_POLICY = 7;
+  METRIC_OWNER_JOURNAL = 8;
+}
+
+message ObservationCut {
+  MetricOwner owner = 1;
+  google.protobuf.Timestamp captured_at = 2;
+}
+
+message MetricsSnapshot {
+  ProcessObservationEpoch process_epoch = 1;
+  // Exactly nine classes, once each; four sequencer lag classes, once each.
+  repeated QueueAggregate queues = 2;
+  repeated QueueLag queue_lags = 3;
+  RecorderMetrics recorder = 4;
+  ActionMetrics actions = 5;
+  RunMetrics runs = 6;
+  JournalMetrics journal = 7;
+  // At most eight known owners, no duplicates. These qualify independent cuts,
+  // not a global transaction or wall-clock ordering proof between owners.
+  repeated ObservationCut cuts = 8;
+}
+
+message GetMetricsRequest {}
+message GetMetricsResponse {
+  // At most 32 KiB and exactly 124 possible numeric measures, capped at 128:
+  // 9*9 queues + 3 worker/cloud slots + 4 lags + 11 Recorder + 9 gaps
+  // + 4 actions + 9 runs + 3 journal.
+  // States, saturation, source epochs, positions' epochs, clocks, and revisions
+  // are context, not additional series. No extensible names or label registry.
+  MetricsSnapshot metrics = 1;
+}
+
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  LOG_LEVEL_INFO = 1;
+  LOG_LEVEL_WARNING = 2;
+  LOG_LEVEL_ERROR = 3;
+}
+
+enum LogComponent {
+  LOG_COMPONENT_UNSPECIFIED = 0;
+  LOG_COMPONENT_PROCESS = 1;
+  LOG_COMPONENT_PUBLIC_TRANSPORT = 2;
+  LOG_COMPONENT_OPERATOR_TRANSPORT = 3;
+  LOG_COMPONENT_WORKER_TRANSPORT = 4;
+  LOG_COMPONENT_MQTT = 5;
+  LOG_COMPONENT_SUPERVISOR = 6;
+}
+
+enum LogCode {
+  LOG_CODE_UNSPECIFIED = 0;
+  LOG_CODE_PROCESS_CONFIG_READ_FAILED = 1;
+  LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED = 2;
+  LOG_CODE_PROCESS_RUNTIME_START_FAILED = 3;
+  LOG_CODE_PROCESS_RUNTIME_FAILED = 4;
+  LOG_CODE_PROCESS_READY = 5;
+  LOG_CODE_PROCESS_STOPPED = 6;
+  LOG_CODE_TRANSPORT_INTERNAL_DIAGNOSTIC = 7;
+  LOG_CODE_MQTT_UNKNOWN_DISCOVERY = 8;
+  LOG_CODE_MQTT_INVALID_DISCOVERY = 9;
+  LOG_CODE_MQTT_UNCONFIGURED_SOURCE = 10;
+  LOG_CODE_MQTT_UNSUPPORTED_EFFECT = 11;
+  LOG_CODE_MQTT_UNSUPPORTED_COLOR_MODE = 12;
+  LOG_CODE_MQTT_INVALID_STATE = 13;
+  LOG_CODE_MQTT_INVALID_AVAILABILITY = 14;
+  LOG_CODE_MQTT_RETIREMENT_FAILED = 15;
+  LOG_CODE_MQTT_SNAPSHOT_OVERFLOW = 16;
+  LOG_CODE_MQTT_UNCONFIGURED_ACTION_ANCHOR = 17;
+  LOG_CODE_MQTT_AMBIGUOUS_ACTION_DEVICE = 18;
+  LOG_CODE_MQTT_ACTION_OVERFLOW = 19;
+  LOG_CODE_MQTT_INVALID_ACTION = 20;
+  LOG_CODE_PILOT_STARTING = 21;
+  LOG_CODE_PILOT_RUNNING = 22;
+  LOG_CODE_PILOT_RETRYING = 23;
+  LOG_CODE_PILOT_DEGRADED = 24;
+  LOG_CODE_PILOT_STOPPED = 25;
+  LOG_CODE_PILOT_JOIN_TIMEOUT = 26;
+  LOG_CODE_PILOT_TASK_CAPACITY = 27;
+  LOG_CODE_PILOT_FACTORY_FAILED = 28;
+}
+
+message RuntimeAuthor {
+  oneof result {
+    google.protobuf.Empty process = 1;
+    google.protobuf.Empty internal_automation = 2;
+    // Real recorded account identity, bounded to 128 bytes before copying.
+    home.auth.v1.AccountId human_account = 3;
+    google.protobuf.Empty unauthenticated = 4;
+  }
+}
+
+message RuntimeEvent {
+  // At most 1 KiB serialized and charged before retention. Message text is
+  // rendered from LogCode by a client, never copied from a provider.
+  LogCode code = 1;
+  LogLevel level = 2;
+  LogComponent component = 3;
+  google.protobuf.Timestamp occurred_at = 4;
+  RuntimeAuthor author = 5;
+}
+
+message RuntimeLogRow {
+  uint64 sequence = 1;
+  RuntimeEvent event = 2;
+}
+
+message PageContinuation {
+  oneof result {
+    // Stateless authenticated token, at most 512 bytes, process-local key,
+    // monotone TTL 60s, current authorization binding and exact query bound.
+    string next_page_token = 1;
+    google.protobuf.Empty end = 2;
+  }
+}
+
+message CursorEvicted {
+  uint64 retained_from = 1;
+  CounterMeasurement evicted_total = 2;
+}
+
+message RuntimeLogPage {
+  ProcessObservationEpoch process_epoch = 1;
+  // Inclusive upper sequence fixed by the first page, never extended later.
+  uint64 upper_sequence = 2;
+  repeated RuntimeLogRow rows = 3;
+  PageContinuation continuation = 4;
+}
+
+message QueryRuntimeLogsRequest {
+  // Absent means 20. Present 0 or >100 is invalid; checked before allocation.
+  optional uint32 page_size = 1;
+  // Absent means first page; a present empty or >512-byte token is invalid.
+  optional string page_token = 2;
+}
+
+message QueryRuntimeLogsResponse {
+  // Ring <=1024 rows/1 MiB, page <=100 rows/256 KiB. Reading never emits a log.
+  // Cross-binding, expiry, restart, or tampering yields no private cursor data.
+  oneof result {
+    RuntimeLogPage page = 1;
+    CursorEvicted cursor_evicted = 2;
+    google.protobuf.Empty stale_cursor = 3;
+    ReadUnavailable unavailable = 4;
+  }
+}
+
+enum AuditSource {
+  AUDIT_SOURCE_UNSPECIFIED = 0;
+  AUDIT_SOURCE_AUTHENTICATION = 1;
+  AUDIT_SOURCE_SECRET_ACCESS = 2;
+}
+
+enum AuthAuditAction {
+  AUTH_AUDIT_ACTION_UNSPECIFIED = 0;
+  AUTH_AUDIT_ACTION_BOOTSTRAP = 1;
+  AUTH_AUDIT_ACTION_RECOVER = 2;
+  AUTH_AUDIT_ACTION_CREATE_ACCOUNT = 3;
+  AUTH_AUDIT_ACTION_GET_ACCOUNT = 4;
+  AUTH_AUDIT_ACTION_LIST_ACCOUNTS = 5;
+  AUTH_AUDIT_ACTION_UPDATE_ACCOUNT = 6;
+  AUTH_AUDIT_ACTION_DELETE_ACCOUNT = 7;
+  AUTH_AUDIT_ACTION_CREATE_INVITATION = 8;
+  AUTH_AUDIT_ACTION_ACCEPT_INVITATION = 9;
+  AUTH_AUDIT_ACTION_LIST_INVITATIONS = 10;
+  AUTH_AUDIT_ACTION_REVOKE_INVITATION = 11;
+  AUTH_AUDIT_ACTION_TRANSPORT = 12;
+  AUTH_AUDIT_ACTION_LOGIN_DENIED = 13;
+  AUTH_AUDIT_ACTION_LOGIN_LIMITED = 14;
+  AUTH_AUDIT_ACTION_CHALLENGE_ISSUED = 15;
+  AUTH_AUDIT_ACTION_CHALLENGE_DENIED = 16;
+  AUTH_AUDIT_ACTION_SESSION_CREATE = 17;
+  AUTH_AUDIT_ACTION_SESSION_REFRESH = 18;
+  AUTH_AUDIT_ACTION_SESSION_REPLAY = 19;
+  AUTH_AUDIT_ACTION_SESSION_REVOKE = 20;
+  AUTH_AUDIT_ACTION_POLICY_READ = 21;
+  AUTH_AUDIT_ACTION_POLICY_REPLACE = 22;
+  AUTH_AUDIT_ACTION_POLICY_SEED = 23;
+  AUTH_AUDIT_ACTION_MFA_ENROLL = 24;
+  AUTH_AUDIT_ACTION_MFA_REMOVE = 25;
+  AUTH_AUDIT_ACTION_MFA_RECOVERY_REPLACE = 26;
+  AUTH_AUDIT_ACTION_MFA_RESET = 27;
+  AUTH_AUDIT_ACTION_MFA_POLICY_REPLACE = 28;
+  AUTH_AUDIT_ACTION_MFA_POLICY_READ = 29;
+}
+
+enum AuditOutcome {
+  AUDIT_OUTCOME_UNSPECIFIED = 0;
+  AUDIT_OUTCOME_ADMITTED = 1;
+  AUDIT_OUTCOME_DENIED = 2;
+}
+
+enum SecretDenialReason {
+  SECRET_DENIAL_REASON_UNSPECIFIED = 0;
+  SECRET_DENIAL_REASON_FOREIGN_HANDLE = 1;
+  SECRET_DENIAL_REASON_INACTIVE_SESSION = 2;
+}
+
+// A keyed, process-local opaque reference, exactly 16 nonzero bytes. Raw
+// integration instance names, handles, and secret names are never exported.
+message IntegrationReference {
+  bytes value = 1;
+}
+
+message AuditAuthor {
+  oneof result {
+    home.auth.v1.AccountId human_account = 1;
+    IntegrationReference internal_integration = 2;
+    google.protobuf.Empty not_recorded = 3;
+  }
+}
+
+message AuditRoute {
+  oneof result {
+    // A canonical path from the existing frozen PublicPlan procedure catalogue,
+    // <=256 UTF-8 bytes. Never an unchecked historical route_path column.
+    string registered_procedure = 1;
+    google.protobuf.Empty other_registered_route = 2;
+    google.protobuf.Empty not_recorded = 3;
+  }
+}
+
+enum StoredMetadataField {
+  STORED_METADATA_FIELD_UNSPECIFIED = 0;
+  STORED_METADATA_FIELD_ACTOR = 1;
+  STORED_METADATA_FIELD_ROUTE = 2;
+  STORED_METADATA_FIELD_OCCURRED_AT = 3;
+  STORED_METADATA_FIELD_ACTION = 4;
+  STORED_METADATA_FIELD_OUTCOME = 5;
+  STORED_METADATA_FIELD_REQUESTING_INSTANCE = 6;
+}
+
+message StoredMetadataInvalid {
+  // At most six distinct known fields, never their rejected stored values.
+  repeated StoredMetadataField fields = 1;
+}
+
+message AuthenticationAudit {
+  google.protobuf.Timestamp occurred_at = 1;
+  AuthAuditAction action = 2;
+  AuditOutcome outcome = 3;
+  AuditAuthor author = 4;
+  AuditRoute route = 5;
+}
+
+message SecretAccessAudit {
+  google.protobuf.Timestamp occurred_at = 1;
+  SecretDenialReason reason = 2;
+  AuditAuthor author = 3;
+}
+
+message AuditRow {
+  // Positive PK from the selected source; not a global wall-clock/commit order.
+  int64 id = 1;
+  oneof result {
+    AuthenticationAudit authentication = 2;
+    SecretAccessAudit secret_access = 3;
+    StoredMetadataInvalid stored_metadata_invalid = 4;
+  }
+}
+
+message AuditPage {
+  AuditSource source = 1;
+  // First-page PK upper bound; zero only for an empty first page.
+  int64 upper_id = 2;
+  repeated AuditRow rows = 3;
+  PageContinuation continuation = 4;
+}
+
+message QueryAuditsRequest {
+  AuditSource source = 1;
+  optional uint32 page_size = 2;
+  optional string page_token = 3;
+}
+
+message QueryAuditsResponse {
+  // One source per read; PK keyset DESC, <=100 rows/256 KiB, SQL timeout 2s.
+  // Open columns are bounded by SQL CASE before pgx materializes them. No
+  // SELECT *, OFFSET, credentials, targets, invitations, fingerprint/response,
+  // or stored free route_path is serialized. Each page reauthorizes its binding.
+  oneof result {
+    AuditPage page = 1;
+    google.protobuf.Empty stale_cursor = 2;
+    ReadUnavailable unavailable = 3;
+  }
+}
+
+enum TraceDecision {
+  TRACE_DECISION_UNSPECIFIED = 0;
+  TRACE_DECISION_PREPARING = 1;
+  TRACE_DECISION_ADMITTED = 2;
+  TRACE_DECISION_QUEUED = 3;
+  TRACE_DECISION_RESTART_PENDING = 4;
+  TRACE_DECISION_SINGLE_BUSY = 5;
+  TRACE_DECISION_MAX_EXCEEDED = 6;
+  TRACE_DECISION_PREPARATION_SATURATED = 7;
+  TRACE_DECISION_MEMORY_SATURATED = 8;
+  TRACE_DECISION_CONDITION_FALSE = 9;
+  TRACE_DECISION_PREPARATION_ERROR = 10;
+  TRACE_DECISION_EXECUTION_ERROR = 11;
+  TRACE_DECISION_FINISHED = 12;
+  TRACE_DECISION_CANCELLED = 13;
+  TRACE_DECISION_SUPERSEDED = 14;
+  TRACE_DECISION_CLOSED = 15;
+  TRACE_DECISION_UNKNOWN_AUTOMATION = 16;
+  TRACE_DECISION_TRIGGER_MISSED = 17;
+  TRACE_DECISION_TRIGGER_DEGRADED = 18;
+}
+
+enum TraceMaxExceededMode {
+  TRACE_MAX_EXCEEDED_MODE_UNSPECIFIED = 0;
+  TRACE_MAX_EXCEEDED_MODE_SILENT = 1;
+  TRACE_MAX_EXCEEDED_MODE_WARNING = 2;
+  TRACE_MAX_EXCEEDED_MODE_ERROR = 3;
+}
+
+enum TraceActionKind {
+  TRACE_ACTION_KIND_UNSPECIFIED = 0;
+  TRACE_ACTION_KIND_VARIABLES = 1;
+  TRACE_ACTION_KIND_SEQUENCE = 2;
+  TRACE_ACTION_KIND_CHOOSE = 3;
+  TRACE_ACTION_KIND_IF = 4;
+  TRACE_ACTION_KIND_REPEAT = 5;
+  TRACE_ACTION_KIND_PARALLEL = 6;
+  TRACE_ACTION_KIND_WAIT = 7;
+  TRACE_ACTION_KIND_STOP = 8;
+  TRACE_ACTION_KIND_CALL = 9;
+  TRACE_ACTION_KIND_DELAY = 10;
+  TRACE_ACTION_KIND_WAIT_TEMPLATE = 11;
+}
+
+enum TraceNodeStage {
+  TRACE_NODE_STAGE_UNSPECIFIED = 0;
+  TRACE_NODE_STAGE_ENTERED = 1;
+  TRACE_NODE_STAGE_COMPLETED = 2;
+  TRACE_NODE_STAGE_STOPPED = 3;
+  TRACE_NODE_STAGE_CANCELLED = 4;
+  TRACE_NODE_STAGE_FAILED = 5;
+  TRACE_NODE_STAGE_WAITING = 6;
+}
+
+enum TraceExecutionErrorKind {
+  TRACE_EXECUTION_ERROR_KIND_UNSPECIFIED = 0;
+  TRACE_EXECUTION_ERROR_KIND_INVALID_PROGRAM = 1;
+  TRACE_EXECUTION_ERROR_KIND_WORK_BUDGET = 2;
+  TRACE_EXECUTION_ERROR_KIND_RECURSION = 3;
+  TRACE_EXECUTION_ERROR_KIND_WAIT_TIMEOUT = 4;
+  TRACE_EXECUTION_ERROR_KIND_SOURCE_UNAVAILABLE = 5;
+  TRACE_EXECUTION_ERROR_KIND_CONDITION_ERROR = 6;
+  TRACE_EXECUTION_ERROR_KIND_COMMAND_ERROR = 7;
+}
+
+enum TraceOrderState {
+  TRACE_ORDER_STATE_UNSPECIFIED = 0;
+  TRACE_ORDER_STATE_HEALTHY = 1;
+  TRACE_ORDER_STATE_EXHAUSTED = 2;
+}
+
+message TraceOrdinal {
+  oneof result {
+    // Native 188 ordinal in 1..UINT64_MAX-1. Same Controller only; no sorting
+    // across Controllers, no renumbering, and no continuity claim on eviction.
+    uint64 native = 1;
+    google.protobuf.Empty exhausted = 2;
+  }
+}
+
+message ControllerTraceRecord {
+  TraceDecision decision = 1;
+  oneof max_exceeded {
+    TraceMaxExceededMode mode = 2;
+    google.protobuf.Empty not_applicable = 3;
+  }
+}
+
+message TraceFailure {
+  oneof result {
+    TraceExecutionErrorKind known = 1;
+    google.protobuf.Empty no_failure = 2;
+    // An unclassified source error is not turned into an invented known code.
+    google.protobuf.Empty not_recorded = 3;
+  }
+}
+
+message NodeTraceRecord {
+  TraceActionKind action_kind = 1;
+  TraceNodeStage stage = 2;
+  google.protobuf.Timestamp occurred_at = 3;
+  TraceFailure failure = 4;
+}
+
+message TraceRow {
+  uint64 run_id = 1;
+  // Zero-based stable index in this bounded capture, not a source ordinal.
+  uint32 local_index = 2;
+  TraceOrdinal ordinal = 3;
+  oneof record {
+    ControllerTraceRecord controller = 4;
+    NodeTraceRecord node = 5;
+  }
+}
+
+enum TraceCutCoherence {
+  TRACE_CUT_COHERENCE_UNSPECIFIED = 0;
+  // Even with 188, copying two independently locked rings is not atomic.
+  TRACE_CUT_COHERENCE_SEPARATE_OWNER_CUTS = 1;
+}
+
+message TraceCutMetadata {
+  TraceCutCoherence coherence = 1;
+  TraceOrderState order = 2;
+  // Source-reported native eviction counts, distinct from truncation by 056.
+  uint64 controller_evicted = 3;
+  uint64 node_evicted = 4;
+  google.protobuf.Timestamp controller_captured_at = 5;
+  google.protobuf.Timestamp node_captured_at = 6;
+}
+
+enum TraceTruncationReason {
+  TRACE_TRUNCATION_REASON_UNSPECIFIED = 0;
+  TRACE_TRUNCATION_REASON_ROW_LIMIT = 1;
+  TRACE_TRUNCATION_REASON_BYTE_LIMIT = 2;
+}
+
+message TracePage {
+  ControllerHandle controller = 1;
+  uint64 run_id = 2;
+  TraceCutMetadata cuts = 3;
+  repeated TraceRow rows = 4;
+  PageContinuation continuation = 5;
+}
+
+message TruncatedTracePage {
+  TraceTruncationReason reason = 1;
+  TracePage page = 2;
+}
+
+message ReadRunTraceRequest {
+  ControllerHandle controller = 1;
+  uint64 run_id = 2;
+  optional uint32 page_size = 3;
+  optional string page_token = 4;
+}
+
+message ReadRunTraceResponse {
+  // Per capture <=512 useful rows/1 MiB; <=4 captures/4 MiB process-wide,
+  // including reservations. Reserve before copying, release at monotone TTL
+  // 60s without keeping images alive. Per page <=100 rows/256 KiB. Only this
+  // run is projected; no Error/WaitValue/Source/TriggerKey/payload is retained.
+  // Page means a page within retained cuts, never durable full-run history.
+  oneof result {
+    TracePage page = 1;
+    TruncatedTracePage truncated = 2;
+    google.protobuf.Empty not_retained = 3;
+    google.protobuf.Empty stale_cursor = 4;
+    ReadUnavailable unavailable = 5;
+  }
+}
+
+message RecorderEpochIdentity {
+  // Existing storage.RecorderEpoch represented as exactly 16 nonzero bytes.
+  bytes value = 1;
+}
+
+message ReadRecorderCoverageRequest {
+  AdmissionPosition from = 1;
+  oneof through {
+    AdmissionPosition position = 2;
+    // Resolve to this epoch's checkpoint in this read-only transaction.
+    RecorderEpochIdentity latest_in_epoch = 3;
+  }
+}
+
+enum RecorderReconciliationState {
+  RECORDER_RECONCILIATION_STATE_UNSPECIFIED = 0;
+  RECORDER_RECONCILIATION_STATE_COMPLETE = 1;
+  RECORDER_RECONCILIATION_STATE_INCOMPLETE = 2;
+}
+
+message PreviousRecorderEpoch {
+  RecorderEpochIdentity epoch = 1;
+  uint64 checkpoint = 2;
+  bool clean_close = 3;
+}
+
+message RecorderEpochCoverage {
+  RecorderEpochIdentity epoch = 1;
+  uint64 checkpoint = 2;
+  uint64 policy_excluded = 3;
+  google.protobuf.Timestamp started_at = 4;
+  oneof close_time {
+    google.protobuf.Timestamp closed_at = 5;
+    google.protobuf.Empty not_recorded = 6;
+  }
+  bool clean_close = 7;
+  RecorderReconciliationState reconciliation = 8;
+  oneof predecessor {
+    PreviousRecorderEpoch previous = 9;
+    google.protobuf.Empty no_previous = 10;
+  }
+}
+
+enum GapEnvelope {
+  GAP_ENVELOPE_UNSPECIFIED = 0;
+  GAP_ENVELOPE_EXACT_POSITIONS = 1;
+  GAP_ENVELOPE_UNCERTAIN_ENVELOPE = 2;
+}
+
+message RecorderCoverageGap {
+  RecorderEpochIdentity epoch = 1;
+  // Positive inclusive source positions, not a count of lost states or time.
+  uint64 from_sequence = 2;
+  uint64 through_sequence = 3;
+  GapReason reason = 4;
+  KnownLost known_lost = 5;
+  GapEnvelope envelope = 6;
+  // 031 stores positional gaps without measured UTC bounds. Do not invent a
+  // duration or reinterpret epoch start/close dates as a gap's UTC interval.
+  oneof utc_bounds {
+    google.protobuf.Empty unknown_utc = 7;
+  }
+}
+
+message RecorderCoverageSnapshot {
+  AdmissionPosition from = 1;
+  AdmissionPosition through = 2;
+  repeated RecorderEpochCoverage epochs = 3;
+  repeated RecorderCoverageGap gaps = 4;
+}
+
+enum CoverageTruncationReason {
+  COVERAGE_TRUNCATION_REASON_UNSPECIFIED = 0;
+  COVERAGE_TRUNCATION_REASON_EPOCH_LIMIT = 1;
+  COVERAGE_TRUNCATION_REASON_GAP_LIMIT = 2;
+  COVERAGE_TRUNCATION_REASON_BYTE_LIMIT = 3;
+  COVERAGE_TRUNCATION_REASON_DURATION_LIMIT = 4;
+}
+
+message TruncatedRecorderCoverage {
+  // No partial prefix is presented as a complete coverage proof.
+  CoverageTruncationReason reason = 1;
+}
+
+message ReadRecorderCoverageResponse {
+  // Targeted 031 read only, <=64 epochs/512 gaps/256 KiB/2s. Not performed by
+  // GetMetrics or a background collector. No summing historic epoch counters.
+  oneof result {
+    RecorderCoverageSnapshot complete = 1;
+    TruncatedRecorderCoverage truncated = 2;
+    google.protobuf.Empty not_retained = 3;
+    ReadUnavailable unavailable = 4;
+  }
+}
+
+// All procedures use the existing common PublicPlan and verified TLS listener:
+// protected, unary, TLSRequired. GLOBAL_CONFIGURATION/READ except targeted
+// integration health, which uses INTEGRATIONS/READ. Active admin only under
+// current admin/user policy; equipment grants do not permit these reads.
+// The handler verifies the actor/principal and current administrative object.
+// SQL is outside WithCurrent, then the binding is reauthorized before output.
+// No MCP, extra listener, wildcard path, debug prefix, or auth/audit bypass.
+service ObservabilityService {
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+  rpc GetIntegrationHealth(GetIntegrationHealthRequest) returns (GetIntegrationHealthResponse);
+  rpc QueryRuntimeLogs(QueryRuntimeLogsRequest) returns (QueryRuntimeLogsResponse);
+  rpc QueryAudits(QueryAuditsRequest) returns (QueryAuditsResponse);
+  rpc ReadRunTrace(ReadRunTraceRequest) returns (ReadRunTraceResponse);
+  rpc ReadRecorderCoverage(ReadRecorderCoverageRequest) returns (ReadRecorderCoverageResponse);
+}
