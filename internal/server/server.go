@@ -187,7 +187,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		store.Close()
 		return err
 	}
-	backupProviders, err := prepareBackupProviders(ctx, launch)
+	backupProviders, err := prepareBackupProviders(ctx, launch, secrets)
 	if err != nil {
 		store.Close()
 		return err

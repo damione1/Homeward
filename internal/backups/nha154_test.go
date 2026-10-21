@@ -188,7 +188,7 @@ func TestNHA154RegistryAndConfigAdmission(t *testing.T) {
 	if _, err := backups.NewConfiguration(duplicate); err == nil {
 		t.Fatal("duplicate ID admitted")
 	}
-	for _, kind := range []string{"s3", "LOCAL", "unknown", ""} {
+	for _, kind := range []string{"future-provider", "LOCAL", "unknown", ""} {
 		if _, err := backups.ParseProviderKind(kind); err == nil {
 			t.Fatalf("unavailable kind %q admitted", kind)
 		}
