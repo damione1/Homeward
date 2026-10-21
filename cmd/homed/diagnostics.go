@@ -68,6 +68,9 @@ func runHomed(ctx context.Context, args []string, out, diagnostics io.Writer, de
 			exitCode = 1
 		}
 	}()
+	if len(args) > 0 && args[0] == "installation" {
+		return runInstallation(ctx, args[1:], out, diagnostics)
+	}
 	if len(args) > 0 && args[0] == "recovery" {
 		return runRecovery(ctx, args[1:], out, diagnostics)
 	}
