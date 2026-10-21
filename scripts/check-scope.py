@@ -96,9 +96,92 @@ def compare_vault(vault):
     assert selected==covered==frozen,"live vault set differs"
     for file,record in load("scope/sources/provenance.json").items():
         assert hashlib.sha256((root/file).read_bytes()).hexdigest()==record["sha256"],f"document changed: {file}"
+# NHA-137 has a separate closed decoder and validator. The frozen validate()
+# above remains unchanged; accepting Ecobee never widens its 850-ID oracle.
+ECOBEE_SHA256="2780049835aa84e16ff6e17ee01c0dafdc6f0f838ff61273505f738886c65f1c"
+BASELINE_SHA256="d2f15358239b29797906a31f9318d6ad7a8b81be76f9d39421b0aa6d22f52cfa"
+
+def decode_ecobee(data):
+    def members(pairs):
+        result={}
+        for key,value in pairs:
+            assert key not in result,"Ecobee duplicate member"
+            result[key]=value
+        return result
+    def constant(value):
+        raise AssertionError("Ecobee invalid numeric constant")
+    assert isinstance(data,(bytes,str)) and 0<len(data)<=64*1024,"Ecobee input size"
+    try: return json.loads(data,object_pairs_hook=members,parse_constant=constant)
+    except (ValueError,TypeError) as exc: raise AssertionError("Ecobee invalid JSON") from exc
+
+def validate_ecobee(amendment=None):
+    blob=(ROOT/"scope/ecobee_mvp_v1.json").read_bytes()
+    assert hashlib.sha256(blob).hexdigest()==ECOBEE_SHA256,"Ecobee immutable amendment digest"
+    a=decode_ecobee(blob) if amendment is None else amendment
+    def strict_types(value):
+        assert type(value) in (dict,list,str,int,bool),"Ecobee null or numeric type"
+        if type(value) is dict:
+            for key,child in value.items():
+                assert type(key) is str,"Ecobee member type"
+                strict_types(child)
+        elif type(value) is list:
+            for child in value:strict_types(child)
+    strict_types(a)
+    assert type(a) is dict and set(a)=={"schema","revision","baseline","decision","qualification","additions","removals","aliases","profile","consumers","technical_consumers"},"Ecobee shape"
+    assert a["schema"]=="homeward.scope-amendment/v1" and a["revision"]=="ecobee_mvp_v1","Ecobee revision"
+    baseline_bytes=(ROOT/"scope/manifest.json").read_bytes();baseline=json.loads(baseline_bytes)
+    assert hashlib.sha256(baseline_bytes).hexdigest()==BASELINE_SHA256,"Ecobee complete baseline"
+    assert a["baseline"]=={"revision":"v1","manifest_sha256":BASELINE_SHA256,"ids_sha256":baseline["ids_sha256"]},"Ecobee baseline reference"
+    assert a["decision"]=={"file":"Décisions serveur et priorités.md","section":"Amendement Ecobee au périmètre initial","line":52,"sha256":"8ed66c2d5f9ff44af5b209a9b76a04d073f1cc79de5843eb9f57a2be4053cd84"},"Ecobee decision provenance"
+    assert a["qualification"]=={"ticket":"NHA-009","commit":"cf65857901c2c761c6d8526fb49f8742b6af76c5","profile":"qualification/ecobee/profile.go","profile_sha256":"a004d734b27cbc7ddbbade33ed98d5b6188b0c5c87ad1cd54838a2d5c57164cb"},"Ecobee qualification provenance"
+    assert hashlib.sha256((ROOT/a["qualification"]["profile"]).read_bytes()).hexdigest()==a["qualification"]["profile_sha256"],"Ecobee qualified profile bytes"
+    assert a["additions"]==[{"entity_id":"climate.home","source":"homekit_controller"}] and a["removals"]==[] and a["aliases"]==[],"Ecobee exact ID diff"
+    original={e["entity_id"]:e["source"] for e in baseline["entities"]}
+    added={e["entity_id"]:e["source"] for e in a["additions"]}
+    assert not original.keys()&added.keys(),"Ecobee baseline collision"
+    selection=list(csv.DictReader((ROOT/"scope/sources/selection.tsv").read_text().splitlines(),delimiter="\t"))
+    assert any(r["entity_id"]=="climate.home" and r["source"]=="homekit_controller" and r["decision"]!="garder" for r in selection),"Ecobee historical provenance"
+    effective=original|added
+    assert len(effective)==len(original)+len(added)==851 and len(set(effective.values()))==39,"Ecobee union counts"
+    profile=a["profile"]
+    assert type(profile) is dict and set(profile)=={"thermostat_service","linked_fan_services","fields","limits"},"Ecobee profile shape"
+    assert profile["thermostat_service"]=="4A" and profile["linked_fan_services"]==["40","B7"],"Ecobee targeted services"
+    rules=[("thermal_activity","F","uint8","",True,False),("requested_mode","33","uint8","",True,True),("current_temperature","11","float","celsius",True,False),("target_temperature","35","float","celsius",True,True),("display_units","36","uint8","",True,False),("relative_humidity","10","float","percentage",False,False),("heat_threshold","12","float","celsius",False,True),("cool_threshold","D","float","celsius",False,True),("observed_fan","AF","uint8","",False,False),("target_fan","BF","uint8","",False,True)]
+    assert type(profile["fields"]) is list and len(profile["fields"])==10,"Ecobee field count"
+    for field,rule in zip(profile["fields"],rules):
+        assert type(field) is dict and set(field)=={"name","hap_type","format","unit","required","qualified_control","limitation"},"Ecobee field shape"
+        assert type(field["required"]) is bool and type(field["qualified_control"]) is bool,"Ecobee boolean type"
+        assert tuple(field[k] for k in ("name","hap_type","format","unit","required","qualified_control"))==rule,"Ecobee approved field"
+        assert type(field["limitation"]) is str and field["limitation"],"Ecobee field limitation"
+    assert type(profile["limits"]) is list and len(profile["limits"])==6 and all(type(v) is str and v for v in profile["limits"]),"Ecobee limits"
+    assert "cannot execute" in profile["fields"][9]["limitation"] and "future action contract" in profile["fields"][6]["limitation"],"Ecobee current action API limit"
+    expected=[("scene.climate_day_temperature",[],False,4),("scene.climate_night_temperature",[],False,4),("automation.turn_on_hvac",[],False,1735),("automation.turn_off_hvac",["scene.climate_night_temperature"],False,1650),("automation.good_morning_work_day",["scene.climate_day_temperature"],False,671),("automation.morning_routine",["scene.climate_day_temperature"],False,968),("script.morning_routine_weekend",["scene.climate_day_temperature"],True,229),("script.morning_routine_work_day",["scene.climate_day_temperature"],True,268),("automation.automatic_morning_routine",["script.morning_routine_work_day","scene.climate_day_temperature"],True,244)]
+    known={v["entity_id"] for v in load("scope/logic.json")["objects"]}
+    docs={d["file"]:d["sha256"] for d in load("compat/ha/catalogue.json")["source_documents"]}
+    assert type(a["consumers"]) is list and len(a["consumers"])==len(expected),"Ecobee consumer count"
+    for row,(identity,via,disabled,line) in zip(a["consumers"],expected):
+        assert type(row) is dict and set(row)=={"entity_id","via","disabled_action_in_path","source"},"Ecobee consumer shape"
+        assert row["entity_id"]==identity and row["via"]==via and type(row["disabled_action_in_path"]) is bool and row["disabled_action_in_path"]==disabled,"Ecobee sourced dependency edge"
+        assert identity in known and set(via)<=known,"Ecobee consumer outside logic baseline"
+        source=row["source"]
+        assert type(source) is dict and set(source)=={"file","section","line","sha256"} and type(source["line"]) is int,"Ecobee consumer source shape"
+        path=f"scope/logic_mvp_sources/{identity}.yaml" if identity.startswith("scene.") else ("Automatisations.md" if identity.startswith("automation.") else "Scripts et scènes.md")
+        digest=hashlib.sha256((ROOT/path).read_bytes()).hexdigest() if path.startswith("scope/") else docs[path]
+        assert source=={"file":path,"section":identity,"line":line,"sha256":digest},"Ecobee consumer provenance"
+    tech=a["technical_consumers"]
+    assert type(tech) is list and len(tech)==2,"Ecobee technical consumer count"
+    for row,identity,via,ticket in zip(tech,["sensor.hvac_power_consumption","sensor.hvac_energy_consumption"],[["climate.home"],["sensor.hvac_power_consumption","climate.home"]],["NHA-107","NHA-108"]):
+        assert type(row) is dict and set(row)=={"entity_id","via","ticket","source"},"Ecobee technical consumer shape"
+        assert row["entity_id"]==identity and row["via"]==via and row["ticket"]==ticket and identity in original,"Ecobee power to energy chain"
+        assert type(row["source"]) is dict and set(row["source"])=={"file","section","line","sha256"} and type(row["source"]["line"]) is int and re.fullmatch(r"[0-9a-f]{64}",row["source"]["sha256"]),"Ecobee technical provenance"
+    digest=hashlib.sha256(("\n".join(sorted(effective))+"\n").encode()).hexdigest()
+    return len(effective),len(set(effective.values())),digest
+
 if __name__=="__main__":
     parser=argparse.ArgumentParser();parser.add_argument("--vault");args=parser.parse_args()
     print("850 unique IDs / 38 sources / 19 independent diagnostics / 89 inactive logic; SHA-256",validate())
     retained,deferred=validate_logic_mvp()
     print(f"{retained} retained definitions / {deferred} deferred / no activation; source hashes: pass")
+    entities,sources,digest=validate_ecobee()
+    print(f"Ecobee amendment: {entities} unique IDs / {sources} documentary sources; no activation; SHA-256 {digest}")
     if args.vault:compare_vault(args.vault);print("live vault equality + source hashes: pass")

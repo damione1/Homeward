@@ -53,6 +53,9 @@ func (unconfiguredIdentity) Resolve(context.Context, domain.IntegrationInstanceI
 // drains the command service. Run also joins its job scheduler before closing
 // PostgreSQL, using the same shutdown budget for both owners.
 type RuntimePlan struct {
+	scopeManifest registry.Manifest
+	// Internal observation seam retains the actual composed compiler in tests.
+	observeOperationalCompiler        func(*configuredOperationalCompiler)
 	ConfigureBackups                  func(context.Context, *backups.Registry) error
 	Identity                          integrations.IdentityAuthority
 	Pilots                            []integrations.PilotSpec
@@ -107,6 +110,14 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		return err
 	}
 	launch, err := startup.LaunchConfig()
+	if err != nil {
+		return err
+	}
+	scopeRevision, err := launch.ScopeRevision()
+	if err != nil {
+		return err
+	}
+	scopeManifest, err := registry.LoadManifest(scopeRevision)
 	if err != nil {
 		return err
 	}
@@ -253,7 +264,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 				}
 				cloud = append(cloud, neviwebComposition{settings: neviwebSettings, catalog: catalog})
 			}
-			plan, err = defaultConfiguredRuntimePlan(mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
+			plan, err = defaultConfiguredRuntimePlanWithManifest(scopeManifest, mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
 			if err != nil {
 				return closeStoreWithRecorder(store, recording, err)
 			}
@@ -268,7 +279,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 				}
 			}
 			if workdayEnabled {
-				if err := addConfiguredWorkday(&plan, workdaySettings, dependencies.workdayClock); err != nil {
+				if err := addConfiguredWorkdayWithManifest(&plan, workdaySettings, dependencies.workdayClock, scopeManifest); err != nil {
 					return closeStoreWithRecorder(store, recording, err)
 				}
 				plan.ConfigureWorkdayCalendar = dependencies.configureWorkdayCalendar
@@ -278,7 +289,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 				if !ok {
 					return closeStoreWithRecorder(store, recording, ErrIdentityNotConfigured)
 				}
-				hiloRun, err = newHiloComposition(hiloSettings, store, sequence, catalog, repository)
+				hiloRun, err = newHiloCompositionWithManifest(scopeManifest, hiloSettings, store, sequence, catalog, repository)
 				if err != nil {
 					return closeStoreWithRecorder(store, recording, err)
 				}
@@ -286,6 +297,21 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 					return closeStoreWithRecorder(store, recording, err)
 				}
 			}
+		}
+	}
+	// The current launch selection is immutable across operational replay.
+	plan.scopeManifest = scopeManifest
+	if repository, ok := plan.Identity.(*registry.Repository); ok {
+		actual, err := repository.ScopeManifest()
+		if err != nil {
+			return closeStoreWithRecorder(store, recording, err)
+		}
+		wantDigest, _ := scopeManifest.Digest()
+		actualDigest, _ := actual.Digest()
+		wantRevision, _ := scopeManifest.Revision()
+		actualRevision, _ := actual.Revision()
+		if actualDigest != wantDigest || actualRevision != wantRevision {
+			return closeStoreWithRecorder(store, recording, registry.ErrOutsideManifest)
 		}
 	}
 	if plan.ConfigureBackups != nil {
@@ -307,11 +333,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	// This does not activate commands/scenes without NHA-115 definitions.
 	if factory == nil {
 		if _, ok := plan.Identity.(*registry.Repository); !ok {
-			manifest, manifestErr := registry.ParseManifest(scope.ManifestV1())
-			if manifestErr != nil {
-				return closeStoreWithRecorder(store, recording, manifestErr)
-			}
-			repository, repositoryErr := registry.NewRepository(store, manifest)
+			repository, repositoryErr := registry.NewRepository(store, scopeManifest)
 			if repositoryErr != nil {
 				return closeStoreWithRecorder(store, recording, repositoryErr)
 			}
@@ -430,7 +452,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 	}
-	energySpecs, err := configuredEnergySpecs(ctx, c, store, sequence)
+	energySpecs, err := configuredEnergySpecsWithManifest(ctx, c, store, sequence, scopeManifest)
 	if err != nil {
 		return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
 	}
@@ -526,7 +548,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(err, historyErr, maintenanceErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done(), maintenanceDone)
 		})
 	}
-	listRun, err := newListComposition(store, sessions.authority)
+	listRun, err := newListCompositionWithManifest(store, sessions.authority, scopeManifest)
 	if err != nil {
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			maintenanceDone := maintenance.BeginClose()
@@ -827,12 +849,16 @@ type neviwebComposition struct {
 }
 
 func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, workers []worker.Config, store *storage.Store, sequence *sequencer.Sequencer, cloud ...neviwebComposition) (RuntimePlan, error) {
-	if len(cloud) > 1 {
-		return RuntimePlan{}, integrations.ErrInvalidInput
-	}
-	manifest, err := registry.ParseManifest(scope.ManifestV1())
+	manifest, err := registry.LoadManifest(scope.BaselineV1())
 	if err != nil {
 		return RuntimePlan{}, err
+	}
+	return defaultConfiguredRuntimePlanWithManifest(manifest, mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
+}
+
+func defaultConfiguredRuntimePlanWithManifest(manifest registry.Manifest, mqttSettings mqtt.Settings, mqttEnabled bool, workers []worker.Config, store *storage.Store, sequence *sequencer.Sequencer, cloud ...neviwebComposition) (RuntimePlan, error) {
+	if len(cloud) > 1 {
+		return RuntimePlan{}, integrations.ErrInvalidInput
 	}
 	repository, err := registry.NewRepository(store, manifest)
 	if err != nil {
@@ -867,7 +893,7 @@ func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, 
 		if e != nil {
 			return RuntimePlan{}, e
 		}
-		decision, e := heatingownership.Parse(scope.HeatingOwnershipV1(), manifest)
+		decision, e := heatingownership.ParseForManifest(scope.HeatingOwnershipV1(), manifest)
 		if e != nil {
 			return RuntimePlan{}, e
 		}

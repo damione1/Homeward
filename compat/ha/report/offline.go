@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"strings"
 
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/compat/ha/nha047"
 	"github.com/damione1/Homeward/compat/ha/parser"
 	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/registry"
+	"github.com/damione1/Homeward/scope"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -21,7 +24,8 @@ func OfflineReport(data []byte) (Report, error) {
 		return Report{}, ErrLimit
 	}
 	var wire struct {
-		Schema        string `json:"schema"`
+		Schema        string  `json:"schema"`
+		ScopeRevision *string `json:"scope_revision"`
 		Configuration struct {
 			ID       string `json:"id"`
 			Revision uint64 `json:"revision"`
@@ -55,13 +59,43 @@ func OfflineReport(data []byte) (Report, error) {
 	if err := decoder.Decode(&wire); err != nil {
 		return Report{}, ErrInvalidInput
 	}
-	if err := decoder.Decode(new(any)); err != io.EOF || wire.Schema != Schema || wire.Entities == nil || wire.Declarations == nil || wire.Candidates == nil || len(wire.Entities) > 850 || len(wire.Declarations) > 850 || len(wire.Candidates) > 17 {
+	if err := decoder.Decode(new(any)); err != io.EOF || wire.Schema != Schema || wire.Entities == nil || wire.Declarations == nil || wire.Candidates == nil || len(wire.Candidates) > 17 {
 		return Report{}, ErrInvalidInput
 	}
 	// The structural decoder rejects duplicate members throughout the supplied
 	// JSON tree, including configuration and candidates, before any admission.
 	if err := validateOfflineJSON(data); err != nil {
 		return Report{}, err
+	}
+	var members map[string]json.RawMessage
+	if err := json.Unmarshal(data, &members); err != nil {
+		return Report{}, ErrInvalidInput
+	}
+	for name := range members {
+		if strings.EqualFold(name, "scope_revision") && name != "scope_revision" {
+			return Report{}, ErrInvalidInput
+		}
+	}
+	revision := scope.BaselineV1()
+	if wire.ScopeRevision != nil {
+		var err error
+		revision, err = scope.ParseRevision(*wire.ScopeRevision)
+		if err != nil {
+			return Report{}, ErrInvalidInput
+		}
+	} else {
+		// Absence uses the documented baseline; explicit null is not absence.
+		if _, present := members["scope_revision"]; present {
+			return Report{}, ErrInvalidInput
+		}
+	}
+	manifest, err := registry.LoadManifest(revision)
+	if err != nil {
+		return Report{}, err
+	}
+	counts, ok := manifest.Counts()
+	if !ok || len(wire.Entities) > counts.Entities || len(wire.Declarations) > counts.Entities {
+		return Report{}, ErrInvalidInput
 	}
 	configurationBytes, err := json.Marshal(struct {
 		Configuration any `json:"configuration"`
@@ -137,7 +171,7 @@ func OfflineReport(data []byte) (Report, error) {
 		}
 		candidates = append(candidates, admitted)
 	}
-	return BuildMVP(catalogue, configuration, declarations, evidence, candidates, nil)
+	return BuildMVPWithManifest(manifest, catalogue, configuration, declarations, evidence, candidates, nil)
 }
 
 func validateOfflineJSON(data []byte) error {

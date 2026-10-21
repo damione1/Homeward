@@ -54,7 +54,11 @@ func (r *Repository) listUnlocked(ctx context.Context) ([]integrations.RegistryR
 			if err != nil {
 				return ErrStorage
 			}
-			records = append(records, record)
+			// A recognized inactive identity remains durable and fully checked,
+			// but does not enter the active Host projection.
+			if r.manifest.permits(pending.original) {
+				records = append(records, record)
+			}
 			return nil
 		}
 		for rows.Next() {
@@ -72,31 +76,36 @@ func (r *Repository) listUnlocked(ctx context.Context) ([]integrations.RegistryR
 			if err != nil {
 				return ErrStorage
 			}
+			device, err := domain.ParseDeviceID(deviceText)
+			if err != nil {
+				return ErrStorage
+			}
+			instance, err := domain.ParseIntegrationInstanceID(instanceText.String)
+			if err != nil {
+				return ErrStorage
+			}
+			key, err := integrations.NewSourceKey(sourceDevice.String, sourceEntity.String)
+			if err != nil {
+				return ErrStorage
+			}
+			original, err := ParseHAAlias(originalText)
+			if err != nil || !r.manifest.recognizes(original) {
+				return ErrOutsideManifest
+			}
 			if pending == nil || pending.entity != entity {
 				if err := finish(); err != nil {
 					return err
 				}
-				device, err := domain.ParseDeviceID(deviceText)
-				if err != nil {
-					return ErrStorage
-				}
-				instance, err := domain.ParseIntegrationInstanceID(instanceText.String)
-				if err != nil {
-					return ErrStorage
-				}
-				key, err := integrations.NewSourceKey(sourceDevice.String, sourceEntity.String)
-				if err != nil {
-					return ErrStorage
-				}
-				original, err := ParseHAAlias(originalText)
-				if err != nil || !r.manifest.permits(original) {
-					return ErrOutsideManifest
-				}
 				pending = &pendingRecord{device: device, entity: entity, instance: instance, key: key, original: original, retired: retired}
+			} else if pending.device != device || pending.instance != instance || pending.key != key || pending.original != original || pending.retired != retired {
+				return ErrStorage
 			}
 			alias, err := ParseHAAlias(aliasText.String)
 			if err != nil {
 				return ErrStorage
+			}
+			if r.manifest.recognizes(alias) && alias != original {
+				return ErrAliasConflict
 			}
 			pending.aliases = append(pending.aliases, alias)
 			if current.Bool {

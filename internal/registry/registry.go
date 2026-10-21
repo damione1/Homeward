@@ -392,12 +392,16 @@ func renameSQL(tx registryStatements, manifest Manifest, entityText string, pars
 	if retired {
 		return ErrTombstoned
 	}
-	if manifest.permits(parsedAlias) && alias != originalAlias {
+	original, err := ParseHAAlias(originalAlias)
+	if err != nil || !manifest.permits(original) {
+		return ErrOutsideManifest
+	}
+	if manifest.recognizes(parsedAlias) && alias != originalAlias {
 		return ErrAliasConflict
 	}
 	var owner string
 	var current bool
-	err := tx.QueryRow(storage.RegistryAliasOwner(), alias).Scan(&owner, &current)
+	err = tx.QueryRow(storage.RegistryAliasOwner(), alias).Scan(&owner, &current)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}

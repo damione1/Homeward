@@ -41,14 +41,18 @@ func newRunUnitCatalog(hiloEnabled bool) (*domain.UnitCatalog, error) {
 }
 
 func newHiloComposition(settings hilo.Settings, store *storage.Store, sequence *sequencer.Sequencer, catalog *contracts.CapabilityCatalog, repository *registry.Repository) (*hiloComposition, error) {
-	if !settings.Valid() || store == nil || sequence == nil || catalog == nil || repository == nil {
-		return nil, hilo.ErrSettings
-	}
-	manifest, err := registry.ParseManifest(scope.ManifestV1())
+	manifest, err := registry.LoadManifest(scope.BaselineV1())
 	if err != nil {
 		return nil, err
 	}
-	decision, err := heatingownership.Parse(scope.HeatingOwnershipV1(), manifest)
+	return newHiloCompositionWithManifest(manifest, settings, store, sequence, catalog, repository)
+}
+
+func newHiloCompositionWithManifest(manifest registry.Manifest, settings hilo.Settings, store *storage.Store, sequence *sequencer.Sequencer, catalog *contracts.CapabilityCatalog, repository *registry.Repository) (*hiloComposition, error) {
+	if !settings.Valid() || store == nil || sequence == nil || catalog == nil || repository == nil {
+		return nil, hilo.ErrSettings
+	}
+	decision, err := heatingownership.ParseForManifest(scope.HeatingOwnershipV1(), manifest)
 	if err != nil {
 		return nil, err
 	}

@@ -39,4 +39,36 @@ class ScopeTests(unittest.TestCase):
             with self.subTest(diagnostic=diagnostic):
                 amendment=scope.load("scope/logic_mvp_v1.json");mutation(amendment)
                 with self.assertRaisesRegex(AssertionError,diagnostic):scope.validate_logic_mvp(amendment)
+class EcobeeScopeTests(unittest.TestCase):
+    def test_exact_separate_amendment(self):
+        count,sources,digest=scope.validate_ecobee()
+        self.assertEqual((count,sources),(851,39))
+        self.assertNotEqual(digest,scope.validate())
+    def test_reject_foreign_id_capability_alias_and_provenance(self):
+        for mutation in [
+            lambda a:a["additions"][0].update(entity_id="sensor.home_current_temperature"),
+            lambda a:a["additions"].append({"entity_id":"climate.foreign","source":"homekit_controller"}),
+            lambda a:a["aliases"].append("button.home_clear_hold"),
+            lambda a:a["removals"].append("light.foreign"),
+            lambda a:a["profile"]["fields"][0].update(hap_type="clear_hold"),
+            lambda a:a["profile"]["fields"][0].update(required=1),
+            lambda a:a["profile"]["fields"][0].update(unit="fahrenheit"),
+            lambda a:a["profile"].update(thermostat_service="homekit_bridge"),
+            lambda a:a["baseline"].update(manifest_sha256="0"*64),
+            lambda a:a["baseline"].update(ids_sha256="0"*64),
+            lambda a:a["qualification"].update(commit="0"*40),
+            lambda a:a["decision"].update(sha256="0"*64),
+            lambda a:a["decision"].update(line=52.0),
+            lambda a:a["consumers"][0].update(entity_id="scene.foreign"),
+            lambda a:a["consumers"][3].update(via=[]),
+            lambda a:a.update(unapproved=True),
+        ]:
+            a=scope.load("scope/ecobee_mvp_v1.json");mutation(a)
+            with self.subTest(amendment=a):
+                with self.assertRaises(AssertionError):scope.validate_ecobee(a)
+    def test_strict_duplicate_and_trailing_decoder(self):
+        for raw in ['{"revision":"v1","revision":"v1"}','{} {}','{"field":NaN}']:
+            with self.subTest(raw=raw):
+                with self.assertRaises(AssertionError):scope.decode_ecobee(raw)
+
 if __name__=="__main__":unittest.main()
