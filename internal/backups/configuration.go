@@ -11,11 +11,14 @@ import (
 // settings constructor here; producers continue to use Provider unchanged.
 type ProviderKind uint8
 
-const Local ProviderKind = 1
+const (
+	Local ProviderKind = iota + 1
+	S3
+)
 
-var providerNames = [...]string{"", "local"}
+var providerNames = [...]string{"", "local", "s3"}
 
-func (k ProviderKind) Valid() bool { return k == Local }
+func (k ProviderKind) Valid() bool { return k == Local || k == S3 }
 func (k ProviderKind) String() string {
 	if !k.Valid() {
 		return ""
@@ -83,6 +86,7 @@ type InstanceSettings struct {
 	kind    ProviderKind
 	enabled bool
 	local   LocalSettings
+	s3      S3Settings
 }
 
 func NewLocalSettings(id InstanceID, enabled bool, root string, limits Limits) (InstanceSettings, error) {
@@ -91,7 +95,19 @@ func NewLocalSettings(id InstanceID, enabled bool, root string, limits Limits) (
 	}
 	return InstanceSettings{id: id, kind: Local, enabled: enabled, local: LocalSettings{root: root, limits: limits}}, nil
 }
-func (s InstanceSettings) Valid() bool        { return s.id.Valid() && s.kind == Local && s.local.Valid() }
+func (s InstanceSettings) Valid() bool {
+	if !s.id.Valid() {
+		return false
+	}
+	switch s.kind {
+	case Local:
+		return s.local.Valid() && !s.s3.Valid()
+	case S3:
+		return s.s3.Valid() && !s.local.Valid()
+	default:
+		return false
+	}
+}
 func (s InstanceSettings) ID() InstanceID     { return s.id }
 func (s InstanceSettings) Kind() ProviderKind { return s.kind }
 func (s InstanceSettings) Enabled() bool      { return s.enabled }

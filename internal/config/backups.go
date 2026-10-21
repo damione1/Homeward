@@ -29,7 +29,7 @@ func parseBackupProvidersInput(raw yaml.Node, dataDir string) (backups.Configura
 	}
 	admitted := make([]backups.InstanceSettings, 0, len(instances.Content))
 	for _, node := range instances.Content {
-		fields, err := backupFields(node, "id", "provider", "enabled", backups.Local.String())
+		fields, err := backupFields(node, "id", "provider", "enabled", backups.Local.String(), backups.S3.String())
 		if err != nil {
 			return backups.Configuration{}, ErrInvalidYAML
 		}
@@ -45,7 +45,7 @@ func parseBackupProvidersInput(raw yaml.Node, dataDir string) (backups.Configura
 		if err != nil {
 			return backups.Configuration{}, ErrInvalidYAML
 		}
-		enabled := true
+		enabled := kind == backups.Local
 		if node := fields["enabled"]; node != nil {
 			if node.Kind != yaml.ScalarNode || node.Tag != "!!bool" || node.Decode(&enabled) != nil {
 				return backups.Configuration{}, ErrInvalidYAML
@@ -53,6 +53,9 @@ func parseBackupProvidersInput(raw yaml.Node, dataDir string) (backups.Configura
 		}
 		switch kind {
 		case backups.Local:
+			if fields[backups.S3.String()] != nil {
+				return backups.Configuration{}, ErrInvalidYAML
+			}
 			root := defaultRoot
 			if node := fields[backups.Local.String()]; node != nil {
 				local, err := backupFields(node, "root")
@@ -67,6 +70,15 @@ func parseBackupProvidersInput(raw yaml.Node, dataDir string) (backups.Configura
 				}
 			}
 			settings, err := backups.NewLocalSettings(id, enabled, root, backups.DefaultLimits())
+			if err != nil {
+				return backups.Configuration{}, ErrInvalidYAML
+			}
+			admitted = append(admitted, settings)
+		case backups.S3:
+			if fields[backups.Local.String()] != nil {
+				return backups.Configuration{}, ErrInvalidYAML
+			}
+			settings, err := parseS3BackupSettings(id, enabled, fields[backups.S3.String()])
 			if err != nil {
 				return backups.Configuration{}, ErrInvalidYAML
 			}
