@@ -10,6 +10,7 @@ import (
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/recordermaintenance"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/damione1/Homeward/internal/view"
@@ -35,6 +36,13 @@ type nha105RunTimer struct {
 
 func (c *nha105RunClock) Now() time.Time         { c.mu.Lock(); defer c.mu.Unlock(); return c.wall }
 func (c *nha105RunClock) MonoNow() time.Duration { c.mu.Lock(); defer c.mu.Unlock(); return c.tick }
+
+// Maintenance uses the fixture's admitted wall time as well. Its real cadence
+// remains minute-based; the test does not mix2024 observations with2026 purge.
+func (c *nha105RunClock) NewTicker(d time.Duration) recordermaintenance.Ticker {
+	return recordermaintenance.RealClock{}.NewTicker(d)
+}
+
 func (c *nha105RunClock) NewTimer(d time.Duration) automationtriggers.Timer {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -117,7 +125,7 @@ func nha105StartRun(t *testing.T, c config.Config, at time.Time) *nha105RunHandl
 	t.Cleanup(func() { h.stop(t) })
 	sequence := make(chan *sequencer.Sequencer, 1)
 	ready := make(chan struct{})
-	dependencies := runDependencies{sequenceClock: h.clock, solarClock: h.clock, observe: func(_ context.Context, s *sequencer.Sequencer) error { sequence <- s; return nil }}
+	dependencies := runDependencies{sequenceClock: h.clock, solarClock: h.clock, maintenanceClock: h.clock, observe: func(_ context.Context, s *sequencer.Sequencer) error { sequence <- s; return nil }}
 	go func() {
 		h.done <- runWithDependencies(ctx, c, (&net.ListenConfig{}).Listen, func(net.Addr) { close(ready) }, nil, dependencies)
 	}()

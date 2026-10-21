@@ -517,6 +517,9 @@ func TestNHA186RunLateSceneEmitsBeforeHistoryAndStoreClose(t *testing.T) {
 	}
 	rig := nha042StartServer(t, environment, "- stop: done\n", "", nha042ServerOptions{sceneCatalogue: &catalogue, blockedDriver: true})
 	rig.run.waitReady(t)
+	// HTTP readiness does not join asynchronous Pilot.Start. The external
+	// scene call still requires the real entity/capability publication.
+	nha034WaitSignal(t, rig.pilot.ready, "late scene pilot publication")
 	epochText, err := rig.identity.Sequence().CurrentAdmissionEpoch()
 	if err != nil {
 		t.Fatal(err)

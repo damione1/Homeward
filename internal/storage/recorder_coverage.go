@@ -127,6 +127,22 @@ type RecorderCoverageSnapshot struct {
 	from, through           uint64
 	epochs                  []RecorderCoverageEpoch
 	gaps                    []RecorderCoverageGap
+	retention               []RecorderRetentionRange
+}
+
+// RecorderRetentionRange describes removed raw evidence, never recorder loss or
+// a count of physical samples. A snapshot boundary is not a state transition.
+type RecorderRetentionRange struct {
+	epoch         RecorderEpoch
+	from, through uint64
+	snapshot      bool
+}
+
+func (r RecorderRetentionRange) Epoch() RecorderEpoch     { return r.epoch }
+func (r RecorderRetentionRange) Bounds() (uint64, uint64) { return r.from, r.through }
+func (r RecorderRetentionRange) Snapshot() bool           { return r.snapshot }
+func (s RecorderCoverageSnapshot) Retention() []RecorderRetentionRange {
+	return append([]RecorderRetentionRange(nil), s.retention...)
 }
 
 func (s RecorderCoverageSnapshot) Kind() RecorderCoverageReadKind         { return s.kind }
@@ -244,6 +260,20 @@ func (s *Store) readRecorderCoverageWithLimits(ctx context.Context, request Reco
 	// Rollback shares the reader's deadline; cleanup must not add another 2s
 	// after a timed-out coverage request.
 	defer func() { _ = tx.Rollback(bounded) }()
+	result, err := readRecorderCoverageTx(ctx, bounded, tx, request, limits)
+	if err != nil {
+		return RecorderCoverageSnapshot{}, err
+	}
+	if err = tx.Commit(bounded); err != nil {
+		return coverageReadError(ctx, bounded, err)
+	}
+	return result, nil
+}
+
+// readRecorderCoverageTx borrows the caller snapshot. It never begins, commits
+// or rolls back a transaction; analytical rows and their evidence stay atomic.
+func readRecorderCoverageTx(ctx, bounded context.Context, tx pgx.Tx, request RecorderCoverageRequest, limits recorderCoverageLimits) (RecorderCoverageSnapshot, error) {
+	var err error
 	var firstID, lastID int64
 	var firstText, lastText string
 	if err = tx.QueryRow(bounded, `SELECT run_id,checkpoint::text FROM public.recorder_epochs WHERE epoch=$1`, request.fromEpoch.data()).Scan(&firstID, &firstText); err != nil {
@@ -441,8 +471,8 @@ func (s *Store) readRecorderCoverageWithLimits(ctx context.Context, request Reco
 		return coverageReadError(ctx, bounded, err)
 	}
 	rows.Close()
-	if err = tx.Commit(bounded); err != nil {
-		return coverageReadError(ctx, bounded, err)
+	if err = readRecorderRetentionTx(bounded, tx, &result, limits, &remaining); err != nil {
+		return RecorderCoverageSnapshot{}, err
 	}
 	return result, nil
 }

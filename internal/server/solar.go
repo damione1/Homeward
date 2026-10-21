@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/integrations"
+	"github.com/damione1/Homeward/internal/recordermaintenance"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/solar"
@@ -14,13 +15,15 @@ import (
 // Internal dependency injection preserves the configured production Run path.
 // It injects clocks and a consumer without replacing configured pilots.
 type runDependencies struct {
-	sequenceClock            sequencer.Clock
-	solarClock               automationtriggers.Clock
-	workdayClock             automationtriggers.Clock
-	configureWorkdayCalendar func(context.Context, workday.CalendarReader) error
-	observe                  func(context.Context, *sequencer.Sequencer) error
-	observeLists             func(*listComposition, *sessionCoordinator)
-	observeRuntime           func(*observationRuntime)
+	sequenceClock              sequencer.Clock
+	solarClock                 automationtriggers.Clock
+	workdayClock               automationtriggers.Clock
+	configureWorkdayCalendar   func(context.Context, workday.CalendarReader) error
+	observe                    func(context.Context, *sequencer.Sequencer) error
+	observeLists               func(*listComposition, *sessionCoordinator)
+	maintenanceClock           recordermaintenance.Clock
+	observeRecorderMaintenance func(*recordermaintenance.Worker)
+	observeRuntime             func(*observationRuntime)
 }
 
 func addConfiguredSolar(plan *RuntimePlan, settings solar.Settings, clock automationtriggers.Clock) error {

@@ -416,6 +416,15 @@ func (s *Store) PersistRecorderBatch(ctx context.Context, batch RecorderBatch) (
 		}
 	}
 	return s.InTransactionOutcome(ctx, func(tx pgx.Tx) error {
+		// Retention takes this same lock before selecting/deleting raw rows.
+		// The lock order is always maintenance then epoch, including late batches.
+		if _, err := tx.Exec(ctx, recorderMaintenanceLock); err != nil {
+			return err
+		}
+		var retentionCutoff time.Time
+		if err := tx.QueryRow(ctx, `SELECT raw_cutoff FROM public.recorder_maintenance_head WHERE singleton=true`).Scan(&retentionCutoff); err != nil {
+			return err
+		}
 		var currentText string
 		var oldFrom, oldThrough sql.NullString
 		var oldDigest []byte
@@ -437,6 +446,12 @@ func (s *Store) PersistRecorderBatch(ctx context.Context, batch RecorderBatch) (
 			return ErrRecorderIntegrity
 		}
 		for _, row := range batch.states {
+			if row.observed.receivedAt.Before(retentionCutoff) {
+				if err := recordRetentionRange(ctx, tx, batch.epoch, row.sequence, row.sequence, false, retentionCutoff); err != nil {
+					return err
+				}
+				continue
+			}
 			if err := insertRecorderState(ctx, tx, batch.epoch, row); err != nil {
 				return err
 			}
@@ -448,6 +463,12 @@ func (s *Store) PersistRecorderBatch(ctx context.Context, batch RecorderBatch) (
 		}
 		if batch.image != nil {
 			for _, row := range batch.image.States {
+				if row.observed.receivedAt.Before(retentionCutoff) {
+					if err := recordRetentionRange(ctx, tx, batch.epoch, batch.image.Boundary, batch.image.Boundary, true, retentionCutoff); err != nil {
+						return err
+					}
+					continue
+				}
 				if err := insertRecorderSnapshot(ctx, tx, batch.epoch, batch.image.Boundary, row); err != nil {
 					return err
 				}

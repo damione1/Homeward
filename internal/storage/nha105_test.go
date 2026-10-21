@@ -8,6 +8,7 @@ import (
 	statewire "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 	"path/filepath"
 	"testing"
@@ -59,9 +60,7 @@ func TestNHA105RecorderUpgrade16To17(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := store.PersistRecorderBatch(ctx, batch); err != nil || outcome != TransactionCommitted {
-		t.Fatal(err)
-	}
+	nha105PersistHistoricalBatch(t, store, batch)
 	if _, err := store.pool.Exec(ctx, `UPDATE public.state_history SET value_kind=7 WHERE sequence=1`); err == nil {
 		t.Fatal("schema16 admitted solar tag")
 	} else {
@@ -96,9 +95,7 @@ func TestNHA105RecorderUpgrade16To17(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := store.PersistRecorderBatch(ctx, newBatch); err != nil || outcome != TransactionCommitted {
-		t.Fatal(err)
-	}
+	nha105PersistHistoricalBatch(t, store, newBatch)
 	var count int
 	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM public.state_history WHERE value_kind IN (7,8) AND measurement_value IS NULL AND measurement_unit IS NULL`).Scan(&count); err != nil || count != 2 {
 		t.Fatal("solar tags became numeric measurements")
@@ -174,5 +171,29 @@ func TestNHA105DeclarativeHistoryRemainsExact(t *testing.T) {
 				t.Fatal("historical source hash changed")
 			}
 		}
+	}
+}
+
+// This test deliberately stays on historical16/17. The current writer requires
+// migration21's retention fence; use the unchanged row encoder to construct
+// historical bytes, with the same checkpoint/digest in one real transaction.
+func nha105PersistHistoricalBatch(t *testing.T, store *Store, batch RecorderBatch) {
+	t.Helper()
+	if len(batch.gaps) != 0 || batch.image != nil || batch.policyExcluded != 0 {
+		t.Fatal("unsupported historical fixture batch")
+	}
+	if err := store.InTransaction(context.Background(), func(tx pgx.Tx) error {
+		for _, row := range batch.states {
+			if err := insertRecorderState(context.Background(), tx, batch.epoch, row); err != nil {
+				return err
+			}
+		}
+		tag, err := tx.Exec(context.Background(), `UPDATE public.recorder_epochs SET checkpoint=$3::numeric,last_batch_from=$2::numeric,last_batch_to=$3::numeric,last_batch_digest=$4 WHERE epoch=$1 AND checkpoint=$2::numeric`, batch.epoch.data(), decimalUint(batch.from), decimalUint(batch.through), batch.digest[:])
+		if err == nil && tag.RowsAffected() != 1 {
+			return ErrRecorderIntegrity
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
