@@ -324,7 +324,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		}
 	}
 	if plan.ConfigureBackupArchives != nil {
-		archives, archiveErr := newBackupArchiveServices(launch, backupProviders, secrets)
+		archives, archiveErr := newBackupArchiveServices(launch, backupProviders, store, secrets)
 		if archiveErr != nil {
 			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, archiveErr)
 		}

@@ -18,6 +18,8 @@ import (
 // snapshot streams; only public recovery material enters the sealing path.
 type BackupArchiveServices struct {
 	providers *backups.Registry
+	store     *storage.Store
+	secrets   *storage.SecretRepository
 	public    backuparchive.RecoveryPublic
 	key       storage.BackupServerKey
 	directory string
@@ -27,7 +29,7 @@ func (BackupArchiveServices) String() string                 { return "backup.Ar
 func (s BackupArchiveServices) GoString() string             { return s.String() }
 func (s BackupArchiveServices) Format(f fmt.State, _ rune)   { _, _ = io.WriteString(f, s.String()) }
 func (s BackupArchiveServices) MarshalJSON() ([]byte, error) { return json.Marshal(s.String()) }
-func newBackupArchiveServices(launch config.Config, providers *backups.Registry, secrets *storage.SecretRepository) (BackupArchiveServices, error) {
+func newBackupArchiveServices(launch config.Config, providers *backups.Registry, store *storage.Store, secrets *storage.SecretRepository) (BackupArchiveServices, error) {
 	public, _, err := launch.BackupRecovery()
 	if err != nil {
 		return BackupArchiveServices{}, err
@@ -40,7 +42,7 @@ func newBackupArchiveServices(launch config.Config, providers *backups.Registry,
 	if err != nil {
 		return BackupArchiveServices{}, err
 	}
-	return BackupArchiveServices{providers: providers, public: public, key: key, directory: filepath.Join(directory, "backup-archive-pending")}, nil
+	return BackupArchiveServices{providers: providers, store: store, secrets: secrets, public: public, key: key, directory: filepath.Join(directory, "backup-archive-pending")}, nil
 }
 func (s BackupArchiveServices) Provider(instance backups.InstanceID) (backups.Provider, error) {
 	if s.providers == nil {
