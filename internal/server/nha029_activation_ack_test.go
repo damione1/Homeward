@@ -294,6 +294,7 @@ const (
 	nha029C5SQLActive
 	nha029C5SQLAttempt
 	nha029C5SQLPolicyAudit
+	nha029C5SQLDocumentRead
 	nha029C5SQLCommit
 	nha029C5SQLRollback
 )
@@ -346,7 +347,7 @@ func (p *nha029C5SQLProxy) port() int { return p.listener.Addr().(*net.TCPAddr).
 func (p *nha029C5SQLProxy) arm(t *testing.T, cut nha029C5SQLCut, statement nha029C5SQLStatement) *nha029C5SQLTicket {
 	t.Helper()
 	if cut < nha029C5CutBeforeCommit || cut > nha029C5CutAfterStatement ||
-		(cut == nha029C5CutAfterStatement && (statement < nha029C5SQLProtectedSource || statement > nha029C5SQLPolicyAudit)) {
+		(cut == nha029C5CutAfterStatement && (statement < nha029C5SQLProtectedSource || statement > nha029C5SQLDocumentRead)) {
 		t.Fatal("invalid C5 SQL cut")
 	}
 	c := &nha029C5SQLTicket{cut: cut, statement: statement, held: make(chan nha029C5SQLBarrier, 1), decision: make(chan bool, 1)}
@@ -455,6 +456,8 @@ func nha029C5SQLClassify(raw []byte) nha029C5SQLStatement {
 		return nha029C5SQLCommit
 	case sql == "rollback":
 		return nha029C5SQLRollback
+	case strings.HasPrefix(sql, "select d.id,d.last_revision,d.kind::text,") && strings.Contains(sql, "from public.config_documents d join public.config_versions v") && strings.HasSuffix(sql, "where d.id=$1"):
+		return nha029C5SQLDocumentRead
 	case strings.Contains(sql, "insert into public.config_activation_policy_changes"):
 		return nha029C5SQLPolicyAudit
 	case strings.Contains(sql, "insert into public.config_activation_attempts"):

@@ -272,6 +272,9 @@ func (o *Owner) Activate(ctx context.Context, request Request) (Result, error) {
 	if err != nil {
 		return Result{outcome: RejectedBeforeCommit, transaction: storage.TransactionNotCommitted}, err
 	}
+	if err := request.confirmWorkspacePrecondition(current, prepared); err != nil {
+		return Result{outcome: RejectedBeforeCommit, transaction: storage.TransactionNotCommitted}, err
+	}
 	t := &activationTransfer{prepared: prepared, request: request, outcome: storage.TransactionNotCommitted, basis: operationalBasis{current.operational, current.legacy}}
 	if err = o.reserve(bounded, t); err != nil {
 		o.releaseUnwritten(t)
@@ -311,10 +314,10 @@ func (o *Owner) Activate(ctx context.Context, request Request) (Result, error) {
 		if t.policies != nil {
 			t.policies.Quarantine()
 		}
-		return Result{outcome: CommitUnknown, attempt: prepared.attempt}, err
+		return Result{outcome: CommitUnknown, attempt: prepared.attempt, transaction: storage.TransactionIndeterminate}, err
 	}
 	if t.outcome != storage.TransactionCommitted {
-		return Result{outcome: CommitUnknown, attempt: prepared.attempt}, ErrStartupIntegrity
+		return Result{outcome: CommitUnknown, attempt: prepared.attempt, transaction: storage.TransactionIndeterminate}, ErrStartupIntegrity
 	}
 	// Caller cancellation after a known COMMIT cannot restore A. The bounded
 	// owner attempt continues publication independently of the request bearer.

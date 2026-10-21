@@ -582,6 +582,20 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			})
 		}
 	}
+	documents, err := prepareConfigDocuments(startup, store, activation, secrets)
+	if err != nil {
+		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
+		})
+	}
+	if documents != nil {
+		defer documents.Close()
+	}
+	if err := registerConfigDocumentsRoutes(plan.Public, documents, sessions); err != nil {
+		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
+		})
+	}
 	if err := listRun.Register(plan.Public); err != nil {
 		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
