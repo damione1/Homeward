@@ -379,8 +379,10 @@ func TestNHA101Run040Global512Then513RejectsWholeSource(t *testing.T) {
 	unblock := func() { once.Do(func() { close(release) }) }
 	defer unblock()
 	var initial sync.Once
+	publications := make(chan error, 2)
 	h := nha101RunStart(t, startup, time.Date(2026, 11, 1, 4, 0, 0, 0, time.UTC), true, func(r *remoteCalendarRuntime) {
 		r.bridge.beforeReplace = func() { initial.Do(func() { close(entered); <-release }) }
+		r.bridge.afterReplace = func(err error) { publications <- err }
 	})
 	select {
 	case <-entered:
@@ -406,6 +408,22 @@ func TestNHA101Run040Global512Then513RejectsWholeSource(t *testing.T) {
 	}
 	unblock()
 	nha101RunWait(t, func() bool { return nha101RunReady(h) })
+	select {
+	case err := <-publications:
+		if err != nil {
+			t.Fatal("real 040 rejected global 512", err)
+		}
+	case <-time.After(8 * time.Second):
+		t.Fatal("real 040 global 512 result absent")
+	}
+	calendar := nha101RunCalendar(t, h, true)
+	changes, err := h.runtime.service.Subscribe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer changes.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
 	count.Store(213)
 	h.runtime.mu.Lock()
 	var pilot *configuredRemoteCalendarPilot
@@ -413,11 +431,53 @@ func TestNHA101Run040Global512Then513RejectsWholeSource(t *testing.T) {
 		pilot = p
 	}
 	h.runtime.mu.Unlock()
-	if pilot == nil || pilot.Refresh(context.Background()) != nil {
+	if pilot == nil || pilot.Refresh(ctx) != nil {
 		t.Fatal("actual supervised Source could not refresh")
 	}
-	nha101RunWait(t, func() bool { return !nha101RunReady(h) })
-	calendar := nha101RunCalendar(t, h, false)
+	select {
+	case err := <-publications:
+		if err != automationtriggers.ErrCapacity {
+			t.Fatal("real 040 global 513 did not refuse the whole source for capacity", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("real 040 global 513 result absent", ctx.Err())
+	}
+	// Ready closes before collection; process freshness becomes stale before
+	// persistStale finishes its admitted cache read. Wait for the post-COMMIT
+	// publication reason, whose notification follows that read's release.
+	for {
+		change, err := changes.Next(ctx)
+		if err != nil {
+			t.Fatal("durable 040 refusal notification absent", err)
+		}
+		if change.Kind() != calendars.CalendarUpdated || change.Calendar() != calendar.ID() {
+			t.Fatal("unexpected remote cache notification")
+		}
+		current, err := h.runtime.service.GetCalendar(ctx, calendar.ID())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if current.Revision() != change.Revision() {
+			continue // Await the notification for the newer durable snapshot.
+		}
+		state, ok := current.RemoteState()
+		if !ok {
+			t.Fatal("remote cache state absent")
+		}
+		switch state.Reason() {
+		case calendars.RemoteReasonNone:
+			continue // The committed 213 representation can precede its refusal.
+		case calendars.RemoteReasonPublication:
+			freshness, known := state.Freshness()
+			if !known || freshness != calendars.RemoteStale || nha101RunReady(h) {
+				t.Fatal("durable 040 refusal kept the source fresh or Ready")
+			}
+		default:
+			t.Fatal("remote cache degraded for a reason other than 040 publication")
+		}
+		calendar = current
+		break
+	}
 	zone, _ := calendars.ParseZone("UTC")
 	from, _ := calendars.NewInstant(now)
 	to, _ := calendars.NewInstant(now.Add(48 * time.Hour))
