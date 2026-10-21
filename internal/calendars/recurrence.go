@@ -28,6 +28,10 @@ func (b *calculationBudget) charge(work int64, candidate bool) error {
 	if candidate {
 		b.candidates++
 	}
+	if a := admissionFrom(b.ctx); a != nil {
+		a.observation.Work = b.work
+		a.observation.Candidates = b.candidates
+	}
 	return nil
 }
 
@@ -35,7 +39,18 @@ func (b *calculationBudget) charge(work int64, candidate bool) error {
 // Profile admission excludes every cross-filter and subdaily loop. Gregorian
 // oracle P0 proves ≤8 periods per Next; each dayset has ≤366 days and one time.
 // No Set.Iterator, All, Between, timeout goroutine, or shared library values.
+// Legacy private probe signature; domain walks use the error-bearing wrapper.
 func ruleIterator(rule Rule, ceiling time.Time) (rrule.Next, error) {
+	iterator, err := ruleIteratorContext(context.Background(), rule, ceiling)
+	if err != nil {
+		return nil, err
+	}
+	return func() (time.Time, bool) {
+		value, present, _ := iterator.take(context.Background())
+		return value, present
+	}, nil
+}
+func ruleIteratorContext(ctx context.Context, rule Rule, ceiling time.Time) (*pinnedNext, error) {
 	options := rrule.ROption{Dtstart: rule.anchor.wall().wallUTC(), Interval: rule.interval, Wkst: rrule.MO}
 	hardEnd := time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
 	if ceiling.After(hardEnd) {
@@ -61,11 +76,11 @@ func ruleIterator(rule Rule, ceiling time.Time) (rrule.Next, error) {
 	default:
 		return nil, failure(InvalidInput)
 	}
-	lib, err := rrule.NewRRule(options)
+	lib, err := newPinnedNext(ctx, options, ceiling)
 	if err != nil {
-		return nil, failure(InvalidInput)
+		return nil, err
 	}
-	return lib.Iterator(), nil
+	return lib, nil
 }
 
 func occurrenceSpan(ctx context.Context, base Span, point Point, initial bool, budget *calculationBudget) (Span, bool, error) {
@@ -93,17 +108,43 @@ func occurrenceSpan(ctx context.Context, base Span, point Point, initial bool, b
 		return Span{}, false, err
 	}
 	start, present, err := resolveWall(ctx, point.local, base.zone, initial)
+	if point.origin == originResolved {
+		if err != nil {
+			return Span{}, false, err
+		}
+		if present && start.value.Equal(point.resolved.value) {
+			return Span{}, false, failure(InvalidOccurrence)
+		}
+		local, e := base.zone.localAt(ctx, point.resolved.value)
+		if e != nil {
+			return Span{}, false, e
+		}
+		if local != point.local {
+			return Span{}, false, failure(InvalidOccurrence)
+		}
+		start = point.resolved
+		present = true
+		err = nil
+	}
 	if err != nil || !present {
 		return Span{}, false, err
 	}
-	end, err := NewInstant(start.value.Add(base.end.value.Sub(base.start.value)))
+	if base.mode == spanPoint {
+		return Span{kind: Timed, mode: spanPoint, source: base.source, anchor: point.local, start: start, end: start, zone: base.zone}, true, nil
+	}
+	var end Instant
+	if base.nominal.Valid() {
+		end, err = nominalEnd(ctx, point.local, start, base.nominal, base.zone)
+	} else {
+		end, err = NewInstant(start.value.Add(base.end.value.Sub(base.start.value)))
+	}
 	if err != nil {
 		if !initial {
 			return Span{}, false, nil
 		}
 		return Span{}, false, err
 	}
-	return Span{kind: Timed, anchor: point.local, start: start, end: end, zone: base.zone}, true, nil
+	return Span{kind: Timed, mode: base.mode, source: base.source, anchor: point.local, start: start, end: end, zone: base.zone, endZone: base.endZone, nominal: base.nominal}, true, nil
 }
 func startKey(span Span) string {
 	if span.kind == AllDay {
@@ -127,7 +168,7 @@ func walkBase(ctx context.Context, event Event, ceiling Point, budget *calculati
 	if int(ceiling.datePart().year)-int(event.span.point().datePart().year) > 100 {
 		return failure(BudgetExceeded)
 	}
-	next, err := ruleIterator(event.rule, ceiling.wall().wallUTC())
+	next, err := ruleIteratorContext(ctx, event.rule, ceiling.wall().wallUTC())
 	if err != nil {
 		return err
 	}
@@ -140,7 +181,10 @@ func walkBase(ctx context.Context, event Event, ceiling Point, budget *calculati
 		if err := budget.charge(event.rule.workCharge(), true); err != nil {
 			return err
 		}
-		candidate, present := next() // synchronous, internally bounded by profile.
+		candidate, present, nextErr := next.take(ctx) // synchronous, internally bounded by profile.
+		if nextErr != nil {
+			return nextErr
+		}
 		if err := canceled(ctx); err != nil {
 			return err
 		}
@@ -271,7 +315,14 @@ func TimeWindow(from, to Instant, zone Zone) (Window, error) {
 	if !from.Valid() || !to.Valid() || !zone.Valid() || !to.value.After(from.value) || to.value.Sub(from.value) > 366*24*time.Hour {
 		return Window{}, failure(InvalidInput)
 	}
-	a, b := localFromTime(from.value.In(zone.location)), localFromTime(to.value.In(zone.location))
+	a, err := zone.localAt(context.Background(), from.value)
+	if err != nil {
+		return Window{}, err
+	}
+	b, err := zone.localAt(context.Background(), to.value)
+	if err != nil {
+		return Window{}, err
+	}
 	if !a.Valid() || !b.Valid() {
 		return Window{}, failure(InvalidDate)
 	}
@@ -309,5 +360,5 @@ func (w Window) ceiling(kind TemporalKind) Point {
 	return Point{kind: Timed, local: localFromTime(value)}
 }
 func (w Window) identity() string {
-	return fmt.Sprintf("%d|%s|%s|%s|%s|%s", w.kind, w.fromDate.String(), w.toDate.String(), w.from.String(), w.to.String(), w.zone.Name())
+	return fmt.Sprintf("%d|%s|%s|%s|%s|%s|%s", w.kind, w.fromDate.String(), w.toDate.String(), w.from.String(), w.to.String(), w.zone.Name(), w.zone.DataID())
 }

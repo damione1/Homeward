@@ -1,6 +1,9 @@
 package calendars
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Components returns scalar copies. It never exposes a calendar or zone cache.
 func (d CivilDate) Components() (int, time.Month, int, error) {
@@ -17,12 +20,18 @@ func (d CivilDate) AddDays(days int) (CivilDate, error) { return d.add(days) }
 // LocalDate projects an instant using the admitted, pinned timezone data.
 // Fractional seconds are allowed; no mutable *time.Location escapes the Zone.
 func (z Zone) LocalDate(instant time.Time) (CivilDate, error) {
+	return z.LocalDateContext(context.Background(), instant)
+}
+func (z Zone) LocalDateContext(ctx context.Context, instant time.Time) (CivilDate, error) {
 	if !z.Valid() || instant.IsZero() || instant.Year() < 1 || instant.Year() > 9999 {
 		return CivilDate{}, failure(InvalidDate)
 	}
-	local := instant.In(z.location)
-	if local.Year() < 1 || local.Year() > 9999 {
+	local, err := z.localAt(ctx, instant)
+	if err != nil {
+		return CivilDate{}, err
+	}
+	if !local.Valid() {
 		return CivilDate{}, failure(InvalidDate)
 	}
-	return CivilDate{uint16(local.Year()), uint8(local.Month()), uint8(local.Day())}, nil
+	return local.date, nil
 }

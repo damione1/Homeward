@@ -1,5 +1,5 @@
-// Package calendars owns local calendar business data, not configuration,
-// network handlers, source synchronization, or automation execution.
+// Package calendars owns admitted calendar data and bounded recurrence
+// expansion. Network synchronization and automation execution live elsewhere.
 package calendars
 
 import "context"
@@ -34,6 +34,16 @@ const (
 	Closed
 	StaleCursor
 	ResyncRequired
+	MissingFloatingZone
+	ConflictingEnd
+	EndType
+	ContradictoryIdentity
+	UnsupportedObservanceRule
+	ZoneCoverageUnknown
+	InconsistentObservance
+	InvalidDuration
+	DurationLimit
+	InvalidStatus
 )
 
 // RuleIssue makes rejection precise without rendering untrusted rule text.
@@ -136,6 +146,26 @@ func (e *Error) Error() string {
 		return "calendars: page cursor requires a fresh snapshot"
 	case ResyncRequired:
 		return "calendars: subscriber requires resynchronization"
+	case MissingFloatingZone:
+		return "calendars: floating time requires an explicit projection zone"
+	case ConflictingEnd:
+		return "calendars: DTEND and DURATION conflict"
+	case EndType:
+		return "calendars: start and end temporal forms differ"
+	case ContradictoryIdentity:
+		return "calendars: duplicate UID and recurrence identity"
+	case UnsupportedObservanceRule:
+		return "calendars: VTIMEZONE observance is outside admitted profile"
+	case InconsistentObservance:
+		return "calendars: inconsistent or empty observance"
+	case InvalidDuration:
+		return "calendars: invalid positive event duration"
+	case DurationLimit:
+		return "calendars: duration exceeds admitted bound"
+	case InvalidStatus:
+		return "calendars: invalid event status"
+	case ZoneCoverageUnknown:
+		return "calendars: embedded zone has no admitted coverage"
 	default:
 		return "calendars: invalid error"
 	}

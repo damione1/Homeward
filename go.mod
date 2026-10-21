@@ -5,6 +5,7 @@ go 1.27.2
 require (
 	connectrpc.com/connect v1.21.0
 	filippo.io/age v1.3.2
+	github.com/arran4/golang-ical v0.3.8
 	github.com/coder/websocket v1.8.15
 	github.com/eclipse/paho.golang v0.23.0
 	github.com/fxamacker/cbor/v2 v2.9.6

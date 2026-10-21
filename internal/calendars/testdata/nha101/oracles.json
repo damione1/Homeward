@@ -1,0 +1,53 @@
+{
+  "status": "NOT_RUN_STATIC_ORACLES_BEFORE_EXECUTION",
+  "authority": ["RFC5545 sections3.3.5,3.3.6,3.6.1,3.6.5,3.8.5.3", "ical14.3.0 source for override metadata", "Homeward100 current profile and proposed extensions in PLAN.md"],
+  "stage_a_current": [
+    {"file":"01-date.ics","uid":"date","kind":"AllDay","start":"2026-03-07","end_exclusive":"2026-03-10","summary":"Three civil dates"},
+    {"file":"02-utc.ics","uid":"utc","kind":"Timed","start":"2026-10-02T13:00:00Z","end_exclusive":"2026-10-02T14:00:00Z","zone":"UTC"},
+    {"file":"03-iana.ics","uid":"iana","kind":"Timed","start":"2026-10-02T13:00:00Z","end_exclusive":"2026-10-02T14:00:00Z","zone":"America/New_York"}
+  ],
+  "stage_b_not_wired": [
+    {"file":"04-default-date.ics","kind":"AllDay","start":"2026-10-02","end_exclusive":"2026-10-03","summary":{"state":"Absent"}},
+    {"file":"05-point.ics","kind":"TimedPoint","at":"2026-10-02T13:00:00Z","summary":{"state":"Present","value":""},"selection":"from<=at && at<to","border_kinds":["Start","End"]},
+    {"file":"06-duration.ics","uid":"nominal","occurrences":[["2026-03-07T17:00:00Z","2026-03-08T16:00:00Z"],["2026-03-08T16:00:00Z","2026-03-09T16:00:00Z"]]},
+    {"file":"06-duration.ics","uid":"exact","occurrences":[["2026-03-07T17:00:00Z","2026-03-08T16:00:00Z"],["2026-03-08T16:00:00Z","2026-03-09T15:00:00Z"]]},
+    {"file":"07-overrides.ics","uid":"daily","effective_dates":["2026-10-02","2026-10-05","2026-10-06","2026-10-08"],"moved":{"original":"2026-10-04","start":"2026-10-08","end_exclusive":"2026-10-09","summary":{"state":"Absent"},"description":{"state":"Present","value":"Override description"},"location":{"state":"Present","value":""}},"repeat_or_reorder":"same identities and payloads, no duplicate"},
+    {"file":"08-vtimezone-fixed.ics","uid":"quarter","start":"2026-10-02T03:15:00Z","end_exclusive":"2026-10-02T04:15:00Z","zone_authority":"EmbeddedVTIMEZONE"},
+    {"file":"09-vtimezone-collision.ics","uid":"collision","start":"2026-10-02T07:00:00Z","end_exclusive":"2026-10-02T08:00:00Z","forbidden_substitution":"IANA would incorrectly produce13:00Z"},
+    {"file":"10-vtimezone-dst.ics","uid":"gap-generated","starts":["2026-03-07T07:30:00Z","2026-03-09T06:30:00Z","2026-03-10T06:30:00Z"],"duration_seconds":3600,"count_applied_after_generated_gap_rejection":true},
+    {"file":"10-vtimezone-dst.ics","uid":"fold","start":"2026-11-01T05:30:00Z","end_exclusive":"2026-11-01T06:30:00Z"},
+    {"file":"10-vtimezone-dst.ics","uid":"gap-explicit","start":"2026-03-08T07:30:00Z","end_exclusive":"2026-03-08T08:30:00Z"},
+    {"file":"11-floating-xwr.ics","configuration_projection":null,"start":"2026-10-02T13:00:00Z","wire_form_retained":"Floating"},
+    {"file":"11-floating-xwr.ics","configuration_projection":"UTC","start":"2026-10-02T09:00:00Z","wire_form_retained":"Floating"},
+    {"file":"12-floating-unresolved.ics","configuration_projection":null,"issue":"MissingFloatingZone"},
+    {"file":"13-conflicting-end.ics","issue":"ConflictingEnd"},
+    {"file":"15-duplicate-key.ics","issue":"ContradictoryIdentity","snapshot":"not published"},
+    {"file":"16-folded-text.ics","summary":"Folded summary","description":"Line one\nLine two, comma; semicolon\\ slash","location":"Room"},
+    {"file":"17-observance-sparse.ics","observance_onsets_utc":["2096-02-29T02:00:00Z","2108-02-29T02:00:00Z"],"consequence":"twelve yearly periods between onsets disproves transfer of eight-period100 bound","start":"2108-02-29T09:00:00Z","end_exclusive":"2108-02-29T10:00:00Z","oracle_origin":"hand Gregorian calendar reasoning, not candidate output"}
+  ],
+  "guard": [
+    {"file":"14-truncated.ics","issue":"UnclosedComponent","candidate_parser_may_accept_without_guard":true},
+    {"bound":"body_bytes","at":1048576,"plus_one":"BodyTooLarge"},
+    {"bound":"unfolded_line_bytes","at":8192,"plus_one":"LineTooLarge"},
+    {"bound":"logical_lines","at":16384,"plus_one":"TooManyLines"},
+    {"bound":"physical_lines","at":32768,"plus_one":"TooManyLines"},
+    {"bound":"depth","at":4,"plus_one":"TooDeep"},
+    {"bound":"components","at":4096,"plus_one":"TooManyComponents"},
+    {"bound":"events","at":2048,"plus_one":"TooManyEvents"},
+    {"bound":"timezones","at":8,"plus_one":"TooManyZones"},
+    {"case":"invalid_utf8_after_unfold","issue":"InvalidText"},
+    {"case":"UTF8_sequence_split_by_fold","outcome":"reassembled then UTF8-valid"},
+    {"case":"cancelled_context","issue":"context.Canceled","return":"synchronous, no worker left"}
+  ],
+  "future_product_only": [
+    "200->304->invalid200 keeps snapshot+old validators and marks stale only after failure",
+    "304 without admitted matching request scope cannot become fresh or healthy",
+    "304 mismatching strongETag does not update cached validator",
+    "Vary/auth/config/resource changes invalidate conditional reuse",
+    "no-store forbids new durable response; previous business snapshot stale, validators disarmed",
+    "empty freshWindow vs empty staleWindow remain observable and stale never arms040",
+    "512global occurrences accepted,513 rejected without partialWindow; reading snapshot remains available",
+    "late configuration refresh/unknownCOMMIT never ACK/retry or publish",
+    "GET only; remote mutation counters zero; LAN explicit policy remains possible"
+  ]
+}

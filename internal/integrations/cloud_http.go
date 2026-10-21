@@ -53,6 +53,7 @@ func (r CloudRequest) MarshalJSON() ([]byte, error) { return json.Marshal(r.Stri
 
 type CloudResponse struct {
 	status      int
+	header      http.Header // private bounded conditional response projection
 	body        []byte
 	cookies     CloudCookies
 	owner       *CloudClient
@@ -248,7 +249,20 @@ func (c *CloudClient) requestAllowed(request CloudRequest) bool {
 // Observe may retry only read observations. A successful HTTP response does
 // not mark the integration ready: the pilot must first admit the decoded
 // observation through Host, then explicitly call ConfirmObservationAdmitted.
+type cloudResponseMode uint8
+
+const (
+	cloudOrdinaryResponse cloudResponseMode = iota + 1
+	cloudConditionalResponse
+)
+
 func (c *CloudClient) Observe(ctx context.Context, request CloudRequest) (CloudResponse, error) {
+	return c.observe(ctx, request, cloudOrdinaryResponse)
+}
+func (c *CloudClient) observe(ctx context.Context, request CloudRequest, mode cloudResponseMode) (CloudResponse, error) {
+	if mode != cloudOrdinaryResponse && mode != cloudConditionalResponse {
+		return CloudResponse{}, &CloudError{kind: CloudInvalid}
+	}
 	if !c.valid() || ctx == nil || !c.requestAllowed(request) {
 		return CloudResponse{}, &CloudError{kind: CloudInvalid}
 	}
@@ -270,7 +284,7 @@ func (c *CloudClient) Observe(ctx context.Context, request CloudRequest) (CloudR
 		c.healthMu.Lock()
 		healthEpoch := c.healthEpoch
 		c.healthMu.Unlock()
-		response, retryAfter, err := c.send(budget, request, nil, nil)
+		response, retryAfter, err := c.sendMode(budget, request, nil, nil, mode)
 		if err == nil {
 			response.owner = c
 			response.observation = true
@@ -331,6 +345,12 @@ func (c *CloudClient) Act(ctx context.Context, command AdmittedCommand, request 
 }
 
 func (c *CloudClient) send(ctx context.Context, request CloudRequest, beforeTransport func() bool, entered *bool) (CloudResponse, time.Time, error) {
+	return c.sendMode(ctx, request, beforeTransport, entered, cloudOrdinaryResponse)
+}
+func (c *CloudClient) sendMode(ctx context.Context, request CloudRequest, beforeTransport func() bool, entered *bool, mode cloudResponseMode) (CloudResponse, time.Time, error) {
+	if mode != cloudOrdinaryResponse && mode != cloudConditionalResponse {
+		return CloudResponse{}, time.Time{}, &CloudError{kind: CloudInvalid}
+	}
 	release, err := c.policy.acquire(ctx, c.session.Done(), c.scope)
 	if err != nil {
 		return CloudResponse{}, time.Time{}, err
@@ -397,12 +417,27 @@ func (c *CloudClient) send(ctx context.Context, request CloudRequest, beforeTran
 		c.policy.deferScope(c.scope, until)
 		return CloudResponse{}, until, &CloudError{kind: CloudQuotaDeferred, retryAt: until, retryable: valid}
 	}
-	limited := io.LimitReader(response.Body, c.policy.limits.value.ResponseBytes+1)
+	if mode == cloudConditionalResponse {
+		if response.StatusCode == http.StatusNotModified {
+			if attempt.Err() != nil || !c.live() {
+				return CloudResponse{}, time.Time{}, &CloudError{kind: CloudSessionInactive}
+			}
+			return CloudResponse{status: response.StatusCode, header: conditionalResponseHeaders(response.Header)}, time.Time{}, nil
+		}
+		if response.StatusCode == http.StatusPartialContent {
+			return CloudResponse{}, time.Time{}, &CloudError{kind: CloudHTTPFailed}
+		}
+	}
+	responseLimit := c.policy.limits.value.ResponseBytes
+	if mode == cloudConditionalResponse && responseLimit > 1<<20 {
+		responseLimit = 1 << 20
+	}
+	limited := io.LimitReader(response.Body, responseLimit+1)
 	content, err := io.ReadAll(limited)
 	if err != nil {
 		return CloudResponse{}, time.Time{}, &CloudError{kind: CloudTransportFailed, retryable: true}
 	}
-	if int64(len(content)) > c.policy.limits.value.ResponseBytes {
+	if int64(len(content)) > responseLimit {
 		return CloudResponse{}, time.Time{}, &CloudError{kind: CloudResponseTooLarge}
 	}
 	if err := attempt.Err(); err != nil {
@@ -416,6 +451,12 @@ func (c *CloudClient) send(ctx context.Context, request CloudRequest, beforeTran
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return CloudResponse{}, time.Time{}, &CloudError{kind: CloudHTTPFailed, retryable: response.StatusCode >= 500 && response.StatusCode <= 599, responseBody: content}
+	}
+	if mode == cloudConditionalResponse {
+		if response.StatusCode != http.StatusOK {
+			return CloudResponse{}, time.Time{}, &CloudError{kind: CloudHTTPFailed}
+		}
+		return CloudResponse{status: response.StatusCode, body: content, header: conditionalResponseHeaders(response.Header)}, time.Time{}, nil
 	}
 	cookies, err := snapshotCloudCookies(response)
 	if err != nil {
@@ -527,6 +568,25 @@ func (c *CloudClient) ConfirmObservationAdmitted(ctx context.Context, response C
 		return &CloudError{kind: CloudInvalid}
 	}
 	return c.confirmObservationEpoch(ctx, response.healthEpoch)
+}
+
+// pendingObservationEpoch preserves the current receipt generation. This is
+// called only by conditionalHTTP after checking its private observation.
+func (c *CloudClient) pendingObservationEpoch(ctx context.Context, epoch uint64) error {
+	c.healthMu.Lock()
+	defer c.healthMu.Unlock()
+	if epoch != c.healthEpoch {
+		return &CloudError{kind: CloudInvalid}
+	}
+	if c.degraded {
+		return nil
+	}
+	report, _ := NewHealthReport(HealthDegraded, "calendar publication pending")
+	if err := c.session.ReportHealth(ctx, report); err != nil {
+		return &CloudError{kind: CloudSessionInactive}
+	}
+	c.degraded = true
+	return nil
 }
 
 func (c *CloudClient) confirmObservationEpoch(ctx context.Context, epoch uint64) error {

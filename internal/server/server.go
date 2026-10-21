@@ -53,7 +53,8 @@ func (unconfiguredIdentity) Resolve(context.Context, domain.IntegrationInstanceI
 // drains the command service. Run also joins its job scheduler before closing
 // PostgreSQL, using the same shutdown budget for both owners.
 type RuntimePlan struct {
-	scopeManifest registry.Manifest
+	remoteCalendar *remoteCalendarRuntime
+	scopeManifest  registry.Manifest
 	// Internal observation seam retains the actual composed compiler in tests.
 	observeOperationalCompiler        func(*configuredOperationalCompiler)
 	ConfigureBackupArchives           func(context.Context, BackupArchiveServices) error
@@ -220,23 +221,24 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		return err
 	}
 	observed.sequence, observed.recording, observed.store = sequence, recording, store
+	var remoteRuntime *remoteCalendarRuntime
 	hiloSettings, hiloEnabled := c.HiloSettings()
 	// The fixed admitted unit set also covers a later configured Hilo pilot.
 	// No descriptor, client or authorization registration is activated here.
 	units, err := newRunUnitCatalog(true)
 	if err != nil {
-		return closeStoreWithRecorder(store, recording, err)
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
 	catalog, err := contracts.NewCapabilityCatalog(units)
 	if err != nil {
-		return closeStoreWithRecorder(store, recording, err)
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
 	plan := RuntimePlan{Identity: unconfiguredIdentity{}}
 	var hiloRun *hiloComposition
 	if factory != nil {
 		plan, err = factory(ctx, store)
 		if err != nil {
-			return closeStoreWithRecorder(store, recording, err)
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 		}
 	} else {
 		activeCandidate, hasActiveGeneration := admitted.LegacyCandidate()
@@ -244,7 +246,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		if hasActiveGeneration {
 			definitions, definitionErr := helpers.Definitions(activeCandidate)
 			if definitionErr != nil {
-				return closeStoreWithRecorder(store, recording, definitionErr)
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, definitionErr)
 			}
 			hasActiveHelpers = len(definitions) != 0
 		}
@@ -253,49 +255,50 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		workers := c.ExternalWorkers()
 		solarSettings, solarEnabled := c.SolarSettings()
 		workdaySettings, workdayEnabled := c.WorkdaySettings()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled {
+		_, remoteEnabled := c.RemoteCalendarSettings()
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled || remoteEnabled {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
 				if e != nil {
-					return closeStoreWithRecorder(store, recording, e)
+					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, e)
 				}
 				if _, e = secrets.InitializeCredentialIfAbsent(ctx, neviwebSettings.SessionHandle(), initial); e != nil {
-					return closeStoreWithRecorder(store, recording, e)
+					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, e)
 				}
 				cloud = append(cloud, neviwebComposition{settings: neviwebSettings, catalog: catalog})
 			}
 			plan, err = defaultConfiguredRuntimePlanWithManifest(scopeManifest, mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
 			if err != nil {
-				return closeStoreWithRecorder(store, recording, err)
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 			}
 			if hasActiveHelpers {
 				if err := addActiveHelpers(&plan, activeCandidate, store); err != nil {
-					return closeStoreWithRecorder(store, recording, err)
+					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 				}
 			}
 			if solarEnabled {
 				if err := addConfiguredSolar(&plan, solarSettings, dependencies.solarClock); err != nil {
-					return closeStoreWithRecorder(store, recording, err)
+					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 				}
 			}
 			if workdayEnabled {
 				if err := addConfiguredWorkdayWithManifest(&plan, workdaySettings, dependencies.workdayClock, scopeManifest); err != nil {
-					return closeStoreWithRecorder(store, recording, err)
+					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 				}
 				plan.ConfigureWorkdayCalendar = dependencies.configureWorkdayCalendar
 			}
 			if hiloEnabled {
 				repository, ok := plan.Identity.(*registry.Repository)
 				if !ok {
-					return closeStoreWithRecorder(store, recording, ErrIdentityNotConfigured)
+					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, ErrIdentityNotConfigured)
 				}
 				hiloRun, err = newHiloCompositionWithManifest(scopeManifest, hiloSettings, store, sequence, catalog, repository)
 				if err != nil {
-					return closeStoreWithRecorder(store, recording, err)
+					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 				}
 				if err := hiloRun.augment(&plan); err != nil {
-					return closeStoreWithRecorder(store, recording, err)
+					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 				}
 			}
 		}
@@ -305,47 +308,50 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	if repository, ok := plan.Identity.(*registry.Repository); ok {
 		actual, err := repository.ScopeManifest()
 		if err != nil {
-			return closeStoreWithRecorder(store, recording, err)
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 		}
 		wantDigest, _ := scopeManifest.Digest()
 		actualDigest, _ := actual.Digest()
 		wantRevision, _ := scopeManifest.Revision()
 		actualRevision, _ := actual.Revision()
 		if actualDigest != wantDigest || actualRevision != wantRevision {
-			return closeStoreWithRecorder(store, recording, registry.ErrOutsideManifest)
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, registry.ErrOutsideManifest)
 		}
 	}
 	if plan.ConfigureBackups != nil {
 		if err := plan.ConfigureBackups(ctx, backupProviders); err != nil {
-			return closeStoreWithRecorder(store, recording, err)
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 		}
 	}
 	if plan.ConfigureBackupArchives != nil {
 		archives, archiveErr := newBackupArchiveServices(launch, backupProviders, secrets)
 		if archiveErr != nil {
-			return closeStoreWithRecorder(store, recording, archiveErr)
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, archiveErr)
 		}
 		if err := plan.ConfigureBackupArchives(ctx, archives); err != nil {
-			return closeStoreWithRecorder(store, recording, err)
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 		}
 	}
 	var derivedConfiguration *derivedPowerConfiguration
 	if c.DerivedPowerProfile().Enabled() {
 		derivedConfiguration, err = addConfiguredDerivedPower(&plan)
 		if err != nil {
-			return closeStoreWithRecorder(store, recording, err)
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return closeStoreWithRecorder(store, recording, err)
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
 	// Even an empty configured household has the same SQL registry authority.
 	// This does not activate commands/scenes without NHA-115 definitions.
-	if factory == nil {
+	if _, remoteEnabled := c.RemoteCalendarSettings(); factory == nil || remoteEnabled {
 		if _, ok := plan.Identity.(*registry.Repository); !ok {
+			if factory != nil && plan.Identity != nil {
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, ErrIdentityNotConfigured)
+			}
 			repository, repositoryErr := registry.NewRepository(store, scopeManifest)
 			if repositoryErr != nil {
-				return closeStoreWithRecorder(store, recording, repositoryErr)
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, repositoryErr)
 			}
 			plan.Identity = repository
 			plan.Configure = func(ctx context.Context, _ *integrations.Manager, _ *storage.Store) error {
@@ -353,23 +359,46 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			}
 		}
 	}
+	if _, remoteEnabled := c.RemoteCalendarSettings(); factory == nil || remoteEnabled {
+		identity, ok := plan.Identity.(*registry.Repository)
+		if !ok {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, ErrIdentityNotConfigured)
+		}
+		clock := dependencies.remoteCalendarClock
+		if nilReactiveInterface(clock) {
+			clock = automationtriggers.RealClock{}
+		}
+		remoteRuntime, err = newRemoteCalendarRuntime(store, identity, scopeManifest, clock)
+		if err != nil {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+		}
+		plan.remoteCalendar = remoteRuntime
+		if settings, enabled := c.RemoteCalendarSettings(); enabled {
+			if err := remoteRuntime.add(&plan, settings); err != nil {
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+			}
+		}
+		if dependencies.observeRemoteCalendar != nil {
+			dependencies.observeRemoteCalendar(remoteRuntime)
+		}
+	}
 	if err := validateAutomationRunAssembly(plan.AutomationTriggers, plan.AutomationRuns, plan.ConfigureAutomationTriggerResults); err != nil {
-		return closeStoreWithRecorder(store, recording, err)
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
 	commandComposition, err := resolveDurableCommands(plan)
 	if err != nil {
-		return closeStoreWithRecorder(store, recording, err)
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
 	activation, err := prepareConfigurationActivation(startup, admitted, store, sequence, plan, factory == nil)
 	if err != nil {
-		return closeStoreWithRecorder(store, recording, err)
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
 	if activation != nil {
 		defer activation.BeginClose()
 		if commandComposition == nil {
 			commandComposition, err = NewDurableCommandsComposition(DurableCommandsInput{Generation: activation, Clock: realSessionClock{}})
 			if err != nil {
-				return closeStoreWithRecorder(store, recording, err)
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 			}
 		} else {
 			commandComposition.generation = activation
@@ -380,16 +409,16 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 				empty, planErr = empty.WithScriptWaits(time.UTC)
 			}
 			if planErr != nil {
-				return closeStoreWithRecorder(store, recording, planErr)
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, planErr)
 			}
 			plan.ReactiveTemplates, planErr = NewReactiveTemplateComposition(empty, inactiveReactiveOutput{}, reactivetemplate.RealClock{})
 			if planErr != nil {
-				return closeStoreWithRecorder(store, recording, planErr)
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, planErr)
 			}
 		}
 	}
 	if err := installAutomationTriggerMQTTPilot(&plan); err != nil {
-		return closeStoreWithRecorder(store, recording, err)
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
 	var sessionClockSource sessionClock = realSessionClock{}
 	if plan.Public != nil && plan.Public.sessionClock != nil {
@@ -397,44 +426,44 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	}
 	sessions, err := prepareLocalAuthorizationWithSettings(ctx, store, sessionClockSource, publicSettings)
 	if err != nil {
-		return closeStoreWithRecorder(store, recording, err)
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
 	sessions.mfa, err = newMFARuntime(ctx, sessions, secrets, publicSettings)
 	if err != nil {
 		sessions.policy.closeAdmissions()
-		return closeStoreWithRecorder(store, recording, err)
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
 	host, err := integrations.NewHost(plan.Identity, sequence, catalog)
 	if err != nil {
 		// No route has admitted work yet; join this newly created owner before DB.
 		mfaErr := sessions.mfa.close(context.Background())
-		return closeStoreWithRecorder(store, recording, errors.Join(err, mfaErr))
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, errors.Join(err, mfaErr))
 	}
 	if err := host.AttachObservation(observed.cells, observed.journal); err != nil {
-		return closePreparedRuntime(host, nil, store, err, nil, recording, nil, sessions.mfa)
+		return closeRemotePreparedRuntime(remoteRuntime, host, nil, store, err, nil, recording, nil, sessions.mfa)
 	}
 	observed.host, observed.authority = host, sessions.authority
 	if err := host.AttachObservationHealth(observed.health); err != nil {
-		return closePreparedRuntime(host, nil, store, err, nil, recording, nil, sessions.mfa)
+		return closeRemotePreparedRuntime(remoteRuntime, host, nil, store, err, nil, recording, nil, sessions.mfa)
 	}
 	if err := host.AttachSecrets(secrets); err != nil {
-		return closePreparedRuntime(host, nil, store, err, nil, recording, nil, sessions.mfa)
+		return closeRemotePreparedRuntime(remoteRuntime, host, nil, store, err, nil, recording, nil, sessions.mfa)
 	}
 	if err := host.AttachAuthorization(sessions.authority); err != nil {
-		return closePreparedRuntime(host, nil, store, err, nil, recording, nil, sessions.mfa)
+		return closeRemotePreparedRuntime(remoteRuntime, host, nil, store, err, nil, recording, nil, sessions.mfa)
 	}
 	authorization, err := newCloudAuthorizationCoordinator(ctx, host, integrations.DefaultCloudAuthorizationLimits())
 	if err != nil {
-		return closePreparedRuntime(host, nil, store, err, nil, recording, nil, sessions.mfa)
+		return closeRemotePreparedRuntime(remoteRuntime, host, nil, store, err, nil, recording, nil, sessions.mfa)
 	}
 	if plan.Configure != nil {
 		if err := plan.Configure(ctx, host, store); err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+			return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 	}
 	if derivedConfiguration != nil {
 		if err := derivedConfiguration.prepare(ctx, host, &plan); err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+			return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 	}
 	if activation != nil {
@@ -442,40 +471,40 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	}
 	if plan.ConfigureWorkdayCalendar != nil {
 		if err := workday.ValidateReader(plan.WorkdayCalendar); err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+			return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 		if err := plan.ConfigureWorkdayCalendar(ctx, plan.WorkdayCalendar); err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+			return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 	}
 	if plan.ConfigureAuthorization != nil {
 		composition, err := authorizationComposition(ctx, sessions, sequence, plan.Identity, activation)
 		if err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+			return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 		if err := plan.ConfigureAuthorization(ctx, composition); err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+			return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 	}
 	if dependencies.observe != nil {
 		if err := dependencies.observe(ctx, sequence); err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+			return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 	}
 	if plan.ConfigureCloudAuthorization != nil {
 		if err := plan.ConfigureCloudAuthorization(ctx, authorization.composition()); err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+			return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 	}
 	energySpecs, err := configuredEnergySpecsWithManifest(ctx, c, store, sequence, scopeManifest)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+		return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 	}
 	plan.Pilots = append(plan.Pilots, energySpecs...)
 	if hiloRun != nil {
 		hiloEnergy, err := hiloRun.energySpec(ctx)
 		if err != nil {
-			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+			return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 		plan.Pilots = append(plan.Pilots, hiloEnergy)
 	}
@@ -484,54 +513,62 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	commandWaiters := automationruns.MaxLiveRuns + automationruns.MaxPreparing + jobs.Workers + publicSettings.MaxConcurrentRequests()
 	commands, err := prepareDurableCommandsWithGate(ctx, host, store, commandComposition, commandWaiters, publicSettings.ShutdownTimeout())
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+		return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 	}
 	reactiveComposition, err := scriptReactiveTemplateComposition(plan.ReactiveTemplates, plan.AutomationRuns)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+		return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 	}
 	reactive, err := startReactiveTemplates(ctx, plan.Identity, host, sequence, reactiveComposition)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
+		return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, nil, recording, nil, sessions.mfa)
 	}
 	var triggerClock automationtriggers.Clock = automationtriggers.RealClock{}
 	if plan.AutomationRuns != nil && plan.AutomationRuns.scripts != nil {
 		triggerClock = plan.AutomationRuns.scripts.input.Clock
 	}
+	if remoteRuntime != nil {
+		triggerClock = remoteRuntime.clock
+	}
 	triggers, err := prepareAutomationTriggers(ctx, plan.AutomationTriggers, sequence, host, plan.Pilots, triggerClock)
 	if err != nil {
-		return closePreparedRuntime(host, authorization, store, err, reactive, recording, nil, sessions.mfa)
+		return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, reactive, recording, nil, sessions.mfa)
+	}
+	if err := remoteRuntime.attach(triggers); err != nil {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, nil, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+		})
 	}
 	var runs *automationruns.Controller
 	if plan.ConfigureAutomationTriggerResults != nil {
 		if triggers == nil {
-			return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-				return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, ErrInvalidTriggerComposition, reactive, recording, nil, sessions.mfa, triggerDone)
+			return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+				return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, ErrInvalidTriggerComposition, reactive, recording, nil, sessions.mfa, triggerDone)
 			})
 		}
 		if err := plan.ConfigureAutomationTriggerResults(ctx, triggerResultReader{triggers}); err != nil {
-			return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-				return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+			return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+				return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
 			})
 		}
 	}
 	epoch, err := sequence.CurrentAdmissionEpoch()
 	if err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
 		})
 	}
 	history, err := executionhistory.New(ctx, store, epoch)
 	if err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
 		})
 	}
 	maintenance, err := prepareRecorderMaintenanceWithClock(sequence, store, dependencies.maintenanceClock)
 	if err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			historyErr := drainExecutionHistoryAfter(stopCtx, history, triggerDone)
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(err, historyErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done())
+			return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, errors.Join(err, historyErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done())
 		})
 	}
 	if dependencies.observeRecorderMaintenance != nil {
@@ -546,30 +583,30 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		err = runs.AttachObservation(observed.cells)
 	}
 	if err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			maintenanceDone := maintenance.BeginClose()
 			historyErr := drainExecutionHistoryAfter(stopCtx, history, triggerDone)
 			maintenanceErr := drainRecorderMaintenance(stopCtx, maintenance)
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(err, historyErr, maintenanceErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done(), maintenanceDone)
+			return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, errors.Join(err, historyErr, maintenanceErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done(), maintenanceDone)
 		})
 	}
 	observed.runs = runs
 	authorization.freeze()
 	if err := ctx.Err(); err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			maintenanceDone := maintenance.BeginClose()
 			historyErr := drainExecutionHistoryAfter(stopCtx, history, triggerDone)
 			maintenanceErr := drainRecorderMaintenance(stopCtx, maintenance)
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(err, historyErr, maintenanceErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done(), maintenanceDone)
+			return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, errors.Join(err, historyErr, maintenanceErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done(), maintenanceDone)
 		})
 	}
 	listRun, err := newListCompositionWithManifest(store, sessions.authority, scopeManifest)
 	if err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			maintenanceDone := maintenance.BeginClose()
 			historyErr := drainExecutionHistoryAfter(stopCtx, history, triggerDone)
 			maintenanceErr := drainRecorderMaintenance(stopCtx, maintenance)
-			return closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(err, historyErr, maintenanceErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done(), maintenanceDone)
+			return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, errors.Join(err, historyErr, maintenanceErr), reactive, recording, nil, sessions.mfa, triggerDone, history.Done(), maintenanceDone)
 		})
 	}
 	listDrain := newListRuntimeDrain(listRun)
@@ -578,28 +615,28 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		listDone := listDrain.beginClose()
 		historyErr := drainExecutionHistoryAfter(stopCtx, history, triggerDone)
 		maintenanceErr := drainRecorderMaintenance(stopCtx, maintenance)
-		runtimeErr := closePreparedRuntimeWithContext(stopCtx, host, authorization, store, errors.Join(cause, historyErr, maintenanceErr), reactive, recording, jobs, sessions.mfa, triggerDone, listDone, history.Done(), maintenanceDone)
+		runtimeErr := closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, errors.Join(cause, historyErr, maintenanceErr), reactive, recording, jobs, sessions.mfa, triggerDone, listDone, history.Done(), maintenanceDone)
 		return errors.Join(runtimeErr, listDrain.close(stopCtx))
 	}
 	if dependencies.observeLists != nil {
 		dependencies.observeLists(listRun, sessions)
 	}
 	if err := ctx.Err(); err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
 	if plan.Public == nil {
 		plan.Public, err = NewPublicPlan(nil, nil, accountTransportAudit{store: store})
 		if err != nil {
-			return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 				return closeListPrepared(stopCtx, err, nil, triggerDone)
 			})
 		}
 	}
 	documents, err := prepareConfigDocuments(startup, store, activation, secrets)
 	if err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
@@ -607,17 +644,17 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		defer documents.Close()
 	}
 	if err := registerConfigDocumentsRoutes(plan.Public, documents, sessions); err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
 	if err := listRun.Register(plan.Public); err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
 	if err := registerObservationRoutes(plan.Public, observed); err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
@@ -627,7 +664,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			coreErr = registerCoreRPCRoutes(plan.Public, core)
 		}
 		if coreErr != nil {
-			return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 				return closeListPrepared(stopCtx, coreErr, nil, triggerDone)
 			})
 		}
@@ -637,7 +674,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		historyReadErr = registerHistoryRoutes(plan.Public, historyReads)
 	}
 	if historyReadErr != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, historyReadErr, nil, triggerDone)
 		})
 	}
@@ -645,14 +682,14 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	// outputs, but cleanup must still drain the original MFA runtime.
 	composedPublic, composedSessions, err := composeSessionsWithCoordinator(plan.Public, store, sessions)
 	if err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
 	plan.Public, sessions = composedPublic, composedSessions
 	public, err := compilePublicPlan(plan.Public, publicSettings)
 	if err != nil {
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
@@ -663,21 +700,21 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	durableJobs, err := newDurableJobsRuntimeWithCommands(ctx, store, host, sessions, plan.DurableJobs, commands)
 	if err != nil {
 		durableJobs.CloseAdmissions()
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, durableJobs, triggerDone)
 		})
 	}
 	supervisor, err := integrations.NewSupervisor(host, plan.Pilots, integrations.DefaultRetryPolicy(), integrations.RealTimer{}, integrations.RandomJitter{})
 	if err != nil {
 		durableJobs.CloseAdmissions()
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, durableJobs, triggerDone)
 		})
 	}
 	if activation != nil {
 		if err := supervisor.PrepareReplacements(); err != nil {
 			durableJobs.CloseAdmissions()
-			return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 				return closeListPrepared(stopCtx, err, durableJobs, triggerDone)
 			})
 		}
@@ -690,7 +727,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	if err := supervisor.Start(ctx); err != nil {
 		lifecycleCancel()
 		durableJobs.CloseAdmissions()
-		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, durableJobs, triggerDone)
 		})
 	}
@@ -709,6 +746,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	}
 	if err == nil {
 		err = attachConfigurationActivation(activation, plan, host, commands, runs, reactive, supervisor, sessions, store, sequence, catalog, authorization, secrets, dependencies, observed)
+		if err == nil && dependencies.observeRemoteActivation != nil {
+			dependencies.observeRemoteActivation(activation)
+		}
 	}
 	if err == nil && plan.ConfigureActivation != nil {
 		err = plan.ConfigureActivation(ctx, activation)
@@ -721,6 +761,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		_ = host.CloseAdmissions()
 		authorization.CloseAdmissions()
 		reactive.CloseAdmissions()
+		remoteRuntime.closeAdmissions()
 		triggers.CloseAdmissions()
 		runs.CloseAdmissions()
 		if runs != nil {
@@ -736,6 +777,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		stopErr := supervisor.Stop(stopCtx)
 		authorizationErr := authorization.Close(stopCtx)
 		reactiveErr := reactive.Close(stopCtx)
+		remoteErr := remoteRuntime.close(stopCtx)
 		triggerErr := drainAutomationTriggers(stopCtx, triggers)
 		runErr := drainAutomationRuns(stopCtx, runs)
 		sceneErr := drainScriptScenes(stopCtx, plan.AutomationRuns)
@@ -746,8 +788,8 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		maintenanceErr := drainRecorderMaintenance(stopCtx, maintenance)
 		recorderErr := drainRecorder(stopCtx, recording)
 		cancel()
-		retainStoreUntilDrained(store, activation.Done(), supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
-		return errors.Join(err, activationErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr)
+		retainStoreUntilDrained(store, remoteRuntime.Done(), activation.Done(), supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
+		return errors.Join(err, activationErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr, remoteErr)
 	}
 	var reactiveDone <-chan struct{}
 	if reactive != nil {
@@ -800,6 +842,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
 			reactive.CloseAdmissions()
+			remoteRuntime.closeAdmissions()
 			triggers.CloseAdmissions()
 			runs.CloseAdmissions()
 			lifecycleCancel()
@@ -809,6 +852,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			durableJobs.CloseAdmissions()
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
+			remoteRuntime.closeAdmissions()
 			triggers.CloseAdmissions()
 			runs.CloseAdmissions()
 			lifecycleCancel()
@@ -819,6 +863,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
 			reactive.CloseAdmissions()
+			remoteRuntime.closeAdmissions()
 			triggers.CloseAdmissions()
 			runs.CloseAdmissions()
 			lifecycleCancel()
@@ -829,6 +874,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			_ = host.CloseAdmissions()
 			authorization.CloseAdmissions()
 			reactive.CloseAdmissions()
+			remoteRuntime.closeAdmissions()
 			triggers.CloseAdmissions()
 			runs.CloseAdmissions()
 			lifecycleCancel()
@@ -848,6 +894,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	_ = host.CloseAdmissions()
 	authorization.CloseAdmissions()
 	reactive.CloseAdmissions()
+	remoteRuntime.closeAdmissions()
 	triggers.CloseAdmissions()
 	runs.CloseAdmissions()
 	close(watchStop)
@@ -871,6 +918,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	stopErr := supervisor.Stop(stopCtx)
 	authorizationErr := <-authorizationStop
 	reactiveErr := <-reactiveStop
+	remoteErr := remoteRuntime.close(stopCtx)
 	triggerErr := drainAutomationTriggers(stopCtx, triggers)
 	runErr := drainAutomationRuns(stopCtx, runs)
 	sceneErr := drainScriptScenes(stopCtx, plan.AutomationRuns)
@@ -881,8 +929,8 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	maintenanceErr := drainRecorderMaintenance(stopCtx, maintenance)
 	recorderErr := drainRecorder(stopCtx, recording)
 	cancel()
-	retainStoreUntilDrained(store, activation.Done(), publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
-	return errors.Join(listenerErr, operatorErr, activationErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr)
+	retainStoreUntilDrained(store, remoteRuntime.Done(), activation.Done(), publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
+	return errors.Join(listenerErr, operatorErr, activationErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr, remoteErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured

@@ -176,7 +176,7 @@ func attachConfigurationActivation(owner *configactivation.Owner, plan RuntimePl
 		if !ok {
 			return ErrIdentityNotConfigured
 		}
-		runtime.Operational = &configuredOperationalCompiler{manifest: plan.scopeManifest, repository: repository, store: store, sequence: sequence,
+		runtime.Operational = &configuredOperationalCompiler{remoteCalendar: plan.remoteCalendar, manifest: plan.scopeManifest, repository: repository, store: store, sequence: sequence,
 			host: host, catalog: catalog, authorization: authorization, templates: templates, secrets: secrets,
 			solarClock: dependencies.solarClock, workdayClock: dependencies.workdayClock, supervisor: supervisor}
 		compiler := runtime.Operational.(*configuredOperationalCompiler)

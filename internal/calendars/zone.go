@@ -112,6 +112,7 @@ func (c *zoneCache) location(name string) (*time.Location, error) {
 type Zone struct {
 	name     string
 	location *time.Location
+	embedded *embeddedZone
 }
 
 func ParseZone(name string) (Zone, error) {
@@ -123,9 +124,11 @@ func ParseZone(name string) (Zone, error) {
 	if err != nil {
 		return Zone{}, err
 	}
-	return Zone{name, location}, nil
+	return Zone{name: name, location: location}, nil
 }
-func (z Zone) Valid() bool { return z.name != "" && z.location != nil && z.name != "Local" }
+func (z Zone) Valid() bool {
+	return z.name != "" && (z.location != nil) != (z.embedded != nil) && z.name != "Local"
+}
 func (z Zone) Name() string {
 	if !z.Valid() {
 		return ""
@@ -136,7 +139,56 @@ func (z Zone) DataID() string {
 	if !z.Valid() {
 		return ""
 	}
+	if z.embedded != nil {
+		return z.embedded.dataID
+	}
 	return TimezoneDataID
+}
+
+func (z Zone) offsetAt(ctx context.Context, at time.Time) (int, error) {
+	if !z.Valid() {
+		return 0, failure(InvalidZone)
+	}
+	if z.embedded != nil {
+		return z.embedded.offsetAt(ctx, at)
+	}
+	_, offset := at.In(z.location).Zone()
+	return offset, nil
+}
+
+// The embedded timeline can contain Go zero as a real raw transition.
+// Absence must therefore be named separately from its time value.
+type zoneBoundary struct {
+	at      time.Time
+	present bool
+}
+
+func (z Zone) boundsAt(ctx context.Context, at time.Time) (zoneBoundary, error) {
+	if !z.Valid() {
+		return zoneBoundary{}, failure(InvalidZone)
+	}
+	if z.embedded != nil {
+		return z.embedded.nextTransition(ctx, at)
+	}
+	_, end := at.In(z.location).ZoneBounds()
+	// The pinned IANA API represents an unbounded edge by its documented zero.
+	return zoneBoundary{at: end, present: !end.IsZero()}, nil
+}
+func (z Zone) localAt(ctx context.Context, at time.Time) (LocalDateTime, error) {
+	if !z.Valid() {
+		return LocalDateTime{}, failure(InvalidZone)
+	}
+	if z.embedded == nil {
+		return localFromTime(at.In(z.location)), nil
+	}
+	offset, err := z.embedded.offsetAt(ctx, at)
+	if err != nil {
+		return LocalDateTime{}, err
+	}
+	local := localFromTime(at.UTC().Add(time.Duration(offset) * time.Second))
+	// Candidate projections outside the civil domain are absent guesses, as
+	// on the IANA branch; boundary constructors still reject invalid locals.
+	return local, nil
 }
 
 // At most16 actual transitions in a52h envelope are inspected. Fold chooses
@@ -174,7 +226,10 @@ func resolveWallTime(ctx context.Context, value LocalDateTime, zone Zone, initia
 		if transitions >= 16 {
 			return time.Time{}, false, failure(BudgetExceeded)
 		}
-		_, offset := current.In(zone.location).Zone()
+		offset, err := zone.offsetAt(ctx, current)
+		if err != nil {
+			return time.Time{}, false, err
+		}
 		if offset < -26*3600 || offset > 26*3600 {
 			return time.Time{}, false, failure(InvalidZone)
 		}
@@ -189,14 +244,21 @@ func resolveWallTime(ctx context.Context, value LocalDateTime, zone Zone, initia
 			offsets[offsetCount] = offset
 			offsetCount++
 		}
-		_, end := current.In(zone.location).ZoneBounds()
-		if end.IsZero() || end.After(high) {
+		boundary, err := zone.boundsAt(ctx, current)
+		if err != nil {
+			return time.Time{}, false, err
+		}
+		end := boundary.at
+		if !boundary.present || end.After(high) {
 			break
 		}
 		if !end.After(current) {
 			return time.Time{}, false, failure(InvalidZone)
 		}
-		_, after := end.In(zone.location).Zone()
+		after, err := zone.offsetAt(ctx, end)
+		if err != nil {
+			return time.Time{}, false, err
+		}
 		if after > offset && !wall.Before(end.Add(time.Duration(offset)*time.Second)) && wall.Before(end.Add(time.Duration(after)*time.Second)) {
 			gap = wall.Add(-time.Duration(offset) * time.Second)
 			gapFound = true
@@ -207,7 +269,11 @@ func resolveWallTime(ctx context.Context, value LocalDateTime, zone Zone, initia
 	found := false
 	for _, offset := range offsets[:offsetCount] {
 		instant := wall.Add(-time.Duration(offset) * time.Second)
-		if localFromTime(instant.In(zone.location)) == value && (!found || instant.Before(first)) {
+		local, err := zone.localAt(ctx, instant)
+		if err != nil {
+			return time.Time{}, false, err
+		}
+		if local == value && (!found || instant.Before(first)) {
 			first = instant
 			found = true
 		}

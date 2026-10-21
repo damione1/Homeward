@@ -132,10 +132,7 @@ func ParseRule(raw string, span Span) (Rule, error) {
 		return Rule{}, ruleFailure(RuleSyntax)
 	}
 	anchor := span.point()
-	// Upstream otherwise substitutes time.Now for this exact Go zero.
-	if anchor.wall().wallUTC().IsZero() {
-		return Rule{}, ruleFailure(RuleZeroAnchor)
-	}
+	// Canonical civil Go zero is handled privately by newPinnedNext.
 	properties := make(map[string]string)
 	for _, part := range strings.Split(raw, ";") {
 		key, value, ok := strings.Cut(part, "=")

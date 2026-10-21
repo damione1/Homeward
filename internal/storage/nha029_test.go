@@ -585,11 +585,20 @@ func TestNHA029UpgradeFrom21To22AndReopen(t *testing.T) {
 	if version, err := store.migrate(ctx, migrations[:21]); err != nil || version.Number() != 21 {
 		t.Fatalf("historical migration chain: %v %v", version, err)
 	}
-	if version, err := store.Migrate(ctx); err != nil || version.Number() != 22 {
+	if version, err := store.migrate(ctx, migrations[:22]); err != nil || version.Number() != 22 {
 		t.Fatalf("upgrade to migration 22: %v %v", version, err)
 	}
-	if version, err := store.Migrate(ctx); err != nil || version.Number() != 22 {
+	if version, err := store.migrate(ctx, migrations[:22]); err != nil || version.Number() != 22 {
 		t.Fatalf("migration 22 reopen: %v %v", version, err)
+	}
+	// Preserve the explicit 21 -> 22 regression independently of later
+	// appended migrations, then also verify the current full chain is reopenable.
+	latest := migrations[len(migrations)-1].version.Number()
+	if version, err := store.Migrate(ctx); err != nil || version.Number() != latest {
+		t.Fatalf("upgrade from migration 22 to current schema: %v %v", version, err)
+	}
+	if version, err := store.Migrate(ctx); err != nil || version.Number() != latest {
+		t.Fatalf("current migration reopen: %v %v", version, err)
 	}
 	var protectedColumn, bootstrapTable bool
 	if err := store.pool.QueryRow(ctx, `SELECT EXISTS(

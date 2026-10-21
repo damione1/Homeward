@@ -15,6 +15,9 @@ import (
 // Internal dependency injection preserves the configured production Run path.
 // It injects clocks and a consumer without replacing configured pilots.
 type runDependencies struct {
+	remoteCalendarClock        automationtriggers.Clock
+	observeRemoteCalendar      func(*remoteCalendarRuntime)
+	observeRemoteActivation    remoteCalendarActivationObserver
 	sequenceClock              sequencer.Clock
 	solarClock                 automationtriggers.Clock
 	workdayClock               automationtriggers.Clock

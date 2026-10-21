@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"math"
+	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/damione1/Homeward/internal/domain"
@@ -17,18 +19,47 @@ import (
 // Repository shares Store and registry identities. It has no YAML writer,
 // source client, value cache, sequencer, or separate migration authority.
 type Repository struct {
-	store           *storage.Store
-	manifest        registry.Manifest
-	beforeImageLoad func()
-	beforeExpansion func(context.Context) error
+	store                      *storage.Store
+	manifest                   registry.Manifest
+	clock                      RemoteClock
+	beforeRemoteFreshAdmission func()
+	beforeRemoteWindowPage     func(int) error
+	beforeImageLoad            func()
+	beforeExpansion            func(context.Context) error
+	remoteMu                   sync.Mutex
+	remoteProcesses            map[CalendarID]*remoteProcess
+	afterRemoteRead            func(remoteDecodeObservation)
+	afterRemoteMutation        func(remoteDecodeObservation)
 }
 
+type RemoteClock interface {
+	Now() time.Time
+	MonoNow() time.Duration
+}
+type realRemoteClock struct{ origin time.Time }
+
+func (c realRemoteClock) Now() time.Time         { return time.Now() }
+func (c realRemoteClock) MonoNow() time.Duration { return time.Since(c.origin) }
+func invalidRemoteClock(c RemoteClock) bool {
+	if c == nil {
+		return true
+	}
+	v := reflect.ValueOf(c)
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Func, reflect.Slice, reflect.Chan, reflect.Interface:
+		return v.IsNil()
+	}
+	return false
+}
 func NewRepository(store *storage.Store, manifest registry.Manifest) (*Repository, error) {
+	return NewRepositoryWithClock(store, manifest, realRemoteClock{origin: time.Now()})
+}
+func NewRepositoryWithClock(store *storage.Store, manifest registry.Manifest, clock RemoteClock) (*Repository, error) {
 	_, valid := manifest.Digest()
-	if store == nil || !valid {
+	if store == nil || !valid || invalidRemoteClock(clock) || clock.Now().IsZero() || clock.MonoNow() < 0 {
 		return nil, failure(InvalidInput)
 	}
-	return &Repository{store: store, manifest: manifest}, nil
+	return &Repository{store: store, manifest: manifest, clock: clock}, nil
 }
 func (r *Repository) transaction(ctx context.Context, fn func(context.Context, pgx.Tx) error) error {
 	if r == nil || r.store == nil || fn == nil {
@@ -120,7 +151,10 @@ func (r *Repository) Bind(ctx context.Context, entity domain.EntityID) (Calendar
 	var id CalendarID
 	err := r.transaction(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		var err error
-		id, err = r.identity(ctx, tx, entity, nil, false)
+		id, err = r.identity(ctx, tx, entity, nil, true)
+		if err == nil && id.origin == RemoteICS {
+			err = r.ensureRemoteBound(ctx, tx, id)
+		}
 		return err
 	})
 	if err != nil {
@@ -189,7 +223,7 @@ func (r *Repository) GetCalendar(ctx context.Context, id CalendarID) (CalendarSn
 			return err
 		}
 		var err error
-		snapshot, err = readCalendar(ctx, tx, id, false)
+		snapshot, err = r.readCalendar(ctx, tx, id, false)
 		return err
 	})
 	if err != nil {
@@ -200,7 +234,7 @@ func (r *Repository) GetCalendar(ctx context.Context, id CalendarID) (CalendarSn
 func (r *Repository) ListCalendars(ctx context.Context) ([]CalendarSnapshot, error) {
 	var snapshots []CalendarSnapshot
 	err := r.transaction(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT entity_id FROM public.local_calendars ORDER BY entity_id LIMIT 129`)
+		rows, err := tx.Query(ctx, `SELECT entity_id FROM public.local_calendars UNION SELECT entity_id FROM public.remote_calendar_cache ORDER BY entity_id LIMIT 129`)
 		if err != nil {
 			return err
 		}
@@ -231,7 +265,7 @@ func (r *Repository) ListCalendars(ctx context.Context) ([]CalendarSnapshot, err
 			if err != nil {
 				return err
 			}
-			snapshot, err := readCalendar(ctx, tx, id, false)
+			snapshot, err := r.readCalendar(ctx, tx, id, false)
 			if err != nil {
 				return err
 			}

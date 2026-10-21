@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/damione1/Homeward/compat/ha/ir"
+	"github.com/damione1/Homeward/internal/calendars"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/sequencer"
 )
@@ -44,6 +45,7 @@ func (id CalendarSourceID) Value() (string, error) {
 // CalendarOccurrence is a source-resolved, stable instance identity. A
 // recurrence revision can move its time without changing this identity.
 type CalendarOccurrence struct {
+	projection        calendars.AutomationOccurrence
 	source            CalendarSourceID
 	uid, recurrenceID string
 	startUTC, endUTC  time.Time
@@ -70,10 +72,13 @@ func NewCalendarOccurrence(source CalendarSourceID, uid, recurrenceID string, st
 			return CalendarOccurrence{}, ErrInvalidPlan
 		}
 	}
-	return CalendarOccurrence{source, uid, recurrenceID, startUTC.UTC(), endUTC.UTC(), zone, allDay, freshness, true}, nil
+	return CalendarOccurrence{source: source, uid: uid, recurrenceID: recurrenceID, startUTC: startUTC.UTC(), endUTC: endUTC.UTC(), zone: zone, allDay: allDay, freshness: freshness, valid: true}, nil
 }
 
 func (o CalendarOccurrence) Components() (CalendarSourceID, string, string, time.Time, time.Time, string, bool, domain.Freshness, error) {
+	if o.projection.Valid() {
+		return o.projectedComponents()
+	}
 	if !o.valid || !o.source.Valid() || !validCalendarID(o.uid) || !validCalendarID(o.recurrenceID) ||
 		o.startUTC.IsZero() || !o.endUTC.After(o.startUTC) ||
 		o.freshness != domain.FreshnessFresh && o.freshness != domain.FreshnessStale {
@@ -83,6 +88,7 @@ func (o CalendarOccurrence) Components() (CalendarSourceID, string, string, time
 }
 
 type CalendarWindow struct {
+	remote         *remoteCalendarWindow
 	source         CalendarSourceID
 	revision       uint64
 	fromUTC, toUTC time.Time
@@ -171,6 +177,9 @@ func (s *Service) ReplaceCalendarWindow(ctx context.Context, window CalendarWind
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.replaceCalendarWindowLocked(ctx, window)
+}
+func (s *Service) replaceCalendarWindowLocked(ctx context.Context, window CalendarWindow) error {
 	if !s.started || s.closed || !s.admissionsOpen {
 		return ErrServiceClosed
 	}
@@ -192,7 +201,7 @@ func (s *Service) ReplaceCalendarWindow(ctx context.Context, window CalendarWind
 	if err != nil {
 		return err
 	}
-	stale := false
+	stale := window.remote != nil && window.remote.stale
 	for _, item := range occurrences {
 		_, _, _, _, _, _, _, freshness, err := item.Components()
 		if err != nil {
@@ -205,6 +214,13 @@ func (s *Service) ReplaceCalendarWindow(ctx context.Context, window CalendarWind
 	now := s.clock.Now().UTC()
 	if !to.After(now) || to.Sub(now) > MaxCalendarHorizon || from.After(to) {
 		return ErrInvalidPlan
+	}
+	// Preserve only the bounded prior remote window while degraded. A refresh
+	// beginning after a Point may exclude that border even when resuming empty.
+	// Existing seen admission below covers its elapsed keys before any mutation.
+	var interrupted []CalendarOccurrence
+	if previous, ok := s.windows[source]; ok && previous.remote != nil && s.calendarDegraded[source] {
+		interrupted = previous.occurrences
 	}
 	// Reserve every potentially new key, including future borders. This keeps
 	// later fires within the seen-set budget without evicting a useful key.
@@ -259,6 +275,24 @@ func (s *Service) ReplaceCalendarWindow(ctx context.Context, window CalendarWind
 			}
 		}
 	}
+	for _, r := range s.plan.rules {
+		if r.trigger.Kind() != ir.TriggerCalendar || r.calendar != source {
+			continue
+		}
+		for _, item := range interrupted {
+			_, instant, err := calendarAlarm(r, item)
+			if err != nil {
+				return err
+			}
+			if instant.After(now) {
+				continue
+			}
+			if err := collect(r, item); err != nil {
+				s.rejectCalendarLocked(source, DegradedCapacity)
+				return err
+			}
+		}
+	}
 	if s.estimatedChargeLocked(occurrenceCount, prospectiveBytes) > MaxEngineCharge-calendarResultReserve {
 		s.rejectCalendarLocked(source, DegradedCapacity)
 		return ErrCapacity
@@ -272,6 +306,26 @@ func (s *Service) ReplaceCalendarWindow(ctx context.Context, window CalendarWind
 		return nil
 	}
 	missed := missedFrom != nil
+	for _, r := range s.plan.rules {
+		if r.trigger.Kind() != ir.TriggerCalendar || r.calendar != source {
+			continue
+		}
+		for _, item := range interrupted {
+			key, instant, err := calendarAlarm(r, item)
+			if err != nil {
+				return err
+			}
+			if instant.After(now) {
+				continue
+			}
+			if _, seen := s.seen[key]; seen {
+				continue
+			}
+			s.seen[key] = struct{}{}
+			s.seenBytes += calendarKeyCharge(key)
+			missed = true
+		}
+	}
 	for _, r := range s.plan.rules {
 		if r.trigger.Kind() != ir.TriggerCalendar || r.calendar != source {
 			continue
@@ -340,6 +394,10 @@ func (s *Service) fireCalendarDueLocked(i int, now time.Time, missedByWallJump b
 	}
 	window, ok := s.windows[r.calendar]
 	if !ok {
+		return
+	}
+	if window.remote != nil && (window.remote.stale || !window.remote.deadline.live(now, s.clock.MonoNow())) {
+		s.rejectCalendarLocked(r.calendar, DegradedSource)
 		return
 	}
 	_, _, _, to, _, occurrences, err := window.Components()

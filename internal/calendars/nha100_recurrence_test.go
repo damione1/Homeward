@@ -276,7 +276,11 @@ func TestNHA100StrictRejectionsAndBudgets(t *testing.T) {
 		}
 	}
 	_, err := ParseRule("FREQ=DAILY", nha100Day(t, "0001-01-01", "0001-01-02"))
-	nha100Code(t, err, UnsupportedRule)
+	// NHA-101 separates a present civil0001 anchor from Go's absent Instant;
+	// the recurrence adapter no longer delegates that anchor to a zero-time sentinel.
+	if err != nil {
+		t.Fatalf("present civil0001 recurrence rejected: %v", err)
+	}
 	if (Event{}).Valid() || (Rule{}).validFor(span) || (Span{}).Valid() || (CalendarID{}).Valid() || (EventKey{}).Valid() || (Revision{}).Presence() != PresenceInvalid {
 		t.Fatal("Go zero admitted")
 	}
