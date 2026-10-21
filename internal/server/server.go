@@ -592,6 +592,15 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
+	historyReads, historyReadErr := newHistoryRuntime(store, sessions.authority, sequence, activation.CurrentConfig)
+	if historyReadErr == nil {
+		historyReadErr = registerHistoryRoutes(plan.Public, historyReads)
+	}
+	if historyReadErr != nil {
+		return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, historyReadErr, nil, triggerDone)
+		})
+	}
 	// Preserve prepared owners until composition succeeds; errors return nil
 	// outputs, but cleanup must still drain the original MFA runtime.
 	composedPublic, composedSessions, err := composeSessionsWithCoordinator(plan.Public, store, sessions)

@@ -1,0 +1,301 @@
+syntax = "proto3";
+package home.history.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "home/observability/v1/observability.proto";
+import "home/registry/v1/registry.proto";
+import "home/state/v1/state.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/history/v1;historyv1";
+
+enum Resolution {
+  RESOLUTION_UNSPECIFIED = 0;
+  RESOLUTION_RAW = 1;
+  RESOLUTION_HOUR = 2;
+}
+
+// UTC half-open [start,end). Observations use received_at, aggregates local
+// admission buckets, execution traces emission_time. Source observed_at remains
+// optional and is never substituted for received_at or used for retention.
+message Period {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+message Limits {
+  uint32 max_points = 1;
+  uint32 max_response_bytes = 2;
+  uint32 max_token_bytes = 3;
+  uint32 query_timeout_millis = 4;
+  uint32 max_readers = 5;
+  uint32 max_period_hours = 6;
+}
+message QueryObservationsRequest {
+  string entity_id = 1;
+  Period period = 2;
+  Resolution resolution = 3;
+  optional uint32 page_size = 4;
+  string page_token = 5;
+}
+message QueryAggregatesRequest {
+  string entity_id = 1;
+  Period period = 2;
+  Resolution resolution = 3;
+  optional uint32 page_size = 4;
+  string page_token = 5;
+}
+message QueryExecutionTracesRequest {
+  Period period = 1;
+  // Absent on the first page resolves to the current persisted epoch in the
+  // same snapshot. A continuation is bound to the originally normalized query.
+  optional string epoch = 2;
+  optional uint32 page_size = 3;
+  string page_token = 4;
+}
+enum BudgetReason {
+  BUDGET_REASON_UNSPECIFIED = 0;
+  BUDGET_REASON_POINT_TOO_LARGE = 1;
+  BUDGET_REASON_COVERAGE = 2;
+  BUDGET_REASON_CAPACITY = 3;
+}
+message BudgetExceeded { BudgetReason reason = 1; }
+message ReadScope {
+  Period requested = 1;
+  Period retained = 2;
+  google.protobuf.Timestamp retention_cutoff = 3;
+  google.protobuf.Timestamp as_of = 4;
+  Resolution resolution = 5;
+  Limits limits = 6;
+  // A clipped prefix is absent due to retention; never synthesized as zero.
+  optional Period not_retained_prefix = 7;
+}
+// A next token may accompany zero points after a bounded candidate scan. That
+// page is progress, not a complete empty history; only end terminates the scan.
+message Continuation {
+  oneof result {
+    string next_page_token = 1;
+    google.protobuf.Empty end = 2;
+  }
+}
+message RetentionRange {
+  home.observability.v1.AdmissionPosition from = 1;
+  home.observability.v1.AdmissionPosition through = 2;
+  bool snapshot = 3;
+}
+enum CoverageVerdict {
+  COVERAGE_VERDICT_UNSPECIFIED = 0;
+  COVERAGE_VERDICT_COMPLETE_UNDER_POLICY = 1;
+  COVERAGE_VERDICT_INCOMPLETE = 2;
+}
+//031 logical queue evidence, with no inferred UTC placement. Bounds(from,through].
+message RecorderTail {
+  home.observability.v1.AdmissionPosition from = 1;
+  home.observability.v1.AdmissionPosition through = 2;
+  google.protobuf.Empty unknown_utc = 3;
+}
+message Coverage {
+  // Logical evidence is not an inventory of UTC intervals. Gap placement stays
+  // UNKNOWN_UTC, including clock regressions and inter-epoch discontinuities.
+  home.observability.v1.RecorderCoverageSnapshot logical = 1;
+  repeated RetentionRange retention = 2;
+  CoverageVerdict verdict = 3;
+  bool analytical_tail_unproven = 4;
+  optional RecorderTail recorder_tail = 5;
+}
+message Observation {
+  home.observability.v1.AdmissionPosition position = 1;
+  home.state.v1.ObservedState state = 2;
+  // Historical interpretation is carried separately from current capabilities.
+  optional NumericDescriptor descriptor = 3;
+}
+enum Dimension {
+  DIMENSION_UNSPECIFIED = 0;
+  DIMENSION_POWER = 1;
+  DIMENSION_ENERGY = 2;
+  DIMENSION_TEMPERATURE = 3;
+  DIMENSION_RATIO = 4;
+  DIMENSION_ILLUMINANCE = 5;
+  DIMENSION_COUNT = 6;
+}
+message NumericDescriptor {
+  string unit = 1;
+  string canonical_unit = 2;
+  double scale = 3;
+  double offset = 4;
+  Dimension dimension = 5;
+  sint32 precision = 6;
+  home.registry.v1.MeasurementSemantic semantic = 7;
+  home.registry.v1.MeasurementAggregation aggregation = 8;
+}
+enum Reset {
+  RESET_UNSPECIFIED = 0;
+  RESET_NOT_APPLICABLE = 1;
+  RESET_UNKNOWN = 2;
+  RESET_NOT_DETECTED = 3;
+  RESET_INFERRED = 4;
+}
+enum AggregateReason {
+  AGGREGATE_REASON_UNSPECIFIED = 0;
+  AGGREGATE_REASON_GAP = 1;
+  AGGREGATE_REASON_EPOCH_BOUNDARY = 2;
+  AGGREGATE_REASON_RETENTION_PRUNED = 3;
+  AGGREGATE_REASON_QUALITY_BREAK = 4;
+  AGGREGATE_REASON_UNIT_BREAK = 5;
+  AGGREGATE_REASON_CLOCK_REGRESSION = 6;
+  AGGREGATE_REASON_COUNTER_DIP = 7;
+  AGGREGATE_REASON_UNKNOWN_BASELINE = 8;
+  AGGREGATE_REASON_BUDGET_LIMIT = 9;
+  AGGREGATE_REASON_UNPROVEN_TAIL = 10;
+  AGGREGATE_REASON_NON_NUMERIC = 11;
+  AGGREGATE_REASON_UNSUPPORTED_NUMERIC = 12;
+}
+message Aggregate {
+  Period bucket = 1;
+  NumericDescriptor descriptor = 2;
+  home.state.v1.Quality quality = 3;
+  uint64 duration_nanos = 4;
+  optional double minimum = 5;
+  optional double maximum = 6;
+  optional double mean = 7;
+  optional double contribution = 8;
+  Reset reset = 9;
+  repeated AggregateReason reasons = 10;
+}
+message ObservationPage {
+  ReadScope scope = 1;
+  repeated Observation points = 2;
+  Coverage coverage = 3;
+  Continuation continuation = 4;
+}
+message AggregatePage {
+  ReadScope scope = 1;
+  repeated Aggregate points = 2;
+  Coverage coverage = 3;
+  Continuation continuation = 4;
+}
+message QueryObservationsResponse {
+  oneof result {
+    ObservationPage page = 1;
+    ReadScope not_retained = 2;
+    google.protobuf.Empty stale_cursor = 3;
+    BudgetExceeded budget = 4;
+  }
+}
+message QueryAggregatesResponse {
+  oneof result {
+    AggregatePage page = 1;
+    ReadScope not_retained = 2;
+    google.protobuf.Empty stale_cursor = 3;
+    BudgetExceeded budget = 4;
+  }
+}
+// Persisted trace variants extend the 056 in-memory trace projection without
+// exposing payloads, frame data, source arguments, causes or free-form errors.
+enum SceneMemberOutcome {
+  SCENE_MEMBER_OUTCOME_UNSPECIFIED = 0;
+  SCENE_MEMBER_OUTCOME_PREPARED = 1;
+  SCENE_MEMBER_OUTCOME_ALREADY_SATISFIED = 2;
+  SCENE_MEMBER_OUTCOME_REFUSED = 3;
+  SCENE_MEMBER_OUTCOME_ACCEPTED = 4;
+  SCENE_MEMBER_OUTCOME_DISPATCHED = 5;
+  SCENE_MEMBER_OUTCOME_ACKNOWLEDGED = 6;
+  SCENE_MEMBER_OUTCOME_CONFIRMED = 7;
+  SCENE_MEMBER_OUTCOME_INDETERMINATE = 8;
+}
+enum SceneOutcome {
+  SCENE_OUTCOME_UNSPECIFIED = 0;
+  SCENE_OUTCOME_COMPLETE = 1;
+  SCENE_OUTCOME_PARTIAL = 2;
+  SCENE_OUTCOME_NONE = 3;
+  SCENE_OUTCOME_INDETERMINATE = 4;
+  SCENE_OUTCOME_NOT_ATTEMPTED = 5;
+}
+enum ScriptMode {
+  SCRIPT_MODE_UNSPECIFIED = 0;
+  SCRIPT_MODE_WAIT = 1;
+  SCRIPT_MODE_DETACHED = 2;
+}
+enum CommandOutcome {
+  COMMAND_OUTCOME_UNSPECIFIED = 0;
+  COMMAND_OUTCOME_ACCEPTED = 1;
+  COMMAND_OUTCOME_DISPATCHED = 2;
+  COMMAND_OUTCOME_ACKNOWLEDGED = 3;
+  COMMAND_OUTCOME_CONFIRMED = 4;
+  COMMAND_OUTCOME_INDETERMINATE = 5;
+  COMMAND_OUTCOME_REFUSED = 6;
+  COMMAND_OUTCOME_NOT_ATTEMPTED = 7;
+}
+message ExecutionTrace {
+  uint64 ordinal = 1;
+  google.protobuf.Timestamp emission_time = 2;
+  oneof outcome {
+    home.observability.v1.TraceDecision decision = 3;
+    home.observability.v1.TraceNodeStage node_stage = 4;
+    CommandOutcome command_outcome = 5;
+    SceneMemberOutcome scene_member_outcome = 6;
+    SceneOutcome scene_outcome = 7;
+    ScriptMode script_mode = 8;
+  }
+  optional uint64 run_id = 9;
+  optional uint64 parent_run_id = 10;
+  optional uint64 controller_generation = 11;
+  optional uint64 config_revision = 12;
+  optional bytes manifest_sha256 = 13;
+  optional home.observability.v1.TraceActionKind action_kind = 14;
+  optional home.observability.v1.TraceExecutionErrorKind failure_kind = 15;
+}
+enum TraceLossReason {
+  TRACE_LOSS_REASON_UNSPECIFIED = 0;
+  TRACE_LOSS_REASON_QUEUE_FULL = 1;
+  TRACE_LOSS_REASON_TOO_LARGE = 2;
+  TRACE_LOSS_REASON_CONTENTION = 3;
+  TRACE_LOSS_REASON_INVALID_METADATA = 4;
+}
+message TraceLoss {
+  TraceLossReason reason = 1;
+  uint64 known_count = 2;
+  google.protobuf.Timestamp from = 3;
+  google.protobuf.Timestamp through = 4;
+  bool uncertain_envelope = 5;
+}
+message ExecutionTracePage {
+  ReadScope scope = 1;
+  string epoch = 2;
+  optional string previous_epoch = 3;
+  bool interrupted_predecessor = 4;
+  bool epoch_interrupted = 5;
+  bool scope_reduced = 6;
+  uint64 checkpoint = 7;
+  uint64 commit_high = 8;
+  repeated ExecutionTrace points = 9;
+  repeated TraceLoss losses = 10;
+  Continuation continuation = 11;
+}
+message QueryExecutionTracesResponse {
+  oneof result {
+    ExecutionTracePage page = 1;
+    ReadScope not_retained = 2;
+    google.protobuf.Empty stale_cursor = 3;
+    BudgetExceeded budget = 4;
+  }
+}
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_INVALID_ARGUMENT = 1;
+  ERROR_CODE_DENIED = 2;
+  ERROR_CODE_UNAVAILABLE = 3;
+  ERROR_CODE_DEADLINE = 4;
+  ERROR_CODE_POINT_TOO_LARGE = 5;
+  ERROR_CODE_INTEGRITY = 6;
+  ERROR_CODE_CAPACITY = 7;
+}
+message HistoryError { ErrorCode code = 1; }
+
+// Unary TLS reads use the existing authenticated transport and authority 050.
+// HISTORY/READ checks every trusted capability slot before SQL for entity data.
+// Global persisted traces require GLOBAL_CONFIGURATION/READ, as in 056.
+service HistoryService {
+  rpc QueryObservations(QueryObservationsRequest) returns (QueryObservationsResponse);
+  rpc QueryAggregates(QueryAggregatesRequest) returns (QueryAggregatesResponse);
+  rpc QueryExecutionTraces(QueryExecutionTracesRequest) returns (QueryExecutionTracesResponse);
+}
