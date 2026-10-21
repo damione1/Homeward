@@ -1,0 +1,10 @@
+# name	state	revision	source_bytes	source_value	workspace_bytes	workspace_value	expect
+valid-enabled	1	1	32	1	32	2	true
+valid-disabled	2	2	32	3	32	4	true
+unspecified-state	0	1	32	1	32	1	false
+future-state	99	1	32	1	32	1	false
+zero-revision	1	0	32	1	32	1	false
+short-source	1	1	31	1	32	1	false
+zero-source	1	1	32	0	32	1	false
+short-workspace	1	1	32	1	31	1	false
+zero-workspace	1	1	32	1	32	0	false

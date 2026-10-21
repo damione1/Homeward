@@ -648,6 +648,11 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
+	if err := registerIntegrationAdminRoutes(plan.Public, documents, sessions, observed); err != nil {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
+		})
+	}
 	if err := listRun.Register(plan.Public); err != nil {
 		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
