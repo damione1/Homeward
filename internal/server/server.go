@@ -56,6 +56,7 @@ type RuntimePlan struct {
 	scopeManifest registry.Manifest
 	// Internal observation seam retains the actual composed compiler in tests.
 	observeOperationalCompiler        func(*configuredOperationalCompiler)
+	ConfigureBackupArchives           func(context.Context, BackupArchiveServices) error
 	ConfigureBackups                  func(context.Context, *backups.Registry) error
 	Identity                          integrations.IdentityAuthority
 	Pilots                            []integrations.PilotSpec
@@ -316,6 +317,15 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	}
 	if plan.ConfigureBackups != nil {
 		if err := plan.ConfigureBackups(ctx, backupProviders); err != nil {
+			return closeStoreWithRecorder(store, recording, err)
+		}
+	}
+	if plan.ConfigureBackupArchives != nil {
+		archives, archiveErr := newBackupArchiveServices(launch, backupProviders, secrets)
+		if archiveErr != nil {
+			return closeStoreWithRecorder(store, recording, archiveErr)
+		}
+		if err := plan.ConfigureBackupArchives(ctx, archives); err != nil {
 			return closeStoreWithRecorder(store, recording, err)
 		}
 	}

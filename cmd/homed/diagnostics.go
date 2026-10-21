@@ -68,6 +68,9 @@ func runHomed(ctx context.Context, args []string, out, diagnostics io.Writer, de
 			exitCode = 1
 		}
 	}()
+	if len(args) > 0 && args[0] == "recovery" {
+		return runRecovery(ctx, args[1:], out, diagnostics)
+	}
 	if ctx == nil || (deps.run == nil) == (deps.runStartup == nil) || deps.run != nil && deps.read == nil || deps.listen == nil || homedMissingWriter(out) || homedMissingWriter(diagnostics) {
 		homedDiagnostic(diagnostics, phase, obs.LogLevel_LOG_LEVEL_ERROR)
 		return 1
