@@ -1,0 +1,76 @@
+--- upstream/v1.2.5/hap/pair/setup_client_controller.go
++++ qualification-only/hc/hap/pair/setup_client_controller.go
+@@ -1,3 +1,5 @@
++// Homeward qualification-only modification: unconditional pairing transcript prints removed.
++// No cryptography or validation changes. See third_party/NOTICE and hc.upstream.json.
+ package pair
+ 
+ import (
+@@ -97,8 +99,6 @@
+ 		return nil, fmt.Errorf("B is invalid (%d bytes)", len(serverPublicKey))
+ 	}
+ 
+-	fmt.Println("->     B:", hex.EncodeToString(serverPublicKey))
+-	fmt.Println("->     s:", hex.EncodeToString(salt))
+ 
+ 	// Client
+ 	// 1) Receive salt `s` and public key `B` and generates `S` and `A`
+@@ -106,14 +106,11 @@
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	fmt.Println("        S:", hex.EncodeToString(setup.session.PrivateKey))
+ 
+ 	// 2) Send public key `A` and proof `M1`
+ 	publicKey := setup.session.PublicKey // SRP public key
+ 	proof := setup.session.Proof         // M1
+ 
+-	fmt.Println("<-     A:", hex.EncodeToString(publicKey))
+-	fmt.Println("<-     M1:", hex.EncodeToString(proof))
+ 
+ 	out := util.NewTLV8Container()
+ 	out.SetByte(TagPairingMethod, 0)
+@@ -134,7 +131,6 @@
+ // - auth error
+ func (setup *SetupClientController) handlePairStepVerifyResponse(in util.Container) (util.Container, error) {
+ 	serverProof := in.GetBytes(TagProof)
+-	fmt.Println("->     M2:", hex.EncodeToString(serverProof))
+ 
+ 	if setup.session.IsServerProofValid(serverProof) == false {
+ 		return nil, fmt.Errorf("M2 %s is invalid", hex.EncodeToString(serverProof))
+@@ -145,7 +141,6 @@
+ 		return nil, err
+ 	}
+ 
+-	fmt.Println("        K:", hex.EncodeToString(setup.session.EncryptionKey[:]))
+ 
+ 	// 2) Send username, LTPK, signature as encrypted message
+ 	hash, err := hkdf.Sha512(setup.session.PrivateKey, []byte("Pair-Setup-Controller-Sign-Salt"), []byte("Pair-Setup-Controller-Sign-Info"))
+@@ -174,7 +169,6 @@
+ 	out.SetByte(TagSequence, PairStepKeyExchangeRequest.Byte())
+ 	out.SetBytes(TagEncryptedData, append(encryptedBytes, tag[:]...))
+ 
+-	fmt.Println("<-   Encrypted:", hex.EncodeToString(out.GetBytes(TagEncryptedData)))
+ 
+ 	return out, nil
+ }
+@@ -194,8 +188,6 @@
+ 	message := data[:(len(data) - 16)]
+ 	var mac [16]byte
+ 	copy(mac[:], data[len(message):]) // 16 byte (MAC)
+-	fmt.Println("->     Message:", hex.EncodeToString(message))
+-	fmt.Println("->     MAC:", hex.EncodeToString(mac[:]))
+ 
+ 	decrypted, err := chacha20poly1305.DecryptAndVerify(setup.session.EncryptionKey[:], []byte("PS-Msg06"), message, mac, nil)
+ 
+@@ -211,9 +203,7 @@
+ 		username := in.GetString(TagUsername)
+ 		ltpk := in.GetBytes(TagPublicKey)
+ 		signature := in.GetBytes(TagSignature)
+-		fmt.Println("->     Username:", username)
+-		fmt.Println("->     LTPK:", hex.EncodeToString(ltpk))
+-		fmt.Println("->     Signature:", hex.EncodeToString(signature))
++		_ = signature // This binding was used only by the removed pairing transcript print.
+ 
+ 		entity := db.NewEntity(username, ltpk, nil)
+ 		err = setup.database.SaveEntity(entity)

@@ -1,0 +1,23 @@
+Qualification dependency provenance
+
+third_party/hc is an exact source copy of github.com/brutella/hc v1.2.5
+https://github.com/brutella/hc/tree/v1.2.5
+Copyright its original authors. Apache License 2.0 retained in hc/LICENSE.
+Only hap/pair/setup_client_controller.go differs: 13 unconditional pairing
+transcript prints removed, with a blank assignment retaining the signature
+binding used only for printing. No cryptographic operation is modified.
+hc.upstream.json records every original/local file digest and removed statement.
+The local replace applies only to this qualification module.
+
+The synchronized session fixture is adapted from
+github.com/mctofu/homekit/client/setup_test.go at
+55b8dd50cddc522d9a794b9b60eda3435b7af599.
+https://github.com/mctofu/homekit/blob/55b8dd50cddc522d9a794b9b60eda3435b7af599/client/setup_test.go
+Copyright (c) 2020 David McIntosh. MIT License retained in LICENSE.mctofu-homekit.
+The mctofu controller remains pinned to that commit. Its other known defects
+remain unchanged. The unadapted hc client remains NO-GO for production.
+
+This module uses only a loopback synthetic accessory. Controller and accessory
+share hc cryptographic primitives; this is a protocol lifecycle qualification,
+not independent cryptographic validation and not an ECB601 driver.
+No secret is supplied by the environment, discovery, Home Assistant or a device.
