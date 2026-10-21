@@ -356,6 +356,7 @@ func nha042ServerPrograms(body, child string, scriptsOnly bool) ([]ir.Automation
 }
 
 type nha042ServerOptions struct {
+	dependencies   *runDependencies
 	sharedJobs     bool
 	sceneCatalogue *scenes.Catalogue
 	omitStateRead  bool
@@ -560,7 +561,14 @@ func nha042StartServer(t *testing.T, environment *nha042ServerEnvironment, body,
 		return plan, nil
 	}
 	go func() {
-		if options.clock != nil {
+		if options.dependencies != nil {
+			dependencies := *options.dependencies
+			if options.clock != nil {
+				dependencies.sequenceClock, dependencies.solarClock = options.clock, options.clock
+			}
+			rig.run.err = runWithDependencies(ctx, environment.config, (&net.ListenConfig{}).Listen,
+				func(net.Addr) { close(rig.run.ready) }, factory, dependencies)
+		} else if options.clock != nil {
 			rig.run.err = runWithDependencies(ctx, environment.config, (&net.ListenConfig{}).Listen,
 				func(net.Addr) { close(rig.run.ready) }, factory, runDependencies{sequenceClock: options.clock, solarClock: options.clock})
 		} else {

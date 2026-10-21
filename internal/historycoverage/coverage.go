@@ -28,6 +28,7 @@ const (
 	EpochBridge
 	UncommittedTail
 	InitialSnapshotPending
+	RetentionPruned
 )
 
 type TemporalPlacement uint8
@@ -221,6 +222,28 @@ func FromRecorderSnapshot(snapshot storage.RecorderCoverageSnapshot, window *UTC
 		}
 		c.issues = append(c.issues, issue)
 		c.verdict = Incomplete
+	}
+	for _, pruned := range snapshot.Retention() {
+		for _, scope := range c.scopes {
+			if scope.epoch != pruned.Epoch() {
+				continue
+			}
+			start, end := pruned.Bounds()
+			if start > end || end > scope.checkpoint {
+				return Coverage{}, ErrInvalidCoverage
+			}
+			if end < scope.from || (end == scope.from && !pruned.Snapshot()) || start > scope.through {
+				continue
+			}
+			if start < scope.from {
+				start = scope.from
+			}
+			if end > scope.through {
+				end = scope.through
+			}
+			c.issues = append(c.issues, Issue{kind: RetentionPruned, from: Position{epoch: scope.epoch, sequence: start}, through: Position{epoch: scope.epoch, sequence: end}, uncertain: true, placement: placement})
+			c.verdict = Incomplete
+		}
 	}
 	return c, nil
 }
