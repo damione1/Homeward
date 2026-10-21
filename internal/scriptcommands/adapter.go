@@ -85,6 +85,7 @@ func failure(kind ErrorKind, cause error) error { return &Error{kind: kind, caus
 
 type Input struct {
 	Commands        *integrations.DurableCommandService
+	Internal        *integrations.InternalAutomationPort
 	Scenes          *scenes.Service
 	Host            *integrations.Manager
 	Projection      *sequencer.Sequencer
@@ -107,7 +108,7 @@ func missing(value any) bool {
 	return false
 }
 func New(input Input) (*Adapter, error) {
-	if input.Commands == nil || input.Host == nil || input.Projection == nil || missing(input.Generation) || missing(input.Clock) ||
+	if input.Commands == nil || input.Internal == nil || !input.Internal.BelongsTo(input.Commands) || input.Host == nil || input.Projection == nil || missing(input.Generation) || missing(input.Clock) ||
 		input.Clock.Now().IsZero() || input.CommandDeadline <= 0 || input.CommandDeadline > 24*time.Hour ||
 		(input.History != nil && missing(input.History)) {
 		return nil, failure(InvalidInput, nil)
@@ -122,14 +123,27 @@ func (a *Adapter) ExecuteCall(ctx context.Context, call ir.Call, execution autom
 	if a == nil || missing(ctx) || ctx.Err() != nil {
 		return failure(InvalidInput, nil)
 	}
-	if _, err := execution.Actor().Value(); err != nil {
-		return failure(InvalidInput, err)
-	}
 	cause, err := execution.CausalKey()
 	if err != nil {
 		return failure(InvalidInput, err)
 	}
+	// A detached script must acknowledge its initial suspension before this
+	// occurrence can wait on an activation pause; its parent is waiting for
+	// that handshake, not for the eventual physical command.
 	execution.Suspend()
+	err = a.input.Internal.WithOccurrence(ctx, cause, func(inside context.Context) error {
+		return a.executeAdmitted(inside, call, execution, cause)
+	})
+	if errors.Is(err, integrations.ErrDurableAdmissionCapacity) {
+		return failure(Refused, err)
+	}
+	if errors.Is(err, integrations.ErrDurableLedgerUnavailable) {
+		return failure(Unavailable, err)
+	}
+	return err
+}
+
+func (a *Adapter) executeAdmitted(ctx context.Context, call ir.Call, execution automationruns.CommandExecution, cause string) error {
 	epoch, err := a.input.Projection.CurrentAdmissionEpoch()
 	if err != nil || epoch == "" {
 		return failure(Unavailable, err)
@@ -163,7 +177,7 @@ func (a *Adapter) ExecuteCall(ctx context.Context, call ir.Call, execution autom
 			}
 			switch call.Kind() {
 			case ir.CallLightTurnOn, ir.CallLightTurnOff:
-				slot, err := halight.NewPreparationSlot(a.input.Commands, call, index, execution.Actor(), id, expires)
+				slot, err := halight.NewInternalPreparationSlot(ctx, a.input.Internal, a.input.Commands, call, index, id, expires)
 				if err != nil {
 					return failure(Refused, err)
 				}
@@ -177,7 +191,7 @@ func (a *Adapter) ExecuteCall(ctx context.Context, call ir.Call, execution autom
 				if err != nil {
 					return failure(Refused, err)
 				}
-				prepared, err := capture.PrepareSwitch(execution.Actor(), id, expires, true)
+				prepared, err := capture.PrepareInternalSwitch(ctx, a.input.Internal, id, expires, true)
 				if err != nil {
 					return failure(Refused, err)
 				}
@@ -191,7 +205,7 @@ func (a *Adapter) ExecuteCall(ctx context.Context, call ir.Call, execution autom
 				if err != nil {
 					return err
 				}
-				response, err := a.input.Commands.Dispatch(ctx, execution.Actor(), wire)
+				response, err := a.input.Internal.Dispatch(ctx, wire)
 				observedResponse, observedErr = response, err
 				if err := commandResult(response, err); err != nil {
 					return err
@@ -209,7 +223,7 @@ func (a *Adapter) ExecuteCall(ctx context.Context, call ir.Call, execution autom
 					seconds := number.Value()
 					transition = &seconds
 				}
-				slot, err := scenes.NewPreparationSlot(a.input.Scenes, ref, execution.Actor(), id, transition, expires)
+				slot, err := scenes.NewInternalPreparationSlot(ctx, a.input.Scenes, ref, id, transition, expires)
 				if err != nil {
 					return failure(Refused, err)
 				}

@@ -36,7 +36,7 @@ func TestNHA045NativeRefusalSurvivesDifferentPresentationMode(t *testing.T) {
 				t.Fatal(e)
 			}
 			defer func() {
-				if e := r.close(); e != nil {
+				if e := r.dispose(); e != nil {
 					t.Error(e)
 				}
 			}()

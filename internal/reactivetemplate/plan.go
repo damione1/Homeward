@@ -45,6 +45,7 @@ func (id ProgramID) Value() (string, error) {
 type Definition struct {
 	id        ProgramID
 	program   template.Program
+	zone      *time.Location
 	static    []template.Dependency
 	variables []template.Binding
 	target    domain.EntityID
@@ -164,6 +165,34 @@ func (p Plan) ProgramIDs() []ProgramID {
 	return ids
 }
 
+// ReplacePermanent changes only explicitly owned definitions, preserving the
+// caller's other permanent outputs and the service's transient capability.
+func (p Plan) ReplacePermanent(remove []ProgramID, additions []Definition, groups []bundle.Group) (Plan, error) {
+	if p.zone == nil || len(remove) > MaxPrograms || len(additions) > MaxPrograms {
+		return Plan{}, ErrInvalidPlan
+	}
+	removed := make(map[ProgramID]bool, len(remove))
+	for _, id := range remove {
+		if _, err := id.Value(); err != nil || removed[id] {
+			return Plan{}, ErrInvalidPlan
+		}
+		removed[id] = true
+	}
+	definitions := make([]Definition, 0, len(p.definitions)+len(additions))
+	for _, definition := range p.definitions {
+		if !removed[definition.id] {
+			definitions = append(definitions, definition)
+		}
+	}
+	definitions = append(definitions, additions...)
+	next, err := NewPlan(definitions, groups, p.zone)
+	if err != nil {
+		return Plan{}, err
+	}
+	next.waitsEnabled = p.waitsEnabled
+	return next, nil
+}
+
 type Clock interface {
 	Now() time.Time
 	NewTimer(time.Duration) Timer
@@ -197,16 +226,21 @@ const (
 // Update is a completed fixed-point publication or an explicit degraded
 // state. Result is absent until a full render succeeds.
 type Update struct {
-	id         ProgramID
-	result     template.Result
-	valid      bool
-	quality    domain.Quality
-	reads      []template.Read
-	diagnostic Diagnostic
-	cursor     sequencer.Cursor
+	publication uint64
+	id          ProgramID
+	result      template.Result
+	valid       bool
+	quality     domain.Quality
+	reads       []template.Read
+	diagnostic  Diagnostic
+	cursor      sequencer.Cursor
 }
 
 func (u Update) ID() ProgramID { return u.id }
+
+// Publication identifies the permanent-plan image that emitted this value.
+// It is process-local; it is not a durable configuration revision.
+func (u Update) Publication() uint64 { return u.publication }
 
 // DisplayResult may hold the last successful value after a loss or failure.
 func (u Update) DisplayResult() (template.Result, bool) { return u.result, u.valid }

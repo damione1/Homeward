@@ -105,6 +105,9 @@ func (i *Interpreter) nodeTrace(run Run, node executableNode, stage NodeStage, e
 func (i *Interpreter) appendNodeTrace(trace NodeTrace) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	if i.controller == nil || i.image == nil || cap(i.traces) != nodeTraceCapacity {
+		return
+	}
 	// The existing bind supplies the single Controller-owned ordering space.
 	// No Controller mutex is acquired while holding the interpreter mutex.
 	trace.ordinal = i.controller.nextTraceOrdinal()
@@ -140,6 +143,9 @@ func (i *Interpreter) NodeTraces() ([]NodeTrace, uint64) {
 	}
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	if len(i.traces) == 0 {
+		return nil, i.evicted
+	}
 	result := make([]NodeTrace, 0, len(i.traces))
 	result = append(result, i.traces[i.traceNext:]...)
 	result = append(result, i.traces[:i.traceNext]...)

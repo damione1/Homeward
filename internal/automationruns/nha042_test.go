@@ -32,12 +32,6 @@ import (
 	mochipackets "github.com/mochi-mqtt/server/v2/packets"
 )
 
-type nha042Authority struct{ actor domain.ActorID }
-
-func (a nha042Authority) Context(ctx context.Context) (context.Context, domain.ActorID, error) {
-	return ctx, a.actor, nil
-}
-
 type nha042Commands struct {
 	mu      sync.Mutex
 	aliases []string
@@ -131,12 +125,8 @@ func nha042Runtime(t *testing.T, scripts []ir.Script, commands *nha042Commands) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := domain.ParseActorID("nha042-explicit-test-caller")
-	if err != nil {
-		t.Fatal(err)
-	}
 	interpreter, err := NewInterpreter(InterpreterInput{Plan: plan, Conditions: nha042SharedConditions(t),
-		Authority: nha042Authority{actor}, Commands: commands, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
+		Commands: commands, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,9 +417,8 @@ func nha042FullRig(t *testing.T, programs []ir.Script, commands *nha042Commands)
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, _ := domain.ParseActorID("nha042-explicit-test-caller")
 	interpreter, err := NewInterpreter(InterpreterInput{Plan: plan, TriggerWaits: triggers, TemplateWaits: reactive,
-		Conditions: reactive, Authority: nha042Authority{actor}, Commands: commands, Clock: clock, Zone: time.UTC})
+		Conditions: reactive, Commands: commands, Clock: clock, Zone: time.UTC})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1381,11 +1370,7 @@ func nha042GatedRuntime(t *testing.T, automations []ir.Automation, scripts []ir.
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := domain.ParseActorID("nha042-gated-test-authority")
-	if err != nil {
-		t.Fatal(err)
-	}
-	interpreter, err := NewInterpreter(InterpreterInput{Plan: plan, Conditions: nha042SharedConditions(t), Authority: nha042Authority{actor}, Commands: gate, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
+	interpreter, err := NewInterpreter(InterpreterInput{Plan: plan, Conditions: nha042SharedConditions(t), Commands: gate, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1535,6 +1520,10 @@ func TestNHA042ScriptsAndAutomationsShareLiveAndMemoryBudgets(t *testing.T) {
 			}
 			gate := nha042CommandGate()
 			controller := nha042GatedRuntime(t, []ir.Automation{automation}, []ir.Script{script}, gate)
+			controller.mu.Lock()
+			initialImage := controller.active
+			initialImageCharge := initialImage.charge
+			controller.mu.Unlock()
 			controller.pool.mu.Lock()
 			baseline := controller.pool.used
 			controller.pool.mu.Unlock()
@@ -1650,8 +1639,15 @@ func TestNHA042ScriptsAndAutomationsShareLiveAndMemoryBudgets(t *testing.T) {
 			controller.pool.mu.Lock()
 			after := controller.pool.used
 			controller.pool.mu.Unlock()
-			if after != baseline {
-				t.Fatalf("joined shared runs leaked memory: before%d after%d", baseline, after)
+			controller.mu.Lock()
+			imageReleased := controller.active == nil && initialImage.refs == 0
+			controller.mu.Unlock()
+			initialImage.interpreter.mu.Lock()
+			programReleased := initialImage.interpreter.image == nil && initialImage.interpreter.charge == 0 && cap(initialImage.interpreter.traces) == 0
+			initialImage.interpreter.mu.Unlock()
+			expected := baseline - initialImageCharge
+			if after != expected || after != controllerCharge || !imageReleased || !programReleased {
+				t.Fatalf("joined shared runs/image retained memory: baseline%d image%d expected%d after%d released=%v/%v", baseline, initialImageCharge, expected, after, imageReleased, programReleased)
 			}
 		})
 	}
@@ -1839,9 +1835,8 @@ func TestNHA042NestedMQTTWaitsShareIngressAcrossCancellationAndReconnect(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, _ := domain.ParseActorID("nha042-explicit-mqtt-caller")
 	commands := &nha042Commands{}
-	interpreter, err := NewInterpreter(InterpreterInput{Plan: plan, TriggerWaits: triggers, TemplateWaits: reactive, Conditions: reactive, Authority: nha042Authority{actor}, Commands: commands, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
+	interpreter, err := NewInterpreter(InterpreterInput{Plan: plan, TriggerWaits: triggers, TemplateWaits: reactive, Conditions: reactive, Commands: commands, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,6 +18,7 @@ var ErrFanObservationUnavailable = errors.New("fresh observed fan speed is unava
 
 type FanCapture struct {
 	router         *CommandRouter
+	internal       *internalOccurrence
 	alias          domain.HAAlias
 	entity         domain.EntityID
 	binding        Binding
@@ -37,13 +38,17 @@ func (r *CommandRouter) CaptureFan(ctx context.Context, alias domain.HAAlias) (r
 		if resultErr == nil {
 			resultErr = r.filterCapture(ctx, result.entity, result.description, &result.state, &result.hasState)
 		}
-		resultErr = r.captureError(resultErr)
+		resultErr = r.captureError(ctx, resultErr)
 		if resultErr != nil {
 			result = FanCapture{}
 		}
 	}()
 	if r == nil || r.host == nil || ctx == nil {
 		return FanCapture{}, ErrInvalidInput
+	}
+	internal, err := r.internalFromContext(ctx)
+	if err != nil {
+		return FanCapture{}, err
 	}
 	if _, err := alias.Value(); err != nil {
 		return FanCapture{}, ErrInvalidInput
@@ -117,7 +122,7 @@ func (r *CommandRouter) CaptureFan(ctx context.Context, alias domain.HAAlias) (r
 		if err != nil {
 			return err
 		}
-		capture = FanCapture{router: r, alias: alias, entity: entity, binding: binding,
+		capture = FanCapture{router: r, internal: internal, alias: alias, entity: entity, binding: binding,
 			description: proto.Clone(description).(*wireregistry.CapabilityDescription), profile: profile,
 			state: state, hasState: hasState, epoch: epoch, configRevision: revision}
 		return nil
@@ -168,6 +173,9 @@ func (p PreparedFan) Actor() (domain.ActorID, error) {
 	if p.route == nil || p.request == nil {
 		return domain.ActorID{}, ErrInvalidInput
 	}
+	if p.route.capture.internal != nil {
+		return domain.ActorID{}, ErrCommandAuthorizationDenied
+	}
 	return p.actor, nil
 }
 
@@ -177,7 +185,7 @@ func (c FanCapture) PrepareHA(actor domain.ActorID, id domain.CommandID, expires
 	if c.router == nil || c.profile == nil || c.description == nil || expiresAt.IsZero() || !expiresAt.After(c.router.clock.Now()) {
 		return PreparedFan{}, ErrInvalidInput
 	}
-	if _, err := actor.Value(); err != nil {
+	if !captureActorValid(actor, c.internal) {
 		return PreparedFan{}, ErrInvalidInput
 	}
 	idText, err := id.Value()

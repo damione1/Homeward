@@ -16,8 +16,10 @@ func (r *Repository) List(ctx context.Context) ([]integrations.RegistryRecord, e
 	if r == nil {
 		return nil, ErrInvalidInput
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	if err := r.acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer r.release()
 	return r.listUnlocked(ctx)
 }
 
@@ -121,9 +123,12 @@ func (r *Repository) AttachProjection(ctx context.Context, sink integrations.Pro
 	if r == nil || ctx == nil || sink == nil || (reflect.ValueOf(sink).Kind() == reflect.Pointer && reflect.ValueOf(sink).IsNil()) {
 		return ErrInvalidInput
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.projection != nil {
+	if err := r.acquire(ctx); err != nil {
+		return err
+	}
+	defer r.release()
+	_, attached := r.projectionState()
+	if attached {
 		return ErrInvalidInput
 	}
 	records, err := r.listUnlocked(ctx)
@@ -133,8 +138,9 @@ func (r *Repository) AttachProjection(ctx context.Context, sink integrations.Pro
 	if err := sink.PublishRegistry(ctx, records); err != nil {
 		return err
 	}
-	r.projection = sink
-	r.projectionDirty = false
+	r.mu.Lock()
+	r.projection, r.projectionDirty = sink, false
+	r.mu.Unlock()
 	return nil
 }
 
@@ -144,18 +150,25 @@ func (r *Repository) ReloadProjection(ctx context.Context) error {
 	if r == nil || ctx == nil {
 		return ErrInvalidInput
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.projection == nil {
+	if err := r.acquire(ctx); err != nil {
+		return err
+	}
+	defer r.release()
+	r.mu.RLock()
+	sink := r.projection
+	r.mu.RUnlock()
+	if sink == nil {
 		return ErrInvalidInput
 	}
 	records, err := r.listUnlocked(ctx)
 	if err != nil {
 		return err
 	}
-	if err := r.projection.PublishRegistry(ctx, records); err != nil {
+	if err := sink.PublishRegistry(ctx, records); err != nil {
 		return err
 	}
+	r.mu.Lock()
 	r.projectionDirty = false
+	r.mu.Unlock()
 	return nil
 }

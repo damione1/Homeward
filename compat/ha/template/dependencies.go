@@ -235,6 +235,53 @@ func (p Program) StaticDependencies() []Dependency {
 	return out
 }
 
+// ReadsChangedAliases visits every admitted expression, including skipped
+// branches. A dynamic name can be proved intact by its owner's stable binding;
+// other unresolved alias expressions remain explicitly conservative. This is
+// a technical impact proof, separate from StaticDependencies' recovery hints.
+func (p Program) ReadsChangedAliases(changed map[domain.HAAlias]bool, binding func(string) (string, bool)) bool {
+	if len(changed) == 0 {
+		return false
+	}
+	var visit func(expression) bool
+	visit = func(x expression) bool {
+		if x.op == opCall {
+			switch x.builtin {
+			case builtinStates, builtinStateAttr, builtinIsState, builtinExpand:
+				if len(x.children) == 0 {
+					return true
+				}
+				argument := x.children[0]
+				name, resolved := "", false
+				if argument.op == opLiteral {
+					name, resolved = argument.literal.StringValue()
+				} else if argument.op == opName && binding != nil {
+					name, resolved = binding(argument.name)
+				}
+				if !resolved {
+					return true
+				}
+				alias, err := domain.ParseHAAlias(name)
+				if err != nil || changed[alias] {
+					return true
+				}
+			}
+		}
+		for _, child := range x.children {
+			if visit(child) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, segment := range p.segments {
+		if segment.expr != nil && visit(*segment.expr) {
+			return true
+		}
+	}
+	return false
+}
+
 func sortDependencies(deps []Dependency) {
 	sort.Slice(deps, func(i, j int) bool {
 		a, b := deps[i], deps[j]

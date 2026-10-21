@@ -40,10 +40,38 @@ func (e *storageFailure) Is(target error) bool { return target == ErrStorage }
 type Repository struct {
 	store           *storage.Store
 	manifest        Manifest
+	admission       chan struct{}
 	mu              sync.RWMutex
 	projection      integrations.ProjectionSink
 	projectionDirty bool
 }
+
+// Registry statements deliberately omit Commit and Rollback. The ordinary
+// path owns a pgx.Tx; activation lends this exact subset from ConfigTx.
+type registryStatements interface {
+	Exec(storage.RegistryStatement, ...string) (pgconn.CommandTag, error)
+	QueryRow(storage.RegistryStatement, ...string) pgx.Row
+}
+
+type ordinaryRegistryStatements struct {
+	ctx context.Context
+	tx  pgx.Tx
+}
+
+func (s ordinaryRegistryStatements) Exec(statement storage.RegistryStatement, args ...string) (pgconn.CommandTag, error) {
+	return storage.ExecuteRegistryCommand(s.ctx, s.tx, statement, args...)
+}
+func (s ordinaryRegistryStatements) QueryRow(statement storage.RegistryStatement, args ...string) pgx.Row {
+	row, err := storage.QueryRegistryRow(s.ctx, s.tx, statement, args...)
+	if err != nil {
+		return invalidRegistryRow{err: err}
+	}
+	return row
+}
+
+type invalidRegistryRow struct{ err error }
+
+func (r invalidRegistryRow) Scan(...any) error { return r.err }
 
 var _ integrations.IdentityAuthority = (*Repository)(nil)
 
@@ -51,7 +79,9 @@ func NewRepository(store *storage.Store, manifest Manifest) (*Repository, error)
 	if store == nil || len(manifest.aliases) == 0 {
 		return nil, ErrInvalidInput
 	}
-	return &Repository{store: store, manifest: manifest}, nil
+	r := &Repository{store: store, manifest: manifest, admission: make(chan struct{}, 1)}
+	r.admission <- struct{}{}
+	return r, nil
 }
 
 func sourceParts(instance domain.IntegrationInstanceID, key integrations.SourceKey) (string, string, string, error) {
@@ -112,24 +142,33 @@ func (r *Repository) transactionOutcome(ctx context.Context, fn func(pgx.Tx) err
 	return outcome, classify(err)
 }
 
-func (r *Repository) mutate(ctx context.Context, fn func(pgx.Tx) error) error {
+func (r *Repository) mutate(ctx context.Context, fn func(registryStatements) error) error {
 	if r == nil {
 		return ErrInvalidInput
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.projectionDirty {
+	if err := r.acquire(ctx); err != nil {
+		return err
+	}
+	defer r.release()
+	r.mu.RLock()
+	dirty, projection := r.projectionDirty, r.projection
+	r.mu.RUnlock()
+	if dirty {
 		return ErrProjectionUnavailable
 	}
-	outcome, err := r.transactionOutcome(ctx, fn)
+	outcome, err := r.transactionOutcome(ctx, func(tx pgx.Tx) error {
+		return fn(ordinaryRegistryStatements{ctx: ctx, tx: tx})
+	})
 	if err != nil {
-		if outcome == storage.TransactionIndeterminate && r.projection != nil {
+		if outcome == storage.TransactionIndeterminate && projection != nil {
+			r.mu.Lock()
 			r.projectionDirty = true
-			r.projection.InvalidateRegistry()
+			r.mu.Unlock()
+			projection.InvalidateRegistry()
 		}
 		return err
 	}
-	if r.projection == nil {
+	if projection == nil {
 		return nil
 	}
 	// Commit is now durable. The caller's cancellation cannot skip publication.
@@ -137,11 +176,13 @@ func (r *Repository) mutate(ctx context.Context, fn func(pgx.Tx) error) error {
 	defer cancel()
 	records, err := r.listUnlocked(background)
 	if err == nil {
-		err = r.projection.PublishRegistry(background, records)
+		err = projection.PublishRegistry(background, records)
 	}
 	if err != nil {
+		r.mu.Lock()
 		r.projectionDirty = true
-		r.projection.InvalidateRegistry()
+		r.mu.Unlock()
+		projection.InvalidateRegistry()
 	}
 	return err
 }
@@ -157,72 +198,98 @@ func (r *Repository) ConfigureBinding(ctx context.Context, instance domain.Integ
 	if err != nil || aliasErr != nil {
 		return result, ErrInvalidInput
 	}
-	if r == nil || !r.manifest.permits(alias) {
-		return result, ErrOutsideManifest
+	if r == nil {
+		return result, ErrInvalidInput
 	}
-	err = r.mutate(ctx, func(tx pgx.Tx) error {
-		var deviceID, entityID, existingAlias string
-		var retired bool
-		err := tx.QueryRow(ctx, `SELECT d.id, e.id, e.manifest_alias, e.tombstoned
-			FROM public.registry_source_bindings b
-			JOIN public.registry_entities e ON e.id=b.entity_id
-			JOIN public.registry_devices d ON d.id=e.device_id
-			WHERE b.instance_id=$1 AND b.source_device=$2 AND b.source_entity=$3`, instanceText, sourceDevice, sourceEntity).Scan(&deviceID, &entityID, &existingAlias, &retired)
-		if err == nil {
-			if retired {
-				return ErrTombstoned
-			}
-			if existingAlias != originalAlias {
-				return ErrBindingConflict
-			}
-			return assign(&result, deviceID, entityID)
+	err = r.mutate(ctx, func(tx registryStatements) error {
+		if !r.manifest.permits(alias) {
+			return ErrOutsideManifest
 		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
+		return configureBindingSQL(tx, instanceText, sourceDevice, sourceEntity, originalAlias, &result)
+	})
+	return result, err
+}
+
+func configureBindingSQL(tx registryStatements, instanceText, sourceDevice, sourceEntity, originalAlias string, result *integrations.ResolvedIdentity) error {
+	return configureBindingReservedSQL(tx, instanceText, sourceDevice, sourceEntity, originalAlias, result, nil)
+}
+
+func configureBindingReservedSQL(tx registryStatements, instanceText, sourceDevice, sourceEntity, originalAlias string, result *integrations.ResolvedIdentity, reserved *integrations.ResolvedIdentity) error {
+	var deviceID, entityID, existingAlias string
+	var retired bool
+	err := tx.QueryRow(storage.RegistrySourceBinding(), instanceText, sourceDevice, sourceEntity).Scan(&deviceID, &entityID, &existingAlias, &retired)
+	if err == nil {
+		if retired {
+			return ErrTombstoned
 		}
-		// A manifest alias has one identity even if its protocol source changes.
-		err = tx.QueryRow(ctx, `SELECT id FROM public.registry_entities WHERE manifest_alias=$1`, originalAlias).Scan(&entityID)
-		if err == nil {
+		if existingAlias != originalAlias {
 			return ErrBindingConflict
 		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
+		if reserved != nil {
+			device, _ := reserved.Device.Value()
+			entity, _ := reserved.Entity.Value()
+			if device != deviceID || entity != entityID {
+				return ErrBindingConflict
+			}
 		}
-		err = tx.QueryRow(ctx, `SELECT device_id FROM public.registry_device_sources WHERE instance_id=$1 AND source_device=$2`, instanceText, sourceDevice).Scan(&deviceID)
-		if errors.Is(err, pgx.ErrNoRows) {
+		return assign(result, deviceID, entityID)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	// A manifest alias has one identity even if its protocol source changes.
+	err = tx.QueryRow(storage.RegistryManifestEntity(), originalAlias).Scan(&entityID)
+	if err == nil {
+		return ErrBindingConflict
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	err = tx.QueryRow(storage.RegistryDeviceSource(), instanceText, sourceDevice).Scan(&deviceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		if reserved != nil {
+			deviceID, err = reserved.Device.Value()
+		} else {
 			deviceID, err = randomID("dev_")
-			if err != nil {
-				return err
-			}
-			if _, err = tx.Exec(ctx, `INSERT INTO public.registry_devices(id) VALUES ($1)`, deviceID); err != nil {
-				return err
-			}
-			if _, err = tx.Exec(ctx, `INSERT INTO public.registry_device_sources(instance_id,source_device,device_id) VALUES ($1,$2,$3)`, instanceText, sourceDevice, deviceID); err != nil {
-				return err
-			}
-		} else if err != nil {
-			return err
 		}
-		entityID, err = randomID("ent_")
 		if err != nil {
 			return err
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO public.registry_entities(id,device_id,manifest_alias) VALUES ($1,$2,$3)`, entityID, deviceID, originalAlias); err != nil {
+		if _, err = tx.Exec(storage.RegistryNewDevice(), deviceID); err != nil {
 			return err
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO public.registry_source_bindings(instance_id,source_device,source_entity,entity_id) VALUES ($1,$2,$3,$4)`, instanceText, sourceDevice, sourceEntity, entityID); err != nil {
+		if _, err = tx.Exec(storage.RegistryNewDeviceSource(), instanceText, sourceDevice, deviceID); err != nil {
 			return err
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO public.registry_aliases(alias,entity_id,current) VALUES ($1,$2,true)`, originalAlias, entityID); err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				return ErrAliasConflict
-			}
-			return err
+	} else if err != nil {
+		return err
+	}
+	if reserved != nil {
+		device, deviceErr := reserved.Device.Value()
+		if deviceErr != nil || device != deviceID {
+			return ErrBindingConflict
 		}
-		return assign(&result, deviceID, entityID)
-	})
-	return result, err
+		entityID, err = reserved.Entity.Value()
+	} else {
+		entityID, err = randomID("ent_")
+	}
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(storage.RegistryNewEntity(), entityID, deviceID, originalAlias); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(storage.RegistryNewSourceBinding(), instanceText, sourceDevice, sourceEntity, entityID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(storage.RegistryNewAlias(), originalAlias, entityID); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrAliasConflict
+		}
+		return err
+	}
+	return assign(result, deviceID, entityID)
 }
 
 func assign(result *integrations.ResolvedIdentity, deviceText, entityText string) error {
@@ -244,9 +311,14 @@ func (r *Repository) Resolve(ctx context.Context, instance domain.IntegrationIns
 	if r == nil {
 		return nil, ErrInvalidInput
 	}
+	if err := r.acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer r.release()
 	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.projectionDirty {
+	dirty := r.projectionDirty
+	r.mu.RUnlock()
+	if dirty {
 		return nil, ErrProjectionUnavailable
 	}
 	if len(keys) == 0 || len(keys) > 256 {
@@ -304,42 +376,46 @@ func (r *Repository) Rename(ctx context.Context, entity domain.EntityID, alias s
 	if err != nil || aliasErr != nil {
 		return ErrInvalidInput
 	}
-	return r.mutate(ctx, func(tx pgx.Tx) error {
-		var retired bool
-		var originalAlias string
-		if err := tx.QueryRow(ctx, `SELECT tombstoned,manifest_alias FROM public.registry_entities WHERE id=$1`, entityText).Scan(&retired, &originalAlias); errors.Is(err, pgx.ErrNoRows) {
-			return ErrUnconfigured
-		} else if err != nil {
-			return err
-		}
-		if retired {
-			return ErrTombstoned
-		}
-		if r.manifest.permits(parsedAlias) && alias != originalAlias {
-			return ErrAliasConflict
-		}
-		var owner string
-		var current bool
-		err := tx.QueryRow(ctx, `SELECT entity_id,current FROM public.registry_aliases WHERE alias=$1`, alias).Scan(&owner, &current)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		if err == nil && owner != entityText {
-			return ErrAliasConflict
-		}
-		if current {
-			return nil
-		}
-		if _, err := tx.Exec(ctx, `UPDATE public.registry_aliases SET current=false WHERE entity_id=$1 AND current`, entityText); err != nil {
-			return err
-		}
-		if err == nil {
-			_, err = tx.Exec(ctx, `UPDATE public.registry_aliases SET current=true WHERE alias=$1`, alias)
-		} else {
-			_, err = tx.Exec(ctx, `INSERT INTO public.registry_aliases(alias,entity_id,current) VALUES ($1,$2,true)`, alias, entityText)
-		}
-		return err
+	return r.mutate(ctx, func(tx registryStatements) error {
+		return renameSQL(tx, r.manifest, entityText, parsedAlias, alias)
 	})
+}
+
+func renameSQL(tx registryStatements, manifest Manifest, entityText string, parsedAlias domain.HAAlias, alias string) error {
+	var retired bool
+	var originalAlias string
+	if err := tx.QueryRow(storage.RegistryEntityState(), entityText).Scan(&retired, &originalAlias); errors.Is(err, pgx.ErrNoRows) {
+		return ErrUnconfigured
+	} else if err != nil {
+		return err
+	}
+	if retired {
+		return ErrTombstoned
+	}
+	if manifest.permits(parsedAlias) && alias != originalAlias {
+		return ErrAliasConflict
+	}
+	var owner string
+	var current bool
+	err := tx.QueryRow(storage.RegistryAliasOwner(), alias).Scan(&owner, &current)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if err == nil && owner != entityText {
+		return ErrAliasConflict
+	}
+	if current {
+		return nil
+	}
+	if _, err := tx.Exec(storage.RegistryClearAliases(), entityText); err != nil {
+		return err
+	}
+	if err == nil {
+		_, err = tx.Exec(storage.RegistryActivateAlias(), alias)
+	} else {
+		_, err = tx.Exec(storage.RegistryNewAlias(), alias, entityText)
+	}
+	return err
 }
 
 // Tombstone keeps the source key and aliases reserved. Rediscovery cannot revive it.
@@ -348,16 +424,20 @@ func (r *Repository) Tombstone(ctx context.Context, entity domain.EntityID) erro
 	if err != nil {
 		return ErrInvalidInput
 	}
-	return r.mutate(ctx, func(tx pgx.Tx) error {
-		result, err := tx.Exec(ctx, `UPDATE public.registry_entities SET tombstoned=true WHERE id=$1`, entityText)
-		if err != nil {
-			return err
-		}
-		if result.RowsAffected() == 0 {
-			return ErrUnconfigured
-		}
-		return nil
+	return r.mutate(ctx, func(tx registryStatements) error {
+		return tombstoneSQL(tx, entityText)
 	})
+}
+
+func tombstoneSQL(tx registryStatements, entityText string) error {
+	result, err := tx.Exec(storage.RegistryRetireEntity(), entityText)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrUnconfigured
+	}
+	return nil
 }
 
 // Alias identifies a current or historical HA label independently of the
@@ -373,6 +453,10 @@ func (r *Repository) LookupAlias(ctx context.Context, label string) (Alias, erro
 	if _, err := ParseHAAlias(label); err != nil {
 		return result, ErrInvalidInput
 	}
+	if err := r.acquire(ctx); err != nil {
+		return result, err
+	}
+	defer r.release()
 	err := r.transaction(ctx, func(tx pgx.Tx) error {
 		var entityText string
 		err := tx.QueryRow(ctx, `SELECT a.entity_id,a.current,e.tombstoned FROM public.registry_aliases a JOIN public.registry_entities e ON e.id=a.entity_id WHERE a.alias=$1`, label).Scan(&entityText, &result.Current, &result.Retired)

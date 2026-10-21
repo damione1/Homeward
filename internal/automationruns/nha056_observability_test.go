@@ -9,7 +9,6 @@ import (
 	"github.com/damione1/Homeward/compat/ha/ir"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/automationtriggers"
-	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/observability"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -26,11 +25,7 @@ func nha056ObservedController(t *testing.T, mode string) (*Controller, *nha042Ga
 		t.Fatal(err)
 	}
 	gate := nha042CommandGate()
-	actor, err := domain.ParseActorID("nha056-internal-fixture")
-	if err != nil {
-		t.Fatal(err)
-	}
-	interpreter, err := NewInterpreter(InterpreterInput{Plan: plan, Conditions: nha042SharedConditions(t), Authority: nha042Authority{actor}, Commands: gate, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
+	interpreter, err := NewInterpreter(InterpreterInput{Plan: plan, Conditions: nha042SharedConditions(t), Commands: gate, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,10 +120,29 @@ func TestNHA056RealScriptPendingCancellationSurvivesNativeEviction(t *testing.T)
 	// Place sensitive fields in both real native rings before the projection.
 	// An unrelated interleaved run must not enter this targeted capture.
 	c.mu.Lock()
-	c.recordLocked(Trace{Decision: DecisionExecutionError, RunID: first.ID(), Error: "NHA056_TRACE_PRIVATE_ERROR_CANARY", TriggerKey: "NHA056_TRACE_PRIVATE_SOURCE_CANARY"})
-	c.recordLocked(Trace{Decision: DecisionExecutionError, RunID: third.ID(), Error: "NHA056_OTHER_RUN_CANARY"})
+	var firstDecision, thirdDecision Trace
+	for _, trace := range c.traces {
+		if trace.RunID == first.ID() && trace.Generation != 0 && trace.Provenance.Valid() {
+			firstDecision = trace
+		}
+		if trace.RunID == third.ID() && trace.Generation != 0 && trace.Provenance.Valid() {
+			thirdDecision = trace
+		}
+	}
+	if firstDecision.RunID != first.ID() || thirdDecision.RunID != third.ID() {
+		c.mu.Unlock()
+		t.Fatal("real causal decisions absent before native pressure")
+	}
+	firstCanary := firstDecision
+	firstCanary.Decision, firstCanary.Error, firstCanary.TriggerKey = DecisionExecutionError, "NHA056_TRACE_PRIVATE_ERROR_CANARY", "NHA056_TRACE_PRIVATE_SOURCE_CANARY"
+	thirdCanary := thirdDecision
+	thirdCanary.Decision, thirdCanary.Error = DecisionExecutionError, "NHA056_OTHER_RUN_CANARY"
+	c.recordLocked(firstCanary)
+	c.recordLocked(thirdCanary)
 	c.mu.Unlock()
-	interpreter := c.executor.(*Interpreter)
+	c.mu.Lock()
+	interpreter := c.active.interpreter
+	c.mu.Unlock()
 	nativeNodes, _ := interpreter.NodeTraces()
 	if len(nativeNodes) == 0 {
 		t.Fatal("real interpreter did not produce a native source")
@@ -187,8 +201,12 @@ func TestNHA056RealScriptPendingCancellationSurvivesNativeEviction(t *testing.T)
 		previous = row.Ordinal.GetNative()
 	}
 	c.mu.Lock()
+	// Pressure must retain the real run's causal image identity after every
+	// earlier controller row has been evicted, so both native cuts still exist.
+	pressure := firstDecision
+	pressure.Decision, pressure.Error = DecisionFinished, "NHA056_NATIVE_EVICTED_ERROR_CANARY"
 	for range MaxTraces {
-		c.recordLocked(Trace{Decision: DecisionFinished, RunID: first.ID(), Error: "NHA056_NATIVE_EVICTED_ERROR_CANARY"})
+		c.recordLocked(pressure)
 	}
 	c.mu.Unlock()
 	limitedRows, limitedCuts, limited, err := c.ObservationTrace(first.ID())
@@ -238,8 +256,10 @@ func TestNHA056RealScriptPendingCancellationSurvivesNativeEviction(t *testing.T)
 	}
 	nha056RunCount(t, c, 3, 0)
 	c.mu.Lock()
-	for index := 0; index < 600; index++ {
-		c.recordLocked(Trace{Decision: DecisionFinished, RunID: RunID(10000 + index), Error: "NHA056_TRACE_PRIVATE_ERROR_CANARY", TriggerKey: "NHA056_TRACE_PRIVATE_SOURCE_CANARY"})
+	otherPressure := thirdDecision
+	otherPressure.Decision, otherPressure.Error, otherPressure.TriggerKey = DecisionFinished, "NHA056_TRACE_PRIVATE_ERROR_CANARY", "NHA056_TRACE_PRIVATE_SOURCE_CANARY"
+	for range 600 {
+		c.recordLocked(otherPressure)
 	}
 	c.mu.Unlock()
 	for range 10 {

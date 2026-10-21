@@ -765,7 +765,7 @@ func (p *Pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	if p == nil || ctx == nil || !command.ReadyForTransport() {
 		return integrations.ErrInactiveSession
 	}
-	_, _, entity, err := command.Identity()
+	_, entity, err := command.RouteIdentity()
 	if err != nil {
 		return err
 	}

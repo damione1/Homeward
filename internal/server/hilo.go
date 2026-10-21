@@ -158,9 +158,18 @@ func (h *hiloComposition) augment(plan *RuntimePlan) error {
 // energySpec is called after configured Hilo bindings exist. It uses the
 // delivered NHA-108 engine, with a distinct instance from the three generic
 // trapezoidal counters. E10 never becomes a direct cloud measurement.
-func (h *hiloComposition) energySpec(ctx context.Context) (integrations.PilotSpec, error) {
+func (h *hiloComposition) energySpec(ctx context.Context, prepared ...*registry.PreparedBindings) (integrations.PilotSpec, error) {
 	if h == nil {
 		return integrations.PilotSpec{}, hilo.ErrSettings
+	}
+	if len(prepared) > 1 || len(prepared) == 1 && prepared[0] == nil {
+		return integrations.PilotSpec{}, hilo.ErrSettings
+	}
+	lookup := func(alias string) (registry.Alias, error) {
+		if len(prepared) == 1 {
+			return prepared[0].LookupAlias(alias)
+		}
+		return h.repository.LookupAlias(ctx, alias)
 	}
 	instance, err := domain.ParseIntegrationInstanceID("homeward-hilo-energy-v1")
 	if err != nil {
@@ -168,7 +177,7 @@ func (h *hiloComposition) energySpec(ctx context.Context) (integrations.PilotSpe
 	}
 	bindings := make([]energy.OutputBinding, 0, 10)
 	for _, pair := range h.settings.EnergyPairs() {
-		source, err := h.repository.LookupAlias(ctx, pair.SourceAlias)
+		source, err := lookup(pair.SourceAlias)
 		if err != nil || !source.Current || source.Retired {
 			return integrations.PilotSpec{}, fmt.Errorf("hilo energy source unavailable: %s", pair.SourceAlias)
 		}
@@ -176,7 +185,7 @@ func (h *hiloComposition) energySpec(ctx context.Context) (integrations.PilotSpe
 		if err != nil {
 			return integrations.PilotSpec{}, err
 		}
-		output, err := h.repository.LookupAlias(ctx, pair.OutputAlias)
+		output, err := lookup(pair.OutputAlias)
 		if err != nil || !output.Current || output.Retired {
 			return integrations.PilotSpec{}, fmt.Errorf("hilo energy output unavailable: %s", pair.OutputAlias)
 		}

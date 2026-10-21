@@ -19,7 +19,7 @@ func TestNHA056ActualTLSAuditReadWithholdsSQLResultAfterAccountDisabled(t *testi
 	data := shortPrivateDataDir(t)
 	roots := nha181CertificateFixture(t, data)
 	cfg := nha181Config(t, cluster.Port, data, "127.0.0.1:0", nha181TLSYAML())
-	run := nha162StartDefaultRun(t, cfg)
+	run := nha162StartDefaultRun(t, cfg.startup)
 	client := nha162RunClient(t, roots, run.address)
 	base := "https://" + run.address.String()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

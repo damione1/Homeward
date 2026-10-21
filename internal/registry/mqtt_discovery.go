@@ -30,9 +30,12 @@ func (r *Repository) MatchMQTTSource(ctx context.Context, instance domain.Integr
 		}
 		allowed[identifier] = struct{}{}
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.projectionDirty {
+	if err := r.acquire(ctx); err != nil {
+		return integrations.SourceKey{}, err
+	}
+	defer r.release()
+	dirty, _ := r.projectionState()
+	if dirty {
 		return integrations.SourceKey{}, ErrProjectionUnavailable
 	}
 	var selected integrations.SourceKey
@@ -114,9 +117,12 @@ func (r *Repository) RememberMQTTTopics(ctx context.Context, instance domain.Int
 		}
 		seen[key] = struct{}{}
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.projectionDirty {
+	if err := r.acquire(ctx); err != nil {
+		return err
+	}
+	defer r.release()
+	dirty, _ := r.projectionState()
+	if dirty {
 		return ErrProjectionUnavailable
 	}
 	return r.transaction(ctx, func(tx pgx.Tx) error {
@@ -160,9 +166,12 @@ func (r *Repository) MQTTTopicSources(ctx context.Context, instance domain.Integ
 	if err != nil {
 		return nil, ErrInvalidInput
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.projectionDirty {
+	if err := r.acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	dirty, _ := r.projectionState()
+	if dirty {
 		return nil, ErrProjectionUnavailable
 	}
 	var keys []integrations.SourceKey

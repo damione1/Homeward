@@ -775,6 +775,10 @@ func (s *Session) live() bool {
 }
 
 func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Binding, error) {
+	return s.discover(ctx, candidates, false)
+}
+
+func (s *Session) discover(ctx context.Context, candidates []Candidate, committedProjection bool) ([]Binding, error) {
 	if s == nil || s.host == nil {
 		return nil, ErrInactiveSession
 	}
@@ -833,7 +837,17 @@ func (s *Session) Discover(ctx context.Context, candidates []Candidate) ([]Bindi
 		}
 	}
 	h.mu.Unlock()
-	resolved, err := h.authority.Resolve(ctx, s.instance, keys)
+	var resolved []ResolvedIdentity
+	var err error
+	if committedProjection {
+		projection, ok := h.sink.(ConfigurationIdentityProjection)
+		if !ok || nilInterface(projection) {
+			return nil, ErrInvalidInput
+		}
+		resolved, err = projection.ResolveConfigurationIdentities(ctx, s.instance, keys)
+	} else {
+		resolved, err = h.authority.Resolve(ctx, s.instance, keys)
+	}
 	if err != nil {
 		return nil, err
 	}

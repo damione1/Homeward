@@ -124,6 +124,7 @@ type Run struct {
 	visit      uint64
 	generation Generation
 	provenance DefinitionProvenance
+	image      *programImage
 	trigger    Trigger
 	env        *Environment
 	stack      []ir.ScriptID
@@ -160,7 +161,17 @@ type Plan struct {
 	scripts    map[ir.ScriptID]automationSpec
 }
 
-func (p Plan) Valid() bool { return p.valid && p.provenance.Valid() && len(p.items)+len(p.scripts) > 0 }
+func (p Plan) Valid() bool {
+	return p.valid && p.token != nil && p.token.admitted && p.provenance.Valid()
+}
+
+// NewEmptyActivationPlan represents a committed configuration with no new
+// automations or scripts while earlier admitted runs finish on retained images.
+// It is never an initial Controller plan.
+func NewEmptyActivationPlan() Plan {
+	return Plan{token: &planToken{admitted: true}, valid: true, provenance: FixtureProvenance(),
+		items: make(map[string]automationSpec), scripts: make(map[ir.ScriptID]automationSpec)}
+}
 
 func (p Plan) ScriptIDs() []ir.ScriptID {
 	if !p.Valid() {

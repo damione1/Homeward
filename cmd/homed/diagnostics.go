@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"reflect"
 	"sync/atomic"
 	"time"
@@ -19,9 +20,10 @@ import (
 )
 
 type homedDependencies struct {
-	read   func(string) ([]byte, error)
-	run    func(context.Context, config.Config, server.ListenFunc, func(net.Addr)) error
-	listen server.ListenFunc
+	read       func(string) ([]byte, error)
+	run        func(context.Context, config.Config, server.ListenFunc, func(net.Addr)) error
+	runStartup func(context.Context, config.StartupInputs, server.ListenFunc, func(net.Addr)) error
+	listen     server.ListenFunc
 }
 
 func homedMissingWriter(writer io.Writer) bool {
@@ -66,16 +68,17 @@ func runHomed(ctx context.Context, args []string, out, diagnostics io.Writer, de
 			exitCode = 1
 		}
 	}()
-	if ctx == nil || deps.read == nil || deps.run == nil || deps.listen == nil || homedMissingWriter(out) || homedMissingWriter(diagnostics) {
+	if ctx == nil || (deps.run == nil) == (deps.runStartup == nil) || deps.run != nil && deps.read == nil || deps.listen == nil || homedMissingWriter(out) || homedMissingWriter(diagnostics) {
 		homedDiagnostic(diagnostics, phase, obs.LogLevel_LOG_LEVEL_ERROR)
 		return 1
 	}
 	flags := flag.NewFlagSet("homed", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	path := flags.String("config", "config/example.yaml", "initial YAML configuration")
+	bootstrapPath := flags.String("bootstrap", "", "existing launch bootstrap YAML")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			_, _ = fmt.Fprintln(out, "Usage: homed -config <path>")
+			_, _ = fmt.Fprintln(out, "Usage: homed -config <path> [-bootstrap <path>]")
 			return 0
 		}
 		homedDiagnostic(diagnostics, obs.LogCode_LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED, obs.LogLevel_LOG_LEVEL_ERROR)
@@ -85,24 +88,55 @@ func runHomed(ctx context.Context, args []string, out, diagnostics io.Writer, de
 		homedDiagnostic(diagnostics, obs.LogCode_LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED, obs.LogLevel_LOG_LEVEL_ERROR)
 		return 2
 	}
-	data, err := deps.read(*path)
-	if err != nil {
-		homedDiagnostic(diagnostics, phase, obs.LogLevel_LOG_LEVEL_ERROR)
-		return 1
-	}
-	phase = obs.LogCode_LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED
-	admitted, err := config.Parse(data)
-	clear(data)
-	if err != nil {
-		homedDiagnostic(diagnostics, phase, obs.LogLevel_LOG_LEVEL_ERROR)
-		return 1
+	var admitted config.Config
+	var startup config.StartupInputs
+	var err error
+	if deps.runStartup != nil {
+		phase = obs.LogCode_LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED
+		choice := config.DefaultBootstrapChoice()
+		if *bootstrapPath != "" {
+			choice, err = config.ExistingBootstrap(*bootstrapPath)
+		}
+		if err == nil {
+			startup, err = config.LoadStartupPaths(*path, choice, os.LookupEnv)
+		}
+		if err != nil {
+			var pathError *os.PathError
+			if errors.As(err, &pathError) {
+				phase = obs.LogCode_LOG_CODE_PROCESS_CONFIG_READ_FAILED
+			}
+			homedDiagnostic(diagnostics, phase, obs.LogLevel_LOG_LEVEL_ERROR)
+			return 1
+		}
+	} else {
+		if *bootstrapPath != "" {
+			homedDiagnostic(diagnostics, obs.LogCode_LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED, obs.LogLevel_LOG_LEVEL_ERROR)
+			return 2
+		}
+		data, readErr := deps.read(*path)
+		if readErr != nil {
+			homedDiagnostic(diagnostics, phase, obs.LogLevel_LOG_LEVEL_ERROR)
+			return 1
+		}
+		phase = obs.LogCode_LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED
+		admitted, err = config.Parse(data)
+		clear(data)
+		if err != nil {
+			homedDiagnostic(diagnostics, phase, obs.LogLevel_LOG_LEVEL_ERROR)
+			return 1
+		}
 	}
 	phase = obs.LogCode_LOG_CODE_PROCESS_RUNTIME_START_FAILED
-	err = deps.run(ctx, admitted, deps.listen, func(net.Addr) {
+	listenerReady := func(net.Addr) {
 		if ready.CompareAndSwap(false, true) {
 			homedDiagnostic(out, obs.LogCode_LOG_CODE_PROCESS_READY, obs.LogLevel_LOG_LEVEL_INFO)
 		}
-	})
+	}
+	if deps.runStartup != nil {
+		err = deps.runStartup(ctx, startup, deps.listen, listenerReady)
+	} else {
+		err = deps.run(ctx, admitted, deps.listen, listenerReady)
+	}
 	if err != nil && !errors.Is(err, context.Canceled) {
 		if ready.Load() {
 			phase = obs.LogCode_LOG_CODE_PROCESS_RUNTIME_FAILED

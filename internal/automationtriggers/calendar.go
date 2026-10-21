@@ -322,7 +322,7 @@ func (s *Service) rejectCalendarLocked(source CalendarSourceID, reason DegradedR
 
 func (s *Service) estimatedChargeLocked(occurrences, prospectiveSeenBytes int) int {
 	return runtimeFixedCharge + sequencer.MaxViewQueueBytes + s.projectionBytes + s.replayBytes +
-		s.plan.charge + len(s.pending)*128 + occurrences*calendarOccurrenceCharge + prospectiveSeenBytes + s.resultBytes
+		s.planCharge + s.stagingCharge + len(s.pending)*128 + occurrences*calendarOccurrenceCharge + prospectiveSeenBytes + s.resultBytes
 }
 
 func (s *Service) occurrenceCountLocked() int {
@@ -347,7 +347,7 @@ func (s *Service) fireCalendarDueLocked(i int, now time.Time, missedByWallJump b
 		return
 	}
 	for _, item := range occurrences {
-		if i >= s.permanentRules && s.waitOwners[i] == nil {
+		if !s.permanentSlots[i] && s.waitOwners[i] == nil {
 			return
 		}
 		_, _, _, _, _, _, _, freshness, err := item.Components()

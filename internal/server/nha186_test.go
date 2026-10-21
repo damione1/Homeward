@@ -281,9 +281,28 @@ func TestNHA186RunPersistsProducerManifestAcrossReopenWithoutReplay(t *testing.T
 	}})
 	rig.run.waitReady(t)
 	nha034WaitSignal(t, lights.ready, "three simulated scene lamps")
+	rig.composition.mu.Lock()
+	controller, interpreter := rig.composition.runtime, rig.composition.scripts.interpreter
+	rig.composition.mu.Unlock()
+	observation, err := controller.RetainNativeObservation(interpreter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observationReleased := false
+	t.Cleanup(func() {
+		if !observationReleased {
+			if err := observation.Release(); err != nil {
+				t.Error(err)
+			}
+		}
+	})
 	// Admit the actual scene preparation without dispatching it. A fixture
 	// routing/profile mistake now names the member's real refusal immediately.
-	preflightCtx, preflightActor, err := (&nha042ServerAuthority{environment.principal}).Context(context.Background())
+	preflightActor, err := environment.principal.Actor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	preflightCtx, err := authorization.WithPrincipal(context.Background(), environment.principal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +357,11 @@ func TestNHA186RunPersistsProducerManifestAcrossReopenWithoutReplay(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	sending, actor, err := (&nha042ServerAuthority{environment.principal}).Context(context.Background())
+	actor, err := environment.principal.Actor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sending, err := authorization.WithPrincipal(context.Background(), environment.principal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,11 +387,19 @@ func TestNHA186RunPersistsProducerManifestAcrossReopenWithoutReplay(t *testing.T
 		t.Fatal(err)
 	}
 	// Capture only after the real producer Done, including the enclosing
-	// automation's terminal. Neither ring may have evicted a native emission.
-	nativeNodes, nodesEvicted := rig.composition.NodeTraces()
+	// automation's terminal. This fixture's explicit charged observation keeps
+	// A's native ring alive; it does not extend execution or Store ownership.
+	nativeNodes, nodesEvicted := interpreter.NodeTraces()
 	nativeDecisions, decisionsEvicted := rig.composition.Traces()
-	if nodesEvicted != 0 || decisionsEvicted != 0 {
+	if len(nativeNodes) == 0 || len(nativeDecisions) == 0 || nodesEvicted != 0 || decisionsEvicted != 0 {
 		t.Fatalf("native manifest evicted nodes=%d decisions=%d", nodesEvicted, decisionsEvicted)
+	}
+	if err := observation.Release(); err != nil {
+		t.Fatal(err)
+	}
+	observationReleased = true
+	if released, _ := interpreter.NodeTraces(); len(released) != 0 {
+		t.Fatal("history fixture retained native image A after its last observation release")
 	}
 	nha034WaitRunStoreClosed(t, rig.store)
 	settings, err := environment.config.PostgresSettings()
@@ -528,7 +559,11 @@ func TestNHA186RunLateSceneEmitsBeforeHistoryAndStoreClose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sending, actor, err := (&nha042ServerAuthority{environment.principal}).Context(context.Background())
+	actor, err := environment.principal.Actor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sending, err := authorization.WithPrincipal(context.Background(), environment.principal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -674,8 +709,82 @@ func TestNHA186RunPreparationFailureRetainsNoHistoryOwner(t *testing.T) {
 
 func TestNHA186RunProgressesWhileHistoryPostgresIsLocked(t *testing.T) {
 	environment := nha042ServerEnvironmentFor(t)
-	rig := nha042StartServer(t, environment, "- stop: done\n", "", nha042ServerOptions{})
+	// This AC2 case needs only a pure routine under a real history lock.
+	// Compile its stop directly into the same automation/trigger identity;
+	// parent/child links remain covered by the unchanged producer manifest.
+	rig := nha042StartServer(t, environment, "- stop: done\n", "", nha042ServerOptions{change: func(plan *RuntimePlan) {
+		event, err := ir.NewEvent("nha042_start", ir.ReferencePresent)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		catalogue, err := ir.NewCatalogue(nil, nil, []ir.Event{event})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		file, err := parser.NewSourceFile("nha186-locked-direct-stop.yaml", []byte("id: nha042_server\ntriggers:\n- trigger: event\n  event_type: nha042_start\nactions:\n- stop: done\n"))
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		compiled, err := ir.CompileSources("automation.nha042_server", file.Path(), []parser.SourceFile{file}, catalogue)
+		if err != nil || len(compiled.Accepted()) != 1 || len(compiled.Rejected()) != 0 {
+			t.Errorf("direct stop fixture compilation: %v rejected=%+v", err, compiled.Rejected())
+			return
+		}
+		automations, scripts, err := nha042ServerPrograms("- stop: done\n", "", false)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		// The trigger identity and probe remain the fixture's actual declared
+		// ones. Only this automation's admitted actions become a direct stop.
+		automations[0] = compiled.Accepted()[0]
+		runs, err := automationruns.NewPlanWithScripts(automations, scripts)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		plan.AutomationRuns.plan, plan.AutomationRuns.scripts.input.Plan = runs, runs
+	}})
 	rig.run.waitReady(t)
+	rig.composition.mu.Lock()
+	controller, interpreter := rig.composition.runtime, rig.composition.scripts.interpreter
+	rig.composition.mu.Unlock()
+	observation, err := controller.RetainNativeObservation(interpreter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observationReleased := false
+	t.Cleanup(func() {
+		if !observationReleased {
+			if err := observation.Release(); err != nil {
+				t.Error(err)
+			}
+		}
+	})
+	epochText, err := rig.identity.Sequence().CurrentAdmissionEpoch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	epoch, err := storage.ParseHistoryEpoch(epochText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logSQL := func(phase string) {
+		t.Helper()
+		var checkpoint, rows, batches, rejected int64
+		err := environment.driverObserver.QueryRow(context.Background(), `SELECT e.checkpoint,
+(SELECT count(*) FROM public.execution_history_records WHERE epoch=$1),
+(SELECT count(*) FROM public.execution_history_batches WHERE epoch=$1),
+(SELECT COALESCE(sum(known_count),0) FROM public.execution_history_loss WHERE epoch=$1)
+FROM public.execution_history_epochs e WHERE e.epoch=$1`, epoch.String()).Scan(&checkpoint, &rows, &batches, &rejected)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("history lock phase=%s checkpoint=%d records=%d batches=%d durable_loss_count=%d", phase, checkpoint, rows, batches, rejected)
+	}
 	tx, err := environment.observer.Begin(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -714,17 +823,153 @@ func TestNHA186RunProgressesWhileHistoryPostgresIsLocked(t *testing.T) {
 	if len(rig.driver.snapshot()) != 0 {
 		t.Fatal("pure simulated routine emitted an action")
 	}
+	logSQL("locked")
 	if err := tx.Rollback(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	rig.run.cancel()
+	logSQL("unlocked-close-requested")
 	if err := rig.run.waitDone(t); err != nil {
 		t.Fatal(err)
 	}
+	// Run returned no Undrained/Integrity error and really joined every
+	// producer and history worker before Store closed. Keep only this explicit
+	// observation while taking the final native inventory, then release it.
 	nha034WaitRunStoreClosed(t, rig.store)
-	var terminal int
-	if err := environment.observer.QueryRow(context.Background(), `SELECT count(*) FROM public.execution_history_records WHERE kind=1 AND decision=12 AND object_id='nha042_server'`).Scan(&terminal); err != nil || terminal != 1 {
-		t.Fatalf("recovered routine terminal=%d err=%v", terminal, err)
+	nativeNodes, nodesEvicted := interpreter.NodeTraces()
+	nativeDecisions, decisionsEvicted := rig.composition.Traces()
+	if len(nativeNodes) == 0 || len(nativeDecisions) == 0 || nodesEvicted != 0 || decisionsEvicted != 0 || controller.TraceOrderState() != automationruns.TraceOrderHealthy {
+		t.Fatal("history lock fixture lacks a complete joined native inventory")
 	}
+	if err := observation.Release(); err != nil {
+		t.Fatal(err)
+	}
+	observationReleased = true
+	if retained, _ := interpreter.NodeTraces(); len(retained) != 0 {
+		t.Fatal("history lock observation retained its native image after release")
+	}
+	logSQL("closed")
+	settings, err := environment.config.PostgresSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := storage.Open(context.Background(), settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	records, losses := nha186ReadAllWithCoverage(t, reopened, epoch)
+
+	// The producer contract admits nonblocking TryLock rejection, including
+	// DecisionFinished. Every missing emission must instead have an EXACT
+	// durable contention count and a covering uncertainty envelope; a loss
+	// from an unrelated kind or a silent/non-drained terminal cannot pass.
+	bind := func(row *storage.HistoryRecordInput, stamp automationruns.DefinitionProvenance) {
+		t.Helper()
+		switch stamp.Kind() {
+		case automationruns.UnboundFixturePlan:
+			if !stamp.Valid() {
+				t.Fatal("invalid native fixture provenance")
+			}
+			row.Provenance = storage.HistoryUnboundFixture
+		case automationruns.BoundProgram:
+			revision, hash, valid := stamp.Bound()
+			if !valid {
+				t.Fatal("invalid native bound provenance")
+			}
+			row.Provenance, row.ConfigRevision, row.ManifestSHA256 = storage.HistoryBoundProgram, revision.Number(), hash
+		default:
+			t.Fatal("unknown native provenance")
+		}
+	}
+	native := make(map[uint64]storage.HistoryRecordInput)
+	add := func(ordinal automationruns.TraceOrdinal, row storage.HistoryRecordInput, stamp automationruns.DefinitionProvenance) {
+		t.Helper()
+		value, valid := ordinal.Value()
+		if _, duplicate := native[value]; !valid || duplicate {
+			t.Fatal("invalid or duplicate native emission identity")
+		}
+		bind(&row, stamp)
+		row.NativeOrdinal, row.EmissionTime = value, row.EmissionTime.UTC().Truncate(time.Microsecond)
+		native[value] = row
+	}
+	for _, node := range nativeNodes {
+		at := node.Source().At()
+		row := storage.HistoryRecordInput{Kind: storage.HistoryNode, EmissionTime: node.At(),
+			RunID: uint64(node.RunID()), ParentRunID: uint64(node.ParentID()), ControllerGeneration: uint64(node.Generation()),
+			NodeStage: uint8(node.Stage()), NodeVisit: node.Visit(), ActionKind: uint8(node.Kind()), FailureKind: uint8(node.Failure()), WaitExit: uint8(node.WaitExit()),
+			ObjectID: node.Source().Object(), SourcePath: node.Source().Path(), SourceFile: at.File, SourceLine: at.Line, SourceColumn: at.Column}
+		for _, part := range node.Branches() {
+			row.Branches = append(row.Branches, int32(part))
+		}
+		for _, part := range node.Iterations() {
+			row.Iterations = append(row.Iterations, int32(part))
+		}
+		add(node.Ordinal(), row, node.Provenance())
+	}
+	var nativeTerminals int
+	for _, decision := range nativeDecisions {
+		object := decision.Automation
+		if script, err := decision.Script.Value(); err == nil {
+			object = script
+		}
+		row := storage.HistoryRecordInput{Kind: storage.HistoryDecision, EmissionTime: decision.At,
+			RunID: uint64(decision.RunID), ParentRunID: uint64(decision.ParentID), ControllerGeneration: uint64(decision.Generation),
+			Decision: uint8(decision.Decision), ObjectID: object, TriggerKey: decision.TriggerKey}
+		add(decision.Ordinal(), row, decision.Provenance)
+		if object == "nha042_server" && decision.RunID != 0 && decision.Decision == automationruns.DecisionFinished {
+			nativeTerminals++
+		}
+
+	}
+	if nativeTerminals != 1 {
+		t.Fatal("joined native inventory lacks its actual automation terminal")
+	}
+	var terminalRows int
+	ids := make(map[uint64]bool)
+	for _, row := range records {
+		if row.ID.Epoch() != epoch || row.ID.Ordinal() == 0 || row.ID.Ordinal() > uint64(len(records)) || ids[row.ID.Ordinal()] {
+			t.Fatal("recovered history changed or duplicated persistent identities")
+		}
+		ids[row.ID.Ordinal()] = true
+		want, present := native[row.NativeOrdinal]
+		if row.NativeOrdinal == 0 || !present {
+			t.Fatalf("duplicate or unrelated recovered row in the direct stop fixture: %+v", row)
+		}
+		delete(native, row.NativeOrdinal)
+		want.ID = row.ID
+		if !reflect.DeepEqual(row, want) {
+			t.Fatalf("history lock recovery changed causal metadata or outcome: got=%+v want=%+v", row, want)
+		}
+		if row.Kind == storage.HistoryDecision && row.Decision == uint8(automationruns.DecisionFinished) && row.ObjectID == "nha042_server" {
+			terminalRows++
+		}
+	}
+	var durableRejected uint64
+	for _, loss := range losses {
+		if loss.Reason != storage.HistoryLossContention || !loss.UncertainEnvelope || loss.KnownCount == 0 || loss.From.After(loss.Through) || loss.KnownCount > uint64(len(nativeNodes)+len(nativeDecisions))-durableRejected {
+			t.Fatalf("unexpected history lock loss: %+v", loss)
+		}
+		durableRejected += loss.KnownCount
+	}
+	covers := func(from, through time.Time) bool {
+		for _, loss := range losses {
+			if !from.Before(loss.From.UTC()) && !through.After(loss.Through.UTC()) {
+				return true
+			}
+		}
+		return false
+	}
+	missing := uint64(len(native))
+	for ordinal, row := range native {
+		if !covers(row.EmissionTime, row.EmissionTime) {
+			t.Fatalf("native emission %d kind=%d run=%d decision=%d missing without exact durable contention coverage: %+v", ordinal, row.Kind, row.RunID, row.Decision, losses)
+		}
+	}
+
+	if missing != durableRejected || terminalRows > 1 {
+		t.Fatalf("history lock missing=%d contention=%d terminal_rows=%d native_terminal=%d losses=%+v", missing, durableRejected, terminalRows, nativeTerminals, losses)
+	}
+	t.Logf("history lock complete accounting records=%d native_nodes=%d native_decisions=%d terminal_rows=%d missing=%d durable_contention=%d losses=%+v", len(records), len(nativeNodes), len(nativeDecisions), terminalRows, missing, durableRejected, losses)
 	t.Logf("real Run routine completed in %s before observed PostgreSQL history lock released", elapsed)
 }

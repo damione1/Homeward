@@ -17,7 +17,7 @@ func (s *Sequencer) CheckCaptureAvailable() error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.registryState == registryUnavailable {
+	if s.registryState == registryUnavailable || s.configurationPublication != nil {
 		return ErrRegistryUnavailable
 	}
 	return nil
@@ -32,7 +32,7 @@ func (s *Sequencer) CaptureBounded(maxBytes int) (Snapshot, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.registryState == registryUnavailable {
+	if s.registryState == registryUnavailable || s.configurationPublication != nil {
 		return Snapshot{}, ErrRegistryUnavailable
 	}
 	charge := int(unsafe.Sizeof(Snapshot{})) + 1024

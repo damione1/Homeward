@@ -33,6 +33,7 @@ func TestNHA069RunAndSharedDefaultPlanAdmitConfiguredDiscovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startup := nha029RunStartupFromRaw(t, configBytes)
 	pg, err := c.PostgresSettings()
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +90,9 @@ func TestNHA069RunAndSharedDefaultPlanAdmitConfiguredDiscovery(t *testing.T) {
 	runDone := make(chan error, 1)
 	ready := make(chan net.Addr, 1)
 	var listen net.ListenConfig
-	go func() { runDone <- Run(runCtx, c, listen.Listen, func(address net.Addr) { ready <- address }) }()
+	go func() {
+		runDone <- RunWithStartup(runCtx, startup, listen.Listen, func(address net.Addr) { ready <- address })
+	}()
 	select {
 	case <-ready:
 	case err := <-runDone:

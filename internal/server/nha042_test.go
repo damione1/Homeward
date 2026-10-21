@@ -18,7 +18,6 @@ import (
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/automationtriggers"
-	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/jobs"
@@ -41,22 +40,8 @@ import (
 const nha042ServerAlias = "switch.arc_soundbar_crossfade"
 const nha042ServerCommand = "- action: switch.turn_on\n  target: {entity_id: " + nha042ServerAlias + "}\n  data: {}\n"
 
-type nha042ServerAuthority struct{ principal authorization.Principal }
-
-func (a *nha042ServerAuthority) Context(ctx context.Context) (context.Context, domain.ActorID, error) {
-	if a == nil {
-		return nil, domain.ActorID{}, authorization.ErrDenied
-	}
-	actor, err := a.principal.Actor()
-	if err != nil {
-		return nil, domain.ActorID{}, err
-	}
-	admitted, err := authorization.WithPrincipal(ctx, a.principal)
-	return admitted, actor, err
-}
-
 type nha042ServerEnvironment struct {
-	config         config.Config
+	config         nha029RunFixture
 	account        contracts.AccountID
 	principal      authorization.Principal
 	observer       *pgx.Conn
@@ -110,7 +95,7 @@ func (d *nha042ServerDriver) Dispatch(ctx context.Context, command integrations.
 	if !command.ReadyForTransport() {
 		return integrations.ErrCommandAuthorizationDenied
 	}
-	id, _, _, err := command.Identity()
+	id, _, err := command.RouteIdentity()
 	if err != nil {
 		return err
 	}
@@ -356,6 +341,7 @@ func nha042ServerPrograms(body, child string, scriptsOnly bool) ([]ir.Automation
 }
 
 type nha042ServerOptions struct {
+	observeRuntime func(*observationRuntime)
 	dependencies   *runDependencies
 	sharedJobs     bool
 	sceneCatalogue *scenes.Catalogue
@@ -467,7 +453,7 @@ func nha042StartServer(t *testing.T, environment *nha042ServerEnvironment, body,
 			}
 		}
 		rig.composition, err = NewScriptRunsComposition(ScriptRunsInput{Plan: runs, Commands: rig.commands,
-			Authority: &nha042ServerAuthority{environment.principal}, Clock: clock, Zone: time.UTC, CommandDeadline: time.Minute, Scenes: options.sceneCatalogue})
+			Clock: clock, Zone: time.UTC, CommandDeadline: time.Minute, Scenes: options.sceneCatalogue})
 		if err != nil {
 			return RuntimePlan{}, err
 		}
@@ -561,18 +547,27 @@ func nha042StartServer(t *testing.T, environment *nha042ServerEnvironment, body,
 		return plan, nil
 	}
 	go func() {
-		if options.dependencies != nil {
-			dependencies := *options.dependencies
+		if options.dependencies != nil || options.clock != nil || options.observeRuntime != nil {
+			var dependencies runDependencies
+			if options.dependencies != nil {
+				dependencies = *options.dependencies
+			}
 			if options.clock != nil {
 				dependencies.sequenceClock, dependencies.solarClock = options.clock, options.clock
 			}
-			rig.run.err = runWithDependencies(ctx, environment.config, (&net.ListenConfig{}).Listen,
+			if options.observeRuntime != nil {
+				previous := dependencies.observeRuntime
+				dependencies.observeRuntime = func(actual *observationRuntime) {
+					if previous != nil {
+						previous(actual)
+					}
+					options.observeRuntime(actual)
+				}
+			}
+			rig.run.err = runWithDependencies(ctx, environment.config.startup, (&net.ListenConfig{}).Listen,
 				func(net.Addr) { close(rig.run.ready) }, factory, dependencies)
-		} else if options.clock != nil {
-			rig.run.err = runWithDependencies(ctx, environment.config, (&net.ListenConfig{}).Listen,
-				func(net.Addr) { close(rig.run.ready) }, factory, runDependencies{sequenceClock: options.clock, solarClock: options.clock})
 		} else {
-			rig.run.err = RunWithFactory(ctx, environment.config, (&net.ListenConfig{}).Listen, func(net.Addr) { close(rig.run.ready) }, factory)
+			rig.run.err = RunWithStartupFactory(ctx, environment.config.startup, (&net.ListenConfig{}).Listen, func(net.Addr) { close(rig.run.ready) }, factory)
 		}
 		close(rig.run.done)
 	}()
@@ -690,30 +685,31 @@ func nha042ServerSQL(t *testing.T, observer *pgx.Conn, query string) {
 	}
 }
 
-// This is the causal counterpart to the positive Run assembly: action rights
-// alone cannot expose the state/capability required for command preparation.
-func TestNHA042RunRefusesUnreadableCommandStateBeforeEffect(t *testing.T) {
+// A trusted household script sees technical state even when its author lacks
+// human StateRead; direct human reads remain subject to the native Authority.
+func TestNHA042RunUsesInternalStateWithoutHumanStateRead(t *testing.T) {
 	environment := nha042ServerEnvironmentFor(t)
 	rig := nha042StartServer(t, environment, nha042ServerCommand, "", nha042ServerOptions{omitStateRead: true})
 	rig.run.waitReady(t)
 	rig.pilot.emit(t, "nha042_start")
-	nha042ServerWait(t, "typed refusal of unreadable command state", func() bool {
-		return nha042ServerNode(rig.composition, "script.nha042_parent", ir.ActionCall, automationruns.NodeFailed)
+	nha042ServerWait(t, "internal command with unreadable human state", func() bool {
+		return nha042ServerNode(rig.composition, "script.nha042_parent", ir.ActionCall, automationruns.NodeCompleted)
 	})
-	if len(rig.driver.snapshot()) != 0 {
-		t.Fatal("unreadable command state reached Driver")
+	ids := rig.driver.snapshot()
+	if len(ids) != 1 {
+		t.Fatalf("internal command reached Driver %d times", len(ids))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	var count int
-	if err := environment.observer.QueryRow(ctx, `SELECT count(*) FROM public.command_intents`).Scan(&count); err != nil || count != 0 {
-		t.Fatalf("unreadable preparation acquired a command intention: %d %v", count, err)
+	if err := environment.observer.QueryRow(ctx, `SELECT count(*) FROM public.command_intents WHERE origin_kind='internal_automation' AND actor_id IS NULL`).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("internal effect did not use its own durable origin: %d %v", count, err)
 	}
 	rig.run.cancel()
 	if err := rig.run.waitDone(t); err != nil {
 		t.Fatal(err)
 	}
-	nha034WaitSignal(t, rig.composition.Done(), "denied script join")
+	nha034WaitSignal(t, rig.composition.Done(), "internal script join")
 	nha034WaitRunStoreClosed(t, rig.store)
 }
 
@@ -1138,7 +1134,6 @@ func TestNHA042ScriptCompositionRejectsZeroAndTypedNilPorts(t *testing.T) {
 		t.Fatal(err)
 	}
 	var generation *nha034Generation
-	var authority *nha042ServerAuthority
 	var clock *nha105RunClock
 	for _, input := range []DurableCommandsInput{{}, {Generation: generation, Clock: automationtriggers.RealClock{}}, {Generation: nha094Generation{}, Clock: clock}} {
 		if _, err := NewDurableCommandsComposition(input); !errors.Is(err, ErrInvalidTriggerComposition) {
@@ -1149,11 +1144,12 @@ func TestNHA042ScriptCompositionRejectsZeroAndTypedNilPorts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := ScriptRunsInput{Plan: plan, Commands: commands, Authority: authority, Clock: automationtriggers.RealClock{}, Zone: time.UTC, CommandDeadline: time.Minute}
+	var missingCommands *DurableCommandsComposition
+	input := ScriptRunsInput{Plan: plan, Commands: missingCommands, Clock: automationtriggers.RealClock{}, Zone: time.UTC, CommandDeadline: time.Minute}
 	if _, err := NewScriptRunsComposition(input); !errors.Is(err, ErrInvalidTriggerComposition) {
-		t.Fatal("typed nil authority admitted")
+		t.Fatal("typed nil commands admitted")
 	}
-	input.Authority = &nha042ServerAuthority{}
+	input.Commands = commands
 	for _, mutate := range []func(*ScriptRunsInput){
 		func(input *ScriptRunsInput) { input.Plan = automationruns.Plan{} },
 		func(input *ScriptRunsInput) { input.Commands = &DurableCommandsComposition{} },
@@ -1174,7 +1170,6 @@ func TestNHA042ScriptCompositionRejectsZeroAndTypedNilPorts(t *testing.T) {
 	}
 }
 
-var _ automationruns.ExecutionAuthority = (*nha042ServerAuthority)(nil)
 var _ integrations.CommandDriver = (*nha042ServerDriver)(nil)
 var _ integrations.Pilot = (*nha042ServerPilot)(nil)
 var _ ReactiveTemplateOutput = nha042NoPermanentOutput{}
@@ -1207,7 +1202,11 @@ func TestNHA042RunSharesCommandsWithJobsAndTracksLateSceneClose(t *testing.T) {
 	if runtime == nil || runtime.service == nil {
 		t.Fatal("Run did not compose the admitted scene catalogue")
 	}
-	sending, actor, err := (&nha042ServerAuthority{environment.principal}).Context(context.Background())
+	sending, err := authorization.WithPrincipal(context.Background(), environment.principal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := environment.principal.Actor()
 	if err != nil {
 		t.Fatal(err)
 	}

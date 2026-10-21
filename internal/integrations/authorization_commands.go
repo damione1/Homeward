@@ -218,6 +218,13 @@ func (r *CommandRouter) filterCapture(ctx context.Context, entity domain.EntityI
 	if r == nil || r.host == nil {
 		return ErrCommandAuthorizationDenied
 	}
+	internal, err := r.internalFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	if internal != nil {
+		return nil
+	}
 	authority := r.host.commandAuthority()
 	if authority == nil {
 		return nil
@@ -271,8 +278,14 @@ func (r *CommandRouter) filterCapture(ctx context.Context, entity domain.EntityI
 	}
 	return nil
 }
-func (r *CommandRouter) captureError(err error) error {
-	if err != nil && r != nil && r.host != nil && r.host.commandAuthority() != nil {
+func (r *CommandRouter) captureError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	if internal, internalErr := r.internalFromContext(ctx); internalErr == nil && internal != nil {
+		return err
+	}
+	if r != nil && r.host != nil && r.host.commandAuthority() != nil {
 		return ErrCommandAuthorizationDenied
 	}
 	return err
@@ -280,6 +293,19 @@ func (r *CommandRouter) captureError(err error) error {
 
 func authorizePreparedRead(ctx context.Context, router *CommandRouter, actor domain.ActorID, route *preparedCommandRoute) error {
 	if router == nil || router.host == nil {
+		return ErrCommandAuthorizationDenied
+	}
+	internal, err := router.internalFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	if internal != nil {
+		if route == nil || route.internal() != internal || actor != (domain.ActorID{}) {
+			return ErrCommandAuthorizationDenied
+		}
+		return nil
+	}
+	if route != nil && route.internal() != nil {
 		return ErrCommandAuthorizationDenied
 	}
 	if router.host.commandAuthority() == nil {

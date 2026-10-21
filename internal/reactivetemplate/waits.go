@@ -29,6 +29,7 @@ type templateControl struct {
 	handle    *WaitHandle
 	result    chan templateControlResult
 	clock     MonotonicClock
+	zone      *time.Location
 	release   func()
 }
 type MonotonicClock interface{ MonoNow() time.Duration }
@@ -122,6 +123,14 @@ func (s *Service) ObserveTemplateOnClock(ctx context.Context, program template.P
 	return result.handle, err
 }
 
+func (s *Service) ObserveTemplateOnClockInZone(ctx context.Context, program template.Program, variables []template.Binding, clock MonotonicClock, zone *time.Location) (*WaitHandle, error) {
+	if zone == nil || s == nil || nilReactiveValue(ctx) || !program.Valid() || nilReactiveValue(clock) {
+		return nil, ErrInvalidPlan
+	}
+	result, err := s.control(templateControl{kind: templateObserve, ctx: ctx, program: program, variables: variables, clock: clock, zone: zone, result: make(chan templateControlResult, 1)})
+	return result.handle, err
+}
+
 // EvaluateCondition runs synchronously over the same projection as waits and
 // permanent reactive definitions. No ReadView snapshot escapes to concurrent
 // callers. The admitted tracked result is small and immutable.
@@ -130,6 +139,14 @@ func (s *Service) EvaluateCondition(ctx context.Context, program template.Progra
 		return template.TrackedResult{}, ErrInvalidPlan
 	}
 	result, err := s.control(templateControl{kind: templateEvaluate, ctx: ctx, program: program, variables: variables, result: make(chan templateControlResult, 1)})
+	return result.tracked, err
+}
+
+func (s *Service) EvaluateConditionAtZone(ctx context.Context, program template.Program, variables []template.Binding, zone *time.Location) (template.TrackedResult, error) {
+	if zone == nil || s == nil || nilReactiveValue(ctx) || !program.Valid() {
+		return template.TrackedResult{}, ErrInvalidPlan
+	}
+	result, err := s.control(templateControl{kind: templateEvaluate, ctx: ctx, program: program, variables: variables, zone: zone, result: make(chan templateControlResult, 1)})
 	return result.tracked, err
 }
 func (s *Service) control(request templateControl) (templateControlResult, error) {
@@ -150,7 +167,11 @@ func (s *Service) control(request templateControl) (templateControlResult, error
 			s.mu.Unlock()
 			return templateControlResult{}, ErrClosed
 		}
-		if s.permanentPrograms+s.controlSlots >= MaxPrograms {
+		permanent := s.permanentPrograms
+		if s.reservedPlan != nil && len(s.reservedPlan.plan.definitions) > permanent {
+			permanent = len(s.reservedPlan.plan.definitions)
+		}
+		if permanent+s.controlSlots >= MaxPrograms {
 			s.mu.Unlock()
 			return templateControlResult{}, ErrWorkBudget
 		}
@@ -323,6 +344,10 @@ func (e *engine) handleControl(request *templateControl) (handled bool) {
 				reply.err = err
 				return
 			}
+			definition.zone = request.zone
+			if definition.zone == nil {
+				definition.zone = e.service.plan.zone
+			}
 			handle = &WaitHandle{service: e.service, id: id, ready: make(chan struct{}), done: make(chan struct{}), clock: request.clock, release: request.release}
 			request.handle = handle
 			e.service.mu.Lock()
@@ -358,7 +383,11 @@ func (e *engine) handleControl(request *templateControl) (handled bool) {
 			reply.err = err
 			return
 		}
-		inputs, err := template.NewInputsFromReadView(view, request.variables, e.service.clock.Now().UTC(), e.service.plan.zone)
+		zone := e.service.plan.zone
+		if request.zone != nil {
+			zone = request.zone
+		}
+		inputs, err := template.NewInputsFromReadView(view, request.variables, e.service.clock.Now().UTC(), zone)
 		if err != nil {
 			reply.err = err
 			return
@@ -449,5 +478,14 @@ func (e *engine) currentReadView() (template.ReadView, error) {
 }
 
 func (s *Service) SupportsScriptWaits(zone string) bool {
-	return s != nil && s.plan.waitsEnabled && s.plan.zone != nil && s.plan.zone.String() == zone
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.plan.waitsEnabled && s.plan.zone != nil && s.plan.zone.String() == zone {
+		return true
+	}
+	return s.reservedPlan != nil && s.reservedPlan.plan.waitsEnabled &&
+		s.reservedPlan.plan.zone != nil && s.reservedPlan.plan.zone.String() == zone
 }

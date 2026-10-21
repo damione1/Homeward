@@ -8,6 +8,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// ConfigurationIdentityProjection is the already committed Registry image
+// during a closed publication cut. Only Run's calculated publishers use it;
+// physical pilots keep the ordinary SQL identity admission.
+type ConfigurationIdentityProjection interface {
+	ResolveConfigurationIdentities(context.Context, domain.IntegrationInstanceID, []SourceKey) ([]ResolvedIdentity, error)
+}
+
 // RegistryRecord is a typed, immutable copy of an identity owned by the SQL
 // registry. Historical aliases stay attached even after retirement.
 type RegistryRecord struct {

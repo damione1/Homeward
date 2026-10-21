@@ -16,7 +16,8 @@ func TestNHA001Lifecycle(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var lc net.ListenConfig
-	c, err := config.ParseWithEnv([]byte(fmt.Sprintf("data_dir: %q\nlisten: '127.0.0.1:0'\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable", t.TempDir())), func(string) (string, bool) { return "fake", true })
+	raw := []byte(fmt.Sprintf("data_dir: %q\nlisten: '127.0.0.1:0'\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable", t.TempDir()))
+	c, err := config.ParseWithEnv(raw, func(string) (string, bool) { return "fake", true })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,14 +47,15 @@ func TestNHA001Lifecycle(t *testing.T) {
 }
 
 func TestNHA027CanceledBeforeAdmission(t *testing.T) {
-	c, err := config.ParseWithEnv([]byte(fmt.Sprintf("data_dir: %q\nlisten: '127.0.0.1:0'\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable", t.TempDir())), func(string) (string, bool) { return "fake", true })
+	raw := []byte(fmt.Sprintf("data_dir: %q\nlisten: '127.0.0.1:0'\npostgres:\n  host: '127.0.0.1'\n  port: 5432\n  database: test\n  user: test\n  password_env: TEST_DB_PASSWORD\n  sslmode: disable", t.TempDir()))
+	startup, err := config.NewDetachedStartup(raw, "configuration.yaml", nil, func(string) (string, bool) { return "fake", true })
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	listened := false
-	err = Run(ctx, c, func(context.Context, string, string) (net.Listener, error) { listened = true; return nil, nil }, nil)
+	err = RunWithStartup(ctx, startup, func(context.Context, string, string) (net.Listener, error) { listened = true; return nil, nil }, nil)
 	if !errors.Is(err, context.Canceled) || listened {
 		t.Fatalf("canceled startup admitted listener: %v", err)
 	}
@@ -65,7 +67,7 @@ func TestNHA001InvalidConfigurationNeverListens(t *testing.T) {
 		}
 	}
 	called := false
-	err := Run(context.Background(), config.Config{}, func(context.Context, string, string) (net.Listener, error) { called = true; return nil, nil }, nil)
+	err := RunWithStartup(context.Background(), config.StartupInputs{}, func(context.Context, string, string) (net.Listener, error) { called = true; return nil, nil }, nil)
 	if err == nil || called {
 		t.Fatal("invalid config reached listener")
 	}

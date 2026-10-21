@@ -6,6 +6,7 @@ import (
 
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/compat/ha/template"
+	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/reactivetemplate"
 )
 
@@ -20,11 +21,14 @@ type Interpreter struct {
 	traces      []NodeTrace
 	evicted     uint64
 	traceNext   int
+	charge      int
+	image       *programImage
+	waitPlan    *automationtriggers.PlanRetention
 }
 
 func NewInterpreter(input InterpreterInput) (*Interpreter, error) {
 	if !input.Plan.Valid() || input.Plan.token == nil || nilPort(input.Conditions) ||
-		nilPort(input.Authority) || nilPort(input.Commands) || nilPort(input.Clock) ||
+		nilPort(input.Commands) || nilPort(input.Clock) ||
 		input.Zone == nil || input.Clock.Now().IsZero() {
 		return nil, ErrInvalidPlan
 	}
@@ -43,6 +47,9 @@ func NewInterpreter(input InterpreterInput) (*Interpreter, error) {
 	if triggerWaits && input.TriggerWaits == nil {
 		return nil, ErrInvalidPlan
 	}
+	if input.TriggerPlan.Valid() && input.TriggerWaits == nil {
+		return nil, ErrInvalidPlan
+	}
 	if templateWaits {
 		shared, actual := input.Conditions.(*reactivetemplate.Service)
 		if !actual || shared != input.TemplateWaits || !shared.SupportsScriptWaits(input.Zone.String()) {
@@ -56,37 +63,60 @@ func NewInterpreter(input InterpreterInput) (*Interpreter, error) {
 // template compilation or maps are constructed. The controller retains them
 // for as long as its inspectable interpreter is alive.
 func (i *Interpreter) bind(c *Controller) error {
+	return i.bindImage(c, c.active)
+}
+
+func (i *Interpreter) bindImage(c *Controller, image *programImage) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if c == nil || i.controller != nil || c.plan.token != i.input.Plan.token || c.plan.provenance != i.input.Plan.provenance {
+	if c == nil || image == nil || i.controller != nil || image.plan.token != i.input.Plan.token || image.plan.provenance != i.input.Plan.provenance {
 		return ErrInvalidPlan
 	}
-	charge, err := admittedProgramCharge(c.plan)
+	charge, err := admittedProgramCharge(image.plan)
 	if err != nil {
 		return err
 	}
-	charge += nodeTraceCharge
+	if len(image.plan.items)+len(image.plan.scripts) != 0 {
+		charge += nodeTraceCharge
+	}
 	if !c.pool.adjust(0, charge) {
 		return ErrCapacity
 	}
 	retained := false
+	var waitPlan *automationtriggers.PlanRetention
 	defer func() {
 		if !retained {
+			i.waitPlan = nil
+			if waitPlan != nil {
+				_ = waitPlan.Release()
+			}
 			c.pool.adjust(charge, 0)
 		}
 	}()
-	automations := make(map[string]executableProgram, len(c.plan.items))
-	scripts := make(map[ir.ScriptID]executableProgram, len(c.plan.scripts))
-	for id, spec := range c.plan.items {
+	if i.input.TriggerWaits != nil {
+		if i.input.TriggerPlan.Valid() {
+			waitPlan, err = i.input.TriggerWaits.RetainPlan(i.input.TriggerPlan)
+		} else {
+			waitPlan, err = i.input.TriggerWaits.RetainCurrentPlan()
+		}
+		if err != nil {
+			return err
+		}
+		image.triggerIdentity = waitPlan.Identity()
+	}
+	i.waitPlan = waitPlan
+	automations := make(map[string]executableProgram, len(image.plan.items))
+	scripts := make(map[ir.ScriptID]executableProgram, len(image.plan.scripts))
+	for id, spec := range image.plan.items {
 		conditions, err := compileConditions(spec.value.Conditions())
 		if err != nil {
 			return err
 		}
-		nodes, err := compileNodes(spec.value.Actions(), c.plan.scripts)
+		nodes, err := compileNodes(spec.value.Actions(), image.plan.scripts)
 		if err != nil {
 			return err
 		}
-		if err := i.validateWaitSources(nodes); err != nil {
+		if err := i.admitWaitSources(nodes); err != nil {
 			return err
 		}
 		variables, err := compileVariables(spec.value.Variables())
@@ -99,12 +129,12 @@ func (i *Interpreter) bind(c *Controller) error {
 		}
 		automations[id] = executableProgram{nodes: nodes, conditions: conditions, variables: variables, bindingNames: names}
 	}
-	for id, spec := range c.plan.scripts {
-		nodes, err := compileNodes(spec.script.Actions(), c.plan.scripts)
+	for id, spec := range image.plan.scripts {
+		nodes, err := compileNodes(spec.script.Actions(), image.plan.scripts)
 		if err != nil {
 			return err
 		}
-		if err := i.validateWaitSources(nodes); err != nil {
+		if err := i.admitWaitSources(nodes); err != nil {
 			return err
 		}
 		variables, err := compileVariables(spec.script.Variables())
@@ -117,10 +147,24 @@ func (i *Interpreter) bind(c *Controller) error {
 		}
 		scripts[id] = executableProgram{nodes: nodes, bindingNames: names}
 	}
-	i.controller, i.automations, i.scripts = c, automations, scripts
-	i.traces = make([]NodeTrace, 0, nodeTraceCapacity)
+	i.controller, i.image, i.charge, i.waitPlan, i.automations, i.scripts = c, image, charge, waitPlan, automations, scripts
+	if charge != 0 {
+		i.traces = make([]NodeTrace, 0, nodeTraceCapacity)
+	}
 	retained = true
 	return nil
+}
+
+func (i *Interpreter) releaseImage() {
+	i.mu.Lock()
+	if i.waitPlan != nil {
+		_ = i.waitPlan.Release()
+	}
+	i.automations, i.scripts, i.traces = nil, nil, nil
+	// The first Controller remains the immutable bind witness after release.
+	i.image, i.waitPlan, i.charge = nil, nil, 0
+	i.traceNext = 0
+	i.mu.Unlock()
 }
 
 func compileVariables(variables []ir.Variable) ([]template.Binding, error) {
@@ -188,7 +232,8 @@ func (i *Interpreter) ExecuteScript(ctx context.Context, script ir.Script, run R
 	return i.executeProgram(ctx, program, run)
 }
 func (i *Interpreter) executeProgram(ctx context.Context, program executableProgram, run Run) error {
-	if i.controller == nil || run.generation != i.controller.generation || run.env == nil ||
+	if i.controller == nil || i.image == nil || run.generation != i.image.generation ||
+		(run.image != nil && run.image != i.image) || run.env == nil ||
 		run.env.arena == nil || run.env.arena.pool != &i.controller.pool {
 		return ErrInvalidPlan
 	}
@@ -410,23 +455,16 @@ func (i *Interpreter) executeNode(ctx context.Context, node executableNode, run 
 				return flowInvalid, err
 			}
 		} else {
-			sending, actor, err := i.input.Authority.Context(ctx)
-			if err != nil {
+			if err := ctx.Err(); err != nil {
 				return flowInvalid, executionCause(ExecutionCommandError, node.source, err)
 			}
-			if nilPort(sending) {
-				return flowInvalid, executionFailure(ExecutionCommandError, node.source)
-			}
-			if err := sending.Err(); err != nil {
-				return flowInvalid, executionCause(ExecutionCommandError, node.source, err)
-			}
-			execution := CommandExecution{run: run.id, parent: run.parent, generation: run.generation, provenance: run.provenance, visit: run.visit, ordinal: work.ordinal.Add(1), source: node.source, actor: actor, suspend: run.suspend}
+			execution := CommandExecution{run: run.id, parent: run.parent, generation: run.generation, provenance: run.provenance, visit: run.visit, ordinal: work.ordinal.Add(1), source: node.source, suspend: run.suspend}
 			if !i.controller.pool.adjust(0, MaxProgramBytes) {
 				return flowInvalid, ErrCapacity
 			}
-			err = func() error {
+			err := func() error {
 				defer i.controller.pool.adjust(MaxProgramBytes, 0)
-				return i.input.Commands.ExecuteCall(sending, node.call, execution)
+				return i.input.Commands.ExecuteCall(ctx, node.call, execution)
 			}()
 			if err != nil {
 				return flowInvalid, executionCause(ExecutionCommandError, node.source, err)
@@ -440,19 +478,27 @@ func (i *Interpreter) executeNode(ctx context.Context, node executableNode, run 
 	return flowContinue, nil
 }
 
-func (i *Interpreter) validateWaitSources(nodes []executableNode) error {
-	for _, node := range nodes {
-		if node.kind == ir.ActionWait && !i.input.TriggerWaits.HasWait(node.source) {
-			return executionFailure(ExecutionInvalidProgram, node.source)
+func (i *Interpreter) admitWaitSources(nodes []executableNode) error {
+	for index := range nodes {
+		node := &nodes[index]
+		if node.kind == ir.ActionWait {
+			if i.waitPlan == nil {
+				return ErrInvalidPlan
+			}
+			admitted, err := i.waitPlan.AdmitWait(node.source)
+			if err != nil {
+				return executionFailure(ExecutionInvalidProgram, node.source)
+			}
+			node.admittedWait = admitted
 		}
-		if err := i.validateWaitSources(node.children); err != nil {
+		if err := i.admitWaitSources(node.children); err != nil {
 			return err
 		}
-		if err := i.validateWaitSources(node.otherwise); err != nil {
+		if err := i.admitWaitSources(node.otherwise); err != nil {
 			return err
 		}
-		for _, branch := range node.branches {
-			if err := i.validateWaitSources(branch.sequence); err != nil {
+		for branch := range node.branches {
+			if err := i.admitWaitSources(node.branches[branch].sequence); err != nil {
 				return err
 			}
 		}

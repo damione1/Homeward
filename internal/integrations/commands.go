@@ -36,19 +36,20 @@ type AdmittedCommand struct {
 	light      lightTarget
 	fan        *fanProfileSnapshot
 	permission *authorization.Permit
+	internal   *internalOccurrence
 }
 
 // Causality is a command-scoped token. A driver attaches it to a subsequent
 // StateObservation; a value match without this token cannot confirm an action.
 func (c AdmittedCommand) Causality() (domain.Causality, error) {
-	if _, _, _, err := c.Identity(); err != nil || c.progress == nil {
+	if _, _, err := c.RouteIdentity(); err != nil || c.progress == nil {
 		return domain.Causality{}, ErrInvalidInput
 	}
 	return domain.NewCausality(nil, &c.progress.correlation)
 }
 
 func (c AdmittedCommand) Acknowledge() error {
-	if _, _, _, err := c.Identity(); err != nil || c.progress == nil || c.tracker == nil || c.host == nil {
+	if _, _, err := c.RouteIdentity(); err != nil || c.progress == nil || c.tracker == nil || c.host == nil {
 		return ErrInvalidInput
 	}
 	c.host.mu.Lock()
@@ -60,7 +61,7 @@ func (c AdmittedCommand) Acknowledge() error {
 }
 
 func (c AdmittedCommand) ConfirmProtocol(qualifier ProtocolConfirmation) error {
-	if _, _, _, err := c.Identity(); err != nil || c.progress == nil || c.tracker == nil || c.host == nil || nilInterface(qualifier) {
+	if _, _, err := c.RouteIdentity(); err != nil || c.progress == nil || c.tracker == nil || c.host == nil || nilInterface(qualifier) {
 		return ErrInvalidInput
 	}
 	// Protocol parsing may be slow; run it before taking Host or tracker locks.
@@ -93,13 +94,21 @@ func (c AdmittedCommand) ReadyForTransport() bool {
 	check := func() error {
 		c.host.mu.Lock()
 		defer c.host.mu.Unlock()
-		if c.host.authorizationAuthority != nil && c.permission == nil {
+		if c.internal != nil {
+			if c.internal.port == nil || c.internal.port.service == nil ||
+				c.internal.port.service.router == nil || c.internal.port.service.router.internal != c.internal.port || !c.internal.live.Load() || c.permission != nil {
+				return ErrCommandAuthorizationDenied
+			}
+		} else if c.host.authorizationAuthority != nil && c.permission == nil {
 			return ErrCommandAuthorizationDenied
 		}
 		if c.host.admission != admissionOpen || !c.liveOwner() || (c.light.profile != nil && c.host.lightProfiles[c.entity] != c.light.profile) || (c.fan != nil && c.host.fanProfiles[c.entity] != c.fan) {
 			return ErrCommandRouteUnavailable
 		}
 		return nil
+	}
+	if c.internal != nil {
+		return check() == nil
 	}
 	return withCurrentPermission(c.permission, check) == nil
 }
@@ -115,20 +124,37 @@ func (c AdmittedCommand) MQTTLightEmission(current LightEncoding) (uint32, bool,
 }
 
 func (c AdmittedCommand) Identity() (domain.CommandID, domain.ActorID, domain.EntityID, error) {
-	if _, err := c.id.Value(); err != nil {
-		return domain.CommandID{}, domain.ActorID{}, domain.EntityID{}, ErrInvalidInput
+	if c.internal != nil {
+		return domain.CommandID{}, domain.ActorID{}, domain.EntityID{}, ErrCommandAuthorizationDenied
 	}
-	if _, err := c.actor.Value(); err != nil {
-		return domain.CommandID{}, domain.ActorID{}, domain.EntityID{}, ErrInvalidInput
+	id, entity, err := c.RouteIdentity()
+	if err != nil {
+		return domain.CommandID{}, domain.ActorID{}, domain.EntityID{}, err
+	}
+	return id, c.actor, entity, nil
+}
+
+// RouteIdentity supplies the mechanical target to a driver without turning
+// an internal household action into a human or service principal.
+func (c AdmittedCommand) RouteIdentity() (domain.CommandID, domain.EntityID, error) {
+	if _, err := c.id.Value(); err != nil {
+		return domain.CommandID{}, domain.EntityID{}, ErrInvalidInput
+	}
+	if c.internal != nil {
+		if c.internal.port == nil || c.internal.port.service == nil || c.internal.port.service.router == nil || c.internal.port.service.router.internal != c.internal.port {
+			return domain.CommandID{}, domain.EntityID{}, ErrCommandAuthorizationDenied
+		}
+	} else if _, err := c.actor.Value(); err != nil {
+		return domain.CommandID{}, domain.EntityID{}, ErrInvalidInput
 	}
 	if _, err := c.entity.Value(); err != nil {
-		return domain.CommandID{}, domain.ActorID{}, domain.EntityID{}, ErrInvalidInput
+		return domain.CommandID{}, domain.EntityID{}, ErrInvalidInput
 	}
-	return c.id, c.actor, c.entity, nil
+	return c.id, c.entity, nil
 }
 
 func (c AdmittedCommand) Request() (*actions.CommandRequest, error) {
-	if _, _, _, err := c.Identity(); err != nil || c.request == nil {
+	if _, _, err := c.RouteIdentity(); err != nil || c.request == nil {
 		return nil, ErrInvalidInput
 	}
 	return proto.Clone(c.request).(*actions.CommandRequest), nil
@@ -215,6 +241,7 @@ type CommandRouter struct {
 	generation GenerationAuthority
 	projection CommandProjection
 	clock      CommandClock
+	internal   *InternalAutomationPort
 }
 
 // CommandClock.Now is bounded and memory-only; admission calls it under Host
@@ -282,11 +309,22 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	if r == nil || r.host == nil || ctx == nil || request == nil {
 		return nil, ErrInvalidInput
 	}
+	internal, err := r.internalFromContext(ctx)
+	if err != nil || (internal != nil && actor != (domain.ActorID{})) ||
+		(preparedRoute != nil && preparedRoute.internal() != internal) {
+		return nil, ErrCommandAuthorizationDenied
+	}
 	if preparedRoute != nil && !preparedRoute.matches(r, actor, request) {
 		return nil, ErrInvalidInput
 	}
 	wire := proto.Clone(request).(*actions.CommandRequest)
-	authorizationTarget, permit, err := r.commandPermit(ctx, actor, wire)
+	var authorizationTarget authorization.CommandTarget
+	var permit *authorization.Permit
+	if internal != nil {
+		authorizationTarget, err = r.resolvedAuthorizationTarget(wire)
+	} else {
+		authorizationTarget, permit, err = r.commandPermit(ctx, actor, wire)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +338,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if _, err := actor.Value(); err != nil {
+	if internal == nil && !captureActorValid(actor, nil) {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "actor"), nil
 	}
 	id, err := domain.ParseCommandID(wire.CommandId)
@@ -339,7 +377,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	if err != nil {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "target"), nil
 	}
-	if permit != nil {
+	if permit != nil || internal != nil {
 		expected, _, targetErr := authorizationTarget.Values()
 		if targetErr != nil || expected != entity {
 			return commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target"), nil
@@ -371,7 +409,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	}()
 	var rejected *actions.ContractError
 	var routeFailure error
-	err = withCurrentPermission(permit, func() error {
+	admitRoute := func() error {
 		return r.generation.WithCurrent(ctx, func(revision uint64) error {
 			if revision == 0 {
 				return ErrCommandRouteUnavailable
@@ -467,7 +505,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 				} else if preparedRoute != nil {
 					return ErrCommandRouteUnavailable
 				}
-				admitted = AdmittedCommand{id: id, actor: actor, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding, light: target, fan: fan, permission: permit}
+				admitted = AdmittedCommand{id: id, actor: actor, internal: internal, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding, light: target, fan: fan, permission: permit}
 				// Slot lease is reserved before the Host lock is released.
 				h.inflight[endpointSlot] = true
 				leased = endpointSlot
@@ -498,7 +536,12 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 			managed = session.work
 			return nil
 		})
-	})
+	}
+	if internal != nil {
+		err = admitRoute()
+	} else {
+		err = withCurrentPermission(permit, admitRoute)
+	}
 	if err != nil {
 		return nil, err
 	}

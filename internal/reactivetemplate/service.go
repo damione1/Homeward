@@ -20,6 +20,16 @@ type groupReplacement struct {
 	result chan error
 }
 
+type planReplacement struct {
+	plan   Plan
+	result chan planReplacementResult
+}
+
+type planReplacementResult struct {
+	applied bool
+	err     error
+}
+
 // Service owns one lossless View subscription and one render loop. Its output
 // queue never invokes a consumer while holding a sequencer or service lock.
 type Service struct {
@@ -33,11 +43,14 @@ type Service struct {
 	cancel                          context.CancelFunc
 	updates                         chan Update
 	replacements                    chan groupReplacement
+	planReplacements                chan planReplacement
+	reservedPlan                    *PlanReservation
 	done                            chan struct{}
 	mu                              sync.Mutex
 	closed                          bool
 	err                             error
 	groupGeneration                 atomic.Uint64
+	publicationGeneration           atomic.Uint64
 }
 
 func Start(ctx context.Context, sequence *sequencer.Sequencer, plan Plan, clock Clock) (*Service, error) {
@@ -55,7 +68,7 @@ func Start(ctx context.Context, sequence *sequencer.Sequencer, plan Plan, clock 
 	plan = owned
 	runCtx, cancel := context.WithCancel(ctx)
 	s := &Service{sequence: sequence, plan: plan, clock: clock, ctx: runCtx, cancel: cancel,
-		controls: make(chan templateControl, 128), waitHandles: make(map[ProgramID]*WaitHandle), updates: make(chan Update, MaxPrograms), replacements: make(chan groupReplacement), done: make(chan struct{})}
+		controls: make(chan templateControl, 128), waitHandles: make(map[ProgramID]*WaitHandle), updates: make(chan Update, MaxPrograms), replacements: make(chan groupReplacement), planReplacements: make(chan planReplacement), done: make(chan struct{})}
 	s.permanentPrograms = len(plan.definitions)
 	s.groupGeneration.Store(1)
 	e := &engine{service: s, outputs: make(map[ProgramID]Update), readers: make(map[ProgramID][]template.Dependency)}
@@ -113,6 +126,7 @@ func (s *Service) emit(updates []Update) error {
 	permanent := make([]Update, 0, len(updates))
 	newReadBytes := 0
 	for _, update := range updates {
+		update.publication = s.publicationGeneration.Load()
 		if len(update.reads) > MaxReadsPerUpdate {
 			return ErrWorkBudget
 		}
@@ -180,9 +194,13 @@ func (s *Service) ReplaceGroups(ctx context.Context, groups []bundle.Group) erro
 	}
 	s.mu.Lock()
 	closed := s.closed
+	reserved := s.reservedPlan != nil
 	s.mu.Unlock()
 	if closed {
 		return ErrClosed
+	}
+	if reserved {
+		return ErrWorkBudget
 	}
 	req := groupReplacement{groups: copyGroups, result: make(chan error, 1)}
 	select {
@@ -227,10 +245,14 @@ func (e *engine) rebase() ([]Update, error) {
 		if err := e.service.ctx.Err(); err != nil {
 			return nil, err
 		}
-		snapshot, err := e.service.sequence.Capture()
+		captured, err := e.service.sequence.CaptureTriggerView(sequencer.MaxJournalBytes)
 		if err != nil {
 			return nil, err
 		}
+		// The internal engine keeps the captured maps and cursor without copying
+		// capabilities or health, and remains live while external views are cut.
+		snapshot := sequencer.Snapshot{Cursor: captured.Cursor, States: captured.States, Registry: captured.Registry,
+			RegistryReady: captured.RegistryReady(), CapturedTick: captured.CapturedTick}
 		if !snapshot.RegistryReady {
 			return nil, ErrInvalidProjection
 		}
@@ -427,6 +449,8 @@ func (s *Service) run(e *engine) {
 					request.release()
 				}
 				request.result <- templateControlResult{err: ErrClosed}
+			case request := <-s.planReplacements:
+				request.result <- planReplacementResult{err: ErrClosed}
 			default:
 				return
 			}
@@ -582,11 +606,15 @@ func (s *Service) run(e *engine) {
 				req.result <- ErrInvalidPlan
 				continue
 			}
+			s.mu.Lock()
 			old := e.service.plan.groups
 			e.service.plan.groups = req.groups
+			s.mu.Unlock()
 			changes, replaceErr := e.recompute()
 			if replaceErr != nil {
+				s.mu.Lock()
 				e.service.plan.groups = old
+				s.mu.Unlock()
 				s.setError(replaceErr)
 			} else {
 				s.groupGeneration.Add(1)
@@ -595,6 +623,74 @@ func (s *Service) run(e *engine) {
 				}
 			}
 			req.result <- replaceErr
+		case req := <-s.planReplacements:
+			if s.publicationGeneration.Load() == ^uint64(0) {
+				req.result <- planReplacementResult{err: ErrInvalidPlan}
+				continue
+			}
+			old := e.service.plan
+			oldPermanent := s.permanentPrograms
+			transient := append([]Definition(nil), old.definitions[oldPermanent:]...)
+			definitions := make([]Definition, 0, len(req.plan.definitions)+len(transient))
+			definitions = append(definitions, req.plan.definitions...)
+			definitions = append(definitions, transient...)
+			updated, err := NewPlan(definitions, req.plan.groups, req.plan.zone)
+			if err != nil {
+				req.result <- planReplacementResult{err: err}
+				continue
+			}
+			updated.waitsEnabled = old.waitsEnabled || req.plan.waitsEnabled
+			priorOutputs, priorReaders := cloneOutputs(e.outputs), cloneReaders(e.readers)
+			priorAliases := make(map[domain.HAAlias]struct{}, len(e.watchAliases))
+			for alias := range e.watchAliases {
+				priorAliases[alias] = struct{}{}
+			}
+			priorMinute, priorDirty := e.activeMinute, e.dirty
+			s.mu.Lock()
+			s.plan, s.permanentPrograms = updated, len(req.plan.definitions)
+			s.mu.Unlock()
+			keep := make(map[ProgramID]bool, len(definitions))
+			for _, definition := range definitions {
+				keep[definition.id] = true
+			}
+			for id := range e.outputs {
+				if !keep[id] {
+					delete(e.outputs, id)
+					delete(e.readers, id)
+				}
+			}
+			changes, replaceErr := e.recompute()
+			applied := replaceErr == nil
+			if replaceErr != nil {
+				s.mu.Lock()
+				s.plan, s.permanentPrograms = old, oldPermanent
+				s.mu.Unlock()
+				e.outputs, e.readers, e.watchAliases, e.activeMinute, e.dirty = priorOutputs, priorReaders, priorAliases, priorMinute, priorDirty
+			} else {
+				// A queued A permanent value must never be delivered as B after
+				// replacing its definition. Re-emit the current B snapshot for
+				// every permanent output; transient wait handles stay owned.
+				for {
+					select {
+					case <-s.updates:
+					default:
+						goto drainedPlanUpdates
+					}
+				}
+			drainedPlanUpdates:
+				s.publicationGeneration.Add(1)
+				publish := newUpdateAccumulator()
+				publish.add(changes)
+				for _, definition := range req.plan.definitions {
+					if update, present := e.outputs[definition.id]; present {
+						publish.add([]Update{update})
+					}
+				}
+				if emitErr := s.emit(publish.values()); emitErr != nil {
+					replaceErr = emitErr
+				}
+			}
+			req.result <- planReplacementResult{applied: applied, err: replaceErr}
 		}
 	}
 }

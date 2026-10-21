@@ -139,6 +139,9 @@ type PilotStatus struct {
 }
 
 type pilotRun struct {
+	ctx      context.Context
+	cancel   context.CancelFunc
+	done     chan struct{}
 	spec     PilotSpec
 	phase    PilotPhase
 	attempts int
@@ -160,24 +163,27 @@ func DefaultTaskLimits() TaskLimits {
 }
 
 type Supervisor struct {
-	journal     *observability.Journal
-	mu          sync.Mutex
-	host        *Manager
-	policy      RetryPolicy
-	limits      TaskLimits
-	timer       Timer
-	jitter      Jitter
-	phase       SupervisorPhase
-	ctx         context.Context
-	cancel      context.CancelFunc
-	done        chan struct{}
-	watchStop   chan struct{}
-	watchDone   chan struct{}
-	durable     *DurableCommandService
-	drainDone   chan struct{}
-	pilots      map[domain.IntegrationInstanceID]*pilotRun
-	tasksActive int
-	failures    []error
+	journal              *observability.Journal
+	wg                   sync.WaitGroup
+	pendingReplacement   *PilotReplacement
+	replacementAdmission replacementAdmission
+	mu                   sync.Mutex
+	host                 *Manager
+	policy               RetryPolicy
+	limits               TaskLimits
+	timer                Timer
+	jitter               Jitter
+	phase                SupervisorPhase
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	done                 chan struct{}
+	watchStop            chan struct{}
+	watchDone            chan struct{}
+	durable              *DurableCommandService
+	drainDone            chan struct{}
+	pilots               map[domain.IntegrationInstanceID]*pilotRun
+	tasksActive          int
+	failures             []error
 }
 
 func NewSupervisor(host *Manager, specs []PilotSpec, policy RetryPolicy, timer Timer, jitter Jitter) (*Supervisor, error) {
@@ -297,13 +303,15 @@ func (s *Supervisor) Start(ctx context.Context) error {
 		case <-s.watchStop:
 		}
 	}()
-	var wg sync.WaitGroup
+	if s.replacementAdmission == replacementAdmissionPrepared {
+		s.wg.Add(1) // the actual activation owner holds future admissions until Stop
+		s.replacementAdmission = replacementAdmissionHeld
+	}
 	for _, run := range s.pilots {
-		wg.Add(1)
-		go func(r *pilotRun) { defer wg.Done(); s.run(r) }(run)
+		s.startPilotLocked(run)
 	}
 	go func() {
-		wg.Wait()
+		s.wg.Wait()
 		if s.drainDone != nil {
 			<-s.drainDone
 		}
@@ -359,6 +367,10 @@ func (s *Supervisor) beginStop() error {
 		}
 		close(s.watchStop)
 		s.cancel()
+		if s.replacementAdmission == replacementAdmissionHeld {
+			s.replacementAdmission = replacementAdmissionReleased
+			s.wg.Done()
+		}
 		durable := s.durable
 		s.mu.Unlock()
 		if durable != nil {
@@ -407,7 +419,7 @@ func (s *Supervisor) record(err error) {
 
 func (s *Supervisor) run(run *pilotRun) {
 	for attempt := 0; ; attempt++ {
-		if s.ctx.Err() != nil {
+		if run.ctx.Err() != nil {
 			s.set(run, PilotStopped)
 			return
 		}
@@ -430,13 +442,13 @@ func (s *Supervisor) run(run *pilotRun) {
 		}
 		session, err := s.host.OpenSession(run.spec.instance)
 		if err != nil {
-			if s.ctx.Err() == nil {
+			if run.ctx.Err() == nil {
 				s.record(err)
 			}
 			s.set(run, PilotDegraded)
 			return
 		}
-		child, cancel := context.WithCancel(s.ctx)
+		child, cancel := context.WithCancel(run.ctx)
 		group := newTaskGroup(child, s, run)
 		if err := s.host.manageSession(session, group, cancel); err != nil {
 			cancel()
@@ -481,20 +493,20 @@ func (s *Supervisor) run(run *pilotRun) {
 				failed = true
 			case <-session.Done():
 				failed = true
-			case <-s.ctx.Done():
+			case <-run.ctx.Done():
 			}
 		}
-		if !failed && s.ctx.Err() == nil {
+		if !failed && run.ctx.Err() == nil {
 			select {
 			case <-group.fail:
 				failed = true
 			case <-session.Done():
 				failed = true
-			case <-s.ctx.Done():
+			case <-run.ctx.Done():
 			}
 		}
 		publicationFailed := false
-		if failed && s.ctx.Err() == nil {
+		if failed && run.ctx.Err() == nil {
 			revokeErr := s.host.RevokeWithHealth(session, HealthDegraded, "pilot session lost")
 			if errors.Is(revokeErr, ErrInactiveSession) {
 				revokeErr = session.RetirementError()
@@ -503,7 +515,7 @@ func (s *Supervisor) run(run *pilotRun) {
 				publicationFailed = true
 				s.record(revokeErr)
 			}
-		} else if s.ctx.Err() != nil {
+		} else if run.ctx.Err() != nil {
 			if err := s.host.RevokeWithHealth(session, HealthUnavailable, "server stopping"); err != nil && !errors.Is(err, ErrInactiveSession) {
 				s.record(err)
 			}
@@ -548,7 +560,7 @@ func (s *Supervisor) run(run *pilotRun) {
 		if stopErr != nil {
 			s.record(stopErr)
 		}
-		if s.ctx.Err() != nil {
+		if run.ctx.Err() != nil {
 			s.set(run, PilotStopped)
 			return
 		}
@@ -560,7 +572,7 @@ func (s *Supervisor) run(run *pilotRun) {
 		delay := s.delay(attempt)
 		select {
 		case <-s.timer.After(delay):
-		case <-s.ctx.Done():
+		case <-run.ctx.Done():
 			s.set(run, PilotStopped)
 			return
 		}

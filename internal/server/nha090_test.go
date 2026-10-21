@@ -148,12 +148,14 @@ func TestNHA090ConfiguredRunPublishesPowerThroughHiloLeftAndClosesGap(t *testing
 		}
 		fmt.Fprintf(&input, "    - {alias: %q, device_id: %d}\n", alias, id)
 	}
-	configured, err := config.ParseWithEnv([]byte(input.String()), func(name string) (string, bool) {
+	raw := []byte(input.String())
+	configured, err := config.ParseWithEnv(raw, func(name string) (string, bool) {
 		return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD"
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	startup := nha029RunStartupFromRaw(t, raw)
 	pg, err := configured.PostgresSettings()
 	if err != nil {
 		t.Fatal(err)
@@ -183,7 +185,9 @@ func TestNHA090ConfiguredRunPublishesPowerThroughHiloLeftAndClosesGap(t *testing
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var listener net.ListenConfig
-	go func() { done <- Run(runCtx, configured, listener.Listen, func(address net.Addr) { ready <- address }) }()
+	go func() {
+		done <- RunWithStartup(runCtx, startup, listener.Listen, func(address net.Addr) { ready <- address })
+	}()
 	select {
 	case <-ready:
 	case err := <-done:
@@ -284,18 +288,22 @@ func TestNHA090ConfiguredRunProjectsAllRetainedAliasesWithoutLogin(t *testing.T)
 	for i, alias := range hilo.RequiredDeviceAliases() {
 		fmt.Fprintf(&input, "    - {alias: %q, device_id: %d}\n", alias, i+1)
 	}
-	configured, err := config.ParseWithEnv([]byte(input.String()), func(name string) (string, bool) {
+	raw := []byte(input.String())
+	configured, err := config.ParseWithEnv(raw, func(name string) (string, bool) {
 		return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD"
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	startup := nha029RunStartupFromRaw(t, raw)
 	runCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var listener net.ListenConfig
-	go func() { done <- Run(runCtx, configured, listener.Listen, func(address net.Addr) { ready <- address }) }()
+	go func() {
+		done <- RunWithStartup(runCtx, startup, listener.Listen, func(address net.Addr) { ready <- address })
+	}()
 	select {
 	case <-ready:
 	case err := <-done:

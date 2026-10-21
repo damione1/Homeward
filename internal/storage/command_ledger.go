@@ -3,13 +3,17 @@ package storage
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -40,13 +44,23 @@ const (
 
 type IntentRecord struct {
 	state       IntentState
+	origin      IntentOriginKind
+	actor       string
+	originKey   string
 	fingerprint []byte
 	response    []byte
 	errorKind   IntentError
 	target      *authorization.CommandTarget
 }
 
-func (r IntentRecord) State() IntentState     { return r.state }
+func (r IntentRecord) State() IntentState           { return r.state }
+func (r IntentRecord) OriginKind() IntentOriginKind { return r.origin }
+func (r IntentRecord) InternalOriginKey() (InternalAutomationOriginKey, bool) {
+	if r.origin != IntentOriginInternalAutomation {
+		return InternalAutomationOriginKey{}, false
+	}
+	return InternalAutomationOriginKey{value: r.originKey}, true
+}
 func (r IntentRecord) Fingerprint() []byte    { return bytes.Clone(r.fingerprint) }
 func (r IntentRecord) Response() []byte       { return bytes.Clone(r.response) }
 func (r IntentRecord) ErrorKind() IntentError { return r.errorKind }
@@ -60,15 +74,109 @@ func (r IntentRecord) AuthorizationTarget() (authorization.CommandTarget, bool, 
 	return *r.target, true, nil
 }
 
-const intentSelectColumns = `state::text,fingerprint,response,result_error::text,authorization_entity_id,authorization_schema_id,authorization_endpoint`
+// Origin is provenance for anti-replay, not an authorization principal.
+type IntentOriginKind uint8
+
+const (
+	IntentOriginUnknown IntentOriginKind = iota
+	IntentOriginExternalActor
+	IntentOriginInternalAutomation
+)
+
+func (k IntentOriginKind) String() string {
+	switch k {
+	case IntentOriginExternalActor:
+		return "external_actor"
+	case IntentOriginInternalAutomation:
+		return "internal_automation"
+	default:
+		return ""
+	}
+}
+
+func parseIntentOriginKind(raw string) (IntentOriginKind, error) {
+	switch raw {
+	case IntentOriginExternalActor.String():
+		return IntentOriginExternalActor, nil
+	case IntentOriginInternalAutomation.String():
+		return IntentOriginInternalAutomation, nil
+	default:
+		return IntentOriginUnknown, &Error{kind: InconsistentSchema}
+	}
+}
+
+type InternalAutomationOriginKey struct{ value string }
+
+func NewInternalAutomationOriginKey(value string) (InternalAutomationOriginKey, error) {
+	key := InternalAutomationOriginKey{value: value}
+	if !key.Valid() {
+		return InternalAutomationOriginKey{}, &Error{kind: InvalidSettings}
+	}
+	return key, nil
+}
+
+func (k InternalAutomationOriginKey) Valid() bool {
+	return k.value != "" && len(k.value) <= 256 && utf8.ValidString(k.value) &&
+		!bytes.ContainsAny([]byte(k.value), "\x00\r\n")
+}
+func (k InternalAutomationOriginKey) Value() string { return k.value }
+
+// The caller supplies the canonical command fingerprint already bound to
+// target/parameters. The internal branch receives a separate domain and its
+// exact occurrence key; old external fingerprints are unchanged.
+type InternalAutomationFingerprint struct {
+	digest [sha256.Size]byte
+	key    string
+}
+
+func NewInternalAutomationFingerprint(key InternalAutomationOriginKey, canonical []byte) (InternalAutomationFingerprint, error) {
+	if !key.Valid() || len(canonical) == 0 {
+		return InternalAutomationFingerprint{}, &Error{kind: InvalidSettings}
+	}
+	h := sha256.New()
+	for _, part := range [][]byte{[]byte("homeward/command-intent/internal-automation/v1"), []byte(key.value), canonical} {
+		var size [8]byte
+		binary.BigEndian.PutUint64(size[:], uint64(len(part)))
+		_, _ = h.Write(size[:])
+		_, _ = h.Write(part)
+	}
+	var fingerprint InternalAutomationFingerprint
+	copy(fingerprint.digest[:], h.Sum(nil))
+	fingerprint.key = key.value
+	return fingerprint, nil
+}
+
+func (f InternalAutomationFingerprint) Valid() bool {
+	return f.digest != ([sha256.Size]byte{}) && (InternalAutomationOriginKey{value: f.key}).Valid()
+}
+func (f InternalAutomationFingerprint) Bytes() []byte {
+	if !f.Valid() {
+		return nil
+	}
+	return bytes.Clone(f.digest[:])
+}
+
+// to_jsonb whole-row lookup keeps the historical NHA-024 ledger usable while
+// migration tests deliberately stop before version 20. On v20 the SQL default
+// and CHECK still own the exact external/internal branch.
+const intentSelectColumns = `state::text,fingerprint,response,result_error::text,authorization_entity_id,authorization_schema_id,authorization_endpoint,
+	COALESCE(to_jsonb(command_intents)->>'origin_kind','external_actor'),actor_id,to_jsonb(command_intents)->>'origin_key'`
 
 func scanIntent(row pgx.Row) (IntentRecord, error) {
 	var state string
 	var errorText string
 	var fingerprint, response []byte
 	var entityText, schema, endpoint *string
-	if err := row.Scan(&state, &fingerprint, &response, &errorText, &entityText, &schema, &endpoint); err != nil {
+	var originText string
+	var actor, originKey *string
+	if err := row.Scan(&state, &fingerprint, &response, &errorText, &entityText, &schema, &endpoint, &originText, &actor, &originKey); err != nil {
 		return IntentRecord{}, err
+	}
+	origin, err := parseIntentOriginKind(originText)
+	if err != nil || len(fingerprint) == 0 ||
+		(origin == IntentOriginExternalActor && (actor == nil || *actor == "" || originKey != nil)) ||
+		(origin == IntentOriginInternalAutomation && (actor != nil || originKey == nil || !(InternalAutomationOriginKey{value: *originKey}).Valid())) {
+		return IntentRecord{}, &Error{kind: InconsistentSchema}
 	}
 	var parsed IntentState
 	switch state {
@@ -121,7 +229,15 @@ func scanIntent(row pgx.Row) (IntentRecord, error) {
 		}
 		target = &value
 	}
-	return IntentRecord{state: parsed, fingerprint: bytes.Clone(fingerprint), response: bytes.Clone(response), errorKind: errorKind, target: target}, nil
+	key := ""
+	if originKey != nil {
+		key = *originKey
+	}
+	actorText := ""
+	if actor != nil {
+		actorText = *actor
+	}
+	return IntentRecord{state: parsed, origin: origin, actor: actorText, originKey: key, fingerprint: bytes.Clone(fingerprint), response: bytes.Clone(response), errorKind: errorKind, target: target}, nil
 }
 
 func (s *Store) CommandIntent(ctx context.Context, id domain.CommandID) (IntentRecord, bool, error) {
@@ -145,19 +261,52 @@ func (s *Store) CommandIntent(ctx context.Context, id domain.CommandID) (IntentR
 // AcceptCommandIntent serializes duplicate IDs through the primary key. A
 // successful new INSERT is committed before its caller may attempt dispatch.
 func (s *Store) AcceptCommandIntent(ctx context.Context, id domain.CommandID, actor domain.ActorID, epoch string, fingerprint []byte) (IntentRecord, bool, TransactionOutcome, error) {
-	return s.acceptCommandIntent(ctx, id, actor, epoch, fingerprint, nil)
+	actorText, err := actor.Value()
+	if err != nil {
+		return IntentRecord{}, false, TransactionNotCommitted, &Error{kind: InvalidSettings}
+	}
+	return s.acceptCommandIntent(ctx, id, commandOrigin{kind: IntentOriginExternalActor, actor: actorText}, epoch, fingerprint, nil)
 }
 func (s *Store) AcceptAuthorizedCommandIntent(ctx context.Context, id domain.CommandID, actor domain.ActorID, epoch string, fingerprint []byte, target authorization.CommandTarget) (IntentRecord, bool, TransactionOutcome, error) {
 	if _, _, err := target.Values(); err != nil {
 		return IntentRecord{}, false, TransactionNotCommitted, &Error{kind: InvalidSettings}
 	}
-	return s.acceptCommandIntent(ctx, id, actor, epoch, fingerprint, &target)
-}
-func (s *Store) acceptCommandIntent(ctx context.Context, id domain.CommandID, actor domain.ActorID, epoch string, fingerprint []byte, target *authorization.CommandTarget) (IntentRecord, bool, TransactionOutcome, error) {
-	idText, idErr := id.Value()
-	actorText, actorErr := actor.Value()
-	if idErr != nil || actorErr != nil || epoch == "" || len(fingerprint) == 0 {
+	actorText, err := actor.Value()
+	if err != nil {
 		return IntentRecord{}, false, TransactionNotCommitted, &Error{kind: InvalidSettings}
+	}
+	return s.acceptCommandIntent(ctx, id, commandOrigin{kind: IntentOriginExternalActor, actor: actorText}, epoch, fingerprint, &target)
+}
+func (s *Store) AcceptInternalAutomationIntent(ctx context.Context, id domain.CommandID, key InternalAutomationOriginKey, epoch string, fingerprint InternalAutomationFingerprint, target authorization.CommandTarget) (IntentRecord, bool, TransactionOutcome, error) {
+	if !key.Valid() || !fingerprint.Valid() || fingerprint.key != key.value {
+		return IntentRecord{}, false, TransactionNotCommitted, &Error{kind: InvalidSettings}
+	}
+	if _, _, err := target.Values(); err != nil {
+		return IntentRecord{}, false, TransactionNotCommitted, &Error{kind: InvalidSettings}
+	}
+	return s.acceptCommandIntent(ctx, id, commandOrigin{kind: IntentOriginInternalAutomation, key: key.value}, epoch, fingerprint.digest[:], &target)
+}
+
+type commandOrigin struct {
+	kind  IntentOriginKind
+	actor string
+	key   string
+}
+
+func (s *Store) acceptCommandIntent(ctx context.Context, id domain.CommandID, origin commandOrigin, epoch string, fingerprint []byte, target *authorization.CommandTarget) (IntentRecord, bool, TransactionOutcome, error) {
+	idText, idErr := id.Value()
+	if idErr != nil || epoch == "" || len(fingerprint) == 0 ||
+		(origin.kind == IntentOriginExternalActor && (origin.actor == "" || origin.key != "")) ||
+		(origin.kind == IntentOriginInternalAutomation && (origin.actor != "" || !(InternalAutomationOriginKey{value: origin.key}).Valid() || target == nil)) ||
+		(origin.kind != IntentOriginExternalActor && origin.kind != IntentOriginInternalAutomation) {
+		return IntentRecord{}, false, TransactionNotCommitted, &Error{kind: InvalidSettings}
+	}
+	var actorID any
+	var originKey any
+	if origin.kind == IntentOriginExternalActor {
+		actorID = origin.actor
+	} else {
+		originKey = origin.key
 	}
 	var record IntentRecord
 	var created bool
@@ -172,18 +321,33 @@ func (s *Store) acceptCommandIntent(ctx context.Context, id domain.CommandID, ac
 		entityText, schema, endpoint = &e, &s, &p
 	}
 	outcome, err := s.InTransactionOutcome(ctx, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `INSERT INTO public.command_intents(command_id,actor_id,admission_epoch,fingerprint,state,authorization_entity_id,authorization_schema_id,authorization_endpoint)
-			VALUES ($1,$2,$3,$4,'accepted',$5,$6,$7) ON CONFLICT (command_id) DO NOTHING`, idText, actorText, epoch, fingerprint, entityText, schema, endpoint)
+		var tag pgconn.CommandTag
+		var err error
+		if origin.kind == IntentOriginExternalActor {
+			tag, err = tx.Exec(ctx, `INSERT INTO public.command_intents(command_id,actor_id,admission_epoch,fingerprint,state,authorization_entity_id,authorization_schema_id,authorization_endpoint)
+				VALUES ($1,$2,$3,$4,'accepted',$5,$6,$7) ON CONFLICT (command_id) DO NOTHING`,
+				idText, actorID, epoch, fingerprint, entityText, schema, endpoint)
+		} else {
+			tag, err = tx.Exec(ctx, `INSERT INTO public.command_intents(command_id,actor_id,admission_epoch,fingerprint,state,authorization_entity_id,authorization_schema_id,authorization_endpoint,origin_kind,origin_key)
+				VALUES ($1,$2,$3,$4,'accepted',$5,$6,$7,$8::public.command_origin_kind,$9) ON CONFLICT (command_id) DO NOTHING`,
+				idText, actorID, epoch, fingerprint, entityText, schema, endpoint, origin.kind.String(), originKey)
+		}
 		if err != nil {
 			return err
 		}
 		if tag.RowsAffected() == 1 {
 			created = true
-			record = IntentRecord{state: IntentAccepted, fingerprint: bytes.Clone(fingerprint), errorKind: IntentNoError, target: target}
+			record = IntentRecord{state: IntentAccepted, origin: origin.kind, actor: origin.actor, originKey: origin.key, fingerprint: bytes.Clone(fingerprint), errorKind: IntentNoError, target: target}
 			return nil
 		}
 		record, err = scanIntent(tx.QueryRow(ctx, `SELECT `+intentSelectColumns+` FROM public.command_intents WHERE command_id=$1`, idText))
-		return err
+		if err != nil {
+			return err
+		}
+		if record.origin != origin.kind || record.actor != origin.actor || record.originKey != origin.key {
+			return &Error{kind: InvalidSettings}
+		}
+		return nil
 	})
 	if outcome != TransactionCommitted || err != nil {
 		return IntentRecord{}, false, outcome, err

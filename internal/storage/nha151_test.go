@@ -115,6 +115,19 @@ func nha151Metadata(t *testing.T) ConfigVersionMetadata {
 	return m
 }
 
+func nha151ExpectedActive(t *testing.T, store *Store, ctx context.Context, revision ConfigGenerationRevision) ExpectedConfigActive {
+	t.Helper()
+	generation, err := store.ReadConfigGeneration(ctx, revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := ExpectConfigActive(revision, generation.ManifestSHA256())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return expected
+}
+
 func nha151Kind(t *testing.T, err error, want Kind) {
 	t.Helper()
 	var found *Error
@@ -234,7 +247,7 @@ func TestNHA151RetentionAndHistoricalDiagnosis(t *testing.T) {
 	} else {
 		nha151SQLState(t, err, "23514")
 	}
-	expectFirst, _ := ExpectConfigActive(firstGen)
+	expectFirst := nha151ExpectedActive(t, s, ctx, firstGen)
 	outcome, err := s.InConfigTransactionOutcome(ctx, func(tx *ConfigTx) error {
 		return tx.ActivateGeneration(expectFirst, secondGen)
 	})
@@ -263,9 +276,9 @@ func TestNHA151ABAAndImmutableSQL(t *testing.T) {
 	cA, exactA := nha151Candidate(t, binding.Path(), "A")
 	refA1, genA1 := nha151Write(t, s, ctx, cA, binding, ExpectNoConfigActive())
 	cB, _ := nha151Candidate(t, binding.Path(), "B")
-	expectA1, _ := ExpectConfigActive(genA1)
+	expectA1 := nha151ExpectedActive(t, s, ctx, genA1)
 	refB, genB := nha151Write(t, s, ctx, cB, binding, expectA1)
-	expectB, _ := ExpectConfigActive(genB)
+	expectB := nha151ExpectedActive(t, s, ctx, genB)
 	refA2, genA2 := nha151Write(t, s, ctx, cA, binding, expectB)
 	if refA1.Revision().Number() != 1 || refB.Revision().Number() != 2 || refA2.Revision().Number() != 3 ||
 		genA1.Number() >= genB.Number() || genB.Number() >= genA2.Number() {
@@ -321,7 +334,8 @@ func TestNHA151ABAAndImmutableSQL(t *testing.T) {
 		`DELETE FROM public.config_active`,
 		`INSERT INTO public.config_active(singleton) VALUES (true)`,
 		`TRUNCATE public.config_active`,
-		`TRUNCATE public.config_versions`,
+		// Include the bootstrap FK owner so the immutable-history trigger is reached.
+		`TRUNCATE public.config_versions CASCADE`,
 		`TRUNCATE public.config_generation_entries`,
 		`UPDATE public.config_documents SET logical_path='rewritten.yaml' WHERE id='home.config'`,
 		`UPDATE public.config_documents SET last_revision=1 WHERE id='home.config'`,
@@ -459,7 +473,7 @@ func TestNHA151CollectorUsesFinalActivePointer(t *testing.T) {
 		nha151Write(t, s, ctx, c, binding, ExpectedConfigActive{})
 	}
 	c21, _ := nha151Candidate(t, binding.Path(), "v21")
-	expected, _ := ExpectConfigActive(oldActive)
+	expected := nha151ExpectedActive(t, s, ctx, oldActive)
 	ref, newActive := nha151Write(t, s, ctx, c21, binding, expected)
 	if ref.Revision().Number() != 21 {
 		t.Fatal("new active revision not allocated")
@@ -560,6 +574,7 @@ func TestNHA151MultiSourceManifestAndPrevalidation(t *testing.T) {
 		t.Fatalf("cross-candidate manifest accepted: %v %v", outcome, err)
 	}
 	var genB ConfigGenerationRevision
+	expectedA := nha151ExpectedActive(t, s, ctx, genA)
 	outcome, err = s.InConfigTransactionOutcome(ctx, func(tx *ConfigTx) error {
 		refs, err := tx.SaveCandidate(cB, []ConfigDocumentBinding{mainBinding, partBinding}, meta)
 		if err != nil {
@@ -569,8 +584,7 @@ func TestNHA151MultiSourceManifestAndPrevalidation(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		expected, _ := ExpectConfigActive(genA)
-		return tx.ActivateGeneration(expected, genB)
+		return tx.ActivateGeneration(expectedA, genB)
 	})
 	if outcome != TransactionCommitted || err != nil {
 		t.Fatalf("second two-source generation: %v %v", outcome, err)
@@ -623,7 +637,7 @@ func TestNHA151RepeatableReadAcrossActivationAndGC(t *testing.T) {
 	cB := nha151TwoSource(t, "B")
 	genB := save(cB, ExpectedConfigActive{}, true)
 	cC := nha151TwoSource(t, "C")
-	expectedA, _ := ExpectConfigActive(genA)
+	expectedA := nha151ExpectedActive(t, s, ctx, genA)
 	locked := make(chan int, 1)
 	proceed := make(chan struct{})
 	var release sync.Once
@@ -724,7 +738,7 @@ func TestNHA151DirectDeleteRacesActivation(t *testing.T) {
 	_, genA := nha151Write(t, s, ctx, cA, binding, ExpectNoConfigActive())
 	cB, _ := nha151Candidate(t, binding.Path(), "B")
 	refB, genB := nha151Write(t, s, ctx, cB, binding, ExpectedConfigActive{})
-	expectedA, _ := ExpectConfigActive(genA)
+	expectedA := nha151ExpectedActive(t, s, ctx, genA)
 	locked := make(chan int, 1)
 	proceed := make(chan struct{})
 	var release sync.Once
@@ -840,7 +854,7 @@ func TestNHA151BoundariesAndCommitClassification(t *testing.T) {
 	if _, err := NewConfigVersionMetadata(ConfigAuthor{}, ConfigSource{}); err == nil {
 		t.Fatal("zero metadata admitted")
 	}
-	if _, err := ExpectConfigActive(ConfigGenerationRevision{}); err == nil {
+	if _, err := ExpectConfigActive(ConfigGenerationRevision{}, [sha256.Size]byte{}); err == nil {
 		t.Fatal("zero active expectation admitted")
 	}
 	var typedNil *ConfigTx
@@ -883,9 +897,12 @@ func TestNHA151SchemaEnumDrift(t *testing.T) {
 		name string
 		want []string
 	}{
-		{"config_document_kind", []string{ConfigDocumentKindYAMLSource.String(), ConfigDocumentKindAuthorizationPolicy.String(), ConfigDocumentKindMFAPolicy.String()}},
-		{"config_schema_version", []string{bundle.SchemaDeclarative1.String(), authorization.Schema, bundle.SchemaDeclarative2.String(), authmfa.PolicySchema}},
-		{"config_syntax_profile", []string{parser.SyntaxProfileDeclarative.String(), authorization.SyntaxProfile, parser.SyntaxProfileDeclarative2.String(), authmfa.PolicySyntaxProfile}},
+		{"config_document_kind", []string{ConfigDocumentKindYAMLSource.String(), ConfigDocumentKindAuthorizationPolicy.String(), ConfigDocumentKindMFAPolicy.String(), ConfigDocumentKindOperationalYAML.String(), ConfigDocumentKindBootstrapLaunch.String()}},
+		{"config_schema_version", []string{bundle.SchemaDeclarative1.String(), authorization.Schema, bundle.SchemaDeclarative2.String(), authmfa.PolicySchema, configOperationalSchema, configBootstrapSchema}},
+		{"config_syntax_profile", []string{parser.SyntaxProfileDeclarative.String(), authorization.SyntaxProfile, parser.SyntaxProfileDeclarative2.String(), authmfa.PolicySyntaxProfile, configOperationalProfile, configBootstrapProfile}},
+		{"config_source_representation", []string{ConfigSourcePlainV1.String(), ConfigSourceProtectedOperationalV1.String()}},
+		{"config_manifest_format", []string{ConfigManifestLegacyV1.String(), ConfigManifestCompiledV2.String()}},
+		{"command_origin_kind", []string{IntentOriginExternalActor.String(), IntentOriginInternalAutomation.String()}},
 	} {
 		rows, err := s.pool.Query(ctx, `SELECT e.enumlabel FROM pg_enum e
 			JOIN pg_type t ON t.oid=e.enumtypid
@@ -921,5 +938,14 @@ func TestNHA151SchemaEnumDrift(t *testing.T) {
 	}
 	if _, err := parseConfigDocumentKind("future_kind"); err == nil {
 		t.Fatal("future SQL enum silently admitted")
+	}
+	if _, err := parseConfigSourceRepresentation("future_representation"); err == nil {
+		t.Fatal("future source representation silently admitted")
+	}
+	if _, err := parseConfigManifestFormat("future_manifest"); err == nil {
+		t.Fatal("future manifest format silently admitted")
+	}
+	if _, err := parseIntentOriginKind("future_origin"); err == nil {
+		t.Fatal("future command origin silently admitted")
 	}
 }

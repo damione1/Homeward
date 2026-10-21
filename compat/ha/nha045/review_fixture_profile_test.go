@@ -62,7 +62,7 @@ func fixture10ProfileRig(t *testing.T, fixture Fixture) (context.Context, *rig) 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := r.close(); err != nil {
+		if err := r.dispose(); err != nil {
 			t.Error(err)
 		}
 	})

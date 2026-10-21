@@ -60,14 +60,11 @@ func nha040RuntimeAutomation(t *testing.T) ir.Automation {
 	return compiled.Accepted()[0]
 }
 
-func nha040RuntimeConfig(t *testing.T, port int, broker string) config.Config {
+func nha040RuntimeConfig(t *testing.T, port int, broker string) nha029RunFixture {
 	t.Helper()
 	const instance = "nha040-native-mqtt"
 	data := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\nmqtt:\n  profile: '5'\n  broker: 'mqtt://%s'\n  instance: '%s'\n  mode: passive\n  username_secret: mqtt-username\n  password_secret: mqtt-password\n  subscriptions: ['zigbee2mqtt/+/action']\n", shortPrivateDataDir(t), port, broker, instance))
-	c, err := config.ParseWithEnv(data, func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
-	if err != nil {
-		t.Fatal(err)
-	}
+	c := nha029RunFixtureFromRaw(t, data)
 	pg, err := c.PostgresSettings()
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +77,7 @@ func nha040RuntimeConfig(t *testing.T, port int, broker string) config.Config {
 		store.Close()
 		t.Fatal(err)
 	}
-	secrets, err := store.BootstrapSecrets(context.Background(), cDataDir(t, c))
+	secrets, err := store.BootstrapSecrets(context.Background(), cDataDir(t, c.Config))
 	if err != nil {
 		store.Close()
 		t.Fatal(err)
@@ -160,7 +157,7 @@ func TestNHA040RunNativeMQTTResultsRetainedReconnectAndRecorder(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- RunWithFactory(ctx, cfg, (&net.ListenConfig{}).Listen, func(a net.Addr) { ready <- a }, factory)
+		done <- RunWithStartupFactory(ctx, cfg.startup, (&net.ListenConfig{}).Listen, func(a net.Addr) { ready <- a }, factory)
 	}()
 	select {
 	case <-ready:
@@ -281,7 +278,7 @@ func TestNHA040RunClosesTriggerRuntimeWhenConsumerConfigurationFails(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
 	defer cancel()
 	var listener net.ListenConfig
-	err = RunWithFactory(ctx, cfg, listener.Listen, nil, factory)
+	err = RunWithStartupFactory(ctx, cfg.startup, listener.Listen, nil, factory)
 	if !errors.Is(err, failure) || reader == nil {
 		t.Fatalf("consumer failure did not propagate after trigger start: %v", err)
 	}
@@ -390,7 +387,7 @@ func TestNHA040RunRetainsStoreUntilDeferredSunExits(t *testing.T) {
 			})
 			ready := make(chan struct{}, 1)
 			go func() {
-				runDone <- RunWithFactory(ctx, cfg, (&net.ListenConfig{}).Listen, func(net.Addr) { ready <- struct{}{} }, factory)
+				runDone <- RunWithStartupFactory(ctx, cfg.startup, (&net.ListenConfig{}).Listen, func(net.Addr) { ready <- struct{}{} }, factory)
 			}()
 			var reader AutomationTriggerResults
 			select {

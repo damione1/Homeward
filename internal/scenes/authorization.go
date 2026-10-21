@@ -45,6 +45,12 @@ func (s *Service) authorizePreparedResult(ctx context.Context, plan *scenePlan) 
 	if s == nil || plan == nil || nilPort(s.commands) {
 		return integrations.ErrCommandAuthorizationDenied
 	}
+	if plan.internal {
+		if plan.service != s || s.internal == nil || !s.internal.SameOccurrence(plan.origin, ctx) || plan.actor != (domain.ActorID{}) {
+			return integrations.ErrCommandAuthorizationDenied
+		}
+		return nil
+	}
 	bindingPort, hasBinding := s.commands.(interface {
 		SceneAuthorizationBinding(context.Context) ([32]byte, error)
 	})

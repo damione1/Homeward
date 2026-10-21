@@ -12,6 +12,13 @@ import (
 	"github.com/damione1/Homeward/internal/sequencer"
 )
 
+func (s *Service) ruleMQTTInstance(slot int) domain.IntegrationInstanceID {
+	if owner := s.waitOwners[slot]; owner != nil && owner.admitted != nil {
+		return owner.admitted.mqtt
+	}
+	return s.plan.mqttInstance
+}
+
 // observedText preserves unknown, unavailable and missing attributes as
 // distinct states. Restored or stale values never become an active edge.
 func observedText(attribute ir.TriggerAttribute, state domain.ObservedState) (string, bool) {
@@ -287,7 +294,7 @@ func (s *Service) processEntryLocked(entry sequencer.Entry) {
 		for i, r := range s.plan.rules {
 			switch r.trigger.Kind() {
 			case ir.TriggerDeviceMQTT:
-				if !hasRecord || instance != s.plan.mqttInstance {
+				if !hasRecord || instance != s.ruleMQTTInstance(i) {
 					continue
 				}
 				device, _, err := record.IDs()
@@ -357,7 +364,18 @@ func (s *Service) processEntryLocked(entry sequencer.Entry) {
 	case sequencer.KindNativeMQTTEdge:
 		edge, ok := entry.NativeMQTTEdge()
 		instance, source, _, hasOrigin := entry.Origin()
-		if !ok || !hasOrigin || instance != s.plan.mqttInstance {
+		if !ok || !hasOrigin {
+			s.suspendLocked(DegradedSource)
+			return
+		}
+		knownInstance := false
+		for i, r := range s.plan.rules {
+			if r.trigger.Kind() == ir.TriggerMQTT && instance == s.ruleMQTTInstance(i) {
+				knownInstance = true
+				break
+			}
+		}
+		if !knownInstance {
 			s.suspendLocked(DegradedSource)
 			return
 		}
@@ -374,7 +392,7 @@ func (s *Service) processEntryLocked(entry sequencer.Entry) {
 		}
 		s.cursor = entry.Cursor()
 		for i, r := range s.plan.rules {
-			if r.trigger.Kind() != ir.TriggerMQTT || !r.trigger.Topic().Matches(topic) {
+			if r.trigger.Kind() != ir.TriggerMQTT || instance != s.ruleMQTTInstance(i) || !r.trigger.Topic().Matches(topic) {
 				continue
 			}
 			last := s.mqttWater[i]
@@ -517,7 +535,7 @@ func (s *Service) startForLocked(i int, duration time.Duration, tick time.Durati
 }
 
 func (s *Service) fireLocked(i int, cursor sequencer.Cursor, entity domain.EntityID, payload []byte) {
-	if i >= s.permanentRules && s.waitOwners[i] == nil {
+	if !s.permanentSlots[i] && s.waitOwners[i] == nil {
 		return
 	}
 
@@ -528,5 +546,6 @@ func (s *Service) fireLocked(i int, cursor sequencer.Cursor, entity domain.Entit
 		s.fireWaitLocked(owner, result, r)
 		return
 	}
+	result.plan = s.activePlanImage.plan.token
 	s.enqueueLocked(result)
 }

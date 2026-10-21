@@ -2,6 +2,7 @@ package integrations
 
 import (
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"google.golang.org/protobuf/proto"
 )
@@ -35,6 +36,60 @@ func preparedFanCommand(fan *preparedFanRoute) *preparedCommandRoute {
 
 func preparedDirectCommand(direct *preparedDirectRoute) *preparedCommandRoute {
 	return &preparedCommandRoute{kind: preparedCommandDirect, direct: direct}
+}
+
+func (p *preparedCommandRoute) internal() *internalOccurrence {
+	if p == nil {
+		return nil
+	}
+	switch p.kind {
+	case preparedCommandLight:
+		if p.light != nil {
+			return p.light.capture.internal
+		}
+	case preparedCommandFan:
+		if p.fan != nil {
+			return p.fan.capture.internal
+		}
+	case preparedCommandDirect:
+		if p.direct != nil {
+			return p.direct.capture.internal
+		}
+	}
+	return nil
+}
+
+func (p *preparedCommandRoute) authorizationTarget() authorization.CommandTarget {
+	if p == nil {
+		return authorization.CommandTarget{}
+	}
+	var entity domain.EntityID
+	var schema, endpoint string
+	switch p.kind {
+	case preparedCommandLight:
+		if p.light == nil || p.light.capture.description == nil {
+			return authorization.CommandTarget{}
+		}
+		entity, schema, endpoint = p.light.capture.entity, p.light.capture.description.SchemaId, p.light.capture.description.Endpoint
+	case preparedCommandFan:
+		if p.fan == nil || p.fan.capture.description == nil {
+			return authorization.CommandTarget{}
+		}
+		entity, schema, endpoint = p.fan.capture.entity, p.fan.capture.description.SchemaId, p.fan.capture.description.Endpoint
+	case preparedCommandDirect:
+		if p.direct == nil || p.direct.capture.description == nil {
+			return authorization.CommandTarget{}
+		}
+		entity, schema, endpoint = p.direct.capture.entity, p.direct.capture.description.SchemaId, p.direct.capture.description.Endpoint
+	default:
+		return authorization.CommandTarget{}
+	}
+	slot, err := authorization.NewCapabilitySlot(schema, endpoint)
+	if err != nil {
+		return authorization.CommandTarget{}
+	}
+	target, _ := authorization.NewCommandTarget(entity, slot)
+	return target
 }
 
 func (p *preparedCommandRoute) matches(router *CommandRouter, actor domain.ActorID, request *actions.CommandRequest) bool {

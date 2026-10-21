@@ -10,25 +10,20 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/internal/calendars"
-	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/damione1/Homeward/internal/workday"
 )
 
-func nha102Config(t *testing.T, port int, enabled bool) config.Config {
+func nha102Config(t *testing.T, port int, enabled bool) nha029RunFixture {
 	t.Helper()
 	section := ""
 	if enabled {
 		section = "workday: {timezone: America/Toronto}\n"
 	}
 	raw := fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n%s", shortPrivateDataDir(t), port, section)
-	parsed, err := config.ParseWithEnv([]byte(raw), func(name string) (string, bool) { return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD" })
-	if err != nil {
-		t.Fatal(err)
-	}
-	return parsed
+	return nha029RunFixtureFromRaw(t, []byte(raw))
 }
 
 func nha102Day(t *testing.T, text string) calendars.CivilDate {
@@ -71,7 +66,7 @@ func TestNHA102ConfiguredRunBindsReaderAndPublishesLocalDate(t *testing.T) {
 		observe:                  func(_ context.Context, sequence *sequencer.Sequencer) error { sequences <- sequence; return nil },
 	}
 	go func() {
-		done <- runWithDependencies(ctx, cfg, (&net.ListenConfig{}).Listen, func(net.Addr) { close(ready) }, nil, deps)
+		done <- runWithDependencies(ctx, cfg.startup, (&net.ListenConfig{}).Listen, func(net.Addr) { close(ready) }, nil, deps)
 	}()
 	joined := false
 	t.Cleanup(func() {
@@ -232,7 +227,7 @@ func TestNHA102ConfiguredRunBindsReaderAndPublishesLocalDate(t *testing.T) {
 	done2 := make(chan error, 1)
 	ready2 := make(chan struct{})
 	go func() {
-		done2 <- runWithDependencies(ctx2, cfg, (&net.ListenConfig{}).Listen, func(net.Addr) { close(ready2) }, nil, deps)
+		done2 <- runWithDependencies(ctx2, cfg.startup, (&net.ListenConfig{}).Listen, func(net.Addr) { close(ready2) }, nil, deps)
 	}()
 	select {
 	case <-ready2:
@@ -282,7 +277,7 @@ func TestNHA102UnconfiguredRunDoesNotCallCalendarConsumer(t *testing.T) {
 		observe:                  func(_ context.Context, sequence *sequencer.Sequencer) error { sequences <- sequence; return nil },
 	}
 	go func() {
-		done <- runWithDependencies(ctx, cfg, (&net.ListenConfig{}).Listen, func(net.Addr) { close(ready) }, nil, deps)
+		done <- runWithDependencies(ctx, cfg.startup, (&net.ListenConfig{}).Listen, func(net.Addr) { close(ready) }, nil, deps)
 	}()
 	select {
 	case <-ready:
@@ -330,7 +325,7 @@ func TestNHA102CalendarConsumerFailureStopsBeforeServing(t *testing.T) {
 		listened.Add(1)
 		return nil, errors.New("should not listen")
 	}
-	err := runWithDependencies(context.Background(), cfg, listen, nil, nil, deps)
+	err := runWithDependencies(context.Background(), cfg.startup, listen, nil, nil, deps)
 	if !errors.Is(err, want) || calls.Load() != 1 || listened.Load() != 0 || observed.Load() != 0 {
 		t.Fatalf("calendar failure escaped startup fence: err=%v callbacks=%d listen=%d observe=%d", err, calls.Load(), listened.Load(), observed.Load())
 	}

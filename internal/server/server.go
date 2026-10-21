@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"reflect"
 	"sync"
 	"time"
 
@@ -14,15 +15,17 @@ import (
 	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/config"
-	"github.com/damione1/Homeward/internal/config/bundle"
+	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/executionhistory"
 	"github.com/damione1/Homeward/internal/heatingownership"
 	"github.com/damione1/Homeward/internal/helpers"
 	"github.com/damione1/Homeward/internal/integrations"
+	"github.com/damione1/Homeward/internal/jobs"
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/neviweb"
 	"github.com/damione1/Homeward/internal/observability"
+	"github.com/damione1/Homeward/internal/reactivetemplate"
 	"github.com/damione1/Homeward/internal/recorder"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
@@ -63,41 +66,64 @@ type RuntimePlan struct {
 	Public                            *PublicPlan
 	WorkdayCalendar                   workday.CalendarReader
 	ConfigureWorkdayCalendar          func(context.Context, workday.CalendarReader) error
+	ConfigureActivation               func(context.Context, *configactivation.Owner) error
+	OperationalCompiler               configactivation.OperationalCompiler
 }
 
 // RuntimeFactory is trusted server composition. The default runtime has no
 // configured identity source, pilots, or services. Test assemblies use this
-// same Run path after the same PostgreSQL migration.
+// same source-bearing SQL admission path.
 type RuntimeFactory func(context.Context, *storage.Store) (RuntimePlan, error)
 
-func Run(ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr)) error {
-	return RunWithFactory(ctx, c, listen, ready, nil)
+func RunWithStartup(ctx context.Context, startup config.StartupInputs, listen ListenFunc, ready func(net.Addr)) error {
+	return RunWithStartupFactory(ctx, startup, listen, ready, nil)
 }
 
-func RunWithFactory(ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr), factory RuntimeFactory) error {
-	return runWithDependencies(ctx, c, listen, ready, factory, runDependencies{})
+func RunWithStartupFactory(ctx context.Context, startup config.StartupInputs, listen ListenFunc, ready func(net.Addr), factory RuntimeFactory) error {
+	return runWithDependencies(ctx, startup, listen, ready, factory, runDependencies{})
 }
 
-func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc, ready func(net.Addr), factory RuntimeFactory, dependencies runDependencies) error {
-	if ctx == nil || listen == nil {
+func validRunContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	v := reflect.ValueOf(ctx)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		if v.IsNil() {
+			return false
+		}
+	}
+	return true
+}
+
+func runWithDependencies(ctx context.Context, startup config.StartupInputs, listen ListenFunc, ready func(net.Addr), factory RuntimeFactory, dependencies runDependencies) error {
+	if !validRunContext(ctx) || listen == nil || !startup.Valid() {
 		return ErrInvalidContext
 	}
-	settings, err := c.PostgresSettings()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	launch, err := startup.LaunchConfig()
 	if err != nil {
 		return err
 	}
-	recorderLimits, err := c.RecorderLimits()
+	settings, err := launch.PostgresSettings()
 	if err != nil {
 		return err
 	}
-	if _, err := c.ListenEndpoint(); err != nil {
-		return err
-	}
-	publicSettings, err := c.PublicTransport()
+	recorderLimits, err := launch.RecorderLimits()
 	if err != nil {
 		return err
 	}
-	dataDir, err := c.DataDir()
+	if _, err := launch.ListenEndpoint(); err != nil {
+		return err
+	}
+	publicSettings, err := launch.PublicTransport()
+	if err != nil {
+		return err
+	}
+	dataDir, err := launch.DataDir()
 	if err != nil {
 		return err
 	}
@@ -108,7 +134,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	if err != nil {
 		return err
 	}
-	servingTransport, err := preparePublicServingTransport(c, publicSettings)
+	servingTransport, err := preparePublicServingTransport(launch, publicSettings)
 	if err != nil {
 		return err
 	}
@@ -126,7 +152,22 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		store.Close()
 		return err
 	}
-	secrets, err := store.BootstrapSecrets(ctx, dataDir)
+	admitted, _, err := configactivation.ReconcileStartup(ctx, store, startup)
+	if err != nil {
+		store.Close()
+		return err
+	}
+	observed.revision, err = observability.NewActiveRevision(uint64(admitted.Revision().Number()))
+	if err != nil {
+		store.Close()
+		return err
+	}
+	c, err := admitted.OperationalConfig()
+	if err != nil {
+		store.Close()
+		return err
+	}
+	secrets, err := admitted.Secrets()
 	if err != nil {
 		store.Close()
 		return err
@@ -156,7 +197,9 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	}
 	observed.sequence, observed.recording, observed.store = sequence, recording, store
 	hiloSettings, hiloEnabled := c.HiloSettings()
-	units, err := newRunUnitCatalog(hiloEnabled)
+	// The fixed admitted unit set also covers a later configured Hilo pilot.
+	// No descriptor, client or authorization registration is activated here.
+	units, err := newRunUnitCatalog(true)
 	if err != nil {
 		return closeStoreWithRecorder(store, recording, err)
 	}
@@ -172,21 +215,9 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			return closeStoreWithRecorder(store, recording, err)
 		}
 	} else {
-		activeGeneration, hasActiveGeneration, e := store.ReadActiveConfig(ctx)
-		if e != nil {
-			return closeStoreWithRecorder(store, recording, e)
-		}
-		var activeCandidate bundle.Candidate
+		activeCandidate, hasActiveGeneration := admitted.LegacyCandidate()
 		var hasActiveHelpers bool
 		if hasActiveGeneration {
-			activeCandidate, e = activeGeneration.Restore()
-			if e != nil {
-				return closeStoreWithRecorder(store, recording, e)
-			}
-			observed.revision, e = observability.NewActiveRevision(uint64(activeGeneration.Revision().Number()))
-			if e != nil {
-				return closeStoreWithRecorder(store, recording, e)
-			}
 			definitions, definitionErr := helpers.Definitions(activeCandidate)
 			if definitionErr != nil {
 				return closeStoreWithRecorder(store, recording, definitionErr)
@@ -255,12 +286,53 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	if err := ctx.Err(); err != nil {
 		return closeStoreWithRecorder(store, recording, err)
 	}
+	// Even an empty configured household has the same SQL registry authority.
+	// This does not activate commands/scenes without NHA-115 definitions.
+	if factory == nil {
+		if _, ok := plan.Identity.(*registry.Repository); !ok {
+			manifest, manifestErr := registry.ParseManifest(scope.ManifestV1())
+			if manifestErr != nil {
+				return closeStoreWithRecorder(store, recording, manifestErr)
+			}
+			repository, repositoryErr := registry.NewRepository(store, manifest)
+			if repositoryErr != nil {
+				return closeStoreWithRecorder(store, recording, repositoryErr)
+			}
+			plan.Identity = repository
+			plan.Configure = func(ctx context.Context, _ *integrations.Manager, _ *storage.Store) error {
+				return repository.AttachProjection(ctx, sequence)
+			}
+		}
+	}
 	if err := validateAutomationRunAssembly(plan.AutomationTriggers, plan.AutomationRuns, plan.ConfigureAutomationTriggerResults); err != nil {
 		return closeStoreWithRecorder(store, recording, err)
 	}
 	commandComposition, err := resolveDurableCommands(plan)
 	if err != nil {
 		return closeStoreWithRecorder(store, recording, err)
+	}
+	activation, err := prepareConfigurationActivation(startup, admitted, store, sequence, plan, factory == nil)
+	if err != nil {
+		return closeStoreWithRecorder(store, recording, err)
+	}
+	if activation != nil {
+		defer activation.BeginClose()
+		if commandComposition != nil {
+			commandComposition.generation = activation
+		}
+		if plan.ReactiveTemplates == nil {
+			empty, planErr := reactivetemplate.NewPlan(nil, nil, time.UTC)
+			if planErr == nil {
+				empty, planErr = empty.WithScriptWaits(time.UTC)
+			}
+			if planErr != nil {
+				return closeStoreWithRecorder(store, recording, planErr)
+			}
+			plan.ReactiveTemplates, planErr = NewReactiveTemplateComposition(empty, inactiveReactiveOutput{}, reactivetemplate.RealClock{})
+			if planErr != nil {
+				return closeStoreWithRecorder(store, recording, planErr)
+			}
+		}
 	}
 	if err := installAutomationTriggerMQTTPilot(&plan); err != nil {
 		return closeStoreWithRecorder(store, recording, err)
@@ -311,6 +383,9 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
 	}
+	if activation != nil {
+		plan.WorkdayCalendar = &activationWorkdayCalendar{reader: plan.WorkdayCalendar}
+	}
 	if plan.ConfigureWorkdayCalendar != nil {
 		if err := workday.ValidateReader(plan.WorkdayCalendar); err != nil {
 			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
@@ -320,7 +395,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		}
 	}
 	if plan.ConfigureAuthorization != nil {
-		composition, err := authorizationComposition(ctx, sessions, sequence, plan.Identity)
+		composition, err := authorizationComposition(ctx, sessions, sequence, plan.Identity, activation)
 		if err != nil {
 			return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
 		}
@@ -352,7 +427,8 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	}
 	// Register the unique command authority before constructing any borrower
 	// and before Supervisor freezes Host, even when no durable jobs exist.
-	commands, err := prepareDurableCommands(ctx, host, store, commandComposition)
+	commandWaiters := automationruns.MaxLiveRuns + automationruns.MaxPreparing + jobs.Workers + publicSettings.MaxConcurrentRequests()
+	commands, err := prepareDurableCommandsWithGate(ctx, host, store, commandComposition, commandWaiters, publicSettings.ShutdownTimeout())
 	if err != nil {
 		return closePreparedRuntime(host, authorization, store, err, nil, recording, nil, sessions.mfa)
 	}
@@ -510,6 +586,14 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 			return closeListPrepared(stopCtx, err, durableJobs, triggerDone)
 		})
 	}
+	if activation != nil {
+		if err := supervisor.PrepareReplacements(); err != nil {
+			durableJobs.CloseAdmissions()
+			return closeTriggerPreparedRuntime(host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+				return closeListPrepared(stopCtx, err, durableJobs, triggerDone)
+			})
+		}
+	}
 	observed.supervisor = supervisor
 	if dependencies.observeRuntime != nil {
 		dependencies.observeRuntime(observed)
@@ -535,7 +619,14 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	if err == nil && runs != nil {
 		err = runs.Start(ctx)
 	}
+	if err == nil {
+		err = attachConfigurationActivation(activation, plan, host, commands, runs, reactive, supervisor, sessions, store, sequence, catalog, authorization, secrets, dependencies, observed)
+	}
+	if err == nil && plan.ConfigureActivation != nil {
+		err = plan.ConfigureActivation(ctx, activation)
+	}
 	if err != nil {
+		activation.BeginClose()
 		maintenance.BeginClose()
 		durableJobs.CloseAdmissions()
 		lifecycleCancel()
@@ -553,6 +644,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		stopCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		jobsStop := make(chan error, 1)
 		go func() { jobsStop <- durableJobs.Close(stopCtx) }()
+		activationErr := activation.Close(stopCtx)
 		stopErr := supervisor.Stop(stopCtx)
 		authorizationErr := authorization.Close(stopCtx)
 		reactiveErr := reactive.Close(stopCtx)
@@ -566,8 +658,8 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 		maintenanceErr := drainRecorderMaintenance(stopCtx, maintenance)
 		recorderErr := drainRecorder(stopCtx, recording)
 		cancel()
-		retainStoreUntilDrained(store, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
-		return errors.Join(err, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr)
+		retainStoreUntilDrained(store, activation.Done(), supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
+		return errors.Join(err, activationErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr)
 	}
 	var reactiveDone <-chan struct{}
 	if reactive != nil {
@@ -579,10 +671,26 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	}
 	runsDone := runs.Done()
 	listenerReady := func(address net.Addr) {
-		if _, err := observed.revision.Wire(); err == nil {
+		revision := observed.revision
+		configurationReady := true
+		if activation != nil {
+			stamp, err := activation.CurrentConfig(lifecycleCtx)
+			if err != nil {
+				configurationReady = false
+			} else {
+				number, _, err := stamp.Components()
+				if err != nil {
+					configurationReady = false
+				} else {
+					revision, err = observability.NewActiveRevision(number)
+					configurationReady = err == nil
+				}
+			}
+		}
+		if _, err := revision.Wire(); err == nil && configurationReady {
 			projectionReady, err := sequence.ObservationProjectionReady()
 			if err == nil && projectionReady && host.ObservationCoreOpen() {
-				_ = observed.health.PublishReady(observed.revision)
+				_ = observed.health.PublishReady(revision)
 			} else {
 				_ = observed.health.PublishCoreUnavailable(obs.CoreCause_CORE_CAUSE_REGISTRY_UNAVAILABLE)
 			}
@@ -643,9 +751,10 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	publicDone := closedPublicDone()
 	listenerErr := operatorStartErr
 	if operatorStartErr == nil {
-		publicDone, listenerErr = runPublicListenerPrepared(lifecycleCtx, c, listen, listenerReady, public, publicSettings, servingTransport)
+		publicDone, listenerErr = runPublicListenerPrepared(lifecycleCtx, launch, listen, listenerReady, public, publicSettings, servingTransport)
 	}
 	_ = observed.health.PublishDraining()
+	activation.BeginClose()
 	maintenance.BeginClose()
 	durableJobs.CloseAdmissions()
 	_ = host.CloseAdmissions()
@@ -670,6 +779,7 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	jobsStop := make(chan error, 1)
 	go func() { jobsStop <- durableJobs.Close(stopCtx) }()
 	operatorDone, operatorErr := operator.stop(stopCtx)
+	activationErr := activation.Close(stopCtx)
 	stopErr := supervisor.Stop(stopCtx)
 	authorizationErr := <-authorizationStop
 	reactiveErr := <-reactiveStop
@@ -683,8 +793,8 @@ func runWithDependencies(ctx context.Context, c config.Config, listen ListenFunc
 	maintenanceErr := drainRecorderMaintenance(stopCtx, maintenance)
 	recorderErr := drainRecorder(stopCtx, recording)
 	cancel()
-	retainStoreUntilDrained(store, publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
-	return errors.Join(listenerErr, operatorErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr)
+	retainStoreUntilDrained(store, activation.Done(), publicDone, operatorDone, supervisor.Done(), authorization.Done(), reactive.Done(), triggers.Done(), runs.Done(), sceneDone, history.Done(), mfaDone, listDone, durableJobs.Done(), recording.Done(), maintenance.Done())
+	return errors.Join(listenerErr, operatorErr, activationErr, stopErr, authorizationErr, reactiveErr, triggerErr, runErr, sceneErr, historyErr, mfaErr, listErr, jobsErr, recorderErr, maintenanceErr)
 }
 
 // defaultMQTTRuntimePlan is the sole composition used by Run's configured

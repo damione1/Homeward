@@ -110,8 +110,9 @@ func (s *Service) scheduleAllLocked() {
 	}
 	now := s.clock.Now().UTC()
 	generation := s.generation
+	publication := s.publicationEpoch
 	for i := range s.plan.rules {
-		if s.generation != generation || s.closed || !s.admissionsOpen || s.suspended {
+		if s.generation != generation || s.publicationEpoch != publication || s.closed || !s.admissionsOpen || s.suspended {
 			return
 		}
 		s.scheduleRuleLocked(i, now)
@@ -133,9 +134,16 @@ func (s *Service) scheduleRuleLocked(i int, now time.Time) {
 	}
 	r := s.plan.rules[i]
 	owner := s.waitOwners[i]
+	if owner == nil && s.activePlanImage == nil {
+		return
+	}
+	location := s.plan.location
+	if owner != nil && owner.admitted != nil {
+		location = owner.admitted.location
+	}
 	switch r.trigger.Kind() {
 	case ir.TriggerTime, ir.TriggerTimePattern:
-		if next, ok := nextCivilTime(now, s.plan.location, r.trigger, s.civil[i]); ok {
+		if next, ok := nextCivilTime(now, location, r.trigger, s.civil[i]); ok {
 			s.setScheduleLocked(i, next, now)
 		}
 	case ir.TriggerSunset:
@@ -167,9 +175,9 @@ func (s *Service) scheduleRuleLocked(i int, now time.Time) {
 			s.suspendLocked(DegradedSource)
 			return
 		}
-		if candidate.After(now) && civilKey(candidate, s.plan.location) > s.civil[i] {
+		if candidate.After(now) && civilKey(candidate, location) > s.civil[i] {
 			s.setScheduleLocked(i, candidate, now)
-		} else if civilKey(candidate, s.plan.location) <= s.civil[i] {
+		} else if civilKey(candidate, location) <= s.civil[i] {
 			s.suspendLocked(DegradedSource)
 		}
 	case ir.TriggerCalendar:
@@ -210,9 +218,12 @@ func (s *Service) nextSunsetLocked(after time.Time, owner *WaitHandle) (SunResul
 	parent := s.ctx
 	if owner != nil {
 		parent = owner.ctx
+	} else if s.publicationContext != nil {
+		parent = s.publicationContext
 	}
 
 	generation := s.generation
+	publication := s.publicationEpoch
 	for s.sunDone != nil {
 		done, ctx := s.sunDone, parent
 		s.mu.Unlock()
@@ -221,7 +232,7 @@ func (s *Service) nextSunsetLocked(after time.Time, owner *WaitHandle) (SunResul
 		case <-ctx.Done():
 		}
 		s.mu.Lock()
-		if s.closed || s.suspended || !s.admissionsOpen || s.generation != generation || s.ctx.Err() != nil || parent.Err() != nil {
+		if s.closed || s.suspended || !s.admissionsOpen || s.generation != generation || owner == nil && s.publicationEpoch != publication || s.ctx.Err() != nil || parent.Err() != nil {
 			return SunResult{}, nil, false
 		}
 	}
@@ -234,19 +245,22 @@ func (s *Service) nextSunsetLocked(after time.Time, owner *WaitHandle) (SunResul
 	}
 
 	done := make(chan struct{})
-	s.sunDone, s.cancelSun = done, cancel
+	s.sunDone, s.cancelSun, s.sunOwner = done, cancel, owner
 	source, zone, position := s.plan.sun, s.plan.zone, s.plan.position
+	if owner != nil && owner.admitted != nil {
+		source, zone, position = owner.admitted.sun, owner.admitted.zone, owner.admitted.position
+	}
 	s.mu.Unlock()
 	result, err := source.NextSunset(callCtx, after, zone, position)
 	s.mu.Lock()
 	cancel()
-	s.sunDone, s.cancelSun = nil, nil
+	s.sunDone, s.cancelSun, s.sunOwner = nil, nil, nil
 	if owner != nil {
 		owner.planning--
 		s.finishWaitJoinLocked(owner)
 	}
 	close(done)
-	if s.closed || s.suspended || !s.admissionsOpen || s.generation != generation || s.ctx.Err() != nil {
+	if s.closed || s.suspended || !s.admissionsOpen || s.generation != generation || owner == nil && s.publicationEpoch != publication || s.ctx.Err() != nil || parent.Err() != nil {
 		return SunResult{}, nil, false
 	}
 	return result, err, true
@@ -356,8 +370,9 @@ func (s *Service) runDueLocked() {
 	nowMono := s.clock.MonoNow()
 	nowWall := s.clock.Now().UTC()
 	generation := s.generation
+	publication := s.publicationEpoch
 	for i := range s.plan.rules {
-		if s.generation != generation || s.closed || s.suspended || !s.admissionsOpen {
+		if s.generation != generation || s.publicationEpoch != publication || s.closed || s.suspended || !s.admissionsOpen {
 			return
 		}
 		pending, present := s.pending[i]
@@ -414,7 +429,11 @@ func (s *Service) runDueLocked() {
 		r := s.plan.rules[i]
 		switch r.trigger.Kind() {
 		case ir.TriggerTime, ir.TriggerTimePattern, ir.TriggerSunset:
-			key := civilKey(instant, s.plan.location)
+			location := s.plan.location
+			if owner := s.waitOwners[i]; owner != nil && owner.admitted != nil {
+				location = owner.admitted.location
+			}
+			key := civilKey(instant, location)
 			if key > s.civil[i] {
 				s.civil[i] = key
 				s.civilUTC[i] = instant

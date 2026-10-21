@@ -32,6 +32,15 @@ func TestNHA097RunRestoresActiveHelpersWithoutOtherDrivers(t *testing.T) {
 		store.Close()
 		t.Fatal(err)
 	}
+	dataDir, err := configuration.DataDir()
+	if err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
+	if _, err := store.BootstrapSecrets(ctx, dataDir); err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
 	document, err := storage.NewConfigDocumentID("nha097.configuration")
 	if err != nil {
 		store.Close()
@@ -80,7 +89,9 @@ func TestNHA097RunRestoresActiveHelpersWithoutOtherDrivers(t *testing.T) {
 	ready := make(chan struct{})
 	done := make(chan error, 1)
 	var listener net.ListenConfig
-	go func() { done <- Run(runCtx, configuration, listener.Listen, func(net.Addr) { close(ready) }) }()
+	go func() {
+		done <- RunWithStartup(runCtx, configuration.startup, listener.Listen, func(net.Addr) { close(ready) })
+	}()
 	select {
 	case <-ready:
 	case err := <-done:

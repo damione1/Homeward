@@ -82,10 +82,7 @@ func TestNHA097ConfigV1AndV2RestoreExactSchemasAndHashes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected, err := ExpectConfigActive(oldGeneration)
-	if err != nil {
-		t.Fatal(err)
-	}
+	expected := nha151ExpectedActive(t, store, ctx, oldGeneration)
 	_, newGeneration := nha151Write(t, store, ctx, v2, binding, expected)
 	for _, fixture := range []struct {
 		generation ConfigGenerationRevision

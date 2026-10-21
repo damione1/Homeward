@@ -96,8 +96,26 @@ func (c *Controller) InvokeScript(ctx context.Context, id ir.ScriptID, parameter
 	if _, err := id.Value(); err != nil {
 		return nil, ErrInvalidPlan
 	}
-	c.mu.Lock()
-	spec, present := c.plan.scripts[id]
+	if err := c.lockProgramAdmission(ctx); err != nil {
+		return nil, err
+	}
+	image := c.active
+	if parent.id != 0 {
+		l := c.lanes[parent.trigger.laneKey()]
+		if l == nil || l.active[parent.id] == nil || l.active[parent.id].run.image != parent.image ||
+			!l.active[parent.id].arena.ownsEnvironment(parent.env) || l.active[parent.id].run.generation != parent.generation ||
+			parent.image == nil || parent.env == nil || parent.env.arena == nil || parent.env.arena.pool != &c.pool ||
+			parent.generation != parent.image.generation {
+			c.mu.Unlock()
+			return nil, ErrInvalidPlan
+		}
+		image = parent.image
+	}
+	if image == nil {
+		c.mu.Unlock()
+		return nil, ErrClosed
+	}
+	spec, present := image.plan.scripts[id]
 	switch {
 	case !present:
 		c.mu.Unlock()
@@ -105,9 +123,6 @@ func (c *Controller) InvokeScript(ctx context.Context, id ir.ScriptID, parameter
 	case !c.started || c.closed || c.ctx.Err() != nil:
 		c.mu.Unlock()
 		return nil, ErrClosed
-	case parent.id != 0 && (parent.generation != c.generation || parent.env == nil || parent.env.arena == nil || parent.env.arena.pool != &c.pool):
-		c.mu.Unlock()
-		return nil, ErrInvalidPlan
 	case c.preparing >= MaxPreparing:
 		c.mu.Unlock()
 		return nil, ErrCapacity
@@ -115,6 +130,7 @@ func (c *Controller) InvokeScript(ctx context.Context, id ir.ScriptID, parameter
 		c.mu.Unlock()
 		return nil, ErrCapacity
 	}
+	c.retainImageLocked(image)
 	c.preparing++
 	c.wg.Add(1)
 	c.mu.Unlock()
@@ -125,7 +141,10 @@ func (c *Controller) InvokeScript(ctx context.Context, id ir.ScriptID, parameter
 		}
 		c.mu.Lock()
 		c.preparing--
+		c.signalProgramAdmissionsLocked()
+		finished := c.releaseImageLocked(image)
 		c.mu.Unlock()
+		finishImageRelease(c, finished)
 		c.wg.Done()
 	}()
 	if err := admittedBindings(parameters); err != nil {
@@ -150,7 +169,7 @@ func (c *Controller) InvokeScript(ctx context.Context, id ir.ScriptID, parameter
 	if err != nil {
 		return nil, err
 	}
-	if interpreter, actual := c.executor.(*Interpreter); actual {
+	if interpreter, actual := image.executor.(*Interpreter); actual {
 		if err := fitProgramBindings(interpreter.scripts[id], bindings); err != nil {
 			return nil, err
 		}
@@ -163,7 +182,7 @@ func (c *Controller) InvokeScript(ctx context.Context, id ir.ScriptID, parameter
 		return nil, err
 	}
 	reserved = false
-	entry, decision := c.admit(spec, Trigger{script: id}, arena, environment, runAncestry{parent: parent, stack: stack, mode: mode})
+	entry, decision := c.admitImage(image, spec, Trigger{script: id}, arena, environment, runAncestry{parent: parent, stack: stack, mode: mode})
 	if entry == nil {
 		return nil, &AdmissionError{decision: decision}
 	}
@@ -238,6 +257,7 @@ func (c *Controller) cancelScript(entry *runEntry) {
 		c.observeTerminalLocked(entry, DecisionCancelled)
 		c.live--
 		c.recordLocked(Trace{Decision: DecisionCancelled, Script: entry.run.trigger.script, RunID: entry.run.id, Generation: entry.run.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
+		c.pruneLaneLocked(entry.run.trigger.laneKey())
 	}
 	c.mu.Unlock()
 	entry.cancel()
@@ -246,6 +266,7 @@ func (c *Controller) cancelScript(entry *runEntry) {
 		entry.arena.close()
 		entry.acknowledgeStartup(StartupCancelledBeforeExecution, context.Canceled)
 		close(entry.done)
+		c.releaseImage(entry.image)
 	}
 }
 

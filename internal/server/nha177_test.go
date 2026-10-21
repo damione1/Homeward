@@ -452,7 +452,7 @@ func TestNHA177RunCompositionPublishesEncryptedCredential(t *testing.T) {
 	done := make(chan error, 1)
 	var lc net.ListenConfig
 	go func() {
-		done <- RunWithFactory(ctx, cfg, lc.Listen, func(address net.Addr) { ready <- address }, factory)
+		done <- RunWithStartupFactory(ctx, cfg.startup, lc.Listen, func(address net.Addr) { ready <- address }, factory)
 	}()
 	if err := nha177Wait(t, pilot.started); err != nil {
 		t.Fatal(err)
@@ -629,7 +629,7 @@ func TestNHA177RunRetainsPostgresUntilAuthorizationActuallyDrains(t *testing.T) 
 	done := make(chan error, 1)
 	var lc net.ListenConfig
 	go func() {
-		done <- RunWithFactory(ctx, cfg, lc.Listen, func(address net.Addr) { ready <- address }, factory)
+		done <- RunWithStartupFactory(ctx, cfg.startup, lc.Listen, func(address net.Addr) { ready <- address }, factory)
 	}()
 	if err := nha177Wait(t, pilot.started); err != nil {
 		t.Fatal(err)
@@ -743,7 +743,7 @@ func TestNHA177PreparationFailureClosesAuthorizationBeforeStore(t *testing.T) {
 	}
 	ready := false
 	var lc net.ListenConfig
-	err = RunWithFactory(context.Background(), cfg, lc.Listen, func(net.Addr) { ready = true }, factory)
+	err = RunWithStartupFactory(context.Background(), cfg.startup, lc.Listen, func(net.Addr) { ready = true }, factory)
 	if !errors.Is(err, sentinel) || ready || invoker == nil {
 		t.Fatalf("preparation boundary: err=%v ready=%v", err, ready)
 	}

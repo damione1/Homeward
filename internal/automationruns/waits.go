@@ -208,6 +208,12 @@ func (i *Interpreter) delay(ctx context.Context, duration time.Duration, suspend
 }
 func usableTemplate(tracked template.TrackedResult) (bool, error) {
 	for _, read := range tracked.Reads() {
+		// Direct group membership is a present structural read, with no
+		// device Quality. Match the shared engine's qualityFromReads rule;
+		// each expanded member still carries its actual source quality.
+		if read.Dependency().Kind() == template.DependencyMembership && read.Present() {
+			continue
+		}
 		quality, present := read.Quality()
 		if !present || !read.Present() {
 			return false, ErrInvalidPlan
@@ -296,7 +302,11 @@ func (i *Interpreter) wait(ctx context.Context, node executableNode, run Run) (o
 	var ready <-chan struct{}
 	switch node.kind {
 	case ir.ActionWait:
-		resources.trigger, err = i.input.TriggerWaits.ObserveWait(ctx, node.source)
+		if node.admittedWait == nil {
+			err = ErrInvalidPlan
+			return
+		}
+		resources.trigger, err = i.input.TriggerWaits.ObserveAdmittedWait(ctx, node.admittedWait)
 		if err == nil {
 			ready = resources.trigger.Ready()
 		}
@@ -306,7 +316,7 @@ func (i *Interpreter) wait(ctx context.Context, node executableNode, run Run) (o
 			err = captureErr
 			return
 		}
-		resources.template, err = i.input.TemplateWaits.ObserveTemplateOnClock(ctx, node.waitProgram, bindings, i.input.Clock)
+		resources.template, err = i.input.TemplateWaits.ObserveTemplateOnClockInZone(ctx, node.waitProgram, bindings, i.input.Clock, i.input.Zone)
 		release()
 		if err == nil {
 			ready = resources.template.Ready()

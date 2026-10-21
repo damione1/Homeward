@@ -20,7 +20,6 @@ import (
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/accounts"
-	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
@@ -62,16 +61,10 @@ type nha049AllowRoute struct{}
 
 func (nha049AllowRoute) Authorize(context.Context, domain.ActorID, RouteKey) error { return nil }
 
-func nha049Config(t *testing.T, port int, dataDir string) config.Config {
+func nha049Config(t *testing.T, port int, dataDir string) nha029RunFixture {
 	t.Helper()
 	yaml := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\n%spostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n", dataDir, nha181TLSYAML(), port))
-	value, err := config.ParseWithEnv(yaml, func(name string) (string, bool) {
-		return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD"
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return value
+	return nha029RunFixtureFromRaw(t, yaml)
 }
 
 func nha049Request[T any](message *T, credential string) *connect.Request[T] {
@@ -121,7 +114,7 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 	done := make(chan error, 1)
 	var listen net.ListenConfig
 	go func() {
-		done <- RunWithFactory(ctx, settings, listen.Listen, func(addr net.Addr) { ready <- addr }, func(_ context.Context, store *storage.Store) (RuntimePlan, error) {
+		done <- RunWithStartupFactory(ctx, settings.startup, listen.Listen, func(addr net.Addr) { ready <- addr }, func(_ context.Context, store *storage.Store) (RuntimePlan, error) {
 			plan, err := NewPublicPlan(identity, nha049AllowRoute{}, accountTransportAudit{store: store})
 			return RuntimePlan{Identity: unconfiguredIdentity{}, Public: plan}, err
 		})
@@ -395,7 +388,9 @@ func TestNHA049DefaultRunSocketRestartAndFailClosed(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		ready := make(chan net.Addr, 1)
 		done := make(chan error, 1)
-		go func() { done <- Run(ctx, settings, listen.Listen, func(addr net.Addr) { ready <- addr }) }()
+		go func() {
+			done <- RunWithStartup(ctx, settings.startup, listen.Listen, func(addr net.Addr) { ready <- addr })
+		}()
 		select {
 		case addr := <-ready:
 			return cancel, done, addr
@@ -464,7 +459,7 @@ func TestNHA049DefaultRunSocketRestartAndFailClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	unsafeCtx, unsafeCancel := context.WithTimeout(context.Background(), 3*time.Second)
-	err = Run(unsafeCtx, settings, listen.Listen, nil)
+	err = RunWithStartup(unsafeCtx, settings.startup, listen.Listen, nil)
 	unsafeCancel()
 	if !errors.Is(err, ErrOperatorSocketUnsafe) {
 		t.Fatalf("socket symlink accepted: %v", err)

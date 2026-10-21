@@ -103,6 +103,25 @@ func newRunArena(pool *memoryPool, bindings []template.Binding, payloadBytes int
 	return a, e, nil
 }
 
+// ownsEnvironment admits the root or a live registered fork of this run's
+// arena. Sharing a Controller pool alone never proves run ownership.
+func (a *runArena) ownsEnvironment(env *Environment) bool {
+	if a == nil || env == nil {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if env.arena != a || a.closed || env.closed {
+		return false
+	}
+	for _, admitted := range a.environments {
+		if admitted == env {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *runArena) close() {
 	if a == nil {
 		return

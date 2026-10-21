@@ -168,7 +168,7 @@ func (s *Sequencer) SubscribeViewAfter(cursor Cursor, maxEntries int) (*Subscrip
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pruneJournal(s.MonotonicNow())
-	if s.registryState == registryUnavailable {
+	if s.registryState == registryUnavailable || s.configurationPublication != nil {
 		return nil, nil, Cursor{}, ErrRegistryUnavailable
 	}
 	if cursor.epoch != s.epoch {

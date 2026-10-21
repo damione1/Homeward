@@ -141,7 +141,7 @@ func TestNHA041RunWithFactoryAllModes(t *testing.T) {
 			ready := make(chan struct{}, 1)
 			done := make(chan error, 1)
 			go func() {
-				done <- RunWithFactory(ctx, cfg, (&net.ListenConfig{}).Listen, func(net.Addr) { ready <- struct{}{} }, factory)
+				done <- RunWithStartupFactory(ctx, cfg.startup, (&net.ListenConfig{}).Listen, func(net.Addr) { ready <- struct{}{} }, factory)
 			}()
 			select {
 			case <-ready:
@@ -246,7 +246,7 @@ func TestNHA041SingleTriggerConsumer(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	err = RunWithFactory(ctx, cfg, (&net.ListenConfig{}).Listen, nil, factory)
+	err = RunWithStartupFactory(ctx, cfg.startup, (&net.ListenConfig{}).Listen, nil, factory)
 	if !errors.Is(err, ErrInvalidTriggerComposition) || callbackCalled {
 		t.Fatalf("second trigger reader was admitted: err=%v callback=%v", err, callbackCalled)
 	}
@@ -275,7 +275,7 @@ func TestNHA041RunRejectsMismatchedAutomationIDs(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	err = RunWithFactory(ctx, cfg, func(context.Context, string, string) (net.Listener, error) {
+	err = RunWithStartupFactory(ctx, cfg.startup, func(context.Context, string, string) (net.Listener, error) {
 		listened = true
 		return nil, errors.New("listener unexpectedly reached")
 	}, nil, factory)
@@ -313,7 +313,7 @@ func TestNHA041ConditionBeforeModeAdmission(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- RunWithFactory(ctx, cfg, (&net.ListenConfig{}).Listen, nil, factory) }()
+	go func() { done <- RunWithStartupFactory(ctx, cfg.startup, (&net.ListenConfig{}).Listen, nil, factory) }()
 	select {
 	case <-started:
 	case err := <-done:
@@ -381,7 +381,7 @@ func TestNHA041RunBootstrapFailureNeverStartsPreparedController(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 			defer cancel()
 			done := make(chan error, 1)
-			go func() { done <- RunWithFactory(ctx, cfg, (&net.ListenConfig{}).Listen, nil, factory) }()
+			go func() { done <- RunWithStartupFactory(ctx, cfg.startup, (&net.ListenConfig{}).Listen, nil, factory) }()
 			if badPublic != nil {
 				nha041ServerWait(t, func() bool { return composition.Done() != nil })
 				// The former eager Start would execute a time-pattern trigger while
@@ -459,7 +459,7 @@ func TestNHA041PreparationSaturationAndJoin(t *testing.T) {
 	ready := make(chan struct{}, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- RunWithFactory(ctx, cfg, (&net.ListenConfig{}).Listen, func(net.Addr) { ready <- struct{}{} }, factory)
+		done <- RunWithStartupFactory(ctx, cfg.startup, (&net.ListenConfig{}).Listen, func(net.Addr) { ready <- struct{}{} }, factory)
 	}()
 	select {
 	case <-ready:

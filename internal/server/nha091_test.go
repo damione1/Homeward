@@ -95,10 +95,12 @@ func TestNHA091ConfiguredRunComposesElevenReadOnlySources(t *testing.T) {
 			fmt.Fprintf(&yaml, "    - alias: %q\n      device_id: device-%02d\n", alias, i)
 		}
 	}
-	c, err := config.ParseWithEnv([]byte(yaml.String()), func(key string) (string, bool) { return testpg.Password(), key == "HOMEWARD_TEST_PASSWORD" })
+	raw := []byte(yaml.String())
+	c, err := config.ParseWithEnv(raw, func(key string) (string, bool) { return testpg.Password(), key == "HOMEWARD_TEST_PASSWORD" })
 	if err != nil {
 		t.Fatal(err)
 	}
+	startup := nha029RunStartupFromRaw(t, raw)
 	settings, _ := c.PostgresSettings()
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
@@ -125,7 +127,7 @@ func TestNHA091ConfiguredRunComposesElevenReadOnlySources(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var lc net.ListenConfig
-	go func() { done <- Run(runCtx, c, lc.Listen, func(addr net.Addr) { ready <- addr }) }()
+	go func() { done <- RunWithStartup(runCtx, startup, lc.Listen, func(addr net.Addr) { ready <- addr }) }()
 	select {
 	case <-ready:
 	case err := <-done:
@@ -204,7 +206,9 @@ func TestNHA091ConfiguredRunComposesElevenReadOnlySources(t *testing.T) {
 	defer restartStop()
 	restartReady := make(chan net.Addr, 1)
 	restartDone := make(chan error, 1)
-	go func() { restartDone <- Run(restartCtx, c, lc.Listen, func(addr net.Addr) { restartReady <- addr }) }()
+	go func() {
+		restartDone <- RunWithStartup(restartCtx, startup, lc.Listen, func(addr net.Addr) { restartReady <- addr })
+	}()
 	select {
 	case <-restartReady:
 	case err := <-restartDone:

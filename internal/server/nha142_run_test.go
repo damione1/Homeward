@@ -44,7 +44,7 @@ func TestNHA142DefaultRunTLSMFAAndAdminEnrollmentBoundary(t *testing.T) {
 	done := make(chan error, 1)
 	var listener net.ListenConfig
 	go func() {
-		done <- Run(runCtx, settings, listener.Listen, func(addr net.Addr) { ready <- addr })
+		done <- RunWithStartup(runCtx, settings.startup, listener.Listen, func(addr net.Addr) { ready <- addr })
 	}()
 	joined := false
 	t.Cleanup(func() {

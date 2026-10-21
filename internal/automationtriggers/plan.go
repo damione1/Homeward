@@ -115,6 +115,7 @@ type waitDefinition struct {
 }
 
 type Plan struct {
+	token           *PlanIdentity
 	waits           map[waitSource]waitDefinition
 	valid           bool
 	zone            string
@@ -125,11 +126,18 @@ type Plan struct {
 	hasMQTTInstance bool
 	mqttFilters     []mqtt.TopicFilter
 	mqttIngress     mqtt.TriggerEdgePilot
+	mqttEnvironment *PlanIdentity
 	sun             SunSource
 	position        SolarPosition
 }
 
-func (p Plan) Valid() bool { return p.valid && p.location != nil }
+// PlanIdentity is correlation metadata, never an execution capability.
+// Only NewPlan creates one and its fields remain private.
+type PlanIdentity struct{ admitted bool }
+
+func (p Plan) Identity() *PlanIdentity { return p.token }
+
+func (p Plan) Valid() bool { return p.valid && p.token != nil && p.token.admitted && p.location != nil }
 func (p Plan) MQTTInstance() (domain.IntegrationInstanceID, bool) {
 	return p.mqttInstance, p.hasMQTTInstance
 }
@@ -179,6 +187,21 @@ func nilInterface(value any) bool {
 	}
 }
 
+// NewEmptyActivationPlan is the admitted B image when configuration removes
+// every automation/script. The running service still retains old waits and
+// subscribers until their existing owners complete.
+func NewEmptyActivationPlan(zone string) (Plan, error) {
+	if zone == "" || len(zone) > 256 {
+		return Plan{}, ErrInvalidPlan
+	}
+	location, err := time.LoadLocation(zone)
+	if err != nil {
+		return Plan{}, ErrInvalidPlan
+	}
+	return Plan{token: &PlanIdentity{admitted: true}, valid: true, zone: zone, location: location,
+		waits: make(map[waitSource]waitDefinition), charge: 512 + 2*len(zone)}, nil
+}
+
 func NewPlan(input PlanInput) (Plan, error) {
 	if nilInterface(input.Resolver) || input.Zone == "" || len(input.Zone) > 256 || len(input.Automations)+len(input.Scripts) == 0 {
 		return Plan{}, ErrInvalidPlan
@@ -187,7 +210,7 @@ func NewPlan(input PlanInput) (Plan, error) {
 	if err != nil {
 		return Plan{}, ErrInvalidPlan
 	}
-	plan := Plan{waits: make(map[waitSource]waitDefinition), valid: true, zone: input.Zone, location: location, sun: input.SunSource, position: input.SolarPosition,
+	plan := Plan{token: &PlanIdentity{admitted: true}, waits: make(map[waitSource]waitDefinition), valid: true, zone: input.Zone, location: location, sun: input.SunSource, position: input.SolarPosition,
 		charge: 512 + 2*len(input.Zone)}
 	totalCount := 0
 	for _, automation := range input.Automations {
@@ -304,6 +327,7 @@ func NewPlan(input PlanInput) (Plan, error) {
 			return Plan{}, ErrInvalidPlan
 		}
 		plan.mqttInstance, plan.hasMQTTInstance = instance, true
+		plan.mqttEnvironment = plan.token
 	}
 	if len(mqttSeen) != 0 {
 		subs, err := input.MQTTSettings.Subscriptions()

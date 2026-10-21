@@ -84,7 +84,7 @@ func TestNHA096RunWithFactoryComposesScopedCloudPilotAndStops(t *testing.T) {
 	}
 	var lc net.ListenConfig
 	go func() {
-		done <- RunWithFactory(ctx, c, lc.Listen, func(address net.Addr) { ready <- address }, factory)
+		done <- RunWithStartupFactory(ctx, c.startup, lc.Listen, func(address net.Addr) { ready <- address }, factory)
 	}()
 	select {
 	case err := <-pilot.started:

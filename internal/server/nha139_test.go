@@ -22,7 +22,6 @@ import (
 	"connectrpc.com/connect"
 	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
-	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/storage"
@@ -119,18 +118,12 @@ func (nha139Generation) WithCurrent(ctx context.Context, fn func(uint64) error) 
 	return fn(7)
 }
 
-func nha139Config(t *testing.T, port int, public string) config.Config {
+func nha139Config(t *testing.T, port int, public string) nha029RunFixture {
 	t.Helper()
 	yaml := fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npublic:\n  url: 'http://127.0.0.1:8787'\n  max_request_bytes: 128\n  max_concurrent_requests: 1\n  request_timeout: 80ms\n  stream_timeout: 2s\n  shutdown_timeout: 1s\n%s"+
 		"postgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\n",
 		shortPrivateDataDir(t), public, port)
-	value, err := config.ParseWithEnv([]byte(yaml), func(name string) (string, bool) {
-		return testpg.Password(), name == "HOMEWARD_TEST_PASSWORD"
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return value
+	return nha029RunFixtureFromRaw(t, []byte(yaml))
 }
 
 func nha139DirectClient() (*http.Client, *http2.Transport) {
@@ -355,7 +348,7 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	runDone := make(chan error, 1)
 	go func() {
-		runDone <- RunWithFactory(runCtx, settings, listen, func(address net.Addr) { ready <- address }, factory)
+		runDone <- RunWithStartupFactory(runCtx, settings.startup, listen, func(address net.Addr) { ready <- address }, factory)
 	}()
 	var address net.Addr
 	select {
@@ -828,7 +821,7 @@ func TestNHA139PlanAdmissionAndMissingProviderCloseRoutes(t *testing.T) {
 	done := make(chan error, 1)
 	var lc net.ListenConfig
 	go func() {
-		done <- RunWithFactory(ctx, settings, lc.Listen, func(address net.Addr) { ready <- address }, func(context.Context, *storage.Store) (RuntimePlan, error) {
+		done <- RunWithStartupFactory(ctx, settings.startup, lc.Listen, func(address net.Addr) { ready <- address }, func(context.Context, *storage.Store) (RuntimePlan, error) {
 			return RuntimePlan{Identity: unconfiguredIdentity{}, Public: runPlan}, nil
 		})
 	}()
@@ -850,7 +843,7 @@ func TestNHA139PlanAdmissionAndMissingProviderCloseRoutes(t *testing.T) {
 	defaultReady := make(chan net.Addr, 1)
 	defaultDone := make(chan error, 1)
 	go func() {
-		defaultDone <- Run(defaultCtx, settings, lc.Listen, func(address net.Addr) { defaultReady <- address })
+		defaultDone <- RunWithStartup(defaultCtx, settings.startup, lc.Listen, func(address net.Addr) { defaultReady <- address })
 	}()
 	select {
 	case address = <-defaultReady:

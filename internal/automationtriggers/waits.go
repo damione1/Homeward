@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/compat/ha/ir"
+	"github.com/damione1/Homeward/internal/domain"
 )
 
 const MaxWaits = 64
@@ -20,6 +21,32 @@ type WaitTrigger struct {
 	kind  ir.TriggerKind
 }
 
+// AdmittedWait owns the resolved definition selected with a program image.
+// Its private service binding prevents a retained A program from looking up
+// the same source path in the current B plan at observation time.
+type AdmittedWait struct {
+	service    *Service
+	image      *retainedPlan
+	definition waitDefinition
+	location   *time.Location
+	zone       string
+	sun        SunSource
+	position   SolarPosition
+	mqtt       domain.IntegrationInstanceID
+}
+
+func (s *Service) admitWaitFromPlan(plan Plan, source ir.Source) (*AdmittedWait, error) {
+	if !plan.Valid() || source.Object() == "" || source.Path() == "" {
+		return nil, ErrInvalidPlan
+	}
+	definition, present := plan.waits[waitSource{source.Object(), source.Path()}]
+	if !present || len(definition.rules) == 0 {
+		return nil, ErrInvalidPlan
+	}
+	return &AdmittedWait{service: s, definition: definition, location: plan.location,
+		zone: plan.zone, sun: plan.sun, position: plan.position, mqtt: plan.mqttInstance}, nil
+}
+
 func (t WaitTrigger) ID() string           { return t.id }
 func (t WaitTrigger) Index() int           { return t.index }
 func (t WaitTrigger) Kind() ir.TriggerKind { return t.kind }
@@ -29,6 +56,8 @@ func (t WaitTrigger) Kind() ir.TriggerKind { return t.kind }
 // Done closes only after disarm and all source calls using this observer join.
 type WaitHandle struct {
 	service            *Service
+	admitted           *AdmittedWait
+	image              *retainedPlan
 	id                 uint64
 	slots              []int
 	ctx                context.Context
@@ -114,10 +143,32 @@ func (s *Service) ObserveWait(ctx context.Context, source ir.Source) (*WaitHandl
 	if !present {
 		return nil, ErrInvalidPlan
 	}
+	admitted, err := s.admitWaitFromPlan(s.activePlanImage.plan, source)
+	if err != nil {
+		return nil, err
+	}
+	admitted.image = s.activePlanImage
+	return s.observeWaitLocked(ctx, definition, admitted)
+}
+
+func (s *Service) ObserveAdmittedWait(ctx context.Context, admitted *AdmittedWait) (*WaitHandle, error) {
+	if s == nil || nilInterface(ctx) || ctx.Err() != nil || admitted == nil || admitted.service != s || len(admitted.definition.rules) == 0 {
+		return nil, ErrInvalidPlan
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.observeWaitLocked(ctx, admitted.definition, admitted)
+}
+
+func (s *Service) observeWaitLocked(ctx context.Context, definition waitDefinition, admitted *AdmittedWait) (*WaitHandle, error) {
 	if !s.started || s.closed || !s.admissionsOpen || s.suspended || s.ctx.Err() != nil {
 		return nil, ErrServiceClosed
 	}
 	if len(s.waits) >= MaxWaits || s.nextWait == ^uint64(0) {
+		return nil, ErrCapacity
+	}
+	if pending := s.pendingPlan; pending != nil && pending.image != nil &&
+		len(pending.image.plan.rules)+len(s.waitOwners)+len(definition.rules) > MaxTriggers {
 		return nil, ErrCapacity
 	}
 	s.flushJournalLocked()
@@ -130,8 +181,8 @@ func (s *Service) ObserveWait(ctx context.Context, source ir.Source) (*WaitHandl
 		return nil, err
 	}
 	slots := make([]int, 0, len(definition.rules))
-	for index := s.permanentRules; index < len(s.plan.rules) && len(slots) < len(definition.rules); index++ {
-		if s.waitOwners[index] == nil {
+	for index := MaxTriggers - 1; index >= 0 && len(slots) < len(definition.rules); index-- {
+		if !s.permanentSlots[index] && s.waitOwners[index] == nil {
 			slots = append(slots, index)
 		}
 	}
@@ -149,7 +200,16 @@ func (s *Service) ObserveWait(ctx context.Context, source ir.Source) (*WaitHandl
 	}
 	s.nextWait++
 	runCtx, cancel := context.WithCancel(s.ctx)
-	h := &WaitHandle{service: s, id: s.nextWait, slots: slots, ctx: runCtx, cancel: cancel,
+	image := s.activePlanImage
+	if admitted != nil {
+		image = admitted.image
+	}
+	if image == nil || image.refs <= 0 {
+		cancel()
+		return nil, ErrInvalidPlan
+	}
+	image.refs++
+	h := &WaitHandle{service: s, admitted: admitted, image: image, id: s.nextWait, slots: slots, ctx: runCtx, cancel: cancel,
 		ready: make(chan struct{}), done: make(chan struct{}), planning: 1}
 	s.waits[h.id] = h
 	s.waitPlanning.Add(1)
@@ -255,6 +315,10 @@ func (s *Service) finishWaitJoinLocked(h *WaitHandle) {
 		case <-h.done:
 		default:
 			close(h.done)
+			if h.image != nil {
+				s.releasePlanLocked(h.image)
+				h.image = nil
+			}
 		}
 	}
 }
@@ -352,12 +416,14 @@ func MQTTFiltersForPrograms(automations []ir.Automation, scripts []ir.Script) ([
 	return result, nil
 }
 
-// HasWait validates interpreter/source composition before any run admission.
-// The definitions map is immutable for the lifetime of this service.
+// HasWait observes the current permanent image. Compiled interpreters retain
+// their own admitted wait definitions instead of consulting this map later.
 func (s *Service) HasWait(source ir.Source) bool {
 	if s == nil {
 		return false
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	_, present := s.plan.waits[waitSource{source.Object(), source.Path()}]
 	return present
 }

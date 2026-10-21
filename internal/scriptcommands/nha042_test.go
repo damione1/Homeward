@@ -115,12 +115,6 @@ func TestNHA042CommandPortsRejectAbsentTypedNilAndZeroExecution(t *testing.T) {
 	}
 }
 
-type nha042Authority struct{ actor domain.ActorID }
-
-func (a nha042Authority) Context(ctx context.Context) (context.Context, domain.ActorID, error) {
-	return ctx, a.actor, nil
-}
-
 type nha042Conditions struct{}
 
 func (nha042Conditions) EvaluateCondition(context.Context, template.Program, []template.Binding) (template.TrackedResult, error) {
@@ -130,6 +124,7 @@ func (nha042Conditions) EvaluateCondition(context.Context, template.Program, []t
 type nha042Driver struct {
 	mu               sync.Mutex
 	store            *storage.Store
+	humanActor       domain.ActorID
 	ids              []domain.CommandID
 	release, entered chan struct{}
 	once             sync.Once
@@ -137,7 +132,10 @@ type nha042Driver struct {
 }
 
 func (d *nha042Driver) Dispatch(ctx context.Context, command integrations.AdmittedCommand) error {
-	id, _, _, err := command.Identity()
+	if !command.ReadyForTransport() {
+		return integrations.ErrCommandAuthorizationDenied
+	}
+	id, _, err := command.RouteIdentity()
 	if err != nil {
 		return err
 	}
@@ -145,6 +143,25 @@ func (d *nha042Driver) Dispatch(ctx context.Context, command integrations.Admitt
 	record, present, err := d.store.CommandIntent(ctx, id)
 	if err != nil || !present || record.State() != storage.IntentDispatching {
 		return fmt.Errorf("dispatch preceded durable fence: %v %v %v", record.State(), present, err)
+	}
+	_, actor, _, identityErr := command.Identity()
+	switch record.OriginKind() {
+	case storage.IntentOriginInternalAutomation:
+		if !errors.Is(identityErr, integrations.ErrCommandAuthorizationDenied) {
+			return errors.New("internal command exposed an external actor")
+		}
+		if key, present := record.InternalOriginKey(); !present || !key.Valid() {
+			return errors.New("script effect did not retain internal occurrence provenance")
+		}
+	case storage.IntentOriginExternalActor:
+		if identityErr != nil || actor != d.humanActor {
+			return fmt.Errorf("external scene lost its admitted human actor: %v", identityErr)
+		}
+		if _, present := record.InternalOriginKey(); present {
+			return errors.New("external scene acquired internal occurrence provenance")
+		}
+	default:
+		return errors.New("unknown durable command origin")
 	}
 	d.mu.Lock()
 	d.ids = append(d.ids, id)
@@ -205,7 +222,11 @@ func TestNHA042AdapterUsesShared024And046WithoutRetry(t *testing.T) {
 	if err := fixture.PublishRegistry(ctx, []integrations.RegistryRecord{registry}); err != nil {
 		t.Fatal(err)
 	}
-	driver := &nha042Driver{store: store, release: make(chan struct{}), entered: make(chan struct{})}
+	humanActor, err := domain.ParseActorID("nha042-partial-scene-actor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	driver := &nha042Driver{store: store, humanActor: humanActor, release: make(chan struct{}), entered: make(chan struct{})}
 	var unblock sync.Once
 	release := func() { unblock.Do(func() { close(driver.release) }) }
 	// Registered before the controller cleanup, so failed tests release the
@@ -219,6 +240,10 @@ func TestNHA042AdapterUsesShared024And046WithoutRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	internal, err := commands.InternalAutomationPort()
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() {
 		closeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
@@ -226,7 +251,7 @@ func TestNHA042AdapterUsesShared024And046WithoutRetry(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	adapter, err := New(Input{Commands: commands, Host: host, Projection: fixture.Sequencer(), Generation: generation, Clock: &nha042Clock{}, CommandDeadline: time.Minute})
+	adapter, err := New(Input{Commands: commands, Internal: internal, Host: host, Projection: fixture.Sequencer(), Generation: generation, Clock: &nha042Clock{}, CommandDeadline: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,8 +268,7 @@ func TestNHA042AdapterUsesShared024And046WithoutRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, _ := domain.ParseActorID("nha042-explicit-caller")
-	interpreter, err := automationruns.NewInterpreter(automationruns.InterpreterInput{Plan: plan, Conditions: nha042Conditions{}, Authority: nha042Authority{actor}, Commands: adapter, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
+	interpreter, err := automationruns.NewInterpreter(automationruns.InterpreterInput{Plan: plan, Conditions: nha042Conditions{}, Commands: adapter, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +346,7 @@ func TestNHA042AdapterUsesShared024And046WithoutRetry(t *testing.T) {
 		t.Fatalf("046 partial scene: %v %+v", err, omitted)
 	}
 	invocation, _ := domain.ParseCommandID("nha042-partial-scene-occurrence")
-	slot, err := scenes.NewPreparationSlot(sceneService, ref, actor, invocation, nil, time.Now().Add(time.Minute))
+	slot, err := scenes.NewPreparationSlot(sceneService, ref, humanActor, invocation, nil, time.Now().Add(time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,23 +436,38 @@ func (g *nha042MatrixGeneration) WithCurrent(ctx context.Context, visit func(uin
 }
 
 type nha042MatrixDriver struct {
-	mu    sync.Mutex
-	store *storage.Store
-	calls []integrations.AdmittedCommand
+	mu           sync.Mutex
+	store        *storage.Store
+	calls        []integrations.AdmittedCommand
+	firstEntered chan struct{}
+	releaseFirst chan struct{}
+	firstOnce    sync.Once
 }
 
 func (d *nha042MatrixDriver) Dispatch(ctx context.Context, command integrations.AdmittedCommand) error {
-	id, _, _, err := command.Identity()
+	if !command.ReadyForTransport() {
+		return integrations.ErrCommandAuthorizationDenied
+	}
+	id, _, err := command.RouteIdentity()
 	if err != nil {
 		return err
 	}
 	record, present, err := d.store.CommandIntent(ctx, id)
-	if err != nil || !present || record.State() != storage.IntentDispatching {
+	if err != nil || !present || record.State() != storage.IntentDispatching || record.OriginKind() != storage.IntentOriginInternalAutomation {
 		return fmt.Errorf("synthetic effect preceded024 dispatching commit: %v %v %v", record.State(), present, err)
+	}
+	if key, present := record.InternalOriginKey(); !present || !key.Valid() {
+		return errors.New("matrix effect did not retain internal occurrence provenance")
 	}
 	d.mu.Lock()
 	d.calls = append(d.calls, command)
 	d.mu.Unlock()
+	if d.firstEntered != nil {
+		d.firstOnce.Do(func() {
+			close(d.firstEntered)
+			<-d.releaseFirst
+		})
+	}
 	return nil
 }
 func (d *nha042MatrixDriver) snapshot() []integrations.AdmittedCommand {
@@ -448,6 +487,7 @@ type nha042MatrixRig struct {
 	session    *integrations.Session
 	generation *nha042MatrixGeneration
 	driver     *nha042MatrixDriver
+	commands   *integrations.DurableCommandService
 	adapter    *Adapter
 	bindings   map[string]nha042MatrixBinding
 	encoding   integrations.LightEncoding
@@ -570,7 +610,16 @@ func nha042MatrixSetup(t *testing.T, completeScene bool) *nha042MatrixRig {
 			t.Fatal(err)
 		}
 	}
-	commands, err := integrations.NewDurableCommandService(ctx, host, rig.generation, store)
+	limits, err := integrations.NewDurableGateLimits(8, 6*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands, err := integrations.NewDurableCommandServiceWithClockAndGate(ctx, host, rig.generation, store, &nha042Clock{}, limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rig.commands = commands
+	internal, err := commands.InternalAutomationPort()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -589,12 +638,12 @@ func nha042MatrixSetup(t *testing.T, completeScene bool) *nha042MatrixRig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sceneService, err := scenes.NewService(catalogue, fixture.Sequencer(), rig.generation, commands, &nha042Clock{})
+	sceneService, err := scenes.NewServiceForInternal(catalogue, fixture.Sequencer(), rig.generation, commands, internal, &nha042Clock{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(sceneService.Close)
-	rig.adapter, err = New(Input{Commands: commands, Scenes: sceneService, Host: host, Projection: fixture.Sequencer(), Generation: rig.generation, Clock: &nha042Clock{}, CommandDeadline: time.Minute})
+	rig.adapter, err = New(Input{Commands: commands, Internal: internal, Scenes: sceneService, Host: host, Projection: fixture.Sequencer(), Generation: rig.generation, Clock: &nha042Clock{}, CommandDeadline: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -646,11 +695,7 @@ func (r *nha042MatrixRig) run(t *testing.T, body string) error {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := domain.ParseActorID("nha042-explicit-matrix-caller")
-	if err != nil {
-		t.Fatal(err)
-	}
-	interpreter, err := automationruns.NewInterpreter(automationruns.InterpreterInput{Plan: plan, Conditions: nha042Conditions{}, Authority: nha042Authority{actor}, Commands: r.adapter, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
+	interpreter, err := automationruns.NewInterpreter(automationruns.InterpreterInput{Plan: plan, Conditions: nha042Conditions{}, Commands: r.adapter, Clock: automationtriggers.RealClock{}, Zone: time.UTC})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -689,7 +734,7 @@ func TestNHA042ExecuteCallRelativeLightClimateAndDeclarativeScene(t *testing.T) 
 		}
 		var previous domain.CommandID
 		for _, call := range calls {
-			id, _, _, err := call.Identity()
+			id, _, err := call.RouteIdentity()
 			if err != nil || id == previous {
 				t.Fatalf("relative occurrence identity reused: %v %v", id, err)
 			}
@@ -759,6 +804,60 @@ func TestNHA042ExecuteCallRelativeLightClimateAndDeclarativeScene(t *testing.T) 
 				t.Fatalf("declarative scene sends: %d want%d", len(calls), want)
 			}
 		})
+	}
+}
+
+func TestNHA029GateDrainsWholeMultiMemberSceneWithoutReacquisition(t *testing.T) {
+	rig := nha042MatrixSetup(t, true)
+	rig.driver.firstEntered = make(chan struct{})
+	rig.driver.releaseFirst = make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(rig.driver.releaseFirst) }) }
+	runResult, runDone := make(chan error, 1), make(chan struct{})
+	go func() {
+		defer close(runDone)
+		runResult <- rig.run(t, "- action: scene.turn_on\n  target: {entity_id: scene.kitchen_cosy_mode}\n  data: {}\n")
+	}()
+	t.Cleanup(func() { unblock(); <-runDone })
+	select {
+	case <-rig.driver.firstEntered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first scene member never reached the common 024 driver")
+	}
+	released := make(chan struct{})
+	go func() {
+		defer close(released)
+		timer := time.NewTimer(30 * time.Millisecond)
+		defer timer.Stop()
+		<-timer.C
+		unblock()
+	}()
+	t.Cleanup(func() { <-released })
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	pause, err := rig.commands.PauseAndDrain(ctx)
+	if err != nil {
+		t.Fatalf("scene member reacquired its own activation gate: %v", err)
+	}
+	if err := <-runResult; err != nil {
+		t.Fatalf("whole admitted scene was interrupted by pause: %v", err)
+	}
+	calls := rig.driver.snapshot()
+	if len(calls) != 3 {
+		t.Fatalf("scene lost members across the drain: %d", len(calls))
+	}
+	for _, call := range calls {
+		id, _, err := call.RouteIdentity()
+		if err != nil {
+			t.Fatal(err)
+		}
+		record, present, err := rig.driver.store.CommandIntent(context.Background(), id)
+		if err != nil || !present || record.State() != storage.IntentResult {
+			t.Fatalf("scene member was not durable before pause: present=%t state=%v err=%v", present, record.State(), err)
+		}
+	}
+	if err := rig.commands.ResumeOld(pause); err != nil {
+		t.Fatal(err)
 	}
 }
 

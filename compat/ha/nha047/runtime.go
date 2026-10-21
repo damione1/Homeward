@@ -105,14 +105,6 @@ func (c qualificationReactiveClock) NewTimer(d time.Duration) reactivetemplate.T
 	return c.clock.NewTimer(d)
 }
 
-// Only the already delivered interpreter's constructor port is supplied here.
-// It creates no automation author, session policy or permission per action.
-type constructorAuthority struct{ actor domain.ActorID }
-
-func (a constructorAuthority) Context(ctx context.Context) (context.Context, domain.ActorID, error) {
-	return ctx, a.actor, nil
-}
-
 type qualificationResolver map[domain.HAAlias]domain.EntityID
 
 func (r qualificationResolver) ResolveEntity(id domain.HAAlias) (domain.EntityID, error) {
@@ -369,11 +361,7 @@ func newAutomationQualification(ctx context.Context, c Case, consumed parser.Sou
 	if err != nil {
 		return r, err
 	}
-	actor, err := domain.ParseActorID("nha047-baseline-constructor-port")
-	if err != nil {
-		return r, err
-	}
-	r.interpreter, err = automationruns.NewInterpreter(automationruns.InterpreterInput{Plan: plan, TriggerWaits: r.triggers, TemplateWaits: r.reactive, Conditions: r.reactive, Authority: constructorAuthority{actor}, Commands: &r.commands, Clock: r.clock, Zone: zone})
+	r.interpreter, err = automationruns.NewInterpreter(automationruns.InterpreterInput{Plan: plan, TriggerWaits: r.triggers, TemplateWaits: r.reactive, Conditions: r.reactive, Commands: &r.commands, Clock: r.clock, Zone: zone})
 	if err != nil {
 		return r, err
 	}

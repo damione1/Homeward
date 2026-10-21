@@ -84,8 +84,9 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 	if err != nil || contracts.AdmitObservabilityResponse(health.Msg) != nil {
 		t.Fatal("real TLS health not admitted", err)
 	}
-	if health.Msg.Health.Liveness != obs.Liveness_LIVENESS_LIVE || health.Msg.Health.Server.Generation.GetNotLoaded() == nil || health.Msg.Health.Server.Readiness == obs.ServerReadiness_SERVER_READINESS_READY {
-		t.Fatal("default fixture invented a generation")
+	admittedRevision := nha056AdmittedSQLRevision(t, runtime.store, 0)
+	if health.Msg.Health.Liveness != obs.Liveness_LIVENESS_LIVE || health.Msg.Health.Server.Generation.GetPresent().GetValue() != admittedRevision || health.Msg.Health.Server.Readiness != obs.ServerReadiness_SERVER_READINESS_READY {
+		t.Fatal("health did not identify the actually admitted SQL generation and ready core")
 	}
 	if health.Msg.Health.Durable.GetObservedAt() == nil || health.Msg.Health.Durable.Availability != obs.DurableAvailability_DURABLE_AVAILABILITY_AVAILABLE {
 		t.Fatal("actual Recorder startup commit was not a durable fact")

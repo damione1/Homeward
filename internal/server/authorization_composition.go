@@ -20,16 +20,22 @@ type AuthorizationComposition interface {
 	ViewAuthorizer() view.Authorizer
 	NewViewService(view.Configuration, sequencer.Clock) (*view.Service, error)
 }
-type runtimeAuthorizationComposition struct{ views *policyViewAuthorizer }
+type runtimeAuthorizationComposition struct {
+	views         *policyViewAuthorizer
+	configuration view.Configuration
+}
 
 func (c runtimeAuthorizationComposition) ViewAuthorizer() view.Authorizer { return c.views }
 func (c runtimeAuthorizationComposition) NewViewService(config view.Configuration, clock sequencer.Clock) (*view.Service, error) {
 	if c.views == nil {
 		return nil, authorization.ErrInvalid
 	}
+	if !nilReactiveInterface(c.configuration) {
+		config = c.configuration
+	}
 	return view.NewService(c.views.source, c.views, config, clock)
 }
-func authorizationComposition(ctx context.Context, c *sessionCoordinator, source *sequencer.Sequencer, identity integrations.IdentityAuthority) (AuthorizationComposition, error) {
+func authorizationComposition(ctx context.Context, c *sessionCoordinator, source *sequencer.Sequencer, identity integrations.IdentityAuthority, configuration ...view.Configuration) (AuthorizationComposition, error) {
 	if c == nil || c.authority == nil || source == nil {
 		return nil, authorization.ErrInvalid
 	}
@@ -48,7 +54,14 @@ func authorizationComposition(ctx context.Context, c *sessionCoordinator, source
 			return nil, err
 		}
 	}
-	return runtimeAuthorizationComposition{views: &policyViewAuthorizer{authority: c.authority, source: source}}, nil
+	var active view.Configuration
+	if len(configuration) > 1 {
+		return nil, authorization.ErrInvalid
+	}
+	if len(configuration) == 1 && !nilReactiveInterface(configuration[0]) {
+		active = configuration[0]
+	}
+	return runtimeAuthorizationComposition{views: &policyViewAuthorizer{authority: c.authority, source: source}, configuration: active}, nil
 }
 
 // prepareLocalAuthorization runs before Host callbacks and admissions. It is

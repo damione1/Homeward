@@ -9,7 +9,6 @@ import (
 
 	"github.com/damione1/Homeward/contracts"
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
-	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/energy"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -82,10 +81,7 @@ func (*nha108SourcePilot) Stop(context.Context) error { return nil }
 func TestNHA108RunWithFactoryComposesDurableEnergyBeforeReady(t *testing.T) {
 	cluster := testpg.Start(t)
 	configuration := []byte(fmt.Sprintf("listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\nenergy:\n  - source: sensor.hvac_power_consumption\n    output: sensor.hvac_energy_consumption\n    precision: 3\n    max_gap: 1h\n    time_basis: capture_required\n", shortPrivateDataDir(t), cluster.Port))
-	c, err := config.ParseWithEnv(configuration, func(key string) (string, bool) { return testpg.Password(), key == "HOMEWARD_TEST_PASSWORD" })
-	if err != nil {
-		t.Fatal(err)
-	}
+	startup := nha029RunStartupFromRaw(t, configuration)
 	instance, _ := domain.ParseIntegrationInstanceID("nha108-source-run")
 	key, _ := integrations.NewSourceKey("synthetic-hvac", "power")
 	ready := make(chan struct{})
@@ -115,7 +111,9 @@ func TestNHA108RunWithFactoryComposesDurableEnergyBeforeReady(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	var listener net.ListenConfig
-	go func() { done <- RunWithFactory(ctx, c, listener.Listen, func(net.Addr) { close(ready) }, factory) }()
+	go func() {
+		done <- RunWithStartupFactory(ctx, startup, listener.Listen, func(net.Addr) { close(ready) }, factory)
+	}()
 	var store *storage.Store
 	select {
 	case store = <-storeReady:

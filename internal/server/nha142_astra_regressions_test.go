@@ -182,14 +182,14 @@ func nha142AstraPolicySnapshot(t *testing.T, store *storage.Store, ctx context.C
 	return state
 }
 
-func nha142AstraStartRun(t *testing.T, settings config.Config) (net.Addr, func() error) {
+func nha142AstraStartRun(t *testing.T, settings config.StartupInputs) (net.Addr, func() error) {
 	t.Helper()
 	runCtx, cancel := context.WithCancel(context.Background())
 	ready := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	var listener net.ListenConfig
 	go func() {
-		done <- Run(runCtx, settings, listener.Listen, func(addr net.Addr) { ready <- addr })
+		done <- RunWithStartup(runCtx, settings, listener.Listen, func(addr net.Addr) { ready <- addr })
 	}()
 	joined := false
 	stop := func() error {
@@ -234,7 +234,7 @@ func TestNHA142AstraPolicyEnableRequiresCurrentReadyRPAfterRestart(t *testing.T)
 	})
 	withURL := nha181Config(t, cluster.Port, dataDir, "127.0.0.1:0",
 		strings.Replace(nha181TLSYAML(), "public:\n", "public:\n  url: "+origin+"\n", 1))
-	_, stopFirst := nha142AstraStartRun(t, withURL)
+	_, stopFirst := nha142AstraStartRun(t, withURL.startup)
 	operatorTransport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		var dialer net.Dialer
 		return dialer.DialContext(ctx, "unix", filepath.Join(dataDir, operatorSocketName))
@@ -279,7 +279,7 @@ func TestNHA142AstraPolicyEnableRequiresCurrentReadyRPAfterRestart(t *testing.T)
 	if _, present := withoutURLSettings.CanonicalURL(); present || withoutURLSettings.Transport() != config.PublicTransportTLS {
 		t.Fatal("restart configuration is not actual public TLS without a canonical RP URL")
 	}
-	address, _ := nha142AstraStartRun(t, withoutURL)
+	address, _ := nha142AstraStartRun(t, withoutURL.startup)
 	publicHTTP := nha181Client(roots)
 	publicHTTP.Timeout = 10 * time.Second
 	publicTransport := publicHTTP.Transport.(*http.Transport)
