@@ -331,14 +331,15 @@ func sidecarFromRaw(raw rawConfig) ([]byte, error) {
 		return nil, ErrStartupSource
 	}
 	launch := struct {
-		ScopeRevision yaml.Node               `yaml:"scope_revision,omitempty"`
-		Listen        string                  `yaml:"listen"`
-		Postgres      storage.ConnectionInput `yaml:"postgres"`
-		DataDir       string                  `yaml:"data_dir"`
-		Public        *publicInput            `yaml:"public,omitempty"`
-		Recorder      *RecorderInput          `yaml:"recorder,omitempty"`
-		Backups       yaml.Node               `yaml:"backups,omitempty"`
-	}{raw.ScopeRevision, raw.Listen, raw.Postgres, raw.DataDir, raw.Public, raw.Recorder, raw.Backups}
+		ScopeRevision           yaml.Node               `yaml:"scope_revision,omitempty"`
+		Listen                  string                  `yaml:"listen"`
+		Postgres                storage.ConnectionInput `yaml:"postgres"`
+		DataDir                 string                  `yaml:"data_dir"`
+		Public                  *publicInput            `yaml:"public,omitempty"`
+		Recorder                *RecorderInput          `yaml:"recorder,omitempty"`
+		Backups                 yaml.Node               `yaml:"backups,omitempty"`
+		BackupRecoveryRecipient yaml.Node               `yaml:"backup_recovery_recipient,omitempty"`
+	}{raw.ScopeRevision, raw.Listen, raw.Postgres, raw.DataDir, raw.Public, raw.Recorder, raw.Backups, raw.BackupRecoveryRecipient}
 	data, err := yaml.Marshal(launch)
 	if err != nil || len(data) == 0 || len(data) > maxStartupSourceBytes {
 		return nil, ErrStartupSource

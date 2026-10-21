@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/damione1/Homeward/internal/backups"
+	backuparchive "github.com/damione1/Homeward/internal/backups/archive"
 	"github.com/damione1/Homeward/internal/hilo"
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/neviweb"
@@ -26,6 +27,7 @@ import (
 )
 
 type Config struct {
+	backupRecovery  *backuparchive.RecoveryPublic
 	backupProviders backups.Configuration
 	scopeRevision   scope.Revision
 	listen          netip.AddrPort
@@ -51,21 +53,22 @@ func Parse(data []byte) (Config, error) { return ParseWithEnv(data, os.LookupEnv
 // rawConfig is the one strict YAML boundary for combined legacy files,
 // launch sidecars and exact operational source replay.
 type rawConfig struct {
-	Backups       yaml.Node               `yaml:"backups"`
-	ScopeRevision yaml.Node               `yaml:"scope_revision"`
-	Listen        string                  `yaml:"listen"`
-	Postgres      storage.ConnectionInput `yaml:"postgres"`
-	DataDir       string                  `yaml:"data_dir"`
-	MQTT          *mqtt.Input             `yaml:"mqtt"`
-	Neviweb       *neviweb.Input          `yaml:"neviweb"`
-	Hilo          *hilo.Input             `yaml:"hilo"`
-	Energy        []energyInput           `yaml:"energy"`
-	DerivedPower  yaml.Node               `yaml:"derived_power"`
-	Public        *publicInput            `yaml:"public"`
-	Recorder      *RecorderInput          `yaml:"recorder"`
-	Solar         yaml.Node               `yaml:"solar"`
-	Workday       yaml.Node               `yaml:"workday"`
-	Workers       []struct {
+	ScopeRevision           yaml.Node               `yaml:"scope_revision"`
+	BackupRecoveryRecipient yaml.Node               `yaml:"backup_recovery_recipient"`
+	Backups                 yaml.Node               `yaml:"backups"`
+	Listen                  string                  `yaml:"listen"`
+	Postgres                storage.ConnectionInput `yaml:"postgres"`
+	DataDir                 string                  `yaml:"data_dir"`
+	MQTT                    *mqtt.Input             `yaml:"mqtt"`
+	Neviweb                 *neviweb.Input          `yaml:"neviweb"`
+	Hilo                    *hilo.Input             `yaml:"hilo"`
+	Energy                  []energyInput           `yaml:"energy"`
+	DerivedPower            yaml.Node               `yaml:"derived_power"`
+	Public                  *publicInput            `yaml:"public"`
+	Recorder                *RecorderInput          `yaml:"recorder"`
+	Solar                   yaml.Node               `yaml:"solar"`
+	Workday                 yaml.Node               `yaml:"workday"`
+	Workers                 []struct {
 		Instance    string   `yaml:"instance"`
 		Executable  string   `yaml:"executable"`
 		Args        []string `yaml:"args"`
@@ -159,6 +162,16 @@ func parseLaunch(raw rawConfig, lookup func(string) (string, bool)) (Config, err
 		return Config{}, fmt.Errorf("configuration: data_dir must be an absolute normalized persistent directory")
 	}
 	result := Config{listen: endpoint, postgres: postgres, dataDir: raw.DataDir, scopeRevision: scopeRevision}
+	if raw.BackupRecoveryRecipient.Kind != 0 {
+		if raw.BackupRecoveryRecipient.Kind != yaml.ScalarNode || raw.BackupRecoveryRecipient.Tag != "!!str" {
+			return Config{}, ErrInvalidYAML
+		}
+		public, err := backuparchive.ParseRecoveryPublic(raw.BackupRecoveryRecipient.Value)
+		if err != nil {
+			return Config{}, ErrInvalidYAML
+		}
+		result.backupRecovery = &public
+	}
 	result.backupProviders, err = parseBackupProvidersInput(raw.Backups, raw.DataDir)
 	if err != nil {
 		return Config{}, err
