@@ -1,3 +1,5 @@
+// Homeward NHA-136 synthetic-accessory amendment: canonical 384-byte SRP M2 encoding.
+// SRP arithmetic and strict client validation are unchanged; see hc.nha136-srp-encoding.json.
 package pair
 
 import (
@@ -96,11 +98,21 @@ func (setup *SetupServerController) Handle(in util.Container) (out util.Containe
 // - B: server public key
 // - s: salt
 func (setup *SetupServerController) handlePairStart(in util.Container) (util.Container, error) {
+	// HAP's SRP-3072 public-key TLV is 384 bytes. big.Int.Bytes omits
+	// leading zeros; restore only the wire width, without changing B.
+	const publicKeyBytes = 3072 / 8
+	publicKey := setup.session.PublicKey
+	if len(publicKey) == 0 || len(publicKey) > publicKeyBytes {
+		return nil, errors.New("invalid synthetic SRP public key size")
+	}
+	wirePublicKey := make([]byte, publicKeyBytes)
+	copy(wirePublicKey[len(wirePublicKey)-len(publicKey):], publicKey)
+
 	out := util.NewTLV8Container()
 	setup.step = PairStepStartResponse
 
 	out.SetByte(TagSequence, setup.step.Byte())
-	out.SetBytes(TagPublicKey, setup.session.PublicKey)
+	out.SetBytes(TagPublicKey, wirePublicKey)
 	out.SetBytes(TagSalt, setup.session.Salt)
 
 	log.Debug.Println("<-     B:", hex.EncodeToString(out.GetBytes(TagPublicKey)))

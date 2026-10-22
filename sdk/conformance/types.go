@@ -13,6 +13,7 @@ const (
 	CaseCore
 	CaseCapacity
 	CaseReconnect
+	CaseClimatePartial
 )
 
 func (c Case) String() string {
@@ -23,6 +24,8 @@ func (c Case) String() string {
 		return "capacity"
 	case CaseReconnect:
 		return "reconnect"
+	case CaseClimatePartial:
+		return "climate_partial"
 	case CaseUnspecified:
 		return "unspecified"
 	default:
@@ -42,6 +45,7 @@ const (
 	StimulusStale
 	StimulusPartialLight
 	StimulusMatch
+	StimulusPartialClimate
 )
 
 func (s Stimulus) String() string {
@@ -58,6 +62,8 @@ func (s Stimulus) String() string {
 		return "partial_light"
 	case StimulusMatch:
 		return "match"
+	case StimulusPartialClimate:
+		return "partial_climate"
 	case StimulusUnspecified:
 		return "unspecified"
 	default:

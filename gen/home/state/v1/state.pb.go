@@ -603,9 +603,11 @@ type ClimateValue struct {
 	Mode     *v1.ClimateMode     `protobuf:"varint,4,opt,name=mode,proto3,enum=home.registry.v1.ClimateMode,oneof" json:"mode,omitempty"`
 	Activity *v1.ClimateActivity `protobuf:"varint,5,opt,name=activity,proto3,enum=home.registry.v1.ClimateActivity,oneof" json:"activity,omitempty"`
 	// Absent is not an observed false/off reading.
-	FanActive     *bool `protobuf:"varint,6,opt,name=fan_active,json=fanActive,proto3,oneof" json:"fan_active,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	FanActive       *bool                `protobuf:"varint,6,opt,name=fan_active,json=fanActive,proto3,oneof" json:"fan_active,omitempty"`
+	HumidityPercent *float64             `protobuf:"fixed64,7,opt,name=humidity_percent,json=humidityPercent,proto3,oneof" json:"humidity_percent,omitempty"`
+	FanTarget       *v1.ClimateFanTarget `protobuf:"varint,8,opt,name=fan_target,json=fanTarget,proto3,enum=home.registry.v1.ClimateFanTarget,oneof" json:"fan_target,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ClimateValue) Reset() {
@@ -689,6 +691,20 @@ func (x *ClimateValue) GetFanActive() bool {
 		return *x.FanActive
 	}
 	return false
+}
+
+func (x *ClimateValue) GetHumidityPercent() float64 {
+	if x != nil && x.HumidityPercent != nil {
+		return *x.HumidityPercent
+	}
+	return 0
+}
+
+func (x *ClimateValue) GetFanTarget() v1.ClimateFanTarget {
+	if x != nil && x.FanTarget != nil {
+		return *x.FanTarget
+	}
+	return v1.ClimateFanTarget(0)
 }
 
 type isClimateValue_Setpoint interface {
@@ -1722,7 +1738,7 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"lowCelsius\x88\x01\x01\x12&\n" +
 	"\fhigh_celsius\x18\x02 \x01(\x01H\x01R\vhighCelsius\x88\x01\x01B\x0e\n" +
 	"\f_low_celsiusB\x0f\n" +
-	"\r_high_celsius\"\xce\x03\n" +
+	"\r_high_celsius\"\xea\x04\n" +
 	"\fClimateValue\x12C\n" +
 	"\x1bcurrent_temperature_celsius\x18\x01 \x01(\x01H\x01R\x19currentTemperatureCelsius\x88\x01\x01\x12+\n" +
 	"\x10setpoint_celsius\x18\x02 \x01(\x01H\x00R\x0fsetpointCelsius\x12[\n" +
@@ -1730,13 +1746,18 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\x04mode\x18\x04 \x01(\x0e2\x1d.home.registry.v1.ClimateModeH\x02R\x04mode\x88\x01\x01\x12B\n" +
 	"\bactivity\x18\x05 \x01(\x0e2!.home.registry.v1.ClimateActivityH\x03R\bactivity\x88\x01\x01\x12\"\n" +
 	"\n" +
-	"fan_active\x18\x06 \x01(\bH\x04R\tfanActive\x88\x01\x01B\n" +
+	"fan_active\x18\x06 \x01(\bH\x04R\tfanActive\x88\x01\x01\x12.\n" +
+	"\x10humidity_percent\x18\a \x01(\x01H\x05R\x0fhumidityPercent\x88\x01\x01\x12F\n" +
+	"\n" +
+	"fan_target\x18\b \x01(\x0e2\".home.registry.v1.ClimateFanTargetH\x06R\tfanTarget\x88\x01\x01B\n" +
 	"\n" +
 	"\bsetpointB\x1e\n" +
 	"\x1c_current_temperature_celsiusB\a\n" +
 	"\x05_modeB\v\n" +
 	"\t_activityB\r\n" +
-	"\v_fan_active\"\xd4\a\n" +
+	"\v_fan_activeB\x13\n" +
+	"\x11_humidity_percentB\r\n" +
+	"\v_fan_target\"\xd4\a\n" +
 	"\rObservedState\x123\n" +
 	"\x06entity\x18\x01 \x01(\v2\x1b.home.registry.v1.EntityRefR\x06entity\x120\n" +
 	"\aquality\x18\x02 \x01(\v2\x16.home.state.v1.QualityR\aquality\x12\x1a\n" +
@@ -1900,12 +1921,13 @@ var file_home_state_v1_state_proto_goTypes = []any{
 	(*WatchViewResponse)(nil),        // 22: home.state.v1.WatchViewResponse
 	(v1.ClimateMode)(0),              // 23: home.registry.v1.ClimateMode
 	(v1.ClimateActivity)(0),          // 24: home.registry.v1.ClimateActivity
-	(*v1.EntityRef)(nil),             // 25: home.registry.v1.EntityRef
-	(*timestamppb.Timestamp)(nil),    // 26: google.protobuf.Timestamp
-	(*v11.HelperValue)(nil),          // 27: home.helpers.v1.HelperValue
-	(*v12.SolarValue)(nil),           // 28: home.solar.v1.SolarValue
-	(*v12.SolarEventValue)(nil),      // 29: home.solar.v1.SolarEventValue
-	(*v1.CapabilityDescription)(nil), // 30: home.registry.v1.CapabilityDescription
+	(v1.ClimateFanTarget)(0),         // 25: home.registry.v1.ClimateFanTarget
+	(*v1.EntityRef)(nil),             // 26: home.registry.v1.EntityRef
+	(*timestamppb.Timestamp)(nil),    // 27: google.protobuf.Timestamp
+	(*v11.HelperValue)(nil),          // 28: home.helpers.v1.HelperValue
+	(*v12.SolarValue)(nil),           // 29: home.solar.v1.SolarValue
+	(*v12.SolarEventValue)(nil),      // 30: home.solar.v1.SolarEventValue
+	(*v1.CapabilityDescription)(nil), // 31: home.registry.v1.CapabilityDescription
 }
 var file_home_state_v1_state_proto_depIdxs = []int32{
 	0,  // 0: home.state.v1.Quality.availability:type_name -> home.state.v1.Availability
@@ -1915,47 +1937,48 @@ var file_home_state_v1_state_proto_depIdxs = []int32{
 	9,  // 4: home.state.v1.ClimateValue.setpoint_range_celsius:type_name -> home.state.v1.ClimateSetpointRange
 	23, // 5: home.state.v1.ClimateValue.mode:type_name -> home.registry.v1.ClimateMode
 	24, // 6: home.state.v1.ClimateValue.activity:type_name -> home.registry.v1.ClimateActivity
-	25, // 7: home.state.v1.ObservedState.entity:type_name -> home.registry.v1.EntityRef
-	5,  // 8: home.state.v1.ObservedState.quality:type_name -> home.state.v1.Quality
-	26, // 9: home.state.v1.ObservedState.observed_at:type_name -> google.protobuf.Timestamp
-	26, // 10: home.state.v1.ObservedState.received_at:type_name -> google.protobuf.Timestamp
-	26, // 11: home.state.v1.ObservedState.last_changed:type_name -> google.protobuf.Timestamp
-	26, // 12: home.state.v1.ObservedState.last_updated:type_name -> google.protobuf.Timestamp
-	26, // 13: home.state.v1.ObservedState.last_reported:type_name -> google.protobuf.Timestamp
-	6,  // 14: home.state.v1.ObservedState.measurement:type_name -> home.state.v1.Measurement
-	7,  // 15: home.state.v1.ObservedState.light:type_name -> home.state.v1.LightValue
-	8,  // 16: home.state.v1.ObservedState.fan:type_name -> home.state.v1.FanValue
-	10, // 17: home.state.v1.ObservedState.climate:type_name -> home.state.v1.ClimateValue
-	27, // 18: home.state.v1.ObservedState.helper:type_name -> home.helpers.v1.HelperValue
-	28, // 19: home.state.v1.ObservedState.solar:type_name -> home.solar.v1.SolarValue
-	29, // 20: home.state.v1.ObservedState.solar_event:type_name -> home.solar.v1.SolarEventValue
-	30, // 21: home.state.v1.ViewEntity.capabilities:type_name -> home.registry.v1.CapabilityDescription
-	11, // 22: home.state.v1.ViewEntity.state:type_name -> home.state.v1.ObservedState
-	14, // 23: home.state.v1.OpenViewRequest.filter:type_name -> home.state.v1.ViewFilter
-	12, // 24: home.state.v1.OpenViewResponse.cursor:type_name -> home.state.v1.ViewCursor
-	11, // 25: home.state.v1.OpenViewResponse.states:type_name -> home.state.v1.ObservedState
-	30, // 26: home.state.v1.OpenViewResponse.capabilities:type_name -> home.registry.v1.CapabilityDescription
-	26, // 27: home.state.v1.OpenViewResponse.expires_at:type_name -> google.protobuf.Timestamp
-	13, // 28: home.state.v1.OpenViewResponse.entities:type_name -> home.state.v1.ViewEntity
-	16, // 29: home.state.v1.ReadPageResponse.page:type_name -> home.state.v1.OpenViewResponse
-	12, // 30: home.state.v1.WatchViewRequest.cursor:type_name -> home.state.v1.ViewCursor
-	14, // 31: home.state.v1.WatchViewRequest.filter:type_name -> home.state.v1.ViewFilter
-	11, // 32: home.state.v1.StateDelta.states:type_name -> home.state.v1.ObservedState
-	4,  // 33: home.state.v1.ResyncRequired.reason:type_name -> home.state.v1.ResyncReason
-	12, // 34: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
-	20, // 35: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
-	21, // 36: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
-	15, // 37: home.state.v1.StateService.OpenView:input_type -> home.state.v1.OpenViewRequest
-	17, // 38: home.state.v1.StateService.ReadPage:input_type -> home.state.v1.ReadPageRequest
-	19, // 39: home.state.v1.StateService.WatchView:input_type -> home.state.v1.WatchViewRequest
-	16, // 40: home.state.v1.StateService.OpenView:output_type -> home.state.v1.OpenViewResponse
-	18, // 41: home.state.v1.StateService.ReadPage:output_type -> home.state.v1.ReadPageResponse
-	22, // 42: home.state.v1.StateService.WatchView:output_type -> home.state.v1.WatchViewResponse
-	40, // [40:43] is the sub-list for method output_type
-	37, // [37:40] is the sub-list for method input_type
-	37, // [37:37] is the sub-list for extension type_name
-	37, // [37:37] is the sub-list for extension extendee
-	0,  // [0:37] is the sub-list for field type_name
+	25, // 7: home.state.v1.ClimateValue.fan_target:type_name -> home.registry.v1.ClimateFanTarget
+	26, // 8: home.state.v1.ObservedState.entity:type_name -> home.registry.v1.EntityRef
+	5,  // 9: home.state.v1.ObservedState.quality:type_name -> home.state.v1.Quality
+	27, // 10: home.state.v1.ObservedState.observed_at:type_name -> google.protobuf.Timestamp
+	27, // 11: home.state.v1.ObservedState.received_at:type_name -> google.protobuf.Timestamp
+	27, // 12: home.state.v1.ObservedState.last_changed:type_name -> google.protobuf.Timestamp
+	27, // 13: home.state.v1.ObservedState.last_updated:type_name -> google.protobuf.Timestamp
+	27, // 14: home.state.v1.ObservedState.last_reported:type_name -> google.protobuf.Timestamp
+	6,  // 15: home.state.v1.ObservedState.measurement:type_name -> home.state.v1.Measurement
+	7,  // 16: home.state.v1.ObservedState.light:type_name -> home.state.v1.LightValue
+	8,  // 17: home.state.v1.ObservedState.fan:type_name -> home.state.v1.FanValue
+	10, // 18: home.state.v1.ObservedState.climate:type_name -> home.state.v1.ClimateValue
+	28, // 19: home.state.v1.ObservedState.helper:type_name -> home.helpers.v1.HelperValue
+	29, // 20: home.state.v1.ObservedState.solar:type_name -> home.solar.v1.SolarValue
+	30, // 21: home.state.v1.ObservedState.solar_event:type_name -> home.solar.v1.SolarEventValue
+	31, // 22: home.state.v1.ViewEntity.capabilities:type_name -> home.registry.v1.CapabilityDescription
+	11, // 23: home.state.v1.ViewEntity.state:type_name -> home.state.v1.ObservedState
+	14, // 24: home.state.v1.OpenViewRequest.filter:type_name -> home.state.v1.ViewFilter
+	12, // 25: home.state.v1.OpenViewResponse.cursor:type_name -> home.state.v1.ViewCursor
+	11, // 26: home.state.v1.OpenViewResponse.states:type_name -> home.state.v1.ObservedState
+	31, // 27: home.state.v1.OpenViewResponse.capabilities:type_name -> home.registry.v1.CapabilityDescription
+	27, // 28: home.state.v1.OpenViewResponse.expires_at:type_name -> google.protobuf.Timestamp
+	13, // 29: home.state.v1.OpenViewResponse.entities:type_name -> home.state.v1.ViewEntity
+	16, // 30: home.state.v1.ReadPageResponse.page:type_name -> home.state.v1.OpenViewResponse
+	12, // 31: home.state.v1.WatchViewRequest.cursor:type_name -> home.state.v1.ViewCursor
+	14, // 32: home.state.v1.WatchViewRequest.filter:type_name -> home.state.v1.ViewFilter
+	11, // 33: home.state.v1.StateDelta.states:type_name -> home.state.v1.ObservedState
+	4,  // 34: home.state.v1.ResyncRequired.reason:type_name -> home.state.v1.ResyncReason
+	12, // 35: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
+	20, // 36: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
+	21, // 37: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
+	15, // 38: home.state.v1.StateService.OpenView:input_type -> home.state.v1.OpenViewRequest
+	17, // 39: home.state.v1.StateService.ReadPage:input_type -> home.state.v1.ReadPageRequest
+	19, // 40: home.state.v1.StateService.WatchView:input_type -> home.state.v1.WatchViewRequest
+	16, // 41: home.state.v1.StateService.OpenView:output_type -> home.state.v1.OpenViewResponse
+	18, // 42: home.state.v1.StateService.ReadPage:output_type -> home.state.v1.ReadPageResponse
+	22, // 43: home.state.v1.StateService.WatchView:output_type -> home.state.v1.WatchViewResponse
+	41, // [41:44] is the sub-list for method output_type
+	38, // [38:41] is the sub-list for method input_type
+	38, // [38:38] is the sub-list for extension type_name
+	38, // [38:38] is the sub-list for extension extendee
+	0,  // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_home_state_v1_state_proto_init() }

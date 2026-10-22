@@ -201,7 +201,7 @@ func (c *CapabilityCatalog) AdmitReadOnlyDriverCapability(d *registry.Capability
 			return nil
 		}
 	case *registry.CapabilityDescription_Climate:
-		if constraints.Climate.SetpointCelsius == nil && len(constraints.Climate.ModeOptions) == 0 {
+		if constraints.Climate.SetpointCelsius == nil && len(constraints.Climate.ModeOptions) == 0 && constraints.Climate.SetpointRangeCelsius == nil && len(constraints.Climate.FanTargetOptions) == 0 {
 			return nil
 		}
 	case *registry.CapabilityDescription_Measurement, *registry.CapabilityDescription_Binary:
@@ -874,7 +874,16 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 		return nil
 	case *registry.CapabilityDescription_Climate:
 		arg := cmd.Arguments.GetSetClimate()
-		if arg == nil || (arg.SetpointCelsius == nil && arg.Mode == nil) {
+		if arg == nil || (arg.SetpointCelsius == nil && arg.Mode == nil && arg.HeatThresholdCelsius == nil && arg.CoolThresholdCelsius == nil && arg.FanTarget == nil) {
+			break
+		}
+		if arg.SetpointCelsius != nil && (arg.HeatThresholdCelsius != nil || arg.CoolThresholdCelsius != nil) {
+			break
+		}
+		if !admitClimateThresholds(arg.HeatThresholdCelsius, arg.CoolThresholdCelsius, constraints.Climate.SetpointRangeCelsius) {
+			break
+		}
+		if arg.FanTarget != nil && !contains(constraints.Climate.FanTargetOptions, *arg.FanTarget) {
 			break
 		}
 		if arg.SetpointCelsius != nil && !withinBounds(*arg.SetpointCelsius, constraints.Climate.SetpointCelsius) {

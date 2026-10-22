@@ -193,6 +193,71 @@ impl ::buffa::Enumeration for ClimateActivity {
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
+pub enum ClimateFanTarget {
+    CLIMATE_FAN_TARGET_UNSPECIFIED = 0i32,
+    CLIMATE_FAN_TARGET_ON = 1i32,
+    CLIMATE_FAN_TARGET_AUTO = 2i32,
+}
+impl ClimateFanTarget {
+    ///Idiomatic alias for [`Self::CLIMATE_FAN_TARGET_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::CLIMATE_FAN_TARGET_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::CLIMATE_FAN_TARGET_ON`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const On: Self = Self::CLIMATE_FAN_TARGET_ON;
+    ///Idiomatic alias for [`Self::CLIMATE_FAN_TARGET_AUTO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Auto: Self = Self::CLIMATE_FAN_TARGET_AUTO;
+}
+impl ::core::default::Default for ClimateFanTarget {
+    fn default() -> Self {
+        Self::CLIMATE_FAN_TARGET_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for ClimateFanTarget {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::CLIMATE_FAN_TARGET_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::CLIMATE_FAN_TARGET_ON),
+            2i32 => ::core::option::Option::Some(Self::CLIMATE_FAN_TARGET_AUTO),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::CLIMATE_FAN_TARGET_UNSPECIFIED => "CLIMATE_FAN_TARGET_UNSPECIFIED",
+            Self::CLIMATE_FAN_TARGET_ON => "CLIMATE_FAN_TARGET_ON",
+            Self::CLIMATE_FAN_TARGET_AUTO => "CLIMATE_FAN_TARGET_AUTO",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "CLIMATE_FAN_TARGET_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::CLIMATE_FAN_TARGET_UNSPECIFIED)
+            }
+            "CLIMATE_FAN_TARGET_ON" => {
+                ::core::option::Option::Some(Self::CLIMATE_FAN_TARGET_ON)
+            }
+            "CLIMATE_FAN_TARGET_AUTO" => {
+                ::core::option::Option::Some(Self::CLIMATE_FAN_TARGET_AUTO)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::CLIMATE_FAN_TARGET_UNSPECIFIED,
+            Self::CLIMATE_FAN_TARGET_ON,
+            Self::CLIMATE_FAN_TARGET_AUTO,
+        ]
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
 pub enum MeasurementSemantic {
     MEASUREMENT_SEMANTIC_UNSPECIFIED = 0i32,
     MEASUREMENT_SEMANTIC_MEASUREMENT = 1i32,
@@ -1756,6 +1821,26 @@ pub struct ClimateConstraints {
     pub observed_mode_options: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ClimateMode>>,
     /// Field 8: `observes_fan_activity`
     pub observes_fan_activity: bool,
+    /// Commands require both thresholds.
+    ///
+    /// Field 9: `setpoint_range_celsius`
+    pub setpoint_range_celsius: ::buffa::MessageField<
+        ClimateSetpointRangeConstraints,
+        ::buffa::Inline<ClimateSetpointRangeConstraints>,
+    >,
+    /// Field 10: `fan_target_options`
+    pub fan_target_options: ::buffa::alloc::vec::Vec<
+        ::buffa::EnumValue<ClimateFanTarget>,
+    >,
+    /// Field 11: `observed_humidity_percent`
+    pub observed_humidity_percent: ::buffa::MessageField<
+        NumberBounds,
+        ::buffa::Inline<NumberBounds>,
+    >,
+    /// Field 12: `observed_fan_target_options`
+    pub observed_fan_target_options: ::buffa::alloc::vec::Vec<
+        ::buffa::EnumValue<ClimateFanTarget>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -1773,6 +1858,10 @@ impl ::core::fmt::Debug for ClimateConstraints {
             )
             .field("observed_mode_options", &self.observed_mode_options)
             .field("observes_fan_activity", &self.observes_fan_activity)
+            .field("setpoint_range_celsius", &self.setpoint_range_celsius)
+            .field("fan_target_options", &self.fan_target_options)
+            .field("observed_humidity_percent", &self.observed_humidity_percent)
+            .field("observed_fan_target_options", &self.observed_fan_target_options)
             .finish()
     }
 }
@@ -1862,6 +1951,38 @@ impl ::buffa::Message for ClimateConstraints {
         if self.observes_fan_activity {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.setpoint_range_celsius.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.setpoint_range_celsius.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.fan_target_options.is_empty() {
+            let payload: u64 = self
+                .fan_target_options
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if self.observed_humidity_percent.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.observed_humidity_percent.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.observed_fan_target_options.is_empty() {
+            let payload: u64 = self
+                .observed_fan_target_options
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1939,6 +2060,44 @@ impl ::buffa::Message for ClimateConstraints {
         }
         if self.observes_fan_activity {
             ::buffa::types::put_bool_field(8u32, self.observes_fan_activity, buf);
+        }
+        if self.setpoint_range_celsius.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                9u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.setpoint_range_celsius.write_to(__cache, buf);
+        }
+        if !self.fan_target_options.is_empty() {
+            let payload: u64 = self
+                .fan_target_options
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(10u32, payload, buf);
+            for v in &self.fan_target_options {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if self.observed_humidity_percent.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                11u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.observed_humidity_percent.write_to(__cache, buf);
+        }
+        if !self.observed_fan_target_options.is_empty() {
+            let payload: u64 = self
+                .observed_fan_target_options
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(12u32, payload, buf);
+            for v in &self.observed_fan_target_options {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2118,6 +2277,104 @@ impl ::buffa::Message for ClimateConstraints {
                 )?;
                 self.observes_fan_activity = ::buffa::types::decode_bool(buf)?;
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.setpoint_range_celsius.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            10u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.fan_target_options.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.fan_target_options
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.fan_target_options
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.observed_humidity_percent.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            12u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.observed_fan_target_options.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.observed_fan_target_options
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.observed_fan_target_options
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2134,6 +2391,10 @@ impl ::buffa::Message for ClimateConstraints {
         self.observed_setpoint_range_celsius = ::buffa::MessageField::none();
         self.observed_mode_options.clear();
         self.observes_fan_activity = false;
+        self.setpoint_range_celsius = ::buffa::MessageField::none();
+        self.fan_target_options.clear();
+        self.observed_humidity_percent = ::buffa::MessageField::none();
+        self.observed_fan_target_options.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5638,6 +5899,26 @@ pub mod __buffa {
             >,
             /// Field 8: `observes_fan_activity`
             pub observes_fan_activity: bool,
+            /// Commands require both thresholds.
+            ///
+            /// Field 9: `setpoint_range_celsius`
+            pub setpoint_range_celsius: ::buffa::MessageFieldView<
+                super::super::__buffa::view::ClimateSetpointRangeConstraintsView<'a>,
+            >,
+            /// Field 10: `fan_target_options`
+            pub fan_target_options: ::buffa::RepeatedView<
+                'a,
+                ::buffa::EnumValue<super::super::ClimateFanTarget>,
+            >,
+            /// Field 11: `observed_humidity_percent`
+            pub observed_humidity_percent: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'a>,
+            >,
+            /// Field 12: `observed_fan_target_options`
+            pub observed_fan_target_options: ::buffa::RepeatedView<
+                'a,
+                ::buffa::EnumValue<super::super::ClimateFanTarget>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for ClimateConstraintsView<'a> {
@@ -5785,6 +6066,56 @@ pub mod __buffa {
                             &mut cur,
                         )?;
                     }
+                    9u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.setpoint_range_celsius.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.setpoint_range_celsius = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::ClimateSetpointRangeConstraintsView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    11u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.observed_humidity_percent.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.observed_humidity_percent = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NumberBoundsView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     2u32 => {
                         if tag.wire_type()
                             == ::buffa::encoding::WireType::LengthDelimited
@@ -5884,6 +6215,72 @@ pub mod __buffa {
                             );
                         }
                     }
+                    10u32 => {
+                        if tag.wire_type()
+                            == ::buffa::encoding::WireType::LengthDelimited
+                        {
+                            let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                            view.fan_target_options
+                                .reserve(::buffa::encoding::count_varints(payload));
+                            let mut pcur: &[u8] = payload;
+                            while !pcur.is_empty() {
+                                view.fan_target_options
+                                    .push(
+                                        ::buffa::EnumValue::from(
+                                            ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                        ),
+                                    );
+                            }
+                        } else if tag.wire_type() == ::buffa::encoding::WireType::Varint
+                        {
+                            view.fan_target_options
+                                .push(
+                                    ::buffa::EnumValue::from(
+                                        ::buffa::types::decode_int32(&mut cur)?,
+                                    ),
+                                );
+                        } else {
+                            return Err(
+                                ::buffa::encoding::wire_type_mismatch(
+                                    tag,
+                                    ::buffa::encoding::WireType::LengthDelimited,
+                                ),
+                            );
+                        }
+                    }
+                    12u32 => {
+                        if tag.wire_type()
+                            == ::buffa::encoding::WireType::LengthDelimited
+                        {
+                            let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                            view.observed_fan_target_options
+                                .reserve(::buffa::encoding::count_varints(payload));
+                            let mut pcur: &[u8] = payload;
+                            while !pcur.is_empty() {
+                                view.observed_fan_target_options
+                                    .push(
+                                        ::buffa::EnumValue::from(
+                                            ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                        ),
+                                    );
+                            }
+                        } else if tag.wire_type() == ::buffa::encoding::WireType::Varint
+                        {
+                            view.observed_fan_target_options
+                                .push(
+                                    ::buffa::EnumValue::from(
+                                        ::buffa::types::decode_int32(&mut cur)?,
+                                    ),
+                                );
+                        } else {
+                            return Err(
+                                ::buffa::encoding::wire_type_mismatch(
+                                    tag,
+                                    ::buffa::encoding::WireType::LengthDelimited,
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -5964,6 +6361,34 @@ pub mod __buffa {
                     },
                     observed_mode_options: self.observed_mode_options.to_vec(),
                     observes_fan_activity: self.observes_fan_activity,
+                    setpoint_range_celsius: match self.setpoint_range_celsius.as_option()
+                    {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::ClimateSetpointRangeConstraints,
+                                ::buffa::Inline<
+                                    super::super::ClimateSetpointRangeConstraints,
+                                >,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    fan_target_options: self.fan_target_options.to_vec(),
+                    observed_humidity_percent: match self
+                        .observed_humidity_percent
+                        .as_option()
+                    {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NumberBounds,
+                                ::buffa::Inline<super::super::NumberBounds>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    observed_fan_target_options: self
+                        .observed_fan_target_options
+                        .to_vec(),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -6049,6 +6474,44 @@ pub mod __buffa {
                 if self.observes_fan_activity {
                     size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
                 }
+                if self.setpoint_range_celsius.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.setpoint_range_celsius.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if !self.fan_target_options.is_empty() {
+                    let payload: u64 = self
+                        .fan_target_options
+                        .iter()
+                        .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                        .sum::<u64>();
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(payload) as u64
+                            + payload;
+                }
+                if self.observed_humidity_percent.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self
+                        .observed_humidity_percent
+                        .compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if !self.observed_fan_target_options.is_empty() {
+                    let payload: u64 = self
+                        .observed_fan_target_options
+                        .iter()
+                        .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                        .sum::<u64>();
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(payload) as u64
+                            + payload;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -6131,6 +6594,44 @@ pub mod __buffa {
                         self.observes_fan_activity,
                         buf,
                     );
+                }
+                if self.setpoint_range_celsius.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        9u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.setpoint_range_celsius.write_to(__cache, buf);
+                }
+                if !self.fan_target_options.is_empty() {
+                    let payload: u64 = self
+                        .fan_target_options
+                        .iter()
+                        .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                        .sum::<u64>();
+                    ::buffa::types::put_len_delimited_header(10u32, payload, buf);
+                    for v in &self.fan_target_options {
+                        ::buffa::types::encode_int32(v.to_i32(), buf);
+                    }
+                }
+                if self.observed_humidity_percent.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        11u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.observed_humidity_percent.write_to(__cache, buf);
+                }
+                if !self.observed_fan_target_options.is_empty() {
+                    let payload: u64 = self
+                        .observed_fan_target_options
+                        .iter()
+                        .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                        .sum::<u64>();
+                    ::buffa::types::put_len_delimited_header(12u32, payload, buf);
+                    for v in &self.observed_fan_target_options {
+                        ::buffa::types::encode_int32(v.to_i32(), buf);
+                    }
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -6301,6 +6802,46 @@ pub mod __buffa {
             #[must_use]
             pub fn observes_fan_activity(&self) -> bool {
                 self.0.reborrow().observes_fan_activity
+            }
+            /// Commands require both thresholds.
+            ///
+            /// Field 9: `setpoint_range_celsius`
+            #[must_use]
+            pub fn setpoint_range_celsius(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::ClimateSetpointRangeConstraintsView<'_>,
+            > {
+                &self.0.reborrow().setpoint_range_celsius
+            }
+            /// Field 10: `fan_target_options`
+            #[must_use]
+            pub fn fan_target_options(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                ::buffa::EnumValue<super::super::ClimateFanTarget>,
+            > {
+                &self.0.reborrow().fan_target_options
+            }
+            /// Field 11: `observed_humidity_percent`
+            #[must_use]
+            pub fn observed_humidity_percent(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'_>,
+            > {
+                &self.0.reborrow().observed_humidity_percent
+            }
+            /// Field 12: `observed_fan_target_options`
+            #[must_use]
+            pub fn observed_fan_target_options(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                ::buffa::EnumValue<super::super::ClimateFanTarget>,
+            > {
+                &self.0.reborrow().observed_fan_target_options
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<ClimateConstraintsView<'static>>>

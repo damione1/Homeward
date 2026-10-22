@@ -37,8 +37,8 @@ func TestNHA148PublicCredentialSlotsHaveOnlyInstanceBoundReferences(t *testing.T
 			t.Fatal("credential bypass or foreign reference admitted")
 		}
 	}
-	if _, err := findDescriptor("ecobee"); err == nil {
-		t.Fatal("WIP driver declared")
+	if _, err := findDescriptor("foreign-nha136"); err == nil {
+		t.Fatal("unknown driver declared")
 	}
 	if _, err := findDescriptor("calendar"); err == nil {
 		t.Fatal("WIP calendar declared")

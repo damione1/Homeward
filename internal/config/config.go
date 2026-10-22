@@ -13,6 +13,7 @@ import (
 
 	"github.com/damione1/Homeward/internal/backups"
 	backuparchive "github.com/damione1/Homeward/internal/backups/archive"
+	"github.com/damione1/Homeward/internal/ecobee"
 	"github.com/damione1/Homeward/internal/hilo"
 	"github.com/damione1/Homeward/internal/mqtt"
 	"github.com/damione1/Homeward/internal/neviweb"
@@ -36,6 +37,7 @@ type Config struct {
 	dataDir         string
 	mqtt            *mqtt.Settings
 	neviweb         *neviweb.Settings
+	ecobee          *ecobee.Settings
 	hilo            *hilo.Settings
 	workers         []worker.Config
 	energy          []EnergyBinding
@@ -64,6 +66,7 @@ type rawConfig struct {
 	DataDir                 string                  `yaml:"data_dir"`
 	MQTT                    *mqtt.Input             `yaml:"mqtt"`
 	Neviweb                 *neviweb.Input          `yaml:"neviweb"`
+	Ecobee                  *ecobee.Input           `yaml:"ecobee"`
 	Hilo                    *hilo.Input             `yaml:"hilo"`
 	Energy                  []energyInput           `yaml:"energy"`
 	DerivedPower            yaml.Node               `yaml:"derived_power"`
@@ -114,6 +117,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 		return Config{}, err
 	}
 	launch.mqtt, launch.neviweb, launch.hilo = operational.mqtt, operational.neviweb, operational.hilo
+	launch.ecobee = operational.ecobee
 	launch.workers, launch.energy, launch.derivedPower = operational.workers, operational.energy, operational.derivedPower
 	launch.solar, launch.workday = operational.solar, operational.workday
 	launch.remoteCalendar = operational.remoteCalendar
@@ -141,7 +145,7 @@ func ParseBootstrapLaunchWithEnv(data []byte, lookup func(string) (string, bool)
 	if err != nil {
 		return Config{}, err
 	}
-	if raw.MQTT != nil || raw.Neviweb != nil || raw.Hilo != nil || raw.Energy != nil ||
+	if raw.MQTT != nil || raw.Neviweb != nil || raw.Hilo != nil || raw.Ecobee != nil || raw.Energy != nil ||
 		raw.RemoteCalendar.Kind != 0 || raw.DerivedPower.Kind != 0 || raw.Solar.Kind != 0 || raw.Workday.Kind != 0 || raw.Workers != nil || raw.DisabledIntegrations != nil {
 		return Config{}, ErrInvalidYAML
 	}
@@ -226,6 +230,13 @@ func parseOperational(raw rawConfig) (Config, error) {
 			return Config{}, fmt.Errorf("configuration: %w", err)
 		}
 		result.mqtt = &settings
+	}
+	if raw.Ecobee != nil {
+		settings, err := ecobee.ParseSettings(*raw.Ecobee)
+		if err != nil {
+			return Config{}, fmt.Errorf("configuration: %w", err)
+		}
+		result.ecobee = &settings
 	}
 	if raw.Neviweb != nil {
 		settings, err := neviweb.ParseSettings(*raw.Neviweb)

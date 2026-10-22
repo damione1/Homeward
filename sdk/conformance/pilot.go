@@ -111,3 +111,27 @@ func NewCommandCausality(correlation string) (Causality, error) {
 	}
 	return domain.NewCausality(nil, &id)
 }
+
+// Climate aliases preserve the same admitted domain values for external drivers.
+type ClimateValue = domain.ClimateValue
+type ClimateValueInput = domain.ClimateValueInput
+type CelsiusTemperature = domain.CelsiusTemperature
+type ClimateSetpoint = domain.ClimateSetpoint
+type RelativeHumidity = domain.RelativeHumidity
+type ClimateFanTarget = domain.ClimateFanTarget
+
+func NewCelsiusTemperature(number float64) (CelsiusTemperature, error) {
+	return domain.NewCelsiusTemperature(number)
+}
+func NewRelativeHumidity(number float64) (RelativeHumidity, error) {
+	return domain.NewRelativeHumidity(number)
+}
+func NewClimateFanTarget(automatic bool) ClimateFanTarget {
+	return domain.NewClimateFanTarget(automatic)
+}
+func NewClimateValue(input ClimateValueInput) (ClimateValue, error) {
+	return domain.NewClimateValue(input)
+}
+func NewClimateStateValue(value ClimateValue) (StateValue, error) {
+	return domain.NewClimateStateValue(value)
+}

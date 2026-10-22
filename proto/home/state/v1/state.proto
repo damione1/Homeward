@@ -67,6 +67,8 @@ message ClimateValue {
   optional home.registry.v1.ClimateActivity activity = 5;
   // Absent is not an observed false/off reading.
   optional bool fan_active = 6;
+  optional double humidity_percent = 7;
+  optional home.registry.v1.ClimateFanTarget fan_target = 8;
 }
 message ObservedState {
   home.registry.v1.EntityRef entity = 1;

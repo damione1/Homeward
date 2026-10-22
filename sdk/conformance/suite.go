@@ -49,10 +49,11 @@ type FixtureProfile struct {
 	switchSource FixtureSource
 	lightSource  FixtureSource
 	lightShape   LightFixtureShape
+	climate      *FixtureSource
 }
 
 func DefaultFixtureProfile() FixtureProfile {
-	return FixtureProfile{SwitchSource(), LightSource(), LightBrightnessAndColorTemp}
+	return FixtureProfile{switchSource: SwitchSource(), lightSource: LightSource(), lightShape: LightBrightnessAndColorTemp}
 }
 
 func NewFixtureProfile(switchSource, lightSource FixtureSource, shape LightFixtureShape) (FixtureProfile, error) {
@@ -70,7 +71,7 @@ func NewFixtureProfile(switchSource, lightSource FixtureSource, shape LightFixtu
 	if switchSource.Device == lightSource.Device && switchSource.Entity == lightSource.Entity {
 		return FixtureProfile{}, integrations.ErrInvalidInput
 	}
-	return FixtureProfile{switchSource, lightSource, shape}, nil
+	return FixtureProfile{switchSource: switchSource, lightSource: lightSource, lightShape: shape}, nil
 }
 
 func (p FixtureProfile) Switch() FixtureSource         { return p.switchSource }
@@ -114,11 +115,15 @@ func Check(ctx context.Context, factory AdapterFactory, options Options) []Failu
 	if options.Profile != nil {
 		profile = *options.Profile
 	}
-	if _, err := NewFixtureProfile(profile.Switch(), profile.Light(), profile.LightShape()); err != nil {
+	if err := profile.validate(); err != nil {
 		return []Failure{fail(CaseUnspecified, FailureSetup, "invalid fixture profile: %v", err)}
 	}
 	var failures []Failure
-	for _, scenario := range []Case{CaseCore, CaseCapacity, CaseReconnect} {
+	cases := []Case{CaseCore, CaseCapacity, CaseReconnect}
+	if profile.climate != nil {
+		cases = append(cases, CaseClimatePartial)
+	}
+	for _, scenario := range cases {
 		caseDir, err := os.MkdirTemp(options.WorkDir, "nha095-"+scenario.String()+"-")
 		if err != nil {
 			failures = append(failures, fail(scenario, FailureSetup, "create case directory: %v", err))
@@ -210,7 +215,7 @@ func newRig(ctx context.Context, adapter Adapter, scenario Case, profile Fixture
 	}
 	var entities [2]domain.EntityID
 	var records []integrations.RegistryRecord
-	for i, source := range []FixtureSource{profile.Switch(), profile.Light()} {
+	for i, source := range profile.sources() {
 		key, err := integrations.NewSourceKey(source.Device, source.Entity)
 		if err != nil {
 			return nil, err
@@ -221,6 +226,9 @@ func newRig(ctx context.Context, adapter Adapter, scenario Case, profile Fixture
 		}
 		entities[i] = resolved[0].Entity
 		aliasText := "switch.nha095_relay_1"
+		if profile.climate != nil {
+			aliasText = "climate.home"
+		}
 		if i == 1 {
 			aliasText = "light.nha095_light_2"
 		}
@@ -238,11 +246,11 @@ func newRig(ctx context.Context, adapter Adapter, scenario Case, profile Fixture
 		gate := &fixtureAdmissionState{open: true, seen: make(map[integrations.SourceKey]bool),
 			aliases: make(map[domain.HAAlias]bool), host: host, fixture: fixture, instance: instance,
 			records: append([]integrations.RegistryRecord(nil), records...)}
-		for _, source := range []FixtureSource{profile.Switch(), profile.Light()} {
+		for _, source := range profile.sources() {
 			key, _ := integrations.NewSourceKey(source.Device, source.Entity)
 			gate.seen[key] = true
 		}
-		for _, aliasText := range []string{"switch.nha095_relay_1", "light.nha095_light_2"} {
+		for _, aliasText := range profile.aliases() {
 			alias, _ := domain.ParseHAAlias(aliasText)
 			gate.aliases[alias] = true
 		}
@@ -311,6 +319,16 @@ func (r *rig) request(id string, index int, on bool) *actions.CommandRequest {
 		args = &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{
 			On: &on, BrightnessPercent: &brightness, ColorTempMireds: colorTemp,
 		}}}
+	}
+	if r.profile.climate != nil {
+		source = *r.profile.climate
+		setpoint := 21.5
+		mode := registry.ClimateMode_CLIMATE_MODE_OFF
+		if on {
+			setpoint = 22.5
+			mode = registry.ClimateMode_CLIMATE_MODE_HEAT
+		}
+		args = &actions.ActionArgs{Arguments: &actions.ActionArgs_SetClimate{SetClimate: &actions.SetClimate{SetpointCelsius: &setpoint, Mode: &mode}}}
 	}
 	return &actions.CommandRequest{CommandId: id, AdmissionEpoch: r.epoch, ConfigRevision: fixtureRevision,
 		Target:             &registry.EntityRef{Reference: &registry.EntityRef_EntityId{EntityId: entityText}},
@@ -470,6 +488,9 @@ func checkCase(ctx context.Context, factory AdapterFactory, scenario Case, dir s
 	if err := adapter.Ready(ctx); err != nil {
 		failure := fail(scenario, FailureDiscovery, "pilot ready: %v", err)
 		return &failure
+	}
+	if profile.climate != nil {
+		return r.checkClimateCase(ctx, scenario)
 	}
 	if failure := r.checkInitial(scenario); failure != nil {
 		return failure

@@ -390,13 +390,23 @@ fn climate(v: &state::ClimateValue) -> bool {
             || v.setpoint.is_some()
             || v.mode.is_some()
             || v.activity.is_some()
-            || v.fan_active.is_some())
+            || v.fan_active.is_some()
+            || v.humidity_percent.is_some()
+            || v.fan_target.is_some())
         && v.current_temperature_celsius
             .is_none_or(|t| t.is_finite() && t >= -273.15)
         && v.mode
             .is_none_or(|v| nonzero(v, registry::ClimateMode::Unspecified))
         && v.activity
             .is_none_or(|v| nonzero(v, registry::ClimateActivity::Unspecified))
+        && v.humidity_percent
+            .is_none_or(|v| v.is_finite() && (0.0..=100.0).contains(&v))
+        && v.fan_target.is_none_or(|v| {
+            matches!(
+                v,
+                EnumValue::Known(registry::ClimateFanTarget::On | registry::ClimateFanTarget::Auto)
+            )
+        })
         && match &v.setpoint {
             Some(Setpoint::SetpointCelsius(v)) => v.is_finite() && *v >= -273.15,
             Some(Setpoint::SetpointRangeCelsius(v)) => {

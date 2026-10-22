@@ -157,6 +157,13 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 		// current protobuf can decode it transitively, but that does not
 		// enlarge any historical worker profile.
 		for _, description := range input.Descriptions {
+			// NHA-136 is a built-in profile. Decoding its additive fields cannot
+			// enlarge immutable external Host/driver 1.0–1.3 contracts.
+			if description != nil {
+				if climate := description.GetClimate(); climate != nil && (climate.SetpointRangeCelsius != nil || len(climate.FanTargetOptions) != 0 || climate.ObservedHumidityPercent != nil || len(climate.ObservedFanTargetOptions) != 0) {
+					return nil, rpcInvalid()
+				}
+			}
 			if contracts.NativeSolarDescription(description) {
 				return nil, rpcInvalid()
 			}
@@ -380,6 +387,9 @@ func (p *pilot) Publish(ctx context.Context, r *connect.Request[wire.PublishRequ
 	}
 	input := r.Msg.Observation
 	if input == nil || input.Quality == nil {
+		return nil, rpcInvalid()
+	}
+	if climate := input.GetClimate(); climate != nil && (climate.HumidityPercent != nil || climate.FanTarget != nil) {
 		return nil, rpcInvalid()
 	}
 	if p.hostMinor == 0 {

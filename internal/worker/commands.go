@@ -69,6 +69,10 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 		p.mu.Unlock()
 		return ErrUnavailable
 	}
+	if climate := request.GetArguments().GetSetClimate(); climate != nil && (climate.HeatThresholdCelsius != nil || climate.CoolThresholdCelsius != nil || climate.FanTarget != nil) {
+		p.mu.Unlock()
+		return ErrUnavailable
+	}
 	if p.hostMinor == 0 && request.CapabilitySchemaId == contracts.FanSchema {
 		p.mu.Unlock()
 		return ErrUnavailable

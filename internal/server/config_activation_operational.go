@@ -13,6 +13,7 @@ import (
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/derivedpower"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/ecobee"
 	"github.com/damione1/Homeward/internal/energy"
 	"github.com/damione1/Homeward/internal/heatingownership"
 	"github.com/damione1/Homeward/internal/helpers"
@@ -249,6 +250,20 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 			}
 		}
 	}
+	newEcobee, hasNewEcobee := next.EcobeeSettings()
+	if hasNewEcobee {
+		revision, ok := c.manifest.Revision()
+		if !ok || revision != scope.EcobeeMVPV1() {
+			return configactivation.OperationalImage{}, registry.ErrOutsideManifest
+		}
+		instance, err := newEcobee.Instance()
+		if err != nil {
+			return configactivation.OperationalImage{}, err
+		}
+		if err := addBinding(instance, newEcobee.SourceKey(), ecobee.Alias); err != nil {
+			return configactivation.OperationalImage{}, err
+		}
+	}
 	newNeviweb, hasNewNeviweb := next.NeviwebSettings()
 	if hasNewNeviweb {
 		instance, err := newNeviweb.Instance()
@@ -447,6 +462,24 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 		if err != nil {
 			return configactivation.OperationalImage{}, err
 		}
+	}
+	oldEcobee, hadEcobee := old.EcobeeSettings()
+	oldEcobeeID, _ := oldEcobee.Instance()
+	newEcobeeID, _ := newEcobee.Instance()
+	if hadEcobee != hasNewEcobee || !reflect.DeepEqual(oldEcobee, newEcobee) || forced[oldEcobeeID] || forced[newEcobeeID] {
+		var spec *integrations.PilotSpec
+		if hasNewEcobee {
+			factory, err := ecobee.NewPilotFactory(newEcobee)
+			if err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+			value, err := integrations.NewPilotSpec(newEcobeeID, factory)
+			if err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+			spec = &value
+		}
+		replace(oldEcobeeID, hadEcobee, spec)
 	}
 	oldSolar, hadSolar := old.SolarSettings()
 	if hadSolar != hasNewSolar || !reflect.DeepEqual(oldSolar, newSolar) || forced[solarInstance] {

@@ -22,6 +22,9 @@ message SetFan {
 message SetClimate {
   optional double setpoint_celsius = 1;
   optional home.registry.v1.ClimateMode mode = 2;
+  optional double heat_threshold_celsius = 3;
+  optional double cool_threshold_celsius = 4;
+  optional home.registry.v1.ClimateFanTarget fan_target = 5;
 }
 
 // An extension is a typed/versioned envelope. Validation requires a registered codec

@@ -1191,6 +1191,12 @@ pub struct ClimateValue {
     ///
     /// Field 6: `fan_active`
     pub fan_active: ::core::option::Option<bool>,
+    /// Field 7: `humidity_percent`
+    pub humidity_percent: ::core::option::Option<f64>,
+    /// Field 8: `fan_target`
+    pub fan_target: ::core::option::Option<
+        ::buffa::EnumValue<super::super::registry::v1::ClimateFanTarget>,
+    >,
     pub setpoint: ::core::option::Option<__buffa::oneof::climate_value::Setpoint>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1202,6 +1208,8 @@ impl ::core::fmt::Debug for ClimateValue {
             .field("mode", &self.mode)
             .field("activity", &self.activity)
             .field("fan_active", &self.fan_active)
+            .field("humidity_percent", &self.humidity_percent)
+            .field("fan_target", &self.fan_target)
             .field("setpoint", &self.setpoint)
             .finish()
     }
@@ -1246,6 +1254,25 @@ impl ClimateValue {
     ///Sets [`Self::fan_active`] to `Some(value)`, consuming and returning `self`.
     pub fn with_fan_active(mut self, value: bool) -> Self {
         self.fan_active = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::humidity_percent`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_humidity_percent(mut self, value: f64) -> Self {
+        self.humidity_percent = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::fan_target`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_fan_target(
+        mut self,
+        value: impl Into<
+            ::buffa::EnumValue<super::super::registry::v1::ClimateFanTarget>,
+        >,
+    ) -> Self {
+        self.fan_target = Some(value.into());
         self
     }
 }
@@ -1296,6 +1323,12 @@ impl ::buffa::Message for ClimateValue {
         if self.fan_active.is_some() {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.humidity_percent.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.fan_target {
+            size += 1u64 + ::buffa::types::int32_encoded_len(v.to_i32()) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1332,6 +1365,12 @@ impl ::buffa::Message for ClimateValue {
         }
         if let Some(v) = self.fan_active {
             ::buffa::types::put_bool_field(6u32, v, buf);
+        }
+        if let Some(v) = self.humidity_percent {
+            ::buffa::types::put_double_field(7u32, v, buf);
+        }
+        if let Some(ref v) = self.fan_target {
+            ::buffa::types::put_int32_field(8u32, v.to_i32(), buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1415,6 +1454,24 @@ impl ::buffa::Message for ClimateValue {
                     ::buffa::types::decode_bool(buf)?,
                 );
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.humidity_percent = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.fan_target = ::core::option::Option::Some(
+                    ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1428,6 +1485,8 @@ impl ::buffa::Message for ClimateValue {
         self.mode = ::core::option::Option::None;
         self.activity = ::core::option::Option::None;
         self.fan_active = ::core::option::Option::None;
+        self.humidity_percent = ::core::option::Option::None;
+        self.fan_target = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5296,6 +5355,14 @@ pub mod __buffa {
             ///
             /// Field 6: `fan_active`
             pub fan_active: ::core::option::Option<bool>,
+            /// Field 7: `humidity_percent`
+            pub humidity_percent: ::core::option::Option<f64>,
+            /// Field 8: `fan_target`
+            pub fan_target: ::core::option::Option<
+                ::buffa::EnumValue<
+                    super::super::super::super::registry::v1::ClimateFanTarget,
+                >,
+            >,
             pub setpoint: ::core::option::Option<
                 super::super::__buffa::view::oneof::climate_value::Setpoint<'a>,
             >,
@@ -5375,6 +5442,26 @@ pub mod __buffa {
                         )?;
                         view.fan_active = Some(::buffa::types::decode_bool(&mut cur)?);
                     }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.humidity_percent = Some(
+                            ::buffa::types::decode_double(&mut cur)?,
+                        );
+                    }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.fan_target = Some(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                    }
                     2u32 => {
                         ::buffa::encoding::check_wire_type(
                             tag,
@@ -5450,6 +5537,8 @@ pub mod __buffa {
                     mode: self.mode,
                     activity: self.activity,
                     fan_active: self.fan_active,
+                    humidity_percent: self.humidity_percent,
+                    fan_target: self.fan_target,
                     setpoint: match self.setpoint.as_ref() {
                         ::core::option::Option::Some(v) => {
                             ::core::option::Option::Some(
@@ -5520,6 +5609,12 @@ pub mod __buffa {
                 if self.fan_active.is_some() {
                     size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
                 }
+                if self.humidity_percent.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
+                if let Some(ref v) = self.fan_target {
+                    size += 1u64 + ::buffa::types::int32_encoded_len(v.to_i32()) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -5561,6 +5656,12 @@ pub mod __buffa {
                 }
                 if let Some(v) = self.fan_active {
                     ::buffa::types::put_bool_field(6u32, v, buf);
+                }
+                if let Some(v) = self.humidity_percent {
+                    ::buffa::types::put_double_field(7u32, v, buf);
+                }
+                if let Some(ref v) = self.fan_target {
+                    ::buffa::types::put_int32_field(8u32, v.to_i32(), buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -5688,6 +5789,22 @@ pub mod __buffa {
             #[must_use]
             pub fn fan_active(&self) -> ::core::option::Option<bool> {
                 self.0.reborrow().fan_active
+            }
+            /// Field 7: `humidity_percent`
+            #[must_use]
+            pub fn humidity_percent(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().humidity_percent
+            }
+            /// Field 8: `fan_target`
+            #[must_use]
+            pub fn fan_target(
+                &self,
+            ) -> ::core::option::Option<
+                ::buffa::EnumValue<
+                    super::super::super::super::registry::v1::ClimateFanTarget,
+                >,
+            > {
+                self.0.reborrow().fan_target
             }
             /// Oneof `setpoint`.
             #[must_use]

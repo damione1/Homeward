@@ -152,6 +152,20 @@ func AdmitWireClimateValue(wire *state.ClimateValue) (domain.ClimateValue, error
 		}
 		input.Activity = &activity
 	}
+	if wire.HumidityPercent != nil {
+		humidity, err := domain.NewRelativeHumidity(*wire.HumidityPercent)
+		if err != nil {
+			return domain.ClimateValue{}, ErrInvalidWireState
+		}
+		input.Humidity = &humidity
+	}
+	if wire.FanTarget != nil {
+		target, err := AdmitWireClimateFanTarget(*wire.FanTarget)
+		if err != nil {
+			return domain.ClimateValue{}, err
+		}
+		input.FanTarget = &target
+	}
 	input.FanActive = wire.FanActive
 	value, err := domain.NewClimateValue(input)
 	if err != nil {
@@ -166,6 +180,20 @@ func EncodeClimateValue(value domain.ClimateValue) (*state.ClimateValue, error) 
 		return nil, err
 	}
 	wire := &state.ClimateValue{FanActive: input.FanActive}
+	if input.Humidity != nil {
+		number, err := input.Humidity.Value()
+		if err != nil {
+			return nil, err
+		}
+		wire.HumidityPercent = &number
+	}
+	if input.FanTarget != nil {
+		target, err := WireClimateFanTarget(*input.FanTarget)
+		if err != nil {
+			return nil, err
+		}
+		wire.FanTarget = &target
+	}
 	if input.CurrentTemperature != nil {
 		temperature, err := input.CurrentTemperature.Value()
 		if err != nil {
@@ -233,6 +261,15 @@ func validClimateTemperatureBounds(bounds *registry.NumberBounds) bool {
 
 func validClimateObservations(constraints *registry.ClimateConstraints) bool {
 	if !knownFieldsOnly(constraints.ProtoReflect()) || !validModes(constraints.ObservedModeOptions) {
+		return false
+	}
+	if !validClimateFanTargets(constraints.ObservedFanTargetOptions) || !validClimateFanTargets(constraints.FanTargetOptions) {
+		return false
+	}
+	if b := constraints.ObservedHumidityPercent; b != nil && (!validBounds(b) || b.Minimum < 0 || b.Maximum > 100) {
+		return false
+	}
+	if !validClimateCommandRange(constraints.SetpointRangeCelsius) {
 		return false
 	}
 	for _, observation := range []*registry.ClimateTemperatureObservation{constraints.ObservedTemperatureCelsius, constraints.ObservedSetpointCelsius} {
@@ -348,8 +385,85 @@ func (c *CapabilityCatalog) AdmitDomainClimate(entity domain.EntityID, endpoint 
 			return ErrClimateObservationOutsideConstraints
 		}
 	}
+	if input.Humidity != nil {
+		number, _ := input.Humidity.Value()
+		if constraints.ObservedHumidityPercent == nil {
+			return ErrUnsupportedClimateObservation
+		}
+		if !withinBounds(number, constraints.ObservedHumidityPercent) {
+			return ErrClimateObservationOutsideConstraints
+		}
+	}
+	if input.FanTarget != nil {
+		target, err := WireClimateFanTarget(*input.FanTarget)
+		if err != nil {
+			return err
+		}
+		if len(constraints.ObservedFanTargetOptions) == 0 {
+			return ErrUnsupportedClimateObservation
+		}
+		if !contains(constraints.ObservedFanTargetOptions, target) {
+			return ErrClimateObservationOutsideConstraints
+		}
+	}
 	if input.FanActive != nil && !constraints.ObservesFanActivity {
 		return ErrUnsupportedClimateObservation
 	}
 	return nil
+}
+
+func AdmitWireClimateFanTarget(target registry.ClimateFanTarget) (domain.ClimateFanTarget, error) {
+	switch target {
+	case registry.ClimateFanTarget_CLIMATE_FAN_TARGET_ON:
+		return domain.NewClimateFanTarget(false), nil
+	case registry.ClimateFanTarget_CLIMATE_FAN_TARGET_AUTO:
+		return domain.NewClimateFanTarget(true), nil
+	case registry.ClimateFanTarget_CLIMATE_FAN_TARGET_UNSPECIFIED:
+	default:
+	}
+	return domain.ClimateFanTarget{}, ErrInvalidWireState
+}
+func WireClimateFanTarget(target domain.ClimateFanTarget) (registry.ClimateFanTarget, error) {
+	automatic, err := target.Automatic()
+	if err != nil {
+		return registry.ClimateFanTarget_CLIMATE_FAN_TARGET_UNSPECIFIED, err
+	}
+	if automatic {
+		return registry.ClimateFanTarget_CLIMATE_FAN_TARGET_AUTO, nil
+	}
+	return registry.ClimateFanTarget_CLIMATE_FAN_TARGET_ON, nil
+}
+func validClimateFanTargets(options []registry.ClimateFanTarget) bool {
+	seen := make(map[registry.ClimateFanTarget]bool, len(options))
+	for _, value := range options {
+		if _, err := AdmitWireClimateFanTarget(value); err != nil || seen[value] {
+			return false
+		}
+		seen[value] = true
+	}
+	return true
+}
+func validClimateCommandRange(limits *registry.ClimateSetpointRangeConstraints) bool {
+	if limits == nil {
+		return true
+	}
+	if !knownFieldsOnly(limits.ProtoReflect()) || limits.LowCelsius == nil || limits.HighCelsius == nil || !validClimateTemperatureBounds(limits.LowCelsius) || !validClimateTemperatureBounds(limits.HighCelsius) {
+		return false
+	}
+	minimum, maximum := limits.MinimumDeltaCelsius, limits.MaximumDeltaCelsius
+	if minimum != nil && (!finite(*minimum) || *minimum < 0) || maximum != nil && (!finite(*maximum) || *maximum < 0) || minimum != nil && maximum != nil && *minimum > *maximum {
+		return false
+	}
+	low, high := limits.LowCelsius, limits.HighCelsius
+	return high.Maximum >= low.Minimum && (minimum == nil || high.Maximum-low.Minimum >= *minimum) && (maximum == nil || high.Minimum-low.Maximum <= *maximum)
+}
+func admitClimateThresholds(low, high *float64, limits *registry.ClimateSetpointRangeConstraints) bool {
+	if low == nil && high == nil {
+		return true
+	}
+	if low == nil || high == nil || limits == nil || *low > *high || !withinBounds(*low, limits.LowCelsius) || !withinBounds(*high, limits.HighCelsius) {
+		return false
+	}
+	delta := *high - *low
+	return (limits.MinimumDeltaCelsius == nil || delta >= *limits.MinimumDeltaCelsius) && (limits.MaximumDeltaCelsius == nil || delta <= *limits.MaximumDeltaCelsius)
 }
