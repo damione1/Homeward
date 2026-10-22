@@ -15986,6 +15986,17 @@ pub mod trace_ordinal {
 pub struct ControllerTraceRecord {
     /// Field 1: `decision`
     pub decision: ::buffa::EnumValue<TraceDecision>,
+    /// Exact existing sequencer position that triggered this run. Present only
+    /// on its initial admitted/queued/restart-pending decision, joined by run_id.
+    /// Absence means no source position was recorded (e.g. a script invocation).
+    /// This runtime projection grants no replay/command authority and exposes no
+    /// trigger payload, entity name, environment, or configuration provenance.
+    ///
+    /// Field 4: `trigger_position`
+    pub trigger_position: ::buffa::MessageField<
+        AdmissionPosition,
+        ::buffa::Inline<AdmissionPosition>,
+    >,
     pub max_exceeded: ::core::option::Option<
         __buffa::oneof::controller_trace_record::MaxExceeded,
     >,
@@ -15996,6 +16007,7 @@ impl ::core::fmt::Debug for ControllerTraceRecord {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("ControllerTraceRecord")
             .field("decision", &self.decision)
+            .field("trigger_position", &self.trigger_position)
             .field("max_exceeded", &self.max_exceeded)
             .finish()
     }
@@ -16050,6 +16062,14 @@ impl ::buffa::Message for ControllerTraceRecord {
                 }
             }
         }
+        if self.trigger_position.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.trigger_position.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -16082,6 +16102,14 @@ impl ::buffa::Message for ControllerTraceRecord {
                     x.write_to(__cache, buf);
                 }
             }
+        }
+        if self.trigger_position.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.trigger_position.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -16138,6 +16166,17 @@ impl ::buffa::Message for ControllerTraceRecord {
                     );
                 }
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.trigger_position.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -16148,6 +16187,7 @@ impl ::buffa::Message for ControllerTraceRecord {
     fn clear(&mut self) {
         self.decision = ::buffa::EnumValue::from(0);
         self.max_exceeded = ::core::option::Option::None;
+        self.trigger_position = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -44148,6 +44188,16 @@ pub mod __buffa {
         pub struct ControllerTraceRecordView<'a> {
             /// Field 1: `decision`
             pub decision: ::buffa::EnumValue<super::super::TraceDecision>,
+            /// Exact existing sequencer position that triggered this run. Present only
+            /// on its initial admitted/queued/restart-pending decision, joined by run_id.
+            /// Absence means no source position was recorded (e.g. a script invocation).
+            /// This runtime projection grants no replay/command authority and exposes no
+            /// trigger payload, entity name, environment, or configuration provenance.
+            ///
+            /// Field 4: `trigger_position`
+            pub trigger_position: ::buffa::MessageFieldView<
+                super::super::__buffa::view::AdmissionPositionView<'a>,
+            >,
             pub max_exceeded: ::core::option::Option<
                 super::super::__buffa::view::oneof::controller_trace_record::MaxExceeded<
                     'a,
@@ -44199,6 +44249,31 @@ pub mod __buffa {
                         view.decision = ::buffa::EnumValue::from(
                             ::buffa::types::decode_int32(&mut cur)?,
                         );
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.trigger_position.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.trigger_position = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::AdmissionPositionView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
                     }
                     2u32 => {
                         ::buffa::encoding::check_wire_type(
@@ -44274,6 +44349,15 @@ pub mod __buffa {
                 let _ = __buffa_src;
                 ::core::result::Result::Ok(super::super::ControllerTraceRecord {
                     decision: self.decision,
+                    trigger_position: match self.trigger_position.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::AdmissionPosition,
+                                ::buffa::Inline<super::super::AdmissionPosition>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     max_exceeded: match self.max_exceeded.as_ref() {
                         ::core::option::Option::Some(v) => {
                             ::core::option::Option::Some(
@@ -44340,6 +44424,14 @@ pub mod __buffa {
                         }
                     }
                 }
+                if self.trigger_position.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.trigger_position.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -44375,6 +44467,14 @@ pub mod __buffa {
                             x.write_to(__cache, buf);
                         }
                     }
+                }
+                if self.trigger_position.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.trigger_position.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -44475,6 +44575,21 @@ pub mod __buffa {
             #[must_use]
             pub fn decision(&self) -> ::buffa::EnumValue<super::super::TraceDecision> {
                 self.0.reborrow().decision
+            }
+            /// Exact existing sequencer position that triggered this run. Present only
+            /// on its initial admitted/queued/restart-pending decision, joined by run_id.
+            /// Absence means no source position was recorded (e.g. a script invocation).
+            /// This runtime projection grants no replay/command authority and exposes no
+            /// trigger payload, entity name, environment, or configuration provenance.
+            ///
+            /// Field 4: `trigger_position`
+            #[must_use]
+            pub fn trigger_position(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::AdmissionPositionView<'_>,
+            > {
+                &self.0.reborrow().trigger_position
             }
             /// Oneof `max_exceeded`.
             #[must_use]

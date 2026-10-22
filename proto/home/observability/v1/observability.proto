@@ -863,6 +863,12 @@ message ControllerTraceRecord {
     TraceMaxExceededMode mode = 2;
     google.protobuf.Empty not_applicable = 3;
   }
+  // Exact existing sequencer position that triggered this run. Present only
+  // on its initial admitted/queued/restart-pending decision, joined by run_id.
+  // Absence means no source position was recorded (e.g. a script invocation).
+  // This runtime projection grants no replay/command authority and exposes no
+  // trigger payload, entity name, environment, or configuration provenance.
+  optional AdmissionPosition trigger_position = 4;
 }
 
 message TraceFailure {

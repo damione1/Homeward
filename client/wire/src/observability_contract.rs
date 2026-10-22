@@ -843,6 +843,20 @@ fn trace_row(value: &obs::TraceRow) -> bool {
             Some(Record::Controller(value)) => {
                 value.__buffa_unknown_fields.is_empty()
                     && nonzero(value.decision, obs::TraceDecision::Unspecified)
+                    && value
+                        .trigger_position
+                        .as_option()
+                        .is_none_or(|position_value| {
+                            position(position_value)
+                                && matches!(
+                                    value.decision,
+                                    EnumValue::Known(
+                                        obs::TraceDecision::Admitted
+                                            | obs::TraceDecision::Queued
+                                            | obs::TraceDecision::RestartPending
+                                    )
+                                )
+                        })
                     && match &value.max_exceeded {
                         Some(MaxExceeded::Mode(value)) => {
                             nonzero(*value, obs::TraceMaxExceededMode::Unspecified)

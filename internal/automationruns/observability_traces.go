@@ -1,12 +1,14 @@
 package automationruns
 
 import (
+	"encoding/hex"
 	"sort"
 	"time"
 
 	"github.com/damione1/Homeward/compat/ha/ir"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/observability"
+	"github.com/damione1/Homeward/internal/sequencer"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -138,6 +140,17 @@ func observationControllerRow(trace Trace, order TraceOrderState) (observability
 		return observability.TraceRow{}, err
 	}
 	record := &obs.ControllerTraceRecord{Decision: decision, MaxExceeded: &obs.ControllerTraceRecord_NotApplicable{NotApplicable: &emptypb.Empty{}}}
+	if trace.triggerCursor != (sequencer.Cursor{}) {
+		epoch, sequence, err := trace.triggerCursor.Components()
+		if err != nil {
+			return observability.TraceRow{}, ErrInvalidPlan
+		}
+		identity, err := hex.DecodeString(epoch)
+		if err != nil || len(identity) != 16 {
+			return observability.TraceRow{}, ErrInvalidPlan
+		}
+		record.TriggerPosition = &obs.AdmissionPosition{Epoch: identity, Sequence: sequence}
+	}
 	if trace.Decision == DecisionSingleBusy || trace.Decision == DecisionMaxExceeded {
 		var mode obs.TraceMaxExceededMode
 		switch trace.MaxExceeded {

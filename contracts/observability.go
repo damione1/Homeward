@@ -316,6 +316,16 @@ func observationLocal(m proto.Message) bool {
 			return n.Native > 0 && n.Native < math.MaxUint64
 		}
 		return true
+	case *obs.ControllerTraceRecord:
+		if v.TriggerPosition == nil {
+			return true
+		}
+		switch v.Decision {
+		case obs.TraceDecision_TRACE_DECISION_ADMITTED, obs.TraceDecision_TRACE_DECISION_QUEUED, obs.TraceDecision_TRACE_DECISION_RESTART_PENDING:
+			return true
+		default:
+			return false
+		}
 	case *obs.TraceRow:
 		return v.RunId > 0 && v.LocalIndex < 512
 	case *obs.TracePage:
