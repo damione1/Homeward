@@ -648,7 +648,7 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 		replace(previous, hadHilo, spec)
 	}
 	var templatePlan *reactivetemplate.Plan
-	if old.DerivedPowerProfile() != next.DerivedPowerProfile() || !reflect.DeepEqual(oldDefinitions.Groups(), nextDefinitions.Groups()) || forced[derivedInstance] {
+	if old.DerivedPowerProfile() != next.DerivedPowerProfile() || !reflect.DeepEqual(oldEcobee, newEcobee) || hadEcobee != hasNewEcobee || !reflect.DeepEqual(oldDefinitions.Groups(), nextDefinitions.Groups()) || forced[derivedInstance] {
 		if c.templates == nil || !baseTemplates.Active() {
 			return configactivation.OperationalImage{}, configactivation.ErrOperationalComposition
 		}
@@ -670,7 +670,7 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 				}
 			}
 		}
-		publication.derivedChanged = old.DerivedPowerProfile() != next.DerivedPowerProfile() || forced[derivedInstance]
+		publication.derivedChanged = old.DerivedPowerProfile() != next.DerivedPowerProfile() || !reflect.DeepEqual(oldEcobee, newEcobee) || hadEcobee != hasNewEcobee || forced[derivedInstance]
 		delete(forced, derivedInstance)
 		if next.DerivedPowerProfile().Enabled() {
 			configured := make([]derivedpower.Binding, 0, 3)
@@ -693,7 +693,11 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 				publication.derivedIDs = append(publication.derivedIDs, definition.ID())
 			}
 			if publication.derivedChanged {
-				publication.derived, err = derivedpower.NewPublisher(configured)
+				source, sourceErr := preparedHVACSource(next, c.manifest, bindings)
+				if sourceErr != nil {
+					return configactivation.OperationalImage{}, sourceErr
+				}
+				publication.derived, err = derivedpower.NewHVACBoundPublisher(configured, source)
 				if err != nil {
 					return configactivation.OperationalImage{}, err
 				}

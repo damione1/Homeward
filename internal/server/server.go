@@ -340,7 +340,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	}
 	var derivedConfiguration *derivedPowerConfiguration
 	if c.DerivedPowerProfile().Enabled() {
-		derivedConfiguration, err = addConfiguredDerivedPower(&plan)
+		derivedConfiguration, err = addConfiguredDerivedPower(&plan, c)
 		if err != nil {
 			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 		}

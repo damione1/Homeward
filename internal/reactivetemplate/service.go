@@ -240,6 +240,13 @@ type engine struct {
 }
 
 func (e *engine) rebase() ([]Update, error) {
+	return e.rebaseWithContinuity(false)
+}
+
+func (e *engine) rebaseWithContinuity(requireContinuity bool) ([]Update, error) {
+	if requireContinuity && e.sub == nil {
+		return nil, sequencer.ErrProjectionInvalidated
+	}
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {
 		if err := e.service.ctx.Err(); err != nil {
@@ -310,7 +317,16 @@ func (e *engine) rebase() ([]Update, error) {
 		}
 		staged.snapshot.Cursor = boundary
 		if e.sub != nil {
-			_ = e.sub.Close()
+			if requireContinuity {
+				// Check continuity and detach under the admission mutex: loss
+				// during capture/render/replay cannot disappear at this handoff.
+				if err := e.sub.CloseForViewHandoff(newSub); err != nil {
+					_ = newSub.Close()
+					return nil, err
+				}
+			} else {
+				_ = e.sub.Close()
+			}
 		}
 		e.snapshot, e.sub, e.outputs, e.readers, e.watchAliases, e.activeMinute, e.dirty = staged.snapshot, newSub, staged.outputs, staged.readers, staged.watchAliases, staged.activeMinute, staged.dirty
 		return merged.values(), nil
@@ -660,6 +676,12 @@ func (s *Service) run(e *engine) {
 				}
 			}
 			changes, replaceErr := e.recompute()
+			if errors.Is(replaceErr, errSourcePending) {
+				// Host retirement may enqueue a source after this request was
+				// dequeued. Join it through the existing capture/suffix handoff;
+				// this scheduling signal is not a failed configuration image.
+				changes, replaceErr = e.rebaseWithContinuity(true)
+			}
 			applied := replaceErr == nil
 			if replaceErr != nil {
 				s.mu.Lock()

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/derivedpower"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/reactivetemplate"
@@ -15,13 +16,14 @@ import (
 var ErrDerivedPowerComposition = errors.New("server: invalid derived power composition")
 
 type derivedPowerConfiguration struct {
-	bindings []derivedpower.Binding
+	bindings   []derivedpower.Binding
+	hvacSource derivedpower.HVACSource
 }
 
 // Reserve all three manifest aliases before the registry snapshot and the
-// energy composition resolve their identities. The future Ecobee input is not
-// reserved or mapped here; its missing read remains explicit.
-func addConfiguredDerivedPower(plan *RuntimePlan) (*derivedPowerConfiguration, error) {
+// energy composition resolve their identities. HVAC publication additionally
+// requires the configured Ecobee identity admitted by the scope amendment.
+func addConfiguredDerivedPower(plan *RuntimePlan, selected config.Config) (*derivedPowerConfiguration, error) {
 	if plan == nil || plan.Configure == nil {
 		return nil, ErrDerivedPowerComposition
 	}
@@ -59,6 +61,11 @@ func addConfiguredDerivedPower(plan *RuntimePlan) (*derivedPowerConfiguration, e
 		if err := previous(ctx, host, store); err != nil {
 			return err
 		}
+		source, err := configuredHVACSource(ctx, selected, repository)
+		if err != nil {
+			return err
+		}
+		configuration.hvacSource = source
 		configuration.bindings = bindings
 		return nil
 	}
@@ -87,7 +94,7 @@ func (c *derivedPowerConfiguration) prepare(ctx context.Context, host *integrati
 	if err != nil {
 		return err
 	}
-	publisher, err := derivedpower.NewPublisher(c.bindings)
+	publisher, err := derivedpower.NewHVACBoundPublisher(c.bindings, c.hvacSource)
 	if err != nil {
 		return err
 	}

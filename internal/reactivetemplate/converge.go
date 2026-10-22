@@ -192,6 +192,13 @@ func (e *engine) recomputeAt(now time.Time) ([]Update, error) {
 			}
 		}
 		update := Update{id: definition.id, result: value.result, valid: value.valid, quality: value.quality, reads: append([]template.Read(nil), value.reads...), diagnostic: value.diagnostic, cursor: e.snapshot.Cursor}
+		if definition.sourceReports {
+			revision, err := sourceReportRevision(definition, update, e.snapshot.States)
+			if err != nil {
+				return nil, err
+			}
+			update.sourceRevision = revision
+		}
 		old, exists := e.outputs[definition.id]
 		if !exists || !old.Equal(update) {
 			changes = append(changes, update)

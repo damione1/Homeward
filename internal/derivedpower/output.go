@@ -15,6 +15,7 @@ import (
 // Publisher owns one Host session and exactly the three admitted output
 // bindings. It never sends a command or makes a source-device connection.
 type Publisher struct {
+	hvacSource HVACSource
 	configured [3]Binding
 	outputs    [3]integrations.Binding
 	session    *integrations.Session
@@ -160,6 +161,9 @@ func (p *Publisher) Publish(ctx context.Context, update reactivetemplate.Update)
 		return ErrInvalidPower
 	}
 	projection, err := Project(kind, update)
+	if kind == KindHVAC && !p.hvacSource.admits(update) {
+		projection = Projection{status: StatusMissingSource}
+	}
 	if err != nil {
 		return err
 	}
