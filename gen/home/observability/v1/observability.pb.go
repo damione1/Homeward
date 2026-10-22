@@ -6981,9 +6981,15 @@ type ControllerTraceRecord struct {
 	//
 	//	*ControllerTraceRecord_Mode
 	//	*ControllerTraceRecord_NotApplicable
-	MaxExceeded   isControllerTraceRecord_MaxExceeded `protobuf_oneof:"max_exceeded"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	MaxExceeded isControllerTraceRecord_MaxExceeded `protobuf_oneof:"max_exceeded"`
+	// Exact existing sequencer position that triggered this run. Present only
+	// on its initial admitted/queued/restart-pending decision, joined by run_id.
+	// Absence means no source position was recorded (e.g. a script invocation).
+	// This runtime projection grants no replay/command authority and exposes no
+	// trigger payload, entity name, environment, or configuration provenance.
+	TriggerPosition *AdmissionPosition `protobuf:"bytes,4,opt,name=trigger_position,json=triggerPosition,proto3,oneof" json:"trigger_position,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ControllerTraceRecord) Reset() {
@@ -7044,6 +7050,13 @@ func (x *ControllerTraceRecord) GetNotApplicable() *emptypb.Empty {
 		if x, ok := x.MaxExceeded.(*ControllerTraceRecord_NotApplicable); ok {
 			return x.NotApplicable
 		}
+	}
+	return nil
+}
+
+func (x *ControllerTraceRecord) GetTriggerPosition() *AdmissionPosition {
+	if x != nil {
+		return x.TriggerPosition
 	}
 	return nil
 }
@@ -8794,12 +8807,14 @@ const file_home_observability_v1_observability_proto_rawDesc = "" +
 	"\fTraceOrdinal\x12\x18\n" +
 	"\x06native\x18\x01 \x01(\x04H\x00R\x06native\x126\n" +
 	"\texhausted\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\texhaustedB\b\n" +
-	"\x06result\"\xed\x01\n" +
+	"\x06result\"\xdc\x02\n" +
 	"\x15ControllerTraceRecord\x12@\n" +
 	"\bdecision\x18\x01 \x01(\x0e2$.home.observability.v1.TraceDecisionR\bdecision\x12A\n" +
 	"\x04mode\x18\x02 \x01(\x0e2+.home.observability.v1.TraceMaxExceededModeH\x00R\x04mode\x12?\n" +
-	"\x0enot_applicable\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\rnotApplicableB\x0e\n" +
-	"\fmax_exceeded\"\xd6\x01\n" +
+	"\x0enot_applicable\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\rnotApplicable\x12X\n" +
+	"\x10trigger_position\x18\x04 \x01(\v2(.home.observability.v1.AdmissionPositionH\x01R\x0ftriggerPosition\x88\x01\x01B\x0e\n" +
+	"\fmax_exceededB\x13\n" +
+	"\x11_trigger_position\"\xd6\x01\n" +
 	"\fTraceFailure\x12F\n" +
 	"\x05known\x18\x01 \x01(\x0e2..home.observability.v1.TraceExecutionErrorKindH\x00R\x05known\x127\n" +
 	"\n" +
@@ -9537,76 +9552,77 @@ var file_home_observability_v1_observability_proto_depIdxs = []int32{
 	23,  // 165: home.observability.v1.ControllerTraceRecord.decision:type_name -> home.observability.v1.TraceDecision
 	24,  // 166: home.observability.v1.ControllerTraceRecord.mode:type_name -> home.observability.v1.TraceMaxExceededMode
 	115, // 167: home.observability.v1.ControllerTraceRecord.not_applicable:type_name -> google.protobuf.Empty
-	27,  // 168: home.observability.v1.TraceFailure.known:type_name -> home.observability.v1.TraceExecutionErrorKind
-	115, // 169: home.observability.v1.TraceFailure.no_failure:type_name -> google.protobuf.Empty
-	115, // 170: home.observability.v1.TraceFailure.not_recorded:type_name -> google.protobuf.Empty
-	25,  // 171: home.observability.v1.NodeTraceRecord.action_kind:type_name -> home.observability.v1.TraceActionKind
-	26,  // 172: home.observability.v1.NodeTraceRecord.stage:type_name -> home.observability.v1.TraceNodeStage
-	116, // 173: home.observability.v1.NodeTraceRecord.occurred_at:type_name -> google.protobuf.Timestamp
-	99,  // 174: home.observability.v1.NodeTraceRecord.failure:type_name -> home.observability.v1.TraceFailure
-	97,  // 175: home.observability.v1.TraceRow.ordinal:type_name -> home.observability.v1.TraceOrdinal
-	98,  // 176: home.observability.v1.TraceRow.controller:type_name -> home.observability.v1.ControllerTraceRecord
-	100, // 177: home.observability.v1.TraceRow.node:type_name -> home.observability.v1.NodeTraceRecord
-	29,  // 178: home.observability.v1.TraceCutMetadata.coherence:type_name -> home.observability.v1.TraceCutCoherence
-	28,  // 179: home.observability.v1.TraceCutMetadata.order:type_name -> home.observability.v1.TraceOrderState
-	116, // 180: home.observability.v1.TraceCutMetadata.controller_captured_at:type_name -> google.protobuf.Timestamp
-	116, // 181: home.observability.v1.TraceCutMetadata.node_captured_at:type_name -> google.protobuf.Timestamp
-	36,  // 182: home.observability.v1.TracePage.controller:type_name -> home.observability.v1.ControllerHandle
-	102, // 183: home.observability.v1.TracePage.cuts:type_name -> home.observability.v1.TraceCutMetadata
-	101, // 184: home.observability.v1.TracePage.rows:type_name -> home.observability.v1.TraceRow
-	82,  // 185: home.observability.v1.TracePage.continuation:type_name -> home.observability.v1.PageContinuation
-	30,  // 186: home.observability.v1.TruncatedTracePage.reason:type_name -> home.observability.v1.TraceTruncationReason
-	103, // 187: home.observability.v1.TruncatedTracePage.page:type_name -> home.observability.v1.TracePage
-	36,  // 188: home.observability.v1.ReadRunTraceRequest.controller:type_name -> home.observability.v1.ControllerHandle
-	103, // 189: home.observability.v1.ReadRunTraceResponse.page:type_name -> home.observability.v1.TracePage
-	104, // 190: home.observability.v1.ReadRunTraceResponse.truncated:type_name -> home.observability.v1.TruncatedTracePage
-	115, // 191: home.observability.v1.ReadRunTraceResponse.not_retained:type_name -> google.protobuf.Empty
-	115, // 192: home.observability.v1.ReadRunTraceResponse.stale_cursor:type_name -> google.protobuf.Empty
-	37,  // 193: home.observability.v1.ReadRunTraceResponse.unavailable:type_name -> home.observability.v1.ReadUnavailable
-	35,  // 194: home.observability.v1.ReadRecorderCoverageRequest.from:type_name -> home.observability.v1.AdmissionPosition
-	35,  // 195: home.observability.v1.ReadRecorderCoverageRequest.position:type_name -> home.observability.v1.AdmissionPosition
-	107, // 196: home.observability.v1.ReadRecorderCoverageRequest.latest_in_epoch:type_name -> home.observability.v1.RecorderEpochIdentity
-	107, // 197: home.observability.v1.PreviousRecorderEpoch.epoch:type_name -> home.observability.v1.RecorderEpochIdentity
-	107, // 198: home.observability.v1.RecorderEpochCoverage.epoch:type_name -> home.observability.v1.RecorderEpochIdentity
-	116, // 199: home.observability.v1.RecorderEpochCoverage.started_at:type_name -> google.protobuf.Timestamp
-	116, // 200: home.observability.v1.RecorderEpochCoverage.closed_at:type_name -> google.protobuf.Timestamp
-	115, // 201: home.observability.v1.RecorderEpochCoverage.not_recorded:type_name -> google.protobuf.Empty
-	31,  // 202: home.observability.v1.RecorderEpochCoverage.reconciliation:type_name -> home.observability.v1.RecorderReconciliationState
-	109, // 203: home.observability.v1.RecorderEpochCoverage.previous:type_name -> home.observability.v1.PreviousRecorderEpoch
-	115, // 204: home.observability.v1.RecorderEpochCoverage.no_previous:type_name -> google.protobuf.Empty
-	107, // 205: home.observability.v1.RecorderCoverageGap.epoch:type_name -> home.observability.v1.RecorderEpochIdentity
-	11,  // 206: home.observability.v1.RecorderCoverageGap.reason:type_name -> home.observability.v1.GapReason
-	60,  // 207: home.observability.v1.RecorderCoverageGap.known_lost:type_name -> home.observability.v1.KnownLost
-	32,  // 208: home.observability.v1.RecorderCoverageGap.envelope:type_name -> home.observability.v1.GapEnvelope
-	115, // 209: home.observability.v1.RecorderCoverageGap.unknown_utc:type_name -> google.protobuf.Empty
-	35,  // 210: home.observability.v1.RecorderCoverageSnapshot.from:type_name -> home.observability.v1.AdmissionPosition
-	35,  // 211: home.observability.v1.RecorderCoverageSnapshot.through:type_name -> home.observability.v1.AdmissionPosition
-	110, // 212: home.observability.v1.RecorderCoverageSnapshot.epochs:type_name -> home.observability.v1.RecorderEpochCoverage
-	111, // 213: home.observability.v1.RecorderCoverageSnapshot.gaps:type_name -> home.observability.v1.RecorderCoverageGap
-	33,  // 214: home.observability.v1.TruncatedRecorderCoverage.reason:type_name -> home.observability.v1.CoverageTruncationReason
-	112, // 215: home.observability.v1.ReadRecorderCoverageResponse.complete:type_name -> home.observability.v1.RecorderCoverageSnapshot
-	113, // 216: home.observability.v1.ReadRecorderCoverageResponse.truncated:type_name -> home.observability.v1.TruncatedRecorderCoverage
-	115, // 217: home.observability.v1.ReadRecorderCoverageResponse.not_retained:type_name -> google.protobuf.Empty
-	37,  // 218: home.observability.v1.ReadRecorderCoverageResponse.unavailable:type_name -> home.observability.v1.ReadUnavailable
-	47,  // 219: home.observability.v1.ObservabilityService.GetHealth:input_type -> home.observability.v1.GetHealthRequest
-	77,  // 220: home.observability.v1.ObservabilityService.GetMetrics:input_type -> home.observability.v1.GetMetricsRequest
-	49,  // 221: home.observability.v1.ObservabilityService.GetIntegrationHealth:input_type -> home.observability.v1.GetIntegrationHealthRequest
-	85,  // 222: home.observability.v1.ObservabilityService.QueryRuntimeLogs:input_type -> home.observability.v1.QueryRuntimeLogsRequest
-	95,  // 223: home.observability.v1.ObservabilityService.QueryAudits:input_type -> home.observability.v1.QueryAuditsRequest
-	105, // 224: home.observability.v1.ObservabilityService.ReadRunTrace:input_type -> home.observability.v1.ReadRunTraceRequest
-	108, // 225: home.observability.v1.ObservabilityService.ReadRecorderCoverage:input_type -> home.observability.v1.ReadRecorderCoverageRequest
-	48,  // 226: home.observability.v1.ObservabilityService.GetHealth:output_type -> home.observability.v1.GetHealthResponse
-	78,  // 227: home.observability.v1.ObservabilityService.GetMetrics:output_type -> home.observability.v1.GetMetricsResponse
-	54,  // 228: home.observability.v1.ObservabilityService.GetIntegrationHealth:output_type -> home.observability.v1.GetIntegrationHealthResponse
-	86,  // 229: home.observability.v1.ObservabilityService.QueryRuntimeLogs:output_type -> home.observability.v1.QueryRuntimeLogsResponse
-	96,  // 230: home.observability.v1.ObservabilityService.QueryAudits:output_type -> home.observability.v1.QueryAuditsResponse
-	106, // 231: home.observability.v1.ObservabilityService.ReadRunTrace:output_type -> home.observability.v1.ReadRunTraceResponse
-	114, // 232: home.observability.v1.ObservabilityService.ReadRecorderCoverage:output_type -> home.observability.v1.ReadRecorderCoverageResponse
-	226, // [226:233] is the sub-list for method output_type
-	219, // [219:226] is the sub-list for method input_type
-	219, // [219:219] is the sub-list for extension type_name
-	219, // [219:219] is the sub-list for extension extendee
-	0,   // [0:219] is the sub-list for field type_name
+	35,  // 168: home.observability.v1.ControllerTraceRecord.trigger_position:type_name -> home.observability.v1.AdmissionPosition
+	27,  // 169: home.observability.v1.TraceFailure.known:type_name -> home.observability.v1.TraceExecutionErrorKind
+	115, // 170: home.observability.v1.TraceFailure.no_failure:type_name -> google.protobuf.Empty
+	115, // 171: home.observability.v1.TraceFailure.not_recorded:type_name -> google.protobuf.Empty
+	25,  // 172: home.observability.v1.NodeTraceRecord.action_kind:type_name -> home.observability.v1.TraceActionKind
+	26,  // 173: home.observability.v1.NodeTraceRecord.stage:type_name -> home.observability.v1.TraceNodeStage
+	116, // 174: home.observability.v1.NodeTraceRecord.occurred_at:type_name -> google.protobuf.Timestamp
+	99,  // 175: home.observability.v1.NodeTraceRecord.failure:type_name -> home.observability.v1.TraceFailure
+	97,  // 176: home.observability.v1.TraceRow.ordinal:type_name -> home.observability.v1.TraceOrdinal
+	98,  // 177: home.observability.v1.TraceRow.controller:type_name -> home.observability.v1.ControllerTraceRecord
+	100, // 178: home.observability.v1.TraceRow.node:type_name -> home.observability.v1.NodeTraceRecord
+	29,  // 179: home.observability.v1.TraceCutMetadata.coherence:type_name -> home.observability.v1.TraceCutCoherence
+	28,  // 180: home.observability.v1.TraceCutMetadata.order:type_name -> home.observability.v1.TraceOrderState
+	116, // 181: home.observability.v1.TraceCutMetadata.controller_captured_at:type_name -> google.protobuf.Timestamp
+	116, // 182: home.observability.v1.TraceCutMetadata.node_captured_at:type_name -> google.protobuf.Timestamp
+	36,  // 183: home.observability.v1.TracePage.controller:type_name -> home.observability.v1.ControllerHandle
+	102, // 184: home.observability.v1.TracePage.cuts:type_name -> home.observability.v1.TraceCutMetadata
+	101, // 185: home.observability.v1.TracePage.rows:type_name -> home.observability.v1.TraceRow
+	82,  // 186: home.observability.v1.TracePage.continuation:type_name -> home.observability.v1.PageContinuation
+	30,  // 187: home.observability.v1.TruncatedTracePage.reason:type_name -> home.observability.v1.TraceTruncationReason
+	103, // 188: home.observability.v1.TruncatedTracePage.page:type_name -> home.observability.v1.TracePage
+	36,  // 189: home.observability.v1.ReadRunTraceRequest.controller:type_name -> home.observability.v1.ControllerHandle
+	103, // 190: home.observability.v1.ReadRunTraceResponse.page:type_name -> home.observability.v1.TracePage
+	104, // 191: home.observability.v1.ReadRunTraceResponse.truncated:type_name -> home.observability.v1.TruncatedTracePage
+	115, // 192: home.observability.v1.ReadRunTraceResponse.not_retained:type_name -> google.protobuf.Empty
+	115, // 193: home.observability.v1.ReadRunTraceResponse.stale_cursor:type_name -> google.protobuf.Empty
+	37,  // 194: home.observability.v1.ReadRunTraceResponse.unavailable:type_name -> home.observability.v1.ReadUnavailable
+	35,  // 195: home.observability.v1.ReadRecorderCoverageRequest.from:type_name -> home.observability.v1.AdmissionPosition
+	35,  // 196: home.observability.v1.ReadRecorderCoverageRequest.position:type_name -> home.observability.v1.AdmissionPosition
+	107, // 197: home.observability.v1.ReadRecorderCoverageRequest.latest_in_epoch:type_name -> home.observability.v1.RecorderEpochIdentity
+	107, // 198: home.observability.v1.PreviousRecorderEpoch.epoch:type_name -> home.observability.v1.RecorderEpochIdentity
+	107, // 199: home.observability.v1.RecorderEpochCoverage.epoch:type_name -> home.observability.v1.RecorderEpochIdentity
+	116, // 200: home.observability.v1.RecorderEpochCoverage.started_at:type_name -> google.protobuf.Timestamp
+	116, // 201: home.observability.v1.RecorderEpochCoverage.closed_at:type_name -> google.protobuf.Timestamp
+	115, // 202: home.observability.v1.RecorderEpochCoverage.not_recorded:type_name -> google.protobuf.Empty
+	31,  // 203: home.observability.v1.RecorderEpochCoverage.reconciliation:type_name -> home.observability.v1.RecorderReconciliationState
+	109, // 204: home.observability.v1.RecorderEpochCoverage.previous:type_name -> home.observability.v1.PreviousRecorderEpoch
+	115, // 205: home.observability.v1.RecorderEpochCoverage.no_previous:type_name -> google.protobuf.Empty
+	107, // 206: home.observability.v1.RecorderCoverageGap.epoch:type_name -> home.observability.v1.RecorderEpochIdentity
+	11,  // 207: home.observability.v1.RecorderCoverageGap.reason:type_name -> home.observability.v1.GapReason
+	60,  // 208: home.observability.v1.RecorderCoverageGap.known_lost:type_name -> home.observability.v1.KnownLost
+	32,  // 209: home.observability.v1.RecorderCoverageGap.envelope:type_name -> home.observability.v1.GapEnvelope
+	115, // 210: home.observability.v1.RecorderCoverageGap.unknown_utc:type_name -> google.protobuf.Empty
+	35,  // 211: home.observability.v1.RecorderCoverageSnapshot.from:type_name -> home.observability.v1.AdmissionPosition
+	35,  // 212: home.observability.v1.RecorderCoverageSnapshot.through:type_name -> home.observability.v1.AdmissionPosition
+	110, // 213: home.observability.v1.RecorderCoverageSnapshot.epochs:type_name -> home.observability.v1.RecorderEpochCoverage
+	111, // 214: home.observability.v1.RecorderCoverageSnapshot.gaps:type_name -> home.observability.v1.RecorderCoverageGap
+	33,  // 215: home.observability.v1.TruncatedRecorderCoverage.reason:type_name -> home.observability.v1.CoverageTruncationReason
+	112, // 216: home.observability.v1.ReadRecorderCoverageResponse.complete:type_name -> home.observability.v1.RecorderCoverageSnapshot
+	113, // 217: home.observability.v1.ReadRecorderCoverageResponse.truncated:type_name -> home.observability.v1.TruncatedRecorderCoverage
+	115, // 218: home.observability.v1.ReadRecorderCoverageResponse.not_retained:type_name -> google.protobuf.Empty
+	37,  // 219: home.observability.v1.ReadRecorderCoverageResponse.unavailable:type_name -> home.observability.v1.ReadUnavailable
+	47,  // 220: home.observability.v1.ObservabilityService.GetHealth:input_type -> home.observability.v1.GetHealthRequest
+	77,  // 221: home.observability.v1.ObservabilityService.GetMetrics:input_type -> home.observability.v1.GetMetricsRequest
+	49,  // 222: home.observability.v1.ObservabilityService.GetIntegrationHealth:input_type -> home.observability.v1.GetIntegrationHealthRequest
+	85,  // 223: home.observability.v1.ObservabilityService.QueryRuntimeLogs:input_type -> home.observability.v1.QueryRuntimeLogsRequest
+	95,  // 224: home.observability.v1.ObservabilityService.QueryAudits:input_type -> home.observability.v1.QueryAuditsRequest
+	105, // 225: home.observability.v1.ObservabilityService.ReadRunTrace:input_type -> home.observability.v1.ReadRunTraceRequest
+	108, // 226: home.observability.v1.ObservabilityService.ReadRecorderCoverage:input_type -> home.observability.v1.ReadRecorderCoverageRequest
+	48,  // 227: home.observability.v1.ObservabilityService.GetHealth:output_type -> home.observability.v1.GetHealthResponse
+	78,  // 228: home.observability.v1.ObservabilityService.GetMetrics:output_type -> home.observability.v1.GetMetricsResponse
+	54,  // 229: home.observability.v1.ObservabilityService.GetIntegrationHealth:output_type -> home.observability.v1.GetIntegrationHealthResponse
+	86,  // 230: home.observability.v1.ObservabilityService.QueryRuntimeLogs:output_type -> home.observability.v1.QueryRuntimeLogsResponse
+	96,  // 231: home.observability.v1.ObservabilityService.QueryAudits:output_type -> home.observability.v1.QueryAuditsResponse
+	106, // 232: home.observability.v1.ObservabilityService.ReadRunTrace:output_type -> home.observability.v1.ReadRunTraceResponse
+	114, // 233: home.observability.v1.ObservabilityService.ReadRecorderCoverage:output_type -> home.observability.v1.ReadRecorderCoverageResponse
+	227, // [227:234] is the sub-list for method output_type
+	220, // [220:227] is the sub-list for method input_type
+	220, // [220:220] is the sub-list for extension type_name
+	220, // [220:220] is the sub-list for extension extendee
+	0,   // [0:220] is the sub-list for field type_name
 }
 
 func init() { file_home_observability_v1_observability_proto_init() }

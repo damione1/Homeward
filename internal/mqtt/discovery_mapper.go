@@ -93,14 +93,15 @@ type DiscoveryDiagnosticRecord struct {
 }
 
 type componentRuntime struct {
-	profile      discoveryComponent
-	key          integrations.SourceKey
-	binding      integrations.Binding
-	entity       domain.EntityID
-	availability []domain.Availability
-	latest       int
-	lastValue    *domain.StateValue
-	lastQuality  domain.Quality
+	correlationScope correlationScope
+	profile          discoveryComponent
+	key              integrations.SourceKey
+	binding          integrations.Binding
+	entity           domain.EntityID
+	availability     []domain.Availability
+	latest           int
+	lastValue        *domain.StateValue
+	lastQuality      domain.Quality
 }
 
 // cachedSnapshot is an observation snapshot, never an edge-capable MQTT
@@ -318,7 +319,7 @@ func (m *DiscoveryMapper) Observe(ctx context.Context, host integrations.Session
 	}
 	if components := m.states[topic]; len(components) != 0 {
 		for _, component := range components {
-			if err := m.observeState(ctx, host, component, payload, quality); err != nil {
+			if err := m.observeStateWithCausality(ctx, host, component, payload, quality, observation.stateCausality(component.correlationScope)); err != nil {
 				if errors.Is(err, errDiscoveryHostPublish) || ctx.Err() != nil {
 					return err
 				}
@@ -410,7 +411,11 @@ func (m *DiscoveryMapper) discover(ctx context.Context, host integrations.Sessio
 			}
 		}
 		candidates = append(candidates, candidate)
-		runtimes = append(runtimes, &componentRuntime{profile: profile, key: key, latest: -1, availability: make([]domain.Availability, len(profile.availability))})
+		scope, scopeErr := newCorrelationScope()
+		if scopeErr != nil {
+			return scopeErr
+		}
+		runtimes = append(runtimes, &componentRuntime{profile: profile, key: key, correlationScope: scope, latest: -1, availability: make([]domain.Availability, len(profile.availability))})
 	}
 	// The complete new document is valid. Any live component it omits must
 	// lose Host ownership before the following durable topic lookup can block.
@@ -474,7 +479,11 @@ func (m *DiscoveryMapper) discover(ctx context.Context, host integrations.Sessio
 		if err != nil {
 			return err
 		}
-		if old := previousRuntime[runtime.key]; old != nil && old.profile.fingerprint == runtime.profile.fingerprint {
+		if old := previousRuntime[runtime.key]; old != nil && old.profile.fingerprint == runtime.profile.fingerprint && old.binding == runtime.binding {
+			// Preserve an in-flight echo only across the same admitted profile.
+			// Replacement and A→B→A allocate new scopes, even when Host reuses
+			// the SourceKey/session binding for unchanged capability metadata.
+			runtime.correlationScope = old.correlationScope
 			runtime.availability = append([]domain.Availability(nil), old.availability...)
 			runtime.latest = old.latest
 			runtime.lastQuality = old.lastQuality
@@ -760,6 +769,10 @@ func (m *DiscoveryMapper) observeAvailability(ctx context.Context, host integrat
 }
 
 func (m *DiscoveryMapper) publishCurrent(ctx context.Context, host integrations.SessionHost, runtime *componentRuntime, base domain.Quality) error {
+	return m.publishCurrentWithCausality(ctx, host, runtime, base, domain.Causality{})
+}
+
+func (m *DiscoveryMapper) publishCurrentWithCausality(ctx context.Context, host integrations.SessionHost, runtime *componentRuntime, base domain.Quality, causality domain.Causality) error {
 	_, freshness, provenance, err := base.Components()
 	if err != nil {
 		return err
@@ -779,6 +792,14 @@ func (m *DiscoveryMapper) publishCurrent(ctx context.Context, host integrations.
 	observation, err := integrations.NewStateObservation("mqtt", quality, value, nil, time.Now().UTC(), nil)
 	if err != nil {
 		return err
+	}
+	// Only the current direct fresh state call supplies causality. Availability
+	// and snapshot paths always use the metadata-free wrapper above.
+	if value != nil && freshness == domain.FreshnessFresh && provenance == domain.ProvenanceObserved {
+		observation, err = observation.WithCausality(causality)
+		if err != nil {
+			return err
+		}
 	}
 	if err := host.Publish(ctx, runtime.binding, observation); err != nil {
 		return fmt.Errorf("%w: %w", errDiscoveryHostPublish, err)
@@ -899,6 +920,10 @@ func lightState(c discoveryComponent, payload []byte, previous *domain.StateValu
 }
 
 func (m *DiscoveryMapper) observeState(ctx context.Context, host integrations.SessionHost, runtime *componentRuntime, payload []byte, quality domain.Quality) error {
+	return m.observeStateWithCausality(ctx, host, runtime, payload, quality, domain.Causality{})
+}
+
+func (m *DiscoveryMapper) observeStateWithCausality(ctx context.Context, host integrations.SessionHost, runtime *componentRuntime, payload []byte, quality domain.Quality, causality domain.Causality) error {
 	profile := runtime.profile
 	var evaluated *template.Result
 	if profile.hasValueTemplate {
@@ -932,6 +957,16 @@ func (m *DiscoveryMapper) observeState(ctx context.Context, host integrations.Se
 			}
 		}
 		value, err = lightState(profile, payload, previous)
+		// A partial light report may inherit display fields. An echo must
+		// never turn those cached fields into fresh confirmation evidence.
+		if err == nil && causality != (domain.Causality{}) {
+			direct, directErr := lightState(profile, payload, nil)
+			currentLight, _ := value.Light()
+			directLight, _ := direct.Light()
+			if directErr != nil || currentLight != directLight {
+				causality = domain.Causality{}
+			}
+		}
 	default:
 		return errDiscoveryValue
 	}
@@ -940,5 +975,5 @@ func (m *DiscoveryMapper) observeState(ctx context.Context, host integrations.Se
 	}
 	runtime.lastValue = &value
 	runtime.lastQuality = quality
-	return m.publishCurrent(ctx, host, runtime, quality)
+	return m.publishCurrentWithCausality(ctx, host, runtime, quality, causality)
 }

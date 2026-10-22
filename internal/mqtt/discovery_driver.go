@@ -115,6 +115,18 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 	if err != nil {
 		return err
 	}
+	// Reuse only the admitted component's existing subscribed state route.
+	// Peers without an explicit MQTT5 echo continue to have no confirmation.
+	if p.Pilot.allowedObservation(profile.stateTopic) {
+		causality, err := command.Causality()
+		if err != nil {
+			return err
+		}
+		publication, err = publication.withResponseCausality(profile.stateTopic, causality, runtime.correlationScope)
+		if err != nil {
+			return err
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}

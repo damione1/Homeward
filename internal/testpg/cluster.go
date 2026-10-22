@@ -18,8 +18,9 @@ const password = "NHA027_canary_password"
 const maxStartupLogBytes = 8 * 1024
 
 type Cluster struct {
-	Port int
-	stop func() error
+	Port    int
+	stop    func() error
+	restart func() error
 }
 
 // Stop ends only this disposable cluster. Cleanup remains idempotent.
@@ -28,6 +29,15 @@ func (c Cluster) Stop() error {
 		return fmt.Errorf("temporary postgres cluster is not initialized")
 	}
 	return c.stop()
+}
+
+// Restart starts the same stopped disposable cluster on its original port.
+// It preserves the catalog and refuses a running or already cleaned-up cluster.
+func (c Cluster) Restart() error {
+	if c.restart == nil {
+		return fmt.Errorf("temporary postgres cluster is not initialized")
+	}
+	return c.restart()
 }
 
 func Start(t *testing.T) Cluster {
@@ -57,23 +67,52 @@ func Start(t *testing.T) Cluster {
 		}
 		t.Fatal(err)
 	}
-	var once sync.Once
-	var stopErr error
+	var mu sync.Mutex
+	running, closed := true, false
+	stopLocked := func() error {
+		if !running {
+			return nil
+		}
+		cmd := exec.Command("pg_ctl", "-D", data, "-m", "immediate", "-w", "stop")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("pg_ctl stop: %w: %s", err, output)
+		}
+		running = false
+		return nil
+	}
 	stop := func() error {
-		once.Do(func() {
-			cmd := exec.Command("pg_ctl", "-D", data, "-m", "immediate", "-w", "stop")
-			if output, err := cmd.CombinedOutput(); err != nil {
-				stopErr = fmt.Errorf("pg_ctl stop: %w: %s", err, output)
-			}
-		})
-		return stopErr
+		mu.Lock()
+		defer mu.Unlock()
+		return stopLocked()
+	}
+	restart := func() error {
+		mu.Lock()
+		defer mu.Unlock()
+		if closed {
+			return fmt.Errorf("temporary postgres cluster has been cleaned up")
+		}
+		if running {
+			return fmt.Errorf("temporary postgres cluster must be stopped before restart")
+		}
+		if err := startPostgres(data, log, fmt.Sprintf("-h 127.0.0.1 -p %d -c unix_socket_directories=''", port)); err != nil {
+			cleanupErr := stopIfRunning(data)
+			// If cleanup is uncertain, retain ownership so the final cleanup
+			// still attempts to stop this cluster instead of abandoning it.
+			running = cleanupErr != nil
+			return errors.Join(err, cleanupErr)
+		}
+		running = true
+		return nil
 	}
 	t.Cleanup(func() {
-		if err := stop(); err != nil {
+		mu.Lock()
+		defer mu.Unlock()
+		closed = true
+		if err := stopLocked(); err != nil {
 			t.Error(err)
 		}
 	})
-	return Cluster{Port: port, stop: stop}
+	return Cluster{Port: port, stop: stop, restart: restart}
 }
 
 func Password() string { return password }

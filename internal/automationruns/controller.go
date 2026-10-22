@@ -11,6 +11,7 @@ import (
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/observability"
+	"github.com/damione1/Homeward/internal/sequencer"
 )
 
 var nextGeneration atomic.Uint64
@@ -52,6 +53,9 @@ type Trace struct {
 	RunID       RunID
 	Generation  Generation
 	Error       string
+	// Present only on the initial run allocation decision. This is an
+	// observation position, never trigger payload or command authority.
+	triggerCursor sequencer.Cursor
 }
 
 func effectiveMaxExceeded(mode ir.MaxExceededMode) ir.MaxExceededMode {
@@ -545,7 +549,7 @@ func (c *Controller) admitImage(image *programImage, spec automationSpec, trigge
 			}
 		}
 	}
-	c.recordLocked(Trace{Decision: decision, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey, RunID: id, Generation: image.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
+	c.recordLocked(Trace{Decision: decision, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey, RunID: id, Generation: image.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent, triggerCursor: trigger.cursor})
 	if len(ancestry) != 0 && ancestry[0].parent.id != 0 && c.sink != nil {
 		c.sink.ObserveScriptLink(ScriptLinkObservation{At: c.traceNow(), Parent: ancestry[0].parent.historyRef(), Child: entry.run.historyRef(), Script: trigger.script, Mode: ancestry[0].mode})
 	}

@@ -37,12 +37,14 @@ const (
 	ObservationRestored
 )
 
-// Observation carries raw bytes only. A retained publication is restoration,
-// never an edge event. NHA-069 decides entity mapping and value decoding.
+// Observation carries raw payload and optional bounded packet correlation.
+// A retained publication is restoration, never an edge event or command proof.
+// NHA-069 decides entity mapping and value decoding.
 type Observation struct {
-	topic   Topic
-	payload []byte
-	class   ObservationClass
+	topic       Topic
+	payload     []byte
+	class       ObservationClass
+	correlation correlationMetadata
 }
 
 func (o Observation) Record() (Topic, []byte, domain.Quality, error) {
@@ -92,15 +94,29 @@ func (UnmappedObservations) Observe(context.Context, integrations.SessionHost, O
 }
 
 type CommandPublication struct {
-	topic   Topic
-	payload []byte
+	topic         Topic
+	payload       []byte
+	responseTopic Topic
+	correlation   correlationMetadata
 }
 
 func NewCommandPublication(topic Topic, payload []byte) (CommandPublication, error) {
 	if _, err := topic.Value(); err != nil || len(payload) == 0 || len(payload) > maxPayload {
 		return CommandPublication{}, ErrInvalidTopic
 	}
-	return CommandPublication{topic, append([]byte(nil), payload...)}, nil
+	return CommandPublication{topic: topic, payload: append([]byte(nil), payload...)}, nil
+}
+
+func (c CommandPublication) withResponseCausality(topic Topic, causality domain.Causality, scope correlationScope) (CommandPublication, error) {
+	if _, err := topic.Value(); err != nil {
+		return CommandPublication{}, err
+	}
+	metadata, err := encodeCorrelation(causality, scope)
+	if err != nil {
+		return CommandPublication{}, err
+	}
+	c.responseTopic, c.correlation = topic, metadata
+	return c, nil
 }
 
 type delivery struct {
@@ -279,7 +295,13 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 			if received.Packet.Retain {
 				class = ObservationRestored
 			}
-			item := delivery{packet: received.Packet, observation: Observation{topic: topic, payload: append([]byte(nil), received.Packet.Payload...), class: class}}
+			var correlation correlationMetadata
+			if class == ObservationLive && received.Packet.Properties != nil {
+				// Invalid metadata cannot confer proof; the ordinary state is
+				// still delivered. No incoming ResponseTopic is acted upon.
+				correlation, _ = parseCorrelation(received.Packet.Properties.CorrelationData)
+			}
+			item := delivery{packet: received.Packet, observation: Observation{topic: topic, payload: append([]byte(nil), received.Packet.Payload...), class: class, correlation: correlation}}
 			p.mu.Lock()
 			select {
 			case queue <- item:
@@ -585,6 +607,16 @@ func (p *Pilot) WriteCommand(ctx context.Context, command CommandPublication) er
 	if !allowed {
 		return ErrInvalidTopic
 	}
+	var properties *paho.PublishProperties
+	if command.correlation.wire != "" || command.responseTopic != (Topic{}) {
+		if _, err := command.correlation.causality(); err != nil {
+			return err
+		}
+		if !p.allowedObservation(command.responseTopic) {
+			return ErrInvalidTopic
+		}
+		properties = &paho.PublishProperties{ResponseTopic: command.responseTopic.value, CorrelationData: []byte(command.correlation.wire)}
+	}
 	select {
 	case p.commandGate <- struct{}{}:
 		defer func() { <-p.commandGate }()
@@ -625,7 +657,7 @@ func (p *Pilot) WriteCommand(ctx context.Context, command CommandPublication) er
 		case <-watchStop:
 		}
 	}()
-	_, err := client.Publish(writeCtx, &paho.Publish{Topic: command.topic.value, Payload: append([]byte(nil), command.payload...), QoS: 0, Retain: false})
+	_, err := client.Publish(writeCtx, &paho.Publish{Topic: command.topic.value, Payload: append([]byte(nil), command.payload...), QoS: 0, Retain: false, Properties: properties})
 	close(watchStop)
 	<-watchDone
 	p.mu.Lock()
