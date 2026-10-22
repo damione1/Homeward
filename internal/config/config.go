@@ -28,24 +28,25 @@ import (
 )
 
 type Config struct {
-	remoteCalendar  *remoteCalendarSettings
-	backupRecovery  *backuparchive.RecoveryPublic
-	backupProviders backups.Configuration
-	scopeRevision   scope.Revision
-	listen          netip.AddrPort
-	postgres        storage.Settings
-	dataDir         string
-	mqtt            *mqtt.Settings
-	neviweb         *neviweb.Settings
-	ecobee          *ecobee.Settings
-	hilo            *hilo.Settings
-	workers         []worker.Config
-	energy          []EnergyBinding
-	derivedPower    DerivedPowerProfile
-	public          PublicSettings
-	recorder        recorder.Limits
-	solar           *solar.Settings
-	workday         *workday.Settings
+	declaredOperational *Config
+	remoteCalendar      *remoteCalendarSettings
+	backupRecovery      *backuparchive.RecoveryPublic
+	backupProviders     backups.Configuration
+	scopeRevision       scope.Revision
+	listen              netip.AddrPort
+	postgres            storage.Settings
+	dataDir             string
+	mqtt                *mqtt.Settings
+	neviweb             *neviweb.Settings
+	ecobee              *ecobee.Settings
+	hilo                *hilo.Settings
+	workers             []worker.Config
+	energy              []EnergyBinding
+	derivedPower        DerivedPowerProfile
+	public              PublicSettings
+	recorder            recorder.Limits
+	solar               *solar.Settings
+	workday             *workday.Settings
 }
 
 var ErrUninitialized = errors.New("configuration: uninitialized")
@@ -121,6 +122,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 	launch.workers, launch.energy, launch.derivedPower = operational.workers, operational.energy, operational.derivedPower
 	launch.solar, launch.workday = operational.solar, operational.workday
 	launch.remoteCalendar = operational.remoteCalendar
+	launch.declaredOperational = operational.declaredOperational
 	return launch, nil
 }
 
@@ -297,7 +299,25 @@ func parseOperational(raw rawConfig) (Config, error) {
 		}
 		result.workers = append(result.workers, configured)
 	}
-	return selectEnabledIntegrations(raw.DisabledIntegrations, result)
+	selected, err := selectEnabledIntegrations(raw.DisabledIntegrations, result)
+	if err != nil {
+		return Config{}, err
+	}
+	// Retain the already-admitted declaration for pure reference inspection.
+	// Runtime getters on selected still expose only enabled integrations.
+	selected.declaredOperational = &result
+	return selected, nil
+}
+
+// DeclaredOperationalSettings returns the same typed, admitted operational
+// declaration before disabled selection. Getters return values or slice copies;
+// this view cannot enable integrations, resolve credentials or open resources.
+// It lets preview validate references even in disabled declarations.
+func (c Config) DeclaredOperationalSettings() Config {
+	if c.declaredOperational != nil {
+		return *c.declaredOperational
+	}
+	return c
 }
 
 func (c Config) ExternalWorkers() []worker.Config { return append([]worker.Config(nil), c.workers...) }
