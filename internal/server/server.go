@@ -663,6 +663,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	if err == nil {
 		err = registerConfigPlansRoutes(plan.Public, configPreview, documents, sessions)
 	}
+	if err == nil {
+		err = registerConfigSimulationRoutes(plan.Public, documents, sessions)
+	}
 	if err != nil {
 		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
