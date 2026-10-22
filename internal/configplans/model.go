@@ -148,10 +148,10 @@ func NewCandidate(family Family, identity, entry string, files []parser.SourceFi
 	for _, file := range files {
 		raw := file.Bytes()
 		total += len(raw)
-		if total > 1<<20 || len(raw) == 0 || seen[file.Path()] {
+		if total > 4<<20 || len(raw) == 0 || len(raw) > 1<<20 || seen[file.Path()] {
 			return Candidate{}, ErrInvalid
 		}
-		copyFile, err := parser.NewSourceFile(file.Path(), raw)
+		copyFile, err := newFamilySource(family, file.Path(), raw)
 		if err != nil || copyFile.SHA256() != file.SHA256() {
 			return Candidate{}, ErrInvalid
 		}

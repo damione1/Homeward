@@ -76,6 +76,13 @@ func (h *Manager) PublishConfigurationRegistry(ctx context.Context, records []Re
 		binding Binding
 	}
 	h.mu.Lock()
+	// Owner must release and flush declaration withdrawals before joining
+	// pilots or publishing the committed registry. This path never waits on
+	// a declaration lease while holding Host.mu.
+	if h.configurationDeclarations != nil {
+		h.mu.Unlock()
+		return ErrSupervisorState
+	}
 	retire := make([]retirement, 0)
 	for entity, binding := range h.owners {
 		record, present := admitted[entity]

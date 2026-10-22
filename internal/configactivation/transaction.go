@@ -10,6 +10,7 @@ import (
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/config/bundle"
+	"github.com/damione1/Homeward/internal/configcompilation"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/storage"
 )
@@ -29,9 +30,12 @@ type DefinitionChoice struct {
 	kind      definitionChoiceKind
 	candidate bundle.Candidate
 	bindings  []storage.ConfigDocumentBinding
+	workspace storage.DeclarativeWorkspaceLocator
 }
 
-func RetainDefinitions() DefinitionChoice { return DefinitionChoice{kind: definitionChoiceRetain} }
+func RetainDefinitions() DefinitionChoice {
+	return DefinitionChoice{kind: definitionChoiceRetain, workspace: storage.NoDeclarativeWorkspaceLocator()}
+}
 
 func ReplaceDefinitions(candidate bundle.Candidate, bindings []storage.ConfigDocumentBinding) (DefinitionChoice, error) {
 	if !candidate.Valid() || len(candidate.Sources()) == 0 || len(candidate.Sources()) != len(bindings) {
@@ -51,21 +55,29 @@ func ReplaceDefinitions(candidate bundle.Candidate, bindings []storage.ConfigDoc
 		}
 	}
 	return DefinitionChoice{kind: definitionChoiceReplace, candidate: candidate,
-		bindings: append([]storage.ConfigDocumentBinding(nil), bindings...)}, nil
+		bindings: append([]storage.ConfigDocumentBinding(nil), bindings...), workspace: storage.NoDeclarativeWorkspaceLocator()}, nil
 }
 
 type preparedActivation struct {
-	startup      config.StartupInputs
-	source       config.ExactWorkspaceSource
-	expected     storage.ExpectedConfigActive
-	attempt      storage.ActivationAttemptID
-	metadata     storage.ConfigVersionMetadata
-	definitions  DefinitionChoice
-	legacy       bundle.Candidate
-	retainedRefs []storage.ConfigVersionRef
-	compiled     [sha256.Size]byte
-	entry        string
-	policies     []PolicyChange
+	startup               config.StartupInputs
+	source                config.ExactWorkspaceSource
+	expected              storage.ExpectedConfigActive
+	attempt               storage.ActivationAttemptID
+	metadata              storage.ConfigVersionMetadata
+	definitions           DefinitionChoice
+	legacy                bundle.Candidate
+	declarativeWorkspace  storage.DeclarativeWorkspaceLocator
+	retainedRefs          []storage.ConfigVersionRef
+	compiled              [sha256.Size]byte
+	entry                 string
+	policies              []PolicyChange
+	confirmSourceFiles    func() error
+	confirmSourceVersions func(*storage.ConfigTx) error
+	confirmDeclarations   func(context.Context) error
+	sourceContext         *configcompilation.Context
+	extraGroups           []SourceGroup
+	extraRefs             []storage.ConfigVersionRef
+	sourceReplacement     *SourceGroup
 }
 
 // PolicyChange is a human/API configuration mutation, never an automation
@@ -131,7 +143,7 @@ func prepareWorkspaceActivation(ctx context.Context, store *storage.Store, start
 	}
 	legacy, hasLegacy := current.LegacyCandidate()
 	prepared := preparedActivation{startup: startup, source: source, expected: expected, attempt: attempt,
-		metadata: metadata, definitions: definitions}
+		metadata: metadata, definitions: definitions, declarativeWorkspace: storage.NoDeclarativeWorkspaceLocator()}
 	seenAccounts := make(map[contracts.AccountID]struct{}, len(policies))
 	for _, change := range policies {
 		if _, err := change.account.Value(); err != nil {
@@ -156,6 +168,7 @@ func prepareWorkspaceActivation(ctx context.Context, store *storage.Store, start
 		return left < right
 	})
 	if definitions.kind == definitionChoiceRetain {
+		prepared.declarativeWorkspace = active.DeclarativeWorkspace()
 		if hasLegacy {
 			prepared.legacy = legacy
 		}
@@ -172,7 +185,11 @@ func prepareWorkspaceActivation(ctx context.Context, store *storage.Store, start
 			return preparedActivation{}, ErrStartupIntegrity
 		}
 	} else {
+		if !definitions.workspace.Valid() {
+			return preparedActivation{}, ErrInvalidStartup
+		}
 		prepared.legacy = definitions.candidate
+		prepared.declarativeWorkspace = definitions.workspace
 	}
 	if 1+len(prepared.legacy.Sources()) > 256 {
 		return preparedActivation{}, ErrInvalidStartup
@@ -212,6 +229,21 @@ func writePreparedActivation(ctx context.Context, store *storage.Store, replay *
 	}
 	var target storage.ConfigGenerationRevision
 	outcome, err := store.InConfigTransactionOutcome(ctx, func(tx *storage.ConfigTx) error {
+		if prepared.confirmDeclarations != nil {
+			if err := prepared.confirmDeclarations(ctx); err != nil {
+				return err
+			}
+		}
+		if prepared.confirmSourceVersions != nil {
+			if err := prepared.confirmSourceVersions(tx); err != nil {
+				return err
+			}
+		}
+		if prepared.confirmSourceFiles != nil {
+			if err := prepared.confirmSourceFiles(); err != nil {
+				return err
+			}
+		}
 		if _, physical := prepared.source.PhysicalPath(); physical {
 			if err := prepared.source.ConfirmPhysicalSource(); err != nil {
 				return err
@@ -230,8 +262,19 @@ func writePreparedActivation(ctx context.Context, store *storage.Store, replay *
 			}
 			refs = replaced
 		}
+		refs, err = prepared.appendEditableRefs(tx, refs)
+		if err != nil {
+			return err
+		}
 		refs = append(refs, operationalRef)
-		target, err = tx.RegisterCompiledGeneration(prepared.entry, prepared.compiled, refs)
+		var compilation configcompilation.Context
+		if len(prepared.extraGroups) != 0 {
+			if prepared.sourceContext == nil || !prepared.sourceContext.Valid() {
+				return ErrProgramCompositionRequired
+			}
+			compilation = *prepared.sourceContext
+		}
+		target, err = tx.RegisterCompiledGenerationWithWorkspace(prepared.entry, prepared.compiled, refs, prepared.declarativeWorkspace, compilation)
 		if err != nil {
 			return err
 		}
@@ -258,6 +301,16 @@ func writePreparedActivation(ctx context.Context, store *storage.Store, replay *
 		}
 		if err := prepared.startup.ConfirmBootstrapSource(); err != nil {
 			return err
+		}
+		if prepared.confirmSourceFiles != nil {
+			if err := prepared.confirmSourceFiles(); err != nil {
+				return err
+			}
+		}
+		if prepared.confirmDeclarations != nil {
+			if err := prepared.confirmDeclarations(ctx); err != nil {
+				return err
+			}
 		}
 		if err := tx.ActivateGeneration(prepared.expected, target); err != nil {
 			return err

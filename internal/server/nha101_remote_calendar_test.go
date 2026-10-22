@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/compat/ha/parser"
+	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/calendars"
 	"github.com/damione1/Homeward/internal/config"
@@ -90,6 +91,7 @@ type nha101RunHandle struct {
 	runtime    *remoteCalendarRuntime
 	activation *configactivation.Owner
 	sequence   *sequencer.Sequencer
+	observed   *observationRuntime
 	results    AutomationTriggerResults
 	clock      *nha105RunClock
 	joined     bool
@@ -124,6 +126,7 @@ func nha101RunStart(t *testing.T, startup config.StartupInputs, at time.Time, tr
 	h := &nha101RunHandle{cancel: cancel, done: make(chan error, 1), clock: &nha105RunClock{wall: at}}
 	t.Cleanup(func() { h.stop(t) })
 	owner, sequence, results := make(chan *remoteCalendarRuntime, 1), make(chan *sequencer.Sequencer, 1), make(chan AutomationTriggerResults, 1)
+	observed := make(chan *observationRuntime, 1)
 	var factory RuntimeFactory
 	if triggers {
 		plan := nha101RunTriggerPlan(t)
@@ -137,6 +140,7 @@ func nha101RunStart(t *testing.T, startup config.StartupInputs, at time.Time, tr
 	ready := make(chan struct{})
 	dependencies := runDependencies{sequenceClock: h.clock, remoteCalendarClock: h.clock, maintenanceClock: h.clock,
 		observeRemoteActivation: func(actual *configactivation.Owner) { activation <- actual },
+		observeRuntime:          func(actual *observationRuntime) { observed <- actual },
 		observeRemoteCalendar: func(actual *remoteCalendarRuntime) {
 			if configure != nil {
 				configure(actual)
@@ -169,6 +173,11 @@ func nha101RunStart(t *testing.T, startup config.StartupInputs, at time.Time, tr
 	case h.activation = <-activation:
 	case <-time.After(time.Second):
 		t.Fatal("actual activation observation absent")
+	}
+	select {
+	case h.observed = <-observed:
+	case <-time.After(time.Second):
+		t.Fatal("actual Run services absent")
 	}
 	if triggers {
 		select {
@@ -302,8 +311,9 @@ func TestNHA101RunRealHTTPCommit040BeforeReadyPointDateAndStop(t *testing.T) {
 	h.stop(t)
 }
 
-func TestNHA101DefaultRunReadRestart304AndNoTriggerEngine(t *testing.T) {
+func TestNHA101DefaultRunReadRestart304AndDormantTriggerEngine(t *testing.T) {
 	cluster := testpg.Start(t)
+	observer := nha030ServerObserver(t, cluster.Port)
 	var requests, conditional atomic.Int32
 	var block atomic.Bool
 	entered, release := make(chan struct{}, 1), make(chan struct{})
@@ -329,12 +339,62 @@ func TestNHA101DefaultRunReadRestart304AndNoTriggerEngine(t *testing.T) {
 	defer server.Close()
 	startup := nha029RunStartupFromRaw(t, nha101RunRaw(t, cluster.Port, shortPrivateDataDir(t), server.URL))
 	at := time.Date(2026, 11, 1, 4, 0, 0, 0, time.UTC)
+	assertNoEffects := func(h *nha101RunHandle) {
+		t.Helper()
+		if h.observed == nil || h.observed.runs == nil {
+			t.Fatal("default Run omitted its real dormant controller")
+		}
+		traces, evicted := h.observed.runs.Traces()
+		if evicted != 0 {
+			t.Fatalf("calendar read evicted %d controller traces", evicted)
+		}
+		for _, trace := range traces {
+			// ensureWriter degrades the source when admitting its initial scope.
+			// readLoop records that source diagnostic without preparing a run.
+			if trace.Decision != automationruns.DecisionTriggerDegraded || trace.RunID != 0 || trace.ParentID != 0 || trace.Generation != 0 ||
+				trace.Automation != "" || trace.Script != (ir.ScriptID{}) || trace.TriggerKey != remoteCalendarAlias || trace.Error != "" {
+				t.Fatalf("calendar read implicitly triggered or replayed logic: trace=%+v", trace)
+			}
+		}
+		if nodes, evicted := h.observed.runs.NodeTraces(); len(nodes) != 0 || evicted != 0 {
+			t.Fatalf("calendar read executed interpreter nodes: traces=%+v evicted=%d", nodes, evicted)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var commands int64
+		if err := observer.QueryRow(ctx, `SELECT count(*) FROM public.command_intents`).Scan(&commands); err != nil {
+			t.Fatal(err)
+		}
+		if commands != 0 {
+			t.Fatal("calendar read dispatched a command")
+		}
+	}
+	assertDormant := func(h *nha101RunHandle) {
+		t.Helper()
+		assertNoEffects(h)
+		// NHA055 composes the real empty service for later source activation.
+		// Calendar publication must leave that admitted program dormant.
+		if h.runtime.bridge.engine == nil {
+			t.Fatal("default Run omitted its dormant trigger service")
+		}
+		retained, err := h.runtime.bridge.engine.RetainCurrentPlan()
+		if err != nil {
+			t.Fatal("cannot inspect the actual dormant trigger service", err)
+		}
+		plan, err := retained.ClonePlan()
+		if releaseErr := retained.Release(); releaseErr != nil {
+			t.Fatal(releaseErr)
+		}
+		if err != nil || !plan.Valid() || plan.Count() != 0 || len(plan.AutomationIDs()) != 0 {
+			t.Fatal("calendar read armed the dormant trigger plan", err)
+		}
+	}
 	first := nha101RunStart(t, startup, at, false, nil)
 	before := nha101RunCalendar(t, first, true)
-	if first.runtime.bridge.engine != nil {
-		t.Fatal("read-only Run created a trigger engine")
-	}
+	nha101RunWait(t, func() bool { return nha101RunReady(first) })
+	assertDormant(first)
 	first.stop(t)
+	assertNoEffects(first)
 	block.Store(true)
 	second := nha101RunStart(t, startup, at, false, nil)
 	select {
@@ -346,12 +406,16 @@ func TestNHA101DefaultRunReadRestart304AndNoTriggerEngine(t *testing.T) {
 	if stale.ID() != before.ID() || nha101RunReady(second) {
 		t.Fatal("restart reassigned identity or inherited Ready")
 	}
+	assertDormant(second)
 	unblock()
 	after := nha101RunCalendar(t, second, true)
 	if after.ID() != before.ID() || conditional.Load() != 1 || requests.Load() != 2 {
 		t.Fatal("304 restart changed stable source or duplicated fetch")
 	}
+	nha101RunWait(t, func() bool { return nha101RunReady(second) })
+	assertDormant(second)
 	second.stop(t)
+	assertNoEffects(second)
 }
 
 func nha101RunDenseICS(count int) string {

@@ -158,6 +158,16 @@ func configDocumentKind(kind storage.ConfigDocumentKind) wire.DocumentKind {
 		return wire.DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML
 	case storage.ConfigDocumentKindBootstrapLaunch:
 		return wire.DocumentKind_DOCUMENT_KIND_BOOTSTRAP_LAUNCH
+	case storage.ConfigDocumentKindDashboardSource:
+		return wire.DocumentKind_DOCUMENT_KIND_DASHBOARD_SOURCE
+	case storage.ConfigDocumentKindAutomationSource:
+		return wire.DocumentKind_DOCUMENT_KIND_AUTOMATION_SOURCE
+	case storage.ConfigDocumentKindScriptSource:
+		return wire.DocumentKind_DOCUMENT_KIND_SCRIPT_SOURCE
+	case storage.ConfigDocumentKindSceneSource:
+		return wire.DocumentKind_DOCUMENT_KIND_SCENE_SOURCE
+	case storage.ConfigDocumentKindOwnershipSource:
+		return wire.DocumentKind_DOCUMENT_KIND_OWNERSHIP_SOURCE
 	case storage.ConfigDocumentKindInvalid:
 		return wire.DocumentKind_DOCUMENT_KIND_UNSPECIFIED
 	default:
@@ -395,7 +405,7 @@ func (h *configDocumentsHandler) ListSchemas(ctx context.Context, r *connect.Req
 	}
 	hash := sha256.New()
 	for _, schema := range schemas {
-		_, _ = hash.Write([]byte(schema.SchemaVersion() + "\x00" + schema.SyntaxProfile() + "\x00"))
+		_, _ = hash.Write([]byte(schema.Kind().String() + "\x00" + schema.SchemaVersion() + "\x00" + schema.SyntaxProfile() + "\x00"))
 	}
 	var cut [32]byte
 	copy(cut[:], hash.Sum(nil))

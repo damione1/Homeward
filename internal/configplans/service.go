@@ -220,7 +220,7 @@ func (s *Service) capture(ctx context.Context, candidate Candidate) (basis, erro
 			if e != nil {
 				return basis{}, ErrUnavailable
 			}
-			file, e := parser.NewSourceFile(candidate.entry, raw)
+			file, e := newFamilySource(candidate.family, candidate.entry, raw)
 			if e != nil {
 				return basis{}, ErrUnavailable
 			}
@@ -233,6 +233,8 @@ func (s *Service) capture(ctx context.Context, candidate Candidate) (basis, erro
 			var selected []parser.SourceFile
 			var revision int64
 			baseFamily := candidate.family
+			baseEntry := candidate.entry
+			baseIdentity := candidate.identity
 			for _, version := range active.Versions() {
 				kind, retained := version.Kind()
 				if !retained {
@@ -252,38 +254,27 @@ func (s *Service) capture(ctx context.Context, candidate Candidate) (basis, erro
 					}
 					selected = []parser.SourceFile{file}
 					revision = version.Ref().Revision().Number()
-				} else if (candidate.family == Declarative1 || candidate.family == Declarative2) && kind == storage.ConfigDocumentKindYAMLSource {
-					schema, present := version.Schema()
-					if !present {
-						return basis{}, ErrUnavailable
-					}
-					selectedFamily := Declarative1
-					if schema.String() == Declarative2.Schema() {
-						selectedFamily = Declarative2
-					} else if schema.String() != Declarative1.Schema() {
-						return basis{}, ErrUnavailable
-					}
-					if len(selected) > 0 && baseFamily != selectedFamily {
-						return basis{}, ErrUnavailable
-					}
-					baseFamily = selectedFamily
-					raw, present := version.Bytes()
-					if !present {
-						return basis{}, ErrUnavailable
-					}
-					file, e := parser.NewSourceFile(version.Path(), raw)
-					if e != nil {
-						return basis{}, ErrUnavailable
-					}
-					selected = append(selected, file)
-					if version.Ref().Document().String() == candidate.identity {
-						revision = version.Ref().Revision().Number()
-					}
+				}
+			}
+			if candidate.family == Declarative1 || candidate.family == Declarative2 {
+				prior, currentRevision, priorErr := capturedDeclarativeCandidate(candidate, active)
+				if priorErr != nil {
+					return basis{}, priorErr
+				}
+				revision = currentRevision
+				if prior.Valid() {
+					selected, baseFamily, baseIdentity, baseEntry = prior.files, prior.family, prior.identity, prior.entry
+				}
+			}
+			if editableFamily(candidate.family) {
+				selected, revision, baseEntry, e = s.capturedEditableSources(ctx, candidate, active)
+				if e != nil {
+					return basis{}, e
 				}
 			}
 			if len(selected) > 0 {
 				var e error
-				value.source, e = NewCandidate(baseFamily, candidate.identity, candidate.entry, selected)
+				value.source, e = NewCandidate(baseFamily, baseIdentity, baseEntry, selected)
 				if e != nil {
 					return basis{}, ErrInvalid
 				}
@@ -363,7 +354,7 @@ func immutableSource(candidate Candidate) (Candidate, error) {
 	if len(raw) == 0 {
 		return Candidate{}, ErrUnavailable
 	}
-	file, e := parser.NewSourceFile(candidate.entry, raw)
+	file, e := newFamilySource(candidate.family, candidate.entry, raw)
 	if e != nil {
 		return Candidate{}, ErrInvalid
 	}

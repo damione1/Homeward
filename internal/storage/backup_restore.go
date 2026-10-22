@@ -92,7 +92,11 @@ func (s *Store) RestoreBackupGeneration(ctx context.Context, expected BackupRest
 		}
 		switch generation.manifestFormat {
 		case ConfigManifestCompiledV2:
-			restored, e = c.RegisterCompiledGeneration(generation.entry, generation.candidateHash, refs)
+			compilation, readErr := readOptionalGenerationCompilation(ctx, c.tx, generation)
+			if readErr != nil {
+				return readErr
+			}
+			restored, e = c.RegisterCompiledGenerationWithWorkspace(generation.entry, generation.candidateHash, refs, generation.DeclarativeWorkspace(), compilation)
 		case ConfigManifestLegacyV1:
 			candidate, restoreErr := generation.Restore()
 			if restoreErr != nil {

@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package home.configurationapply.v1;
+
+import "home/configuration/v1/configuration.proto";
+import "home/configurationplan/v1/plans.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/configurationapply/v1;configurationapplyv1";
+
+message SourcePrecondition {
+  home.configuration.v1.DocumentId id = 1;
+  string logical_path = 2;
+  oneof sql_state {
+    home.configuration.v1.DocumentVersion existing = 3;
+    google.protobuf.Empty sql_absent = 4;
+  }
+  oneof workspace_state {
+    bytes workspace_sha256 = 5;
+    google.protobuf.Empty workspace_absent = 6;
+  }
+}
+
+message ApplyRequest {
+  home.configurationplan.v1.Candidate candidate = 1;
+  // Optional diagnostic receipt, never an authorization or UI approval token.
+  optional string receipt = 2;
+  home.configuration.v1.DocumentVersion expected = 3;
+  bytes expected_workspace_sha256 = 4;
+  // Every entry/include has an independent SQL and editable-file CAS.
+  repeated SourcePrecondition sources = 5;
+}
+message ApplyResponse {
+  home.configuration.v1.ActivationResult activation = 1;
+  home.configuration.v1.ReadDocumentResponse current = 2;
+}
+message RollbackRequest {
+  home.configuration.v1.DocumentId id = 1;
+  home.configuration.v1.DocumentVersion expected = 2;
+  bytes expected_workspace_sha256 = 3;
+  home.configuration.v1.ActiveGeneration historical = 4;
+  repeated SourcePrecondition sources = 5;
+  home.configurationplan.v1.SourceFamily family = 6;
+  string identity = 7;
+  // Authorization may select an exact retained policy version without a
+  // historical configuration generation. Exactly one selector is required.
+  home.configuration.v1.DocumentVersion historical_policy_version = 8;
+}
+message RollbackResponse {
+  home.configuration.v1.ActivationResult activation = 1;
+  home.configuration.v1.ReadDocumentResponse current = 2;
+}
+
+// These methods use the existing editable workspace, CAS and activation owner.
+// The diagnostic plan service remains separate from mutation authorization.
+service ConfigurationApplyService {
+  rpc Apply(ApplyRequest) returns (ApplyResponse);
+  rpc Rollback(RollbackRequest) returns (RollbackResponse);
+}

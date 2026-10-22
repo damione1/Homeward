@@ -30,6 +30,7 @@ const (
 	registryClearCurrentAliases
 	registrySetCurrentAlias
 	registryTombstoneEntity
+	registrySelectEntityAliasCount
 )
 
 func RegistrySourceBinding() RegistryStatement {
@@ -72,6 +73,13 @@ func RegistryRetireEntity() RegistryStatement {
 	return RegistryStatement{registryTombstoneEntity}
 }
 
+// RegistryEntityAliasCount lets the configuration writer confirm that no
+// historical alias was added outside its compilation input. The fixed query
+// retains the borrow's string-only arguments and primitive result boundary.
+func RegistryEntityAliasCount() RegistryStatement {
+	return RegistryStatement{registrySelectEntityAliasCount}
+}
+
 type registryStatementSpec struct {
 	sql        string
 	parameters uint8
@@ -95,6 +103,8 @@ func (s RegistryStatement) querySpec() (registryStatementSpec, error) {
 		return registryStatementSpec{`SELECT tombstoned,manifest_alias FROM public.registry_entities WHERE id=$1`, 1}, nil
 	case registrySelectAliasOwner:
 		return registryStatementSpec{`SELECT entity_id,current FROM public.registry_aliases WHERE alias=$1`, 1}, nil
+	case registrySelectEntityAliasCount:
+		return registryStatementSpec{`SELECT count(*)::text FROM public.registry_aliases WHERE entity_id=$1`, 1}, nil
 	case registryStatementInvalid, registryInsertDevice, registryInsertDeviceSource, registryInsertEntity,
 		registryInsertSourceBinding, registryInsertAlias, registryClearCurrentAliases,
 		registrySetCurrentAlias, registryTombstoneEntity:
@@ -123,7 +133,7 @@ func (s RegistryStatement) commandSpec() (registryStatementSpec, error) {
 	case registryTombstoneEntity:
 		return registryStatementSpec{`UPDATE public.registry_entities SET tombstoned=true WHERE id=$1`, 1}, nil
 	case registryStatementInvalid, registrySelectSourceBinding, registrySelectManifestEntity,
-		registrySelectDeviceSource, registrySelectEntityState, registrySelectAliasOwner:
+		registrySelectDeviceSource, registrySelectEntityState, registrySelectAliasOwner, registrySelectEntityAliasCount:
 		return registryStatementSpec{}, &Error{kind: ConfigInvalid}
 	default:
 		return registryStatementSpec{}, &Error{kind: ConfigInvalid}
@@ -219,7 +229,7 @@ func (s RegistryStatement) admitScan(dest []any) error {
 	case registrySelectSourceBinding:
 		valid = len(dest) == 4 && registryStringDest(dest[0]) && registryStringDest(dest[1]) &&
 			registryStringDest(dest[2]) && registryBoolDest(dest[3])
-	case registrySelectManifestEntity, registrySelectDeviceSource:
+	case registrySelectManifestEntity, registrySelectDeviceSource, registrySelectEntityAliasCount:
 		valid = len(dest) == 1 && registryStringDest(dest[0])
 	case registrySelectEntityState:
 		valid = len(dest) == 2 && registryBoolDest(dest[0]) && registryStringDest(dest[1])
@@ -249,7 +259,7 @@ func (s RegistryStatement) drainRegistryRow(row pgx.Row) error {
 		var device, entity, alias string
 		var retired bool
 		return row.Scan(&device, &entity, &alias, &retired)
-	case registrySelectManifestEntity, registrySelectDeviceSource:
+	case registrySelectManifestEntity, registrySelectDeviceSource, registrySelectEntityAliasCount:
 		var value string
 		return row.Scan(&value)
 	case registrySelectEntityState:

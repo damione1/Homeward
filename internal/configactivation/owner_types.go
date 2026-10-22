@@ -12,6 +12,7 @@ import (
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/config/bundle"
+	"github.com/damione1/Homeward/internal/configcompilation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/reactivetemplate"
@@ -90,6 +91,12 @@ type Request struct {
 	registry              func(*registry.ConfigWriter) error
 	admitted              bool
 	workspacePrecondition *WorkspacePrecondition
+	confirmSourceFiles    func() error
+	confirmSourceVersions func(*storage.ConfigTx) error
+	sourceReplacement     *SourceGroup
+	sourceReservations    *sourceContextReservations
+	sourceContext         *configcompilation.Context
+	sourceCompilation     *SourceCompilation
 }
 
 // NewWorkspaceRequest is trusted Go composition, not an HTTP authorization
@@ -219,16 +226,18 @@ type OwnerInput struct {
 	Timeout    time.Duration
 }
 type Runtime struct {
-	Host        *integrations.Manager
-	Commands    *integrations.DurableCommandService
-	Runs        *automationruns.Controller
-	Templates   *reactivetemplate.Service
-	Forwarding  TemplateForwarding
-	Scenes      *scenes.Service
-	Supervisor  *integrations.Supervisor
-	Policies    PolicyAdmissions
-	Operational OperationalCompiler
-	Publication ConfigPublicationObserver
+	Host          *integrations.Manager
+	Commands      *integrations.DurableCommandService
+	Runs          *automationruns.Controller
+	Templates     *reactivetemplate.Service
+	Forwarding    TemplateForwarding
+	Scenes        *scenes.Service
+	Supervisor    *integrations.Supervisor
+	Policies      PolicyAdmissions
+	SourceFactory SourceRuntimeFactory
+	Sources       *SourceRuntimeCompiler
+	Operational   OperationalCompiler
+	Publication   ConfigPublicationObserver
 }
 
 // ConfigPublicationObserver records an already loaded, coherent generation.

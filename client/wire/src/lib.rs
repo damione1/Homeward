@@ -3,6 +3,7 @@
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod home {
+    pub mod configurationapply { pub mod v1 { include!("generated/home.configurationapply.v1.rs"); } }
     pub mod configurationsimulation {
         pub mod v1 {
             include!("generated/home.configurationsimulation.v1.rs");

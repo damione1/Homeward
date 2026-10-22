@@ -31,7 +31,33 @@ func configurationSchema(kind wire.DocumentKind, schema, profile string) bool {
 		return schema == "homeward.operational/1" && profile == "homeward.operational-yaml/1"
 	case wire.DocumentKind_DOCUMENT_KIND_BOOTSTRAP_LAUNCH:
 		return schema == "homeward.bootstrap-launch/1" && profile == "homeward.bootstrap-launch-yaml/1"
+	case wire.DocumentKind_DOCUMENT_KIND_DASHBOARD_SOURCE:
+		return schema == "homeward-dashboard-1" && profile == "ha-2026.10/lovelace-1"
+	case wire.DocumentKind_DOCUMENT_KIND_AUTOMATION_SOURCE, wire.DocumentKind_DOCUMENT_KIND_SCRIPT_SOURCE:
+		return schema == "ha-logic-1" && profile == "ha-2026.10/logic-1"
+	case wire.DocumentKind_DOCUMENT_KIND_SCENE_SOURCE:
+		return schema == "ha-scene-1" && profile == "ha-2026.10/scene-1"
+	case wire.DocumentKind_DOCUMENT_KIND_OWNERSHIP_SOURCE:
+		return schema == "homeward.heating-ownership/1" && profile == "homeward.heating-ownership-json/1"
 	case wire.DocumentKind_DOCUMENT_KIND_UNSPECIFIED:
+		return false
+	default:
+		return false
+	}
+}
+func configurationObservableDocument(document *wire.Document) bool {
+	if document == nil || document.Id == nil {
+		return false
+	}
+	switch document.Kind {
+	case wire.DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML:
+		return document.Id.Value == "operational.main"
+	case wire.DocumentKind_DOCUMENT_KIND_YAML_SOURCE, wire.DocumentKind_DOCUMENT_KIND_AUTHORIZATION_POLICY,
+		wire.DocumentKind_DOCUMENT_KIND_DASHBOARD_SOURCE, wire.DocumentKind_DOCUMENT_KIND_AUTOMATION_SOURCE,
+		wire.DocumentKind_DOCUMENT_KIND_SCRIPT_SOURCE, wire.DocumentKind_DOCUMENT_KIND_SCENE_SOURCE,
+		wire.DocumentKind_DOCUMENT_KIND_OWNERSHIP_SOURCE:
+		return document.Id.Value != "operational.main"
+	case wire.DocumentKind_DOCUMENT_KIND_MFA_POLICY, wire.DocumentKind_DOCUMENT_KIND_BOOTSTRAP_LAUNCH, wire.DocumentKind_DOCUMENT_KIND_UNSPECIFIED:
 		return false
 	default:
 		return false
@@ -47,7 +73,7 @@ func configurationDocument(d *wire.Document) bool {
 			return false
 		}
 		workspace := state.Workspace
-		if d.Kind != wire.DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML || d.Id.Value != "operational.main" || !configurationDirty(workspace.Dirty) || !configurationHash(workspace.SourceSha256) || !configurationTime(workspace.UpdatedAt) {
+		if !configurationObservableDocument(d) || !configurationDirty(workspace.Dirty) || !configurationHash(workspace.SourceSha256) || !configurationTime(workspace.UpdatedAt) {
 			return false
 		}
 		if !configurationWorkspaceDiagnostic(d.Id, workspace) {
@@ -66,7 +92,7 @@ func configurationDocument(d *wire.Document) bool {
 				return false
 			}
 		case wire.WorkspaceUnobservedReason_WORKSPACE_UNOBSERVED_REASON_SOURCE_UNAVAILABLE:
-			if d.Kind != wire.DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML || d.Id.Value != "operational.main" {
+			if !configurationObservableDocument(d) {
 				return false
 			}
 		case wire.WorkspaceUnobservedReason_WORKSPACE_UNOBSERVED_REASON_UNSPECIFIED:

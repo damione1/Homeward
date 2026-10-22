@@ -107,42 +107,74 @@ func operationalID() storage.ConfigDocumentID {
 
 // Read captures any admitted versioned document through the real metadata
 // reader. SQL active membership is not guessed from kind or a physical path.
-// Only the operational document has a workspace locator in this owner; other
-// kinds retain an explicit unobserved workspace state, never invented clean.
-// The signed resume binding is global: catalogue cut plus selected operational
-// observation between equal owner/journal stamps, independent of requested ID.
+// Exact admitted locators supply nonoperational observations; legacy and
+// inactive references remain explicitly unobserved. The signed resume binding
+// includes one bounded global source observation cut between equal Owner and
+// journal stamps, independent of the document selected by the caller.
 func (s *Service) Read(ctx context.Context, id storage.ConfigDocumentID) (Snapshot, error) {
+	snapshot, _, err := s.readSourceSnapshot(ctx, id)
+	return snapshot, err
+}
+
+func (s *Service) readSourceSnapshot(ctx context.Context, id storage.ConfigDocumentID) (Snapshot, SourceObservationSet, error) {
 	if s == nil || !s.admitted || !usableContext(ctx) || !id.Valid() {
-		return Snapshot{}, &Error{kind: FailureInvalid}
+		return Snapshot{}, SourceObservationSet{}, &Error{kind: FailureInvalid}
 	}
 	for attempt := 0; attempt < 2; attempt++ {
 		position, err := s.journal.Position()
 		if err != nil {
-			return Snapshot{}, err
+			return Snapshot{}, SourceObservationSet{}, err
 		}
 		before, err := s.owner.CurrentConfig(ctx)
 		if err != nil {
-			return Snapshot{}, &Error{kind: Unavailable}
+			return Snapshot{}, SourceObservationSet{}, &Error{kind: Unavailable}
 		}
 		state, err := s.store.ReadConfigDocumentState(ctx, id, operationalID())
 		if err != nil {
-			return Snapshot{}, err
+			return Snapshot{}, SourceObservationSet{}, err
 		}
 		observation, observationErr := s.workspace.Observe()
+		active, present, err := s.store.ReadActiveConfig(ctx)
+		if err != nil || !present {
+			return Snapshot{}, SourceObservationSet{}, &Error{kind: Unavailable}
+		}
+		// Independent SQL snapshots can straddle a publication. Retry the
+		// whole cut before capturing sources or signing a resume token.
+		if active.Revision() != state.Generation() || active.ManifestSHA256() != state.ManifestSHA256() {
+			continue
+		}
+		captured, err := s.CaptureSourceObservations(ctx, active)
+		if err != nil {
+			var failure *Error
+			if errors.As(err, &failure) && failure.Kind() == Conflict {
+				continue
+			}
+			return Snapshot{}, SourceObservationSet{}, err
+		}
+		if captured.CatalogCut() != state.Cut() {
+			continue
+		}
+		var selected SourceDocumentObservation
+		if id != operationalID() {
+			selected, err = s.ReadSourceObservation(state.Document(), captured)
+			if err != nil {
+				return Snapshot{}, SourceObservationSet{}, err
+			}
+		}
 		after, err := s.owner.CurrentConfig(ctx)
 		if err != nil {
-			return Snapshot{}, &Error{kind: Unavailable}
+			return Snapshot{}, SourceObservationSet{}, &Error{kind: Unavailable}
 		}
 		through, err := s.journal.Position()
 		if err != nil {
-			return Snapshot{}, err
+			return Snapshot{}, SourceObservationSet{}, err
 		}
 		if before != after || !position.Equal(through) {
 			continue
 		}
 		generation, manifest, err := after.Components()
 		if err != nil || int64(generation) != state.Generation().Number() || manifest != state.ManifestSHA256() {
-			return Snapshot{}, &Error{kind: Unavailable}
+			return Snapshot{}, SourceObservationSet{}, &Error{kind: Unavailable}
 		}
 		var diagnostic WorkspaceDiagnostic
 		dirty := DirtyUnavailable
@@ -176,24 +208,27 @@ func (s *Service) Read(ctx context.Context, id storage.ConfigDocumentID) (Snapsh
 		if observedAt, ok := observation.UpdatedAt(); ok {
 			_, _ = h.Write([]byte(observedAt.Format(time.RFC3339Nano)))
 		}
+		if sources, present := captured.GlobalSHA256(); present {
+			_, _ = h.Write([]byte("homeward/config-source-observation/1\x00"))
+			_, _ = h.Write(sources[:])
+		}
 		var cut [32]byte
 		copy(cut[:], h.Sum(nil))
 		bound, err := through.Bind(cut)
 		if err != nil {
-			return Snapshot{}, err
+			return Snapshot{}, SourceObservationSet{}, err
 		}
 		token, err := s.journal.Encode(bound)
 		if err != nil {
-			return Snapshot{}, err
+			return Snapshot{}, SourceObservationSet{}, err
 		}
 		if id != operationalID() {
-			observation = Observation{}
-			dirty = DirtyUnknown
-			diagnostic = WorkspaceDiagnostic{}
+			observation, dirty = selected.Workspace(), selected.Dirty()
+			diagnostic, _ = selected.Diagnostic()
 		}
-		return Snapshot{document: state.Document(), generation: state.Generation(), manifest: manifest, catalog: state.Cut(), observation: observation, dirty: dirty, position: bound, token: token, diagnostic: diagnostic}, nil
+		return Snapshot{document: state.Document(), generation: state.Generation(), manifest: manifest, catalog: state.Cut(), observation: observation, dirty: dirty, position: bound, token: token, diagnostic: diagnostic}, captured, nil
 	}
-	return Snapshot{}, &Error{kind: Unavailable}
+	return Snapshot{}, SourceObservationSet{}, &Error{kind: Unavailable}
 }
 
 // ProtectedReference is a keyed opaque public handle. The source's logical path,
@@ -253,8 +288,15 @@ func (s *Service) Write(ctx context.Context, expected ExpectedDocument, raw []by
 	return s.writeLocked(ctx, expected, raw, author)
 }
 func (s *Service) writeLocked(ctx context.Context, expected ExpectedDocument, raw []byte, author storage.ConfigAuthor) (configactivation.Result, error) {
+	return s.writeGuardedLocked(ctx, expected, raw, author, WriteBasis{})
+}
+
+func (s *Service) writeGuardedLocked(ctx context.Context, expected ExpectedDocument, raw []byte, author storage.ConfigAuthor, basis WriteBasis) (configactivation.Result, error) {
 	current, err := s.Read(ctx, expected.id)
 	if err != nil {
+		return configactivation.Result{}, err
+	}
+	if err := basis.confirm(current); err != nil {
 		return configactivation.Result{}, err
 	}
 	observed, _ := current.observation.SHA256()
@@ -277,11 +319,27 @@ func (s *Service) writeLocked(ctx context.Context, expected ExpectedDocument, ra
 	if err != nil {
 		return configactivation.Result{}, err
 	}
-	edit, err := s.workspace.BeginEdit(expected.workspace, current.document.SourceSHA256(), raw)
-	if err != nil {
-		return configactivation.Result{}, err
+	var edit *Edit
+	result, activationErr := s.owner.ActivateWorkspaceEdit(ctx, request, func(stageCtx context.Context) error {
+		// Owner's existing operation reservation prevents another generation
+		// from publishing between the final basis check and workspace staging.
+		confirmed, err := s.Read(stageCtx, expected.id)
+		if err != nil {
+			return err
+		}
+		if err := basis.confirm(confirmed); err != nil {
+			return err
+		}
+		observed, _ := confirmed.observation.SHA256()
+		if confirmed.generation != current.generation || confirmed.manifest != current.manifest || confirmed.document.Ref().Revision() != expected.revision || confirmed.document.SourceSHA256() != expected.source || observed != expected.workspace {
+			return &Error{kind: Conflict}
+		}
+		edit, err = s.beginGuardedWorkspaceEdit(stageCtx, expected.workspace, confirmed.document.SourceSHA256(), raw, basis)
+		return err
+	})
+	if edit == nil {
+		return result, activationErr
 	}
-	result, activationErr := s.owner.Activate(ctx, request)
 	known := false
 	switch result.Outcome() {
 	case configactivation.Published, configactivation.RejectedBeforeCommit, configactivation.NotCommitted, configactivation.RestartRequired:
@@ -316,6 +374,25 @@ func (s *Service) writeLocked(ctx context.Context, expected ExpectedDocument, ra
 	_, _ = s.Refresh(refreshCtx)
 	refreshCancel()
 	return result, activationErr
+}
+
+// The optimistic check avoids unnecessary filesystem work. The same check is
+// repeated under the existing workspace mutex immediately before its first
+// write; cancellation or receipt expiry during contention must leave no dirty
+// candidate for a later watcher to admit.
+func (s *Service) beginGuardedWorkspaceEdit(ctx context.Context, expected, admittedSQL [32]byte, raw []byte, basis WriteBasis) (*Edit, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := basis.confirmDeadline(); err != nil {
+		return nil, err
+	}
+	return s.workspace.beginEdit(expected, admittedSQL, raw, func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return basis.confirmDeadline()
+	})
 }
 
 // RestoreDocument selects a retained operational member from a complete sealed
@@ -393,6 +470,9 @@ func (s *Service) ReconcileWorkspace(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	defer release()
+	if reconciled, err := s.reconcileSourceSetLocked(ctx); reconciled || err != nil {
+		return reconciled, err
+	}
 	current, err := s.Read(ctx, operationalID())
 	if err != nil {
 		return false, err

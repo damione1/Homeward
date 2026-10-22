@@ -419,35 +419,38 @@ type retiringSource struct {
 }
 
 type Manager struct {
-	observationHealth          *observability.HealthCell
-	observation                *observability.Cells
-	journal                    *observability.Journal
-	mu                         sync.Mutex
-	admission                  admissionPhase
-	authority                  IdentityAuthority
-	authorizationAuthority     *authorization.Authority
-	sink                       Sink
-	catalog                    *contracts.CapabilityCatalog
-	active                     map[domain.IntegrationInstanceID]*Session
-	owners                     map[domain.EntityID]Binding
-	lightProfiles              map[domain.EntityID]*lightEncodingSnapshot
-	fanProfiles                map[domain.EntityID]*fanProfileSnapshot
-	retiring                   map[domain.EntityID]struct{}
-	retiringSources            map[retiringSource]struct{}
-	retirementExhausted        bool
-	commandOwners              map[commandOwnerSlot]domain.EntityID
-	inflight                   map[commandEndpointSlot]bool
-	volatile                   *volatileCommandLedger
-	unprotectedCommandDispatch bool
-	commandPolicies            map[domain.CommandID]commandPolicy
-	actions                    *actionTracker
-	supervisor                 *Supervisor
-	durable                    *DurableCommandService
-	nativeMQTTInstance         domain.IntegrationInstanceID
-	nativeMQTTSink             NativeMQTTEdgeSink
-	secrets                    *storage.SecretRepository
-	composition                compositionPhase
-	durableRegistration        durableRegistrationPhase
+	observationHealth               *observability.HealthCell
+	observation                     *observability.Cells
+	journal                         *observability.Journal
+	mu                              sync.Mutex
+	configurationDeclarations       *ConfigurationDeclarationsLease
+	configurationDeclarationsClosed chan struct{}
+	configurationDeclarationsToken  *configurationDeclarationToken
+	admission                       admissionPhase
+	authority                       IdentityAuthority
+	authorizationAuthority          *authorization.Authority
+	sink                            Sink
+	catalog                         *contracts.CapabilityCatalog
+	active                          map[domain.IntegrationInstanceID]*Session
+	owners                          map[domain.EntityID]Binding
+	lightProfiles                   map[domain.EntityID]*lightEncodingSnapshot
+	fanProfiles                     map[domain.EntityID]*fanProfileSnapshot
+	retiring                        map[domain.EntityID]struct{}
+	retiringSources                 map[retiringSource]struct{}
+	retirementExhausted             bool
+	commandOwners                   map[commandOwnerSlot]domain.EntityID
+	inflight                        map[commandEndpointSlot]bool
+	volatile                        *volatileCommandLedger
+	unprotectedCommandDispatch      bool
+	commandPolicies                 map[domain.CommandID]commandPolicy
+	actions                         *actionTracker
+	supervisor                      *Supervisor
+	durable                         *DurableCommandService
+	nativeMQTTInstance              domain.IntegrationInstanceID
+	nativeMQTTSink                  NativeMQTTEdgeSink
+	secrets                         *storage.SecretRepository
+	composition                     compositionPhase
+	durableRegistration             durableRegistrationPhase
 }
 
 type Session struct {
@@ -517,6 +520,7 @@ func (h *Manager) CloseAdmissions() error {
 		_ = h.observationHealth.PublishCoreUnavailable(obs.CoreCause_CORE_CAUSE_CONTROL_ADMISSIONS_CLOSED)
 	}
 	h.admission = admissionClosed
+	h.closeConfigurationDeclarationsLocked()
 	return nil
 }
 
@@ -602,6 +606,7 @@ func (h *Manager) ClosePreparedRuntime(ctx context.Context) (<-chan struct{}, er
 		return nil, ErrSupervisorState
 	}
 	h.admission = admissionClosed
+	h.closeConfigurationDeclarationsLocked()
 	service := h.durable
 	h.mu.Unlock()
 	if service == nil {
@@ -821,42 +826,60 @@ func (s *Session) discover(ctx context.Context, candidates []Candidate, committe
 			seenCapabilities[key] = true
 		}
 	}
-	h.mu.Lock()
-	if !s.live() {
-		h.mu.Unlock()
-		return nil, ErrInactiveSession
-	}
-	if h.retirementExhausted {
-		h.mu.Unlock()
-		return nil, ErrAdmissionsClosed
-	}
-	for _, key := range keys {
-		if _, fenced := h.retiringSources[retiringSource{s.instance, key}]; fenced {
+	var resolved []ResolvedIdentity
+	for {
+		if err := s.waitConfigurationDeclarations(ctx); err != nil {
+			return nil, err
+		}
+		h.mu.Lock()
+		if !s.live() {
 			h.mu.Unlock()
 			return nil, ErrInactiveSession
 		}
-	}
-	h.mu.Unlock()
-	var resolved []ResolvedIdentity
-	var err error
-	if committedProjection {
-		projection, ok := h.sink.(ConfigurationIdentityProjection)
-		if !ok || nilInterface(projection) {
-			return nil, ErrInvalidInput
+		if h.admission != admissionOpen || h.retirementExhausted {
+			h.mu.Unlock()
+			return nil, ErrAdmissionsClosed
 		}
-		resolved, err = projection.ResolveConfigurationIdentities(ctx, s.instance, keys)
-	} else {
-		resolved, err = h.authority.Resolve(ctx, s.instance, keys)
+		for _, key := range keys {
+			if _, fenced := h.retiringSources[retiringSource{s.instance, key}]; fenced {
+				h.mu.Unlock()
+				return nil, ErrInactiveSession
+			}
+		}
+		if h.configurationDeclarations != nil {
+			h.mu.Unlock()
+			continue
+		}
+		declarationsToken := h.configurationDeclarationsToken
+		h.mu.Unlock()
+		var err error
+		if committedProjection {
+			projection, ok := h.sink.(ConfigurationIdentityProjection)
+			if !ok || nilInterface(projection) {
+				return nil, ErrInvalidInput
+			}
+			resolved, err = projection.ResolveConfigurationIdentities(ctx, s.instance, keys)
+		} else {
+			resolved, err = h.authority.Resolve(ctx, s.instance, keys)
+		}
+		if err != nil {
+			return nil, err
+		}
+		h.mu.Lock()
+		if h.configurationDeclarations == nil && h.configurationDeclarationsToken == declarationsToken {
+			break
+		}
+		// Resolve released the registry admission before returning. A
+		// configuration lease can win that gap and even finish before this
+		// lock is acquired. The persistent token detects that complete ABA.
+		// Retry outside Host.mu and resolve the current SQL identities.
+		h.mu.Unlock()
 	}
-	if err != nil {
-		return nil, err
-	}
-	h.mu.Lock()
 	defer h.mu.Unlock()
 	if !s.live() {
 		return nil, ErrInactiveSession
 	}
-	if h.retirementExhausted {
+	if h.admission != admissionOpen || h.retirementExhausted {
 		return nil, ErrAdmissionsClosed
 	}
 	for _, key := range keys {
@@ -1025,22 +1048,19 @@ func (s *Session) withdrawFenced(ctx context.Context, binding Binding) error {
 		}
 	}
 	background := context.WithoutCancel(ctx)
-	err := h.catalog.WithdrawDriverCapabilities(binding.entity, func() error {
-		if projection, ok := h.sink.(DiscoveryWithdrawalSink); ok {
-			return projection.WithdrawDiscovery(background, binding.entity)
-		}
-		return nil
-	})
+	deferred, err := h.deferConfigurationWithdrawalLocked(binding.entity)
+	if !deferred {
+		err = h.withdrawConfigurationDeclarationLocked(background, binding.entity)
+	}
 	if err != nil {
 		if projection, ok := h.sink.(ProjectionSink); ok {
 			projection.InvalidateRegistry()
 		}
-		return err
 	}
 	quality, _ := domain.NewQuality(domain.AvailabilityUnavailable, domain.FreshnessStale, domain.ProvenanceObserved)
 	observation, _ := NewStateObservation("discovery", quality, nil, nil, time.Now(), nil)
 	source, _ := domain.NewSourceStamp(s.id, nil)
-	return h.sink.AcceptState(background, binding.entity, AcceptedState{observation: observation, source: source, instance: s.instance, retirement: true})
+	return errors.Join(err, h.sink.AcceptState(background, binding.entity, AcceptedState{observation: observation, source: source, instance: s.instance, retirement: true}))
 }
 
 func (h *Manager) fenceRetirementLocked(instance domain.IntegrationInstanceID, key SourceKey, entity domain.EntityID) {
@@ -1055,6 +1075,7 @@ func (h *Manager) fenceRetirementLocked(instance domain.IntegrationInstanceID, k
 	}
 	if len(h.retiring)+len(h.retiringSources)+additions > 16384 {
 		h.retirementExhausted = true
+		h.closeConfigurationDeclarationsLocked()
 		return
 	}
 	h.retiringSources[retiringSource{instance, key}] = struct{}{}

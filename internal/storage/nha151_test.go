@@ -897,9 +897,9 @@ func TestNHA151SchemaEnumDrift(t *testing.T) {
 		name string
 		want []string
 	}{
-		{"config_document_kind", []string{ConfigDocumentKindYAMLSource.String(), ConfigDocumentKindAuthorizationPolicy.String(), ConfigDocumentKindMFAPolicy.String(), ConfigDocumentKindOperationalYAML.String(), ConfigDocumentKindBootstrapLaunch.String()}},
-		{"config_schema_version", []string{bundle.SchemaDeclarative1.String(), authorization.Schema, bundle.SchemaDeclarative2.String(), authmfa.PolicySchema, configOperationalSchema, configBootstrapSchema}},
-		{"config_syntax_profile", []string{parser.SyntaxProfileDeclarative.String(), authorization.SyntaxProfile, parser.SyntaxProfileDeclarative2.String(), authmfa.PolicySyntaxProfile, configOperationalProfile, configBootstrapProfile}},
+		{"config_document_kind", []string{ConfigDocumentKindYAMLSource.String(), ConfigDocumentKindAuthorizationPolicy.String(), ConfigDocumentKindMFAPolicy.String(), ConfigDocumentKindOperationalYAML.String(), ConfigDocumentKindBootstrapLaunch.String(), ConfigDocumentKindDashboardSource.String(), ConfigDocumentKindAutomationSource.String(), ConfigDocumentKindScriptSource.String(), ConfigDocumentKindSceneSource.String(), ConfigDocumentKindOwnershipSource.String()}},
+		{"config_schema_version", []string{bundle.SchemaDeclarative1.String(), authorization.Schema, bundle.SchemaDeclarative2.String(), authmfa.PolicySchema, configOperationalSchema, configBootstrapSchema, "homeward-dashboard-1", "ha-logic-1", "ha-scene-1", "homeward.heating-ownership/1"}},
+		{"config_syntax_profile", []string{parser.SyntaxProfileDeclarative.String(), authorization.SyntaxProfile, parser.SyntaxProfileDeclarative2.String(), authmfa.PolicySyntaxProfile, configOperationalProfile, configBootstrapProfile, parser.LovelaceProfile, parser.LogicProfile, parser.SceneProfile, "homeward.heating-ownership-json/1"}},
 		{"config_source_representation", []string{ConfigSourcePlainV1.String(), ConfigSourceProtectedOperationalV1.String()}},
 		{"config_manifest_format", []string{ConfigManifestLegacyV1.String(), ConfigManifestCompiledV2.String()}},
 		{"command_origin_kind", []string{IntentOriginExternalActor.String(), IntentOriginInternalAutomation.String()}},

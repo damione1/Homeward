@@ -14,6 +14,7 @@ import (
 	"github.com/damione1/Homeward/compat/ha/parser"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/config/bundle"
+	"github.com/damione1/Homeward/internal/configcompilation"
 	"github.com/damione1/Homeward/internal/storage"
 )
 
@@ -39,15 +40,17 @@ const (
 // came from the current SQL pointer, with the protected bytes authenticated
 // and the same parser used at initial admission.
 type AdmittedGeneration struct {
-	revision    storage.ConfigGenerationRevision
-	manifest    [sha256.Size]byte
-	sourceHash  [sha256.Size]byte
-	operational config.Config
-	launch      config.Config
-	legacy      bundle.Candidate
-	hasLegacy   bool
-	secrets     *storage.SecretRepository
-	admitted    bool
+	revision           storage.ConfigGenerationRevision
+	manifest           [sha256.Size]byte
+	sourceHash         [sha256.Size]byte
+	operational        config.Config
+	launch             config.Config
+	legacy             bundle.Candidate
+	compilationContext configcompilation.Context
+	extraGroups        []SourceGroup
+	hasLegacy          bool
+	secrets            *storage.SecretRepository
+	admitted           bool
 }
 
 func (g AdmittedGeneration) Valid() bool {
@@ -431,6 +434,7 @@ func readAdmitted(ctx context.Context, store *storage.Store, replay *storage.Con
 	var operationalHash [sha256.Size]byte
 	var legacySources []parser.SourceFile
 	var legacyProfile parser.SyntaxProfile
+	hasEditableSources := false
 	for _, version := range active.Versions() {
 		kind, present := version.Kind()
 		if !present {
@@ -442,6 +446,8 @@ func readAdmitted(ctx context.Context, store *storage.Store, replay *storage.Con
 				return AdmittedGeneration{}, ErrStartupIntegrity
 			}
 			operationalRef, operationalHash = version.Ref(), version.SHA256()
+		case storage.ConfigDocumentKindDashboardSource, storage.ConfigDocumentKindAutomationSource, storage.ConfigDocumentKindScriptSource, storage.ConfigDocumentKindSceneSource, storage.ConfigDocumentKindOwnershipSource:
+			hasEditableSources = true
 		case storage.ConfigDocumentKindYAMLSource:
 			profile, ok := version.Profile()
 			raw, hasBytes := version.Bytes()
@@ -483,10 +489,26 @@ func readAdmitted(ctx context.Context, store *storage.Store, replay *storage.Con
 			return AdmittedGeneration{}, ErrStartupIntegrity
 		}
 	}
-	if active.CandidateSHA256() != compiledOperationalHash(protected.SHA256(), legacy) {
+	var compilationContext configcompilation.Context
+	var extraGroups []SourceGroup
+	if hasEditableSources {
+		sources, err := store.ReadEditableSources(ctx, active.Revision(), active.ManifestSHA256())
+		if err != nil {
+			return AdmittedGeneration{}, ErrStartupIntegrity
+		}
+		compilationContext, err = store.ReadConfigCompilationContext(ctx, active.Revision(), active.ManifestSHA256(), active.CandidateSHA256())
+		if err != nil {
+			return AdmittedGeneration{}, ErrStartupIntegrity
+		}
+		extraGroups, err = sourceGroupsFromSQL(sources)
+		if err != nil {
+			return AdmittedGeneration{}, ErrStartupIntegrity
+		}
+	}
+	if active.CandidateSHA256() != compiledSourceGroupsHash(compiledOperationalHash(protected.SHA256(), legacy), extraGroups) {
 		return AdmittedGeneration{}, ErrStartupIntegrity
 	}
 	return AdmittedGeneration{revision: active.Revision(), manifest: active.ManifestSHA256(),
 		sourceHash: protected.SHA256(), operational: operational, launch: launch,
-		legacy: legacy, hasLegacy: legacy.Valid(), secrets: secrets, admitted: true}, nil
+		legacy: legacy, compilationContext: compilationContext, extraGroups: extraGroups, hasLegacy: legacy.Valid(), secrets: secrets, admitted: true}, nil
 }

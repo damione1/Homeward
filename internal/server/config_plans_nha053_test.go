@@ -62,7 +62,11 @@ func nha053StartTLS(t *testing.T) nha053TLSFixture {
 	return nha053TLSFixture{nha149TLSFixture: nha149TLSFixture{api: configurationv1connect.NewConfigurationServiceClient(client, base), authentication: authentication, accounts: authv1connect.NewAccountServiceClient(client, base), tokens: tokens, token: tokens.AccessToken, path: path, raw: source.Bytes(), run: run, ctx: ctx}, plans: configurationplanv1connect.NewConfigurationPlanServiceClient(client, base), policies: authv1connect.NewAuthorizationPolicyServiceClient(client, base)}
 }
 func nha053WireCandidate(family wire.SourceFamily, identity string, source []byte) *wire.Candidate {
-	return &wire.Candidate{Family: family, Identity: identity, Entry: "configuration.yaml", Files: []*wire.SourceFile{{LogicalPath: "configuration.yaml", ExactSource: bytes.Clone(source)}}}
+	entry := "configuration.yaml"
+	if family == wire.SourceFamily_SOURCE_FAMILY_OWNERSHIP {
+		entry = "ownership.json"
+	}
+	return &wire.Candidate{Family: family, Identity: identity, Entry: entry, Files: []*wire.SourceFile{{LogicalPath: entry, ExactSource: bytes.Clone(source)}}}
 }
 func (f nha053TLSFixture) build(t *testing.T, candidate *wire.Candidate) *wire.Plan {
 	t.Helper()

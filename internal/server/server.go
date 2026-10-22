@@ -53,8 +53,9 @@ func (unconfiguredIdentity) Resolve(context.Context, domain.IntegrationInstanceI
 // drains the command service. Run also joins its job scheduler before closing
 // PostgreSQL, using the same shutdown budget for both owners.
 type RuntimePlan struct {
-	remoteCalendar *remoteCalendarRuntime
-	scopeManifest  registry.Manifest
+	remoteCalendar  *remoteCalendarRuntime
+	scopeManifest   registry.Manifest
+	sourceOwnership *heatingownership.Decision
 	// Internal observation seam retains the actual composed compiler in tests.
 	observeOperationalCompiler        func(*configuredOperationalCompiler)
 	ConfigureBackupArchives           func(context.Context, BackupArchiveServices) error
@@ -74,6 +75,8 @@ type RuntimePlan struct {
 	WorkdayCalendar                   workday.CalendarReader
 	ConfigureWorkdayCalendar          func(context.Context, workday.CalendarReader) error
 	ConfigureActivation               func(context.Context, *configactivation.Owner) error
+	SourceFactory                     configactivation.SourceRuntimeFactory
+	SourceCompiler                    *configactivation.SourceRuntimeCompiler
 	OperationalCompiler               configactivation.OperationalCompiler
 }
 
@@ -182,6 +185,11 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		store.Close()
 		return err
 	}
+	ownership, err := initialSourceOwnership(admitted, scopeManifest)
+	if err != nil {
+		store.Close()
+		return err
+	}
 	secrets, err := admitted.Secrets()
 	if err != nil {
 		store.Close()
@@ -267,7 +275,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 				if _, e = secrets.InitializeCredentialIfAbsent(ctx, neviwebSettings.SessionHandle(), initial); e != nil {
 					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, e)
 				}
-				cloud = append(cloud, neviwebComposition{settings: neviwebSettings, catalog: catalog})
+				cloud = append(cloud, neviwebComposition{settings: neviwebSettings, catalog: catalog, ownership: &ownership})
 			}
 			plan, err = defaultConfiguredRuntimePlanWithManifest(scopeManifest, mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
 			if err != nil {
@@ -299,7 +307,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 				if !ok {
 					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, ErrIdentityNotConfigured)
 				}
-				hiloRun, err = newHiloCompositionWithManifest(scopeManifest, hiloSettings, store, sequence, catalog, repository)
+				hiloRun, err = newHiloCompositionWithDecision(scopeManifest, ownership, hiloSettings, store, sequence, catalog, repository)
 				if err != nil {
 					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 				}
@@ -308,6 +316,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 				}
 			}
 		}
+	}
+	if factory == nil {
+		plan.sourceOwnership = &ownership
 	}
 	// The current launch selection is immutable across operational replay.
 	plan.scopeManifest = scopeManifest
@@ -388,9 +399,6 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			dependencies.observeRemoteCalendar(remoteRuntime)
 		}
 	}
-	if err := validateAutomationRunAssembly(plan.AutomationTriggers, plan.AutomationRuns, plan.ConfigureAutomationTriggerResults); err != nil {
-		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
-	}
 	commandComposition, err := resolveDurableCommands(plan)
 	if err != nil {
 		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
@@ -422,6 +430,24 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, planErr)
 			}
 		}
+	}
+	if factory == nil && activation != nil {
+		repository, ok := plan.Identity.(*registry.Repository)
+		if !ok {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, ErrIdentityNotConfigured)
+		}
+		plan.SourceFactory = defaultSourceRuntimeFactory(scopeManifest, repository, remoteRuntime)
+		plan, err = prepareDefaultSourceExecution(plan, commandComposition)
+		if err != nil {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+		}
+	}
+	plan, err = prepareAdmittedEditableSources(ctx, admitted, plan)
+	if err != nil {
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+	}
+	if err := validateAutomationRunAssembly(plan.AutomationTriggers, plan.AutomationRuns, plan.ConfigureAutomationTriggerResults); err != nil {
+		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
 	if err := installAutomationTriggerMQTTPilot(&plan); err != nil {
 		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
@@ -665,6 +691,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	}
 	if err == nil {
 		err = registerConfigSimulationRoutes(plan.Public, documents, sessions)
+	}
+	if err == nil {
+		err = registerConfigApplyRoutes(plan.Public, configPreview, documents, sessions)
 	}
 	if err != nil {
 		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
@@ -975,8 +1004,9 @@ func defaultMQTTRuntimePlan(settings mqtt.Settings, store *storage.Store, sequen
 }
 
 type neviwebComposition struct {
-	settings neviweb.Settings
-	catalog  *contracts.CapabilityCatalog
+	settings  neviweb.Settings
+	catalog   *contracts.CapabilityCatalog
+	ownership *heatingownership.Decision
 }
 
 func defaultConfiguredRuntimePlan(mqttSettings mqtt.Settings, mqttEnabled bool, workers []worker.Config, store *storage.Store, sequence *sequencer.Sequencer, cloud ...neviwebComposition) (RuntimePlan, error) {
@@ -1024,9 +1054,14 @@ func defaultConfiguredRuntimePlanWithManifest(manifest registry.Manifest, mqttSe
 		if e != nil {
 			return RuntimePlan{}, e
 		}
-		decision, e := heatingownership.ParseForManifest(scope.HeatingOwnershipV1(), manifest)
-		if e != nil {
-			return RuntimePlan{}, e
+		var decision heatingownership.Decision
+		if cloud[0].ownership != nil {
+			decision = *cloud[0].ownership
+		} else {
+			decision, e = heatingownership.ParseForManifest(scope.HeatingOwnershipV1(), manifest)
+		}
+		if e != nil || !sourceOwnershipWithinManifest(decision, manifest) {
+			return RuntimePlan{}, heatingownership.ErrInvalidDecision
 		}
 		limit, _, zone := settings.Budget()
 		quota, e := storage.NewCloudAttemptQuota(store, settings.AccountText(), limit, zone)

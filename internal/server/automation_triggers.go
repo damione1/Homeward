@@ -181,6 +181,9 @@ func installAutomationTriggerMQTTPilot(plan *RuntimePlan) error {
 	if plan.AutomationTriggers == nil {
 		return nil
 	}
+	if plan.SourceFactory != nil && plan.SourceCompiler != nil {
+		return installSourceMQTTPilot(plan)
+	}
 	proof, present := plan.AutomationTriggers.MQTTIngress()
 	if !present {
 		return nil

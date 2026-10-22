@@ -101,6 +101,7 @@ func (w *Watcher) Close(ctx context.Context) error {
 }
 func (w *Watcher) run(ctx context.Context) {
 	var stable stableObservation
+	var sources sourceWatchState
 	var last Observation
 	var observed, available bool
 	var completed Observation
@@ -182,6 +183,7 @@ func (w *Watcher) run(ctx context.Context) {
 				}
 			}
 		}
+		w.pollSourceSets(ctx, &sources, w.clock.Now())
 		if w.clock.Wait(ctx, watcherPeriod) != nil {
 			return
 		}

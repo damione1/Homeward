@@ -56,31 +56,7 @@ func newHiloCompositionWithManifest(manifest registry.Manifest, settings hilo.Se
 	if err != nil {
 		return nil, err
 	}
-	instance, err := settings.Instance()
-	if err != nil {
-		return nil, err
-	}
-	limit, zone := settings.Budget()
-	quota, err := storage.NewCloudAttemptQuota(store, settings.AccountText(), limit, zone)
-	if err != nil {
-		return nil, err
-	}
-	account, err := integrations.NewCloudAccountBinding(instance, settings.Account())
-	if err != nil {
-		return nil, err
-	}
-	policy, err := integrations.NewCloudPolicyWithStreams(integrations.DefaultCloudLimits(), integrations.DefaultCloudStreamLimits(), []integrations.CloudAccountBinding{account}, integrations.RealCloudClock{}, integrations.RealCloudTimer{}, integrations.RandomJitter{})
-	if err != nil {
-		return nil, err
-	}
-	if cells, err := sequence.ObservationCells(); err == nil {
-		_ = policy.AttachObservation(cells)
-	}
-	leases, err := hilo.NewLeaseRegistry(sequence, instance, settings.LeaseWindow())
-	if err != nil {
-		return nil, err
-	}
-	return &hiloComposition{settings, repository, decision, catalog, sequence, store, policy, quota, leases}, nil
+	return newHiloCompositionWithDecision(manifest, decision, settings, store, sequence, catalog, repository)
 }
 
 // augment only composes the Hilo-owned pilot. Run calls it before Host and

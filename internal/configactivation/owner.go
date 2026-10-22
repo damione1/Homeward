@@ -78,6 +78,7 @@ type activationTransfer struct {
 	scenes                *scenes.CatalogueReservation
 	pilots                *integrations.PilotReplacement
 	policies              PolicyReservation
+	declarations          *integrations.ConfigurationDeclarationsLease
 	registry              *registry.ActivationGate
 	pause                 *integrations.ActivationPause
 	cut                   *sequencer.ConfigurationPublication
@@ -261,24 +262,56 @@ func (o *Owner) Activate(ctx context.Context, request Request) (Result, error) {
 		return Result{outcome: RejectedBeforeCommit}, err
 	}
 	defer finish()
+	return o.activate(ctx, bounded, request)
+}
+
+func (o *Owner) activate(ctx, bounded context.Context, request Request) (Result, error) {
 	if err := o.input.Startup.ConfirmBootstrapSource(); err != nil {
 		return Result{outcome: RestartRequired}, err
 	}
 	o.mu.RLock()
 	current := o.current
 	o.mu.RUnlock()
+	var contextErr error
+	if request.sourceReservations == nil {
+		request, contextErr = o.reserveSourceContext(bounded, request, current)
+		if contextErr != nil {
+			return Result{outcome: RejectedBeforeCommit, transaction: storage.TransactionNotCommitted}, contextErr
+		}
+		reserved := request.sourceReservations
+		defer func() { _ = o.releaseSourceContextReservations(reserved) }()
+	}
+	request, contextErr = o.admitEditableSourceContext(bounded, request, current)
+	if contextErr != nil {
+		return Result{outcome: RejectedBeforeCommit, transaction: storage.TransactionNotCommitted}, contextErr
+	}
 	prepared, err := prepareWorkspaceActivation(bounded, o.input.Store, o.input.Startup, current,
 		request.definitions, request.author, request.source, request.policies)
 	if err != nil {
 		return Result{outcome: RejectedBeforeCommit, transaction: storage.TransactionNotCommitted}, err
 	}
+	prepared, err = o.prepareEditableSources(bounded, current, prepared, request)
+	if err != nil {
+		return Result{outcome: RejectedBeforeCommit, transaction: storage.TransactionNotCommitted}, err
+	}
+	prepared.confirmSourceFiles, prepared.confirmSourceVersions = request.confirmSourceFiles, request.confirmSourceVersions
+	if prepared.confirmSourceFiles != nil {
+		if err := prepared.confirmSourceFiles(); err != nil {
+			return Result{outcome: RejectedBeforeCommit, transaction: storage.TransactionNotCommitted}, err
+		}
+	}
 	if err := request.confirmWorkspacePrecondition(current, prepared); err != nil {
 		return Result{outcome: RejectedBeforeCommit, transaction: storage.TransactionNotCommitted}, err
 	}
 	t := &activationTransfer{prepared: prepared, request: request, outcome: storage.TransactionNotCommitted, basis: operationalBasis{current.operational, current.legacy}}
+	o.adoptSourceContextReservations(t, request)
 	if err = o.reserve(bounded, t); err != nil {
 		o.releaseUnwritten(t)
 		return Result{outcome: RejectedBeforeCommit, attempt: prepared.attempt}, err
+	}
+	if t.declarations != nil {
+		prepared.confirmDeclarations = t.declarations.Confirm
+		t.prepared.confirmDeclarations = prepared.confirmDeclarations
 	}
 	o.mu.Lock()
 	if o.phase == ownerClosed {
@@ -299,7 +332,12 @@ func (o *Owner) Activate(ctx context.Context, request Request) (Result, error) {
 			}
 		}
 		if request.registry != nil {
-			return request.registry(writer)
+			if err := request.registry(writer); err != nil {
+				return err
+			}
+		}
+		if prepared.sourceContext != nil {
+			return writer.ConfirmCompilationIdentities(*prepared.sourceContext)
 		}
 		return nil
 	}
@@ -344,6 +382,16 @@ func (o *Owner) reserve(ctx context.Context, t *activationTransfer) error {
 	if t.target.Valid() {
 		next, definitions = t.target.operational, t.target.legacy
 	}
+	if t.request.sourceContext != nil && !t.target.Valid() {
+		manifest, err := o.input.Registry.ScopeManifest()
+		if err != nil {
+			return err
+		}
+		captured, err := SourceContextFromSnapshot(t.old, manifest)
+		if err != nil || captured.SHA256() != t.request.sourceContext.SHA256() {
+			return ErrWorkspacePreconditionConflict
+		}
+	}
 	program := t.request.program
 	var baseTemplates reactivetemplate.Plan
 	var triggerPlan automationtriggers.Plan
@@ -363,6 +411,15 @@ func (o *Owner) reserve(ctx context.Context, t *activationTransfer) error {
 			return err
 		}
 	}
+	sourceImage, err := o.composeSourceProgram(ctx, t, baseTemplates)
+	if err != nil {
+		return err
+	}
+	if sourceImage.program != nil {
+		program = sourceImage.program
+		triggerPlan = program.triggers
+		baseTemplates = program.templates
+	}
 	if t.reconciling && program == nil && baseTemplates.Active() {
 		baseTemplates, err = baseTemplates.ReplacePermanent(nil, nil, definitions.Groups())
 		if err != nil {
@@ -377,7 +434,11 @@ func (o *Owner) reserve(ctx context.Context, t *activationTransfer) error {
 				return err
 			}
 		}
-		t.operational, err = o.runtime.Operational.PrepareOperational(ctx, t.basis.operational, next, t.basis.legacy, definitions, baseTemplates, triggerPlan, t.forced, committed)
+		if sourceCompiler, ok := o.runtime.Operational.(SourceOperationalCompiler); ok && sourceImage.compilation.Valid() {
+			t.operational, err = sourceCompiler.PrepareOperationalSources(ctx, t.basis.operational, next, t.basis.legacy, definitions, baseTemplates, triggerPlan, t.forced, committed, sourceImage.compilation, t.registry)
+		} else {
+			t.operational, err = o.runtime.Operational.PrepareOperational(ctx, t.basis.operational, next, t.basis.legacy, definitions, baseTemplates, triggerPlan, t.forced, committed)
+		}
 		if err != nil || !t.operational.admitted {
 			return errors.Join(ErrOperationalComposition, err)
 		}
@@ -443,6 +504,15 @@ func (o *Owner) reserve(ctx context.Context, t *activationTransfer) error {
 			if err != nil {
 				return err
 			}
+		}
+	}
+	if sourceScenes, present := sourceImage.Scenes(); present && t.scenes == nil {
+		if o.runtime.Scenes == nil {
+			return ErrProgramCompositionRequired
+		}
+		t.scenes, err = o.runtime.Scenes.ReserveCatalogue(sourceScenes)
+		if err != nil {
+			return err
 		}
 	}
 	if t.policies == nil {
@@ -612,7 +682,7 @@ func (o *Owner) retarget(ctx context.Context, before *activationTransfer, target
 	}
 	request := before.request
 	request.program = program
-	next := &activationTransfer{prepared: before.prepared, request: request, old: before.old,
+	next := &activationTransfer{declarations: before.declarations, prepared: before.prepared, request: request, old: before.old,
 		basis: basis, target: target, admitted: target, forced: before.forced, cohort: cohort,
 		reconciling: true, registry: before.registry, pause: before.pause, cut: before.cut,
 		outcome: before.outcome, forwardingPaused: before.forwardingPaused, resolution: before.resolution}
@@ -696,6 +766,9 @@ func (o *Owner) reconcile(ctx context.Context, t *activationTransfer) (Result, e
 }
 
 func (o *Owner) publish(ctx context.Context, t *activationTransfer, records []integrations.RegistryRecord) error {
+	if err := o.releaseSourceDeclarations(t); err != nil {
+		return err
+	}
 	if t.step < publicationTransferred {
 		o.mu.RLock()
 		visibleDefinitions := o.current.legacy
@@ -944,6 +1017,9 @@ func changedAliases(t *activationTransfer, next []integrations.RegistryRecord, v
 }
 
 func (o *Owner) rollbackKnown(t *activationTransfer, outcome Outcome, cause error) (Result, error) {
+	if err := o.releaseSourceDeclarations(t); err != nil {
+		return Result{outcome: NotCommitted, attempt: t.prepared.attempt, transaction: storage.TransactionNotCommitted}, errors.Join(cause, err)
+	}
 	if t.registry != nil {
 		_ = t.registry.ResolveNotCommitted(storage.TransactionNotCommitted)
 		if err := t.registry.Release(); err != nil {
@@ -974,13 +1050,14 @@ func (o *Owner) rollbackKnown(t *activationTransfer, outcome Outcome, cause erro
 }
 
 func (o *Owner) releaseUnwritten(t *activationTransfer) {
+	declarationErr := o.releaseSourceDeclarations(t)
 	if t.operational.projection != nil {
 		t.operational.projection.Release()
 	}
 	if t.registry != nil {
 		_ = t.registry.Release()
 	}
-	if t.pause != nil {
+	if t.pause != nil && declarationErr == nil {
 		_ = o.runtime.Commands.ResumeOld(t.pause)
 	}
 	if t.pilots != nil {

@@ -39,12 +39,9 @@ func configPlanError(err error) error {
 	}
 	return connect.NewError(status, errors.New("configuration plan request rejected"))
 }
-func configPlanCandidate(value *wire.Candidate) (configplans.Candidate, error) {
-	if value == nil {
-		return configplans.Candidate{}, configplans.ErrInvalid
-	}
+func configPlanFamily(value wire.SourceFamily) (configplans.Family, error) {
 	var family configplans.Family
-	switch value.Family {
+	switch value {
 	case wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL:
 		family = configplans.Operational
 	case wire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V1:
@@ -64,16 +61,27 @@ func configPlanCandidate(value *wire.Candidate) (configplans.Candidate, error) {
 	case wire.SourceFamily_SOURCE_FAMILY_SCENE:
 		family = configplans.Scene
 	case wire.SourceFamily_SOURCE_FAMILY_UNSPECIFIED:
-		return configplans.Candidate{}, configplans.ErrInvalid
+		return family, configplans.ErrInvalid
 	default:
+		return family, configplans.ErrInvalid
+	}
+	return family, nil
+}
+
+func configPlanCandidate(value *wire.Candidate) (configplans.Candidate, error) {
+	if value == nil {
 		return configplans.Candidate{}, configplans.ErrInvalid
+	}
+	family, err := configPlanFamily(value.Family)
+	if err != nil {
+		return configplans.Candidate{}, err
 	}
 	files := make([]parser.SourceFile, 0, len(value.Files))
 	for _, file := range value.Files {
 		if file == nil {
 			return configplans.Candidate{}, configplans.ErrInvalid
 		}
-		admitted, e := parser.NewSourceFile(file.LogicalPath, file.ExactSource)
+		admitted, e := configPlanSourceFile(family, file.LogicalPath, file.ExactSource)
 		if e != nil {
 			return configplans.Candidate{}, configplans.ErrInvalid
 		}
