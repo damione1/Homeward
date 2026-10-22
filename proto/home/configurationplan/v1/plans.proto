@@ -1,0 +1,106 @@
+syntax = "proto3";
+package home.configurationplan.v1;
+option go_package = "github.com/damione1/Homeward/gen/home/configurationplan/v1;configurationplanv1";
+
+// Closed variants select existing Homeward compilers. No caller-defined schema.
+enum SourceFamily {
+  SOURCE_FAMILY_UNSPECIFIED = 0;
+  SOURCE_FAMILY_OPERATIONAL = 1;
+  SOURCE_FAMILY_DECLARATIVE_V1 = 2;
+  SOURCE_FAMILY_DECLARATIVE_V2 = 3;
+  SOURCE_FAMILY_AUTHORIZATION = 4;
+  SOURCE_FAMILY_OWNERSHIP = 5;
+  SOURCE_FAMILY_DASHBOARD = 6;
+  SOURCE_FAMILY_AUTOMATION = 7;
+  SOURCE_FAMILY_SCRIPT = 8;
+  SOURCE_FAMILY_SCENE = 9;
+}
+enum PlanState {
+  PLAN_STATE_UNSPECIFIED = 0;
+  PLAN_STATE_ADMITTED = 1;
+  PLAN_STATE_REJECTED = 2;
+  PLAN_STATE_STALE = 3;
+}
+enum BaseKind {
+  BASE_KIND_UNSPECIFIED = 0;
+  BASE_KIND_ACTIVE_SQL = 1;
+  BASE_KIND_IMMUTABLE_REFERENCE = 2;
+  BASE_KIND_NO_ACTIVE_DOCUMENT = 3;
+}
+enum Effect {
+  EFFECT_UNSPECIFIED = 0;
+  EFFECT_NONE = 1;
+  EFFECT_DASHBOARD = 2;
+  EFFECT_CONFIGURATION = 3;
+  EFFECT_HUMAN_RIGHTS = 4;
+  EFFECT_TECHNICAL_OWNERSHIP = 5;
+  EFFECT_RUN_TARGETS = 6;
+}
+enum ChangeOperation {
+  CHANGE_OPERATION_UNSPECIFIED = 0;
+  CHANGE_OPERATION_ADDED = 1;
+  CHANGE_OPERATION_REMOVED = 2;
+  CHANGE_OPERATION_REPLACED = 3;
+}
+enum DiagnosticCode {
+  DIAGNOSTIC_CODE_UNSPECIFIED = 0;
+  DIAGNOSTIC_CODE_INVALID_SCHEMA = 1;
+  DIAGNOSTIC_CODE_EXCLUDED_REFERENCE = 2;
+  DIAGNOSTIC_CODE_UNSUPPORTED_SOURCE = 3;
+  DIAGNOSTIC_CODE_CAPACITY = 4;
+  DIAGNOSTIC_CODE_BASE_UNAVAILABLE = 5;
+}
+message SourceFile { string logical_path = 1; bytes exact_source = 2; }
+message Candidate {
+  SourceFamily family = 1;
+  // Logical document/account/dashboard/selected-logic identity, never a path.
+  string identity = 2;
+  string entry = 3;
+  repeated SourceFile files = 4;
+}
+message Base {
+  BaseKind kind = 1;
+  // Present only for SQL; absence is never revision zero claimed as active.
+  optional int64 revision = 2;
+  optional bytes source_sha256 = 3;
+}
+message Change {
+  Effect effect = 1;
+  ChangeOperation operation = 2;
+  // Closed compiler-owned field name; no source values, comments or parser text.
+  string field = 3;
+  uint32 references_added = 4;
+  uint32 references_removed = 5;
+}
+message Plan {
+  PlanState state = 1;
+  string author = 2;
+  SourceFamily family = 3;
+  string identity = 4;
+  string schema_version = 5;
+  bytes source_sha256 = 6;
+  // Absent for a rejected candidate; exact-source and manifest hashes differ.
+  optional bytes semantic_sha256 = 7;
+  Base base = 8;
+  int64 generation_revision = 9;
+  bytes manifest_sha256 = 10;
+  bytes observed_workspace_sha256 = 11;
+  Effect effect = 12;
+  repeated Change changes = 13;
+  repeated DiagnosticCode diagnostics = 14;
+  // Process-epoch authenticated metadata only. Not authorization or approval.
+  string receipt = 15;
+  // Always false in this diagnostic service. Apply remains a separate owner.
+  bool application_available = 16;
+}
+message BuildPlanRequest { Candidate candidate = 1; }
+message BuildPlanResponse { Plan plan = 1; }
+message RevalidatePlanRequest { Candidate candidate = 1; string receipt = 2; }
+message RevalidatePlanResponse { Plan plan = 1; }
+// Optional, non-mutating previews on the common TLS listener. Native human
+// admin + current GLOBAL_CONFIGURATION/ADMINISTER, with current 050 policy.
+// Neither watcher autoactivation nor internal routines require these endpoints.
+service ConfigurationPlanService {
+  rpc BuildPlan(BuildPlanRequest) returns (BuildPlanResponse);
+  rpc RevalidatePlan(RevalidatePlanRequest) returns (RevalidatePlanResponse);
+}
