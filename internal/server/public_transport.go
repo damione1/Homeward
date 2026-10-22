@@ -508,6 +508,7 @@ func (p *compiledPublic) handler(settings config.PublicSettings, admissions *pub
 				p.deny(w, r, route, nil, PublicErrorUnavailable)
 				return
 			}
+			ctx = context.WithValue(ctx, mcpRouteContextKey{}, route.key)
 			var admitted domain.ActorID
 			var err error
 			if leased, ok := p.authenticator.(LeasedAuthenticator); ok {

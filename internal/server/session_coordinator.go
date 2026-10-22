@@ -66,12 +66,15 @@ type sessionGuard struct {
 }
 
 type sessionLease struct {
-	owner       storage.SessionOwner
-	gate        *sessionAccountGate
-	coordinator *sessionCoordinator
-	cancel      context.CancelFunc
-	cancelCause context.CancelCauseFunc
-	once        sync.Once
+	mcpKey       contracts.McpKeyID
+	mcpPrincipal authorization.Principal
+	mcpBinding   [32]byte
+	owner        storage.SessionOwner
+	gate         *sessionAccountGate
+	coordinator  *sessionCoordinator
+	cancel       context.CancelFunc
+	cancelCause  context.CancelCauseFunc
+	once         sync.Once
 }
 
 type sessionLeaseContextKey struct{}
@@ -167,6 +170,7 @@ func (g *sessionGuard) quarantine() {
 	}
 	g.coordinator.mu.Unlock()
 	g.termination = authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE
+	g.cancelAllMCPLeases()
 	_ = g.coordinator.authority.QuarantineAccount(g.gate.account)
 }
 

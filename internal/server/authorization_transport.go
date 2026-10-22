@@ -46,7 +46,7 @@ func nativeRoutePermission(route RouteKey) (authorization.Permission, bool, bool
 	family := authv1.ScopeFamily_SCOPE_FAMILY_ACCOUNTS
 	var operation authv1.ScopeOperation
 	switch route.Path() {
-	case authv1connect.AuthServiceListSessionsProcedure, authv1connect.AuthServiceRevokeSessionProcedure, authv1connect.AuthServiceListFactorsProcedure, authv1connect.AuthServiceRemoveFactorProcedure, authv1connect.AuthServiceReplaceRecoveryCodesProcedure:
+	case authv1connect.McpKeyServiceCreateMcpKeyProcedure, authv1connect.McpKeyServiceListMcpKeysProcedure, authv1connect.McpKeyServiceRevokeMcpKeyProcedure, authv1connect.AuthServiceListSessionsProcedure, authv1connect.AuthServiceRevokeSessionProcedure, authv1connect.AuthServiceListFactorsProcedure, authv1connect.AuthServiceRemoveFactorProcedure, authv1connect.AuthServiceReplaceRecoveryCodesProcedure:
 		return authorization.Permission{}, true, true // self ownership is rechecked by the session service/SQL
 	case authv1connect.AccountServiceGetAccountProcedure, authv1connect.AccountServiceListAccountsProcedure, authv1connect.AccountServiceListInvitationsProcedure, authv1connect.AuthorizationPolicyServiceGetPolicyProcedure, authv1connect.AccountServiceGetSecondFactorPolicyProcedure:
 		operation = authv1.ScopeOperation_SCOPE_OPERATION_READ

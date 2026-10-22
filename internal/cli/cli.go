@@ -57,6 +57,11 @@ type grammar struct {
 		List   sessionsList   `cmd:"" help:"List sessions for an account."`
 		Revoke sessionsRevoke `cmd:"" help:"Revoke one session."`
 	} `cmd:""`
+	Keys struct {
+		Create mcpKeysCreate `cmd:"" help:"Issue an independent MCP-only key; secret is displayed once."`
+		List   mcpKeysList   `cmd:"" help:"List key metadata without bearer secrets."`
+		Revoke mcpKeysRevoke `cmd:"" help:"Revoke one MCP key and close its active streams."`
+	} `cmd:"" help:"Manage per-client MCP credentials."`
 	Accounts struct {
 		List   accountsList   `cmd:""`
 		Get    accountsGet    `cmd:""`

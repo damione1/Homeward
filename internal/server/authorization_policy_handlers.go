@@ -197,6 +197,9 @@ func (h *authorizationPolicyHandler) ReplacePolicy(ctx context.Context, request 
 	}
 	// A policy change invalidates grants and affected permits, while the native
 	// session itself remains usable under the account's new current policy.
+	if err == nil && changed {
+		guard.cancelAllMCPLeases()
+	}
 	err = finishAccountMutation(guard, ctx, err, false)
 	if err != nil {
 		return nil, policyStorageError(err)
