@@ -165,10 +165,10 @@ func (f *nha148TLSFixture) unchanged(t *testing.T, before *cfg.ReadDocumentRespo
 func TestNHA148ActualRunTLSCatalogueIsDeclaredAndUnknownTypeHasNoFallback(t *testing.T) {
 	f := nha148StartTLS(t)
 	r, err := f.api.ListIntegrationTypes(f.ctx, nha056SessionRequest(&wire.ListIntegrationTypesRequest{}, f.token))
-	if err != nil || len(r.Msg.Types) != 7 {
+	if err != nil || len(r.Msg.Types) != 8 {
 		t.Fatal("catalogue", err)
 	}
-	expected := map[string]bool{"mqtt": true, "neviweb": true, "hilo": true, "solar": true, "workday": true, "energy": true, "derived_power": true}
+	expected := map[string]bool{"ecobee": true, "mqtt": true, "neviweb": true, "hilo": true, "solar": true, "workday": true, "energy": true, "derived_power": true}
 	for _, typ := range r.Msg.Types {
 		digest := sha256.Sum256(typ.JsonSchema)
 		if !expected[typ.TypeId] || !bytes.Equal(digest[:], typ.SchemaSha256) || typ.ManifestVersion == "" || typ.SchemaVersion == "" || len(typ.CapabilitySchemaIds) == 0 {
@@ -176,7 +176,7 @@ func TestNHA148ActualRunTLSCatalogueIsDeclaredAndUnknownTypeHasNoFallback(t *tes
 		}
 		delete(expected, typ.TypeId)
 	}
-	for _, unknown := range []string{"ecobee", "calendar", "arbitrary-executable"} {
+	for _, unknown := range []string{"foreign-nha136", "calendar", "arbitrary-executable"} {
 		_, err := f.api.GetIntegrationType(f.ctx, nha056SessionRequest(&wire.GetIntegrationTypeRequest{TypeId: unknown}, f.token))
 		if connect.CodeOf(err) != connect.CodeNotFound {
 			t.Fatal("unknown type fallback", err)
@@ -184,7 +184,7 @@ func TestNHA148ActualRunTLSCatalogueIsDeclaredAndUnknownTypeHasNoFallback(t *tes
 	}
 	before := f.read(t)
 	raw, _ := os.ReadFile(f.path)
-	_, err = f.api.CreateInstance(f.ctx, nha056SessionRequest(&wire.CreateInstanceRequest{TypeId: "ecobee", IntegrationInstanceId: "nha148-unknown", DesiredState: wire.DesiredState_DESIRED_STATE_DISABLED, Configuration: nha148Workday("America/Toronto"), Precondition: nha148Expected(before)}, f.token))
+	_, err = f.api.CreateInstance(f.ctx, nha056SessionRequest(&wire.CreateInstanceRequest{TypeId: "foreign-nha136", IntegrationInstanceId: "nha148-unknown", DesiredState: wire.DesiredState_DESIRED_STATE_DISABLED, Configuration: nha148Workday("America/Toronto"), Precondition: nha148Expected(before)}, f.token))
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatal(err)
 	}

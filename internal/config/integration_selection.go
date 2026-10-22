@@ -27,6 +27,12 @@ func selectEnabledIntegrations(disabled []string, c Config) (Config, error) {
 			return Config{}, ErrInvalidYAML
 		}
 	}
+	if c.ecobee != nil {
+		id, err := c.ecobee.Instance()
+		if err != nil || add(id) != nil {
+			return Config{}, ErrInvalidYAML
+		}
+	}
 	if c.neviweb != nil {
 		id, err := c.neviweb.Instance()
 		if err != nil || add(id) != nil {
@@ -70,6 +76,12 @@ func selectEnabledIntegrations(disabled []string, c Config) (Config, error) {
 		id, _ := c.mqtt.Instance()
 		if isOff(id) {
 			c.mqtt = nil
+		}
+	}
+	if c.ecobee != nil {
+		id, _ := c.ecobee.Instance()
+		if isOff(id) {
+			c.ecobee = nil
 		}
 	}
 	if c.neviweb != nil {

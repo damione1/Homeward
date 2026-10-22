@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "ticket": "NHA-136",
+  "upstream_module": "github.com/brutella/hc",
+  "upstream_version": "v1.2.5",
+  "license": "Apache-2.0",
+  "scope": "HAP Connection teardown/crypto snapshot; no AEAD, SRP, pairing verification or retry changes",
+  "original_upstream_entry": [
+    {
+      "path": "hap/connection.go",
+      "upstream_sha256": "ae8e05fd6fdc78d786e0a79d309189ce262072b47dd8119dffe99fc66253cd36",
+      "local_sha256": "ae8e05fd6fdc78d786e0a79d309189ce262072b47dd8119dffe99fc66253cd36"
+    }
+  ],
+  "amendment_files": [
+    {
+      "path": "hap/connection.go",
+      "preimage_sha256": "b4183fe732a75190d9fdc2afa706ad3da002026fc6e40fcc33a0f80721649772",
+      "local_sha256": "3b796bc3295bc19336800d3c86c3a8ec69a07d7b715c378b2359d0a43cbe5f7e",
+      "reason": "one crypto capture per I/O; fail closed on removed/closed session; independent direction locks; no panic/error loss; plaintext Write count"
+    },
+    {
+      "path": "hap/nha136_connection_close_test.go",
+      "origin": "new deterministic Homeward regression tests; no upstream preimage",
+      "local_sha256": "696f62d07def5a8cc0876f878f99e863f87c41c5c6231535a2de17becd89e0ef"
+    }
+  ],
+  "historical_provenance_and_licenses_unchanged": [
+    {
+      "path": "qualification/ecobee/source-freeze.json",
+      "sha256": "8e52feebab6e983065fdf1b6e2cf03bf58b8765027c7bb43fb20bb3995050c11"
+    },
+    {
+      "path": "qualification/ecobee/third_party/hc.upstream.json",
+      "sha256": "e7308b7a49b9c925afdff4d38bb6b6efb63bff1e8db49786887b43847ce90e0d"
+    },
+    {
+      "path": "qualification/ecobee/third_party/NOTICE",
+      "sha256": "e3b57cfda3d7183ccfbe88fc0845fc28c546edf1bf1c2edd6b7a0ac3ba66d26a"
+    },
+    {
+      "path": "qualification/ecobee/third_party/hc/LICENSE",
+      "sha256": "8f0da9cf926b80d0d3427aef63c1f0564cfd1cbc9df8d05b6e3e0f6e95e0cf2d"
+    },
+    {
+      "path": "qualification/ecobee/third_party/LICENSE.mctofu-homekit",
+      "sha256": "31dab424c6400e3e6fd78e305b266e148b6a9040e7abeb7195334a0080de8671"
+    },
+    {
+      "path": "qualification/ecobee/third_party/hc.nha136-srp-encoding.json",
+      "sha256": "ef5d8efedbdf36ea7138a1c97c7ce193980923cafa6371df777fa952b02df301"
+    },
+    {
+      "path": "qualification/ecobee/third_party/hc/hap/pair/setup_server_controller.go",
+      "sha256": "d55122cda33d4b23e95138a4c09f320af0c0e42783271ce538d6788e8d35cf03"
+    },
+    {
+      "path": "qualification/ecobee/third_party/hc/hap/pair/nha136_srp_encoding_test.go",
+      "sha256": "edb9d51acaf0bafdf0ad9d54381a9f0fa74d24572e44a9cc1f4bcc1d536332e0"
+    },
+    {
+      "path": "qualification/ecobee/third_party/hc/crypto/secure_session.go",
+      "sha256": "164eadb310fb35c259dde20e0675e959a8d8c59e85c275d67849ba3c2ed6398f"
+    },
+    {
+      "path": "qualification/ecobee/third_party/hc/hap/nha136_records_test.go",
+      "sha256": "c3336031d7ad47eccc2f5738e4d622ce11b7c571971923580e4657ae8c46300d"
+    },
+    {
+      "path": "qualification/ecobee/third_party/hc/hap/session.go",
+      "sha256": "53031952f38bac27f8f30a7a98411302e0b7da03e527373835f8a04c4cce63b9"
+    },
+    {
+      "path": "qualification/ecobee/third_party/hc/hap/context.go",
+      "sha256": "922151f5e99685a4f241b81ec167785d8a2d89fb86a425d7ecdc04db595c447c"
+    },
+    {
+      "path": "qualification/ecobee/fixture_test.go",
+      "sha256": "9f933b2e5cf3f69ab530240adad0ba384a6bbfdb5f9e00b48f02cbc4e322ce6f"
+    },
+    {
+      "path": "internal/ecobee/ecobeetest/thermostat.go",
+      "sha256": "90b09fc7690db0a61a80db83bf1ba731349814c2ebf1c8b71986fbeee305cd0d"
+    },
+    {
+      "path": "internal/ecobee/nha136_scheduler_test.go",
+      "sha256": "5ef9622434cb753cc6de82c8a6433c2b7dc85d568baee01591564071b6e39bc9"
+    },
+    {
+      "path": "internal/ecobee/nha136_profile_test.go",
+      "sha256": "49e5b8cfefe838bab59c6f021fa60de15043b868b1c6d1f213276fa2c5b5c083"
+    }
+  ],
+  "no_claim_of_execution": true,
+  "transition": "Present session with nil crypto remains plaintext until existing Session.Decrypter promotes nextCryptographer; missing session returns net.ErrClosed and closes socket.",
+  "synchronization": "Read and Write separately serialized. Close uses only once/atomic state, never direction mutexes. No state lock across Context/Session callbacks or socket I/O.",
+  "future_tests": [
+    "TestNHA136CloseDuringSessionLookupFailsClosed",
+    "TestNHA136ConcurrentReadWriteCloseUnblocksBothDirections",
+    "TestNHA136MissingSessionNeverFallsBackToPlaintext",
+    "TestNHA136EncryptionFailuresReturnErrorAndClose",
+    "TestNHA136PairingPlaintextTransitionAndWriteCount"
+  ]
+}

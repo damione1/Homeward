@@ -29,6 +29,7 @@ type descriptor struct {
 
 var descriptors = []descriptor{
 	{id: "mqtt", fields: []string{"profile", "broker", "instance", "mode", "subscriptions", "command_topics", "transition_lights", "will"}, secrets: []string{"username_secret", "password_secret"}, capabilities: []string{contracts.BinarySchema, contracts.SwitchSchema, contracts.MeasurementSchema, contracts.LightSchema}, shape: "object"},
+	{id: "ecobee", fields: []string{"instance", "address", "accessory_id"}, secrets: []string{"credential_secret"}, capabilities: []string{contracts.ClimateSchema}, shape: "object"},
 	{id: "neviweb", fields: []string{"instance", "base_url", "account_id", "network_id", "poll_seconds", "daily_limit", "external_reserve", "day_zone", "bindings"}, secrets: []string{"username_secret", "password_secret", "session_secret"}, capabilities: []string{contracts.ClimateSchema, contracts.SwitchSchema, contracts.MeasurementSchema, contracts.BinarySchema}, shape: "object"},
 	{id: "hilo", fields: []string{"instance", "account_id", "location_id", "location_hilo_id", "daily_limit", "day_zone", "lease_window_seconds", "energy_max_gap_seconds", "api_base_url", "platform_base_url", "bindings"}, secrets: []string{"credential_secret"}, capabilities: []string{contracts.ClimateSchema, contracts.SwitchSchema, contracts.MeasurementSchema, contracts.BinarySchema}, shape: "object"},
 	{id: "solar", fixed: "homeward-sun-v1", fields: []string{"latitude", "longitude", "elevation_meters", "timezone"}, capabilities: []string{contracts.SolarSchema, contracts.SolarEventSchema}, shape: "object"},

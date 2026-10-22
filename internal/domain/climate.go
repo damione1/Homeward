@@ -84,19 +84,22 @@ const (
 	ClimateSetpointRange
 )
 
-// ClimateSetpoint is a closed, comparable sum. A range always has two admitted
-// temperatures; the optional setpoint on ClimateValue represents its absence.
+// ClimateSetpoint is a closed, comparable sum. Its kind admits the stored
+// temperatures, including a present zero, without duplicating presence flags.
+// A single setpoint has no high temperature; its unused storage stays zero.
+// The optional setpoint on ClimateValue represents absence.
 type ClimateSetpoint struct {
+	low  float64
+	high float64
 	kind ClimateSetpointKind
-	low  CelsiusTemperature
-	high CelsiusTemperature
 }
 
 func NewSingleClimateSetpoint(value CelsiusTemperature) (ClimateSetpoint, error) {
-	if _, err := value.Value(); err != nil {
+	number, err := value.Value()
+	if err != nil {
 		return ClimateSetpoint{}, err
 	}
-	return ClimateSetpoint{kind: ClimateSetpointSingle, low: value}, nil
+	return ClimateSetpoint{kind: ClimateSetpointSingle, low: number}, nil
 }
 
 func NewRangeClimateSetpoint(low, high CelsiusTemperature) (ClimateSetpoint, error) {
@@ -108,17 +111,20 @@ func NewRangeClimateSetpoint(low, high CelsiusTemperature) (ClimateSetpoint, err
 	if err != nil || lower > upper {
 		return ClimateSetpoint{}, ErrInvalidState
 	}
-	return ClimateSetpoint{kind: ClimateSetpointRange, low: low, high: high}, nil
+	return ClimateSetpoint{kind: ClimateSetpointRange, low: lower, high: upper}, nil
 }
 
 func (s ClimateSetpoint) Kind() (ClimateSetpointKind, error) {
+	if _, err := NewCelsiusTemperature(s.low); err != nil {
+		return ClimateSetpointUnspecified, ErrInvalidState
+	}
 	switch s.kind {
 	case ClimateSetpointSingle:
-		if _, err := s.low.Value(); err == nil && s.high == (CelsiusTemperature{}) {
+		if s.high == 0 {
 			return ClimateSetpointSingle, nil
 		}
 	case ClimateSetpointRange:
-		if _, err := NewRangeClimateSetpoint(s.low, s.high); err == nil {
+		if _, err := NewCelsiusTemperature(s.high); err == nil && s.low <= s.high {
 			return ClimateSetpointRange, nil
 		}
 	case ClimateSetpointUnspecified:
@@ -129,22 +135,70 @@ func (s ClimateSetpoint) Kind() (ClimateSetpointKind, error) {
 
 func (s ClimateSetpoint) Single() (CelsiusTemperature, bool) {
 	kind, err := s.Kind()
-	return s.low, err == nil && kind == ClimateSetpointSingle
+	if err != nil || kind != ClimateSetpointSingle {
+		return CelsiusTemperature{}, false
+	}
+	value, err := NewCelsiusTemperature(s.low)
+	return value, err == nil
 }
 
 func (s ClimateSetpoint) Range() (CelsiusTemperature, CelsiusTemperature, bool) {
 	kind, err := s.Kind()
-	return s.low, s.high, err == nil && kind == ClimateSetpointRange
+	if err != nil || kind != ClimateSetpointRange {
+		return CelsiusTemperature{}, CelsiusTemperature{}, false
+	}
+	low, lowErr := NewCelsiusTemperature(s.low)
+	high, highErr := NewCelsiusTemperature(s.high)
+	return low, high, lowErr == nil && highErr == nil
 }
 
 // ClimateValueInput is untrusted construction data. Every pointer is copied
 // during admission and Components returns fresh copies of present fields.
+// RelativeHumidity is a present finite percentage; zero remains a valid value.
+type RelativeHumidity struct {
+	number float64
+	valid  bool
+}
+
+func NewRelativeHumidity(number float64) (RelativeHumidity, error) {
+	if math.IsNaN(number) || math.IsInf(number, 0) || number < 0 || number > 100 {
+		return RelativeHumidity{}, ErrInvalidState
+	}
+	return RelativeHumidity{number, true}, nil
+}
+func (v RelativeHumidity) Value() (float64, error) {
+	if !v.valid {
+		return 0, ErrInvalidState
+	}
+	if _, err := NewRelativeHumidity(v.number); err != nil {
+		return 0, err
+	}
+	return v.number, nil
+}
+
+// ClimateFanTarget distinguishes a requested automatic/manual fan from activity.
+// Its zero value is absent. The admitted value has no mutable exported field.
+type ClimateFanTarget struct {
+	automatic bool
+	valid     bool
+}
+
+func NewClimateFanTarget(automatic bool) ClimateFanTarget { return ClimateFanTarget{automatic, true} }
+func (v ClimateFanTarget) Automatic() (bool, error) {
+	if !v.valid {
+		return false, ErrInvalidState
+	}
+	return v.automatic, nil
+}
+
 type ClimateValueInput struct {
 	CurrentTemperature *CelsiusTemperature
 	Setpoint           *ClimateSetpoint
 	Mode               *ClimateMode
 	Activity           *ClimateActivity
 	FanActive          *bool
+	Humidity           *RelativeHumidity
+	FanTarget          *ClimateFanTarget
 }
 
 // ClimateValue remains comparable, so the shared state transition clock compares
@@ -152,18 +206,32 @@ type ClimateValueInput struct {
 type ClimateValue struct {
 	current      CelsiusTemperature
 	setpoint     ClimateSetpoint
+	humidity     RelativeHumidity
 	mode         ClimateMode
 	activity     ClimateActivity
 	fanActive    bool
 	hasFanActive bool
+	fanTarget    ClimateFanTarget
 	valid        bool
 }
 
 func NewClimateValue(input ClimateValueInput) (ClimateValue, error) {
-	if input.CurrentTemperature == nil && input.Setpoint == nil && input.Mode == nil && input.Activity == nil && input.FanActive == nil {
+	if input.CurrentTemperature == nil && input.Setpoint == nil && input.Mode == nil && input.Activity == nil && input.FanActive == nil && input.Humidity == nil && input.FanTarget == nil {
 		return ClimateValue{}, ErrInvalidState
 	}
 	v := ClimateValue{valid: true}
+	if input.Humidity != nil {
+		if _, err := input.Humidity.Value(); err != nil {
+			return ClimateValue{}, err
+		}
+		v.humidity = *input.Humidity
+	}
+	if input.FanTarget != nil {
+		if _, err := input.FanTarget.Automatic(); err != nil {
+			return ClimateValue{}, err
+		}
+		v.fanTarget = *input.FanTarget
+	}
 	if input.CurrentTemperature != nil {
 		if _, err := input.CurrentTemperature.Value(); err != nil {
 			return ClimateValue{}, err
@@ -199,6 +267,14 @@ func (v ClimateValue) Components() (ClimateValueInput, error) {
 		return ClimateValueInput{}, ErrInvalidState
 	}
 	var input ClimateValueInput
+	if v.humidity.valid {
+		humidity := v.humidity
+		input.Humidity = &humidity
+	}
+	if v.fanTarget.valid {
+		target := v.fanTarget
+		input.FanTarget = &target
+	}
 	if v.current != (CelsiusTemperature{}) {
 		current := v.current
 		input.CurrentTemperature = &current

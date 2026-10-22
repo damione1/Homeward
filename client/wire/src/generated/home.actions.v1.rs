@@ -642,6 +642,14 @@ pub struct SetClimate {
     pub mode: ::core::option::Option<
         ::buffa::EnumValue<super::super::registry::v1::ClimateMode>,
     >,
+    /// Field 3: `heat_threshold_celsius`
+    pub heat_threshold_celsius: ::core::option::Option<f64>,
+    /// Field 4: `cool_threshold_celsius`
+    pub cool_threshold_celsius: ::core::option::Option<f64>,
+    /// Field 5: `fan_target`
+    pub fan_target: ::core::option::Option<
+        ::buffa::EnumValue<super::super::registry::v1::ClimateFanTarget>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -650,6 +658,9 @@ impl ::core::fmt::Debug for SetClimate {
         f.debug_struct("SetClimate")
             .field("setpoint_celsius", &self.setpoint_celsius)
             .field("mode", &self.mode)
+            .field("heat_threshold_celsius", &self.heat_threshold_celsius)
+            .field("cool_threshold_celsius", &self.cool_threshold_celsius)
+            .field("fan_target", &self.fan_target)
             .finish()
     }
 }
@@ -676,6 +687,32 @@ impl SetClimate {
         value: impl Into<::buffa::EnumValue<super::super::registry::v1::ClimateMode>>,
     ) -> Self {
         self.mode = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::heat_threshold_celsius`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_heat_threshold_celsius(mut self, value: f64) -> Self {
+        self.heat_threshold_celsius = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::cool_threshold_celsius`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_cool_threshold_celsius(mut self, value: f64) -> Self {
+        self.cool_threshold_celsius = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::fan_target`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_fan_target(
+        mut self,
+        value: impl Into<
+            ::buffa::EnumValue<super::super::registry::v1::ClimateFanTarget>,
+        >,
+    ) -> Self {
+        self.fan_target = Some(value.into());
         self
     }
 }
@@ -705,6 +742,15 @@ impl ::buffa::Message for SetClimate {
         if let Some(ref v) = self.mode {
             size += 1u64 + ::buffa::types::int32_encoded_len(v.to_i32()) as u64;
         }
+        if self.heat_threshold_celsius.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if self.cool_threshold_celsius.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.fan_target {
+            size += 1u64 + ::buffa::types::int32_encoded_len(v.to_i32()) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -720,6 +766,15 @@ impl ::buffa::Message for SetClimate {
         }
         if let Some(ref v) = self.mode {
             ::buffa::types::put_int32_field(2u32, v.to_i32(), buf);
+        }
+        if let Some(v) = self.heat_threshold_celsius {
+            ::buffa::types::put_double_field(3u32, v, buf);
+        }
+        if let Some(v) = self.cool_threshold_celsius {
+            ::buffa::types::put_double_field(4u32, v, buf);
+        }
+        if let Some(ref v) = self.fan_target {
+            ::buffa::types::put_int32_field(5u32, v.to_i32(), buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -752,6 +807,33 @@ impl ::buffa::Message for SetClimate {
                     ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
                 );
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.heat_threshold_celsius = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.cool_threshold_celsius = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.fan_target = ::core::option::Option::Some(
+                    ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -762,6 +844,9 @@ impl ::buffa::Message for SetClimate {
     fn clear(&mut self) {
         self.setpoint_celsius = ::core::option::Option::None;
         self.mode = ::core::option::Option::None;
+        self.heat_threshold_celsius = ::core::option::Option::None;
+        self.cool_threshold_celsius = ::core::option::Option::None;
+        self.fan_target = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4658,6 +4743,16 @@ pub mod __buffa {
             pub mode: ::core::option::Option<
                 ::buffa::EnumValue<super::super::super::super::registry::v1::ClimateMode>,
             >,
+            /// Field 3: `heat_threshold_celsius`
+            pub heat_threshold_celsius: ::core::option::Option<f64>,
+            /// Field 4: `cool_threshold_celsius`
+            pub cool_threshold_celsius: ::core::option::Option<f64>,
+            /// Field 5: `fan_target`
+            pub fan_target: ::core::option::Option<
+                ::buffa::EnumValue<
+                    super::super::super::super::registry::v1::ClimateFanTarget,
+                >,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SetClimateView<'a> {
@@ -4716,6 +4811,35 @@ pub mod __buffa {
                             ),
                         );
                     }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.heat_threshold_celsius = Some(
+                            ::buffa::types::decode_double(&mut cur)?,
+                        );
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.cool_threshold_celsius = Some(
+                            ::buffa::types::decode_double(&mut cur)?,
+                        );
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.fan_target = Some(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -4741,6 +4865,9 @@ pub mod __buffa {
                 ::core::result::Result::Ok(super::super::SetClimate {
                     setpoint_celsius: self.setpoint_celsius,
                     mode: self.mode,
+                    heat_threshold_celsius: self.heat_threshold_celsius,
+                    cool_threshold_celsius: self.cool_threshold_celsius,
+                    fan_target: self.fan_target,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -4761,6 +4888,15 @@ pub mod __buffa {
                 if let Some(ref v) = self.mode {
                     size += 1u64 + ::buffa::types::int32_encoded_len(v.to_i32()) as u64;
                 }
+                if self.heat_threshold_celsius.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
+                if self.cool_threshold_celsius.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
+                if let Some(ref v) = self.fan_target {
+                    size += 1u64 + ::buffa::types::int32_encoded_len(v.to_i32()) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -4777,6 +4913,15 @@ pub mod __buffa {
                 }
                 if let Some(ref v) = self.mode {
                     ::buffa::types::put_int32_field(2u32, v.to_i32(), buf);
+                }
+                if let Some(v) = self.heat_threshold_celsius {
+                    ::buffa::types::put_double_field(3u32, v, buf);
+                }
+                if let Some(v) = self.cool_threshold_celsius {
+                    ::buffa::types::put_double_field(4u32, v, buf);
+                }
+                if let Some(ref v) = self.fan_target {
+                    ::buffa::types::put_int32_field(5u32, v.to_i32(), buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -4884,6 +5029,27 @@ pub mod __buffa {
                 ::buffa::EnumValue<super::super::super::super::registry::v1::ClimateMode>,
             > {
                 self.0.reborrow().mode
+            }
+            /// Field 3: `heat_threshold_celsius`
+            #[must_use]
+            pub fn heat_threshold_celsius(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().heat_threshold_celsius
+            }
+            /// Field 4: `cool_threshold_celsius`
+            #[must_use]
+            pub fn cool_threshold_celsius(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().cool_threshold_celsius
+            }
+            /// Field 5: `fan_target`
+            #[must_use]
+            pub fn fan_target(
+                &self,
+            ) -> ::core::option::Option<
+                ::buffa::EnumValue<
+                    super::super::super::super::registry::v1::ClimateFanTarget,
+                >,
+            > {
+                self.0.reborrow().fan_target
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<SetClimateView<'static>>>

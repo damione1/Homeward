@@ -1,0 +1,99 @@
+{
+  "module": "github.com/mctofu/homekit",
+  "commit": "55b8dd50cddc522d9a794b9b60eda3435b7af599",
+  "version": "v0.0.0-20250114051306-55b8dd50cddc",
+  "license": "MIT",
+  "scope": "client, characteristic and service code only; no CLI, discovery/mDNS or pairings administration",
+  "changes": [
+    "Guard encrypted pair-verify field before slicing authentication tag",
+    "Bound all response bodies to 1MiB",
+    "Reject HTTP redirects",
+    "Reuse existing hc pairing-transcript patch, do not copy hc",
+    "Expose valid-values discovery metadata; refuse unadvertised command enum options in driver",
+    "Use net.JoinHostPort for explicit IPv6 endpoints",
+    "Suppress raw accessory JSON in decoding errors",
+    "Admit pair-verify responses only in the authenticated M1/M2/M3/M4 phase order; require a complete session and non-nil request readers"
+  ],
+  "files": [
+    {
+      "path": "client/transport.go",
+      "upstream_sha256": "ff35d423df6553d5701567f38cab7cdd82d2a1d30fa6988e0f24ea4d9971c7b0",
+      "local_sha256": "469b0eb66afce278b1ade697f127c144cb7a5107da6f91c423c025df5f73db9e"
+    },
+    {
+      "path": "client/client_accessories.go",
+      "upstream_sha256": "075fe3d4f09fd8850a5ca4f312efa184424377c1cb7e60c64ab1d8dbc7c2ec8d",
+      "local_sha256": "08cadac28c3d90e1d09d70f0294ebcb1d84173ac248fe18a55c1bad0662951d6"
+    },
+    {
+      "path": "client/client.go",
+      "upstream_sha256": "2695939967ad09ae0a92d821a233851ceb29009acfe72c652c4c2e0d3498f30f",
+      "local_sha256": "6392433d3b3beadceb118e03dd5653b8574119378da2e47919b63dd3115d4c1c"
+    },
+    {
+      "path": "client/database.go",
+      "upstream_sha256": "a71e48570c0c98456ce7bcf3373e648e82a229c9af2188ef82b5f45c06b19c06",
+      "local_sha256": "a71e48570c0c98456ce7bcf3373e648e82a229c9af2188ef82b5f45c06b19c06"
+    },
+    {
+      "path": "client/setup.go",
+      "upstream_sha256": "6f140692888729985a042b7ef478345a0e181c6e995b5ea1048c66d6dc722f68",
+      "local_sha256": "1a7029b02a10ff8cc818651a09f8b51c8bc480efb33a0cb45e9a4257fe54c5eb"
+    },
+    {
+      "path": "client/client_characteristics.go",
+      "upstream_sha256": "fa6424a3860e02f6d5ed237f72523dcf51f8a8aa0318ed808f0a30b27a9a5c1c",
+      "local_sha256": "866cddaa63b82277f592b81a18f77319338a7e6a524bcddf518a0a4a51c4713f"
+    },
+    {
+      "path": "client/verify.go",
+      "upstream_sha256": "ce5eaab8f06684b6b75d7ae81c7c840aa15e82820251203afe6168169af67eeb",
+      "local_sha256": "f38f40c32d8fc62e441f33502ad77c2625a5dbb9a8e181c548ac66a5b2a91c7b"
+    },
+    {
+      "path": "client/pairing/verify_controller.go",
+      "upstream_sha256": "894f65822cd93f1ba41ae97381e6582ffc899a34540dc3dc946001883aa3165e",
+      "local_sha256": "d3dbd5d59b53b539fb5fa15d2ca24b60c653bf6eae47fcfc434b323f84702a9d"
+    },
+    {
+      "path": "client/characteristic/characteristic_types.go",
+      "upstream_sha256": "c075b133fb665d284f4934676e81c1cbcff23b0beba07548a84da2d944bdad17",
+      "local_sha256": "c075b133fb665d284f4934676e81c1cbcff23b0beba07548a84da2d944bdad17"
+    },
+    {
+      "path": "client/characteristic/type.go",
+      "upstream_sha256": "83bd21b55ee614c9f3acc21e673a51e1e90ee8aa0ceb0244be849cbc4ab67dbd",
+      "local_sha256": "069c54dfe9cfd469c171596118bedd84c7132979e381918de0c028ad6a717176"
+    },
+    {
+      "path": "client/characteristic/addons.go",
+      "upstream_sha256": "58110ef97f4dcad574561c2ff6f2b3ce91d0ceac9376aa4982a381947bbda397",
+      "local_sha256": "58110ef97f4dcad574561c2ff6f2b3ce91d0ceac9376aa4982a381947bbda397"
+    },
+    {
+      "path": "client/characteristic/characteristic_readers.go",
+      "upstream_sha256": "f20b9acf22ade5d7cc395ea4baa8d8fd1461303ac524128719514bc4a5479620",
+      "local_sha256": "f20b9acf22ade5d7cc395ea4baa8d8fd1461303ac524128719514bc4a5479620"
+    },
+    {
+      "path": "client/characteristic/value.go",
+      "upstream_sha256": "41f574b43ac136f6fd63df49638666c86079ae89392c14860543e572450375ca",
+      "local_sha256": "41f574b43ac136f6fd63df49638666c86079ae89392c14860543e572450375ca"
+    },
+    {
+      "path": "client/service/type.go",
+      "upstream_sha256": "7d71ba860e248a7f7856fd84ce59f0aa8b45cc040ab97afd1b67f540ac22ec49",
+      "local_sha256": "7d71ba860e248a7f7856fd84ce59f0aa8b45cc040ab97afd1b67f540ac22ec49"
+    },
+    {
+      "path": "client/service/service_readers.go",
+      "upstream_sha256": "1e18371eeb27ad3b138c10eb7e2c11e3f90f05fb01c6340e2e038b8a91d21c31",
+      "local_sha256": "1e18371eeb27ad3b138c10eb7e2c11e3f90f05fb01c6340e2e038b8a91d21c31"
+    },
+    {
+      "path": "client/service/service_types.go",
+      "upstream_sha256": "d9bdcfa635db380f7d837b9f53f7030056b7a356056a702b508e65063fd049c9",
+      "local_sha256": "d9bdcfa635db380f7d837b9f53f7030056b7a356056a702b508e65063fd049c9"
+    }
+  ]
+}

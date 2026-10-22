@@ -255,8 +255,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		workers := c.ExternalWorkers()
 		solarSettings, solarEnabled := c.SolarSettings()
 		workdaySettings, workdayEnabled := c.WorkdaySettings()
+		ecobeeSettings, ecobeeEnabled := c.EcobeeSettings()
 		_, remoteEnabled := c.RemoteCalendarSettings()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled || remoteEnabled {
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled || remoteEnabled || ecobeeEnabled {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
@@ -271,6 +272,11 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			plan, err = defaultConfiguredRuntimePlanWithManifest(scopeManifest, mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
 			if err != nil {
 				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+			}
+			if ecobeeEnabled {
+				if err := addConfiguredEcobee(&plan, ecobeeSettings, scopeManifest); err != nil {
+					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+				}
 			}
 			if hasActiveHelpers {
 				if err := addActiveHelpers(&plan, activeCandidate, store); err != nil {

@@ -73,6 +73,11 @@ enum ClimateActivity {
   CLIMATE_ACTIVITY_DRYING = 4;
   CLIMATE_ACTIVITY_FAN_ONLY = 5;
 }
+enum ClimateFanTarget {
+  CLIMATE_FAN_TARGET_UNSPECIFIED = 0;
+  CLIMATE_FAN_TARGET_ON = 1;
+  CLIMATE_FAN_TARGET_AUTO = 2;
+}
 message ClimateConstraints {
   // These first two fields authorize commands, independently of observations.
   NumberBounds setpoint_celsius = 1;
@@ -83,6 +88,10 @@ message ClimateConstraints {
   ClimateSetpointRangeConstraints observed_setpoint_range_celsius = 6;
   repeated ClimateMode observed_mode_options = 7;
   bool observes_fan_activity = 8;
+  ClimateSetpointRangeConstraints setpoint_range_celsius = 9; // Commands require both thresholds.
+  repeated ClimateFanTarget fan_target_options = 10;
+  NumberBounds observed_humidity_percent = 11;
+  repeated ClimateFanTarget observed_fan_target_options = 12;
 }
 // Presence advertises an observation. Absent bounds mean unknown device limits.
 message ClimateTemperatureObservation {

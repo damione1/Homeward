@@ -1,0 +1,39 @@
+{
+  "amendment_files": [
+    {
+      "local_sha256": "d55122cda33d4b23e95138a4c09f320af0c0e42783271ce538d6788e8d35cf03",
+      "original_upstream_and_preimage_sha256": "717cce21c0e82c26c003fcb9194553a1adafa648235546396e7c830e7169b81c",
+      "path": "hap/pair/setup_server_controller.go"
+    },
+    {
+      "local_sha256": "edb9d51acaf0bafdf0ad9d54381a9f0fa74d24572e44a9cc1f4bcc1d536332e0",
+      "origin": "new Homeward regression tests; no upstream preimage",
+      "path": "hap/pair/nha136_srp_encoding_test.go"
+    }
+  ],
+  "encoding_note": "RFC defines big-endian and PAD-to-N;384-byte HAP wire requirement independently comes from pinned HAP client and tag source. TLS RFC does not prescribe this HAP TLV.",
+  "encoding_source": "https://www.rfc-editor.org/rfc/rfc5054.html#section-2.1",
+  "historical009_provenance_unchanged": {
+    "path": "/Users/damien/Projects/Homeward-wt/nha136-ecobee-control/qualification/ecobee/third_party/hc.upstream.json",
+    "sha256": "e7308b7a49b9c925afdff4d38bb6b6efb63bff1e8db49786887b43847ce90e0d"
+  },
+  "license": "Apache-2.0",
+  "license_unchanged": {
+    "path": "/Users/damien/Projects/Homeward-wt/nha136-ecobee-control/qualification/ecobee/third_party/hc/LICENSE",
+    "sha256": "8f0da9cf926b80d0d3427aef63c1f0564cfd1cbc9df8d05b6e3e0f6e95e0cf2d"
+  },
+  "no_claim_of_execution": true,
+  "schema_version": 1,
+  "scope": "synthetic accessory M2 encoding only; strict production client and SRP arithmetic unchanged",
+  "srp_dependency": {
+    "module": "github.com/tadglines/go-pkgs",
+    "source": {
+      "path": "/Users/damien/go/pkg/mod/github.com/tadglines/go-pkgs@v0.0.0-20140924210655-1f86682992f1/crypto/srp/srp.go",
+      "sha256": "4fdd154674a09682cf3c3aedfe55082bacda1e32a4e4385577d156b578921fda"
+    },
+    "version": "v0.0.0-20140924210655-1f86682992f1"
+  },
+  "ticket": "NHA-136",
+  "upstream_module": "github.com/brutella/hc",
+  "upstream_version": "v1.2.5"
+}
