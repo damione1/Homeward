@@ -60,6 +60,29 @@ print(json.dumps({'python': sys.version, 'openssl': ssl.OPENSSL_VERSION,
             raise SystemExit("runtime worker dependency mismatch")
     if worker["python"].split()[0] != "3.13.17":
         raise SystemExit("runtime Python version mismatch")
+    client_check = """
+import hashlib,json,os,subprocess
+from pathlib import Path
+root=Path('/opt/homeward/pg-client')
+loaders=list((root/'lib').glob('ld-linux*'))
+assert os.getuid()==10001 and len(loaders)==1
+tools={}
+for name in ('pg_dump','pg_restore'):
+ version=subprocess.check_output([str(root/'bin'/name),'--version'],text=True).strip()
+ assert version.split()[:3]==[name,'(PostgreSQL)','17.10']
+ linkage=subprocess.check_output([str(loaders[0]),'--library-path',str(root/'lib'),'--list',str(root/'bin'/(name+'.real'))],text=True)
+ assert 'not found' not in linkage
+ assert all(line.split('=>',1)[1].strip().split()[0].startswith(str(root/'lib')+'/') for line in linkage.splitlines() if '=> /' in line)
+ tools[name]={'version':version,'runtime_linkage':linkage}
+print(json.dumps({'uid':os.getuid(),'source_image':(root/'source-image.txt').read_text().strip(),
+ 'source_linkage':(root/'source-linkage.txt').read_text(),'tools':tools,
+ 'files_sha256':{str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file()}}))
+"""
+    clients = json.loads(command("docker", "run", "--rm", "--network", "none", "--read-only",
+                                 "--cap-drop", "ALL", "--entrypoint", "/usr/local/bin/python3", args.image,
+                                 "-c", client_check, capture=True).stdout)
+    if clients["source_image"] != declared["postgres_clients"]["source_image"]:
+        raise SystemExit("runtime PostgreSQL client provenance mismatch")
     files = {}
     go = ROOT / ".tools/bin/go"
     env = os.environ.copy()
@@ -92,11 +115,12 @@ print(json.dumps({'python': sys.version, 'openssl': ssl.OPENSSL_VERSION,
     (output / "compose.lock.json").write_text(json.dumps(compose, indent=2) + "\n")
     deployment["compose.lock.json"] = hashlib.sha256((output / "compose.lock.json").read_bytes()).hexdigest()
     provenance = {"schema_version": 1, "local_image_id": info["Id"],
+                  "image_platform": {"os": info["Os"], "architecture": info["Architecture"], "variant": info.get("Variant", "")},
                   "distribution_digests": info.get("RepoDigests", []),
                   "source_commit": command("git", "rev-parse", "HEAD", capture=True).stdout.strip(),
                   "source_diff_sha256": hashlib.sha256(command("git", "diff", "HEAD", capture=True).stdout.encode()).hexdigest(),
                   "source_files_sha256": source_files,
-                  "binaries": files, "worker": worker, "deployment_sha256": deployment,
+                  "binaries": files, "worker": worker, "postgres_clients": clients, "deployment_sha256": deployment,
                   "declared_provenance": declared,
                   "docker_version": command("docker", "version", "--format", "{{.Client.Version}}/{{.Server.Version}}", capture=True).stdout.strip(),
                   "compose_version": command("docker", "compose", "version", "--short", capture=True).stdout.strip()}

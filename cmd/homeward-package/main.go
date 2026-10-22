@@ -39,6 +39,13 @@ func main() {
 }
 
 func run(args []string, out io.Writer) error {
+	if len(args) > 0 && args[0] == "installation" {
+		argv, env, err := installationInvocation(args[1:], credentialRoot, os.Environ())
+		if err != nil {
+			return errPackage
+		}
+		return syscall.Exec("/usr/local/bin/homed", argv, env)
+	}
 	if len(args) != 1 {
 		return errPackage
 	}
@@ -296,4 +303,29 @@ func health(socket string, out io.Writer) error {
 		return errPackage
 	}
 	return nil
+}
+
+// The local operator command reuses the package credential boundary. Secrets
+// enter the child environment only; they never become argv or diagnostics.
+func installationInvocation(args []string, credentialsPath string, existing []string) ([]string, []string, error) {
+	if len(args) == 0 || (args[0] != "backup" && args[0] != "restore") {
+		return nil, nil, errPackage
+	}
+	root, err := openPrivate(credentialsPath)
+	if err != nil {
+		return nil, nil, errPackage
+	}
+	defer root.Close()
+	password, err := readPrivate(root, "password")
+	if err != nil || len(password) != 64 {
+		clear(password)
+		return nil, nil, errPackage
+	}
+	defer clear(password)
+	argv := []string{"homed", "installation", args[0], "--pg-bin-dir", "/opt/homeward/pg-client/bin"}
+	if args[0] == "backup" {
+		argv = append(argv, "--bootstrap", packageRoot+"/configuration.yaml.bootstrap.yaml")
+	}
+	argv = append(argv, args[1:]...)
+	return argv, databaseEnvironment(existing, string(password)), nil
 }

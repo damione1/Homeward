@@ -34,6 +34,9 @@ func runInstallation(ctx context.Context, args []string, out, diagnostics io.Wri
 	if ctx == nil || homedMissingWriter(out) || homedMissingWriter(diagnostics) || len(args) == 0 {
 		return 2
 	}
+	if args[0] == "backup" {
+		return runInstallationBackup(ctx, args[1:], out, diagnostics)
+	}
 	if args[0] != "restore" {
 		_, _ = fmt.Fprintln(diagnostics, "installation: unsupported operation")
 		return 2
@@ -41,6 +44,8 @@ func runInstallation(ctx context.Context, args []string, out, diagnostics io.Wri
 	flags := flag.NewFlagSet("installation restore", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	archive := flags.String("archive", "", "exported encrypted archive")
+	localRoot := flags.String("local-root", "", "local provider root, instead of an exported archive")
+	instance := flags.String("instance", "local", "local provider instance")
 	artifact := flags.String("artifact-id", "", "archive identity")
 	key := flags.String("private-file", "", "independent recovery private key")
 	output := flags.String("output", "", "new isolated data directory")
@@ -71,7 +76,7 @@ func runInstallation(ctx context.Context, args []string, out, diagnostics io.Wri
 		_, _ = fmt.Fprintln(diagnostics, "installation: target configuration unavailable")
 		return 1
 	}
-	file, err := os.Open(*archive)
+	file, err := openInstallationArchive(ctx, *archive, *localRoot, *instance, id)
 	if err != nil {
 		_, _ = fmt.Fprintln(diagnostics, "installation: archive unavailable")
 		return 1
