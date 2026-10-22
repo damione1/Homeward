@@ -5,6 +5,7 @@ go 1.27.2
 require (
 	connectrpc.com/connect v1.21.0
 	filippo.io/age v1.3.2
+	github.com/alecthomas/kong v1.12.1
 	github.com/arran4/golang-ical v0.3.8
 	github.com/aws/aws-sdk-go-v2 v1.45.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.109.1
@@ -23,6 +24,7 @@ require (
 	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.49.0
+	golang.org/x/term v0.47.0
 	golang.org/x/text v0.43.0
 	google.golang.org/protobuf v1.36.11
 )
