@@ -33,6 +33,9 @@ func (a *sessionAuth) AuthenticateWithLease(ctx context.Context, request *http.R
 	if request == nil || request.TLS == nil || ctx == nil {
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
+	if route, ok := ctx.Value(mcpRouteContextKey{}).(RouteKey); ok && route.Kind() == RouteKindMCP {
+		return a.authenticateMCP(ctx, request)
+	}
 	if mcpBearer(request.Header) {
 		return a.authenticateMCP(ctx, request)
 	}

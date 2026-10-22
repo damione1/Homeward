@@ -52,7 +52,7 @@ func (h *configDocumentsHandler) admit(ctx context.Context, operation auth.Scope
 		return configDocumentsBinding{}, authorization.ErrUnavailable
 	}
 	principal, err := authorization.PrincipalFromContext(ctx)
-	if err != nil || !principal.Native() {
+	if err != nil || !principal.Native() && (operation != auth.ScopeOperation_SCOPE_OPERATION_READ || !mcpConfigurationReadPrincipal(ctx)) {
 		return configDocumentsBinding{}, authorization.ErrDenied
 	}
 	actor, present := ActorFromContext(ctx)

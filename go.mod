@@ -15,9 +15,11 @@ require (
 	github.com/eclipse/paho.golang v0.23.0
 	github.com/fxamacker/cbor/v2 v2.9.6
 	github.com/go-webauthn/webauthn v0.18.2
+	github.com/google/jsonschema-go v0.4.3
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/mctofu/homekit v0.0.0-20250114051306-55b8dd50cddc
 	github.com/mochi-mqtt/server/v2 v2.7.9
+	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/nikolalohinski/gonja/v2 v2.9.1
 	github.com/teambition/rrule-go v1.8.2
 	go.yaml.in/yaml/v3 v3.0.5
@@ -54,14 +56,17 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/rs/xid v1.4.0 // indirect
+	github.com/segmentio/asm v1.1.3 // indirect
+	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tadglines/go-pkgs v0.0.0-20140924210655-1f86682992f1 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xiam/to v0.0.0-20191116183551-8328998fc0ed // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
+	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

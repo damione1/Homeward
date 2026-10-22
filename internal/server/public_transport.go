@@ -91,6 +91,7 @@ type RouteKey struct {
 	method     RouteMethod
 	path       string
 	permission authorization.Permission // explicit trusted binding; zero uses the finite built-in table
+	mcpReads   bool                     // private trusted protocol admission; every tool still checks its own family
 }
 
 func (k RouteKey) Kind() RouteKind     { return k.kind }
