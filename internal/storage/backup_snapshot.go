@@ -99,6 +99,9 @@ func (s *Store) BeginBackupSnapshot(ctx context.Context, secrets *SecretReposito
 	if _, err = tx.Exec(ctx, `SELECT set_config('TimeZone','UTC',true),set_config('DateStyle','ISO, YMD',true),set_config('IntervalStyle','postgres',true),set_config('extra_float_digits','3',true),set_config('bytea_output','hex',true)`); err != nil {
 		return nil, &Error{kind: Unavailable}
 	}
+	if err = validateBackupSchemaTx(ctx, tx); err != nil {
+		return nil, err
+	}
 	var revision int64
 	var cut time.Time
 	// The clock and active pointer are selected at the same established snapshot.
