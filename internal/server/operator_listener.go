@@ -40,7 +40,7 @@ func startOperatorListener(ctx context.Context, dataDir string, store *storage.S
 	return startOperatorListenerObserved(ctx, dataDir, store, coordinator, nil)
 }
 
-func startOperatorListenerObserved(ctx context.Context, dataDir string, store *storage.Store, coordinator *sessionCoordinator, journal *observability.Journal) (*operatorListener, error) {
+func startOperatorListenerObserved(ctx context.Context, dataDir string, store *storage.Store, coordinator *sessionCoordinator, journal *observability.Journal, health ...*observability.HealthCell) (*operatorListener, error) {
 	if ctx == nil || store == nil || coordinator == nil {
 		return nil, ErrInvalidContext
 	}
@@ -84,6 +84,7 @@ func startOperatorListenerObserved(ctx context.Context, dataDir string, store *s
 		return nil, errors.Join(ErrOperatorSocketUnsafe, errors.New("final socket identity"), err)
 	}
 	_, handler := authv1connect.NewOperatorAccountServiceHandler(&accountHandler{store: store, coordinator: coordinator})
+	handler = packageOperatorHealth(handler, health...)
 	active := newPublicAdmissions()
 	server := &http.Server{
 		ErrorLog: observationErrorLog(journal, obs.LogComponent_LOG_COMPONENT_OPERATOR_TRANSPORT),

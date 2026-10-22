@@ -910,7 +910,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		case <-watchStop:
 		}
 	}()
-	operator, operatorStartErr := startOperatorListenerObserved(lifecycleCtx, dataDir, store, sessions, observed.journal)
+	operator, operatorStartErr := startOperatorListenerObserved(lifecycleCtx, dataDir, store, sessions, observed.journal, observed.health)
 	publicDone := closedPublicDone()
 	listenerErr := operatorStartErr
 	if operatorStartErr == nil {
