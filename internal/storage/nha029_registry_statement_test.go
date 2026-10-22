@@ -25,7 +25,7 @@ func nha029ConfigErrorKind(t *testing.T, err error, want Kind) {
 func TestNHA029RegistryStatementsRejectZeroUnknownAndWrongOperation(t *testing.T) {
 	queries := []RegistryStatement{
 		RegistrySourceBinding(), RegistryManifestEntity(), RegistryDeviceSource(),
-		RegistryEntityState(), RegistryAliasOwner(),
+		RegistryEntityState(), RegistryAliasOwner(), RegistryEntityAliasCount(),
 	}
 	commands := []RegistryStatement{
 		RegistryNewDevice(), RegistryNewDeviceSource(), RegistryNewEntity(),

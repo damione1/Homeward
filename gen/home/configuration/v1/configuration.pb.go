@@ -32,17 +32,27 @@ const (
 	DocumentKind_DOCUMENT_KIND_MFA_POLICY           DocumentKind = 3
 	DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML     DocumentKind = 4
 	DocumentKind_DOCUMENT_KIND_BOOTSTRAP_LAUNCH     DocumentKind = 5
+	DocumentKind_DOCUMENT_KIND_DASHBOARD_SOURCE     DocumentKind = 6
+	DocumentKind_DOCUMENT_KIND_AUTOMATION_SOURCE    DocumentKind = 7
+	DocumentKind_DOCUMENT_KIND_SCRIPT_SOURCE        DocumentKind = 8
+	DocumentKind_DOCUMENT_KIND_SCENE_SOURCE         DocumentKind = 9
+	DocumentKind_DOCUMENT_KIND_OWNERSHIP_SOURCE     DocumentKind = 10
 )
 
 // Enum value maps for DocumentKind.
 var (
 	DocumentKind_name = map[int32]string{
-		0: "DOCUMENT_KIND_UNSPECIFIED",
-		1: "DOCUMENT_KIND_YAML_SOURCE",
-		2: "DOCUMENT_KIND_AUTHORIZATION_POLICY",
-		3: "DOCUMENT_KIND_MFA_POLICY",
-		4: "DOCUMENT_KIND_OPERATIONAL_YAML",
-		5: "DOCUMENT_KIND_BOOTSTRAP_LAUNCH",
+		0:  "DOCUMENT_KIND_UNSPECIFIED",
+		1:  "DOCUMENT_KIND_YAML_SOURCE",
+		2:  "DOCUMENT_KIND_AUTHORIZATION_POLICY",
+		3:  "DOCUMENT_KIND_MFA_POLICY",
+		4:  "DOCUMENT_KIND_OPERATIONAL_YAML",
+		5:  "DOCUMENT_KIND_BOOTSTRAP_LAUNCH",
+		6:  "DOCUMENT_KIND_DASHBOARD_SOURCE",
+		7:  "DOCUMENT_KIND_AUTOMATION_SOURCE",
+		8:  "DOCUMENT_KIND_SCRIPT_SOURCE",
+		9:  "DOCUMENT_KIND_SCENE_SOURCE",
+		10: "DOCUMENT_KIND_OWNERSHIP_SOURCE",
 	}
 	DocumentKind_value = map[string]int32{
 		"DOCUMENT_KIND_UNSPECIFIED":          0,
@@ -51,6 +61,11 @@ var (
 		"DOCUMENT_KIND_MFA_POLICY":           3,
 		"DOCUMENT_KIND_OPERATIONAL_YAML":     4,
 		"DOCUMENT_KIND_BOOTSTRAP_LAUNCH":     5,
+		"DOCUMENT_KIND_DASHBOARD_SOURCE":     6,
+		"DOCUMENT_KIND_AUTOMATION_SOURCE":    7,
+		"DOCUMENT_KIND_SCRIPT_SOURCE":        8,
+		"DOCUMENT_KIND_SCENE_SOURCE":         9,
+		"DOCUMENT_KIND_OWNERSHIP_SOURCE":     10,
 	}
 )
 
@@ -2776,14 +2791,20 @@ const file_home_configuration_v1_configuration_proto_rawDesc = "" +
 	"\achanges\x18\x01 \x01(\v2\".home.configuration.v1.ChangeBatchH\x00R\achanges\x12P\n" +
 	"\x0fresync_required\x18\x02 \x01(\v2%.home.configuration.v1.ResyncRequiredH\x00R\x0eresyncRequired\x129\n" +
 	"\x05ready\x18\x03 \x01(\v2!.home.configuration.v1.WatchReadyH\x00R\x05readyB\b\n" +
-	"\x06result*\xda\x01\n" +
+	"\x06result*\x88\x03\n" +
 	"\fDocumentKind\x12\x1d\n" +
 	"\x19DOCUMENT_KIND_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19DOCUMENT_KIND_YAML_SOURCE\x10\x01\x12&\n" +
 	"\"DOCUMENT_KIND_AUTHORIZATION_POLICY\x10\x02\x12\x1c\n" +
 	"\x18DOCUMENT_KIND_MFA_POLICY\x10\x03\x12\"\n" +
 	"\x1eDOCUMENT_KIND_OPERATIONAL_YAML\x10\x04\x12\"\n" +
-	"\x1eDOCUMENT_KIND_BOOTSTRAP_LAUNCH\x10\x05*\xb1\x01\n" +
+	"\x1eDOCUMENT_KIND_BOOTSTRAP_LAUNCH\x10\x05\x12\"\n" +
+	"\x1eDOCUMENT_KIND_DASHBOARD_SOURCE\x10\x06\x12#\n" +
+	"\x1fDOCUMENT_KIND_AUTOMATION_SOURCE\x10\a\x12\x1f\n" +
+	"\x1bDOCUMENT_KIND_SCRIPT_SOURCE\x10\b\x12\x1e\n" +
+	"\x1aDOCUMENT_KIND_SCENE_SOURCE\x10\t\x12\"\n" +
+	"\x1eDOCUMENT_KIND_OWNERSHIP_SOURCE\x10\n" +
+	"*\xb1\x01\n" +
 	"\n" +
 	"DirtyState\x12\x1b\n" +
 	"\x17DIRTY_STATE_UNSPECIFIED\x10\x00\x12\x15\n" +

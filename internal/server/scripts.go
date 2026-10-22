@@ -171,7 +171,12 @@ func prepareScriptRuns(ctx context.Context, composition *AutomationRunsCompositi
 	if services.triggers != nil {
 		reader = triggerResultReader{services.triggers}
 	}
-	controller, err := automationruns.NewController(composition.plan, reader, interpreter, interpreter)
+	var controller *automationruns.Controller
+	if len(composition.plan.AutomationIDs())+len(composition.plan.ScriptIDs()) == 0 {
+		controller, err = automationruns.NewDormantController(composition.plan, reader, interpreter)
+	} else {
+		controller, err = automationruns.NewController(composition.plan, reader, interpreter, interpreter)
+	}
 	if err != nil {
 		return nil, errors.Join(ErrInvalidTriggerComposition, err)
 	}

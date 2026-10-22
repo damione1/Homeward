@@ -16,6 +16,7 @@ import (
 	"github.com/damione1/Homeward/internal/authmfa"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config/bundle"
+	"github.com/damione1/Homeward/internal/configcompilation"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -52,7 +53,7 @@ func (k ConfigDocumentKind) String() string {
 	case ConfigDocumentKindBootstrapLaunch:
 		return "bootstrap_launch"
 	default:
-		return ""
+		return editableKindText(k)
 	}
 }
 
@@ -69,7 +70,7 @@ func parseConfigDocumentKind(text string) (ConfigDocumentKind, error) {
 	case ConfigDocumentKindBootstrapLaunch.String():
 		return ConfigDocumentKindBootstrapLaunch, nil
 	default:
-		return ConfigDocumentKindInvalid, &Error{kind: ConfigIntegrity}
+		return parseEditableKind(text)
 	}
 }
 
@@ -333,7 +334,7 @@ func (f configSourceFormat) values() (ConfigDocumentKind, string, string, error)
 	case configSourceInvalid:
 		return ConfigDocumentKindInvalid, "", "", &Error{kind: ConfigInvalid}
 	default:
-		return ConfigDocumentKindInvalid, "", "", &Error{kind: ConfigInvalid}
+		return editableFormatValues(f)
 	}
 }
 
@@ -347,12 +348,14 @@ func (c *ConfigTx) saveAdmittedSource(binding ConfigDocumentBinding, format conf
 	if err != nil || !binding.id.Valid() || !metadata.author.Valid() || !metadata.source.Valid() || len(data) > 1<<20 || sha256.Sum256(data) != sourceHash {
 		return ConfigVersionRef{}, &Error{kind: ConfigInvalid}
 	}
-	if _, err := parser.NewSourceFile(binding.path, nil); err != nil {
+	if err := configSourcePath(kind.String(), binding.path); err != nil {
 		return ConfigVersionRef{}, &Error{kind: ConfigInvalid}
 	}
-	if _, err := c.tx.Exec(c.ctx, `INSERT INTO public.config_documents(id,logical_path,kind)
+	if editableKindText(kind) == "" {
+		if _, err := c.tx.Exec(c.ctx, `INSERT INTO public.config_documents(id,logical_path,kind)
 		VALUES($1,$2,$3::public.config_document_kind) ON CONFLICT(id) DO NOTHING`, binding.id.document, binding.path, kind.String()); err != nil {
-		return ConfigVersionRef{}, configWriteError(err)
+			return ConfigVersionRef{}, configWriteError(err)
+		}
 	}
 	var path, storedKind string
 	if err := c.tx.QueryRow(c.ctx, `SELECT logical_path,kind::text FROM public.config_documents WHERE id=$1`, binding.id.document).Scan(&path, &storedKind); err != nil {
@@ -472,7 +475,15 @@ func configCompiledManifestHash(entry string, compiled [sha256.Size]byte, items 
 // RegisterCompiledGeneration seals one operational document plus the exact
 // admitted definition revisions. The caller supplies a digest of its compiled
 // candidate; SQL validates source membership and bounds before sealing.
-func (c *ConfigTx) RegisterCompiledGeneration(entry string, compiled [sha256.Size]byte, refs []ConfigVersionRef) (result ConfigGenerationRevision, err error) {
+func (c *ConfigTx) RegisterCompiledGeneration(entry string, compiled [sha256.Size]byte, refs []ConfigVersionRef) (ConfigGenerationRevision, error) {
+	return c.registerCompiledGeneration(entry, compiled, refs, nil)
+}
+
+func (c *ConfigTx) registerCompiledGeneration(entry string, compiled [sha256.Size]byte, refs []ConfigVersionRef, compilationContext *configcompilation.Context) (ConfigGenerationRevision, error) {
+	return c.registerCompiledGenerationAtWorkspace(entry, compiled, refs, compilationContext, NoDeclarativeWorkspaceLocator())
+}
+
+func (c *ConfigTx) registerCompiledGenerationAtWorkspace(entry string, compiled [sha256.Size]byte, refs []ConfigVersionRef, compilationContext *configcompilation.Context, locator DeclarativeWorkspaceLocator) (result ConfigGenerationRevision, err error) {
 	defer func() { c.remember(err) }()
 	if err := c.valid(); err != nil {
 		return ConfigGenerationRevision{}, err
@@ -480,6 +491,12 @@ func (c *ConfigTx) RegisterCompiledGeneration(entry string, compiled [sha256.Siz
 	if _, err := parser.NewSourceFile(entry, nil); err != nil || compiled == ([sha256.Size]byte{}) || len(refs) == 0 || len(refs) > configSourceLimitCount {
 		return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
 	}
+	if !locator.Valid() {
+		return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
+	}
+	_, located := locator.Group()
+	declarativeCount, declarativeEntry := 0, 0
+	var declarativeSchema string
 	items := make([]configManifestItem, 0, len(refs))
 	seen := make(map[string]struct{}, len(refs))
 	var totalBytes, operational int
@@ -506,7 +523,7 @@ func (c *ConfigTx) RegisterCompiledGeneration(entry string, compiled [sha256.Siz
 		if err != nil {
 			return ConfigGenerationRevision{}, err
 		}
-		if _, err := parser.NewSourceFile(item.path, nil); err != nil || len(digest) != sha256.Size {
+		if err := configSourcePath(kind, item.path); err != nil || len(digest) != sha256.Size {
 			return ConfigGenerationRevision{}, &Error{kind: ConfigIntegrity}
 		}
 		copy(item.hash[:], digest)
@@ -515,6 +532,19 @@ func (c *ConfigTx) RegisterCompiledGeneration(entry string, compiled [sha256.Siz
 			((schema == bundle.SchemaDeclarative1.String() && profile == parser.SyntaxProfileDeclarative.String()) ||
 				(schema == bundle.SchemaDeclarative2.String() && profile == parser.SyntaxProfileDeclarative2.String())):
 			if sha256.Sum256(plain) != item.hash || len(plain) > 1<<20 {
+				return ConfigGenerationRevision{}, &Error{kind: ConfigIntegrity}
+			}
+			declarativeCount++
+			if item.path == entry {
+				declarativeEntry++
+			}
+			if located && declarativeSchema != "" && declarativeSchema != schema {
+				return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
+			}
+			declarativeSchema = schema
+			totalBytes += len(plain)
+		case editableSourceFormat(kind, schema, profile) && representation == configPlainSQL:
+			if len(plain) < 1 || len(plain) > 1<<20 || sha256.Sum256(plain) != item.hash {
 				return ConfigGenerationRevision{}, &Error{kind: ConfigIntegrity}
 			}
 			totalBytes += len(plain)
@@ -533,14 +563,37 @@ func (c *ConfigTx) RegisterCompiledGeneration(entry string, compiled [sha256.Siz
 		}
 		items = append(items, item)
 	}
+	if located && (declarativeCount == 0 || declarativeEntry != 1) {
+		return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
+	}
 	if operational != 1 {
 		return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
 	}
 	manifest := configCompiledManifestHash(entry, compiled, items)
 	var revision int64
-	err = c.tx.QueryRow(c.ctx, `INSERT INTO public.config_generations(entry_path,candidate_hash,manifest_hash,entry_count,manifest_format)
+	if group, present := locator.Group(); present {
+		var contextRaw, contextHash, contextSource any
+		if compilationContext != nil {
+			if !compilationContext.Valid() {
+				return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
+			}
+			digest := compilationContext.SHA256()
+			contextRaw, contextHash, contextSource = compilationContext.Bytes(), digest[:], compiled[:]
+		}
+		err = c.tx.QueryRow(c.ctx, `INSERT INTO public.config_generations(entry_path,candidate_hash,manifest_hash,entry_count,manifest_format,declarative_workspace_group,compilation_context,compilation_context_hash,compilation_source_hash)
+ VALUES($1,$2,$3,$4,$5::public.config_manifest_format,$6,$7,$8,$9) RETURNING revision`, entry, compiled[:], manifest[:], len(items), configCompiledManifest, group.String(), contextRaw, contextHash, contextSource).Scan(&revision)
+	} else if compilationContext != nil {
+		if !compilationContext.Valid() {
+			return ConfigGenerationRevision{}, &Error{kind: ConfigInvalid}
+		}
+		digest := compilationContext.SHA256()
+		err = c.tx.QueryRow(c.ctx, `INSERT INTO public.config_generations(entry_path,candidate_hash,manifest_hash,entry_count,manifest_format,compilation_context,compilation_context_hash,compilation_source_hash)
+ VALUES($1,$2,$3,$4,$5::public.config_manifest_format,$6,$7,$2) RETURNING revision`, entry, compiled[:], manifest[:], len(items), configCompiledManifest, compilationContext.Bytes(), digest[:]).Scan(&revision)
+	} else {
+		err = c.tx.QueryRow(c.ctx, `INSERT INTO public.config_generations(entry_path,candidate_hash,manifest_hash,entry_count,manifest_format)
 		VALUES($1,$2,$3,$4,$5::public.config_manifest_format) RETURNING revision`,
-		entry, compiled[:], manifest[:], len(items), configCompiledManifest).Scan(&revision)
+			entry, compiled[:], manifest[:], len(items), configCompiledManifest).Scan(&revision)
+	}
 	if err != nil {
 		return ConfigGenerationRevision{}, configWriteError(err)
 	}
@@ -775,14 +828,15 @@ const (
 )
 
 type ConfigGenerationSnapshot struct {
-	revision       ConfigGenerationRevision
-	entry          string
-	candidateHash  [sha256.Size]byte
-	manifestHash   [sha256.Size]byte
-	created        time.Time
-	versions       []ConfigVersionSnapshot
-	availability   ConfigGenerationAvailability
-	manifestFormat ConfigManifestFormat
+	revision             ConfigGenerationRevision
+	entry                string
+	candidateHash        [sha256.Size]byte
+	manifestHash         [sha256.Size]byte
+	created              time.Time
+	versions             []ConfigVersionSnapshot
+	availability         ConfigGenerationAvailability
+	manifestFormat       ConfigManifestFormat
+	declarativeWorkspace DeclarativeWorkspaceLocator
 }
 
 func (g ConfigGenerationSnapshot) Revision() ConfigGenerationRevision         { return g.revision }
@@ -905,23 +959,36 @@ func (s *Store) readConfig(ctx context.Context, target *ConfigGenerationRevision
 // readConfigGenerationTx validates one generation in the caller's existing SQL
 // snapshot. It neither selects the active pointer nor commits that snapshot.
 func readConfigGenerationTx(ctx context.Context, tx pgx.Tx, revision ConfigGenerationRevision) (ConfigGenerationSnapshot, error) {
-	g := ConfigGenerationSnapshot{revision: revision}
+	g := ConfigGenerationSnapshot{revision: revision, declarativeWorkspace: NoDeclarativeWorkspaceLocator()}
 	var candidateHash, manifestHash []byte
 	var count int
 	var sealed bool
 	var manifestFormat string
+	var workspaceGroup *string
 	err := tx.QueryRow(ctx, `SELECT
 		CASE WHEN octet_length(entry_path) BETWEEN 1 AND 4096 THEN entry_path ELSE '' END,
 		CASE WHEN octet_length(candidate_hash)=32 THEN candidate_hash END,
 		CASE WHEN octet_length(manifest_hash)=32 THEN manifest_hash END,
-		entry_count,sealed,created_at,manifest_format::text
-		FROM public.config_generations WHERE revision=$1`, revision.generation).
-		Scan(&g.entry, &candidateHash, &manifestHash, &count, &sealed, &g.created, &manifestFormat)
+		entry_count,sealed,created_at,manifest_format::text,
+		CASE WHEN (to_jsonb(g)->>'declarative_workspace_group') IS NULL THEN NULL
+		 WHEN octet_length(to_jsonb(g)->>'declarative_workspace_group') BETWEEN 1 AND 255 THEN to_jsonb(g)->>'declarative_workspace_group' ELSE '' END
+		FROM public.config_generations g WHERE revision=$1`, revision.generation).
+		Scan(&g.entry, &candidateHash, &manifestHash, &count, &sealed, &g.created, &manifestFormat, &workspaceGroup)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ConfigGenerationSnapshot{}, &Error{kind: ConfigNotFound}
 	}
 	if err != nil {
 		return ConfigGenerationSnapshot{}, &Error{kind: Unavailable, cause: err}
+	}
+	if workspaceGroup != nil {
+		group, groupErr := NewConfigDocumentID(*workspaceGroup)
+		if groupErr != nil {
+			return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
+		}
+		g.declarativeWorkspace, err = NewDeclarativeWorkspaceLocator(group)
+		if err != nil {
+			return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
+		}
 	}
 	g.manifestFormat, err = parseConfigManifestFormat(manifestFormat)
 	if err != nil || !sealed || count < 1 || count > configSourceLimitCount ||
@@ -987,7 +1054,7 @@ func readConfigGenerationTx(ctx context.Context, tx pgx.Tx, revision ConfigGener
 			rows.Close()
 			return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity, cause: err}
 		}
-		if _, err := parser.NewSourceFile(v.path, nil); err != nil {
+		if err := configSourcePath(kind, v.path); err != nil {
 			rows.Close()
 			return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity, cause: err}
 		}
@@ -1022,6 +1089,13 @@ func readConfigGenerationTx(ctx context.Context, tx pgx.Tx, revision ConfigGener
 					return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
 				}
 				totalBytes += *ciphertextBytes - 28
+			} else if profile != nil && editableSourceFormat(kind, *schema, *profile) && g.manifestFormat == ConfigManifestCompiledV2 {
+				if data == nil || len(data) < 1 || len(data) > 1<<20 || ciphertextBytes != nil || sha256.Sum256(data) != v.hash {
+					rows.Close()
+					return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
+				}
+				totalBytes += len(data)
+				v.yaml = bytes.Clone(data)
 			} else {
 				if v.kind != ConfigDocumentKindYAMLSource || data == nil || ciphertextBytes != nil ||
 					profile == nil || !((*schema == bundle.SchemaDeclarative1.String() && *profile == parser.SyntaxProfileDeclarative.String()) ||
@@ -1093,6 +1167,9 @@ func readConfigGenerationTx(ctx context.Context, tx pgx.Tx, revision ConfigGener
 	if expectedManifest != g.manifestHash {
 		return ConfigGenerationSnapshot{}, &Error{kind: ConfigIntegrity}
 	}
+	if err := validateDeclarativeWorkspace(g); err != nil {
+		return ConfigGenerationSnapshot{}, err
+	}
 	if g.availability == ConfigGenerationUnknown {
 		g.availability = ConfigGenerationComplete
 	}
@@ -1139,7 +1216,7 @@ func preflightConfigSourcesTx(ctx context.Context, tx pgx.Tx, revision ConfigGen
 		if seen > count || !configLabel(document, 255) || version <= 0 || len(memberHash) != sha256.Size {
 			return &Error{kind: ConfigIntegrity}
 		}
-		if _, err := parser.NewSourceFile(path, nil); err != nil {
+		if err := configSourcePath(kind, path); err != nil {
 			return &Error{kind: ConfigIntegrity, cause: err}
 		}
 		if _, err := parseConfigDocumentKind(kind); err != nil {
@@ -1155,10 +1232,12 @@ func preflightConfigSourcesTx(ctx context.Context, tx pgx.Tx, revision ConfigGen
 		}
 		switch *representation {
 		case configPlainSQL:
-			if kind != ConfigDocumentKindYAMLSource.String() || plainBytes == nil || *plainBytes > 1<<20 ||
+			if plainBytes == nil || *plainBytes < 1 || *plainBytes > 1<<20 ||
 				cipherBytes != nil || keyBytes != nil || saltBytes != nil || suite != nil ||
-				!((*schema == bundle.SchemaDeclarative1.String() && *profile == parser.SyntaxProfileDeclarative.String()) ||
-					(*schema == bundle.SchemaDeclarative2.String() && *profile == parser.SyntaxProfileDeclarative2.String())) {
+				!((kind == ConfigDocumentKindYAMLSource.String() &&
+					((*schema == bundle.SchemaDeclarative1.String() && *profile == parser.SyntaxProfileDeclarative.String()) ||
+						(*schema == bundle.SchemaDeclarative2.String() && *profile == parser.SyntaxProfileDeclarative2.String()))) ||
+					editableSourceFormat(kind, *schema, *profile)) {
 				return &Error{kind: ConfigIntegrity}
 			}
 			total += *plainBytes

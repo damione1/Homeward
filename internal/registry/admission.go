@@ -59,6 +59,7 @@ const (
 	activationPublishing
 	activationResolved
 	activationReleased
+	activationPreparing
 )
 
 func (r *Repository) BeginActivation(ctx context.Context) (*ActivationGate, error) {
@@ -88,7 +89,7 @@ func (g *ActivationGate) Release() error {
 			}
 			g.repo.release()
 			return nil
-		case activationApplying, activationPending, activationPublishing:
+		case activationApplying, activationPending, activationPublishing, activationPreparing:
 			return ErrProjectionUnavailable
 		case activationInvalid, activationReleased:
 			return ErrInvalidInput

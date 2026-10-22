@@ -125,6 +125,9 @@ func (s *Service) ReconcileObserved(ctx context.Context) error {
 			return reconcileErr
 		}
 	}
+	if reconciled, err := s.reconcileSourceSetLocked(ctx); reconciled || err != nil {
+		return err
+	}
 	current, err := s.Read(ctx, operationalID())
 	if err != nil {
 		return err

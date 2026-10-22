@@ -255,6 +255,10 @@ func (e *Edit) MarshalJSON() ([]byte, error) { return json.Marshal(e.String()) }
 // currently admitted SQL source. The caller must admit document revision/hash
 // before staging; a prior rejected workspace may differ from SQL legitimately.
 func (w *Workspace) BeginEdit(expected, admittedSQL [32]byte, raw []byte) (*Edit, error) {
+	return w.beginEdit(expected, admittedSQL, raw, nil)
+}
+
+func (w *Workspace) beginEdit(expected, admittedSQL [32]byte, raw []byte, beforeWrite func() error) (*Edit, error) {
 	if w == nil || !w.admitted || expected == ([32]byte{}) || admittedSQL == ([32]byte{}) || len(raw) < 1 || len(raw) > 1<<20 {
 		return nil, &Error{kind: FailureInvalid}
 	}
@@ -283,6 +287,13 @@ func (w *Workspace) BeginEdit(expected, admittedSQL [32]byte, raw []byte) (*Edit
 		return nil, &Error{kind: Unavailable}
 	}
 	r := intentRecord{Format: 2, Token: hex.EncodeToString(token[:]), Base: base.hash, SQLBase: admittedSQL, Candidate: sha256.Sum256(raw)}
+	// The caller's authority may expire while waiting for this same writer
+	// mutex or during the exact-source reads. Refuse before any durable artifact.
+	if beforeWrite != nil {
+		if err := beforeWrite(); err != nil {
+			return nil, err
+		}
+	}
 	if err := w.writeExclusive(r.staged(), raw); err != nil {
 		return nil, err
 	}

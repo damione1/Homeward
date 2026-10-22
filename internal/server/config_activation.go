@@ -167,7 +167,7 @@ func attachConfigurationActivation(owner *configactivation.Owner, plan RuntimePl
 		return configactivation.ErrInvalidStartup
 	}
 	runtime := configactivation.Runtime{Host: host, Commands: commands, Runs: runs, Supervisor: supervisor,
-		Policies: activationPolicies{coordinator: sessions}, Operational: plan.OperationalCompiler}
+		Policies: activationPolicies{coordinator: sessions}, Operational: plan.OperationalCompiler, Sources: plan.SourceCompiler, SourceFactory: plan.SourceFactory}
 	if observed != nil {
 		runtime.Publication = activationHealthPublication{health: observed.health}
 	}

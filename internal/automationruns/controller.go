@@ -113,7 +113,11 @@ type Controller struct {
 }
 
 func NewController(plan Plan, reader ResultReader, preparer Preparer, executor Executor) (*Controller, error) {
-	if !plan.Valid() || len(plan.items)+len(plan.scripts) == 0 || nilPort(preparer) || nilPort(executor) ||
+	return newController(plan, reader, preparer, executor, false)
+}
+
+func newController(plan Plan, reader ResultReader, preparer Preparer, executor Executor, dormant bool) (*Controller, error) {
+	if !plan.Valid() || (!dormant && len(plan.items)+len(plan.scripts) == 0) || nilPort(preparer) || nilPort(executor) ||
 		(len(plan.items) != 0 && (nilPort(reader) || reader.Done() == nil)) {
 		return nil, ErrInvalidPlan
 	}

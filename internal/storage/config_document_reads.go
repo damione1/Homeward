@@ -54,7 +54,7 @@ func (p ConfigDocumentPage) More() bool             { return p.more }
 
 func configPublicSchema(kind ConfigDocumentKind, schema, profile string) bool {
 	entry, ok := configPublicSchemaMetadata(schema)
-	return ok && entry.kind == kind && entry.profile == profile
+	return ok && entry.kind == kind && entry.profile == profile || editableSourceFormat(kind.String(), schema, profile)
 }
 func configPublicSchemaMetadata(schema string) (ConfigSchemaMetadata, bool) {
 	entry := ConfigSchemaMetadata{schema: schema}
@@ -71,6 +71,14 @@ func configPublicSchemaMetadata(schema string) (ConfigSchemaMetadata, bool) {
 		entry.kind, entry.profile = ConfigDocumentKindOperationalYAML, configOperationalProfile
 	case configBootstrapSchema:
 		entry.kind, entry.profile = ConfigDocumentKindBootstrapLaunch, configBootstrapProfile
+	case "homeward-dashboard-1":
+		entry.kind, entry.profile = ConfigDocumentKindDashboardSource, "ha-2026.10/lovelace-1"
+	case "ha-logic-1":
+		entry.kind, entry.profile = ConfigDocumentKindAutomationSource, "ha-2026.10/logic-1"
+	case "ha-scene-1":
+		entry.kind, entry.profile = ConfigDocumentKindSceneSource, "ha-2026.10/scene-1"
+	case "homeward.heating-ownership/1":
+		entry.kind, entry.profile = ConfigDocumentKindOwnershipSource, "homeward.heating-ownership-json/1"
 	default:
 		return ConfigSchemaMetadata{}, false
 	}

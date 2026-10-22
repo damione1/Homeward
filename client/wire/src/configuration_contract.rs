@@ -172,7 +172,43 @@ fn schema(value: &wire::Document) -> bool {
             value.schema_version == "homeward.bootstrap-launch/1"
                 && value.syntax_profile == "homeward.bootstrap-launch-yaml/1"
         }
+        EnumValue::Known(wire::DocumentKind::DashboardSource) => {
+            value.schema_version == "homeward-dashboard-1"
+                && value.syntax_profile == "ha-2026.10/lovelace-1"
+        }
+        EnumValue::Known(
+            wire::DocumentKind::AutomationSource | wire::DocumentKind::ScriptSource,
+        ) => value.schema_version == "ha-logic-1" && value.syntax_profile == "ha-2026.10/logic-1",
+        EnumValue::Known(wire::DocumentKind::SceneSource) => {
+            value.schema_version == "ha-scene-1" && value.syntax_profile == "ha-2026.10/scene-1"
+        }
+        EnumValue::Known(wire::DocumentKind::OwnershipSource) => {
+            value.schema_version == "homeward.heating-ownership/1"
+                && value.syntax_profile == "homeward.heating-ownership-json/1"
+        }
         EnumValue::Known(wire::DocumentKind::Unspecified) | EnumValue::Unknown(_) => false,
+    }
+}
+fn observable_document(document: &wire::Document) -> bool {
+    match document.kind {
+        EnumValue::Known(wire::DocumentKind::OperationalYaml) => {
+            document.id.value == "operational.main"
+        }
+        EnumValue::Known(
+            wire::DocumentKind::YamlSource
+            | wire::DocumentKind::AuthorizationPolicy
+            | wire::DocumentKind::DashboardSource
+            | wire::DocumentKind::AutomationSource
+            | wire::DocumentKind::ScriptSource
+            | wire::DocumentKind::SceneSource
+            | wire::DocumentKind::OwnershipSource,
+        ) => document.id.value != "operational.main",
+        EnumValue::Known(
+            wire::DocumentKind::MfaPolicy
+            | wire::DocumentKind::BootstrapLaunch
+            | wire::DocumentKind::Unspecified,
+        )
+        | EnumValue::Unknown(_) => false,
     }
 }
 pub fn admit_configuration_read(
@@ -198,8 +234,7 @@ pub fn admit_configuration_read(
     match &document.workspace_state {
         Some(WorkspaceState::Workspace(workspace)) => {
             if !workspace.__buffa_unknown_fields.is_empty()
-                || document.kind != EnumValue::Known(wire::DocumentKind::OperationalYaml)
-                || document.id.value != "operational.main"
+                || !observable_document(document)
                 || !hash(&workspace.source_sha256)
                 || !workspace.updated_at.as_option().is_some_and(timestamp)
                 || !dirty(workspace.dirty)
@@ -219,8 +254,7 @@ pub fn admit_configuration_read(
                     document.id.value != "operational.main"
                 }
                 EnumValue::Known(wire::WorkspaceUnobservedReason::SourceUnavailable) => {
-                    document.kind == EnumValue::Known(wire::DocumentKind::OperationalYaml)
-                        && document.id.value == "operational.main"
+                    observable_document(document)
                 }
                 EnumValue::Known(wire::WorkspaceUnobservedReason::Unspecified)
                 | EnumValue::Unknown(_) => false,

@@ -105,7 +105,8 @@ func (s ConfigSchemaMetadata) SchemaVersion() string    { return s.schema }
 func (s ConfigSchemaMetadata) SyntaxProfile() string    { return s.profile }
 
 // ReadConfigSchemas reads the authoritative SQL enum catalogue. Every SQL
-// schema must map to an admitted kind/profile pair; unknown labels fail closed.
+// schema must map to admitted kind/profile pairs; unknown labels fail closed.
+// The shared logic schema retains both automation and script document kinds.
 // The tiny bounded catalogue is paginated by the transport, without source data.
 func (s *Store) ReadConfigSchemas(ctx context.Context) ([]ConfigSchemaMetadata, error) {
 	ctx, cancel, tx, err := publicConfigRead(ctx, s)
@@ -119,17 +120,17 @@ func (s *Store) ReadConfigSchemas(ctx context.Context) ([]ConfigSchemaMetadata, 
 		return nil, &Error{kind: Unavailable}
 	}
 	defer rows.Close()
-	result := make([]ConfigSchemaMetadata, 0, 7)
+	result := make([]ConfigSchemaMetadata, 0, 12)
 	for rows.Next() {
 		var schema string
 		if err := rows.Scan(&schema); err != nil {
 			return nil, &Error{kind: Unavailable}
 		}
-		entry, known := configPublicSchemaMetadata(schema)
-		if len(result) >= 16 || !known {
+		entries, known := configPublicSchemaEntries(schema)
+		if !known || len(entries) == 0 || len(result) > 16-len(entries) {
 			return nil, &Error{kind: ConfigIntegrity}
 		}
-		result = append(result, entry)
+		result = append(result, entries...)
 	}
 	if rows.Err() != nil {
 		return nil, &Error{kind: Unavailable}

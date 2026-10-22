@@ -35,21 +35,24 @@ import (
 // activation owner. Constructors below only prepare the delivered factories;
 // no pilot, client, process, Host discovery or credential mutation starts here.
 type configuredOperationalCompiler struct {
-	remoteCalendar *remoteCalendarRuntime
-	manifest       registry.Manifest
-	repository     *registry.Repository
-	store          *storage.Store
-	sequence       *sequencer.Sequencer
-	host           *integrations.Manager
-	catalog        *contracts.CapabilityCatalog
-	authorization  *cloudAuthorizationCoordinator
-	templates      *reactiveTemplateRuntime
-	secrets        *storage.SecretRepository
-	solarClock     automationtriggers.Clock
-	workdayClock   automationtriggers.Clock
-	workday        *activationWorkdayCalendar
-	supervisor     *integrations.Supervisor
-	triggerPlan    automationtriggers.Plan
+	remoteCalendar  *remoteCalendarRuntime
+	manifest        registry.Manifest
+	repository      *registry.Repository
+	store           *storage.Store
+	sequence        *sequencer.Sequencer
+	host            *integrations.Manager
+	catalog         *contracts.CapabilityCatalog
+	authorization   *cloudAuthorizationCoordinator
+	templates       *reactiveTemplateRuntime
+	secrets         *storage.SecretRepository
+	solarClock      automationtriggers.Clock
+	workdayClock    automationtriggers.Clock
+	workday         *activationWorkdayCalendar
+	supervisor      *integrations.Supervisor
+	triggerPlan     automationtriggers.Plan
+	sourceOwnership *heatingownership.Decision
+	sourceParent    *configuredOperationalCompiler
+	sourceGate      *registry.ActivationGate
 }
 
 type configuredOperationalPublication struct {
@@ -150,7 +153,13 @@ func (p *configuredOperationalPublication) Publish(ctx context.Context) error {
 		}
 		p.derivedPublished = true
 	}
-	return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if p.compiler.sourceParent != nil {
+		p.compiler.sourceParent.triggerPlan = p.compiler.triggerPlan
+	}
+	return nil
 }
 func (p *configuredOperationalPublication) Release() {
 	if p != nil && p.cloud != nil {
@@ -354,6 +363,8 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 	var bindings *registry.PreparedBindings
 	if committed != nil {
 		bindings, err = committed.PrepareBindings(requests)
+	} else if c.sourceGate != nil {
+		bindings, err = c.sourceGate.PrepareBindings(ctx, requests)
 	} else {
 		bindings, err = c.repository.PrepareBindings(ctx, requests)
 	}
@@ -597,7 +608,11 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 		var registration *CloudAuthorizationRegistration
 		var preparedHilo *hiloComposition
 		if hasNewHilo {
-			preparedHilo, err = newHiloCompositionWithManifest(c.manifest, newHilo, c.store, c.sequence, c.catalog, c.repository)
+			decision, decisionErr := c.ownershipDecision()
+			if decisionErr != nil {
+				return configactivation.OperationalImage{}, decisionErr
+			}
+			preparedHilo, err = newHiloCompositionWithDecision(c.manifest, decision, newHilo, c.store, c.sequence, c.catalog, c.repository)
 			if err != nil {
 				return configactivation.OperationalImage{}, err
 			}
@@ -787,7 +802,7 @@ func (c *configuredOperationalCompiler) prepareEnergy(configuration config.Confi
 }
 
 func (c *configuredOperationalCompiler) prepareNeviweb(settings neviweb.Settings) (integrations.PilotSpec, error) {
-	decision, err := heatingownership.ParseForManifest(scope.HeatingOwnershipV1(), c.manifest)
+	decision, err := c.ownershipDecision()
 	if err != nil {
 		return integrations.PilotSpec{}, err
 	}

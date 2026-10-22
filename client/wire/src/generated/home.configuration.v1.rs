@@ -10,6 +10,11 @@ pub enum DocumentKind {
     DOCUMENT_KIND_MFA_POLICY = 3i32,
     DOCUMENT_KIND_OPERATIONAL_YAML = 4i32,
     DOCUMENT_KIND_BOOTSTRAP_LAUNCH = 5i32,
+    DOCUMENT_KIND_DASHBOARD_SOURCE = 6i32,
+    DOCUMENT_KIND_AUTOMATION_SOURCE = 7i32,
+    DOCUMENT_KIND_SCRIPT_SOURCE = 8i32,
+    DOCUMENT_KIND_SCENE_SOURCE = 9i32,
+    DOCUMENT_KIND_OWNERSHIP_SOURCE = 10i32,
 }
 impl DocumentKind {
     ///Idiomatic alias for [`Self::DOCUMENT_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -30,6 +35,21 @@ impl DocumentKind {
     ///Idiomatic alias for [`Self::DOCUMENT_KIND_BOOTSTRAP_LAUNCH`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const BootstrapLaunch: Self = Self::DOCUMENT_KIND_BOOTSTRAP_LAUNCH;
+    ///Idiomatic alias for [`Self::DOCUMENT_KIND_DASHBOARD_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DashboardSource: Self = Self::DOCUMENT_KIND_DASHBOARD_SOURCE;
+    ///Idiomatic alias for [`Self::DOCUMENT_KIND_AUTOMATION_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AutomationSource: Self = Self::DOCUMENT_KIND_AUTOMATION_SOURCE;
+    ///Idiomatic alias for [`Self::DOCUMENT_KIND_SCRIPT_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ScriptSource: Self = Self::DOCUMENT_KIND_SCRIPT_SOURCE;
+    ///Idiomatic alias for [`Self::DOCUMENT_KIND_SCENE_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SceneSource: Self = Self::DOCUMENT_KIND_SCENE_SOURCE;
+    ///Idiomatic alias for [`Self::DOCUMENT_KIND_OWNERSHIP_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const OwnershipSource: Self = Self::DOCUMENT_KIND_OWNERSHIP_SOURCE;
 }
 impl ::core::default::Default for DocumentKind {
     fn default() -> Self {
@@ -47,6 +67,11 @@ impl ::buffa::Enumeration for DocumentKind {
             3i32 => ::core::option::Option::Some(Self::DOCUMENT_KIND_MFA_POLICY),
             4i32 => ::core::option::Option::Some(Self::DOCUMENT_KIND_OPERATIONAL_YAML),
             5i32 => ::core::option::Option::Some(Self::DOCUMENT_KIND_BOOTSTRAP_LAUNCH),
+            6i32 => ::core::option::Option::Some(Self::DOCUMENT_KIND_DASHBOARD_SOURCE),
+            7i32 => ::core::option::Option::Some(Self::DOCUMENT_KIND_AUTOMATION_SOURCE),
+            8i32 => ::core::option::Option::Some(Self::DOCUMENT_KIND_SCRIPT_SOURCE),
+            9i32 => ::core::option::Option::Some(Self::DOCUMENT_KIND_SCENE_SOURCE),
+            10i32 => ::core::option::Option::Some(Self::DOCUMENT_KIND_OWNERSHIP_SOURCE),
             _ => ::core::option::Option::None,
         }
     }
@@ -63,6 +88,11 @@ impl ::buffa::Enumeration for DocumentKind {
             Self::DOCUMENT_KIND_MFA_POLICY => "DOCUMENT_KIND_MFA_POLICY",
             Self::DOCUMENT_KIND_OPERATIONAL_YAML => "DOCUMENT_KIND_OPERATIONAL_YAML",
             Self::DOCUMENT_KIND_BOOTSTRAP_LAUNCH => "DOCUMENT_KIND_BOOTSTRAP_LAUNCH",
+            Self::DOCUMENT_KIND_DASHBOARD_SOURCE => "DOCUMENT_KIND_DASHBOARD_SOURCE",
+            Self::DOCUMENT_KIND_AUTOMATION_SOURCE => "DOCUMENT_KIND_AUTOMATION_SOURCE",
+            Self::DOCUMENT_KIND_SCRIPT_SOURCE => "DOCUMENT_KIND_SCRIPT_SOURCE",
+            Self::DOCUMENT_KIND_SCENE_SOURCE => "DOCUMENT_KIND_SCENE_SOURCE",
+            Self::DOCUMENT_KIND_OWNERSHIP_SOURCE => "DOCUMENT_KIND_OWNERSHIP_SOURCE",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -85,6 +115,21 @@ impl ::buffa::Enumeration for DocumentKind {
             "DOCUMENT_KIND_BOOTSTRAP_LAUNCH" => {
                 ::core::option::Option::Some(Self::DOCUMENT_KIND_BOOTSTRAP_LAUNCH)
             }
+            "DOCUMENT_KIND_DASHBOARD_SOURCE" => {
+                ::core::option::Option::Some(Self::DOCUMENT_KIND_DASHBOARD_SOURCE)
+            }
+            "DOCUMENT_KIND_AUTOMATION_SOURCE" => {
+                ::core::option::Option::Some(Self::DOCUMENT_KIND_AUTOMATION_SOURCE)
+            }
+            "DOCUMENT_KIND_SCRIPT_SOURCE" => {
+                ::core::option::Option::Some(Self::DOCUMENT_KIND_SCRIPT_SOURCE)
+            }
+            "DOCUMENT_KIND_SCENE_SOURCE" => {
+                ::core::option::Option::Some(Self::DOCUMENT_KIND_SCENE_SOURCE)
+            }
+            "DOCUMENT_KIND_OWNERSHIP_SOURCE" => {
+                ::core::option::Option::Some(Self::DOCUMENT_KIND_OWNERSHIP_SOURCE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -96,6 +141,11 @@ impl ::buffa::Enumeration for DocumentKind {
             Self::DOCUMENT_KIND_MFA_POLICY,
             Self::DOCUMENT_KIND_OPERATIONAL_YAML,
             Self::DOCUMENT_KIND_BOOTSTRAP_LAUNCH,
+            Self::DOCUMENT_KIND_DASHBOARD_SOURCE,
+            Self::DOCUMENT_KIND_AUTOMATION_SOURCE,
+            Self::DOCUMENT_KIND_SCRIPT_SOURCE,
+            Self::DOCUMENT_KIND_SCENE_SOURCE,
+            Self::DOCUMENT_KIND_OWNERSHIP_SOURCE,
         ]
     }
 }
