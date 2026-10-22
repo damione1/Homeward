@@ -34,7 +34,14 @@ func Definition(kind Kind, target domain.EntityID) (reactivetemplate.Definition,
 	}
 	// The template returns raw source fields for admission, not the calculated
 	// W value; publication is the sole owner of the output target state.
-	return reactivetemplate.NewDefinition(binding.id, program, nil, nil)
+	definition, err := reactivetemplate.NewDefinition(binding.id, program, nil, nil)
+	if err != nil {
+		return reactivetemplate.Definition{}, err
+	}
+	if kind == KindHVAC {
+		return definition.WithSourceReports()
+	}
+	return definition, nil
 }
 
 type Status uint8

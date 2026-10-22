@@ -43,13 +43,14 @@ func (id ProgramID) Value() (string, error) {
 }
 
 type Definition struct {
-	id        ProgramID
-	program   template.Program
-	zone      *time.Location
-	static    []template.Dependency
-	variables []template.Binding
-	target    domain.EntityID
-	hasTarget bool
+	sourceReports bool
+	id            ProgramID
+	program       template.Program
+	zone          *time.Location
+	static        []template.Dependency
+	variables     []template.Binding
+	target        domain.EntityID
+	hasTarget     bool
 }
 
 func NewDefinition(id ProgramID, program template.Program, variables []template.Binding, target *domain.EntityID) (Definition, error) {
@@ -226,14 +227,15 @@ const (
 // Update is a completed fixed-point publication or an explicit degraded
 // state. Result is absent until a full render succeeds.
 type Update struct {
-	publication uint64
-	id          ProgramID
-	result      template.Result
-	valid       bool
-	quality     domain.Quality
-	reads       []template.Read
-	diagnostic  Diagnostic
-	cursor      sequencer.Cursor
+	sourceRevision uint64
+	publication    uint64
+	id             ProgramID
+	result         template.Result
+	valid          bool
+	quality        domain.Quality
+	reads          []template.Read
+	diagnostic     Diagnostic
+	cursor         sequencer.Cursor
 }
 
 func (u Update) ID() ProgramID { return u.id }
@@ -265,7 +267,7 @@ func (u Update) Reads() []template.Read   { return append([]template.Read(nil), 
 func (u Update) Diagnostic() Diagnostic   { return u.diagnostic }
 func (u Update) Cursor() sequencer.Cursor { return u.cursor }
 func (u Update) Equal(other Update) bool {
-	if u.id != other.id || u.valid != other.valid || u.quality != other.quality || u.diagnostic != other.diagnostic || u.valid && !u.result.Equal(other.result) || len(u.reads) != len(other.reads) {
+	if u.sourceRevision != other.sourceRevision || u.id != other.id || u.valid != other.valid || u.quality != other.quality || u.diagnostic != other.diagnostic || u.valid && !u.result.Equal(other.result) || len(u.reads) != len(other.reads) {
 		return false
 	}
 	for i := range u.reads {
