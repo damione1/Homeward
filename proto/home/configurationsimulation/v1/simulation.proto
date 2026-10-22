@@ -1,0 +1,154 @@
+syntax = "proto3";
+package home.configurationsimulation.v1;
+option go_package = "github.com/damione1/Homeward/gen/home/configurationsimulation/v1;configurationsimulationv1";
+
+import "google/protobuf/timestamp.proto";
+import "home/configurationplan/v1/plans.proto";
+import "home/registry/v1/registry.proto";
+
+enum Support {
+  SUPPORT_UNSPECIFIED = 0;
+  SUPPORT_OBSERVE_STATE = 1;
+  SUPPORT_CLIMATE_SETPOINT = 2;
+  SUPPORT_SWITCH_TURN_ON = 3;
+  SUPPORT_LIGHT_TURN_ON = 4;
+  SUPPORT_LIGHT_TURN_OFF = 5;
+  SUPPORT_LIGHT_BRIGHTNESS_ABSOLUTE = 6;
+  SUPPORT_LIGHT_BRIGHTNESS_RELATIVE = 7;
+  SUPPORT_LIGHT_TRANSITION = 8;
+  SUPPORT_SCENE_TURN_ON = 9;
+  SUPPORT_SCENE_TRANSITION = 10;
+}
+message Attribute {
+  string name = 1;
+  oneof value {
+    string text = 2;
+    bool boolean = 3;
+    int64 integer = 4;
+    double number = 5;
+    bool null_value = 6;
+  }
+}
+message Fixture {
+  string alias = 1;
+  // Absence means unobserved; "unknown" and "unavailable" are observations.
+  optional string state = 2;
+  repeated Attribute attributes = 3;
+  repeated Support supports = 4;
+  // A synthetic refusal tests failure propagation, never a device response.
+  bool refuse_intent = 5;
+}
+message SimulatePlanRequest {
+  home.configurationplan.v1.Candidate candidate = 1;
+  repeated Fixture fixtures = 2;
+  repeated string event_types = 3;
+  google.protobuf.Timestamp now = 4;
+  string time_zone = 5;
+  uint64 virtual_limit_millis = 6;
+}
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_COMPLETED = 1;
+  STATUS_PARTIAL = 2;
+  STATUS_FAILED = 3;
+}
+enum DiagnosticCode {
+  DIAGNOSTIC_CODE_UNSPECIFIED = 0;
+  DIAGNOSTIC_CODE_UNSUPPORTED_EXTENSION = 1;
+  DIAGNOSTIC_CODE_UNSUPPORTED_CONCURRENCY = 2;
+  DIAGNOSTIC_CODE_UNSUPPORTED_WAIT = 3;
+  DIAGNOSTIC_CODE_INVALID_SOURCE = 4;
+  DIAGNOSTIC_CODE_MISSING_FIXTURE = 5;
+  DIAGNOSTIC_CODE_FIXTURE_REFUSED = 6;
+  DIAGNOSTIC_CODE_EXECUTION_FAILED = 7;
+  DIAGNOSTIC_CODE_CAPACITY_EXCEEDED = 8;
+}
+message Position {
+  string file = 1;
+  string path = 2;
+  uint32 line = 3;
+  uint32 column = 4;
+}
+message Diagnostic { DiagnosticCode code = 1; Position position = 2; }
+enum IntentOutcome {
+  INTENT_OUTCOME_UNSPECIFIED = 0;
+  INTENT_OUTCOME_RECORDED = 1;
+  INTENT_OUTCOME_REFUSED = 2;
+}
+message SwitchIntent { bool on = 1; }
+message LightIntent {
+  optional bool on = 1;
+  optional double brightness_percent = 2;
+  optional double brightness_step_percent = 3;
+  optional uint32 brightness_255 = 4;
+  optional uint32 color_temp_mireds = 5;
+  optional double transition_seconds = 6;
+}
+message ClimateIntent {
+  optional double temperature_celsius = 1;
+  optional home.registry.v1.ClimateMode mode = 2;
+  optional double humidity_percent = 3;
+  optional string fan_mode = 4;
+  optional string preset_mode = 5;
+}
+message FanIntent { bool on = 1; uint32 percentage = 2; }
+message Intent {
+  string alias = 1;
+  Position position = 2;
+  IntentOutcome outcome = 3;
+  google.protobuf.Timestamp at = 4;
+  oneof parameters {
+    SwitchIntent switch = 5;
+    LightIntent light = 6;
+    ClimateIntent climate = 7;
+    FanIntent fan = 8;
+  }
+}
+enum ActionKind {
+  ACTION_KIND_UNSPECIFIED = 0;
+  ACTION_KIND_VARIABLES = 1;
+  ACTION_KIND_SEQUENCE = 2;
+  ACTION_KIND_CHOOSE = 3;
+  ACTION_KIND_IF = 4;
+  ACTION_KIND_REPEAT = 5;
+  ACTION_KIND_PARALLEL = 6;
+  ACTION_KIND_WAIT = 7;
+  ACTION_KIND_STOP = 8;
+  ACTION_KIND_CALL = 9;
+  ACTION_KIND_DELAY = 10;
+  ACTION_KIND_WAIT_TEMPLATE = 11;
+}
+enum NodeStage {
+  NODE_STAGE_UNSPECIFIED = 0;
+  NODE_STAGE_ENTERED = 1;
+  NODE_STAGE_COMPLETED = 2;
+  NODE_STAGE_STOPPED = 3;
+  NODE_STAGE_CANCELLED = 4;
+  NODE_STAGE_FAILED = 5;
+  NODE_STAGE_WAITING = 6;
+}
+message NodeTrace {
+  Position position = 1;
+  ActionKind action = 2;
+  NodeStage stage = 3;
+  google.protobuf.Timestamp at = 4;
+  repeated uint32 branches = 5;
+  repeated uint32 iterations = 6;
+}
+message Report {
+  bool simulated = 1;
+  bool hardware_validated = 2;
+  Status status = 3;
+  repeated Intent intents = 4;
+  repeated NodeTrace nodes = 5;
+  repeated Diagnostic diagnostics = 6;
+  uint64 elapsed_millis = 7;
+  repeated string limitations = 8;
+}
+message SimulatePlanResponse { Report report = 1; }
+
+// Human admin and current GLOBAL_CONFIGURATION/ADMINISTER on the common TLS
+// listener. Fixture declarations convey no production capability or authority.
+service ConfigurationSimulationService {
+  rpc SimulatePlan(SimulatePlanRequest) returns (SimulatePlanResponse);
+}

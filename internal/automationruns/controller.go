@@ -94,6 +94,7 @@ type Controller struct {
 	plan                          Plan
 	sink                          HistoryObservationSink
 	reader                        ResultReader
+	traceClock                    automationtriggers.Clock
 	pool                          memoryPool
 	ctx                           context.Context
 	cancel                        context.CancelFunc
@@ -153,6 +154,7 @@ func NewController(plan Plan, reader ResultReader, preparer Preparer, executor E
 			return nil, err
 		}
 		image.interpreter, image.charge = interpreter, interpreter.charge
+		c.traceClock = interpreter.input.Clock
 	}
 	return c, nil
 }
@@ -190,9 +192,18 @@ func (c *Controller) Start(ctx context.Context) error {
 	return nil
 }
 
+// traceNow keeps the admitted interpreter clock through cancellation and image
+// retirement. Controllers without an interpreter retain their real clock.
+func (c *Controller) traceNow() time.Time {
+	if c.traceClock != nil {
+		return c.traceClock.Now().UTC()
+	}
+	return time.Now().UTC()
+}
+
 func (c *Controller) recordLocked(trace Trace) {
 	if trace.At.IsZero() {
-		trace.At = time.Now().UTC()
+		trace.At = c.traceNow()
 	}
 	if !trace.Provenance.Valid() && trace.RunID == 0 {
 		trace.Provenance = c.plan.provenance
@@ -532,7 +543,7 @@ func (c *Controller) admitImage(image *programImage, spec automationSpec, trigge
 	}
 	c.recordLocked(Trace{Decision: decision, Automation: trigger.automation, Script: trigger.script, TriggerKey: trigger.triggerKey, RunID: id, Generation: image.generation, Provenance: entry.run.provenance, ParentID: entry.run.parent})
 	if len(ancestry) != 0 && ancestry[0].parent.id != 0 && c.sink != nil {
-		c.sink.ObserveScriptLink(ScriptLinkObservation{At: time.Now().UTC(), Parent: ancestry[0].parent.historyRef(), Child: entry.run.historyRef(), Script: trigger.script, Mode: ancestry[0].mode})
+		c.sink.ObserveScriptLink(ScriptLinkObservation{At: c.traceNow(), Parent: ancestry[0].parent.historyRef(), Child: entry.run.historyRef(), Script: trigger.script, Mode: ancestry[0].mode})
 	}
 	if spec.mode == ir.AutomationQueued && start == nil {
 		entry.acknowledgeStartup(StartupQueuedChange, nil)
