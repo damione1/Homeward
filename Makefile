@@ -1,4 +1,12 @@
-.PHONY: check
+.DEFAULT_GOAL := check
+.PHONY: check package-server smoke-compose
+
+package-server:
+	python3 scripts/package-server.py
+
+smoke-compose:
+	python3 scripts/smoke-compose.py
+
 check: export PYTHONDONTWRITEBYTECODE=1
 check:
 	sh scripts/ensure-worker-python.sh

@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "verified_at_utc": "2026-10-22T03:53:16.784527+00:00",
+  "images": [
+    {
+      "name": "golang",
+      "tag": "1.27.2-bookworm",
+      "digest": "sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61",
+      "source": "https://hub.docker.com/v2/repositories/library/golang/tags/1.27.2-bookworm",
+      "platforms": {
+        "amd64": "sha256:55395706e9703db746cc507abfc4eb2aea75918f8a8024e4848e2cb81004f5ad",
+        "arm64": "sha256:2bcff0c6ad6e8c5353e8c0d5c7f17bfcc87d667d0169615e34db1acc0db985b9"
+      }
+    },
+    {
+      "name": "python",
+      "tag": "3.13.17-slim-bookworm",
+      "digest": "sha256:ac411330d543edd1cc55be253a783cff743082feddfa07957a4574ad1ea01a6b",
+      "source": "https://hub.docker.com/v2/repositories/library/python/tags/3.13.17-slim-bookworm",
+      "platforms": {
+        "amd64": "sha256:4cea12ab7d78a3312c85f8cab19b6971d4fe9704da25443986c0bc20a6678850",
+        "arm64": "sha256:608b27b2db85abf38d81685085cd1166a5ed7ada66549f0dfe53a75bb830cd5d"
+      }
+    },
+    {
+      "name": "postgres",
+      "tag": "17.10-bookworm",
+      "digest": "sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f",
+      "source": "https://hub.docker.com/v2/repositories/library/postgres/tags/17.10-bookworm",
+      "platforms": {
+        "amd64": "sha256:6e5a6518f9d2ff9e9f4cba2a5a87d8f41b0f067f6f92ac847c344351a6c8d923",
+        "arm64": "sha256:3aac91d19d5b7aff4c650dddfacc1a26c436459aafd4eb51ab0bf1748e990dbb"
+      }
+    }
+  ],
+  "binaries": {
+    "homed": "./cmd/homed",
+    "homeward": "./cmd/homeward",
+    "homeward-package": "./cmd/homeward-package"
+  },
+  "go": {
+    "version": "1.27.2",
+    "cgo_enabled": false,
+    "tags": [
+      "timetzdata"
+    ],
+    "module_lock": "go.sum"
+  },
+  "worker": {
+    "executable": "/usr/local/bin/python3",
+    "entrypoint": "/opt/homeward/drivers/caseta/worker.py",
+    "requirements": "packaging/requirements.lock",
+    "requirements_source": "testworker/requirements.lock",
+    "wheels": [
+      {
+        "requirement": "grpcio==1.75.1",
+        "source": "https://pypi.org/pypi/grpcio/1.75.1/json",
+        "artifacts": [
+          {
+            "filename": "grpcio-1.75.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+            "sha256": "5bf4001d3293e3414d0cf99ff9b1139106e57c3a66dfff0c5f60b2a6286ec133"
+          },
+          {
+            "filename": "grpcio-1.75.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+            "sha256": "0ee119f4f88d9f75414217823d21d75bfe0e6ed40135b0cbbfc6376bc9f7757d"
+          }
+        ]
+      },
+      {
+        "requirement": "grpcio-tools==1.75.1",
+        "source": "https://pypi.org/pypi/grpcio-tools/1.75.1/json",
+        "artifacts": [
+          {
+            "filename": "grpcio_tools-1.75.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+            "sha256": "45503a6094f91b3fd31c3d9adef26ac514f102086e2a37de797e220a6791ee87"
+          },
+          {
+            "filename": "grpcio_tools-1.75.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+            "sha256": "09e2b9b9488735514777d44c1e4eda813122d2c87aad219f98d5d49b359a8eab"
+          }
+        ]
+      },
+      {
+        "requirement": "protobuf==6.32.1",
+        "source": "https://pypi.org/pypi/protobuf/6.32.1/json",
+        "artifacts": [
+          {
+            "filename": "protobuf-6.32.1-cp39-abi3-manylinux2014_aarch64.whl",
+            "sha256": "2f5b80a49e1eb7b86d85fcd23fe92df154b9730a725c3b38c4e43b9d77018bf4"
+          },
+          {
+            "filename": "protobuf-6.32.1-cp39-abi3-manylinux2014_x86_64.whl",
+            "sha256": "b1864818300c297265c83a4982fd3169f97122c299f56a56e2445c3698d34710"
+          },
+          {
+            "filename": "protobuf-6.32.1-py3-none-any.whl",
+            "sha256": "2601b779fc7d32a866c6b4404f9d42a3f67c5b9f3f15b4db3cccabe06b95c346"
+          }
+        ]
+      },
+      {
+        "requirement": "setuptools==84.0.0",
+        "source": "https://pypi.org/pypi/setuptools/84.0.0/json",
+        "artifacts": [
+          {
+            "filename": "setuptools-84.0.0-py3-none-any.whl",
+            "sha256": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"
+          }
+        ]
+      },
+      {
+        "requirement": "typing-extensions==4.16.0",
+        "source": "https://pypi.org/pypi/typing-extensions/4.16.0/json",
+        "artifacts": [
+          {
+            "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+            "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+          }
+        ]
+      },
+      {
+        "requirement": "cffi==2.1.1",
+        "source": "https://pypi.org/pypi/cffi/2.1.1/json",
+        "artifacts": [
+          {
+            "filename": "cffi-2.1.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+            "sha256": "f16c709686a78c727bbbf059f92b0bf41c6fc60deec706d2dc19f529175a6125"
+          },
+          {
+            "filename": "cffi-2.1.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+            "sha256": "a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2"
+          }
+        ]
+      },
+      {
+        "requirement": "cryptography==50.0.2",
+        "source": "https://pypi.org/pypi/cryptography/50.0.2/json",
+        "artifacts": [
+          {
+            "filename": "cryptography-50.0.2-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+            "sha256": "79def8d059362e7831389ed3be0ecdf58a89386e1271e35dd9f5af84e81bffd0"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+            "sha256": "630ebfea3bf689d075f82316324ff7433dc447fe6bc1bfc76524b74b4a9567d2"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp311-abi3-manylinux_2_28_aarch64.whl",
+            "sha256": "f9f6143a8c75945eb960d9eb98905a441394abfa24afaae239d514ffb2586480"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp311-abi3-manylinux_2_28_x86_64.whl",
+            "sha256": "4061c0079120205fb760c58acab6443e217307dcf05e3702cf970e0689972856"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp311-abi3-manylinux_2_34_aarch64.whl",
+            "sha256": "87e9ce85beb6b328ba370cc6e6aea483c92617b4c95b1d33a49297eb662bfb04"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp311-abi3-manylinux_2_34_x86_64.whl",
+            "sha256": "9dab55f57c74c3cad24c323bacbbd04be4705ba6eb0d92e920b1fc4837ed5079"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp39-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+            "sha256": "c5e67125c7dca78d199ec4e116aa93dbb83494808ecbb8211a2cb09b1bf41dbd"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+            "sha256": "ee247f5c245c9a2fe7c8e2214e295918838e44e00a45a6718451e4004219e767"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp39-abi3-manylinux_2_28_aarch64.whl",
+            "sha256": "dfe9763530994147d9af1def057a5b9658b00e8f8fe8743d144d1e0911c2e454"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp39-abi3-manylinux_2_28_x86_64.whl",
+            "sha256": "f21e8a22c8605750c7af886bab299a363721264061b4ac0a30efb73cfd58efc5"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp39-abi3-manylinux_2_34_aarch64.whl",
+            "sha256": "0ddc924c04591c2811ca024d62ecad4f7f6f08af8939c211438f48a16bd23602"
+          },
+          {
+            "filename": "cryptography-50.0.2-cp39-abi3-manylinux_2_34_x86_64.whl",
+            "sha256": "1981f1db4630889b9ef7803fadef12b056f428cb6b85c27ba57b774793b6093c"
+          }
+        ]
+      },
+      {
+        "requirement": "orjson==3.13.0",
+        "source": "https://pypi.org/pypi/orjson/3.13.0/json",
+        "artifacts": [
+          {
+            "filename": "orjson-3.13.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl",
+            "sha256": "b081f0e7b600ff24513dec4ca75507fa05e904607847e386e8310d5b7b96b6c7"
+          },
+          {
+            "filename": "orjson-3.13.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            "sha256": "cbed5f4c4b88d94bcc36115f4c3bb3aa25da1563a5c3328aa3acebce2b083040"
+          }
+        ]
+      },
+      {
+        "requirement": "pycparser==3.11",
+        "source": "https://pypi.org/pypi/pycparser/3.11/json",
+        "artifacts": [
+          {
+            "filename": "pycparser-3.11-py3-none-any.whl",
+            "sha256": "51d5a8ba2be0bbe440b99d2112604c95bbbc3c2748a64260186c541e1729cd80"
+          }
+        ]
+      },
+      {
+        "requirement": "pylutron-caseta==0.29.0",
+        "source": "https://pypi.org/pypi/pylutron-caseta/0.29.0/json",
+        "artifacts": [
+          {
+            "filename": "pylutron_caseta-0.29.0-py3-none-any.whl",
+            "sha256": "6c49efb2728c368e7383c9be0905a9599055813d405d4095e22505b201470a96"
+          }
+        ]
+      }
+    ]
+  },
+  "generators": {
+    "protoc": "29.3",
+    "buf": "1.52.1",
+    "protoc-gen-go": "1.36.11",
+    "protoc-gen-connect-go": "1.21.0",
+    "protoc-gen-buffa": "0.9.2",
+    "python-grpcio-tools": "1.75.1",
+    "sources": [
+      ".github/workflows/check.yml",
+      "scripts/check-generated.sh",
+      "scripts/check-worker-generated.sh"
+    ]
+  },
+  "deployment_files": [
+    "packaging/compose.yaml",
+    "packaging/Dockerfile",
+    "packaging/requirements.lock",
+    "packaging/versions.json"
+  ],
+  "runtime_key": {
+    "path": "/var/lib/homeward/data/.env",
+    "created_by": "homed storage.BootstrapSecretsForStartup",
+    "compose_interpolation": false
+  },
+  "bootstrap": {
+    "transport": "private same-UID Unix socket",
+    "socket": "/var/lib/homeward/data/admin.sock",
+    "cli": "/usr/local/bin/homeward",
+    "remote_daily_transport": "HTTPS"
+  },
+  "video": "deferred; no worker, session or port",
+  "supported_platforms": [
+    "linux/amd64",
+    "linux/arm64"
+  ]
+}
