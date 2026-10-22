@@ -112,6 +112,7 @@ func (g *sessionGuard) refreshAuthorization(ctx context.Context) error {
 	}
 	snapshot, err := g.coordinator.store.AuthorizationPolicy(ctx, g.gate.account)
 	if errors.Is(err, storage.ErrAccountNotFound) {
+		g.cancelAllMCPLeases()
 		return g.coordinator.authority.RemoveAccount(g.gate.account)
 	}
 	if err != nil {
@@ -124,5 +125,8 @@ func (g *sessionGuard) refreshAuthorization(ctx context.Context) error {
 	if status, err := state.Status(); err == nil && status == authv1.AccountStatus_ACCOUNT_STATUS_DISABLED {
 		g.termination = authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED
 	}
+	// Invalidate MCP contexts before publication: watchers waiting behind an
+	// activation mutation cannot close an old credential before it sees new rights.
+	g.cancelChangedMCPLeases(state)
 	return g.coordinator.authority.Publish(state)
 }

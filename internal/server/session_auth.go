@@ -33,6 +33,9 @@ func (a *sessionAuth) AuthenticateWithLease(ctx context.Context, request *http.R
 	if request == nil || request.TLS == nil || ctx == nil {
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
+	if mcpBearer(request.Header) {
+		return a.authenticateMCP(ctx, request)
+	}
 	return a.authenticateAccessHeaders(context.WithValue(ctx, nativeTLSContextKey{}, nativeTLSAdmission{}), request.Header)
 }
 
@@ -126,8 +129,11 @@ func (a *sessionAuth) authenticateAccessHeaders(ctx context.Context, header http
 }
 
 func (a *sessionAuth) Authorize(ctx context.Context, actor domain.ActorID, route RouteKey) error {
-	if ctx == nil || ctx.Err() != nil || route.Path() == "" || route.Kind() == RouteKindMCP {
+	if ctx == nil || ctx.Err() != nil || route.Path() == "" {
 		return errSessionUnauthenticated
+	}
+	if route.Kind() == RouteKindMCP {
+		return a.authorizeMCP(ctx, actor, route)
 	}
 	lease, ok := ctx.Value(sessionLeaseContextKey{}).(*sessionLease)
 	if !ok || lease == nil {

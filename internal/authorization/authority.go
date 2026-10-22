@@ -330,6 +330,11 @@ func (a *Authority) WithCurrent(ctx context.Context, principal Principal, fn fun
 	if entry.state.status != authv1.AccountStatus_ACCOUNT_STATUS_ACTIVE {
 		return ErrDenied
 	}
+	// Cancellation may have happened while waiting for an account mutation.
+	// Recheck under both locks before exposing its newly committed policy.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return fn(Current{principal, entry.state, currentBinding(principal, entry.state)})
 }
 func (c Current) Authorize(permission Permission, object Object) error {

@@ -36,5 +36,8 @@ func composeSessionsWithCoordinator(plan *PublicPlan, store *storage.Store, coor
 	if err := registerAuthorizationPolicyRoutes(plan, store, coordinator); err != nil {
 		return nil, nil, err
 	}
+	if err := registerMCPKeyRoutes(plan, store, coordinator); err != nil {
+		return nil, nil, err
+	}
 	return plan, coordinator, nil
 }
