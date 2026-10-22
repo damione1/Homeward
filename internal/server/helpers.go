@@ -62,7 +62,18 @@ func addActiveHelpers(plan *RuntimePlan, candidate bundle.Candidate, store *stor
 			if err != nil {
 				return err
 			}
-			if _, err := identity.ConfigureBinding(ctx, instance, key, text); err != nil {
+			binding, err := identity.ConfigureBinding(ctx, instance, key, text)
+			if err != nil {
+				return err
+			}
+			// The supervisor starts pilots asynchronously. Admit persisted
+			// helper values through their real repository before Run can
+			// serve or report READY; the pilot still owns publication.
+			handle, err := repository.Bind(ctx, binding.Entity, definition)
+			if err != nil {
+				return err
+			}
+			if _, err := repository.Restore(ctx, handle, definition); err != nil {
 				return err
 			}
 		}
