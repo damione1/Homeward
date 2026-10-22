@@ -151,13 +151,20 @@ func (a *sessionAuth) authorizeMCP(ctx context.Context, actor domain.ActorID, ro
 	if err != nil || actual != actor {
 		return errSessionUnauthenticated
 	}
-	permission, _, known := nativeRoutePermission(route)
-	if !known {
-		return authorization.ErrDenied
-	}
 	current, err := a.coordinator.authority.Current(principal)
 	if err != nil {
 		return err
+	}
+	if route.mcpReads && route.Path() == mcpReadsPath && (route.Method() == RouteMethodPost || route.Method() == RouteMethodGet) {
+		_, binding, err := current.Binding()
+		if err != nil || ctx.Err() != nil || binding != lease.mcpBinding {
+			return authorization.ErrDenied
+		}
+		return nil
+	}
+	permission, _, known := nativeRoutePermission(route)
+	if !known {
+		return authorization.ErrDenied
 	}
 	return current.AdmitRoute(permission)
 }

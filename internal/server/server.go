@@ -683,6 +683,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		if coreErr == nil {
 			coreErr = registerCoreRPCRoutes(plan.Public, core)
 		}
+		if coreErr == nil {
+			coreErr = registerMCPReads(plan.Public, publicSettings.MCPEnabled(), core, documents, sessions, observed)
+		}
 		if coreErr != nil {
 			return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 				return closeListPrepared(stopCtx, coreErr, nil, triggerDone)

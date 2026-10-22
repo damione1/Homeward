@@ -26,6 +26,7 @@ const (
 var ErrInvalidPublicSettings = errors.New("invalid public transport settings")
 
 type publicInput struct {
+	MCP                   *mcpInput       `yaml:"mcp"`
 	URL                   *string         `yaml:"url"`
 	Transport             *string         `yaml:"transport"`
 	TLS                   *publicTLSInput `yaml:"tls"`
@@ -34,6 +35,10 @@ type publicInput struct {
 	RequestTimeout        *string         `yaml:"request_timeout"`
 	StreamTimeout         *string         `yaml:"stream_timeout"`
 	ShutdownTimeout       *string         `yaml:"shutdown_timeout"`
+}
+
+type mcpInput struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 type publicTLSInput struct {
@@ -64,6 +69,7 @@ func (f PublicTLSFiles) PrivateKeyFile() string  { return f.privateKeyFile }
 // PublicSettings is parsed once at the YAML boundary. The canonical URL is
 // metadata for clients and proxy configuration; it never proves peer origin.
 type PublicSettings struct {
+	mcpEnabled            bool
 	canonicalURL          url.URL
 	hasCanonicalURL       bool
 	transport             PublicTransportMode
@@ -79,6 +85,7 @@ type PublicSettings struct {
 func (s PublicSettings) CanonicalURL() (url.URL, bool) {
 	return s.canonicalURL, s.valid && s.hasCanonicalURL
 }
+func (s PublicSettings) MCPEnabled() bool               { return s.valid && s.mcpEnabled }
 func (s PublicSettings) Transport() PublicTransportMode { return s.transport }
 func (s PublicSettings) TLSFiles() (PublicTLSFiles, bool) {
 	return s.tlsFiles, s.valid && s.transport == PublicTransportTLS
@@ -93,6 +100,7 @@ func (s PublicSettings) ShutdownTimeout() time.Duration { return s.shutdownTimeo
 func DefaultPublicSettings() PublicSettings {
 	return PublicSettings{
 		transport:       PublicTransportH2C,
+		mcpEnabled:      true,
 		maxRequestBytes: defaultMaxRequestBytes, maxConcurrentRequests: defaultMaxConcurrentRequests,
 		requestTimeout: defaultRequestTimeout, streamTimeout: defaultStreamTimeout,
 		shutdownTimeout: defaultShutdownTimeout, valid: true,
@@ -103,6 +111,9 @@ func parsePublicSettings(input *publicInput) (PublicSettings, error) {
 	result := DefaultPublicSettings()
 	if input == nil {
 		return result, nil
+	}
+	if input.MCP != nil {
+		result.mcpEnabled = input.MCP.Enabled
 	}
 	if input.URL != nil {
 		parsed, err := parseCanonicalURL(*input.URL)
