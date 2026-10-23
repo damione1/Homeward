@@ -43,14 +43,15 @@ type Broker struct {
 // Protocol ACKs and subscriptions never enter this count; payloads are ignored.
 type publishCounter struct {
 	mochi.HookBase
-	mu       sync.Mutex
-	byClient map[string]int
-	pending  map[publicationID]*publication
+	mu         sync.Mutex
+	byClient   map[string]int
+	sentTopics map[string][]string
+	pending    map[publicationID]*publication
 }
 
 func (*publishCounter) ID() string { return "nha068-publish-counter" }
 func (*publishCounter) Provides(event byte) bool {
-	return event == mochi.OnPacketRead || event == mochi.OnPublished
+	return event == mochi.OnPacketRead || event == mochi.OnPacketSent || event == mochi.OnPublished
 }
 func (h *publishCounter) OnPacketRead(client *mochi.Client, packet mochipackets.Packet) (mochipackets.Packet, error) {
 	if packet.FixedHeader.Type == mochipackets.Publish {
@@ -59,6 +60,20 @@ func (h *publishCounter) OnPacketRead(client *mochi.Client, packet mochipackets.
 		h.mu.Unlock()
 	}
 	return packet, nil
+}
+
+// Sent topics are a synthetic broker witness of the order written to one
+// subscriber. They let the transport test compare delivery order without
+// assuming Mochi's retained-message map iteration order.
+func (h *publishCounter) OnPacketSent(client *mochi.Client, packet mochipackets.Packet, _ []byte) {
+	if packet.FixedHeader.Type != mochipackets.Publish {
+		return
+	}
+	h.mu.Lock()
+	if topics, watched := h.sentTopics[client.ID]; watched {
+		h.sentTopics[client.ID] = append(topics, packet.TopicName)
+	}
+	h.mu.Unlock()
 }
 
 // Mochi v2.7.9 server.go:952,965-966 writes PUBACK before fanout. This hook
@@ -259,6 +274,18 @@ func (b *Broker) PublishCount(clientID string) int {
 	return b.publishes.byClient[clientID]
 }
 
+func (b *Broker) SentTopics(clientID string) []string {
+	b.publishes.mu.Lock()
+	defer b.publishes.mu.Unlock()
+	return append([]string(nil), b.publishes.sentTopics[clientID]...)
+}
+
+func (b *Broker) WatchSentTopics(clientID string) {
+	b.publishes.mu.Lock()
+	defer b.publishes.mu.Unlock()
+	b.publishes.sentTopics[clientID] = nil
+}
+
 func Start(t *testing.T) *Broker {
 	t.Helper()
 	return start(t)
@@ -280,7 +307,7 @@ func start(t *testing.T, hooks ...mochi.Hook) *Broker {
 		_ = ln.Close()
 		t.Fatal(err)
 	}
-	counter := &publishCounter{byClient: make(map[string]int), pending: make(map[publicationID]*publication)}
+	counter := &publishCounter{byClient: make(map[string]int), sentTopics: make(map[string][]string), pending: make(map[publicationID]*publication)}
 	if err := s.AddHook(counter, nil); err != nil {
 		_ = ln.Close()
 		t.Fatal(err)
