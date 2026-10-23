@@ -178,6 +178,52 @@ class TestNHA119(unittest.TestCase):
         self.json(self.inventory, "runtime-inventory.json", self.runtime)
         self.assertTrue(any("Python interpreter differs" in e for e in self.result()["errors"]))
 
+    def test_supplemental_notice_is_retained_and_checked_by_exact_hash(self):
+        self.make_closure()
+        record = self.policy["supplemental_notices"]["grpcio-tools"]
+        self.policy["supplemental_notices"] = {"grpcio-tools": record}
+        source_notice = self.file(self.source, record["source"], "Actual upstream license text for synthetic fixture.\n")
+        record["sha256"] = release.sha256(source_notice)
+        tools = {"name": "grpcio-tools", "version": "1.0", "license": "Apache License 2.0",
+                 "documents": {}, "files": {}, "native_files": {}}
+        self.runtime["python"].append(tools)
+        self.json(self.inventory, "runtime-inventory.json", self.runtime)
+        install = json.loads((self.inventory / "python-install.json").read_text())
+        install["install"].append({"metadata": {"name": "grpcio-tools"}, "download_info": {
+            "archive_info": {"hashes": {"sha256": "tools-wheel-hash"}}}})
+        self.json(self.inventory, "python-install.json", install)
+        versions = json.loads((self.package / "versions.json").read_text())
+        versions["worker"]["wheels"].append({"requirement": "grpcio-tools==1.0", "artifacts": [{"sha256": "tools-wheel-hash"}]})
+        self.json(self.package, "versions.json", versions)
+        self.server["artifacts"].append({"name": "grpcio-tools", "version": "1.0", "type": "python", "locations": []})
+        sbom.retain_supplemental_notices(self.package, self.source, self.policy)
+        self.assertEqual([], self.result()["errors"])
+        (self.package / record["destination"]).write_text("synthetic tampering\n")
+        self.assertTrue(any("source/retained notice absent or changed" in e for e in self.result()["errors"]))
+
+    def test_windows_launcher_requires_exact_wheel_and_delivered_file_hash(self):
+        self.make_closure()
+        member = "pip/_vendor/distlib/t32.exe"
+        location = "/usr/local/lib/python3.13/site-packages/" + member
+        digest = "a" * 64
+        doc = "licenses/python/pip/pip.dist-info/LICENSE.txt"
+        self.file(self.inventory, doc)
+        self.runtime["python"].append({"name": "pip", "version": "26.2.2", "documents": {
+            doc: release.sha256(self.inventory / doc)}, "files": {location: digest}, "native_files": {}})
+        self.json(self.inventory, "runtime-inventory.json", self.runtime)
+        versions = json.loads((self.package / "versions.json").read_text())
+        versions["bundled_launcher_wheels"] = {"pip": {"version": "26.2.2", "wheel_filename": "pip-26.2.2-py3-none-any.whl",
+            "wheel_source": "https://files.pythonhosted.org/synthetic", "wheel_sha256": "b" * 64,
+            "launchers_sha256": {member: digest}}}
+        self.json(self.package, "versions.json", versions)
+        self.server["artifacts"].append({"name": "pip", "version": "26.2.2", "type": "python", "locations": []})
+        self.server["artifacts"].append({"name": "Simple Launcher", "version": "1.1.0.14", "type": "binary",
+                                          "locations": [{"path": location}]})
+        self.assertEqual([], self.result()["errors"])
+        versions["bundled_launcher_wheels"]["pip"]["launchers_sha256"][member] = "c" * 64
+        self.json(self.package, "versions.json", versions)
+        self.assertTrue(any("Simple Launcher" in e for e in self.result()["errors"]))
+
     def make_evidence(self):
         self.candidate = {"commit": "c" * 40, "files_sha256": {"go.mod": "source-hash"}}
         self.json(self.root, "sources.json", {"go.mod": {"type": "file", "sha256": "source-hash"}})

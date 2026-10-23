@@ -63,6 +63,37 @@ def require_documents(root, docs, label, errors):
         errors.append(label + ": retained license/copyright text missing")
 
 
+def notice_document(package, source, policy, name, errors):
+    """One exact upstream text retained in the output; no SPDX-only fallback."""
+    record = policy["supplemental_notices"][name]
+    original, retained = source / record["source"], package / record["destination"]
+    if (not original.is_file() or sha256(original) != record["sha256"] or
+            not retained.is_file() or sha256(retained) != record["sha256"]):
+        errors.append("source/retained notice absent or changed: " + name)
+    return {record["destination"]: record["sha256"]}
+
+
+def retain_supplemental_notices(package, source, policy):
+    """Copy pinned primary-source notices into both release package inventories."""
+    for name, record in policy["supplemental_notices"].items():
+        original, retained = source / record["source"], package / record["destination"]
+        if not original.is_file() or sha256(original) != record["sha256"] or retained.exists():
+            raise ValueError("supplemental notice source/output differs: " + name)
+        retained.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(original, retained)
+        if sha256(retained) != record["sha256"]:
+            raise ValueError("supplemental notice copy differs: " + name)
+    runtime_path = package / "inventory/runtime-inventory.json"
+    runtime = json.loads(runtime_path.read_text())
+    tools = [item for item in runtime["python"] if canonical(item["name"]) == "grpcio-tools"]
+    if len(tools) != 1:
+        raise ValueError("exactly one installed grpcio-tools distribution required")
+    record = policy["supplemental_notices"]["grpcio-tools"]
+    tools[0]["documents"][record["destination"].removeprefix("inventory/")] = record["sha256"]
+    tools[0]["supplemental_notice_origin"] = {"url": record["source_url"], "sha256": record["sha256"]}
+    dump(runtime_path, runtime)
+
+
 def debian_source(item):
     return "https://sources.debian.org/src/" + quote(item["source"], safe="") + "/" + quote(item["source_version"], safe="") + "/"
 
@@ -147,6 +178,15 @@ def closure(package, source, policy, server, postgres):
     python = {canonical(p["name"]): p for p in runtime["python"]}
     for name, item in python.items():
         require_documents(inventory, item["documents"], "Python " + name, errors)
+        if name == "grpcio-tools" and "grpcio-tools" in policy.get("supplemental_notices", {}):
+            record = policy["supplemental_notices"]["grpcio-tools"]
+            notice_document(package, source, policy, "grpcio-tools", errors)
+            relative = record["destination"].removeprefix("inventory/")
+            if (item["documents"].get(relative) != record["sha256"] or
+                    item.get("supplemental_notice_origin") != {"url": record["source_url"], "sha256": record["sha256"]} or
+                    "grpcio" not in python or python["grpcio"]["version"] != item["version"] or
+                    item.get("license") != "Apache License 2.0"):
+                errors.append("grpcio-tools notice not tied to same-version upstream gRPC wheel")
         origin = wheel_origins.get(name)
         if name in pinned:
             expected = pinned[name]
@@ -188,6 +228,20 @@ def closure(package, source, policy, server, postgres):
         components.append({"kind": "postgres-deb", "name": name, "version": item["version"],
                            "source": debian_source(item), "documents": docs})
     seen_go, seen_python, seen_runtime_deb, seen_postgres_deb = set(), set(), set(), set()
+    gosu_policy = policy.get("postgres_gosu_go", {})
+    gosu_modules = gosu_policy.get("modules", {})
+    gosu_image = None
+    if any(a.get("name") in gosu_modules and a.get("type") == "go-module" for a in postgres.get("artifacts", [])):
+        input_path, archive = package / "postgres-input.json", package.parent / "postgres-image.tar"
+        if input_path.is_file() and archive.is_file():
+            gosu_image = json.loads(input_path.read_text())
+            if (gosu_image.get("source") != gosu_policy["image_source"] or
+                    gosu_image.get("image_id") != gosu_policy["image_id"] or
+                    gosu_image.get("platform") != "linux/amd64" or
+                    sha256(archive) != gosu_image.get("archive_sha256")):
+                errors.append("gosu donor image source/platform/archive differs")
+        else:
+            errors.append("gosu donor image/archive provenance missing")
     for image_name, document in (("server", server), ("postgres", postgres)):
         artifacts = document.get("artifacts", [])
         if not artifacts:
@@ -199,10 +253,45 @@ def closure(package, source, policy, server, postgres):
             if kind == "go-module":
                 if name in expected_go and version == expected_go[name]:
                     seen_go.add(name); matched = True
+                elif (image_name == "server" and version == "UNKNOWN" and name in expected_go and
+                      name in policy["local_go_replacements"] and name in modules and
+                      "Replace" in modules[name] and locations):
+                    # Syft cannot infer a version for local Go replacements.
+                    # Every reported binary must itself embed this exact module
+                    # and version; the replacement tree/notices were checked above.
+                    embedded = {"/usr/local/bin/" + binary for binary, record in provenance["binaries"].items()
+                                if go_dependencies(record["go_build_info"]).get(name) == expected_go[name]}
+                    replacement = policy["local_go_replacements"][name]
+                    record = json.loads((source / replacement["provenance"]).read_text())
+                    licenses = {entry.get("value") for entry in artifact.get("licenses", [])}
+                    if (locations <= embedded and record.get("license") in licenses and
+                            artifact.get("metadata", {}).get("goCompiledVersion") == "go" + versions["go"]["version"] and
+                            artifact.get("metadata", {}).get("mainModule") == "github.com/damione1/Homeward"):
+                        seen_go.add(name); matched = True
+                        components.append({"kind": "local-go-replacement-scanner", "name": name,
+                                           "embedded_version": expected_go[name], "scanner_version": version,
+                                           "binary_locations": sorted(locations), "provenance": replacement["provenance"]})
                 elif name == "stdlib" and version in (versions["go"]["version"], "go" + versions["go"]["version"]):
                     matched = True
                 elif name == "github.com/damione1/Homeward" and version in ("(devel)", "", "UNKNOWN"):
                     matched = True  # exact product commit/notices required above
+                elif image_name == "postgres" and name in gosu_modules:
+                    expected = gosu_modules[name]
+                    metadata = artifact.get("metadata", {})
+                    notice = expected["notice"]
+                    docs = notice_document(package, source, policy, notice, errors)
+                    require_documents(package, docs, "PostgreSQL gosu " + name, errors)
+                    if (gosu_image is not None and version == expected["version"] and
+                            locations == {gosu_policy["binary_location"]} and
+                            metadata.get("goCompiledVersion") == gosu_policy["go_compiled_version"] and
+                            metadata.get("mainModule") == (None if name == "stdlib" else "github.com/tianon/gosu") and
+                            (name == "stdlib" or metadata.get("architecture") == "amd64") and
+                            ("h1" not in expected or metadata.get("h1Digest") == expected["h1"])):
+                        matched = True
+                        components.append({"kind": "postgres-gosu-go", "name": name, "version": version,
+                                           "donor_image": gosu_image, "documents": docs,
+                                           "go_build_metadata": {key: metadata.get(key) for key in
+                                                                 ("goCompiledVersion", "architecture", "h1Digest", "mainModule")}})
             elif kind == "python" and image_name == "server":
                 key = canonical(name)
                 if key in python and python[key]["version"] == version:
@@ -213,6 +302,28 @@ def closure(package, source, policy, server, postgres):
                 if candidates:
                     (seen_runtime_deb if image_name == "server" else seen_postgres_deb).update(candidates)
                     matched = True
+            if not matched and image_name == "server":
+                # Exact Windows launchers are delivered as members of the
+                # pinned pip/setuptools wheels, even in this Linux image.
+                launcher_specs = versions.get("bundled_launcher_wheels", {})
+                for owner, spec in launcher_specs.items():
+                    for member, digest in spec["launchers_sha256"].items():
+                        path = "/usr/local/lib/python3.13/site-packages/" + member
+                        expected_name = "Simple Launcher" if owner == "pip" else Path(member).stem
+                        expected_version = "1.1.0.14" if owner == "pip" else "UNKNOWN"
+                        if (kind == "binary" and name == expected_name and version == expected_version and
+                                locations == {path} and owner in python and python[owner]["version"] == spec["version"] and
+                                python[owner]["files"].get(path) == digest and
+                                re.fullmatch(r"[a-f0-9]{64}", spec["wheel_sha256"]) and
+                                (owner == "pip" or any(a["sha256"] == spec["wheel_sha256"] for a in pinned[owner]["artifacts"]))):
+                            matched = True
+                            components.append({"kind": "wheel-launcher", "name": name, "version": version,
+                                               "path": path, "file_sha256": digest, "owning_wheel": spec["wheel_filename"],
+                                               "wheel_sha256": spec["wheel_sha256"], "wheel_source": spec["wheel_source"],
+                                               "documents": python[owner]["documents"]})
+                            break
+                    if matched:
+                        break
             if not matched and image_name == "server":
                 # Native wheel internals are qualified by their actual owning
                 # wheel, its pinned hash and the complete retained vendor notices.
@@ -305,6 +416,7 @@ def main():
         subprocess.run(["docker", "cp", container + ":/usr/share/common-licenses", str(package / "postgres-common-licenses")], check=True)
     finally:
         execute("docker", "rm", "--volumes", container)
+    retain_supplemental_notices(package, source, policy)
     for label, archive in (("server", package / "server-image.tar"), ("postgres", postgres_archive)):
         subprocess.run([*offline, "--config", str(config), "scan", "docker-archive:" + str(archive),
                         "--output", "syft-json=" + str(package / ("sbom-" + label + ".syft.json"))], env=env, check=True)

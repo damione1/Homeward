@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "license_file": "hc/LICENSE",
   "scope": "qualification/ecobee only; not a production dependency or security qualification",
-  "change": "Remove 13 unconditional pairing-transcript prints; preserve the signature binding with a blank assignment. No cryptography, parsing, validation or transport changes. The modified file carries an Apache-2.0 modification notice.",
+  "change": "Local Homeward amendments: remove 13 unconditional pairing-transcript prints; bound and stream authenticated HAP records across partial reads; serialize directional encrypted I/O and close; encode synthetic-accessory SRP public key as canonical 384-byte M2 TLV. See hc.nha136-srp-encoding.json and hc.nha136-connection-close.json. Upstream SHA records remain from verified github.com/brutella/hc v1.2.5 module.",
   "removed_prints": [
     {
       "upstream_line": 100,
@@ -62,7 +62,10 @@
     }
   ],
   "changed_files": [
-    "hap/pair/setup_client_controller.go"
+    "crypto/secure_session.go",
+    "hap/connection.go",
+    "hap/pair/setup_client_controller.go",
+    "hap/pair/setup_server_controller.go"
   ],
   "files": [
     {
@@ -1203,7 +1206,7 @@
     {
       "path": "crypto/secure_session.go",
       "upstream_sha256": "1dd1db7a22613c73eb78936948510c451da88a611615b83cdd691df5bf5a7ed6",
-      "local_sha256": "1dd1db7a22613c73eb78936948510c451da88a611615b83cdd691df5bf5a7ed6"
+      "local_sha256": "164eadb310fb35c259dde20e0675e959a8d8c59e85c275d67849ba3c2ed6398f"
     },
     {
       "path": "crypto/secure_session_test.go",
@@ -1333,7 +1336,7 @@
     {
       "path": "hap/connection.go",
       "upstream_sha256": "ae8e05fd6fdc78d786e0a79d309189ce262072b47dd8119dffe99fc66253cd36",
-      "local_sha256": "ae8e05fd6fdc78d786e0a79d309189ce262072b47dd8119dffe99fc66253cd36"
+      "local_sha256": "3b796bc3295bc19336800d3c86c3a8ec69a07d7b715c378b2359d0a43cbe5f7e"
     },
     {
       "path": "hap/constants.go",
@@ -1523,7 +1526,7 @@
     {
       "path": "hap/pair/setup_server_controller.go",
       "upstream_sha256": "717cce21c0e82c26c003fcb9194553a1adafa648235546396e7c830e7169b81c",
-      "local_sha256": "717cce21c0e82c26c003fcb9194553a1adafa648235546396e7c830e7169b81c"
+      "local_sha256": "d55122cda33d4b23e95138a4c09f320af0c0e42783271ce538d6788e8d35cf03"
     },
     {
       "path": "hap/pair/setup_server_session.go",
