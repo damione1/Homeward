@@ -294,7 +294,10 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 				return true, ErrInvalidTopic
 			}
 			topic, err := ParseTopic(received.Packet.Topic)
-			if err != nil || len(received.Packet.Payload) > maxPayload || !p.allowedObservation(topic) {
+			// packetConn already bounds the entire inbound MQTT frame to
+			// maxWirePacket. A valid bridge metadata snapshot may exceed the
+			// smaller command and discovery-document payload limit.
+			if err != nil || len(received.Packet.Payload) > maxWirePacket || !p.allowedObservation(topic) {
 				p.fail(ErrInvalidTopic)
 				return true, ErrInvalidTopic
 			}
