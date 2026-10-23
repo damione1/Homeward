@@ -34,6 +34,7 @@ import (
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/mqtt/testbroker"
 	"github.com/damione1/Homeward/internal/registry"
+	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/damione1/Homeward/scope"
@@ -195,16 +196,17 @@ func nha114Start(t *testing.T) *nha114Fixture {
 	}
 	nha162RunPolicy(t, ctx, f.policies, f.tokens.Session.AccountId, f.token, grants)
 	f.policySource = []byte(fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n%s", f.tokens.Session.AccountId.Value, grants))
-	f.refreshClients(t)
 	f.producer = b.Connect(t, testbroker.ProducerUser, testbroker.ProducerPassword, "nha114-producer", true, 0, nil)
 	digest := sha256.Sum256([]byte(nha114Instance))
 	f.clientID = "homeward-" + hex.EncodeToString(digest[:12])
-	// Supply a real suffix before any wait that may consume the new watch.
-	// Discovery can still be finishing; after all public bindings are present,
-	// the second receipt below establishes fresh state rather than cached replay.
+	// MQTT connection/subscription readiness does not join asynchronous native
+	// discovery. Publish the suffix, then join all ten real capability/state
+	// admissions before asking the public authorizer for a stable snapshot.
+	// The second receipt below still proves fresh state on the actual watch.
 	for i := range f.ids {
 		f.publish(t, nha114StateTopic(i), []byte("OFF"), nil)
 	}
+	f.refreshClients(t)
 	f.waitBindings(t)
 	f.noCommands(t, 0)
 	for i := range f.ids {
@@ -252,6 +254,9 @@ func (f *nha114Fixture) refreshPublicView(t *testing.T) {
 			t.Fatal("public state watch did not close", f.ctx.Err())
 		}
 	}
+	// Cover initial startup, restart, hot publication and resync through the
+	// same real readiness cut before ANY authenticated snapshot is attempted.
+	f.waitNativeBindingSession(t, "")
 	ctx, cancel := context.WithCancel(f.ctx)
 	r, err := f.states.OpenView(ctx, nha056SessionRequest(&state.OpenViewRequest{PageSize: 100, Filter: &state.ViewFilter{}}, f.token))
 	if err != nil {
@@ -348,6 +353,57 @@ func (f *nha114Fixture) view(t *testing.T) *nha114Projection {
 		return result
 	}
 }
+
+// waitNativeBindingSession is a fixture readiness barrier, not a public view
+// substitute. It reads the SAME Run-owned sequencer; all assertions below still
+// use native authenticated OpenView/WatchView and the real MQTT packet count.
+// A catalogue change during CurrentGrant correctly fails closed. Do not mask
+// that error by retrying OpenView while discovery is still publishing metadata.
+func (f *nha114Fixture) waitNativeBindingSession(t *testing.T, previous string) string {
+	t.Helper()
+	var admitted string
+	nha114Eventually(t, "ten MQTT bindings/states did not join one current native session", func() bool {
+		snapshot, err := f.actual.sequence.Capture()
+		if errors.Is(err, sequencer.ErrRegistryUnavailable) {
+			return false
+		}
+		if err != nil {
+			t.Fatal("native MQTT publication barrier", err)
+		}
+		if !snapshot.RegistryReady {
+			return false
+		}
+		current := ""
+		for _, text := range f.ids {
+			id, err := domain.ParseEntityID(text)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record, present := snapshot.Registry[id]
+			capabilities := snapshot.Capabilities[id]
+			observed, observedPresent := snapshot.States[id]
+			if !present || record.Retired() || !observedPresent || len(capabilities) != 1 || capabilities[0] == nil || capabilities[0].SchemaId != contracts.SwitchSchema || capabilities[0].Endpoint != "mqtt" {
+				return false
+			}
+			_, _, _, stamp, _, err := observed.Components()
+			if err != nil {
+				t.Fatal("native MQTT state stamp", err)
+			}
+			session, _, err := stamp.Components()
+			if err != nil {
+				t.Fatal("native MQTT source session", err)
+			}
+			if session == previous || (current != "" && current != session) {
+				return false
+			}
+			current = session
+		}
+		admitted = current
+		return admitted != ""
+	})
+	return admitted
+}
+
 func (f *nha114Fixture) waitBindings(t *testing.T) {
 	t.Helper()
 	nha114Eventually(t, "ten actual MQTT bindings/states were not admitted", func() bool {

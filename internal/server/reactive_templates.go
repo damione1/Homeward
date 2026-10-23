@@ -204,7 +204,9 @@ func startReactiveTemplates(ctx context.Context, identity integrations.IdentityA
 			}
 		}
 	outputClosed:
-		if err := service.Error(); err != nil {
+		// Retain historical diagnostics in Service.Error, but fail drain only
+		// for an unresolved continuity defect or a non-recoverable error.
+		if err := service.UnrecoveredError(); err != nil {
 			runtime.mu.Lock()
 			runtime.err = errors.Join(runtime.err, err)
 			runtime.mu.Unlock()

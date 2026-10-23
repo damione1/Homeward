@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"sync"
 
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/authorization"
@@ -11,8 +12,27 @@ import (
 )
 
 type policyViewAuthorizer struct {
-	authority *authorization.Authority
-	source    *sequencer.Sequencer
+	authority  *authorization.Authority
+	source     *sequencer.Sequencer
+	grantMu    sync.Mutex
+	grantCache map[policyViewGrantKey]policyViewCachedGrant
+	grantBytes int
+}
+
+// These limits bound an optimization only. A miss/eviction computes the same
+// current grant; no authority, admission limit or TTL is introduced.
+const policyViewGrantCacheEntries = 16
+const policyViewGrantCacheBytes = 8 << 20
+
+type policyViewGrantKey struct {
+	actor     domain.ActorID
+	revision  uint64
+	binding   [32]byte
+	catalogue sequencer.Cursor
+}
+type policyViewCachedGrant struct {
+	grant view.Grant
+	bytes int
 }
 
 var _ view.Authorizer = (*policyViewAuthorizer)(nil)
@@ -48,11 +68,29 @@ func (a *policyViewAuthorizer) CurrentGrant(ctx context.Context, actor view.Acto
 	if err := current.AdmitRoute(permission); err != nil {
 		return view.Grant{}, err
 	}
+	// Current/principal/route/credential ceiling remain authoritative on EVERY
+	// hit. Only the immutable equipment projection and grant expansion are reused.
+	revision, binding, err := current.Binding()
+	if err != nil {
+		return view.Grant{}, err
+	}
+	catalogue, err := a.source.CataloguePosition()
+	if err != nil {
+		return view.Grant{}, err
+	}
+	key := policyViewGrantKey{actor, revision, binding, catalogue}
+	a.grantMu.Lock()
+	cached, present := a.grantCache[key]
+	a.grantMu.Unlock()
+	if present {
+		return cached.grant, nil
+	}
 	snapshot, err := a.source.CaptureBounded(view.MaxSnapshotBytes)
 	if err != nil {
 		return view.Grant{}, err
 	}
 	access := make([]view.EntityAccess, 0, len(snapshot.Capabilities))
+	retainedBytes := 1024
 	for entity, descriptions := range snapshot.Capabilities {
 		record, present := snapshot.Registry[entity]
 		if !present || record.Retired() {
@@ -85,12 +123,40 @@ func (a *policyViewAuthorizer) CurrentGrant(ctx context.Context, actor view.Acto
 			return view.Grant{}, err
 		}
 		access = append(access, entry)
+		name, _ := entity.Value()
+		retainedBytes += 256 + 2*len(name)
+		for _, slot := range readable {
+			schema, endpoint, _ := slot.Values()
+			retainedBytes += 256 + 2*(len(schema)+len(endpoint))
+		}
 	}
-	revision, binding, err := current.Binding()
+	grant, err := view.NewScopedGrant(actor, revision, binding, access)
 	if err != nil {
 		return view.Grant{}, err
 	}
-	return view.NewScopedGrant(actor, revision, binding, access)
+	after, err := a.source.CataloguePosition()
+	if err != nil {
+		return view.Grant{}, err
+	}
+	if after != catalogue {
+		return view.Grant{}, authorization.ErrUnavailable
+	}
+	if retainedBytes <= policyViewGrantCacheBytes {
+		a.grantMu.Lock()
+		if _, exists := a.grantCache[key]; !exists {
+			if len(a.grantCache) >= policyViewGrantCacheEntries || retainedBytes > policyViewGrantCacheBytes-a.grantBytes {
+				clear(a.grantCache)
+				a.grantBytes = 0
+			}
+			if a.grantCache == nil {
+				a.grantCache = make(map[policyViewGrantKey]policyViewCachedGrant)
+			}
+			a.grantCache[key] = policyViewCachedGrant{grant, retainedBytes}
+			a.grantBytes += retainedBytes
+		}
+		a.grantMu.Unlock()
+	}
+	return grant, nil
 }
 func (a *policyViewAuthorizer) SubscribeGrantChanges(ctx context.Context, actor view.ActorID) (<-chan struct{}, func(), error) {
 	principal, err := a.principal(ctx, actor)
