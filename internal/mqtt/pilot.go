@@ -19,10 +19,13 @@ import (
 )
 
 const (
-	maxPayload     = 64 * 1024
-	queueCapacity  = 32
-	connectTimeout = 5 * time.Second
-	commandTimeout = 2 * time.Second
+	maxPayload    = 64 * 1024
+	queueCapacity = 32
+	// A retained QoS0 burst is not limited by MQTT Receive Maximum. Wait for
+	// consumer progress without growing the queue, then fail closed on a stall.
+	observationAdmissionTimeout = 200 * time.Millisecond
+	connectTimeout              = 5 * time.Second
+	commandTimeout              = 2 * time.Second
 )
 
 var ErrBrokerConnection = errors.New("mqtt: broker connection failed")
@@ -148,6 +151,8 @@ type Pilot struct {
 	phase                   pilotPhase
 	startDone               chan struct{}
 	startCancel             context.CancelFunc
+	admissionStop           chan struct{}
+	admissionStopOnce       sync.Once
 	shutdownOnce            sync.Once
 	fault                   chan error
 	commandGate             chan struct{}
@@ -157,7 +162,7 @@ func NewPilot(settings Settings, handler ObservationHandler) (*Pilot, error) {
 	if _, err := settings.Instance(); err != nil || missingInterface(handler) {
 		return nil, ErrInvalidSettings
 	}
-	return &Pilot{settings: settings, handler: handler, phase: pilotCreated, fault: make(chan error, 1), startDone: make(chan struct{}), commandGate: make(chan struct{}, 1)}, nil
+	return &Pilot{settings: settings, handler: handler, phase: pilotCreated, fault: make(chan error, 1), startDone: make(chan struct{}), admissionStop: make(chan struct{}), commandGate: make(chan struct{}, 1)}, nil
 }
 
 func missingInterface(value any) bool {
@@ -178,7 +183,7 @@ func NewPilotFactory(settings Settings, handler ObservationHandler) (integration
 		return nil, err
 	}
 	return func() integrations.Pilot {
-		return &Pilot{settings: settings, handler: handler, phase: pilotCreated, fault: make(chan error, 1), startDone: make(chan struct{}), commandGate: make(chan struct{}, 1)}
+		return &Pilot{settings: settings, handler: handler, phase: pilotCreated, fault: make(chan error, 1), startDone: make(chan struct{}), admissionStop: make(chan struct{}), commandGate: make(chan struct{}, 1)}
 	}, nil
 }
 
@@ -254,6 +259,7 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 	// interrupts a blocked MQTT packet read or write.
 	defer func() {
 		if retErr != nil {
+			p.stopAdmissions()
 			_ = conn.Close()
 			p.mu.Lock()
 			joined := p.client != nil
@@ -264,6 +270,7 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 		}
 	}()
 	queue := make(chan delivery, queueCapacity)
+	space := make(chan struct{}, queueCapacity)
 	p.mu.Lock()
 	p.observationQueue = queue
 	p.observationInstalled = true
@@ -302,19 +309,10 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 				correlation, _ = parseCorrelation(received.Packet.Properties.CorrelationData)
 			}
 			item := delivery{packet: received.Packet, observation: Observation{topic: topic, payload: append([]byte(nil), received.Packet.Payload...), class: class, correlation: correlation}}
-			p.mu.Lock()
-			select {
-			case queue <- item:
-				_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 0, 1, 0, 0, 0)
-				p.mu.Unlock()
-				return true, nil
-			default:
-				_ = p.observation.AddQueueRejected(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 1)
-				_ = p.observation.AddQueueLost(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 1)
-				p.mu.Unlock()
-				p.fail(ErrObservationGap)
-				return true, ErrObservationGap
+			if err := p.admitObservation(queue, space, item); err != nil {
+				return true, err
 			}
+			return true, nil
 		}},
 	})
 	if err := conn.SetWriteDeadline(time.Now().Add(connectTimeout)); err != nil {
@@ -371,6 +369,10 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 				p.mu.Lock()
 				_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 0, -1, 0, 0, 0)
 				p.mu.Unlock()
+				select {
+				case space <- struct{}{}:
+				default:
+				}
 				if err := p.handler.Observe(ctx, host, item.observation); err != nil {
 					p.fail(err)
 					return err
@@ -482,6 +484,7 @@ func (p *Pilot) allowedObservation(topic Topic) bool {
 }
 
 func (p *Pilot) fail(err error) {
+	p.stopAdmissions()
 	select {
 	case p.fault <- err:
 	default:
@@ -494,7 +497,65 @@ func (p *Pilot) fail(err error) {
 	}
 }
 
+// The callback must never wait while holding p.mu: the consumer needs it to
+// account for a dequeue and signal a free slot. A timer bounds a stalled
+// consumer, while shutdown wakes a waiting callback before Paho can join.
+func (p *Pilot) admitObservation(queue chan delivery, space <-chan struct{}, item delivery) error {
+	var timer *time.Timer
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
+	expired := false
+	for {
+		p.mu.Lock()
+		select {
+		case <-p.admissionStop:
+			p.mu.Unlock()
+			return context.Canceled
+		default:
+		}
+		select {
+		case queue <- item:
+			_ = p.observation.ChangeRuntimeQueue(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 0, 1, 0, 0, 0)
+			p.mu.Unlock()
+			return nil
+		default:
+		}
+		if expired {
+			_ = p.observation.AddQueueRejected(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 1)
+			_ = p.observation.AddQueueLost(obs.QueueClass_QUEUE_CLASS_MQTT_INBOUND, 1)
+			p.mu.Unlock()
+			p.fail(ErrObservationGap)
+			return ErrObservationGap
+		}
+		p.mu.Unlock()
+		if timer == nil {
+			timer = time.NewTimer(observationAdmissionTimeout)
+		}
+		select {
+		case <-space:
+			// A slot may have opened. Retry without renewing this packet's
+			// 200 ms wall-clock budget, even if this signal was stale.
+		case <-p.admissionStop:
+			return context.Canceled
+		case <-timer.C:
+			expired = true
+		}
+	}
+}
+
+func (p *Pilot) stopAdmissions() {
+	p.admissionStopOnce.Do(func() {
+		if p.admissionStop != nil {
+			close(p.admissionStop)
+		}
+	})
+}
+
 func (p *Pilot) shutdown(graceful bool) {
+	p.stopAdmissions()
 	p.shutdownOnce.Do(func() {
 		p.mu.Lock()
 		p.phase = pilotStopping
