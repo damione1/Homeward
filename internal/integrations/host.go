@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -419,6 +420,9 @@ type retiringSource struct {
 }
 
 type Manager struct {
+	// Immutable after construction; independent of session and API permissions.
+	mqttReadOnlyObservation         bool
+	commandDriverEntries            atomic.Uint64
 	observationHealth               *observability.HealthCell
 	observation                     *observability.Cells
 	journal                         *observability.Journal
@@ -492,6 +496,26 @@ const (
 )
 
 func NewHost(authority IdentityAuthority, sink Sink, catalog *contracts.CapabilityCatalog) (*Manager, error) {
+	return newHost(authority, sink, catalog, false)
+}
+
+// NewMQTTReadOnlyObservationHost closes physical action authority for the
+// entire process epoch, without closing read and state ingestion admissions.
+func NewMQTTReadOnlyObservationHost(authority IdentityAuthority, sink Sink, catalog *contracts.CapabilityCatalog) (*Manager, error) {
+	return newHost(authority, sink, catalog, true)
+}
+
+func (h *Manager) MQTTReadOnlyObservation() bool { return h != nil && h.mqttReadOnlyObservation }
+
+// CommandDriverEntries counts actual Host driver entries in this process epoch.
+func (h *Manager) CommandDriverEntries() uint64 {
+	if h == nil {
+		return 0
+	}
+	return h.commandDriverEntries.Load()
+}
+
+func newHost(authority IdentityAuthority, sink Sink, catalog *contracts.CapabilityCatalog, readOnly bool) (*Manager, error) {
 	if nilInterface(authority) || nilInterface(sink) || !catalog.Ready() {
 		return nil, ErrInvalidInput
 	}
@@ -505,7 +529,7 @@ func NewHost(authority IdentityAuthority, sink Sink, catalog *contracts.Capabili
 	}
 	tracker := newActionTracker(realActionClock{})
 	tracker.observation = cells
-	return &Manager{observation: cells, authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), lightProfiles: make(map[domain.EntityID]*lightEncodingSnapshot), fanProfiles: make(map[domain.EntityID]*fanProfileSnapshot), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: tracker}, nil
+	return &Manager{mqttReadOnlyObservation: readOnly, observation: cells, authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), lightProfiles: make(map[domain.EntityID]*lightEncodingSnapshot), fanProfiles: make(map[domain.EntityID]*fanProfileSnapshot), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: tracker}, nil
 }
 
 // CloseAdmissions linearizes shutdown with both command-policy claims and the

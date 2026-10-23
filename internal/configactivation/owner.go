@@ -225,6 +225,9 @@ func (o *Owner) operation(ctx context.Context, reconcile bool) (context.Context,
 	if o == nil || absentPort(ctx) {
 		return nil, nil, ErrInvalidStartup
 	}
+	if o.input.Startup.MQTTReadOnlyObservation() {
+		return nil, nil, integrations.ErrCommandAuthorizationDenied
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}

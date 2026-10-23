@@ -25,6 +25,9 @@ const (
 // paths. Claims remain until Host shutdown, including when a durable commit is
 // uncertain; a DB outage cannot downgrade an ID to volatile dispatch.
 func (h *Manager) claimCommandPolicy(id domain.CommandID, policy commandPolicy) error {
+	if h.MQTTReadOnlyObservation() {
+		return ErrCommandAuthorizationDenied
+	}
 	if h == nil || h.commandPolicies == nil {
 		return ErrInvalidInput
 	}

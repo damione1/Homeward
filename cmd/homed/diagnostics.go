@@ -82,6 +82,7 @@ func runHomed(ctx context.Context, args []string, out, diagnostics io.Writer, de
 	flags.SetOutput(io.Discard)
 	path := flags.String("config", "config/example.yaml", "initial YAML configuration")
 	bootstrapPath := flags.String("bootstrap", "", "existing launch bootstrap YAML")
+	observe := flags.Bool("observe-mqtt-readonly", false, "immutable MQTT-only read observation")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			_, _ = fmt.Fprintln(out, "Usage: homed -config <path> [-bootstrap <path>]")
@@ -115,7 +116,7 @@ func runHomed(ctx context.Context, args []string, out, diagnostics io.Writer, de
 			return 1
 		}
 	} else {
-		if *bootstrapPath != "" {
+		if *bootstrapPath != "" || *observe {
 			homedDiagnostic(diagnostics, obs.LogCode_LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED, obs.LogLevel_LOG_LEVEL_ERROR)
 			return 2
 		}
@@ -131,6 +132,9 @@ func runHomed(ctx context.Context, args []string, out, diagnostics io.Writer, de
 			homedDiagnostic(diagnostics, phase, obs.LogLevel_LOG_LEVEL_ERROR)
 			return 1
 		}
+	}
+	if *observe {
+		startup = startup.WithMQTTReadOnlyObservation()
 	}
 	phase = obs.LogCode_LOG_CODE_PROCESS_RUNTIME_START_FAILED
 	listenerReady := func(net.Addr) {

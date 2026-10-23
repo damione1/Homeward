@@ -88,7 +88,7 @@ func (c AdmittedCommand) liveOwner() bool {
 // ReadyForTransport rechecks the Host fence immediately before an external
 // adapter emits a queued command. A packet already in flight remains uncertain.
 func (c AdmittedCommand) ReadyForTransport() bool {
-	if c.host == nil {
+	if c.host == nil || c.host.MQTTReadOnlyObservation() {
 		return false
 	}
 	check := func() error {
@@ -214,6 +214,9 @@ func (h *Manager) DesignateCommandOwner(device domain.DeviceID, schema, endpoint
 // AttachCommandDriver is called by trusted composition, never via SessionHost.
 // A replacement session must attach its own driver after discovery.
 func (h *Manager) AttachCommandDriver(session *Session, driver CommandDriver) error {
+	if h.MQTTReadOnlyObservation() {
+		return ErrCommandAuthorizationDenied
+	}
 	if h == nil || session == nil || session.host != h || nilInterface(driver) {
 		return ErrInvalidInput
 	}
@@ -277,6 +280,9 @@ func commandFailure(code actions.ErrorCode, path string) *actions.CommandRespons
 }
 
 func (r *CommandRouter) Dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest) (*actions.CommandResponse, error) {
+	if r != nil && r.host.MQTTReadOnlyObservation() {
+		return nil, ErrCommandAuthorizationDenied
+	}
 	if _, err := r.authorizeRequest(ctx, actor, request, authv1.ScopeOperation_SCOPE_OPERATION_WRITE); err != nil {
 		return nil, err
 	}
@@ -306,6 +312,9 @@ func (r *CommandRouter) Dispatch(ctx context.Context, actor domain.ActorID, requ
 }
 
 func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedCommandRoute) (*actions.CommandResponse, error) {
+	if r != nil && r.host.MQTTReadOnlyObservation() {
+		return nil, ErrCommandAuthorizationDenied
+	}
 	if r == nil || r.host == nil || ctx == nil || request == nil {
 		return nil, ErrInvalidInput
 	}
@@ -610,6 +619,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	if !admitted.ReadyForTransport() {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "target"), nil
 	}
+	r.host.commandDriverEntries.Add(1)
 	if managed != nil {
 		dispatchErr = dispatchManaged(managed, driver, dispatchCtx, admitted)
 	} else {

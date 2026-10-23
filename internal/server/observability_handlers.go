@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"connectrpc.com/connect"
@@ -115,7 +116,12 @@ func (h *observationHandler) GetHealth(ctx context.Context, r *connect.Request[o
 	if err != nil {
 		return nil, observationRPCError(err)
 	}
-	return observationResponse(result)
+	response, err := observationResponse(result)
+	if err == nil && h.runtime.readOnly != nil {
+		h.runtime.readOnly.headers(response.Header())
+		response.Header().Set("Homeward-Command-Driver-Entries", strconv.FormatUint(h.runtime.host.CommandDriverEntries(), 10))
+	}
+	return response, err
 }
 func (h *observationHandler) GetMetrics(ctx context.Context, r *connect.Request[obs.GetMetricsRequest]) (*connect.Response[obs.GetMetricsResponse], error) {
 	if r == nil || contracts.AdmitObservabilityRequest(r.Msg) != nil {

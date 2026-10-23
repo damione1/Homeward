@@ -19,6 +19,7 @@ import (
 )
 
 type observationRuntime struct {
+	readOnly   *readOnlyObservationBinding
 	epoch      observability.ProcessObservationEpoch
 	cells      *observability.Cells
 	health     *observability.HealthCell

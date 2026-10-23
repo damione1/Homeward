@@ -185,6 +185,17 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		store.Close()
 		return err
 	}
+	if startup.MQTTReadOnlyObservation() {
+		if err := validateMQTTReadOnlyObservation(c, launch, admitted, factory); err != nil {
+			store.Close()
+			return err
+		}
+		observed.readOnly, err = newReadOnlyObservationBinding(admitted)
+		if err != nil {
+			store.Close()
+			return err
+		}
+	}
 	ownership, err := initialSourceOwnership(admitted, scopeManifest)
 	if err != nil {
 		store.Close()
@@ -243,7 +254,13 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	}
 	plan := RuntimePlan{Identity: unconfiguredIdentity{}}
 	var hiloRun *hiloComposition
-	if factory != nil {
+	if startup.MQTTReadOnlyObservation() {
+		mqttSettings, _ := c.MQTTSettings()
+		plan, err = defaultConfiguredRuntimePlanWithManifest(scopeManifest, mqttSettings, true, nil, store, sequence)
+		if err != nil {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+		}
+	} else if factory != nil {
 		plan, err = factory(ctx, store)
 		if err != nil {
 			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
@@ -376,7 +393,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			}
 		}
 	}
-	if _, remoteEnabled := c.RemoteCalendarSettings(); factory == nil || remoteEnabled {
+	if _, remoteEnabled := c.RemoteCalendarSettings(); !startup.MQTTReadOnlyObservation() && (factory == nil || remoteEnabled) {
 		identity, ok := plan.Identity.(*registry.Repository)
 		if !ok {
 			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, ErrIdentityNotConfigured)
@@ -431,7 +448,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			}
 		}
 	}
-	if factory == nil && activation != nil {
+	if factory == nil && activation != nil && !startup.MQTTReadOnlyObservation() {
 		repository, ok := plan.Identity.(*registry.Repository)
 		if !ok {
 			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, ErrIdentityNotConfigured)
@@ -442,15 +459,17 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 		}
 	}
-	plan, err = prepareAdmittedEditableSources(ctx, admitted, plan)
-	if err != nil {
-		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
-	}
-	if err := validateAutomationRunAssembly(plan.AutomationTriggers, plan.AutomationRuns, plan.ConfigureAutomationTriggerResults); err != nil {
-		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
-	}
-	if err := installAutomationTriggerMQTTPilot(&plan); err != nil {
-		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+	if !startup.MQTTReadOnlyObservation() {
+		plan, err = prepareAdmittedEditableSources(ctx, admitted, plan)
+		if err != nil {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+		}
+		if err := validateAutomationRunAssembly(plan.AutomationTriggers, plan.AutomationRuns, plan.ConfigureAutomationTriggerResults); err != nil {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+		}
+		if err := installAutomationTriggerMQTTPilot(&plan); err != nil {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+		}
 	}
 	var sessionClockSource sessionClock = realSessionClock{}
 	if plan.Public != nil && plan.Public.sessionClock != nil {
@@ -465,7 +484,11 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		sessions.policy.closeAdmissions()
 		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
-	host, err := integrations.NewHost(plan.Identity, sequence, catalog)
+	newHost := integrations.NewHost
+	if startup.MQTTReadOnlyObservation() {
+		newHost = integrations.NewMQTTReadOnlyObservationHost
+	}
+	host, err := newHost(plan.Identity, sequence, catalog)
 	if err != nil {
 		// No route has admitted work yet; join this newly created owner before DB.
 		mfaErr := sessions.mfa.close(context.Background())
