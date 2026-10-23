@@ -5,3 +5,6 @@
 **/.env.pending-*
 *.local.yaml
 __pycache__/
+
+/.cargo/config.toml
+/frontend.local.json

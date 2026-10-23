@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Exercise refusal boundaries without allocating a disk or starting a build."""
+import importlib.util
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+spec = importlib.util.spec_from_file_location('frontend', Path(__file__).with_name('frontend.py'))
+frontend = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(frontend)
+
+
+class StorageGuardTests(unittest.TestCase):
+    def test_combined_growth_and_free_space_reserve(self):
+        self.assertTrue(frontend.policy(frontend.LIMIT - 100, frontend.MIN_FREE + 100, 100))
+        self.assertFalse(frontend.policy(frontend.LIMIT - 99, frontend.MIN_FREE + 100, 100))
+        self.assertFalse(frontend.policy(0, frontend.MIN_FREE + 99, 100))
+        self.assertFalse(frontend.policy(0, frontend.MIN_FREE, -1))
+
+    def test_unreadable_subtree_refuses_measurement(self):
+        def denied(_root, **options):
+            options['onerror'](PermissionError('unreadable cache subtree'))
+        with tempfile.TemporaryDirectory() as temp:
+            with patch.object(frontend.os, 'walk', side_effect=denied):
+                with self.assertRaises(PermissionError):
+                    frontend.inventory([Path(temp)])
+
+    def test_retired_descendant_can_disappear_during_walk(self):
+        def retired(root, **options):
+            options['onerror'](FileNotFoundError(2, 'retired', str(root / 'retired')))
+            return iter([])
+        with tempfile.TemporaryDirectory() as temp:
+            with patch.object(frontend.os, 'walk', side_effect=retired):
+                self.assertEqual(frontend.inventory([Path(temp)]), {})
+
+    def test_missing_root_is_not_a_retired_descendant(self):
+        def missing(root, **options):
+            options['onerror'](FileNotFoundError(2, 'missing root', str(root)))
+        with tempfile.TemporaryDirectory() as temp:
+            with patch.object(frontend.os, 'walk', side_effect=missing):
+                with self.assertRaises(FileNotFoundError):
+                    frontend.inventory([Path(temp)])
+
+    def test_reuse_hardlinks_and_external_symlinks(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            shared = root / 'shared'
+            shared.mkdir()
+            payload = shared / 'payload'
+            payload.write_bytes(b'x' * 8192)
+            (shared / 'alias').hardlink_to(payload)
+            external = root / 'external'
+            external.mkdir()
+            (external / 'outside').write_bytes(b'x' * 16384)
+            (shared / 'link').symlink_to(external, target_is_directory=True)
+            rows = frontend.inventory([shared, shared])
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(sum(row[-1] for row in rows.values()), payload.stat().st_blocks * 512)
+
+
+if __name__ == '__main__':
+    unittest.main()
