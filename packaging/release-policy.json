@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "scanner": {"name": "syft", "version": "1.55.0"},
+  "required_binaries": ["homed", "homeward", "homeward-package", "homeward-observe"],
+  "required_product_documents": ["licenses/product/LICENSE", "licenses/product/THIRD-PARTY-NOTICES.txt", "licenses/product/LICENSE.astral", "licenses/product/homekit-NOTICE", "licenses/product/hc-NOTICE", "licenses/go-toolchain/LICENSE", "licenses/go-toolchain/PATENTS", "licenses/go-toolchain/tzdata-README", "licenses/python-interpreter/LICENSE.txt"],
+  "local_go_replacements": {
+    "github.com/mctofu/homekit": {"path": "third_party/homekit", "provenance": "third_party/homekit/UPSTREAM.json", "license": "third_party/homekit/LICENSE", "notice": "third_party/homekit/NOTICE"},
+    "github.com/brutella/hc": {"path": "qualification/ecobee/third_party/hc", "provenance": "qualification/ecobee/third_party/hc.upstream.json", "license": "qualification/ecobee/third_party/hc/LICENSE", "notice": "qualification/ecobee/third_party/NOTICE"}
+  },
+  "unknown_components": "block; report exact component, location and missing evidence",
+  "license_rule": "Retain actual nonempty license/copyright text and all included notices; SPDX UNKNOWN/NOASSERTION alone is never sufficient.",
+  "network": "Scanner must run inside an OS network-denied sandbox over local image archives. No remote license lookup or update checks."
+}

@@ -2,7 +2,8 @@
 .PHONY: check package-server smoke-compose qualify-mvp-software
 
 package-server:
-	python3 scripts/package-server.py
+	@test -n "$(PLATFORM)" || { echo "Set PLATFORM=linux/amd64 or PLATFORM=linux/arm64" >&2; exit 1; }
+	python3 scripts/package-server.py --platform "$(PLATFORM)"
 
 smoke-compose:
 	python3 scripts/smoke-compose.py

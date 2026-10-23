@@ -36,7 +36,8 @@
   "binaries": {
     "homed": "./cmd/homed",
     "homeward": "./cmd/homeward",
-    "homeward-package": "./cmd/homeward-package"
+    "homeward-package": "./cmd/homeward-package",
+    "homeward-observe": "./cmd/homeward-observe"
   },
   "go": {
     "version": "1.27.2",
@@ -239,7 +240,10 @@
     "packaging/compose.yaml",
     "packaging/Dockerfile",
     "packaging/requirements.lock",
-    "packaging/versions.json"
+    "packaging/versions.json",
+    "packaging/collect-runtime.py",
+    "packaging/release-policy.json",
+    "packaging/syft.yaml"
   ],
   "runtime_key": {
     "path": "/var/lib/homeward/data/.env",
@@ -266,5 +270,22 @@
       "pg_restore"
     ],
     "runtime_linkage": "matching ELF interpreter and transitive shared libraries copied from the same pinned source image; isolated loader library path"
+  },
+  "release": {
+    "schema_version": 1,
+    "sbom": {
+      "tool": "syft",
+      "version": "1.55.0",
+      "darwin_arm64_archive_sha256": "1217c258bd5eb91ef3189cf22a82e02f9cac07e4ce934350f428e93aff674625",
+      "source": "https://github.com/anchore/syft/releases/tag/v1.55.0",
+      "config": "packaging/syft.yaml",
+      "network": "OS network-denied sandbox; local archives only"
+    },
+    "policy": "packaging/release-policy.json",
+    "runtime_inventory": "/opt/homeward/release",
+    "clean_builds": 2,
+    "source": "exact git archive commit/tree manifest",
+    "source_date_epoch": "git commit timestamp",
+    "comparison": "raw binary/image/config/layer/SBOM hashes and every differing field, no normalization"
   }
 }
