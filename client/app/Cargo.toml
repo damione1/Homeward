@@ -1,0 +1,48 @@
+[package]
+name = "homeward-app"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "homeward-desktop"
+path = "src/main.rs"
+
+[dependencies]
+home-client-model = { path = "../model" }
+home-wire-contract = { path = "../wire" }
+slint-kit = "=0.1.0"
+slint-kit-pro = { path = "../../.tools/frontend-kits/pro/crates/kit-pro" }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+slint = { version = "=1.18.1", default-features = false, features = ["std", "compat-1-18", "backend-winit", "renderer-software", "accessibility"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+slint = { version = "=1.18.1", default-features = false, features = ["std", "compat-1-18", "backend-android-activity-06", "renderer-software"] }
+
+[build-dependencies]
+slint-kit-pro-build = { path = "../../.tools/frontend-kits/pro/crates/kit-pro-build" }
+
+[package.metadata.android]
+package = "ca.homeward.frontend.dev"
+apk_name = "homeward-dev"
+build_targets = ["aarch64-linux-android"]
+assets = "assets"
+
+[package.metadata.android.sdk]
+min_sdk_version = 26
+target_sdk_version = 35
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[package.metadata.android.application]
+label = "Homeward Dev"
+uses_cleartext_traffic = false
+debuggable = true
+
+[package.metadata.android.application.activity]
+config_changes = "orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|uiMode"

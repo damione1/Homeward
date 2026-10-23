@@ -1,0 +1,27 @@
+import { KitButton, KitTheme, KitThemes, KitBadge } from "@kit/kit.slint";
+import { ProSummary } from "@kit-pro/kit-pro.slint";
+
+export component HomewardWindow inherits Window {
+    title: "Homeward · Développement";
+    preferred-width: 820px;
+    preferred-height: 560px;
+    min-width: 320px;
+    min-height: 380px;
+    background: root.theme.canvas;
+    in property <KitTheme> theme: KitThemes.light;
+    in-out property <string> foundation-status: "Socle natif · hors connexion";
+    callback inspect-foundation();
+    VerticalLayout {
+        padding: 24px; spacing: 20px;
+        Text { text: "Homeward"; color: root.theme.text-primary; font-size: 30px; font-weight: 700; }
+        KitBadge { theme: root.theme; text: "Développement local"; }
+        ProSummary {
+            theme: root.theme;
+            label: "Bienvenue chez vous";
+            value: "Tout commence ici.";
+            description: root.foundation-status;
+        }
+        KitButton { theme: root.theme; text: "Vérifier le socle"; activated => { root.inspect-foundation(); } }
+        Rectangle { vertical-stretch: 1; }
+    }
+}
