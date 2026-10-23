@@ -24,8 +24,10 @@ python3 scripts/frontend.py configure --free-kit /path/to/slint-kit --pro-kit /p
 python3 scripts/frontend.py run -- brew install --cask android-commandlinetools
 python3 scripts/frontend.py run --reserve-gb 14 -- python3 scripts/setup-frontend-android.py
 python3 scripts/frontend.py run -- cargo install cargo-apk --version 0.10.0 --locked --root .tools
+python3 scripts/frontend.py run -- python3 scripts/setup-frontend-transport.py
 make frontend-desktop
 make frontend-android
+make qualify-frontend-transport
 # Export the frozen NHA-036/NHA-055 migration artifacts documented in Obsidian first.
 python3 scripts/frontend.py run -- make check
 ```
@@ -39,3 +41,9 @@ for this Homebrew development host; see the Obsidian ticket for the evaluated ve
 A separate opt-in mock runs with
 `python3 scripts/frontend.py run -- python3 scripts/launch-frontend-mock.py`.
 It prints its isolated instance URL and public CA path. Production `homed` never loads it.
+
+The transport gate runs native Rust executables on macOS and the task-owned API35
+ARM64 emulator against isolated real TLS core routes. A separate generated Go
+fixture checks future wire values. This gate does not qualify an APK UI or a
+physical device. Service stubs reuse the existing Buffa messages; regenerate with
+`python3 scripts/frontend.py run -- python3 scripts/generate-frontend-transport.py`.

@@ -21,3 +21,15 @@ if not platform_tools.exists():
         subprocess.run(['brew', 'install', '--cask', 'android-platform-tools'], check=True)
         adb = shutil.which('adb')
     platform_tools.symlink_to(Path(adb).resolve().parent, target_is_directory=True)
+
+# This named AVD lives under the frontend's isolated ANDROID_AVD_HOME. Preserve
+# an existing profile/data directory; the qualification runner verifies API/ABI.
+avd_name = 'homeward-dev-api35'
+avd_home = Path(os.environ['ANDROID_AVD_HOME'])
+if not (avd_home / (avd_name + '.ini')).exists():
+    if (avd_home / (avd_name + '.avd')).exists():
+        raise SystemExit('Preserve the existing incomplete task AVD; inspect it before setup.')
+    avd_home.mkdir(parents=True, exist_ok=True)
+    subprocess.run(['avdmanager', 'create', 'avd', '--name', avd_name,
+                    '--package', 'system-images;android-35;google_apis;arm64-v8a',
+                    '--device', '10.1in WXGA (Tablet)'], input='no\n', text=True, check=True)

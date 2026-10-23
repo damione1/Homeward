@@ -1,4 +1,4 @@
 [workspace]
-members = ["client/model", "client/wire", "client/app"]
+members = ["client/model", "client/wire", "client/app", "client/transport"]
 exclude = [".tools/frontend-kits/pro/crates/kit-pro", ".tools/frontend-kits/pro/crates/kit-pro-build"]
 resolver = "2"

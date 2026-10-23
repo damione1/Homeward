@@ -45,7 +45,7 @@ qualify-mvp-software:
 	test -n "$(PROOF)"
 	HOMEWARD_NHA165_PROFILE="$(PROFILE)" HOMEWARD_NHA165_PROOF="$(PROOF)" go test -v -count=1 -timeout=75m ./internal/server -run '^TestNHA165SoftwareProfile$$'
 
-.PHONY: frontend-desktop frontend-android check-frontend
+.PHONY: frontend-desktop frontend-android check-frontend qualify-frontend-transport
 frontend-desktop:
 	python3 scripts/frontend.py run --cargo -- python3 scripts/package-frontend-desktop.py
 
@@ -54,3 +54,6 @@ frontend-android:
 
 check-frontend:
 	python3 scripts/frontend.py run --cargo -- python3 scripts/check-frontend.py
+
+qualify-frontend-transport:
+	python3 scripts/frontend.py run --cargo -- python3 scripts/qualify-frontend-transport.py

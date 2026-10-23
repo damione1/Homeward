@@ -19,7 +19,7 @@ LOCAL = REPO / 'frontend.local.json'
 LIMIT = 40_000_000_000
 # The shared host's latest reserve supersedes the original 40 GiB floor.
 MIN_FREE = 50_000_000_000
-PACKAGES = ['home-client-model', 'home-wire-contract', 'homeward-app',
+PACKAGES = ['home-client-model', 'home-wire-contract', 'homeward-app', 'home-client-transport',
             'slint-kit', 'slint-kit-core', 'slint-kit-slint', 'slint-kit-build',
             'slint-kit-pro', 'slint-kit-pro-build']
 
@@ -112,12 +112,18 @@ def sources(config, proof):
 
 def environment(config):
     base = Path(config['backend_cache'])
+    ndk = Path(config['android_sdk']) / 'ndk/27.2.12479018'
+    android_tools = ndk / 'toolchains/llvm/prebuilt/darwin-x86_64/bin'
     env = os.environ.copy()
     env.update(PATH=str(REPO / '.tools/bin') + ':' + env['PATH'], GOTOOLCHAIN='local',
                GOCACHE=str(base / 'go-build'), GOTMPDIR=str(base / 'go-tmp'), TMPDIR=str(base / 'go-tmp'),
                CARGO_TARGET_DIR=str(base / 'workspace/target'), CARGO_INCREMENTAL='0',
                CARGO_PROFILE_DEV_DEBUG='line-tables-only', CARGO_PROFILE_TEST_DEBUG='line-tables-only',
-               ANDROID_HOME=config['android_sdk'], ANDROID_NDK_ROOT=config['android_sdk'] + '/ndk/27.2.12479018',
+               ANDROID_HOME=config['android_sdk'], ANDROID_NDK_ROOT=str(ndk),
+               CC_aarch64_linux_android=str(android_tools / 'aarch64-linux-android26-clang'),
+               CXX_aarch64_linux_android=str(android_tools / 'aarch64-linux-android26-clang++'),
+               AR_aarch64_linux_android=str(android_tools / 'llvm-ar'),
+               CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=str(android_tools / 'aarch64-linux-android26-clang'),
                ANDROID_AVD_HOME=config['frontend_cache'] + '/android-avd',
                ANDROID_USER_HOME=config['frontend_cache'] + '/android-user',
                HOMEBREW_CACHE=config['frontend_cache'] + '/homebrew',

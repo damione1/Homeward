@@ -16,3 +16,5 @@ if changed:
     subprocess.run(['cargo', 'run', '-p', 'xtask', '--locked', '--', 'check'], cwd=free, check=True)
 
 subprocess.run(['python3', 'scripts/check-frontend-dependencies.py'], cwd=root, check=True)
+subprocess.run(['python3', 'scripts/generate-frontend-transport.py', '--check'], cwd=root, check=True)
+subprocess.run(['python3', 'scripts/qualify-frontend-transport.py'], cwd=root, check=True)

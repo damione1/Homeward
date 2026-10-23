@@ -1,0 +1,22 @@
+[package]
+name = "home-client-transport"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+home-wire-contract = { path = "../wire" }
+connectrpc = { version = "=0.9.1", default-features = false, features = ["client-tls"] }
+buffa = "=0.9.2"
+buffa-types = "=0.9.2"
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }
+rustls-pemfile = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+http = "1"
+base64 = "0.22"
+
+[dev-dependencies]
+serde_json = "1"
+tokio = { version = "1", features = ["test-util"] }
+
