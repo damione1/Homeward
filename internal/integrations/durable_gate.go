@@ -86,6 +86,9 @@ func (s *DurableCommandService) enterGate(ctx context.Context, inside *internalO
 	if s == nil || nilInterface(ctx) || s.router == nil || s.store == nil || s.closed == nil {
 		return nil, ErrInvalidInput
 	}
+	if s.router.host.MQTTReadOnlyObservation() {
+		return nil, ErrCommandAuthorizationDenied
+	}
 	waiting := false
 	defer func() {
 		if !waiting {

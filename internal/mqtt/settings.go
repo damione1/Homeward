@@ -294,3 +294,26 @@ func (s Settings) String() string {
 	return fmt.Sprintf("mqtt settings [REDACTED] profile=%d mode=%d", s.profile, s.mode)
 }
 func (s Settings) GoString() string { return s.String() }
+
+// StrictlyPassive proves the admitted wire settings cannot publish application
+// data, including a will at disconnect. It exposes no broker or credential.
+func (s Settings) StrictlyPassive() bool {
+	_, err := s.Instance()
+	return err == nil && s.profile == ProfileMQTT5 && s.mode == ModePassive &&
+		len(s.commands) == 0 && len(s.transitionLights) == 0 && s.willTopic == (Topic{}) && len(s.willPayload) == 0 && len(s.subscriptions) > 0
+}
+
+// CredentialHandles returns only opaque credential metadata for trusted
+// offline preparation. Values remain owned by the encrypted secret repository.
+func (s Settings) CredentialHandles() (storage.SecretHandle, storage.SecretHandle, error) {
+	if _, err := s.Instance(); err != nil {
+		return storage.SecretHandle{}, storage.SecretHandle{}, err
+	}
+	if _, _, err := s.username.Components(); err != nil {
+		return storage.SecretHandle{}, storage.SecretHandle{}, ErrInvalidSettings
+	}
+	if _, _, err := s.password.Components(); err != nil || s.username == s.password {
+		return storage.SecretHandle{}, storage.SecretHandle{}, ErrInvalidSettings
+	}
+	return s.username, s.password, nil
+}

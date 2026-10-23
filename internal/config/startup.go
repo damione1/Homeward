@@ -65,15 +65,16 @@ const (
 // StartupInputs has no constructor from a parsed Config. A production startup
 // must carry a physical locator or a deliberately detached test source.
 type StartupInputs struct {
-	bootstrapRaw  []byte
-	bootstrapPath string
-	origin        BootstrapOrigin
-	workspacePath string
-	logicalPath   string
-	detachedRaw   []byte
-	launch        Config
-	lookup        EnvLookup
-	valid         bool
+	bootstrapRaw        []byte
+	bootstrapPath       string
+	origin              BootstrapOrigin
+	workspacePath       string
+	logicalPath         string
+	detachedRaw         []byte
+	launch              Config
+	lookup              EnvLookup
+	valid               bool
+	observeMQTTReadOnly bool
 }
 
 func (s StartupInputs) String() string               { return "[REDACTED STARTUP INPUTS]" }
@@ -99,6 +100,14 @@ func (s StartupInputs) LaunchConfig() (Config, error) {
 	}
 	return s.launch, nil
 }
+
+// WithMQTTReadOnlyObservation is an operator-only launch choice. Operational
+// documents and activation requests cannot construct or clear this selection.
+func (s StartupInputs) WithMQTTReadOnlyObservation() StartupInputs {
+	s.observeMQTTReadOnly = true
+	return s
+}
+func (s StartupInputs) MQTTReadOnlyObservation() bool { return s.observeMQTTReadOnly }
 
 func (s StartupInputs) Origin() BootstrapOrigin { return s.origin }
 
