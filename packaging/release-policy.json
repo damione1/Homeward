@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "scanner": {
+    "name": "syft",
+    "version": "1.55.0"
+  },
+  "required_binaries": [
+    "homed",
+    "homeward",
+    "homeward-package",
+    "homeward-observe"
+  ],
+  "required_product_documents": [
+    "licenses/product/LICENSE",
+    "licenses/product/THIRD-PARTY-NOTICES.txt",
+    "licenses/product/LICENSE.astral",
+    "licenses/product/homekit-NOTICE",
+    "licenses/product/hc-NOTICE",
+    "licenses/go-toolchain/LICENSE",
+    "licenses/go-toolchain/PATENTS",
+    "licenses/go-toolchain/tzdata-README",
+    "licenses/python-interpreter/LICENSE.txt"
+  ],
+  "local_go_replacements": {
+    "github.com/mctofu/homekit": {
+      "path": "third_party/homekit",
+      "provenance": "third_party/homekit/UPSTREAM.json",
+      "license": "third_party/homekit/LICENSE",
+      "notice": "third_party/homekit/NOTICE"
+    },
+    "github.com/brutella/hc": {
+      "path": "qualification/ecobee/third_party/hc",
+      "provenance": "qualification/ecobee/third_party/hc.upstream.json",
+      "license": "qualification/ecobee/third_party/hc/LICENSE",
+      "notice": "qualification/ecobee/third_party/NOTICE"
+    }
+  },
+  "unknown_components": "block; report exact component, location and missing evidence",
+  "license_rule": "Retain actual nonempty license/copyright text and all included notices; SPDX UNKNOWN/NOASSERTION alone is never sufficient.",
+  "network": "Scanner must run inside an OS network-denied sandbox over local image archives. No remote license lookup or update checks.",
+  "supplemental_notices": {
+    "go-stdlib": {
+      "destination": "postgres-doc/gosu/go1.24.6/LICENSE",
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+      "source": "packaging/notices/go1.24.6-LICENSE",
+      "source_url": "https://github.com/golang/go/blob/go1.24.6/LICENSE"
+    },
+    "golang-x-sys": {
+      "destination": "postgres-doc/gosu/golang-x-sys-v0.1.0/LICENSE",
+      "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+      "source": "packaging/notices/golang-x-sys-v0.1.0-LICENSE",
+      "source_url": "https://github.com/golang/sys/blob/v0.1.0/LICENSE"
+    },
+    "gosu": {
+      "destination": "postgres-doc/gosu/gosu-v1.19/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "source": "packaging/notices/gosu-v1.19-LICENSE",
+      "source_url": "https://github.com/tianon/gosu/blob/1.19/LICENSE"
+    },
+    "grpcio-tools": {
+      "destination": "inventory/licenses/python/grpcio-tools/upstream-grpc-v1.75.1/LICENSE",
+      "sha256": "590198e3f305f2c347fde64d637c65492bbef554db6c8364e149cd375e3797ee",
+      "source": "packaging/notices/grpc-v1.75.1-LICENSE",
+      "source_url": "https://github.com/grpc/grpc/blob/v1.75.1/LICENSE"
+    },
+    "moby-sys-user": {
+      "destination": "postgres-doc/gosu/moby-sys-user-v0.1.0/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "source": "packaging/notices/moby-sys-user-v0.1.0-LICENSE",
+      "source_url": "https://github.com/moby/sys/blob/user/v0.1.0/LICENSE"
+    }
+  },
+  "postgres_gosu_go": {
+    "binary_location": "/usr/local/bin/gosu",
+    "go_compiled_version": "go1.24.6",
+    "image_id": "sha256:8164afa59e26be9f78959e538d6c9da8553d67e601d8ebd0d5e9cbf558c3986e",
+    "image_source": "postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f",
+    "modules": {
+      "github.com/moby/sys/user": {
+        "h1": "h1:WmZ93f5Ux6het5iituh9x2zAG7NFY9Aqi49jjE1PaQg=",
+        "notice": "moby-sys-user",
+        "version": "v0.1.0"
+      },
+      "github.com/tianon/gosu": {
+        "main_module": true,
+        "notice": "gosu",
+        "source_tag": "1.19",
+        "version": "v1.19.0"
+      },
+      "golang.org/x/sys": {
+        "h1": "h1:kunALQeHf1/185U1i0GOB/fy1IPRDDpuoOOqRReG57U=",
+        "notice": "golang-x-sys",
+        "version": "v0.1.0"
+      },
+      "stdlib": {
+        "notice": "go-stdlib",
+        "version": "go1.24.6"
+      }
+    }
+  }
+}

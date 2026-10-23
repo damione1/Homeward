@@ -56,19 +56,14 @@ func run(args []string, out io.Writer) error {
 			hostname = "localhost"
 		}
 		return prepare(packageRoot, credentialRoot, "/existing-postgres", hostname)
-	case "serve":
-		root, err := openPrivate(credentialRoot)
+	case "prepare-observation":
+		return prepareObservation(out)
+	case "serve", "serve-observe-mqtt-readonly":
+		argv, env, err := serveInvocation(args[0], credentialRoot, os.Environ())
 		if err != nil {
 			return errPackage
 		}
-		defer root.Close()
-		password, err := readPrivate(root, "password")
-		if err != nil || len(password) != 64 {
-			return errPackage
-		}
-		env := databaseEnvironment(os.Environ(), string(password))
-		clear(password)
-		return syscall.Exec("/usr/local/bin/homed", []string{"homed", "-config", packageRoot + "/configuration.yaml"}, env)
+		return syscall.Exec("/usr/local/bin/homed", argv, env)
 	case "health":
 		return health(packageRoot+"/data/admin.sock", out)
 	case "tzcheck":
@@ -86,6 +81,30 @@ func run(args []string, out io.Writer) error {
 	default:
 		return errPackage
 	}
+}
+
+// Only the explicit local operator command selects the startup observation
+// guard. Neither configuration nor an environment value can choose this mode.
+func serveInvocation(mode, credentialsPath string, existing []string) ([]string, []string, error) {
+	if mode != "serve" && mode != "serve-observe-mqtt-readonly" {
+		return nil, nil, errPackage
+	}
+	root, err := openPrivate(credentialsPath)
+	if err != nil {
+		return nil, nil, errPackage
+	}
+	defer root.Close()
+	password, err := readPrivate(root, "password")
+	if err != nil || len(password) != 64 {
+		clear(password)
+		return nil, nil, errPackage
+	}
+	defer clear(password)
+	argv := []string{"homed", "-config", packageRoot + "/configuration.yaml"}
+	if mode == "serve-observe-mqtt-readonly" {
+		argv = append(argv, "-observe-mqtt-readonly")
+	}
+	return argv, databaseEnvironment(existing, string(password)), nil
 }
 
 func databaseEnvironment(existing []string, password string) []string {

@@ -1,0 +1,6 @@
+check-for-app-update: false
+golang:
+  search-local-mod-cache-licenses: true
+  local-mod-cache-dir: /Users/damien/go/pkg/mod
+  search-remote-licenses: false
+  use-packages-lib: false
