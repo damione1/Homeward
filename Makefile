@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := check
-.PHONY: check package-server smoke-compose
+.PHONY: check package-server smoke-compose qualify-mvp-software
 
 package-server:
 	python3 scripts/package-server.py
@@ -34,3 +34,9 @@ check:
 	sh scripts/check-generated.sh
 	sh scripts/check-worker-generated.sh
 	python3 scripts/check-matter.py
+
+# PROFILE=preflight is explicitly shorter and never qualifies the required hour.
+PROFILE ?= acceptance
+qualify-mvp-software:
+	test -n "$(PROOF)"
+	HOMEWARD_NHA165_PROFILE="$(PROFILE)" HOMEWARD_NHA165_PROOF="$(PROOF)" go test -v -count=1 -timeout=75m ./internal/server -run '^TestNHA165SoftwareProfile$$'

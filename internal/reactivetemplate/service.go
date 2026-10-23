@@ -48,7 +48,9 @@ type Service struct {
 	done                            chan struct{}
 	mu                              sync.Mutex
 	closed                          bool
-	err                             error
+	err                             error // historical last diagnostic; never cleared by recovery
+	fatalErr                        error // first non-continuity error; bounded and never healed by recapture
+	continuityErr                   error // current stream discontinuity, until a complete successful rebase
 	groupGeneration                 atomic.Uint64
 	publicationGeneration           atomic.Uint64
 }
@@ -118,6 +120,51 @@ func (s *Service) setError(err error) {
 	}
 	s.mu.Lock()
 	s.err = err
+	if s.fatalErr == nil {
+		s.fatalErr = err
+	}
+	s.mu.Unlock()
+}
+
+// UnrecoveredError reports defects still active at shutdown. Error retains the
+// historical last diagnostic, and sequencer loss counters/DiagnosticLoss are
+// unchanged. A repaired bounded replay gap is not a failed shutdown; evaluation,
+// emission, forwarding and actual cancellation failures are never healed here.
+func (s *Service) UnrecoveredError() error {
+	if s == nil {
+		return ErrInvalidPlan
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return errors.Join(s.fatalErr, s.continuityErr)
+}
+func (s *Service) setContinuityError(err error) {
+	if err == nil {
+		return
+	}
+	if !errors.Is(err, sequencer.ErrViewOverflow) && !errors.Is(err, sequencer.ErrCursorExpired) && !errors.Is(err, sequencer.ErrCursorInvalidated) && !errors.Is(err, sequencer.ErrProjectionInvalidated) {
+		s.setError(err)
+		return
+	}
+	s.mu.Lock()
+	s.err = err
+	s.continuityErr = err
+	s.mu.Unlock()
+}
+
+// Called ONLY after engine.rebase has committed the complete capture/suffix/
+// subscription handoff. Partial/failed rebase and failed publication cannot
+// settle the old discontinuity. Publication generations and all existing
+// continuity guards remain in rebase/emit rather than a separate retry path.
+func (s *Service) publishRecovered(updates []Update) {
+	if err := s.emit(updates); err != nil {
+		s.setError(err)
+		return
+	}
+	s.mu.Lock()
+	if !s.closed && s.ctx.Err() == nil {
+		s.continuityErr = nil
+	}
 	s.mu.Unlock()
 }
 func (s *Service) emit(updates []Update) error {
@@ -495,7 +542,7 @@ func (s *Service) run(e *engine) {
 			delivery, wake, err = e.sub.Poll()
 		}
 		if err != nil || (delivery.Kind() == sequencer.DeliveryLoss || (delivery.Kind() == sequencer.DeliveryEntry && !delivery.ReplayValid())) {
-			s.setError(err)
+			s.setContinuityError(err)
 			if e.sub != nil {
 				_ = e.sub.Close()
 				e.sub = nil
@@ -505,12 +552,10 @@ func (s *Service) run(e *engine) {
 			}
 			if changes, rebaseErr := e.rebase(); rebaseErr == nil {
 				e.retryDelay = 0
-				if emitErr := s.emit(changes); emitErr != nil {
-					s.setError(emitErr)
-				}
+				s.publishRecovered(changes)
 				continue
 			} else {
-				s.setError(rebaseErr)
+				s.setContinuityError(rebaseErr)
 				e.armRetry()
 			}
 		}
@@ -523,15 +568,15 @@ func (s *Service) run(e *engine) {
 			if entry.Kind() == sequencer.KindRegistry {
 				changes, rebaseErr := e.rebase()
 				if rebaseErr != nil {
-					s.setError(rebaseErr)
+					s.setContinuityError(rebaseErr)
 					if e.sub != nil {
 						_ = e.sub.Close()
 						e.sub = nil
 					}
 					_ = s.emit(e.degrade(DiagnosticLoss))
 					e.armRetry()
-				} else if emitErr := s.emit(changes); emitErr != nil {
-					s.setError(emitErr)
+				} else {
+					s.publishRecovered(changes)
 				}
 				continue
 			}
@@ -605,13 +650,11 @@ func (s *Service) run(e *engine) {
 			e.retry = nil
 			changes, rebaseErr := e.rebase()
 			if rebaseErr != nil {
-				s.setError(rebaseErr)
+				s.setContinuityError(rebaseErr)
 				e.armRetry()
 			} else {
 				e.retryDelay = 0
-				if emitErr := s.emit(changes); emitErr != nil {
-					s.setError(emitErr)
-				}
+				s.publishRecovered(changes)
 			}
 		case request := <-s.controls:
 			if !e.handleControl(&request) {

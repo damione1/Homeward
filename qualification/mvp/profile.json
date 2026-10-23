@@ -1,0 +1,1624 @@
+{
+  "schema": "homeward.mvp-software-profile/1",
+  "seed": 165,
+  "entities": 850,
+  "scope": "scope.BaselineV1 frozen850 (Ecobee amendment851 is not substituted)",
+  "clients": 10,
+  "sustained": {
+    "observations_per_second": 100,
+    "seconds": 3600
+  },
+  "burst": {
+    "observations_per_second": 1000,
+    "seconds": 60
+  },
+  "expected_observations": 420000,
+  "volatile_commands_per_second": 1,
+  "expected_volatile_commands": 3660,
+  "device_edges_per_second": 1,
+  "reference_fast_client": 0,
+  "clock": "CLOCK_MONOTONIC",
+  "p95_limit_ns": 50000000,
+  "core_rss_limit_bytes": 268435456,
+  "rss_method": "distinct non-race core process, Getrusage(RUSAGE_SELF) high-water + external PID/birth ps1Hz, no GC tuning",
+  "credential_rotation": "native RefreshSession every4min (below unchanged5min serverstream and15min access limits), WatchView resumes from last public cursor, no counter reset; unexpected resync/loss fails",
+  "preflight": {
+    "explicit_env": "HOMEWARD_NHA165_PROFILE=preflight",
+    "sustained_seconds": 10,
+    "burst_seconds": 2,
+    "not_one_hour": true
+  },
+  "physical_outputs": "none; final fake driver is in-memory only, ingressSQL/TLS strictlyloopback",
+  "NHA166": "NOT_PERFORMED",
+  "NHA167": "NOT_PERFORMED",
+  "coverage": {
+    "schema": "nha165-retained-ac1-coverage-matrix-v2",
+    "source_master": "d5a363cc6f699136bb05b679a9fe443e95d4aed3",
+    "source_notes": [
+      "NHA-165 amendement du 22 octobre",
+      "MVP serveur - contrat de livraison amendement confirmé du 22 octobre"
+    ],
+    "indexes": {
+      "test_files_scanned": 1330,
+      "declared_test_functions": 1992,
+      "pass_records_parsed_and_joined": 3811,
+      "logs": {
+        "full055": "/Users/damien/Library/Caches/codex-build/homeward/qualification/nha055/full-0c576-03/nha055/output.log",
+        "full114": "/Users/damien/Library/Caches/codex-build/homeward/qualification/nha114/full-d5a363-02/nha114/output.log",
+        "profile114": "/Users/damien/Library/Caches/codex-build/homeward/qualification/nha114/targeted-d5a363-07/nha114-profile-e2e/output.log"
+      }
+    },
+    "ac1_rows": [
+      {
+        "surface": "core states/actions/registry",
+        "tickets": [
+          {
+            "id": "NHA-147",
+            "status": "done",
+            "pr": 63,
+            "pr_url": "https://github.com/damione1/Homeward/pull/63"
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "contracts/nha147_test.go",
+            "declaration": "TestNHA147DurableAndLiveRemainSeparateAcrossUnknownWireValues"
+          },
+          {
+            "file": "contracts/nha147_test.go",
+            "declaration": "TestNHA147IndeterminateErrorDetailRetainsResponseAndCopy"
+          },
+          {
+            "file": "contracts/nha147_test.go",
+            "declaration": "TestNHA147ViewWireRejectsFutureAndMissingFilter"
+          },
+          {
+            "file": "internal/server/nha147_contract_test.go",
+            "declaration": "TestNHA147ConnectFailurePreservesIndeterminateResponse"
+          },
+          {
+            "file": "internal/server/nha147_contract_test.go",
+            "declaration": "TestNHA147StoredAndLiveUnknownAreNotConflated"
+          },
+          {
+            "file": "internal/server/nha147_contract_test.go",
+            "declaration": "TestNHA147ProgressionRequiresNativeAuthority"
+          },
+          {
+            "file": "internal/server/nha147_run_test.go",
+            "declaration": "TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation"
+          },
+          {
+            "file": "internal/server/nha147_values_test.go",
+            "declaration": "TestNHA147ConnectValuesKeepFalseZeroSolarAbsenceAndPartialSlots"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 1753,
+            "text": "--- PASS: TestNHA147DurableAndLiveRemainSeparateAcrossUnknownWireValues (0.00s)",
+            "test": "TestNHA147DurableAndLiveRemainSeparateAcrossUnknownWireValues"
+          },
+          {
+            "source": "full055",
+            "line": 1755,
+            "text": "--- PASS: TestNHA147IndeterminateErrorDetailRetainsResponseAndCopy (0.00s)",
+            "test": "TestNHA147IndeterminateErrorDetailRetainsResponseAndCopy"
+          },
+          {
+            "source": "full055",
+            "line": 1757,
+            "text": "--- PASS: TestNHA147ViewWireRejectsFutureAndMissingFilter (0.00s)",
+            "test": "TestNHA147ViewWireRejectsFutureAndMissingFilter"
+          },
+          {
+            "source": "full055",
+            "line": 6848,
+            "text": "--- PASS: TestNHA147ConnectFailurePreservesIndeterminateResponse (0.00s)",
+            "test": "TestNHA147ConnectFailurePreservesIndeterminateResponse"
+          },
+          {
+            "source": "full055",
+            "line": 6850,
+            "text": "--- PASS: TestNHA147StoredAndLiveUnknownAreNotConflated (0.00s)",
+            "test": "TestNHA147StoredAndLiveUnknownAreNotConflated"
+          },
+          {
+            "source": "full055",
+            "line": 6852,
+            "text": "--- PASS: TestNHA147ProgressionRequiresNativeAuthority (0.00s)",
+            "test": "TestNHA147ProgressionRequiresNativeAuthority"
+          },
+          {
+            "source": "full055",
+            "line": 6854,
+            "text": "--- PASS: TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation (24.96s)",
+            "test": "TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation"
+          },
+          {
+            "source": "full055",
+            "line": 6856,
+            "text": "--- PASS: TestNHA147ConnectValuesKeepFalseZeroSolarAbsenceAndPartialSlots (0.01s)",
+            "test": "TestNHA147ConnectValuesKeepFalseZeroSolarAbsenceAndPartialSlots"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Couverture de contrat registre/états/actions telle que nommée par les tests; la matrice n’établit pas à elle seule une qualification de charge."
+      },
+      {
+        "surface": "integrations",
+        "tickets": [
+          {
+            "id": "NHA-148",
+            "status": "done",
+            "pr": 66,
+            "pr_url": "https://github.com/damione1/Homeward/pull/66"
+          },
+          {
+            "id": "NHA-077",
+            "status": "done",
+            "pr": null,
+            "pr_url": null
+          },
+          {
+            "id": "NHA-090",
+            "status": "done",
+            "pr": 24,
+            "pr_url": "https://github.com/damione1/Homeward/pull/24"
+          },
+          {
+            "id": "NHA-091",
+            "status": "done",
+            "pr": 13,
+            "pr_url": "https://github.com/damione1/Homeward/pull/13"
+          },
+          {
+            "id": "NHA-136",
+            "status": "done",
+            "pr": 70,
+            "pr_url": "https://github.com/damione1/Homeward/pull/70"
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "contracts/integration_admin_nha148_test.go",
+            "declaration": "TestNHA148GoRustSharedMutationBoundary"
+          },
+          {
+            "file": "contracts/nha077_test.go",
+            "declaration": "TestNHA077FanWireAdmissionPreservesOffAndRejectsAbsence"
+          },
+          {
+            "file": "internal/config/nha090_test.go",
+            "declaration": "TestNHA090HiloConfigurationAdmission"
+          },
+          {
+            "file": "internal/integrations/nha091_test.go",
+            "declaration": "TestNHA091CloudAttemptFenceCountsRetryAndDeniesTransport"
+          },
+          {
+            "file": "contracts/nha136_climate_test.go",
+            "declaration": "TestNHA136ClimateAdditionsPreservePresenceAndAdmission"
+          },
+          {
+            "file": "contracts/integration_admin_nha148_test.go",
+            "declaration": "TestNHA148UnknownNestedWireRemainsDecodableButNotAdmitted"
+          },
+          {
+            "file": "contracts/nha136_climate_test.go",
+            "declaration": "TestNHA136ThresholdAndFanCommandsAreClosed"
+          },
+          {
+            "file": "internal/config/integration_selection_nha148_test.go",
+            "declaration": "TestNHA148DisabledSelectionValidatesAllConfigurationsThenFilters"
+          },
+          {
+            "file": "internal/server/nha090_test.go",
+            "declaration": "TestNHA090RunUnitCatalogKeepsNotificationCountLocal"
+          },
+          {
+            "file": "internal/server/nha090_test.go",
+            "declaration": "TestNHA090ConfiguredRunPublishesPowerThroughHiloLeftAndClosesGap"
+          },
+          {
+            "file": "internal/server/nha091_test.go",
+            "declaration": "TestNHA091ConfiguredRunComposesElevenReadOnlySources"
+          },
+          {
+            "file": "internal/ecobee/nha136_conformance_test.go",
+            "declaration": "TestNHA136RealPilotUsesPublicHostConformance"
+          },
+          {
+            "file": "internal/ecobee/nha136_scheduler_test.go",
+            "declaration": "TestNHA136ComposedPilotPrioritizesDuePollAfterOneCommand"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 1339,
+            "text": "--- PASS: TestNHA148GoRustSharedMutationBoundary (0.00s)",
+            "test": "TestNHA148GoRustSharedMutationBoundary"
+          },
+          {
+            "source": "full055",
+            "line": 1561,
+            "text": "--- PASS: TestNHA077FanWireAdmissionPreservesOffAndRejectsAbsence (0.00s)",
+            "test": "TestNHA077FanWireAdmissionPreservesOffAndRejectsAbsence"
+          },
+          {
+            "source": "full055",
+            "line": 3131,
+            "text": "--- PASS: TestNHA090HiloConfigurationAdmission (0.01s)",
+            "test": "TestNHA090HiloConfigurationAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 4718,
+            "text": "--- PASS: TestNHA091CloudAttemptFenceCountsRetryAndDeniesTransport (1.32s)",
+            "test": "TestNHA091CloudAttemptFenceCountsRetryAndDeniesTransport"
+          },
+          {
+            "source": "full055",
+            "line": 1589,
+            "text": "--- PASS: TestNHA136ClimateAdditionsPreservePresenceAndAdmission (0.00s)",
+            "test": "TestNHA136ClimateAdditionsPreservePresenceAndAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 1341,
+            "text": "--- PASS: TestNHA148UnknownNestedWireRemainsDecodableButNotAdmitted (0.00s)",
+            "test": "TestNHA148UnknownNestedWireRemainsDecodableButNotAdmitted"
+          },
+          {
+            "source": "full055",
+            "line": 1599,
+            "text": "--- PASS: TestNHA136ThresholdAndFanCommandsAreClosed (0.00s)",
+            "test": "TestNHA136ThresholdAndFanCommandsAreClosed"
+          },
+          {
+            "source": "full055",
+            "line": 3107,
+            "text": "--- PASS: TestNHA148DisabledSelectionValidatesAllConfigurationsThenFilters (0.00s)",
+            "test": "TestNHA148DisabledSelectionValidatesAllConfigurationsThenFilters"
+          },
+          {
+            "source": "full055",
+            "line": 6667,
+            "text": "--- PASS: TestNHA090RunUnitCatalogKeepsNotificationCountLocal (0.00s)",
+            "test": "TestNHA090RunUnitCatalogKeepsNotificationCountLocal"
+          },
+          {
+            "source": "full055",
+            "line": 6669,
+            "text": "--- PASS: TestNHA090ConfiguredRunPublishesPowerThroughHiloLeftAndClosesGap (1.52s)",
+            "test": "TestNHA090ConfiguredRunPublishesPowerThroughHiloLeftAndClosesGap"
+          },
+          {
+            "source": "full055",
+            "line": 6673,
+            "text": "--- PASS: TestNHA091ConfiguredRunComposesElevenReadOnlySources (1.28s)",
+            "test": "TestNHA091ConfiguredRunComposesElevenReadOnlySources"
+          },
+          {
+            "source": "full055",
+            "line": 4059,
+            "text": "--- PASS: TestNHA136RealPilotUsesPublicHostConformance (0.33s)",
+            "test": "TestNHA136RealPilotUsesPublicHostConformance"
+          },
+          {
+            "source": "full055",
+            "line": 4106,
+            "text": "--- PASS: TestNHA136ComposedPilotPrioritizesDuePollAfterOneCommand (0.11s)",
+            "test": "TestNHA136ComposedPilotPrioritizesDuePollAfterOneCommand"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Tests des contrats, connecteurs et workers présents; aucune fusion Hilo/Neviweb déduite."
+      },
+      {
+        "surface": "configuration/watch/versions",
+        "tickets": [
+          {
+            "id": "NHA-149",
+            "status": "done",
+            "pr": 61,
+            "pr_url": "https://github.com/damione1/Homeward/pull/61"
+          },
+          {
+            "id": "NHA-150",
+            "status": "done",
+            "pr": 69,
+            "pr_url": "https://github.com/damione1/Homeward/pull/69"
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "contracts/nha149_contract_test.go",
+            "declaration": "TestNHA149ConfigurationGoRustAdmissionParity"
+          },
+          {
+            "file": "contracts/nha150_configuration_diagnostic_test.go",
+            "declaration": "TestNHA150ConfigurationDiagnosticRefusesForeignStaleUnknownAndCleanBindings"
+          },
+          {
+            "file": "contracts/nha149_contract_test.go",
+            "declaration": "TestNHA149ConfigurationRejectsNestedUnknownAndTypedNil"
+          },
+          {
+            "file": "contracts/nha149_contract_test.go",
+            "declaration": "TestNHA149ConfigurationActivationGoRustParity"
+          },
+          {
+            "file": "contracts/nha150_configuration_diagnostic_test.go",
+            "declaration": "TestNHA150UnknownDiagnosticWireStillDecodesWithoutOperationalAdmission"
+          },
+          {
+            "file": "internal/config/nha150_capture_test.go",
+            "declaration": "TestNHA150CaptureRejectsNonregularAndSymlinkWithoutReadingCanary"
+          },
+          {
+            "file": "internal/config/nha150_capture_test.go",
+            "declaration": "TestNHA150CaptureConcurrentReplacementNeverReturnsSymlinkTarget"
+          },
+          {
+            "file": "internal/config/nha150_rejection_test.go",
+            "declaration": "TestNHA150CapturedSemanticRejectionCarriesActualDigestAndRejectsZero"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 1772,
+            "text": "--- PASS: TestNHA149ConfigurationGoRustAdmissionParity (0.00s)",
+            "test": "TestNHA149ConfigurationGoRustAdmissionParity"
+          },
+          {
+            "source": "full055",
+            "line": 1831,
+            "text": "--- PASS: TestNHA150ConfigurationDiagnosticRefusesForeignStaleUnknownAndCleanBindings (0.00s)",
+            "test": "TestNHA150ConfigurationDiagnosticRefusesForeignStaleUnknownAndCleanBindings"
+          },
+          {
+            "source": "full055",
+            "line": 1787,
+            "text": "--- PASS: TestNHA149ConfigurationRejectsNestedUnknownAndTypedNil (0.00s)",
+            "test": "TestNHA149ConfigurationRejectsNestedUnknownAndTypedNil"
+          },
+          {
+            "source": "full055",
+            "line": 1805,
+            "text": "--- PASS: TestNHA149ConfigurationActivationGoRustParity (0.00s)",
+            "test": "TestNHA149ConfigurationActivationGoRustParity"
+          },
+          {
+            "source": "full055",
+            "line": 1841,
+            "text": "--- PASS: TestNHA150UnknownDiagnosticWireStillDecodesWithoutOperationalAdmission (0.00s)",
+            "test": "TestNHA150UnknownDiagnosticWireStillDecodesWithoutOperationalAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 3160,
+            "text": "--- PASS: TestNHA150CaptureRejectsNonregularAndSymlinkWithoutReadingCanary (0.00s)",
+            "test": "TestNHA150CaptureRejectsNonregularAndSymlinkWithoutReadingCanary"
+          },
+          {
+            "source": "full055",
+            "line": 3167,
+            "text": "--- PASS: TestNHA150CaptureConcurrentReplacementNeverReturnsSymlinkTarget (0.02s)",
+            "test": "TestNHA150CaptureConcurrentReplacementNeverReturnsSymlinkTarget"
+          },
+          {
+            "source": "full055",
+            "line": 3172,
+            "text": "--- PASS: TestNHA150CapturedSemanticRejectionCarriesActualDigestAndRejectsZero (0.00s)",
+            "test": "TestNHA150CapturedSemanticRejectionCarriesActualDigestAndRejectsZero"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Tests de contrat et d’admission présents; rattachement runtime full03 reste à effectuer."
+      },
+      {
+        "surface": "authentification, sessions et CLI",
+        "tickets": [
+          {
+            "id": "NHA-140",
+            "status": "done",
+            "pr": 8,
+            "pr_url": "https://github.com/damione1/Homeward/pull/8"
+          },
+          {
+            "id": "NHA-142",
+            "status": "done",
+            "pr": 44,
+            "pr_url": "https://github.com/damione1/Homeward/pull/44"
+          },
+          {
+            "id": "NHA-143",
+            "status": "done",
+            "pr": 71,
+            "pr_url": "https://github.com/damione1/Homeward/pull/71"
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "contracts/nha142_test.go",
+            "declaration": "TestNHA142SessionAuthenticationAdmission"
+          },
+          {
+            "file": "internal/cli/nha143_run_test.go",
+            "declaration": "TestNHA143ActualRunTLSAccountsIntegrationsAndLocalRecovery"
+          },
+          {
+            "file": "contracts/nha142_test.go",
+            "declaration": "TestNHA142SecondFactorPolicyAdmission"
+          },
+          {
+            "file": "contracts/nha142_test.go",
+            "declaration": "TestNHA142PolicyErrorAndUnixResetAdmission"
+          },
+          {
+            "file": "internal/accounts/nha142_test.go",
+            "declaration": "TestNHA142EnrollmentParsingKeepsCanonicalFormAndPurpose"
+          },
+          {
+            "file": "internal/authmfa/nha142_test.go",
+            "declaration": "TestNHA142RecoveryAdmissionBindingAndRedaction"
+          },
+          {
+            "file": "internal/authmfa/nha142_test.go",
+            "declaration": "TestNHA142SlidingBudgetsCopiesAndBoundaries"
+          },
+          {
+            "file": "internal/authmfa/nha142_test.go",
+            "declaration": "TestNHA142CryptoGateCapacityCopiesCancellationAndDrain"
+          },
+          {
+            "file": "internal/accounts/nha049_test.go",
+            "declaration": "TestNHA049PasswordNormalizationBoundsAndVerifier"
+          },
+          {
+            "file": "internal/accounts/nha049_test.go",
+            "declaration": "TestNHA049LoginCasefoldAndAdmission"
+          },
+          {
+            "file": "internal/accounts/nha141_test.go",
+            "declaration": "TestNHA141SessionSecretsAreTypedAndRedacted"
+          },
+          {
+            "file": "qualification/fido2/nha140_test.go",
+            "declaration": "TestNHA172CryptoRoundTripAndTampering"
+          },
+          {
+            "file": "qualification/fido2/nha140_test.go",
+            "declaration": "TestNHA172NativeFailureBranches"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 1626,
+            "text": "--- PASS: TestNHA142SessionAuthenticationAdmission (0.00s)",
+            "test": "TestNHA142SessionAuthenticationAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 3054,
+            "text": "--- PASS: TestNHA143ActualRunTLSAccountsIntegrationsAndLocalRecovery (4.76s)",
+            "test": "TestNHA143ActualRunTLSAccountsIntegrationsAndLocalRecovery"
+          },
+          {
+            "source": "full055",
+            "line": 1654,
+            "text": "--- PASS: TestNHA142SecondFactorPolicyAdmission (0.00s)",
+            "test": "TestNHA142SecondFactorPolicyAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 1665,
+            "text": "--- PASS: TestNHA142PolicyErrorAndUnixResetAdmission (0.00s)",
+            "test": "TestNHA142PolicyErrorAndUnixResetAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 1974,
+            "text": "--- PASS: TestNHA142EnrollmentParsingKeepsCanonicalFormAndPurpose (0.00s)",
+            "test": "TestNHA142EnrollmentParsingKeepsCanonicalFormAndPurpose"
+          },
+          {
+            "source": "full055",
+            "line": 1978,
+            "text": "--- PASS: TestNHA142RecoveryAdmissionBindingAndRedaction (0.00s)",
+            "test": "TestNHA142RecoveryAdmissionBindingAndRedaction"
+          },
+          {
+            "source": "full055",
+            "line": 1980,
+            "text": "--- PASS: TestNHA142SlidingBudgetsCopiesAndBoundaries (0.00s)",
+            "test": "TestNHA142SlidingBudgetsCopiesAndBoundaries"
+          },
+          {
+            "source": "full055",
+            "line": 1982,
+            "text": "--- PASS: TestNHA142CryptoGateCapacityCopiesCancellationAndDrain (0.00s)",
+            "test": "TestNHA142CryptoGateCapacityCopiesCancellationAndDrain"
+          },
+          {
+            "source": "full055",
+            "line": 1966,
+            "text": "--- PASS: TestNHA049PasswordNormalizationBoundsAndVerifier (1.35s)",
+            "test": "TestNHA049PasswordNormalizationBoundsAndVerifier"
+          },
+          {
+            "source": "full055",
+            "line": 1970,
+            "text": "--- PASS: TestNHA049LoginCasefoldAndAdmission (0.00s)",
+            "test": "TestNHA049LoginCasefoldAndAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 1972,
+            "text": "--- PASS: TestNHA141SessionSecretsAreTypedAndRedacted (0.00s)",
+            "test": "TestNHA141SessionSecretsAreTypedAndRedacted"
+          },
+          {
+            "source": "full055",
+            "line": 8281,
+            "text": "--- PASS: TestNHA172CryptoRoundTripAndTampering (0.00s)",
+            "test": "TestNHA172CryptoRoundTripAndTampering"
+          },
+          {
+            "source": "full055",
+            "line": 8294,
+            "text": "--- PASS: TestNHA172NativeFailureBranches (0.00s)",
+            "test": "TestNHA172NativeFailureBranches"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Native password/session/CLI143 retained and tested; backend142 and current qualified FIDO libraries172 remain tested. Ticket140 is historical investigation, whose tests were replaced by requalification172 in qualification/fido2/nha140_test.go; no requirement for obsolete TestNHA140 names. Native FIDO CLI144 is deferred, no hardware proof."
+      },
+      {
+        "surface": "MCP HTTP lecture, simulation, plans",
+        "tickets": [
+          {
+            "id": "NHA-052",
+            "status": "done",
+            "pr": 76,
+            "pr_url": "https://github.com/damione1/Homeward/pull/76"
+          },
+          {
+            "id": "NHA-054",
+            "status": "done",
+            "pr": 80,
+            "pr_url": "https://github.com/damione1/Homeward/pull/80"
+          },
+          {
+            "id": "NHA-055",
+            "status": "done",
+            "pr": 81,
+            "pr_url": "https://github.com/damione1/Homeward/pull/81"
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "internal/config/mcp_reads_test.go",
+            "declaration": "TestNHA052MCPConfigurationIsolation"
+          },
+          {
+            "file": "contracts/nha054_test.go",
+            "declaration": "TestNHA054RequestAdmissionRejectsFutureAndAmbiguousFixtures"
+          },
+          {
+            "file": "compat/ha/parser/nha055_json_source_test.go",
+            "declaration": "TestNHA055JSONSnapshotOwnsExactBytesWithoutOpeningYAMLLoader"
+          },
+          {
+            "file": "contracts/config_apply_oneof_test.go",
+            "declaration": "TestNHA055SourcePreconditionsRejectTypedNilOneofsWithoutPanic"
+          },
+          {
+            "file": "contracts/config_apply_oneof_test.go",
+            "declaration": "TestNHA055OperationalRollbackRefusesIgnoredSourcePreconditions"
+          },
+          {
+            "file": "contracts/nha054_test.go",
+            "declaration": "TestNHA054ReportAdmissionRejectsHardwareClaimsAndFutureVariants"
+          },
+          {
+            "file": "contracts/nha055_configuration_source_kinds_test.go",
+            "declaration": "TestNHA055ConfigurationSourceKindsBinaryReadListSchemas"
+          },
+          {
+            "file": "contracts/nha055_configuration_source_kinds_test.go",
+            "declaration": "TestNHA055ConfigurationSourceKindsRemainClosedWithOptionalObservations"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 3111,
+            "text": "--- PASS: TestNHA052MCPConfigurationIsolation (0.00s)",
+            "test": "TestNHA052MCPConfigurationIsolation"
+          },
+          {
+            "source": "full055",
+            "line": 1441,
+            "text": "--- PASS: TestNHA054RequestAdmissionRejectsFutureAndAmbiguousFixtures (0.00s)",
+            "test": "TestNHA054RequestAdmissionRejectsFutureAndAmbiguousFixtures"
+          },
+          {
+            "source": "full055",
+            "line": 883,
+            "text": "--- PASS: TestNHA055JSONSnapshotOwnsExactBytesWithoutOpeningYAMLLoader (0.00s)",
+            "test": "TestNHA055JSONSnapshotOwnsExactBytesWithoutOpeningYAMLLoader"
+          },
+          {
+            "source": "full055",
+            "line": 1319,
+            "text": "--- PASS: TestNHA055SourcePreconditionsRejectTypedNilOneofsWithoutPanic (0.00s)",
+            "test": "TestNHA055SourcePreconditionsRejectTypedNilOneofsWithoutPanic"
+          },
+          {
+            "source": "full055",
+            "line": 1329,
+            "text": "--- PASS: TestNHA055OperationalRollbackRefusesIgnoredSourcePreconditions (0.00s)",
+            "test": "TestNHA055OperationalRollbackRefusesIgnoredSourcePreconditions"
+          },
+          {
+            "source": "full055",
+            "line": 1443,
+            "text": "--- PASS: TestNHA054ReportAdmissionRejectsHardwareClaimsAndFutureVariants (0.00s)",
+            "test": "TestNHA054ReportAdmissionRejectsHardwareClaimsAndFutureVariants"
+          },
+          {
+            "source": "full055",
+            "line": 1450,
+            "text": "--- PASS: TestNHA055ConfigurationSourceKindsBinaryReadListSchemas (0.00s)",
+            "test": "TestNHA055ConfigurationSourceKindsBinaryReadListSchemas"
+          },
+          {
+            "source": "full055",
+            "line": 1497,
+            "text": "--- PASS: TestNHA055ConfigurationSourceKindsRemainClosedWithOptionalObservations (0.01s)",
+            "test": "TestNHA055ConfigurationSourceKindsRemainClosedWithOptionalObservations"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "MCP retenu limité aux lectures HTTP052; simulation054 et contrats/plans055. MCP exhaustif152/stdio153 reportés."
+      },
+      {
+        "surface": "calendriers et listes locales / CRUD",
+        "tickets": [
+          {
+            "id": "NHA-100",
+            "status": "done",
+            "pr": 34,
+            "pr_url": "https://github.com/damione1/Homeward/pull/34"
+          },
+          {
+            "id": "NHA-101",
+            "status": "done",
+            "pr": 64,
+            "pr_url": "https://github.com/damione1/Homeward/pull/64"
+          },
+          {
+            "id": "NHA-102",
+            "status": "done",
+            "pr": 45,
+            "pr_url": "https://github.com/damione1/Homeward/pull/45"
+          },
+          {
+            "id": "NHA-103",
+            "status": "done",
+            "pr": 46,
+            "pr_url": "https://github.com/damione1/Homeward/pull/46"
+          },
+          {
+            "id": "NHA-162",
+            "status": "done",
+            "pr": 48,
+            "pr_url": "https://github.com/damione1/Homeward/pull/48"
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "internal/calendars/nha100_recurrence_test.go",
+            "declaration": "TestNHA100NormativeProfile"
+          },
+          {
+            "file": "internal/automationtriggers/nha101_calendar_test.go",
+            "declaration": "TestNHA101RemoteDeadlineTerminalAndNoWallExtension"
+          },
+          {
+            "file": "internal/config/nha102_test.go",
+            "declaration": "TestNHA102ConfiguredWorkdayAccepted"
+          },
+          {
+            "file": "internal/authorization/nha103_test.go",
+            "declaration": "TestNHA103OldPolicyHashesStayByteIdentical"
+          },
+          {
+            "file": "internal/lists/nha162_cursor_test.go",
+            "declaration": "TestNHA162CursorTokensSealViewAndExpireAtRestart"
+          },
+          {
+            "file": "internal/authorization/nha103_test.go",
+            "declaration": "TestNHA103ListsPolicyAdmission"
+          },
+          {
+            "file": "internal/authorization/nha103_test.go",
+            "declaration": "TestNHA103ListsSelectionAndProof"
+          },
+          {
+            "file": "internal/automationtriggers/nha101_calendar_test.go",
+            "declaration": "TestNHA101RemoteExpiryAtFireAndEmptyStaleWindow"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 2713,
+            "text": "--- PASS: TestNHA100NormativeProfile (0.00s)",
+            "test": "TestNHA100NormativeProfile"
+          },
+          {
+            "source": "full055",
+            "line": 2456,
+            "text": "--- PASS: TestNHA101RemoteDeadlineTerminalAndNoWallExtension (0.00s)",
+            "test": "TestNHA101RemoteDeadlineTerminalAndNoWallExtension"
+          },
+          {
+            "source": "full055",
+            "line": 3215,
+            "text": "--- PASS: TestNHA102ConfiguredWorkdayAccepted (0.00s)",
+            "test": "TestNHA102ConfiguredWorkdayAccepted"
+          },
+          {
+            "source": "full055",
+            "line": 2066,
+            "text": "--- PASS: TestNHA103OldPolicyHashesStayByteIdentical (0.00s)",
+            "test": "TestNHA103OldPolicyHashesStayByteIdentical"
+          },
+          {
+            "source": "full055",
+            "line": 5086,
+            "text": "--- PASS: TestNHA162CursorTokensSealViewAndExpireAtRestart (0.00s)",
+            "test": "TestNHA162CursorTokensSealViewAndExpireAtRestart"
+          },
+          {
+            "source": "full055",
+            "line": 2070,
+            "text": "--- PASS: TestNHA103ListsPolicyAdmission (0.00s)",
+            "test": "TestNHA103ListsPolicyAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 2072,
+            "text": "--- PASS: TestNHA103ListsSelectionAndProof (0.00s)",
+            "test": "TestNHA103ListsSelectionAndProof"
+          },
+          {
+            "source": "full055",
+            "line": 2458,
+            "text": "--- PASS: TestNHA101RemoteExpiryAtFireAndEmptyStaleWindow (0.00s)",
+            "test": "TestNHA101RemoteExpiryAtFireAndEmptyStaleWindow"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Ne couvre aucune façade calendaire réseau161 reportée; les preuves de tests locaux n’impliquent pas façade réseau."
+      },
+      {
+        "surface": "verticale minimale",
+        "tickets": [
+          {
+            "id": "NHA-114",
+            "status": "in-progress",
+            "pr": null,
+            "pr_url": null
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "internal/mqtt/nha114_confirmation_test.go",
+            "declaration": "TestNHA114CorrelationCodecStrictBoundsAndPresence"
+          },
+          {
+            "file": "internal/mqtt/nha114_confirmation_test.go",
+            "declaration": "TestNHA114CommandMetadataValidationPrecedesTransport"
+          },
+          {
+            "file": "internal/mqtt/nha114_confirmation_test.go",
+            "declaration": "TestNHA114MQTT5ExplicitEchoConfirmsOnlyCurrentDirectState"
+          },
+          {
+            "file": "internal/mqtt/nha114_confirmation_test.go",
+            "declaration": "TestNHA114RetainedEchoCannotConfirm"
+          },
+          {
+            "file": "internal/mqtt/nha114_confirmation_test.go",
+            "declaration": "TestNHA114AvailabilityAndSnapshotsNeverReuseCorrelation"
+          },
+          {
+            "file": "internal/mqtt/nha114_confirmation_test.go",
+            "declaration": "TestNHA114EchoCannotCrossEntityProfileOrSession"
+          },
+          {
+            "file": "internal/mqtt/nha114_confirmation_test.go",
+            "declaration": "TestNHA114SwitchEchoFencedByProfileLifetime"
+          },
+          {
+            "file": "internal/server/nha114_faults_test.go",
+            "declaration": "TestNHA114NetworkAndClientWatchRecoveryNeverRedispatch"
+          },
+          {
+            "file": "internal/server/nha114_faults_test.go",
+            "declaration": "TestNHA114PostStartupPostgresStopAndSameCatalogRecovery"
+          },
+          {
+            "file": "internal/server/nha114_safety_test.go",
+            "declaration": "TestNHA114LifecycleAndUnboundManifestTargetProduceNoCommands"
+          },
+          {
+            "file": "internal/server/nha114_vertical_test.go",
+            "declaration": "TestNHA114ActualRunAuthenticatedVerticalCorrelatedObservationAndTrace"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "profile114",
+            "line": 125,
+            "text": "--- PASS: TestNHA114CorrelationCodecStrictBoundsAndPresence (0.00s)",
+            "test": "TestNHA114CorrelationCodecStrictBoundsAndPresence"
+          },
+          {
+            "source": "profile114",
+            "line": 142,
+            "text": "--- PASS: TestNHA114CommandMetadataValidationPrecedesTransport (0.00s)",
+            "test": "TestNHA114CommandMetadataValidationPrecedesTransport"
+          },
+          {
+            "source": "profile114",
+            "line": 151,
+            "text": "--- PASS: TestNHA114MQTT5ExplicitEchoConfirmsOnlyCurrentDirectState (0.08s)",
+            "test": "TestNHA114MQTT5ExplicitEchoConfirmsOnlyCurrentDirectState"
+          },
+          {
+            "source": "profile114",
+            "line": 160,
+            "text": "--- PASS: TestNHA114RetainedEchoCannotConfirm (0.02s)",
+            "test": "TestNHA114RetainedEchoCannotConfirm"
+          },
+          {
+            "source": "profile114",
+            "line": 162,
+            "text": "--- PASS: TestNHA114AvailabilityAndSnapshotsNeverReuseCorrelation (0.02s)",
+            "test": "TestNHA114AvailabilityAndSnapshotsNeverReuseCorrelation"
+          },
+          {
+            "source": "profile114",
+            "line": 167,
+            "text": "--- PASS: TestNHA114EchoCannotCrossEntityProfileOrSession (0.05s)",
+            "test": "TestNHA114EchoCannotCrossEntityProfileOrSession"
+          },
+          {
+            "source": "profile114",
+            "line": 176,
+            "text": "--- PASS: TestNHA114SwitchEchoFencedByProfileLifetime (0.12s)",
+            "test": "TestNHA114SwitchEchoFencedByProfileLifetime"
+          },
+          {
+            "source": "profile114",
+            "line": 278,
+            "text": "--- PASS: TestNHA114NetworkAndClientWatchRecoveryNeverRedispatch (7.18s)",
+            "test": "TestNHA114NetworkAndClientWatchRecoveryNeverRedispatch"
+          },
+          {
+            "source": "profile114",
+            "line": 281,
+            "text": "--- PASS: TestNHA114PostStartupPostgresStopAndSameCatalogRecovery (3.85s)",
+            "test": "TestNHA114PostStartupPostgresStopAndSameCatalogRecovery"
+          },
+          {
+            "source": "profile114",
+            "line": 283,
+            "text": "--- PASS: TestNHA114LifecycleAndUnboundManifestTargetProduceNoCommands (3.98s)",
+            "test": "TestNHA114LifecycleAndUnboundManifestTargetProduceNoCommands"
+          },
+          {
+            "source": "profile114",
+            "line": 286,
+            "text": "--- PASS: TestNHA114ActualRunAuthenticatedVerticalCorrelatedObservationAndTrace (3.24s)",
+            "test": "TestNHA114ActualRunAuthenticatedVerticalCorrelatedObservationAndTrace"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Preuves provenant du worktree de qualification NHA-114, pas master; source corrigée gelée/non livrée et full03 non revendiqué."
+      },
+      {
+        "surface": "historiques",
+        "tickets": [
+          {
+            "id": "NHA-164",
+            "status": "done",
+            "pr": 60,
+            "pr_url": "https://github.com/damione1/Homeward/pull/60"
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "contracts/nha164_history_test.go",
+            "declaration": "TestNHA164HistoryGoResponseBytesAndEmptyProgress"
+          },
+          {
+            "file": "contracts/nha164_history_test.go",
+            "declaration": "TestNHA164HistoryWireRequestPresenceAndRoundTrip"
+          },
+          {
+            "file": "contracts/nha164_history_test.go",
+            "declaration": "TestNHA164HistoryResponseRequiresScopeAndPresence"
+          },
+          {
+            "file": "internal/authorization/nha164_test.go",
+            "declaration": "TestNHA164HistoryIsEntityReadOnly"
+          },
+          {
+            "file": "internal/historyquery/nha164_test.go",
+            "declaration": "TestNHA164QueryAdmission"
+          },
+          {
+            "file": "internal/historyquery/nha164_test.go",
+            "declaration": "TestNHA164CursorBindingsAndLifetime"
+          },
+          {
+            "file": "internal/sequencer/nha164_history_catalogue_test.go",
+            "declaration": "TestNHA164EntityCatalogueIsNarrowBoundedAndImmutable"
+          },
+          {
+            "file": "internal/server/nha164_composed_memory_test.go",
+            "declaration": "TestNHA164ComposedHistoryOwnerAllocations"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 1843,
+            "text": "--- PASS: TestNHA164HistoryGoResponseBytesAndEmptyProgress (0.00s)",
+            "test": "TestNHA164HistoryGoResponseBytesAndEmptyProgress"
+          },
+          {
+            "source": "full055",
+            "line": 1845,
+            "text": "--- PASS: TestNHA164HistoryWireRequestPresenceAndRoundTrip (0.00s)",
+            "test": "TestNHA164HistoryWireRequestPresenceAndRoundTrip"
+          },
+          {
+            "source": "full055",
+            "line": 1847,
+            "text": "--- PASS: TestNHA164HistoryResponseRequiresScopeAndPresence (0.00s)",
+            "test": "TestNHA164HistoryResponseRequiresScopeAndPresence"
+          },
+          {
+            "source": "full055",
+            "line": 2076,
+            "text": "--- PASS: TestNHA164HistoryIsEntityReadOnly (0.00s)",
+            "test": "TestNHA164HistoryIsEntityReadOnly"
+          },
+          {
+            "source": "full055",
+            "line": 4284,
+            "text": "--- PASS: TestNHA164QueryAdmission (0.00s)",
+            "test": "TestNHA164QueryAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 4286,
+            "text": "--- PASS: TestNHA164CursorBindingsAndLifetime (0.00s)",
+            "test": "TestNHA164CursorBindingsAndLifetime"
+          },
+          {
+            "source": "full055",
+            "line": 5813,
+            "text": "--- PASS: TestNHA164EntityCatalogueIsNarrowBoundedAndImmutable (0.00s)",
+            "test": "TestNHA164EntityCatalogueIsNarrowBoundedAndImmutable"
+          },
+          {
+            "source": "full055",
+            "line": 6990,
+            "text": "--- PASS: TestNHA164ComposedHistoryOwnerAllocations (3.43s)",
+            "test": "TestNHA164ComposedHistoryOwnerAllocations"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Tests protocolaires et runtime rapportés par les lignes listées; seuls les noms exacts cités sont couverts ici."
+      },
+      {
+        "surface": "sauvegarde locale manuelle / restauration",
+        "tickets": [
+          {
+            "id": "NHA-157",
+            "status": "done",
+            "pr": 78,
+            "pr_url": "https://github.com/damione1/Homeward/pull/78"
+          },
+          {
+            "id": "NHA-118",
+            "status": "done",
+            "pr": 79,
+            "pr_url": "https://github.com/damione1/Homeward/pull/79"
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "cmd/homed/nha157_local_backup_test.go",
+            "declaration": "TestNHA157LocalOperatorBackupUsesVerifiedEncryptedProvider"
+          },
+          {
+            "file": "cmd/homed/nha118_local_recovery_test.go",
+            "declaration": "TestNHA118LocalOperatorRestoresDatabaseRegistrySourcesAndIndependentSecrets"
+          },
+          {
+            "file": "cmd/homed/nha157_local_backup_test.go",
+            "declaration": "TestNHA157LocalOperatorRefusesMissingRecoveryDisabledAndForeignProvider"
+          },
+          {
+            "file": "cmd/homed/nha157_local_backup_test.go",
+            "declaration": "TestNHA157LocalOperatorRejectsLostServerKeyWithoutRegenerating"
+          },
+          {
+            "file": "cmd/homed/nha157_local_backup_test.go",
+            "declaration": "TestNHA157LocalOperatorRefusesIncompatibleSchemaWithoutMigration"
+          },
+          {
+            "file": "cmd/homed/nha157_local_backup_test.go",
+            "declaration": "TestNHA157LocalSnapshotRechecksSchemaAfterSuccessfulPreflight"
+          },
+          {
+            "file": "cmd/homed/nha157_local_backup_test.go",
+            "declaration": "TestNHA157LocalOperatorPreservesVerifiedBackupWhenSuccessOutputFails"
+          },
+          {
+            "file": "cmd/homeward-package/nha157_package_backup_test.go",
+            "declaration": "TestNHA157PackageInstallationUsesPrivateCredentialEnvironment"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 43,
+            "text": "--- PASS: TestNHA157LocalOperatorBackupUsesVerifiedEncryptedProvider (1.28s)",
+            "test": "TestNHA157LocalOperatorBackupUsesVerifiedEncryptedProvider"
+          },
+          {
+            "source": "full055",
+            "line": 19,
+            "text": "--- PASS: TestNHA118LocalOperatorRestoresDatabaseRegistrySourcesAndIndependentSecrets (2.42s)",
+            "test": "TestNHA118LocalOperatorRestoresDatabaseRegistrySourcesAndIndependentSecrets"
+          },
+          {
+            "source": "full055",
+            "line": 48,
+            "text": "--- PASS: TestNHA157LocalOperatorRefusesMissingRecoveryDisabledAndForeignProvider (1.06s)",
+            "test": "TestNHA157LocalOperatorRefusesMissingRecoveryDisabledAndForeignProvider"
+          },
+          {
+            "source": "full055",
+            "line": 53,
+            "text": "--- PASS: TestNHA157LocalOperatorRejectsLostServerKeyWithoutRegenerating (1.13s)",
+            "test": "TestNHA157LocalOperatorRejectsLostServerKeyWithoutRegenerating"
+          },
+          {
+            "source": "full055",
+            "line": 55,
+            "text": "--- PASS: TestNHA157LocalOperatorRefusesIncompatibleSchemaWithoutMigration (1.09s)",
+            "test": "TestNHA157LocalOperatorRefusesIncompatibleSchemaWithoutMigration"
+          },
+          {
+            "source": "full055",
+            "line": 57,
+            "text": "--- PASS: TestNHA157LocalSnapshotRechecksSchemaAfterSuccessfulPreflight (1.07s)",
+            "test": "TestNHA157LocalSnapshotRechecksSchemaAfterSuccessfulPreflight"
+          },
+          {
+            "source": "full055",
+            "line": 61,
+            "text": "--- PASS: TestNHA157LocalOperatorPreservesVerifiedBackupWhenSuccessOutputFails (1.52s)",
+            "test": "TestNHA157LocalOperatorPreservesVerifiedBackupWhenSuccessOutputFails"
+          },
+          {
+            "source": "full055",
+            "line": 68,
+            "text": "--- PASS: TestNHA157PackageInstallationUsesPrivateCredentialEnvironment (0.00s)",
+            "test": "TestNHA157PackageInstallationUsesPrivateCredentialEnvironment"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Sauvegarde manuelle locale chiffrée et restauration isolée; scheduler, purge et S3 hors MVP."
+      },
+      {
+        "surface": "worker non-Go",
+        "tickets": [
+          {
+            "id": "NHA-094",
+            "status": "done",
+            "pr": null,
+            "pr_url": null
+          },
+          {
+            "id": "NHA-095",
+            "status": "done",
+            "pr": null,
+            "pr_url": null
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "internal/server/nha094_test.go",
+            "declaration": "TestNHA094RunConfiguredWorkerAndSharedCommandStatePlan"
+          },
+          {
+            "file": "internal/worker/nha095_test.go",
+            "declaration": "TestNHA095WorkerVersionMatrix"
+          },
+          {
+            "file": "internal/worker/nha094_test.go",
+            "declaration": "TestNHA094PythonWorkerTwoBindingsRouterAndCorrelatedState"
+          },
+          {
+            "file": "internal/worker/nha094_test.go",
+            "declaration": "TestNHA094PythonWorkerExactVersionAndFrameLimits"
+          },
+          {
+            "file": "internal/worker/nha094_test.go",
+            "declaration": "TestNHA094PythonWorkerCrashAndHeartbeatLease"
+          },
+          {
+            "file": "internal/worker/nha094_test.go",
+            "declaration": "TestNHA094OrphanChildGroupJoinedWhenParentExitsOnTERM"
+          },
+          {
+            "file": "internal/worker/nha094_test.go",
+            "declaration": "TestNHA094StubbornWorkerTreeKilledWithinStopBudget"
+          },
+          {
+            "file": "internal/worker/nha094_test.go",
+            "declaration": "TestNHA094FullSessionQueueKeepsRouterOutcomeIndeterminate"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 6675,
+            "text": "--- PASS: TestNHA094RunConfiguredWorkerAndSharedCommandStatePlan (1.35s)",
+            "test": "TestNHA094RunConfiguredWorkerAndSharedCommandStatePlan"
+          },
+          {
+            "source": "full055",
+            "line": 7815,
+            "text": "--- PASS: TestNHA095WorkerVersionMatrix (0.82s)",
+            "test": "TestNHA095WorkerVersionMatrix"
+          },
+          {
+            "source": "full055",
+            "line": 7782,
+            "text": "--- PASS: TestNHA094PythonWorkerTwoBindingsRouterAndCorrelatedState (0.14s)",
+            "test": "TestNHA094PythonWorkerTwoBindingsRouterAndCorrelatedState"
+          },
+          {
+            "source": "full055",
+            "line": 7784,
+            "text": "--- PASS: TestNHA094PythonWorkerExactVersionAndFrameLimits (0.27s)",
+            "test": "TestNHA094PythonWorkerExactVersionAndFrameLimits"
+          },
+          {
+            "source": "full055",
+            "line": 7786,
+            "text": "--- PASS: TestNHA094PythonWorkerCrashAndHeartbeatLease (5.14s)",
+            "test": "TestNHA094PythonWorkerCrashAndHeartbeatLease"
+          },
+          {
+            "source": "full055",
+            "line": 7788,
+            "text": "--- PASS: TestNHA094OrphanChildGroupJoinedWhenParentExitsOnTERM (0.13s)",
+            "test": "TestNHA094OrphanChildGroupJoinedWhenParentExitsOnTERM"
+          },
+          {
+            "source": "full055",
+            "line": 7790,
+            "text": "--- PASS: TestNHA094StubbornWorkerTreeKilledWithinStopBudget (1.09s)",
+            "test": "TestNHA094StubbornWorkerTreeKilledWithinStopBudget"
+          },
+          {
+            "source": "full055",
+            "line": 7792,
+            "text": "--- PASS: TestNHA094FullSessionQueueKeepsRouterOutcomeIndeterminate (0.12s)",
+            "test": "TestNHA094FullSessionQueueKeepsRouterOutcomeIndeterminate"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Conformance et comportements du worker; aucune preuve de charge globale."
+      },
+      {
+        "surface": "estimations HVAC / provenance / qualité",
+        "tickets": [
+          {
+            "id": "NHA-107",
+            "status": "done",
+            "pr": 47,
+            "pr_url": "https://github.com/damione1/Homeward/pull/47"
+          },
+          {
+            "id": "NHA-108",
+            "status": "done",
+            "pr": 21,
+            "pr_url": "https://github.com/damione1/Homeward/pull/21"
+          },
+          {
+            "id": "NHA-135",
+            "status": "done",
+            "pr": 72,
+            "pr_url": "https://github.com/damione1/Homeward/pull/72"
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "internal/config/nha107_test.go",
+            "declaration": "TestNHA107DerivedPowerProfileIsClosedAndExplicit"
+          },
+          {
+            "file": "internal/config/nha108_test.go",
+            "declaration": "TestNHA108MVPBindingsRequireExplicitHistoricalUnknowns"
+          },
+          {
+            "file": "internal/config/nha135_test.go",
+            "declaration": "TestNHA135ConfigurationUsesQualifiedAmendmentAndExistingEnergyPair"
+          },
+          {
+            "file": "internal/derivedpower/nha107_test.go",
+            "declaration": "TestNHA107PublisherAdmitsContextAndPublishesEstimatedWattThenAbsence"
+          },
+          {
+            "file": "internal/derivedpower/nha107_test.go",
+            "declaration": "TestNHA107UPSObservedPercentageZeroAndRestoredProvenance"
+          },
+          {
+            "file": "internal/derivedpower/nha107_test.go",
+            "declaration": "TestNHA107UPSIncompatibleUnitAndNonFiniteHostBoundary"
+          },
+          {
+            "file": "internal/derivedpower/nha107_test.go",
+            "declaration": "TestNHA107LegacyFallbacksRemainSeparate"
+          },
+          {
+            "file": "internal/derivedpower/nha107_test.go",
+            "declaration": "TestNHA107ClimateActivityMatrixAndMissingAttribute"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 3139,
+            "text": "--- PASS: TestNHA107DerivedPowerProfileIsClosedAndExplicit (0.00s)",
+            "test": "TestNHA107DerivedPowerProfileIsClosedAndExplicit"
+          },
+          {
+            "source": "full055",
+            "line": 3141,
+            "text": "--- PASS: TestNHA108MVPBindingsRequireExplicitHistoricalUnknowns (0.00s)",
+            "test": "TestNHA108MVPBindingsRequireExplicitHistoricalUnknowns"
+          },
+          {
+            "source": "full055",
+            "line": 3223,
+            "text": "--- PASS: TestNHA135ConfigurationUsesQualifiedAmendmentAndExistingEnergyPair (0.00s)",
+            "test": "TestNHA135ConfigurationUsesQualifiedAmendmentAndExistingEnergyPair"
+          },
+          {
+            "source": "full055",
+            "line": 3904,
+            "text": "--- PASS: TestNHA107PublisherAdmitsContextAndPublishesEstimatedWattThenAbsence (0.00s)",
+            "test": "TestNHA107PublisherAdmitsContextAndPublishesEstimatedWattThenAbsence"
+          },
+          {
+            "source": "full055",
+            "line": 3906,
+            "text": "--- PASS: TestNHA107UPSObservedPercentageZeroAndRestoredProvenance (0.00s)",
+            "test": "TestNHA107UPSObservedPercentageZeroAndRestoredProvenance"
+          },
+          {
+            "source": "full055",
+            "line": 3908,
+            "text": "--- PASS: TestNHA107UPSIncompatibleUnitAndNonFiniteHostBoundary (0.00s)",
+            "test": "TestNHA107UPSIncompatibleUnitAndNonFiniteHostBoundary"
+          },
+          {
+            "source": "full055",
+            "line": 3913,
+            "text": "--- PASS: TestNHA107LegacyFallbacksRemainSeparate (0.00s)",
+            "test": "TestNHA107LegacyFallbacksRemainSeparate"
+          },
+          {
+            "source": "full055",
+            "line": 3920,
+            "text": "--- PASS: TestNHA107ClimateActivityMatrixAndMissingAttribute (0.00s)",
+            "test": "TestNHA107ClimateActivityMatrixAndMissingAttribute"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "NHA-011 conclut au maintien de Hilo et Neviweb comme sources indépendantes; identité physique Neviweb non requise comme gate logiciel."
+      },
+      {
+        "surface": "observabilité, métriques et traces",
+        "tickets": [
+          {
+            "id": "NHA-056",
+            "status": "done",
+            "pr": 53,
+            "pr_url": "https://github.com/damione1/Homeward/pull/53"
+          }
+        ],
+        "existing_tests": [
+          {
+            "file": "cmd/homed/nha056_diagnostics_test.go",
+            "declaration": "TestNHA056HomedActualRunnerExpurgatesAllErrorPaths"
+          },
+          {
+            "file": "contracts/nha056_observability_test.go",
+            "declaration": "TestNHA056WireAdmissionPresenceBoundsAndUnknowns"
+          },
+          {
+            "file": "contracts/nha056_observability_test.go",
+            "declaration": "TestNHA056EveryLogCodeHasAnExplicitSemanticAdmission"
+          },
+          {
+            "file": "contracts/nha056_observability_test.go",
+            "declaration": "TestNHA056WireCounterAndOneofAdmission"
+          },
+          {
+            "file": "contracts/nha056_observability_test.go",
+            "declaration": "TestNHA056ResponsePresenceAndNestedFutureValues"
+          },
+          {
+            "file": "contracts/nha056_observability_test.go",
+            "declaration": "TestNHA056TraceResponseRunAndOrdinalCutAgree"
+          },
+          {
+            "file": "internal/automationruns/nha056_completion_test.go",
+            "declaration": "TestNHA056ActualAutomationPendingPressureCancelsOnce"
+          },
+          {
+            "file": "internal/automationruns/nha056_observability_test.go",
+            "declaration": "TestNHA056RealScriptPendingCancellationSurvivesNativeEviction"
+          }
+        ],
+        "pass_lines": [
+          {
+            "source": "full055",
+            "line": 16,
+            "text": "--- PASS: TestNHA056HomedActualRunnerExpurgatesAllErrorPaths (0.00s)",
+            "test": "TestNHA056HomedActualRunnerExpurgatesAllErrorPaths"
+          },
+          {
+            "source": "full055",
+            "line": 1543,
+            "text": "--- PASS: TestNHA056WireAdmissionPresenceBoundsAndUnknowns (0.00s)",
+            "test": "TestNHA056WireAdmissionPresenceBoundsAndUnknowns"
+          },
+          {
+            "source": "full055",
+            "line": 1545,
+            "text": "--- PASS: TestNHA056EveryLogCodeHasAnExplicitSemanticAdmission (0.01s)",
+            "test": "TestNHA056EveryLogCodeHasAnExplicitSemanticAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 1547,
+            "text": "--- PASS: TestNHA056WireCounterAndOneofAdmission (0.00s)",
+            "test": "TestNHA056WireCounterAndOneofAdmission"
+          },
+          {
+            "source": "full055",
+            "line": 1549,
+            "text": "--- PASS: TestNHA056ResponsePresenceAndNestedFutureValues (0.00s)",
+            "test": "TestNHA056ResponsePresenceAndNestedFutureValues"
+          },
+          {
+            "source": "full055",
+            "line": 1551,
+            "text": "--- PASS: TestNHA056TraceResponseRunAndOrdinalCutAgree (0.00s)",
+            "test": "TestNHA056TraceResponseRunAndOrdinalCutAgree"
+          },
+          {
+            "source": "full055",
+            "line": 2288,
+            "text": "--- PASS: TestNHA056ActualAutomationPendingPressureCancelsOnce (0.00s)",
+            "test": "TestNHA056ActualAutomationPendingPressureCancelsOnce"
+          },
+          {
+            "source": "full055",
+            "line": 2290,
+            "text": "--- PASS: TestNHA056RealScriptPendingCancellationSurvivesNativeEviction (0.05s)",
+            "test": "TestNHA056RealScriptPendingCancellationSurvivesNativeEviction"
+          }
+        ],
+        "coverage_state": "historical PASS evidence found",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Tests de wire/admission et expurgation; seuils de charge restent à mesurer dans NHA-165."
+      },
+      {
+        "surface": "Décision de propriété Hilo/Neviweb",
+        "tickets": [
+          {
+            "id": "NHA-011",
+            "status": "done",
+            "pr": 4,
+            "pr_url": "https://github.com/damione1/Homeward/pull/4"
+          }
+        ],
+        "existing_tests": [],
+        "pass_lines": [],
+        "coverage_state": "decision accepted",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "NHA-011 documente les sources comme indépendantes; cela suffit à l’AC1, aucune fusion/identité physique supplémentaire n’est exigée."
+      },
+      {
+        "surface": "FIDO2 natif CLI144",
+        "tickets": [
+          {
+            "id": "NHA-144",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          }
+        ],
+        "existing_tests": [],
+        "pass_lines": [],
+        "coverage_state": "explicitly deferred",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Reporté après MVP; NHA-142 backend conservé."
+      },
+      {
+        "surface": "Vidéo",
+        "tickets": [
+          {
+            "id": "NHA-160",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          },
+          {
+            "id": "NHA-131",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          }
+        ],
+        "existing_tests": [],
+        "pass_lines": [],
+        "coverage_state": "explicitly deferred",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Reporté après MVP; aucun succès revendiqué."
+      },
+      {
+        "surface": "Façades MCP exhaustif/stdio, dashboards réseau multiples, calendrier distant, logique complète, ciblage dynamique et import17",
+        "tickets": [
+          {
+            "id": "NHA-152",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          },
+          {
+            "id": "NHA-153",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          },
+          {
+            "id": "NHA-159",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          },
+          {
+            "id": "NHA-161",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          },
+          {
+            "id": "NHA-163",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          },
+          {
+            "id": "NHA-048",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          },
+          {
+            "id": "NHA-115",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          }
+        ],
+        "existing_tests": [],
+        "pass_lines": [],
+        "coverage_state": "explicitly deferred",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Reportés/hors MVP; primitives locales ne constituent pas la livraison des façades."
+      },
+      {
+        "surface": "Scheduler/purge/S3 backup",
+        "tickets": [
+          {
+            "id": "NHA-157",
+            "status": "done",
+            "pr": 78,
+            "pr_url": "https://github.com/damione1/Homeward/pull/78"
+          }
+        ],
+        "existing_tests": [],
+        "pass_lines": [],
+        "coverage_state": "explicitly deferred",
+        "open_ticket_test_evidence": [],
+        "scope_limit": "Scheduler, purge et S3 reportés; seules sauvegarde manuelle locale et restauration isolée sont retenues."
+      },
+      {
+        "surface": "Budgets/AC2-AC6 NHA-165",
+        "tickets": [
+          {
+            "id": "NHA-165",
+            "status": "blocked",
+            "pr": null,
+            "pr_url": null
+          }
+        ],
+        "existing_tests": [],
+        "pass_lines": [],
+        "coverage_state": "not yet qualified",
+        "open_ticket_test_evidence": [
+          "NHA-165"
+        ],
+        "scope_limit": "850 entités, 10 clients, 1h à 100 obs/s, burst 1000/s pendant 60s, p95≤50ms, RSS≤256MiB et scénarios de fautes restent à implémenter/mesurer après114. Aucun PASS full03 ni verdict165 PASS."
+      }
+    ],
+    "nha114_provenance": {
+      "worktree": "/Users/damien/Projects/Homeward-wt/nha114-e2e-qualification",
+      "source_sha": "e05e9cd76887913da582f79a636dd839a1daa539824f2c11bbd6c42e97c093f8",
+      "status": "gelé/non livré; preuve targeted, full03 actif sans PASS revendiqué"
+    },
+    "counts": {
+      "rows": 18,
+      "rows_with_exact_pass": 12,
+      "rows_open_or_partial": 1,
+      "explicitly_deferred": 4
+    },
+    "root_review": {
+      "all_paths_declarations_and_log_lines_independently_verified": true,
+      "old140_named_test_gap_resolved_by_actual172_requalification": true,
+      "added_native_password_sessions_and_operational_integration_witnesses": true,
+      "current_full03": "IN_PROGRESS_NOT_CLAIMED",
+      "load165": "NOT_IMPLEMENTED_OR_QUALIFIED"
+    }
+  },
+  "runtime_base": "0f43e54cd30ce4fc3d4fff998a5cadc0e890480c",
+  "coverage_note": "Historical exact proof links remain labelled by their tested revision. Qualification165 requires its own final make check and acceptance profile; matrix presence alone is not a gate verdict.",
+  "process_go_soft_memory_limit_bytes": 167772160,
+  "memory_policy": "Permanent homed process-owner startup: processbudget.ConfigureServer sets min(current operator limit,160MiB). Go-managed Sys-HeapReleased soft limit, not a RSS guarantee; total core high-water RSS still must be≤256MiB. GOGC default, no forcedGC, noKDF/worker-cost change."
+}

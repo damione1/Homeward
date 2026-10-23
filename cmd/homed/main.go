@@ -7,10 +7,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/damione1/Homeward/internal/processbudget"
 	"github.com/damione1/Homeward/internal/server"
 )
 
 func main() {
+	processbudget.ConfigureServer()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	var listener net.ListenConfig
 	code := runHomed(ctx, os.Args[1:], os.Stdout, os.Stderr, homedDependencies{read: os.ReadFile, runStartup: server.RunWithStartup, listen: listener.Listen})

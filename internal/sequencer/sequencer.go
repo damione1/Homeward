@@ -195,6 +195,7 @@ type Sequencer struct {
 	lastTick                 time.Duration
 	epoch                    [16]byte
 	seq                      uint64
+	catalogueSequence        uint64
 	journal                  []Entry
 	journalSizes             []int
 	journalBytes             int
@@ -295,6 +296,9 @@ func (s *Sequencer) append(entry Entry) Entry {
 	}
 	s.lastTick = tick
 	s.seq++
+	if entry.kind == KindRegistry || entry.kind == KindCapabilities {
+		s.catalogueSequence = s.seq
+	}
 	entry.cursor = Cursor{epoch: s.epoch, seq: s.seq}
 	entry.admittedTick = tick
 	index := (s.seq - 1) % uint64(len(s.journal))

@@ -229,7 +229,6 @@ func TestNHA186RunPersistsProducerManifestAcrossReopenWithoutReplay(t *testing.T
 	stampA := nha186ServerStamp(t, 11, 1)
 	stampB := nha186ServerStamp(t, 12, 2)
 	lights := &nha186Lights{driver: &nha042ServerDriver{observer: environment.driverObserver, entered: make(chan struct{}), release: make(chan struct{})}, ready: make(chan struct{})}
-	lights.driver.unblock()
 	const secret = "NHA186_VALUE_MUST_NEVER_ENTER_HISTORY"
 	child := "- stop: done\n"
 	parentBody := nha042ServerCommand + "- action: script.nha042_child\n- action: script.turn_on\n  target: {entity_id: script.nha042_child}\n- action: scene.turn_on\n  target: {entity_id: scene.kitchen_cosy_mode}\n  data: {}\n"
@@ -279,7 +278,9 @@ func TestNHA186RunPersistsProducerManifestAcrossReopenWithoutReplay(t *testing.T
 		plan.AutomationRuns.plan = image
 		plan.AutomationRuns.scripts.input.Plan = image
 	}})
+	t.Cleanup(lights.driver.unblock)
 	rig.run.waitReady(t)
+	nha034WaitSignal(t, rig.pilot.ready, "manifest switch pilot publication")
 	nha034WaitSignal(t, lights.ready, "three simulated scene lamps")
 	rig.composition.mu.Lock()
 	controller, interpreter := rig.composition.runtime, rig.composition.scripts.interpreter
@@ -325,11 +326,55 @@ func TestNHA186RunPersistsProducerManifestAcrossReopenWithoutReplay(t *testing.T
 			t.Fatalf("scene fixture member=%v code=%v reason=%s", member.Alias(), member.Code(), member.Reason())
 		}
 	}
+	// This AC1 manifest requires every non-native observation. The native
+	// TryLock loss contract remains exercised by the pressure/late-close tests.
+	// Hold the real writer in SQL, where it has released the admission mutex;
+	// the existing pure probe opens a batch without adding command/scene rows.
+	tx, err := environment.observer.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.Background())
+	var cutoff time.Time
+	if err := tx.QueryRow(context.Background(), `SELECT retention_cutoff FROM public.execution_history_head WHERE singleton=true FOR UPDATE`).Scan(&cutoff); err != nil {
+		t.Fatal(err)
+	}
+	nha042ServerProbe(t, rig)
+	var writerPID int
+	var writerQueryStart time.Time
+	nha042ServerWait(t, "manifest writer blocked outside admission mutex", func() bool {
+		err := environment.driverObserver.QueryRow(context.Background(), `SELECT pid,query_start FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%execution_history_head%' ORDER BY pid LIMIT 1`).Scan(&writerPID, &writerQueryStart)
+		return err == nil
+	})
 	rig.pilot.emit(t, "nha042_start")
+	// The detached child must finish before the scene's first member returns.
+	// Otherwise its native terminal callback can legitimately contend with a
+	// mandatory non-native scene observation, independently of the writer.
+	nha034WaitSignal(t, lights.driver.entered, "manifest first scene member")
+	nha042ServerWait(t, "both actual child occurrences terminal", func() bool {
+		traces, _ := rig.composition.Traces()
+		finished := 0
+		for _, trace := range traces {
+			if id, _ := trace.Script.Value(); id == "script.nha042_child" && trace.Decision == automationruns.DecisionFinished {
+				finished++
+			}
+		}
+		return finished == 2
+	})
+	lights.driver.unblock()
 	nha042ServerWait(t, "image A scene terminal", func() bool {
 		traces, _ := rig.composition.Traces()
 		for _, trace := range traces {
 			if id, _ := trace.Script.Value(); id == "script.nha042_parent" && trace.Decision == automationruns.DecisionFinished {
+				return true
+			}
+		}
+		return false
+	})
+	nha042ServerWait(t, "image A enclosing automation terminal", func() bool {
+		traces, _ := rig.composition.Traces()
+		for _, trace := range traces {
+			if trace.Automation == "nha042_server" && trace.Decision == automationruns.DecisionFinished {
 				return true
 			}
 		}
@@ -380,6 +425,19 @@ func TestNHA186RunPersistsProducerManifestAcrossReopenWithoutReplay(t *testing.T
 		t.Fatal(err)
 	}
 	if _, err := service.ApplyPreparedWithHistory(sending, prepared, scenes.HistoryCause{Run: automationruns.HistoryRunRef{Provenance: stampB}}); err != nil {
+		t.Fatal(err)
+	}
+	// Prove the SAME SQL attempt spanned every mandatory producer emission.
+	// A timeout/retry would invalidate the fixture's exclusion of worker
+	// contention, so fail explicitly rather than retry or tolerate a lost row.
+	var sameAttempt bool
+	if err := environment.driverObserver.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND query_start=$2 AND wait_event_type='Lock' AND query LIKE '%execution_history_head%')`, writerPID, writerQueryStart).Scan(&sameAttempt); err != nil {
+		t.Fatal(err)
+	}
+	if !sameAttempt {
+		t.Fatal("manifest producer barrier expired: writer left its observed SQL attempt")
+	}
+	if err := tx.Rollback(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	rig.run.cancel()
@@ -455,7 +513,7 @@ func TestNHA186RunPersistsProducerManifestAcrossReopenWithoutReplay(t *testing.T
 		}
 	}
 	if commands != 1 || links[1] != 2 || links[2] != 1 || members != 4 || aggregates != 2 || technical != 2 {
-		t.Fatalf("manifest command=%d links=%v members=%d invocations=%d B=%d", commands, links, members, aggregates, technical)
+		t.Fatalf("manifest command=%d links=%v members=%d invocations=%d B=%d losses=%+v", commands, links, members, aggregates, technical, losses)
 	}
 
 	// Every admitted non-native emission above is mandatory. Native callbacks

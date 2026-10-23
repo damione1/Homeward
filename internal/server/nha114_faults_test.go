@@ -97,6 +97,7 @@ func (p *nha114TCPFault) resume() { p.blocked.Store(false) }
 
 func (f *nha114Fixture) reconnectMQTT(t *testing.T) {
 	t.Helper()
+	previousSession := f.waitNativeBindingSession(t, "")
 	old, ok := f.broker.Server.Clients.Get(f.clientID)
 	if !ok {
 		t.Fatal("actual pilot connection absent")
@@ -115,6 +116,10 @@ func (f *nha114Fixture) reconnectMQTT(t *testing.T) {
 		next, ok := f.broker.Server.Clients.Get(f.clientID)
 		return ok && next != old && !next.Closed() && next.State.Subscriptions.Len() > 0 && next.Properties.Clean && next.Properties.Props.SessionExpiryInterval == 0
 	})
+	// Broker readiness precedes retained discovery/state replay. Require all
+	// ten native publications from the NEW actual session before resnapshot;
+	// old-session state or a partially rebuilt grant cannot satisfy this cut.
+	f.waitNativeBindingSession(t, previousSession)
 	f.waitBindings(t)
 }
 
