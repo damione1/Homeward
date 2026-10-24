@@ -1,0 +1,28 @@
+import { KitTheme } from "@kit/kit.slint";
+
+// Product skin only. The base kit's themes remain independent.
+export global HomewardSkin {
+    public pure function theme(dark: bool, opaque: bool, scale: float, reduced: bool) -> KitTheme {
+        return {
+            canvas: dark ? #111216 : #f2f3f6,
+            surface: dark ? (opaque ? #202126 : #202126ee) : (opaque ? #ffffff : #ffffffee),
+            surface-raised: dark ? #292b32 : #ffffff,
+            text-primary: dark ? #f5f6f8 : #191b21,
+            text-secondary: dark ? #b9bdc8 : #555b68,
+            accent: dark ? #f5f6f8 : #191b21,
+            on-accent: dark ? #191b21 : #ffffff,
+            danger: dark ? #ff9b9b : #b42332,
+            success: dark ? #93dbb3 : #236849,
+            warning: dark ? #f6d285 : #825a0b,
+            border-subtle: dark ? #454852 : #d1d4dc,
+            focus-ring: dark ? #a9bcff : #3659c9,
+            hover: dark ? #34363f : #e7e9ef,
+            pressed: dark ? #424550 : #d9dce6,
+            disabled-fill: dark ? #292b32 : #e6e8ed,
+            disabled-text: dark ? #a1a5b0 : #696f7c,
+            scrim: #090b1370,
+            reduced-motion: reduced,
+            text-scale: scale
+        };
+    }
+}

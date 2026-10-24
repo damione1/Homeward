@@ -3,6 +3,9 @@
 slint::include_modules!();
 
 mod cache_view;
+mod dashboard;
+mod navigation;
+mod preferences;
 mod profile;
 mod session_host;
 

@@ -3,6 +3,7 @@
 use crate::{
     AlertSeverity, HomewardWindow, ProAccessStage,
     cache_view::{self, CacheProjection},
+    preferences::Preferences,
     profile::{ProfileFailure, TrustedEndpoint},
 };
 use home_client_cache::{
@@ -12,10 +13,9 @@ use home_client_session::{
     CredentialKey, Phase, SecureStore, ServerRevocation, SessionCoordinator, SessionView,
     StoreFailure,
 };
-use slint::{ComponentHandle, Model, ModelRc};
+use slint::{ComponentHandle, Model};
 use std::{
     path::PathBuf,
-    rc::Rc,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -242,6 +242,8 @@ struct Ui {
     epoch: Arc<AtomicU64>,
     cache_handle: Arc<Mutex<Option<CacheBinding>>>,
     read_intent: Arc<Mutex<ReadIntent>>,
+    projection_request: crate::dashboard::SharedRequest,
+    viewport: watch::Sender<Viewport>,
 }
 impl Ui {
     fn invalidate_cache(&self) {
@@ -494,11 +496,18 @@ async fn install_profile(
         cache_view::clear(&window);
     });
     let cache_target = ui.projection_target(epoch);
+    let presentation = ui.projection_request.clone();
     let (cache, mut events) = CacheOwner::start(
         owner.clone(),
         connection.state(),
         Filter::all(),
-        cache_view::project,
+        move |phase, view, viewport| {
+            let request = presentation
+                .lock()
+                .expect("presentation request mutex poisoned")
+                .clone();
+            cache_view::project_request(phase, view, viewport, &request)
+        },
         move |ticket| cache_target.post(ticket),
     );
     let cache_handle = cache.handle();
@@ -589,6 +598,7 @@ async fn worker(
     services: NativeServices,
     ui: Ui,
     mut viewport: watch::Receiver<Viewport>,
+    mut preferences: watch::Receiver<Preferences>,
     bridge: LifecycleBridge,
 ) {
     let mut lifecycle = bridge.events.subscribe();
@@ -657,6 +667,22 @@ async fn worker(
                 let visible = *viewport.borrow_and_update();
                 if let Some(profile) = &profile { let _ = profile.cache.handle().viewport(visible); }
             },
+            changed = preferences.changed() => {
+                if changed.is_err() { break; }
+                let value = *preferences.borrow_and_update();
+                let saved = services.directory().ok().is_some_and(|directory| value.save(&directory).is_ok());
+                let window = ui.window.clone();
+                let _ = window.upgrade_in_event_loop(move |window| {
+                    // An older save cannot acknowledge a more recent edit.
+                    if Preferences::current(&window) == value {
+                        window.set_preferences_status(if saved {
+                            "Préférences enregistrées sur cet appareil."
+                        } else {
+                            "Ces préférences sont actives, mais leur enregistrement a échoué."
+                        }.into());
+                    }
+                });
+            },
             changed = lifecycle.changed() => {
                 if changed.is_err() { break; }
                 let state = *lifecycle.borrow_and_update();
@@ -683,6 +709,11 @@ async fn worker(
             },
         }
     }
+    if preferences.has_changed().unwrap_or(false)
+        && let Ok(directory) = services.directory()
+    {
+        let _ = preferences.borrow_and_update().save(&directory);
+    }
     close_profile(&mut profile, &mut tasks, &ui).await;
 }
 
@@ -702,6 +733,27 @@ pub(crate) fn run_with_lifecycle(
             slint::PlatformError::Other("Le moteur de connexion n’a pas pu démarrer.".into())
         })?;
     let window = HomewardWindow::new()?;
+    let initial_preferences = match services.directory() {
+        Ok(directory) => match Preferences::load(&directory) {
+            Ok(value) => value,
+            Err(_) => {
+                window.set_preferences_status(
+                    "Les préférences enregistrées n’ont pas pu être chargées.".into(),
+                );
+                Preferences::default()
+            }
+        },
+        Err(_) => Preferences::default(),
+    };
+    initial_preferences.apply(&window);
+    let (preferences_tx, preferences) = watch::channel(initial_preferences);
+    let preferences_window = window.as_weak();
+    window.on_preferences_changed(move |dark, opaque, large, reduced| {
+        preferences_tx.send_replace(Preferences::from_ui(dark, opaque, large, reduced));
+        if let Some(window) = preferences_window.upgrade() {
+            window.set_preferences_status("Enregistrement…".into());
+        }
+    });
     *lifecycle
         .window
         .lock()
@@ -723,15 +775,45 @@ pub(crate) fn run_with_lifecycle(
             EventResult::Propagate
         });
     }
-    window.set_cache_rows(ModelRc::from(Rc::new(cache_view::CacheRows::default())));
+    cache_view::bind(&window);
+    let (viewport_tx, viewport) = watch::channel(Viewport::default());
     let ui = Ui {
         window: window.as_weak(),
         epoch: Arc::new(AtomicU64::new(0)),
         cache_handle: lifecycle.cache_handle.clone(),
         read_intent: lifecycle.read_intent.clone(),
+        projection_request: Arc::new(Mutex::new(crate::dashboard::ProjectionRequest::default())),
+        viewport: viewport_tx.clone(),
     };
     let (sender, input) = mpsc::channel(16);
-    let (viewport_tx, viewport) = watch::channel(Viewport::default());
+    let presentation_ui = ui.clone();
+    crate::navigation::bind(&window, ui.projection_request.clone(), move || {
+        let binding = presentation_ui
+            .cache_handle
+            .lock()
+            .expect("UI cache handle mutex poisoned")
+            .clone();
+        if let Some(binding) = binding
+            && binding.epoch.0 == presentation_ui.epoch.load(Ordering::SeqCst)
+        {
+            let _ = binding.handle.viewport(*presentation_ui.viewport.borrow());
+        }
+    });
+    let clock_window = window.as_weak();
+    let clock = slint::Timer::default();
+    let update_clock = move || {
+        if let Some(window) = clock_window.upgrade() {
+            let now = chrono::Local::now();
+            window.set_local_clock(now.format("%H:%M").to_string().into());
+            window.set_local_date(now.format("%d/%m/%Y").to_string().into());
+        }
+    };
+    update_clock();
+    clock.start(
+        slint::TimerMode::Repeated,
+        Duration::from_secs(30),
+        update_clock,
+    );
     let visible = viewport_tx.clone();
     window.on_cache_viewport(move |first, count| {
         let first = (first.max(0) as usize)
@@ -777,6 +859,7 @@ pub(crate) fn run_with_lifecycle(
         services,
         ui.clone(),
         viewport,
+        preferences,
         lifecycle.clone(),
     ));
     let (configure_sender, configure_ui) = (sender.clone(), ui.clone());
@@ -827,6 +910,9 @@ pub(crate) fn run_with_lifecycle(
                     window.set_message("Réessayez dans un instant.".into());
                 } else if requesting_read {
                     ui.request_view(epoch);
+                    // Move focus as part of this admitted user intention. A
+                    // later data publication must not steal a newer focus.
+                    window.invoke_take_shell_focus(crate::ProShellFocus::Workspace);
                 }
             }
         }
@@ -920,6 +1006,10 @@ mod tests {
             epoch: Arc::new(AtomicU64::new(epoch.0)),
             cache_handle: bridge.cache_handle.clone(),
             read_intent: bridge.read_intent.clone(),
+            projection_request: Arc::new(
+                Mutex::new(crate::dashboard::ProjectionRequest::default()),
+            ),
+            viewport: watch::channel(Viewport::default()).0,
         };
         ui.request_view(epoch);
 
@@ -1001,6 +1091,10 @@ mod tests {
             epoch: Arc::new(AtomicU64::new(0)),
             cache_handle: Arc::new(Mutex::new(None)),
             read_intent: Arc::new(Mutex::new(ReadIntent::NotRequested)),
+            projection_request: Arc::new(
+                Mutex::new(crate::dashboard::ProjectionRequest::default()),
+            ),
+            viewport: watch::channel(Viewport::default()).0,
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));
