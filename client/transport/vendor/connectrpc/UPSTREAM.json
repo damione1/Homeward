@@ -1,0 +1,41 @@
+{
+  "crate": "connectrpc",
+  "version": "0.9.1",
+  "registry": "crates.io",
+  "repository": "https://github.com/connectrpc/connect-rust",
+  "upstream_files_sha256": {
+    "Cargo.toml": "b2ec6d77e066d14322956d758fc752fb11f1bbe938adcfe8b14dc0a5fff6b98f",
+    "LICENSE": "92e0eef0e85ca064780b61c10ef6e38222cf3df6f15136f3975cd3645cb76f15",
+    "Cargo.lock": "8ea2655b1180f90b76fbafa0539bf67e713bbbf8a46c216a1f84276401eaf28f",
+    "README.md": "584a19365f4eadc9d179c0b322dc160baa1da7677f94b322001eff49b3e8aa1b",
+    ".cargo_vcs_info.json": "006da9ae7f4474896844e779dd8df68304336fd1ec14a07f08e85eac42106c2f",
+    "Cargo.toml.orig": "12c34f41ea6dbf94fa32834cba199b2847fd6673da7870d3a89fe5f3a933f619",
+    "src/response.rs": "5dcba4499ae2a6da267cbf9c22e60b2fd765c528c9defeeefef220f4db994dc3",
+    "src/spec.rs": "9520b5da81b416edf5f5ea83233a15f090469cf21179b44a983005e41acc0fda",
+    "src/request.rs": "4d329c9b899bf4bdfa10d2437554b2b9e79cdaad67179267b62b6e418bde8548",
+    "src/compression.rs": "018c0bde8591a549a894aa125b467b9c3d4923c4d859db965bf687813b6a619a",
+    "src/protocol.rs": "6e2096b7d061494ce4853239bbea4d1d7fc04f4400b8b3130aedc3760e290271",
+    "src/error.rs": "115e0e40537cf736b313dd2db94a961bae2afd04f2d6b21c5942ba58f63093ee",
+    "src/handler.rs": "862d496467188ac0b5882cc9d7742d5bb86b7d60d3c32452b918eb7df505f64c",
+    "src/lib.rs": "b459020c320c9f15994944a6a85466a867af6a772deb9abe370b153d2609264c",
+    "src/axum.rs": "3f61d1721d259b47bbb3d04b42bbdf1ebbffd71de2dbdde110a0064adc57d66e",
+    "src/dispatcher.rs": "0d5914b604a8c66c586c44c6d968d5c815fa16e7cee521b9b61deaf3cafa6644",
+    "src/server.rs": "127759b1f599af4f92c9ebf4ecc1328d6b0340801046b032f6e40c3196b104cc",
+    "src/service.rs": "e3fa4613ad00255d8af247942239e868e410e01666883855fafc52de8da4351d",
+    "src/stream_message.rs": "17010f1b6e7461031635a963af59ba2bbf8db562eb67ae68757c89eb7ab30b1f",
+    "src/grpc_status.rs": "20d8d454cbf6e5423ecc89506cf1ec3d04a7a9395610b7556aff15d809cf7cd6",
+    "src/envelope.rs": "d5fe1c0553d21ccc227d012a833c565939d7d2a25029b8a3c361283a57511c33",
+    "src/deadline.rs": "52e8c1d7af6d4422b487c282ac78b890274791d502d9ff60f3026c85f7daee53",
+    "src/router.rs": "1d0f678d45d9aeb3afffd04819e7c6a2a6763be88049ac1e37b48cba6d095c6c",
+    "src/test_budget.rs": "c21db38b67ad4bc1d0fef8682fa2ec06f535a92d919d28edc9b5f50de8d44a07",
+    "src/codec.rs": "403a4a401b4e02046c1413bc43c3ce0e3f0633b8df1a62b737996510e2126ecd",
+    "src/interceptor.rs": "87a9d403ecab768d763186d73c137e139d858a79cbca05b11d8cb038ac96ff0d",
+    "src/payload.rs": "a67da950632626a7b62e2824da7a5c70a91fa26884bc0242e784ca765e074b96",
+    "src/client/http2.rs": "2cfee0ad15018430ec4e6ce1ebc0a70155197c2808fb79de2637b242301672c1",
+    "src/client/mod.rs": "37b0e86f7e8e8a8aa7579e087e80d67b00669933dd2452b27a849dcd6d21c36e"
+  },
+  "local_changes": [
+    "Cargo.toml: publish=false",
+    "src/client/mod.rs: local-only ResponseBodyReadError source marker on response-body I/O failure"
+  ]
+}

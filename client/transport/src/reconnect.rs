@@ -1,10 +1,9 @@
 use std::time::Duration;
 
-use connectrpc::ErrorCode;
 use home_wire_contract::home::state::v1 as state;
 use tokio_util::sync::CancellationToken;
 
-use crate::{AccessToken, Failure, FailureKind, StateTransport, StateWatch};
+use crate::{AccessToken, Failure, StateTransport, StateWatch};
 
 /// Finite read-only reconnect budget. The cache owns the last applied cursor;
 /// this policy never advances it or retries a command/session refresh.
@@ -87,10 +86,7 @@ impl StateTransport {
 }
 
 fn retryable(error: &Failure) -> bool {
-    matches!(
-        error.kind(),
-        FailureKind::Deadline | FailureKind::Rpc(ErrorCode::Unavailable)
-    ) && matches!(error.authorization_termination(), Ok(None))
+    error.may_resume_read()
 }
 
 #[cfg(test)]
@@ -116,5 +112,20 @@ mod tests {
         assert!(!retryable(&Failure::from(ConnectError::unauthenticated(
             "expired"
         ))));
+        assert!(!retryable(&Failure::from(ConnectError::internal(
+            "connection reset"
+        ))));
+        assert!(retryable(&Failure::from(
+            ConnectError::internal("body I/O")
+                .with_source(connectrpc::client::ResponseBodyReadError)
+        )));
+        let terminated = ConnectError::internal("body I/O")
+            .with_source(connectrpc::client::ResponseBodyReadError)
+            .with_detail(ErrorDetail {
+                type_url: AuthorizationTermination::TYPE_URL.into(),
+                value: Some("%%%".into()),
+                debug: None,
+            });
+        assert!(!retryable(&Failure::from(terminated)));
     }
 }
