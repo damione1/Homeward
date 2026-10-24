@@ -16,10 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/damione1/Homeward/contracts"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
 	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/configactivation"
@@ -76,6 +74,10 @@ func TestNHF004CacheServer(t *testing.T) {
 	if !filepath.IsAbs(out) {
 		t.Fatal("fresh absolute private directory required")
 	}
+	uiProfile, err := parseNHF005UIProfile(os.Getenv("HOMEWARD_FRONTEND_UI_PROFILE"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	appMode := false
 	if input := os.Getenv("HOMEWARD_NHF004_APP"); input != "" {
 		var err error
@@ -94,6 +96,13 @@ func TestNHF004CacheServer(t *testing.T) {
 		cert.DNSNames = append(cert.DNSNames, "nhf004.example.test")
 	})
 	public := strings.Replace(nha181TLSYAML(), "public:\n", "public:\n  url: https://nhf004.example.test\n", 1)
+	if uiProfile == nhf005HomeUI {
+		name, err := uiProfile.revision().Value()
+		if err != nil {
+			t.Fatal(err)
+		}
+		public += "scope_revision: " + name + "\n"
+	}
 	settings := nha181Config(t, cluster.Port, data, "127.0.0.1:0", public)
 	ctx, signals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer signals()
@@ -107,16 +116,23 @@ func TestNHF004CacheServer(t *testing.T) {
 	if err := json.Unmarshal(scope.ManifestV1(), &aliases); err != nil || len(aliases.Entities) < 850 {
 		t.Fatal("850 baseline identities required:", err)
 	}
+	if uiProfile == nhf005HomeUI {
+		// The explicit, existing scope amendment adds climate.home. The 850
+		// baseline manifest and the default NHF004 profile remain unchanged.
+		aliases.Entities = append(aliases.Entities, struct {
+			ID string `json:"entity_id"`
+		}{ID: "climate.home"})
+	}
 	instance, _ := domain.ParseIntegrationInstanceID("nhf004-synthetic-only")
-	keys := make([]integrations.SourceKey, 850)
-	candidates := make([]integrations.Candidate, 850)
+	keys := make([]integrations.SourceKey, len(aliases.Entities))
+	candidates := make([]integrations.Candidate, len(keys))
 	for i := range keys {
 		var err error
 		keys[i], err = integrations.NewSourceKey(fmt.Sprintf("fixture-%03d", i), "relay")
 		if err != nil {
 			t.Fatal(err)
 		}
-		candidates[i], err = integrations.NewCandidate(keys[i], []*registryv1.CapabilityDescription{{SchemaId: contracts.SwitchSchema, Major: 1, Endpoint: "relay", DisplayName: fmt.Sprintf("Synthetic relay %03d", i), Constraints: &registryv1.CapabilityDescription_Switch{Switch: &registryv1.SwitchConstraints{SetOn: true}}}})
+		candidates[i], err = integrations.NewCandidate(keys[i], uiProfile.capabilities(aliases.Entities[i].ID, i))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -133,12 +149,9 @@ func TestNHF004CacheServer(t *testing.T) {
 	started, joined, connections := 0, 0, 0
 	var drivers uint64
 	var published uint64
-	quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
 	publish := func(index int, sequence *uint64) {
 		t.Helper()
-		on := sequence != nil && *sequence%2 != 0
-		value, at := domain.NewSwitchValue(on), time.Now().UTC()
-		observation, err := integrations.NewStateObservation("relay", quality, &value, &at, at, sequence)
+		observation, err := uiProfile.observation(aliases.Entities[index].ID, sequence, time.Now().UTC())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -147,7 +160,7 @@ func TestNHF004CacheServer(t *testing.T) {
 		}
 	}
 	factory := RuntimeFactory(func(factoryCtx context.Context, store *storage.Store) (RuntimePlan, error) {
-		manifest, err := registry.LoadManifest(scope.BaselineV1())
+		manifest, err := registry.LoadManifest(uiProfile.revision())
 		if err != nil {
 			return RuntimePlan{}, err
 		}
@@ -205,6 +218,7 @@ func TestNHF004CacheServer(t *testing.T) {
 			result["revoke_ok"] = proxy.revokeOK.Load()
 			result["state_read_calls"] = proxy.stateReads.Load()
 			result["state_read_ok"] = proxy.stateReadOK.Load()
+			result["action_rpc_calls"] = proxy.actions.Load()
 			result["login_observation"] = proxy.loginObservation()
 		}
 		write("result.json", result)
@@ -247,8 +261,8 @@ func TestNHF004CacheServer(t *testing.T) {
 			t.Fatal(err)
 		}
 		bindings = nil
-		for first := 0; first < 850; first += 250 {
-			batch, err := source.Discover(ctx, candidates[first:min(first+250, 850)])
+		for first := 0; first < len(keys); first += 250 {
+			batch, err := source.Discover(ctx, candidates[first:min(first+250, len(keys))])
 			if err != nil {
 				t.Fatal("discovery:", err)
 			}
@@ -307,8 +321,9 @@ func TestNHF004CacheServer(t *testing.T) {
 		proxy = nhf003StartProxy(t, base, roots, pair, out, nhf003LoginExpectation{name: login, password: password})
 		clientOrigin = proxy.server.URL
 	}
-	readyData := map[string]any{"mode": "synthetic-only", "origin": clientOrigin, "ca_pem": string(certificate), "login_name": login, "password": password, "first_entity": first, "entity_count": 850}
+	readyData := map[string]any{"mode": "synthetic-only", "origin": clientOrigin, "ca_pem": string(certificate), "login_name": login, "password": password, "first_entity": first, "entity_count": len(keys)}
 	if appMode {
+		readyData["ui_profile"] = uiProfile.label()
 		// Derive UI assertions from the real paginated view, not by reproducing
 		// the server's ordering or zipping identities with separate arrays.
 		page := check.Msg
@@ -322,7 +337,7 @@ func TestNHF004CacheServer(t *testing.T) {
 			page = response.Msg.Page
 			count += len(page.Entities)
 		}
-		if count != 850 {
+		if count != len(keys) {
 			t.Fatal("native UI expected-row capture incomplete")
 		}
 		readyData["expected_last_alias"] = page.Entities[len(page.Entities)-1].CurrentAlias

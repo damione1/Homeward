@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/damione1/Homeward/gen/home/actions/v1/actionsv1connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
@@ -36,6 +37,7 @@ type nhf003Proxy struct {
 	observationMu                                     sync.Mutex
 	lastLogin                                         *nhf003LoginObservation
 	stateReads, stateReadOK, revokeOK                 atomic.Uint64
+	actions                                           atomic.Uint64
 }
 
 type nhf003LoginExpectation struct{ name, password string }
@@ -97,6 +99,9 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 	proxy.Director = func(request *http.Request) {
 		director(request)
 		request.Header.Set("Accept-Encoding", "identity")
+		if strings.HasPrefix(request.URL.Path, "/"+actionsv1connect.ActionServiceName+"/") {
+			p.actions.Add(1)
+		}
 		switch request.URL.Path {
 		case statev1connect.StateServiceOpenViewProcedure:
 			p.stateReads.Add(1)

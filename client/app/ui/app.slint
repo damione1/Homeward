@@ -1,16 +1,20 @@
 import { KitButton, KitTheme, KitThemes, KitCard, KitCardHeader, KitUrlField,
-    KitTextArea, KitScrollArea, KitStack, KitAlert, AlertSeverity, ControlWidth,
+    KitTextArea, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth,
     KitDataTable, TableRow, DataSortDirection, DataAlignment, NavigationStep,
-    KitMetrics, ControlSize } from "@kit/kit.slint";
-import { ProAccessPanel, ProAccessStage } from "@kit-pro/kit-pro.slint";
+    KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest, IconKind } from "@kit/kit.slint";
+import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow } from "@kit-pro/kit-pro.slint";
+import { HomewardSkin } from "skin.slint";
+
+export enum ViewPage { home, rooms, inventory, room, detail, settings }
+export enum BodyFocus { read, inventory, back, settings }
 
 export component HomewardWindow inherits Window {
     title: "Homeward · Développement";
-    preferred-width: 760px; preferred-height: 820px;
+    preferred-width: 1280px; preferred-height: 800px;
     min-width: 320px; min-height: 400px;
     background: root.theme.canvas;
     in-out property <bool> dark-mode;
-    in property <KitTheme> theme: root.dark-mode ? KitThemes.dark : KitThemes.light;
+    in property <KitTheme> theme: HomewardSkin.theme(root.dark-mode, root.opaque-surfaces, max(root.large-text ? 2 : 1, root.default-font-size / 14px), root.reduced-motion);
     in-out property <string> server-draft;
     in-out property <string> certificate-draft;
     in-out property <bool> show-endpoint: true;
@@ -44,29 +48,89 @@ export component HomewardWindow inherits Window {
     callback cache-viewport(int,int);
     callback cache-navigate(NavigationStep);
 
-    KitScrollArea {
-        width: parent.width; height: parent.height;
+
+    in-out property <bool> opaque-surfaces: true;
+    in-out property <bool> large-text;
+    in-out property <bool> reduced-motion: true;
+    in property <ViewPage> page: ViewPage.home;
+    in property <string> page-title: "Ma maison";
+    in property <string> local-clock;
+    in property <string> local-date;
+    in property <[OptionRow]> navigation-rows;
+    in property <SelectState> navigation-state;
+    in property <DialogState> navigation-drawer;
+    in-out property <string> search-query;
+    in property <[ProRoomRow]> home-rooms;
+    in property <[ProObservationRow]> home-observations;
+    in property <FocusRequest> home-focus;
+    in property <int> projection-version;
+    in property <int> cache-generation;
+    in property <bool> view-loaded;
+    in property <string> detail-title;
+    in property <string> detail-value;
+    in property <string> detail-quality;
+    in property <string> detail-date;
+    in property <string> preferences-status;
+    private property <bool> connected: root.access-stage == ProAccessStage.connected;
+    callback private-view-cleared();
+    callback navigation-open();
+    callback navigation-reopen();
+    callback navigation-dismiss(CloseReason);
+    callback navigation-activate(int,int);
+    callback navigation-step(NavigationStep);
+    callback navigation-typeahead(string);
+    callback modal-next(bool);
+    callback shell-observed(ProShellFocus,bool);
+    callback shell-restore();
+    callback shell-compact(bool);
+    callback query-edited(string);
+    callback room-open(int,int);
+    callback observation-open(int,int);
+    callback home-observed(int,int,bool);
+    callback cache-activate(int,int);
+    callback go-back();
+    callback show-inventory();
+    callback choose-room();
+    callback preferences-changed(bool,bool,bool,bool);
+    callback system-back() -> bool;
+    callback content-focus();
+    public function take-shell-focus(target: ProShellFocus) { if (root.connected && !root.show-endpoint) { shell.take-focus(target); } }
+    public function take-body-focus(target: BodyFocus) {
+        if (!root.connected || root.show-endpoint) { return; }
+        if (target == BodyFocus.read) { if (!root.view-loaded) { read-button.take-focus(); } else { shell.take-focus(ProShellFocus.workspace); } }
+        else if (target == BodyFocus.inventory) { table.take-focus(); }
+        else if (target == BodyFocus.back) { if (root.page == ViewPage.detail) { detail-back.take-focus(); } else { back-button.take-focus(); } }
+        else if (target == BodyFocus.settings) { theme-button.take-focus(); }
+    }
+    public function reset-list() { root.cache-active-index = 0; table.reveal-active(); }
+    function preferences-edited() { root.preferences-changed(root.dark-mode, root.opaque-surfaces, root.large-text, root.reduced-motion); }
+
+    content := FocusScope {
+    x: root.safe-area-insets.left; y: root.safe-area-insets.top;
+    width: max(0px, root.width - root.safe-area-insets.left - root.safe-area-insets.right);
+    height: max(0px, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom);
+    focus-on-tab-navigation: false;
+    key-pressed(event) => {
+        if (event.text == Key.Back && root.system-back()) { return accept; }
+        return reject;
+    }
+    if !root.connected || root.show-endpoint: KitScrollArea {
+        width: content.width; height: content.height;
         inset: roomy; gap: roomy;
-        Text { text: "Homeward"; color: root.theme.text-primary;
-            font-size: 30px * root.theme.text-scale; font-weight: 700; wrap: word-wrap; }
-        HorizontalLayout {
-            KitButton { theme: root.theme; text: root.dark-mode ? "Thème clair" : "Thème sombre";
-                activated => { root.dark-mode = !root.dark-mode; } }
-            Rectangle { horizontal-stretch: 1; }
-        }
+        Text { text: "Homeward"; color: root.theme.text-primary; font-size: 30px * root.theme.text-scale; font-weight: 700; wrap: word-wrap; }
         if root.show-endpoint: KitCard {
             theme: root.theme;
             KitCardHeader { theme: root.theme; title: "Votre serveur";
                 description: "Adresse HTTPS et certificat public de confiance fourni par votre administrateur."; }
-            KitUrlField { theme: root.theme; label: "Adresse du serveur";
+            KitUrlField { theme: root.theme; control-size: comfortable; label: "Adresse du serveur";
                 placeholder: "https://home.example.com"; text <=> root.server-draft; }
-            KitTextArea { theme: root.theme; label: "Certificat de confiance (PEM)";
+            KitTextArea { theme: root.theme; control-size: comfortable; label: "Certificat de confiance (PEM)";
                 min-lines: 3; max-lines: 5; text <=> root.certificate-draft;
                 input-method-hints: { capitalization: CapitalizationMode.none, auto-correct: false, auto-complete: false }; }
             if root.setup-message != "": KitAlert {
                 theme: root.theme; title: "Connexion au serveur"; message: root.setup-message;
             }
-            KitButton { theme: root.theme; text: "Utiliser ce serveur"; control-width: ControlWidth.fill;
+            KitButton { theme: root.theme; control-size: comfortable; text: "Utiliser ce serveur"; control-width: ControlWidth.fill;
                 disabled: root.server-draft == "" || root.certificate-draft == "";
                 activated => { root.connect-endpoint(root.server-draft, root.certificate-draft); } }
         }
@@ -76,7 +140,7 @@ export component HomewardWindow inherits Window {
             Text { text: "Confiance SHA-256 : " + root.trust-fingerprint; color: root.theme.text-secondary;
                 font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
             ProAccessPanel {
-                theme: root.theme; stage: root.access-stage; title: "Bienvenue chez vous";
+                theme: root.theme; control-size: ControlSize.comfortable; stage: root.access-stage; title: "Bienvenue chez vous";
                 description: "Connectez-vous à votre installation.";
                 user-label: "Identifiant"; password-label: "Mot de passe"; submit-label: "Se connecter";
                 verification-title: "Vérification supplémentaire";
@@ -102,34 +166,136 @@ export component HomewardWindow inherits Window {
                 cancel => { root.cancel-access(); }
                 sign-out => { root.sign-out(); }
             }
-            if root.access-stage == ProAccessStage.connected: KitButton {
-                theme: root.theme; text: "Vérifier l’accès aux données"; busy: root.busy;
-                activated => { root.read-protected(); }
-            }
-            if root.read-status != "": Text { text: root.read-status; color: root.theme.text-secondary;
-                font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
-            if root.cache-error != "": Text { text: root.cache-error; color: root.theme.text-secondary;
-                font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
-            if root.cache-rows.length > 0: KitDataTable {
-                theme: root.theme; label: "États de l’installation";
-                height: 360px; rows: root.cache-rows; active-index: root.cache-active-index;
-                columns: [
-                    { token: 0, label: "Élément", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading },
-                    { token: 1, label: "État", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading },
-                    { token: 2, label: "Qualité", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading }
-                ];
-                // The public kit metric defines this table's fixed row geometry.
-                private property <int> first-visible: max(0, floor(-self.scroll-y / root.cache-row-height));
-                private property <int> visible-count: min(64, ceil(self.height / root.cache-row-height) + 16);
-                // A recreated table starts at scroll zero. Publish that initial
-                // viewport even when its value never changes after creation.
-                init => { root.cache-viewport(self.first-visible, self.visible-count); }
-                changed first-visible => { root.cache-viewport(self.first-visible, self.visible-count); }
-                changed visible-count => { root.cache-viewport(self.first-visible, self.visible-count); }
-                navigate(step) => { root.cache-navigate(step); }
-            }
-            KitButton { theme: root.theme; text: "Changer de serveur";
+            KitButton { theme: root.theme; control-size: comfortable; text: "Changer de serveur";
                 activated => { root.password-draft = ""; root.recovery-draft = ""; root.show-endpoint = true; } }
         }
+
     }
+    shell := ProAdaptiveShell {
+        width: content.width; height: content.height;
+        visible: root.connected && !root.show-endpoint;
+        theme: root.theme; product-name: "Homeward"; workspace-label: "Ma maison";
+        compact-breakpoint: 1100px;
+        page-title: root.page == ViewPage.home ? root.page-title + " · " + root.local-clock : root.page-title;
+        status: root.read-status == "" ? root.session-title : root.read-status;
+        navigation-label: "Navigation"; close-label: "Fermer la navigation";
+        search-label: "Rechercher dans ma maison"; search-placeholder: "Rechercher un élément…"; clear-search-label: "Effacer la recherche";
+        query <=> root.search-query;
+        navigation-rows: root.navigation-rows; navigation-state: root.navigation-state; drawer-state: root.navigation-drawer;
+        navigation-open => { root.navigation-open(); }
+        navigation-dismiss(reason) => { root.navigation-dismiss(reason); }
+        navigation-activate(token,generation) => { root.navigation-activate(token,generation); }
+        navigation-step(step) => { root.navigation-step(step); }
+        navigation-typeahead(text) => { root.navigation-typeahead(text); }
+        query-edited(text) => { root.query-edited(text); }
+        workspace-requested => { root.choose-room(); }
+        focus-next(reverse) => { root.modal-next(reverse); }
+        focus-observed(target,focused) => { root.shell-observed(target,focused); }
+        restore-focus => { root.shell-restore(); }
+        compact-changed(compact) => { root.shell-compact(compact); }
+        content-focus-requested => { root.content-focus(); }
+        viewport := Rectangle {
+            min-width: 0px; min-height: 0px; max-width: 100000px; max-height: 100000px;
+            horizontal-stretch: 1; vertical-stretch: 1;
+            home := KitScrollArea {
+                x: 0px; y: 0px; width: viewport.width; height: viewport.height;
+                visible: root.page == ViewPage.home;
+                gap: root.view-loaded ? none : roomy;
+                Rectangle {
+                    height: root.view-loaded ? 0px : read-button.preferred-height;
+                    visible: !root.view-loaded;
+                    read-button := KitButton { x: 0px; y: 0px; width: min(parent.width, 250px * root.theme.text-scale);
+                        theme: root.theme; control-size: comfortable; control-width: ControlWidth.fill; disabled: root.view-loaded;
+                        text: "Afficher ma maison"; busy: root.busy; activated => { root.read-protected(); } }
+                }
+                ProHomeOverview {
+                    theme: root.theme; viewport-width: viewport.width; spacing: 12px;
+                    observations-title: "En un regard"; rooms-title: "Vos pièces";
+                    observations: root.home-observations;
+                    rooms: root.home-rooms;
+                    interactive: root.connected && root.page == ViewPage.home;
+                    focus-request: root.home-focus;
+                    room-open(token,generation) => { root.room-open(token,generation); }
+                    observation-open(token,generation) => { root.observation-open(token,generation); }
+                    room-focus-observed(token,generation,focused) => { root.home-observed(token,generation,focused); }
+                    observation-focus-observed(token,generation,focused) => { root.home-observed(token,generation,focused); }
+                }
+                if root.cache-error != "": KitAlert { theme: root.theme; title: "Dernière lecture"; message: root.cache-error; severity: warning; }
+            }
+            KitScrollArea {
+                x: 0px; y: 0px; width: viewport.width; height: viewport.height;
+                visible: root.page == ViewPage.rooms;
+                ProHomeOverview {
+                    theme: root.theme; viewport-width: viewport.width; spacing: 12px;
+                    rooms-title: "Choisissez une pièce"; rooms: root.home-rooms;
+                    interactive: root.connected && root.page == ViewPage.rooms;
+                    focus-request: root.home-focus;
+                    room-open(token,generation) => { root.room-open(token,generation); }
+                    room-focus-observed(token,generation,focused) => { root.home-observed(token,generation,focused); }
+                }
+            }
+            inventory := Rectangle {
+                x: 0px; y: 0px; width: viewport.width; height: viewport.height;
+                visible: root.page == ViewPage.inventory || root.page == ViewPage.room;
+                VerticalLayout {
+                    spacing: 12px;
+                    back-button := KitButton { theme: root.theme; control-size: comfortable; text: "Retour"; activated => { root.go-back(); } }
+                    Text { visible: root.cache-rows.length == 0; text: root.search-query == "" ? "Aucune observation associée. Affichez votre maison pour charger les états autorisés." : "Aucun résultat pour cette recherche.";
+                        color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
+                    table := KitDataTable {
+                        theme: root.theme; control-size: comfortable; label: "États de l’installation";
+                        rows: root.cache-rows; active-index: root.cache-active-index; generation: root.cache-generation;
+                        vertical-stretch: 1;
+                        columns: [
+                            { token: 0, label: "Élément", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading },
+                            { token: 1, label: "État", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading },
+                            { token: 2, label: "Qualité", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading }
+                        ];
+                        private property <length> projected-row-height: KitMetrics.control-height(ControlSize.comfortable, root.theme.text-scale) + 8px;
+                        private property <int> first-visible: max(0, floor(-self.scroll-y / self.projected-row-height));
+                        private property <int> visible-count: min(64, ceil(self.height / self.projected-row-height) + 16);
+                        init => { root.cache-viewport(self.first-visible, self.visible-count); }
+                        changed first-visible => { root.cache-viewport(self.first-visible, self.visible-count); }
+                        changed visible-count => { root.cache-viewport(self.first-visible, self.visible-count); }
+                        navigate(step) => { root.cache-navigate(step); }
+                        activate(token,generation) => { root.cache-activate(token,generation); }
+                    }
+                }
+            }
+            KitScrollArea {
+                x: 0px; y: 0px; width: viewport.width; height: viewport.height;
+                visible: root.page == ViewPage.detail;
+                detail-back := KitButton { theme: root.theme; control-size: comfortable; text: "Retour aux éléments"; activated => { root.go-back(); } }
+                KitCard { theme: root.theme;
+                    KitCardHeader { theme: root.theme; title: root.detail-title; description: "Observation reçue · consultation"; }
+                    Text { text: root.detail-value; color: root.theme.text-primary; font-size: 26px * root.theme.text-scale; wrap: word-wrap; }
+                    Text { text: root.detail-quality; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
+                    Text { text: root.detail-date; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+                }
+            }
+            KitScrollArea {
+                x: 0px; y: 0px; width: viewport.width; height: viewport.height;
+                visible: root.page == ViewPage.settings;
+                KitCard { theme: root.theme;
+                    KitCardHeader { theme: root.theme; title: "À votre mesure"; description: "Préférences de cet appareil"; }
+                    KitWrap {
+                        theme-button := KitButton { theme: root.theme; control-size: comfortable; text: root.dark-mode ? "Thème clair" : "Thème sombre"; activated => { root.dark-mode = !root.dark-mode; root.preferences-edited(); } }
+                        KitButton { theme: root.theme; control-size: comfortable; text: root.opaque-surfaces ? "Surfaces translucides" : "Surfaces opaques"; activated => { root.opaque-surfaces = !root.opaque-surfaces; root.preferences-edited(); } }
+                        KitButton { theme: root.theme; control-size: comfortable; text: root.large-text ? "Texte standard" : "Texte à 200 %"; activated => { root.large-text = !root.large-text; root.preferences-edited(); } }
+                        KitButton { theme: root.theme; control-size: comfortable; text: root.reduced-motion ? "Autoriser les animations" : "Réduire les animations"; activated => { root.reduced-motion = !root.reduced-motion; root.preferences-edited(); } }
+                    }
+                    Text { text: root.preferences-status; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+                }
+                KitCard { theme: root.theme;
+                    KitCardHeader { theme: root.theme; title: root.session-title; description: root.session-description; }
+                    Text { text: root.endpoint-label; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+                    KitWrap {
+                        KitButton { theme: root.theme; control-size: comfortable; text: "Se déconnecter"; activated => { root.sign-out(); } }
+                        KitButton { theme: root.theme; control-size: comfortable; text: "Changer de serveur"; activated => { root.cancel-access(); root.show-endpoint = true; } }
+                    }
+                }
+            }
+        }
+    }
+}
 }

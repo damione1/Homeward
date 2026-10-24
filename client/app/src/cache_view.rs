@@ -1,37 +1,82 @@
 //! Product projection: private identities/cursors stay in the Rust cache. Slint
 //! receives at most 64 human-readable rows and scalar virtual-list positions.
-use crate::{HomewardWindow, TableRow};
+use crate::{
+    HomewardWindow, IconKind, ProObservationRow, ProRoomRow, TableRow,
+    dashboard::{self, ProjectionRequest, SummaryKind},
+};
 use buffa::EnumValue;
 use home_client_cache::{CacheEvent, CachePhase, CachedView, ProjectionGeneration, Viewport};
+use home_client_model::EntityId;
 use home_wire_contract::home::{helpers::v1 as helpers, state::v1 as state};
 use slint::{Model, ModelNotify, ModelRc, ModelTracker, SharedString};
-use std::{cell::RefCell, collections::BTreeMap};
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeMap,
+};
 
 #[derive(Clone, PartialEq, Eq)]
 struct Row {
+    id: Option<EntityId>,
     index: usize,
     cells: [String; 3],
 }
 
 pub(crate) struct CacheProjection {
+    revision: i32,
     phase: CachePhase,
     total: usize,
     rows: Vec<Row>,
+    home: HomeProjection,
 }
 
+struct Observation {
+    kind: SummaryKind,
+    id: Option<EntityId>,
+    value: String,
+    description: String,
+}
+#[derive(Default)]
+struct HomeProjection {
+    captured: bool,
+    room_counts: Vec<usize>,
+    observations: Vec<Observation>,
+    detail: Option<[String; 4]>,
+}
+
+#[cfg(test)]
 pub(crate) fn project(
     phase: CachePhase,
     view: Option<&CachedView>,
     viewport: Viewport,
 ) -> CacheProjection {
-    let total = view.map_or(0, CachedView::len);
+    project_request(phase, view, viewport, &ProjectionRequest::default())
+}
+
+pub(crate) fn project_request(
+    phase: CachePhase,
+    view: Option<&CachedView>,
+    viewport: Viewport,
+    request: &ProjectionRequest,
+) -> CacheProjection {
+    let matches = |entity: &state::ViewEntity| {
+        request.room.as_ref().is_none_or(|id| {
+            dashboard::room_for_alias(&entity.current_alias).is_some_and(|room| room.id == *id)
+        }) && (request.query.is_empty()
+            || entity.current_alias.to_lowercase().contains(&request.query))
+    };
+    let total = view.map_or(0, |view| {
+        view.entities()
+            .filter(|(_, entity)| matches(entity))
+            .count()
+    });
     let rows = view
         .map(|view| {
             view.entities()
+                .filter(|(_, entity)| matches(entity))
                 .enumerate()
                 .skip(viewport.first())
                 .take(viewport.count())
-                .map(|(index, (_, entity))| {
+                .map(|(index, (id, entity))| {
                     let title = if entity.current_alias.is_empty() {
                         "Élément sans nom".into()
                     } else {
@@ -42,6 +87,7 @@ pub(crate) fn project(
                         None => ("Aucune observation".into(), "Non renseignée".into()),
                     };
                     Row {
+                        id: Some(id.clone()),
                         index,
                         cells: [title, bounded(&value), bounded(&quality)],
                     }
@@ -49,7 +95,99 @@ pub(crate) fn project(
                 .collect()
         })
         .unwrap_or_default();
-    CacheProjection { phase, total, rows }
+    let mut room_counts = vec![0; dashboard::ROOMS.len()];
+    if let Some(view) = view {
+        for (_, entity) in view.entities() {
+            if let Some(room) = dashboard::room_for_alias(&entity.current_alias)
+                && let Some(index) = dashboard::ROOMS
+                    .iter()
+                    .position(|candidate| candidate.id == room.id)
+            {
+                room_counts[index] += 1;
+            }
+        }
+    }
+    let observations = SummaryKind::ALL
+        .into_iter()
+        .map(|kind| {
+            let entity = view.and_then(|view| {
+                view.entities()
+                    .find(|(_, entity)| entity.current_alias == kind.alias())
+            });
+            match entity {
+                Some((id, entity)) => {
+                    let value = match entity.state.as_option() {
+                        Some(observation) => summary_text(observation),
+                        None => "Aucune observation".into(),
+                    };
+                    Observation {
+                        kind,
+                        id: Some(id.clone()),
+                        value: bounded(&value),
+                        description: entity
+                            .state
+                            .as_option()
+                            .map(quality_text)
+                            .unwrap_or_else(|| "Non renseignée".into()),
+                    }
+                }
+                None => Observation {
+                    kind,
+                    id: None,
+                    value: if view.is_some() {
+                        "Indisponible"
+                    } else {
+                        "À charger"
+                    }
+                    .into(),
+                    description: "Aucune observation reçue pour ce favori.".into(),
+                },
+            }
+        })
+        .collect();
+    let detail = request
+        .detail
+        .as_ref()
+        .and_then(|id| view.and_then(|view| view.get(id)))
+        .map(|entity| {
+            let (value, quality, date) = match entity.state.as_option() {
+                Some(observation) => (
+                    value_text(observation),
+                    quality_text(observation),
+                    observation
+                        .observed_at
+                        .as_option()
+                        .and_then(|at| {
+                            chrono::DateTime::from_timestamp(at.seconds, at.nanos as u32)
+                        })
+                        .map(|at| at.to_rfc3339())
+                        .unwrap_or_else(|| "Date non renseignée".into()),
+                ),
+                None => (
+                    "Aucune observation".into(),
+                    "Non renseignée".into(),
+                    "Date non renseignée".into(),
+                ),
+            };
+            [
+                bounded(&entity.current_alias),
+                bounded(&value),
+                bounded(&quality),
+                date,
+            ]
+        });
+    CacheProjection {
+        revision: request.revision,
+        phase,
+        total,
+        rows,
+        home: HomeProjection {
+            captured: view.is_some(),
+            room_counts,
+            observations,
+            detail,
+        },
+    }
 }
 
 fn on_off(value: bool) -> &'static str {
@@ -94,6 +232,28 @@ fn helper_text(value: &helpers::HelperValue) -> String {
         },
         Some(Value::ButtonPressedAt(_)) => "Activation observée".into(),
         None => "Valeur absente".into(),
+    }
+}
+
+fn summary_text(observation: &state::ObservedState) -> String {
+    if !observation.__buffa_unknown_fields.is_empty() {
+        return value_text(observation);
+    }
+    match observation.value.as_ref() {
+        Some(state::observed_state::Value::Climate(climate)) => climate
+            .current_temperature_celsius
+            .map(|value| format!("{} °C", number(value)))
+            .unwrap_or_else(|| value_text(observation)),
+        Some(
+            state::observed_state::Value::SwitchOn(_)
+            | state::observed_state::Value::Measurement(_)
+            | state::observed_state::Value::Light(_)
+            | state::observed_state::Value::Fan(_)
+            | state::observed_state::Value::Helper(_)
+            | state::observed_state::Value::Solar(_)
+            | state::observed_state::Value::SolarEvent(_),
+        )
+        | None => value_text(observation),
     }
 }
 
@@ -256,24 +416,52 @@ struct RowStore {
     generation: Option<ProjectionGeneration>,
     total: usize,
     rows: BTreeMap<usize, (Row, TableRow)>,
+    revision: i32,
+    observations: BTreeMap<i32, EntityId>,
 }
 #[derive(Default)]
 pub(crate) struct CacheRows {
     state: RefCell<RowStore>,
     notify: ModelNotify,
+    serial: Cell<i32>,
+    rooms: std::rc::Rc<slint::VecModel<ProRoomRow>>,
+    observations: std::rc::Rc<slint::VecModel<ProObservationRow>>,
 }
-fn table_row(row: &Row, offline: bool) -> TableRow {
+fn table_row(row: &Row, _offline: bool) -> TableRow {
     TableRow {
         token: row.index as i32,
         cells: ModelRc::from(row.cells.clone().map(SharedString::from)),
         selected: false,
-        disabled: offline,
+        disabled: row.id.is_none(),
     }
 }
 impl CacheRows {
     fn apply(&self, generation: ProjectionGeneration, projection: CacheProjection) {
         let mut old = self.state.borrow_mut();
         let reset = old.generation != Some(generation) || old.total != projection.total;
+        let observation_ids = projection
+            .home
+            .observations
+            .iter()
+            .filter_map(|item| item.id.clone().map(|id| (item.kind.token(), id)))
+            .collect::<BTreeMap<_, _>>();
+        // A visual position can refer to another entity after removal, sorting
+        // or a viewport change. Value updates alone preserve a held gesture.
+        let identities_changed = old.rows.len() != projection.rows.len()
+            || projection.rows.iter().any(|row| {
+                old.rows
+                    .get(&row.index)
+                    .is_none_or(|(before, _)| before.id != row.id)
+            })
+            || old.observations != observation_ids;
+        if reset || old.revision != projection.revision || identities_changed {
+            self.serial.set(
+                self.serial
+                    .get()
+                    .checked_add(1)
+                    .expect("UI identity generation exhausted"),
+            );
+        }
         let mut changed = Vec::new();
         let offline = projection.phase != CachePhase::Live;
         let mut rows = BTreeMap::new();
@@ -282,17 +470,25 @@ impl CacheRows {
             if old
                 .rows
                 .get(&index)
-                .is_none_or(|(previous, table)| previous != &row || table.disabled != offline)
+                .is_none_or(|(previous, _)| previous != &row)
             {
                 changed.push(index);
             }
             let table = table_row(&row, offline);
             rows.insert(index, (row, table));
         }
+        changed.extend(
+            old.rows
+                .keys()
+                .filter(|index| !rows.contains_key(index))
+                .copied(),
+        );
         *old = RowStore {
             generation: Some(generation),
             total: projection.total,
             rows,
+            revision: projection.revision,
+            observations: observation_ids,
         };
         drop(old);
         if reset {
@@ -304,9 +500,70 @@ impl CacheRows {
         }
     }
     fn clear(&self) {
+        self.serial.set(
+            self.serial
+                .get()
+                .checked_add(1)
+                .expect("UI identity generation exhausted"),
+        );
         *self.state.borrow_mut() = RowStore::default();
         self.notify.reset();
+        sync(&self.rooms, public_rooms());
+        self.observations.set_vec(Vec::new());
     }
+    pub(crate) fn resolve(&self, token: i32, generation: i32, revision: i32) -> Option<EntityId> {
+        if generation != self.serial.get() || self.state.borrow().revision != revision {
+            return None;
+        }
+        self.state
+            .borrow()
+            .rows
+            .get(&usize::try_from(token).ok()?)
+            .and_then(|(row, _)| row.id.clone())
+    }
+    pub(crate) fn resolve_observation(
+        &self,
+        token: i32,
+        generation: i32,
+        revision: i32,
+    ) -> Option<EntityId> {
+        if generation != self.serial.get() || self.state.borrow().revision != revision {
+            return None;
+        }
+        self.state.borrow().observations.get(&token).cloned()
+    }
+}
+
+fn sync<T: Clone + PartialEq + 'static>(model: &slint::VecModel<T>, rows: Vec<T>) {
+    if model.row_count() != rows.len() {
+        model.set_vec(rows);
+    } else {
+        for (index, row) in rows.into_iter().enumerate() {
+            if model.row_data(index).as_ref() != Some(&row) {
+                model.set_row_data(index, row);
+            }
+        }
+    }
+}
+fn public_rooms() -> Vec<ProRoomRow> {
+    dashboard::ROOMS
+        .iter()
+        .enumerate()
+        .map(|(index, room)| ProRoomRow {
+            token: index as i32 + dashboard::ROOM_TOKEN_BASE,
+            generation: dashboard::ROOM_GENERATION,
+            title: room.label.into(),
+            subtitle: "Ouvrir la pièce".into(),
+            icon: IconKind::Home,
+        })
+        .collect()
+}
+pub(crate) fn bind(window: &HomewardWindow) {
+    let model = std::rc::Rc::new(CacheRows::default());
+    sync(&model.rooms, public_rooms());
+    window.set_home_rooms(ModelRc::from(model.rooms.clone()));
+    window.set_home_observations(ModelRc::from(model.observations.clone()));
+    window.set_cache_rows(ModelRc::from(model));
 }
 impl Model for CacheRows {
     type Data = TableRow;
@@ -326,6 +583,7 @@ impl Model for CacheRows {
                 .unwrap_or_else(|| {
                     table_row(
                         &Row {
+                            id: None,
                             index,
                             cells: ["Chargement…".into(), String::new(), String::new()],
                         },
@@ -343,10 +601,18 @@ impl Model for CacheRows {
 }
 
 pub(crate) fn clear(window: &HomewardWindow) {
+    window.set_view_loaded(false);
+    window.set_home_focus(crate::FocusRequest::default());
     let model = window.get_cache_rows();
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
         model.clear();
+        window.set_cache_generation(model.serial.get());
     }
+    window.set_detail_title("".into());
+    window.set_detail_value("".into());
+    window.set_detail_quality("".into());
+    window.set_detail_date("".into());
+    window.invoke_private_view_cleared();
     window.set_cache_active_index(-1);
     window.set_read_status("".into());
     window.set_cache_error("".into());
@@ -357,11 +623,87 @@ pub(crate) fn render(
     generation: ProjectionGeneration,
     projection: CacheProjection,
 ) {
+    // This ticket has already crossed the cache owner's publication barrier.
+    // Authoritative absence must clear the old private view even when a newer
+    // local search has made the presentation revision obsolete.
+    if !projection.home.captured && window.get_view_loaded() {
+        clear(window);
+        window.set_read_status(cache_status(projection.phase, 0).into());
+        return;
+    }
+    if projection.revision != window.get_projection_version() {
+        return;
+    }
+    let home = &projection.home;
+    window.set_view_loaded(home.captured);
+    let rooms = dashboard::ROOMS
+        .iter()
+        .enumerate()
+        .map(|(index, room)| ProRoomRow {
+            token: index as i32 + dashboard::ROOM_TOKEN_BASE,
+            generation: dashboard::ROOM_GENERATION,
+            title: room.label.into(),
+            subtitle: if !home.captured {
+                "Ouvrir la pièce".into()
+            } else if home.room_counts[index] == 0 {
+                "Aucune observation associée".into()
+            } else {
+                format!("{} éléments observés", home.room_counts[index]).into()
+            },
+            icon: IconKind::Home,
+        })
+        .collect::<Vec<_>>();
+    if let Some([title, value, quality, date]) = &home.detail {
+        window.set_detail_title(title.as_str().into());
+        window.set_detail_value(value.as_str().into());
+        window.set_detail_quality(quality.as_str().into());
+        window.set_detail_date(date.as_str().into());
+    } else {
+        window.set_detail_title("Détail indisponible".into());
+        window.set_detail_value("Aucune observation autorisée pour cet élément.".into());
+        window.set_detail_quality("".into());
+        window.set_detail_date("".into());
+    }
+    let observations = home
+        .observations
+        .iter()
+        .map(|item| ProObservationRow {
+            token: item.kind.token(),
+            generation: 0,
+            title: item.kind.label().into(),
+            value: item.value.as_str().into(),
+            description: item.description.as_str().into(),
+            icon: match item.kind {
+                SummaryKind::Climate => IconKind::Information,
+                SummaryKind::Weather => IconKind::Clock,
+                SummaryKind::Fan => IconKind::Grid,
+            },
+            available: item.id.is_some(),
+        })
+        .collect::<Vec<_>>();
     let total = projection.total;
     if total == 0 {
         window.set_cache_active_index(-1);
     }
-    let label = match projection.phase {
+    window.set_read_status(cache_status(projection.phase, total).into());
+    let model = window.get_cache_rows();
+    if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
+        model.apply(generation, projection);
+        window.set_cache_generation(model.serial.get());
+        let observations = observations
+            .into_iter()
+            .map(|mut row| {
+                row.generation = model.serial.get();
+                row
+            })
+            .collect::<Vec<_>>();
+        sync(&model.rooms, rooms);
+        sync(&model.observations, observations);
+    }
+}
+
+fn cache_status(phase: CachePhase, total: usize) -> String {
+    let label = match phase {
         CachePhase::Idle => "",
         CachePhase::Loading => "Chargement des états…",
         CachePhase::Live => {
@@ -378,18 +720,13 @@ pub(crate) fn render(
         CachePhase::Invalid => "La réponse du serveur ne permet pas d’afficher une vue cohérente.",
         CachePhase::Closed => "",
     };
-    let status = if total > 0 {
+    if total > 0 {
         format!(
             "{label} · {total} {}",
             if total == 1 { "entité" } else { "entités" }
         )
     } else {
         label.into()
-    };
-    window.set_read_status(status.into());
-    let model = window.get_cache_rows();
-    if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
-        model.apply(generation, projection);
     }
 }
 
@@ -415,6 +752,14 @@ mod tests {
     use home_client_cache::{Filter, ProjectionMailbox, SnapshotCapture};
 
     fn view(count: usize) -> CachedView {
+        view_with(count, |index| state::ViewEntity {
+            entity_id: format!("private-entity-{index:04}"),
+            current_alias: format!("Élément {index}"),
+            ..Default::default()
+        })
+    }
+
+    fn view_with(count: usize, entity: impl Fn(usize) -> state::ViewEntity) -> CachedView {
         let filter = Filter::all();
         let cursor = state::ViewCursor {
             epoch: "private-epoch-not-a-label".into(),
@@ -436,13 +781,7 @@ mod tests {
             } else {
                 format!("page-{end}")
             },
-            entities: (start..end)
-                .map(|index| state::ViewEntity {
-                    entity_id: format!("private-entity-{index:04}"),
-                    current_alias: format!("Élément {index}"),
-                    ..Default::default()
-                })
-                .collect(),
+            entities: (start..end).map(&entity).collect(),
             ..Default::default()
         };
         let now = Timestamp::from_unix_secs(0);
@@ -496,11 +835,258 @@ mod tests {
             ),
         );
         assert_eq!(model.state.borrow().rows.len(), 32);
-        assert!(model.row_data(700).unwrap().disabled);
+        assert!(
+            !model.row_data(700).unwrap().disabled,
+            "offline navigation is read-only and remains available while the cache retains the view"
+        );
         model.clear();
         assert_eq!(model.row_count(), 0);
         assert!(model.state.borrow().rows.is_empty());
         assert!(model.row_data(0).is_none());
+    }
+
+    fn home_view() -> CachedView {
+        view_with(3, |index| state::ViewEntity {
+            entity_id: format!("private-entity-{index:04}"),
+            current_alias: [
+                "climate.home",
+                "light.kitchen_main",
+                "fan.living_room_ceiling_fan",
+            ][index]
+                .into(),
+            state: state::ObservedState {
+                entity: home_wire_contract::home::registry::v1::EntityRef {
+                    reference: Some(
+                        home_wire_contract::home::registry::v1::entity_ref::Reference::EntityId(
+                            format!("private-entity-{index:04}"),
+                        ),
+                    ),
+                    ..Default::default()
+                }
+                .into(),
+                revision: 1,
+                value: Some(state::observed_state::Value::SwitchOn(false)),
+                observed_at: Timestamp::from_unix_secs(10).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn room_search_and_detail_use_only_the_authorized_view_and_keep_missing_favorites_explicit() {
+        let view = home_view();
+        let request = ProjectionRequest {
+            revision: 7,
+            room: Some(dashboard::ROOMS[1].id.clone()),
+            query: "main".into(),
+            detail: Some("private-entity-0001".parse().unwrap()),
+        };
+        let projection =
+            project_request(CachePhase::Live, Some(&view), Viewport::default(), &request);
+        assert_eq!(projection.total, 1);
+        assert_eq!(projection.rows[0].cells[0], "light.kitchen_main");
+        assert_eq!(projection.home.room_counts, [1, 1, 0, 0, 0, 0, 0, 0, 0]);
+        let detail = projection.home.detail.unwrap();
+        assert_eq!(detail[0], "light.kitchen_main");
+        assert_eq!(detail[1], "Éteint");
+        assert_eq!(detail[3], "1970-01-01T00:00:10+00:00");
+        let weather = projection
+            .home
+            .observations
+            .iter()
+            .find(|item| item.kind == SummaryKind::Weather)
+            .unwrap();
+        assert!(weather.id.is_none());
+        assert_eq!(weather.value, "Indisponible");
+    }
+
+    #[test]
+    fn replacing_an_identity_or_query_cancels_old_intentions_but_value_updates_preserve_them() {
+        let view = home_view();
+        let model = CacheRows::default();
+        let generation = ProjectionMailbox::<()>::new().generation();
+        model.apply(
+            generation,
+            project(CachePhase::Live, Some(&view), Viewport::default()),
+        );
+        let first = model.serial.get();
+        assert!(model.resolve(0, first, 0).is_some());
+        assert!(
+            model.resolve(0, first, 1).is_none(),
+            "a pending query cannot activate the previous result"
+        );
+        let mut updated = project(CachePhase::Live, Some(&view), Viewport::default());
+        updated.rows[0].cells[1] = "Allumé".into();
+        model.apply(generation, updated);
+        assert_eq!(
+            model.serial.get(),
+            first,
+            "value-only updates retain pointer/keyboard gestures"
+        );
+        let mut replaced = project(CachePhase::Live, Some(&view), Viewport::default());
+        let replacement = "private-replacement".parse::<EntityId>().unwrap();
+        replaced.rows[0].id = Some(replacement.clone());
+        model.apply(generation, replaced);
+        assert!(model.resolve(0, first, 0).is_none());
+        assert_eq!(model.resolve(0, model.serial.get(), 0), Some(replacement));
+        let previous = model.serial.get();
+        let mut changed_favorite = project(CachePhase::Live, Some(&view), Viewport::default());
+        changed_favorite.home.observations[0].id = Some("private-other-favorite".parse().unwrap());
+        model.apply(generation, changed_favorite);
+        assert!(
+            model
+                .resolve_observation(SummaryKind::Climate.token(), previous, 0)
+                .is_none()
+        );
+        model.clear();
+        assert!(model.state.borrow().observations.is_empty());
+        assert!(
+            model
+                .resolve_observation(SummaryKind::Climate.token(), model.serial.get(), 0)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn route_changes_reject_stale_projections_and_private_clear_drops_every_new_surface() {
+        use slint::ComponentHandle;
+        i_slint_backend_testing::init_no_event_loop();
+        let window = HomewardWindow::new().unwrap();
+        let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest::default()));
+        bind(&window);
+        crate::navigation::bind(&window, request.clone(), || {});
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_show_endpoint(false);
+        window.show().unwrap();
+        let view = home_view();
+        let generation = ProjectionMailbox::<()>::new().generation();
+        render(
+            &window,
+            generation,
+            project(CachePhase::Live, Some(&view), Viewport::default()),
+        );
+        let persistent = window.get_home_rooms();
+        window.invoke_room_open(i32::MIN, 1);
+        assert_eq!(window.get_page(), crate::ViewPage::Home);
+        window.invoke_room_open(10, 99);
+        assert_eq!(window.get_page(), crate::ViewPage::Home);
+        window.invoke_room_open(10, 1);
+        assert_eq!(window.get_page(), crate::ViewPage::Room);
+        assert!(window.invoke_system_back());
+        assert_eq!(window.get_page(), crate::ViewPage::Home);
+        assert_eq!(window.get_home_focus().token, 10);
+        assert_eq!(
+            window.get_home_focus().generation,
+            dashboard::ROOM_GENERATION
+        );
+        slint::platform::update_timers_and_animations();
+        for event in [
+            slint::platform::WindowEvent::KeyPressed {
+                text: slint::platform::Key::Return.into(),
+            },
+            slint::platform::WindowEvent::KeyReleased {
+                text: slint::platform::Key::Return.into(),
+            },
+        ] {
+            window.window().dispatch_event(event);
+        }
+        assert_eq!(
+            window.get_page(),
+            crate::ViewPage::Room,
+            "Back must restore a live keyboard target, not only a focus request value"
+        );
+        assert!(window.invoke_system_back());
+        assert!(!window.invoke_system_back());
+        window.invoke_choose_room();
+        assert_eq!(window.get_page(), crate::ViewPage::Rooms);
+        window.invoke_go_back();
+        slint::platform::update_timers_and_animations();
+        for event in [
+            slint::platform::WindowEvent::KeyPressed {
+                text: slint::platform::Key::Return.into(),
+            },
+            slint::platform::WindowEvent::KeyReleased {
+                text: slint::platform::Key::Return.into(),
+            },
+        ] {
+            window.window().dispatch_event(event);
+        }
+        assert_eq!(
+            window.get_page(),
+            crate::ViewPage::Rooms,
+            "the workspace selector is also a registered restore target"
+        );
+        window.invoke_go_back();
+        let current = request.lock().unwrap().clone();
+        render(
+            &window,
+            generation,
+            project_request(CachePhase::Live, Some(&view), Viewport::default(), &current),
+        );
+        window.invoke_observation_open(SummaryKind::Climate.token(), window.get_cache_generation());
+        assert_eq!(window.get_page(), crate::ViewPage::Detail);
+        let current = request.lock().unwrap().clone();
+        render(
+            &window,
+            generation,
+            project_request(CachePhase::Live, Some(&view), Viewport::default(), &current),
+        );
+        assert_eq!(window.get_detail_title().as_str(), "climate.home");
+        window.set_search_query("kitchen".into());
+        window.invoke_query_edited("kitchen".into());
+        assert_eq!(window.get_page(), crate::ViewPage::Inventory);
+        let navigation = window.get_navigation_state();
+        assert!(navigation.selected.present && navigation.active.present);
+        assert_eq!(navigation.selected.token, navigation.active.token);
+        assert!(request.lock().unwrap().detail.is_none());
+        window.invoke_cache_activate(0, window.get_cache_generation());
+        assert_eq!(
+            window.get_page(),
+            crate::ViewPage::Inventory,
+            "old result cannot open during reprojection"
+        );
+        let current = request.lock().unwrap().clone();
+        let stale = project_request(CachePhase::Live, Some(&view), Viewport::default(), &current);
+        let rows_before = window.get_cache_rows().row_count();
+        render(
+            &window,
+            generation,
+            project(CachePhase::Live, Some(&view), Viewport::default()),
+        );
+        assert_eq!(window.get_cache_rows().row_count(), rows_before);
+        render(
+            &window,
+            generation,
+            project_request(
+                CachePhase::Blocked,
+                None,
+                Viewport::default(),
+                &ProjectionRequest {
+                    revision: current.revision - 1,
+                    ..current.clone()
+                },
+            ),
+        );
+        assert!(window.get_read_status().starts_with("Lecture indisponible"));
+        assert_eq!(window.get_cache_rows().row_count(), 0);
+        assert!(!window.get_view_loaded());
+        assert_eq!(window.get_home_observations().row_count(), 0);
+        assert_eq!(window.get_search_query().as_str(), "");
+        assert_eq!(window.get_detail_title().as_str(), "");
+        assert_eq!(window.get_detail_value().as_str(), "");
+        assert_eq!(window.get_detail_quality().as_str(), "");
+        assert_eq!(window.get_detail_date().as_str(), "");
+        assert!(request.lock().unwrap().detail.is_none());
+        assert_eq!(window.get_page(), crate::ViewPage::Home);
+        assert!(
+            std::ptr::eq(persistent.as_any(), window.get_home_rooms().as_any()),
+            "updates and private clear retain public room delegates"
+        );
+        render(&window, generation, stale);
+        assert_eq!(window.get_cache_rows().row_count(), 0);
+        assert_eq!(window.get_home_observations().row_count(), 0);
     }
 
     #[test]
@@ -545,6 +1131,18 @@ mod tests {
         bytes.extend_from_slice(&[0x9a, 0x06, 0x02, 0x08, 0x01]);
         let future = state::ObservedState::decode_from_slice(&bytes).unwrap();
         assert_eq!(value_text(&future), "Valeur non prise en charge");
+        let climate = state::ObservedState {
+            value: Some(Value::Climate(Box::new(state::ClimateValue {
+                current_temperature_celsius: Some(21.5),
+                ..Default::default()
+            }))),
+            ..Default::default()
+        };
+        assert_eq!(summary_text(&climate), "21.5 °C");
+        let mut future_climate = climate.encode_to_vec();
+        future_climate.extend_from_slice(&[0x9a, 0x06, 0x02, 0x08, 0x01]);
+        let future_climate = state::ObservedState::decode_from_slice(&future_climate).unwrap();
+        assert_eq!(summary_text(&future_climate), "Valeur non prise en charge");
     }
 
     #[test]

@@ -26,6 +26,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 base64 = "0.22"
+chrono = { version = "=0.4.45", default-features = false, features = ["clock"] }
 rustls-pemfile = "2"
 url = "2"
 slint-kit = "=0.1.0"
@@ -42,6 +43,7 @@ slint-kit-pro-build = { path = "../../.tools/frontend-kits/pro/crates/kit-pro-bu
 
 [dev-dependencies]
 buffa-types = "=0.9.2"
+i-slint-backend-testing = "=1.18.1"
 
 [package.metadata.android]
 package = "ca.homeward.frontend.dev"

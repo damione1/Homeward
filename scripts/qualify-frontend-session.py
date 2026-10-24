@@ -3,7 +3,7 @@
 
 Fresh native Go SQL/auth/TLS fixtures only. macOS uses the actual Keychain;
 Android uses the product APK and a task-owned API35 VM, never a native ELF or a
-physical device. GUI input requires Homebrew cliclick and macOS Accessibility.
+physical device. macOS input requires Accessibility for the owned process.
 Screenshots supplement RPC/storage assertions; inspect them before delivery.
 """
 import argparse
@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import runpy
 import secrets
 import shlex
@@ -31,6 +32,7 @@ CONFIG = json.loads((ROOT / 'frontend.local.json').read_text())
 CACHE = Path(CONFIG['frontend_cache']) / 'session'
 TARGET = Path(CONFIG['backend_cache']) / 'workspace/target'
 TRANSPORT = runpy.run_path(str(ROOT / 'scripts/qualify-frontend-transport.py'))
+ANDROID_INPUT = runpy.run_path(str(ROOT / 'scripts/frontend-android-input.py'))
 Platform = TRANSPORT['Platform']
 PlatformSelection = TRANSPORT['PlatformSelection']
 device = TRANSPORT['device']
@@ -49,6 +51,19 @@ class FixtureKind(Enum):
     CACHE = 'cache'
 
 
+class UIProfile(Enum):
+    CACHE = 'cache'
+    HOME = 'home'
+
+    def entity_count(self):
+        match self:
+            case UIProfile.CACHE:
+                return 850
+            case UIProfile.HOME:
+                return 851
+        raise AssertionError('Unhandled UI profile')
+
+
 class CacheAction(Enum):
     LOAD = 'load'
 
@@ -59,6 +74,7 @@ class CacheImageExpectation(Enum):
 
 
 class NativeAction(Enum):
+    TREE = 'tree'
     FILL_LOGIN = 'fill-login'
     READ = 'read'
     SIGN_OUT = 'sign-out'
@@ -112,17 +128,18 @@ def digest(path):
 
 
 @contextlib.contextmanager
-def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKind.SESSION):
+def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKind.SESSION, profile=UIProfile.CACHE):
     directory.mkdir(mode=0o700)
     control = directory / 'fixture'
     env = os.environ.copy()
     match kind:
         case FixtureKind.SESSION:
+            assert profile is UIProfile.CACHE
             env.update(HOMEWARD_NHF003_FIXTURE=str(control), HOMEWARD_NHF003_MODE=mode.value)
             test = 'TestNHF003SessionServer'
         case FixtureKind.CACHE:
             assert mode is FixtureMode.PASSWORD
-            env.update(HOMEWARD_NHF004_FIXTURE=str(control), HOMEWARD_NHF004_APP='true')
+            env.update(HOMEWARD_NHF004_FIXTURE=str(control), HOMEWARD_NHF004_APP='true', HOMEWARD_FRONTEND_UI_PROFILE=profile.value)
             test = 'TestNHF004CacheServer'
     with (directory / 'server.log').open('wb') as log:
         server = subprocess.Popen([str(server_binary), '-test.run=^' + test + '$', '-test.v', '-test.timeout=8m'], cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -137,8 +154,8 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKin
             origin = urlsplit(private['origin'])
             if private['mode'] != 'synthetic-only' or origin.scheme != 'https' or origin.hostname != '127.0.0.1' or not origin.port:
                 raise RuntimeError('Refuse a non-synthetic or non-loopback fixture')
-            if kind is FixtureKind.CACHE and private['entity_count'] != 850:
-                raise RuntimeError('Native cache UI requires all 850 entities')
+            if kind is FixtureKind.CACHE and (private['entity_count'] != profile.entity_count() or private['ui_profile'] != profile.value):
+                raise RuntimeError('Native UI fixture profile/count mismatch')
             yield private, control
         finally:
             if control.is_dir():
@@ -229,6 +246,7 @@ def cache_image_helper(proof):
     helper = proof / 'cache-image'
     if not helper.exists():
         modules = Path(CONFIG['frontend_cache']) / 'session-spike/swift-modules'
+        modules.mkdir(parents=True, exist_ok=True)
         run(['xcrun', 'swiftc', '-module-cache-path', modules, ROOT / 'qualification/frontend/cache-image.swift', '-o', helper])
     return helper
 
@@ -242,9 +260,6 @@ def inspect_cache_image(helper, path, expectation):
 def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
     load_report = None
     image_helper = cache_image_helper(proof) if kind is FixtureKind.CACHE else None
-    cliclick = shutil.which('cliclick')
-    if cliclick is None:
-        raise RuntimeError('Homebrew cliclick is required for native GUI qualification')
     run(['cargo', 'build', '--locked', '-p', 'homeward-app', '--bin', 'homeward-desktop'])
     helper = proof / 'native-ui'
     # Reuse the frontend's existing native SDK cache from the first UI proof.
@@ -285,9 +300,18 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                         return subprocess.run([str(helper), str(action)], capture_output=True, text=True, timeout=5)
                     def accessible(command, **fields):
                         return subprocess.run([str(helper), '-'], input=json.dumps({'pid': child.pid, 'command': command.value, 'syntheticOnly': True, **fields}), capture_output=True, text=True, timeout=20)
-                    def keyboard(commands):
-                        assert native('focus').returncode == 0
-                        run([cliclick, '-w', '150', '-f', '-'], input=commands, text=True, capture_output=True)
+                    def wait_native(label, editors=None):
+                        deadline = time.monotonic() + 10
+                        while True:
+                            response = accessible(NativeAction.TREE)
+                            rows = json.loads(response.stdout) if response.returncode == 0 else []
+                            found = any(label in (row['title'], row['description'], row['text']) for row in rows)
+                            fields_ready = editors is None or sum(row['role'] == 'AXTextField' for row in rows) == editors
+                            if found and fields_ready:
+                                return
+                            if child.poll() is not None or time.monotonic() >= deadline:
+                                raise AssertionError('Owned native surface did not become ready: ' + label)
+                            time.sleep(.1)
                     def snapshot(name, expectation=None):
                         run(['screencapture', '-x', '-o', '-l', str(info['window_id']), directory / (name + '.png')], capture_output=True)
                         inspect_cache_image(image_helper, directory / (name + '.png'), expectation)
@@ -303,14 +327,14 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                             time.sleep(.1)
                         assert info['accessibility_trusted'] and info['post_events_allowed']
                         time.sleep(.5)
+                        if step is AppStep.RESTORE_READ_LOGOUT:
+                            wait_native('Afficher ma maison')
+                        else:
+                            wait_native('Se connecter', editors=2)
                         snapshot(step.value)
                         match step:
                             case AppStep.LOGIN:
-                                if kind is FixtureKind.CACHE:
-                                    assert accessible(NativeAction.FILL_LOGIN, loginName=private['login_name'], password=private['password']).returncode == 0
-                                else:
-                                    assert native('click', x=90, y=130).returncode == 0
-                                    keyboard('kp:tab\nt:' + private['login_name'] + '\nkp:tab\nt:' + private['password'] + '\nkp:return\n')
+                                assert accessible(NativeAction.FILL_LOGIN, loginName=private['login_name'], password=private['password']).returncode == 0
                                 deadline = time.monotonic() + 10
                                 while not present() and time.monotonic() < deadline:
                                     time.sleep(.1)
@@ -318,11 +342,7 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                                 snapshot('authenticated')
                             case AppStep.RESTORE_READ_LOGOUT:
                                 assert present()
-                                if kind is FixtureKind.CACHE:
-                                    assert accessible(NativeAction.READ).returncode == 0
-                                else:
-                                    assert native('click', x=90, y=130).returncode == 0
-                                    keyboard('kp:tab\nkp:tab\nkp:return\n')
+                                assert accessible(NativeAction.READ).returncode == 0
                                 time.sleep(1)
                                 snapshot('protected-read')
                                 if kind is FixtureKind.CACHE:
@@ -347,10 +367,7 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                                         check = accessible(NativeAction.CHECK_ROW, expectedRowLabel=private['expected_first_alias'])
                                         assert check.returncode == 0, 'resumed table did not reproject its first row'
                                         write(directory / 'resumed-first-row.json', json.loads(check.stdout))
-                                if kind is FixtureKind.CACHE:
-                                    assert accessible(NativeAction.SIGN_OUT).returncode == 0
-                                else:
-                                    keyboard('kd:shift\nkp:tab\nku:shift\nkp:return\n')
+                                assert accessible(NativeAction.SIGN_OUT).returncode == 0
                                 deadline = time.monotonic() + 10
                                 while present() and time.monotonic() < deadline:
                                     time.sleep(.1)
@@ -394,49 +411,66 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
 def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
     load_report = None
     image_helper = cache_image_helper(proof) if kind is FixtureKind.CACHE else None
-    run(['python3', 'scripts/build-frontend-android.py'])
-    apk = proof / 'Homeward.apk'
-    shutil.copyfile(TARGET / 'debug/apk/homeward-dev.apk', apk)
+    apk, ocr = ANDROID_INPUT['prepare_apk'](ROOT, proof, run)
     directory = proof / 'android'
     with fixture(directory, server_binary, kind=kind) as (private, control):
         with TRANSPORT['android'](directory):
             port = urlsplit(private['origin']).port
-            forwarded = owned = False
+            forwarded = owned = installed = False
+            rotation = {key: device('shell', 'settings', 'get', 'system', key).stdout.strip()
+                        for key in ['accelerometer_rotation', 'user_rotation']}
             try:
-                device('install', '-r', apk)
-                existing = device('shell', 'run-as', PACKAGE, 'sh', '-c', shlex.quote('test -e files/endpoint.json'), check=False)
-                if existing.returncode != 1:
-                    raise RuntimeError('Preserve existing or unreadable application profile')
+                existing = device('shell', 'pm', 'path', PACKAGE, check=False)
+                if existing.stdout.strip() or existing.returncode not in (0, 1) or existing.stderr.strip():
+                    raise RuntimeError('Preserve existing or unreadable emulator application')
+                device('install', apk)
+                installed = True
                 device('reverse', '--no-rebind', f'tcp:{port}', f'tcp:{port}')
                 forwarded = True
                 device('shell', 'run-as', PACKAGE, 'mkdir', '-p', 'files')
                 run([TRANSPORT['ADB'], '-s', TRANSPORT['SERIAL'], 'shell', 'run-as', PACKAGE, 'sh', '-c', shlex.quote('cat > files/endpoint.json')], input=json.dumps(public_profile(private)), text=True, capture_output=True)
                 owned = True
+                device('shell', 'settings', 'put', 'system', 'accelerometer_rotation', '0')
+                device('shell', 'settings', 'put', 'system', 'user_rotation', '0')
+                device('shell', 'wm', 'density', '160')
+                ui = ANDROID_INPUT['AndroidInput'](directory, ocr, TRANSPORT['ADB'], TRANSPORT['SERIAL'], device)
+                contains = ANDROID_INPUT['LabelMatch'].CONTAINS
+                ui.format(1280, 800, 'owned-display')
                 prefs = 'shared_prefs/ca.homeward.session.v1.' + namespace(private) + '.xml'
                 def records():
-                    result = device('shell', 'run-as', PACKAGE, 'cat', prefs)
+                    result = device('shell', 'run-as', PACKAGE, 'cat', prefs, check=False)
+                    if result.returncode:
+                        if 'No such file' in result.stderr:
+                            return []
+                        raise RuntimeError('Owned credential metadata unavailable')
                     return ET.fromstring(result.stdout).findall('string[@name="record"]')
                 def snapshot(name, expectation=None):
                     result = run([TRANSPORT['ADB'], '-s', TRANSPORT['SERIAL'], 'exec-out', 'screencap', '-p'], capture_output=True)
                     (directory / (name + '.png')).write_bytes(result.stdout)
                     inspect_cache_image(image_helper, directory / (name + '.png'), expectation)
                 def login():
-                    device('shell', 'input', 'tap', '160', '344')
+                    ui.tap('Identifiant', offset_y=40)
                     for command in [('text', shlex.quote(private['login_name'].replace(' ', '%s'))), ('keyevent', '61'), ('text', shlex.quote(private['password'].replace(' ', '%s'))), ('keyevent', '66')]:
                         # Never include submitted values in CalledProcessError/logs.
                         result = device('shell', 'input', *command, check=False)
                         assert result.returncode == 0, 'native synthetic input failed'
-                    time.sleep(1)
+                def first_visible_alias():
+                    labels, _, _, _ = ui.labels()
+                    aliases = [row for row in labels if row['confidence'] >= .5
+                               and re.fullmatch(r'[a-z_]+\.[a-z0-9_]+', row['label'])]
+                    assert aliases, 'Expected an observed complete inventory alias'
+                    return min(aliases, key=lambda row: row['y'])['label']
                 before = time.time_ns()
                 device_clock = device('shell', 'date', '+%s.%N').stdout.strip()
                 write(directory / 'clock.json', {'host_before_ns': before, 'device_epoch_seconds': device_clock, 'host_after_ns': time.time_ns()})
                 for step in [AppStep.LOGIN, AppStep.RESTORE_READ_LOGOUT, AppStep.STORE_FAILURE, AppStep.SIGNED_OUT]:
                     device('shell', 'am', 'start', '-n', PACKAGE + '/android.app.NativeActivity')
-                    time.sleep(2)
+                    ui.find('Afficher ma maison', match=contains) if step is AppStep.RESTORE_READ_LOGOUT else ui.find('Identifiant')
                     snapshot(step.value)
                     match step:
                         case AppStep.LOGIN:
                             login()
+                            ui.find('Afficher ma maison', match=contains)
                             deadline = time.monotonic() + 10
                             while not records() and time.monotonic() < deadline:
                                 time.sleep(.1)
@@ -448,19 +482,28 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                             snapshot('authenticated')
                         case AppStep.RESTORE_READ_LOGOUT:
                             assert len(records()) == 1
-                            device('shell', 'input', 'tap', '80', '100')
-                            device('shell', 'input', 'keyevent', '61', '61', '66')
-                            time.sleep(1)
+                            ui.tap('Afficher ma maison', match=contains)
+                            if kind is FixtureKind.CACHE:
+                                ui.find('850 entités', match=contains)
+                            ui.tap('Inventaire')
+                            ui.find('Élément')
                             snapshot('protected-read')
                             if kind is FixtureKind.CACHE:
                                 pid = device('shell', 'pidof', PACKAGE).stdout.strip()
                                 assert pid.isdecimal(), 'expected one owned native app process'
                                 load_report = cache_load(control, lambda: device('shell', 'pidof', PACKAGE).stdout.strip() == pid)
                                 snapshot('loaded-850', CacheImageExpectation.READY)
-                                device('shell', 'input', 'keyevent', '61', '123')
+                                ui.tap(first_visible_alias(), match=contains)
+                                ui.find('Retour aux éléments')
+                                ui.tap('Retour aux éléments')
+                                device('shell', 'input', 'keyevent', '123')
+                                time.sleep(.7)
+                                device('shell', 'input', 'keyevent', '66')
+                                ui.find('Retour aux éléments')
+                                ui.find(private['expected_last_alias'], match=contains)
+                                ui.tap('Retour aux éléments')
                                 time.sleep(.7)
                                 snapshot('last-viewport', CacheImageExpectation.READY)
-                                device('shell', 'input', 'keycombination', '59', '61')
                             if lifecycle:
                                 before_pid = device('shell', 'pidof', PACKAGE).stdout.strip()
                                 device('shell', 'input', 'keyevent', '3')
@@ -469,9 +512,12 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                                 time.sleep(2)
                                 assert device('shell', 'pidof', PACKAGE).stdout.strip() == before_pid, 'foreground restarted instead of resuming the owned app'
                                 snapshot('resumed-read', CacheImageExpectation.READY if kind is FixtureKind.CACHE else None)
-                            device('shell', 'input', 'keycombination', '59', '61')
-                            device('shell', 'input', 'keyevent', '66')
-                            time.sleep(1)
+                            ui.tap('Préférences')
+                            ui.tap('Se déconnecter', scroll=True)
+                            ui.find('Se connecter')
+                            deadline = time.monotonic() + 10
+                            while records() and time.monotonic() < deadline:
+                                time.sleep(.1)
                             assert not records(), 'native client logout retained encrypted credentials'
                             write(directory / 'client-logout.json', {'credential_records': 0, 'before_harness_cleanup': True})
                             snapshot('client-logout', CacheImageExpectation.CLEARED if kind is FixtureKind.CACHE else None)
@@ -480,6 +526,7 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                             device('shell', 'run-as', PACKAGE, 'chmod', '500', 'shared_prefs')
                             try:
                                 login()
+                                ui.find('Stockage sécurisé indisponible', match=contains)
                                 assert not records(), 'failed native commit created a credential file'
                                 snapshot('native-store-unavailable')
                             finally:
@@ -489,6 +536,11 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                         case _:
                             raise AssertionError('Unhandled Android application step')
                     device('shell', 'am', 'force-stop', PACKAGE)
+            except BaseException as error:
+                if installed and 'ui' in locals():
+                    ui.capture('failure')
+                write(directory / 'failure.json', {'status': 'FAIL', 'failure': str(error)})
+                raise
             finally:
                 errors = []
                 device('shell', 'am', 'force-stop', PACKAGE, check=False)
@@ -500,6 +552,15 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                     removed = device('reverse', '--remove', f'tcp:{port}', check=False)
                     if removed.returncode != 0:
                         errors.append('owned port forwarding cleanup unconfirmed')
+                device('shell', 'wm', 'size', 'reset', check=False)
+                device('shell', 'wm', 'density', 'reset', check=False)
+                for key, value in rotation.items():
+                    if value == 'null':
+                        device('shell', 'settings', 'delete', 'system', key)
+                    else:
+                        device('shell', 'settings', 'put', 'system', key, value)
+                if installed:
+                    device('uninstall', PACKAGE)
                 if errors:
                     raise RuntimeError('; '.join(errors))
     write(directory / 'result.json', {'status': 'AUTOMATED_CHECKS_PASS', 'server': validate_app_report(control, 2, 2 if lifecycle else 1), 'apk_sha256': digest(apk), 'native_background_foreground_cycle': lifecycle, 'fixture_kind': kind.value, 'cache_load': load_report, 'actual_native_commit_failure_without_fallback': True, 'screenshots_require_visual_inspection': True})
