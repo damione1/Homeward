@@ -183,13 +183,48 @@ pub fn admit_account(value: &auth::Account) -> Result<Admitted<auth::Account>, A
     })
 }
 
-fn session(value: &auth::Session, now: &Timestamp) -> bool {
+// Local and server wall clocks need not be identical. Raw contract admission
+// remains exact; the interactive client admits a bounded 30-second uncertainty
+// and uses its upper bound for every credential expiration decision.
+const INTERACTIVE_CLOCK_UNCERTAINTY_SECONDS: i64 = 30;
+struct SessionClockBounds {
+    earliest: Timestamp,
+    latest: Timestamp,
+}
+impl SessionClockBounds {
+    fn exact(now: &Timestamp) -> Result<Self, AdmissionError> {
+        if !valid_timestamp(now) {
+            return Err(AdmissionError::Invalid);
+        }
+        Ok(Self {
+            earliest: now.clone(),
+            latest: now.clone(),
+        })
+    }
+    fn interactive(now: &Timestamp) -> Result<Self, AdmissionError> {
+        let mut bounds = Self::exact(now)?;
+        bounds.earliest.seconds -= INTERACTIVE_CLOCK_UNCERTAINTY_SECONDS;
+        bounds.latest.seconds += INTERACTIVE_CLOCK_UNCERTAINTY_SECONDS;
+        if !valid_timestamp(&bounds.earliest) || !valid_timestamp(&bounds.latest) {
+            return Err(AdmissionError::Invalid);
+        }
+        Ok(bounds)
+    }
+}
+
+/// Conservative time for interactive expiration checks. This can expire a
+/// credential early; it never adds leeway after the returned server deadline.
+pub fn interactive_expiration_now(now: &Timestamp) -> Result<Timestamp, AdmissionError> {
+    Ok(SessionClockBounds::interactive(now)?.latest)
+}
+
+fn session(value: &auth::Session, clock: &SessionClockBounds) -> bool {
     if !value.__buffa_unknown_fields.is_empty()
         || !session_id(&value.id)
         || !account_id(&value.account_id)
-        || !future(&value.expires_at, now)
+        || !future(&value.expires_at, &clock.latest)
         || value.revoked_at.is_set()
-        || !session_authentication(value, now)
+        || !session_authentication(value, &clock.latest)
     {
         return false;
     }
@@ -201,13 +236,13 @@ fn session(value: &auth::Session, now: &Timestamp) -> bool {
     (expires.seconds, expires.nanos) > (created.seconds, created.nanos)
         && (value.last_used_at.as_option().is_none() || timestamp(&value.last_used_at).is_some())
 }
-fn session_tokens(value: &auth::SessionTokens, now: &Timestamp) -> bool {
+fn session_tokens(value: &auth::SessionTokens, clock: &SessionClockBounds) -> bool {
     // Remaining lifetime only; the issuing service enforces issuance time.
     if !value.__buffa_unknown_fields.is_empty()
         || value.audience != auth::CredentialAudience::Interactive
         || !text(&value.access_token)
         || !text(&value.refresh_token)
-        || !future(&value.access_expires_at, now)
+        || !future(&value.access_expires_at, &clock.earliest)
     {
         return false;
     }
@@ -220,10 +255,11 @@ fn session_tokens(value: &auth::SessionTokens, now: &Timestamp) -> bool {
     let Some(session_expires) = timestamp(&session.expires_at) else {
         return false;
     };
-    self::session(session, now)
+    self::session(session, clock)
         && (access_expires.seconds, access_expires.nanos)
             <= (session_expires.seconds, session_expires.nanos)
-        && (access_expires.seconds, access_expires.nanos) <= (now.seconds + 900, now.nanos)
+        && (access_expires.seconds, access_expires.nanos)
+            <= (clock.latest.seconds + 900, clock.latest.nanos)
 }
 fn factor_challenge(value: &auth::FactorChallenge, now: &Timestamp) -> bool {
     if !value.__buffa_unknown_fields.is_empty()
@@ -337,27 +373,76 @@ pub fn admit_begin_factor_enrollment(
     }
 }
 
-pub fn admit_login(
+/// Validate a token bundle without making another owned copy of its secrets.
+/// Persistence revalidates at its recorded admission time, then separately
+/// checks the current absolute/access expirations before exposing a session.
+pub fn validate_session_tokens(
+    value: &auth::SessionTokens,
+    now: &Timestamp,
+) -> Result<(), AdmissionError> {
+    if session_tokens(value, &SessionClockBounds::exact(now)?) {
+        Ok(())
+    } else {
+        Err(AdmissionError::Invalid)
+    }
+}
+
+pub fn validate_login(value: &auth::LoginDecision, now: &Timestamp) -> Result<(), AdmissionError> {
+    validate_login_with_clock(value, &SessionClockBounds::exact(now)?)
+}
+
+/// Interactive responses cross independent clocks. Shape, audience, identity,
+/// authentication ordering and all unknown-field checks remain identical.
+pub fn validate_received_login(
     value: &auth::LoginDecision,
     now: &Timestamp,
-) -> Result<Admitted<auth::LoginDecision>, AdmissionError> {
-    if !valid_timestamp(now) || !value.__buffa_unknown_fields.is_empty() {
+) -> Result<(), AdmissionError> {
+    validate_login_with_clock(value, &SessionClockBounds::interactive(now)?)
+}
+
+/// A possibly expired short access credential is admitted only within the
+/// uncertainty interval, then immediately refreshed by the owner. The absolute
+/// session itself must still be valid at the interval's conservative upper bound.
+pub fn validate_received_session_tokens(
+    value: &auth::SessionTokens,
+    now: &Timestamp,
+) -> Result<(), AdmissionError> {
+    if session_tokens(value, &SessionClockBounds::interactive(now)?) {
+        Ok(())
+    } else {
+        Err(AdmissionError::Invalid)
+    }
+}
+
+fn validate_login_with_clock(
+    value: &auth::LoginDecision,
+    clock: &SessionClockBounds,
+) -> Result<(), AdmissionError> {
+    if !value.__buffa_unknown_fields.is_empty() {
         return Err(AdmissionError::Invalid);
     }
     let valid = match &value.outcome {
-        Some(auth::login_decision::Outcome::Authenticated(v)) => session_tokens(v, now),
-        Some(auth::login_decision::Outcome::Challenge(v)) => factor_challenge(v, now),
+        Some(auth::login_decision::Outcome::Authenticated(v)) => session_tokens(v, clock),
+        Some(auth::login_decision::Outcome::Challenge(v)) => factor_challenge(v, &clock.latest),
         Some(auth::login_decision::Outcome::EnrollmentRequired(v)) => {
             v.__buffa_unknown_fields.is_empty()
                 && account_id(&v.account_id)
                 && text(&v.enrollment_token)
-                && future(&v.expires_at, now)
+                && future(&v.expires_at, &clock.latest)
         }
         None => false,
     };
     if !valid {
         return Err(AdmissionError::Invalid);
     }
+    Ok(())
+}
+
+pub fn admit_login(
+    value: &auth::LoginDecision,
+    now: &Timestamp,
+) -> Result<Admitted<auth::LoginDecision>, AdmissionError> {
+    validate_login(value, now)?;
     Ok(Admitted {
         wire: value.clone(),
     })

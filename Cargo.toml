@@ -1,4 +1,7 @@
 [workspace]
-members = ["client/model", "client/wire", "client/app", "client/transport"]
-exclude = [".tools/frontend-kits/pro/crates/kit-pro", ".tools/frontend-kits/pro/crates/kit-pro-build"]
+members = ["client/model", "client/wire", "client/app", "client/transport", "client/session", "client/platform"]
+exclude = ["client/platform/vendor/slint-android-activity", ".tools/frontend-kits/pro/crates/kit-pro", ".tools/frontend-kits/pro/crates/kit-pro-build"]
 resolver = "2"
+
+[patch.crates-io]
+i-slint-backend-android-activity = { path = "client/platform/vendor/slint-android-activity" }

@@ -7,6 +7,7 @@ ELF; this qualifies the transport, not an APK UI or a physical tablet.
 """
 import argparse
 import contextlib
+from enum import Enum
 import hashlib
 import json
 import os
@@ -28,6 +29,30 @@ REQUIRED = ['unary', 'present_false', 'cancelled', 'session_still_usable',
             'untrusted_ca_rejected', 'deadline', 'unary_deadline', 'normal_eof',
             'typed_revocation', 'network_cut', 'bounded_reconnect',
             'backoff_cancelled', 'zero_absent_future', 'authority_not_retried']
+
+
+class Platform(Enum):
+    DESKTOP = 'desktop'
+    ANDROID = 'android'
+
+
+class PlatformSelection(Enum):
+    DESKTOP = Platform.DESKTOP.value
+    ANDROID = Platform.ANDROID.value
+    ALL = 'all'
+
+    def __str__(self):
+        return self.value
+
+    def platforms(self):
+        match self:
+            case PlatformSelection.DESKTOP:
+                return [Platform.DESKTOP]
+            case PlatformSelection.ANDROID:
+                return [Platform.ANDROID]
+            case PlatformSelection.ALL:
+                return list(Platform)
+        raise AssertionError('Unhandled platform selection')
 
 
 def run(argv, **kwargs):
@@ -92,7 +117,7 @@ def android(proof):
 
 
 def qualify(proof, server_binary, client_binary, platform, wrong_name=False):
-    directory = proof / (platform + ('-wrong-name' if wrong_name else '-full'))
+    directory = proof / (platform.value + ('-wrong-name' if wrong_name else '-full'))
     directory.mkdir(mode=0o700)
     fixture = directory / 'fixture'
     remote = REMOTE + '-' + proof.name + ('-wrong' if wrong_name else '-full')
@@ -119,7 +144,7 @@ def qualify(proof, server_binary, client_binary, platform, wrong_name=False):
             if private['mode'] != 'synthetic-only':
                 raise RuntimeError('Unexpected fixture mode.')
             args = [str(client_binary), str(ready)]
-            if platform == 'android':
+            if platform is Platform.ANDROID:
                 for key in ['origin', 'wire_origin']:
                     origin = urlsplit(private[key])
                     if origin.scheme != 'https' or origin.hostname != '127.0.0.1' or not origin.port:
@@ -187,7 +212,7 @@ def qualify(proof, server_binary, client_binary, platform, wrong_name=False):
                         stop(child)
                 if reader.is_alive():
                     cleanup_errors.append('Native pipe reader did not join.')
-            if platform == 'android' and private is not None:
+            if platform is Platform.ANDROID and private is not None:
                 try:
                     if remote_created:
                         device('shell', 'rm', '-rf', remote)
@@ -211,7 +236,7 @@ def qualify(proof, server_binary, client_binary, platform, wrong_name=False):
     if not (server_report['server_joined'] and server_report['future_server_joined']
             and server_report['command_driver_entries'] == 0 and server_report['connections_remaining'] == 0):
         raise RuntimeError('Synthetic server ownership/driver invariant failed.')
-    if report['os'] != ('android' if platform == 'android' else 'macos'):
+    if report['os'] != ('android' if platform is Platform.ANDROID else 'macos'):
         raise RuntimeError('Native probe ran on the wrong OS.')
     if wrong_name:
         valid = (report.get('wrong_name_rejected') is True and server_report['published'] == 0
@@ -226,7 +251,7 @@ def qualify(proof, server_binary, client_binary, platform, wrong_name=False):
     if not valid:
         raise RuntimeError('Incomplete native transport proof.')
     result = {'status': 'PASS', 'client': report, 'server': server_report,
-              'execution': 'native ELF on API35 emulator' if platform == 'android' else 'native macOS executable'}
+              'execution': 'native ELF on API35 emulator' if platform is Platform.ANDROID else 'native macOS executable'}
     (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result), flush=True)
     return result
@@ -234,7 +259,8 @@ def qualify(proof, server_binary, client_binary, platform, wrong_name=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--platform', choices=['desktop', 'android', 'all'], default='all')
+    parser.add_argument('--platform', type=PlatformSelection, choices=list(PlatformSelection),
+                        default=PlatformSelection.ALL)
     args = parser.parse_args()
     if not os.environ.get('CARGO_TARGET_DIR') or not os.environ.get('GOCACHE'):
         parser.error('Run through scripts/frontend.py run --cargo to reserve shared tools/storage.')
@@ -242,17 +268,17 @@ def main():
     proof.mkdir(parents=True, mode=0o700)
     server = proof / 'server.test'
     run(['go', 'test', '-c', '-race', '-o', server, './internal/server'])
-    platforms = ['desktop', 'android'] if args.platform == 'all' else [args.platform]
+    platforms = args.platform.platforms()
     results, hashes = [], {'server.test': hashlib.sha256(server.read_bytes()).hexdigest()}
     for platform in platforms:
-        target_args = ['--target', 'aarch64-linux-android'] if platform == 'android' else []
+        target_args = ['--target', 'aarch64-linux-android'] if platform is Platform.ANDROID else []
         run(['cargo', 'build', '--locked', '-p', 'home-client-transport', '--example', 'nhf002_probe', *target_args])
         binary = Path(os.environ['CARGO_TARGET_DIR'])
-        if platform == 'android':
+        if platform is Platform.ANDROID:
             binary /= 'aarch64-linux-android'
         binary /= 'debug/examples/nhf002_probe'
-        hashes[platform] = hashlib.sha256(binary.read_bytes()).hexdigest()
-        owner = android(proof) if platform == 'android' else contextlib.nullcontext()
+        hashes[platform.value] = hashlib.sha256(binary.read_bytes()).hexdigest()
+        owner = android(proof) if platform is Platform.ANDROID else contextlib.nullcontext()
         with owner:
             results.append(qualify(proof, server, binary, platform))
             results.append(qualify(proof, server, binary, platform, wrong_name=True))

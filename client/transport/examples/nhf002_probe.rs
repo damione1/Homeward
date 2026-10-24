@@ -1,6 +1,12 @@
 //! Qualification executable. Its input is a private synthetic harness fixture,
 //! never the application's session store. The host controls fake observations
 //! through stdout barriers; all StateService traffic uses the real TLS RPCs.
+#![deny(clippy::wildcard_enum_match_arm)]
+
+#[path = "support/scenario.rs"]
+mod scenario;
+
+use scenario::Scenario;
 use std::{
     error::Error,
     future::{Future, poll_fn},
@@ -22,9 +28,16 @@ fn barrier(sequence: u64) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let path = std::env::args()
-        .nth(1)
-        .ok_or("private fixture path required")?;
+    let mut args = std::env::args().skip(1);
+    let path = args.next().ok_or("private fixture path required")?;
+    let scenario = args
+        .next()
+        .map(|value| value.parse())
+        .transpose()?
+        .unwrap_or(Scenario::Full);
+    if args.next().is_some() {
+        return Err("unexpected argument".into());
+    }
     let fixture: serde_json::Value = serde_json::from_slice(&std::fs::read(path)?)?;
     if fixture["mode"] != "synthetic-only" {
         return Err("only explicit synthetic harness fixtures accepted".into());
@@ -32,30 +45,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let text = |name: &str| fixture[name].as_str().ok_or("incomplete private fixture");
     let client = StateTransport::new(text("origin")?, text("ca_pem")?.as_bytes())?;
     let token = AccessToken::parse(text("access_token")?)?;
-    let wrong_name = std::env::args().nth(2).as_deref() == Some("wrong-name");
     let cancel = CancellationToken::new();
-    if wrong_name {
-        let failure = client
-            .open_view(
-                state::OpenViewRequest {
-                    filter: state::ViewFilter::default().into(),
-                    page_size: 16,
-                    ..Default::default()
-                },
-                &token,
-                Duration::from_secs(5),
-                &cancel,
-            )
-            .await
-            .expect_err("wrong server name accepted");
-        if failure.kind() != FailureKind::WrongServerName {
-            return Err(failure.into());
+    match scenario {
+        Scenario::WrongName => {
+            let failure = client
+                .open_view(
+                    state::OpenViewRequest {
+                        filter: state::ViewFilter::default().into(),
+                        page_size: 16,
+                        ..Default::default()
+                    },
+                    &token,
+                    Duration::from_secs(5),
+                    &cancel,
+                )
+                .await
+                .expect_err("wrong server name accepted");
+            if failure.kind() != FailureKind::WrongServerName {
+                return Err(failure.into());
+            }
+            println!(
+                "NHF002_RESULT {}",
+                serde_json::json!({"os": std::env::consts::OS, "wrong_name_rejected": true})
+            );
+            return Ok(());
         }
-        println!(
-            "NHF002_RESULT {}",
-            serde_json::json!({"os": std::env::consts::OS, "wrong_name_rejected": true})
-        );
-        return Ok(());
+        Scenario::Full => {}
     }
     let untrusted = StateTransport::new(text("origin")?, text("untrusted_ca_pem")?.as_bytes())?;
     let failure = untrusted

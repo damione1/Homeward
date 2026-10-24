@@ -1,0 +1,24 @@
+{
+  "crate": "i-slint-backend-android-activity",
+  "version": "1.18.1",
+  "upstream_archive_sha256": "70d538003a566d7312572ac1435be0704934e46a63d55abdabede513f72332cb",
+  "upstream_files": {
+    "Cargo.toml": "b8b8623318e2461bbc7c709d089ded242e1d0cb10a1a4f8c2a84a2594ff92206",
+    "Cargo.toml.orig": "115798110fdb0645b30329787de5ba81d72be392dd761a5ff3681baeb36b9e0e",
+    "LICENSES/GPL-3.0-only.txt": "b6a8bf63ae2c95b0aa256ee774680d7bd18f21f457da75466f7610b3b16acc4e",
+    "LICENSES/LicenseRef-Slint-Royalty-free-2.0.md": "5167f5056e850419106ab6265efbdca7cba4d99c849d1445ca0bbf6a1e2315fe",
+    "LICENSES/LicenseRef-Slint-Software-3.0.md": "a235744b92f4453fe18e081e54f29468a6a9db6a44e9a8f6364a48001ba4f10f",
+    "README.md": "d1c873fa2dbc45695c679f276c712235cb30fb70cde8b6fbae50d52b293924d9",
+    "androidwindowadapter.rs": "ef925ce1e079979a5b427e09dfbe2b6acaa0a8cfa0af2063c6002ed62e0f269b",
+    "build.rs": "41745440ef54acbd8a1de9f85a519de818c915380004ac8640b7d147d547924f",
+    "java/SlintAndroidJavaHelper.java": "db20ebe8299c5d8588537ac2be915e1c282d9ae00aaa36692e1eaa99f9be936d",
+    "javahelper.rs": "ae3dfa6ed6367b971d30b850b88daa3948b4d835abb1d8952c72e271fe539aa8",
+    "lib.rs": "4b9abb359175b34628467a2592315df5ac3ed663a9ae2394b8217a9b92582f82",
+    "vsync.rs": "9454f8498d0c0a670a0fb6aabc3e08e1f4c5a5756b467f6d68fabb7afc561b2c"
+  },
+  "modified_files": [
+    "Cargo.toml",
+    "androidwindowadapter.rs"
+  ],
+  "reason": "Resolve raw Android printable keys through the device KeyCharacterMap and event meta state; retain named/control shortcut mapping. No password normalization or shared registry edits."
+}

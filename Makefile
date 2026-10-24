@@ -57,3 +57,7 @@ check-frontend:
 
 qualify-frontend-transport:
 	python3 scripts/frontend.py run --cargo -- python3 scripts/qualify-frontend-transport.py
+
+.PHONY: qualify-frontend-session
+qualify-frontend-session:
+	python3 scripts/frontend.py run --cargo -- python3 scripts/qualify-frontend-session.py
