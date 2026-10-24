@@ -1,0 +1,65 @@
+# Isolated synthetic server configuration, never loaded by homed or the client.
+views:
+- type: sections
+  path: home
+  title: Ma maison
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      name: Confort principal
+      entity: climate.home
+    - type: tile
+      name: Météo
+      entity: weather.maison
+    - type: tile
+      name: Ventilation du salon
+      entity: fan.living_room_ceiling_fan
+- type: sections
+  path: living-room
+  title: Salon
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      entity: fan.living_room_ceiling_fan
+- type: sections
+  path: kitchen
+  title: Cuisine
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      entity: light.kitchen_main_lights
+- type: sections
+  path: dining-room
+  title: Salle à manger
+  sections: []
+- type: sections
+  path: master-bedroom
+  title: Chambre principale
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      entity: climate.chambre_principale
+- type: sections
+  path: nursery
+  title: Chambre synthétique
+  sections: []
+- type: sections
+  path: bathroom
+  title: Salle de bain
+  sections: []
+- type: sections
+  path: office
+  title: Bureau
+  sections: []
+- type: sections
+  path: guest-bedroom
+  title: Chambre d’amis
+  sections: []
+- type: sections
+  path: outdoor
+  title: Extérieur
+  sections: []

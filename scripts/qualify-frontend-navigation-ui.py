@@ -63,6 +63,11 @@ class NativeKey(Enum):
     LETTER_N = 'letter-n'
 
 
+class FixtureAction(Enum):
+    DENY = 'deny'
+    ALLOW = 'allow'
+
+
 class RoomCase(Enum):
     LIVING = 'Salon'
     KITCHEN = 'Cuisine'
@@ -155,15 +160,63 @@ def desktop(proof, server):
             capture('home-after-read')
             wait_label('21.5 °C')
             capture('home-initial')
+            # Change only the isolated server's external YAML while the same
+            # native process remains alive. No UI model/route is injected.
+            dashboard = directory / 'server-dashboard/dashboard.yaml'
+            pid_before = child.pid
+            binary_before = digest(binary)
+            replacement = dashboard.with_suffix('.writing')
+            shutil.copyfile(ROOT / 'qualification/frontend/dashboards/alternate.yaml', replacement)
+            replacement.replace(dashboard)
+            wait_label('Atelier connecté de test')
+            wait_label('Mesure réaffectée')
+            wait_label('Vitesse faible')
+            assert not any(value.startswith('Salon, ') for row in tree() for value in [row['title'], row['description']])
+            capture('server-config-hot-reload')
+            native(Command.TAP, label='Mesure réaffectée, Vitesse faible')
+            wait_label('fan.living_room_ceiling_fan')
+            native(Command.TAP, label='Retour aux éléments')
+            zone = next(row['title'] for row in tree() if row['role'] == 'AXButton' and row['title'].startswith('Zone expérimentale, '))
+            native(Command.TAP, label=zone)
+            wait_label('light.kitchen_main_lights')
+            native(Command.TAP, label='Retour')
+            assert child.pid == pid_before and digest(binary) == binary_before
+            for sequence, action in [(1, FixtureAction.DENY), (2, FixtureAction.ALLOW)]:
+                temporary = control / 'command.writing'
+                write(temporary, {'sequence': sequence, 'action': action.value})
+                temporary.replace(control / 'command.json')
+                deadline = time.monotonic() + 8
+                while not (control / ('ack-%02d.json' % sequence)).exists():
+                    assert child.poll() is None and time.monotonic() < deadline
+                    time.sleep(.05)
+                if action is FixtureAction.DENY:
+                    wait_label('Afficher ma maison')
+                    assert not has('Atelier connecté de test')
+                    assert not any(value.startswith('Zone expérimentale, ') for row in tree() for value in [row['title'], row['description']])
+                    capture('dashboard-rights-withdrawn')
+            native(Command.TAP, label='Afficher ma maison')
+            wait_label('Atelier connecté de test')
+            wait_label('Mesure réaffectée')
+            shutil.copyfile(ROOT / 'qualification/frontend/dashboards/home.yaml', replacement)
+            replacement.replace(dashboard)
+            wait_label('Ma maison')
+            wait_label('Confort principal')
+            receipt['server_hot_reload'] = {'same_pid': pid_before, 'same_binary': binary_before, 'title_rooms_and_binding_changed': True, 'exact_observation_and_room_bindings_opened': True, 'rights_withdrawal_cleared_private_layout': True, 'fresh_authorized_read_restored_current_definition': True, 'source_restored_with_new_revision': True}
+            write(directory / 'hot-reload-result.json', receipt['server_hot_reload'])
             room_checks = []
             for case in RoomCase:
                 room = case.value
                 first_seen_y = None
+                first_anchor = next(row['y'] for row in tree() if row['role'] == 'AXButton' and row['title'].startswith(RoomCase.LIVING.value + ', '))
                 # Public room descriptions are observed in the actual AX tree;
                 # no Rust token, route or UI model is injected by the harness.
                 for attempt in range(12):
                     candidates = [row for row in tree() if row['role'] == 'AXButton' and any(value.startswith(room + ', ') for value in [row['title'], row['description']])]
-                    assert len(candidates) == 1, 'Missing room action: ' + room
+                    if not candidates:
+                        native(Command.SCROLL, delta=-250)
+                        time.sleep(.15)
+                        continue
+                    assert len(candidates) == 1, 'Ambiguous room action: ' + room
                     if first_seen_y is None:
                         first_seen_y = candidates[0]['y']
                     label = next(value for value in [candidates[0]['title'], candidates[0]['description']] if value.startswith(room + ', '))
@@ -192,7 +245,8 @@ def desktop(proof, server):
                 assert has('Retour'), 'Back must restore a live keyboard room opener'
                 native(Command.TAP, label='Retour')
                 wait_label(label)
-                scrolled_by = first_seen_y - candidates[0]['y']
+                anchor_after = next(row['y'] for row in tree() if row['role'] == 'AXButton' and row['title'].startswith(RoomCase.LIVING.value + ', '))
+                scrolled_by = first_anchor - anchor_after
                 if case is RoomCase.OUTDOOR:
                     assert scrolled_by > 0, 'the restoration test must cover a nonzero home scroll'
                 room_checks.append({'room': room, 'scroll_delta': restored['y'] - candidates[0]['y'], 'scrolled_before_open': scrolled_by, 'keyboard_reopened_opener': True})
@@ -275,9 +329,13 @@ def desktop(proof, server):
             public.unlink()
             if preferences.exists():
                 preferences.unlink()
-    report = session['validate_app_report'](control, 1, 1)
+    observed = json.loads((control / 'result.json').read_text())
+    # Rights notifications can require additional coherent StateService snapshots.
+    assert 2 <= observed['state_read_calls'] <= 8
+    report = session['validate_app_report'](control, 1, observed['state_read_calls'])
+    assert report['dashboard_list_calls'] >= 1 and report['dashboard_get_calls'] >= 2 and report['dashboard_watch_calls'] >= 1
     assert report['command_driver_entries'] == 0 and report['action_rpc_calls'] == 0 and report['server_joined'] and report['connections_remaining'] == 0
-    write(directory / 'server-invariants.json', {'driver_entries': 0, 'action_rpc_calls': 0, 'server_joined': True, 'connections_remaining': 0, 'explicit_view_reads': 1})
+    write(directory / 'server-invariants.json', {'driver_entries': 0, 'action_rpc_calls': 0, 'server_joined': True, 'connections_remaining': 0, 'state_view_reads_including_rights_resync': report['state_read_calls']})
 
 
 def android(proof, server):
@@ -355,6 +413,45 @@ def android(proof, server):
                 ui.tap('Afficher ma maison', match=contains)
                 ui.find('Confort principal', match=contains)
                 ui.capture('home-initial')
+                dashboard = directory / 'server-dashboard/dashboard.yaml'
+                replacement = dashboard.with_suffix('.writing')
+                pid_before = device('shell', 'pidof', package).stdout.strip()
+                assert pid_before
+                shutil.copyfile(ROOT / 'qualification/frontend/dashboards/alternate.yaml', replacement)
+                replacement.replace(dashboard)
+                ui.find('Atelier connecté', match=contains)
+                ui.find('Mesure réaffectée', match=contains)
+                ui.find('Vitesse faible', match=contains)
+                ui.capture('server-config-hot-reload')
+                ui.tap('Mesure réaffectée', match=contains)
+                ui.find('fan.living_room_ceiling_fan', match=contains)
+                back()
+                ui.tap('Zone expérimentale', match=contains, scroll=True)
+                ui.find('light.kitchen_main_lights', match=contains)
+                back()
+                assert device('shell', 'pidof', package).stdout.strip() == pid_before
+                for sequence, action in [(1, FixtureAction.DENY), (2, FixtureAction.ALLOW)]:
+                    temporary = control / 'command.writing'
+                    write(temporary, {'sequence': sequence, 'action': action.value})
+                    temporary.replace(control / 'command.json')
+                    deadline = time.monotonic() + 8
+                    while not (control / ('ack-%02d.json' % sequence)).exists():
+                        assert time.monotonic() < deadline
+                        time.sleep(.05)
+                    if action is FixtureAction.DENY:
+                        ui.find('Afficher ma maison', match=contains)
+                        labels, _, _, _ = ui.labels()
+                        assert not any('zoneexperimentale' in android_input['normalized'](row['label']) for row in labels)
+                        ui.capture('dashboard-rights-withdrawn')
+                ui.tap('Afficher ma maison', match=contains)
+                ui.find('Atelier connecté', match=contains)
+                ui.find('Mesure réaffectée', match=contains)
+                shutil.copyfile(ROOT / 'qualification/frontend/dashboards/home.yaml', replacement)
+                replacement.replace(dashboard)
+                ui.find('Ma maison', match=contains)
+                ui.find('Confort principal', match=contains)
+                receipt['server_hot_reload'] = {'same_pid': pid_before, 'same_apk': digest(apk), 'title_rooms_and_binding_changed': True, 'exact_observation_and_room_bindings_opened': True, 'rights_withdrawal_cleared_private_layout': True, 'fresh_authorized_read_restored_current_definition': True, 'source_restored_with_new_revision': True}
+                write(directory / 'hot-reload-result.json', receipt['server_hot_reload'])
                 room_checks = []
                 for case in [RoomCase.LIVING, RoomCase.KITCHEN, RoomCase.BEDROOM]:
                     before = ui.tap(case.value, scroll=True)
@@ -496,9 +593,12 @@ def android(proof, server):
                         device('shell', 'settings', 'put', 'system', key, value)
                 if installed:
                     device('uninstall', package)
-    report = session['validate_app_report'](control, 1, 1)
+    observed = json.loads((control / 'result.json').read_text())
+    assert 2 <= observed['state_read_calls'] <= 8
+    report = session['validate_app_report'](control, 1, observed['state_read_calls'])
+    assert report['dashboard_list_calls'] >= 1 and report['dashboard_get_calls'] >= 2 and report['dashboard_watch_calls'] >= 1
     assert report['command_driver_entries'] == 0 and report['action_rpc_calls'] == 0
-    write(directory / 'server-invariants.json', {'driver_entries': 0, 'action_rpc_calls': 0, 'server_joined': report['server_joined'], 'explicit_view_reads': 1})
+    write(directory / 'server-invariants.json', {'driver_entries': 0, 'action_rpc_calls': 0, 'server_joined': report['server_joined'], 'state_view_reads_including_rights_resync': report['state_read_calls']})
 
 
 def main():

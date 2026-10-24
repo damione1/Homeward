@@ -53,7 +53,10 @@ export component HomewardWindow inherits Window {
     in-out property <bool> large-text;
     in-out property <bool> reduced-motion: true;
     in property <ViewPage> page: ViewPage.home;
-    in property <string> page-title: "Ma maison";
+    in property <string> page-title: "Accueil";
+    in property <string> dashboard-title: "Accueil";
+    in property <string> dashboard-status;
+    in property <bool> dashboard-synthetic;
     in property <string> local-clock;
     in property <string> local-date;
     in property <[OptionRow]> navigation-rows;
@@ -65,6 +68,7 @@ export component HomewardWindow inherits Window {
     in property <FocusRequest> home-focus;
     in property <int> projection-version;
     in property <int> cache-generation;
+    in property <int> home-generation;
     in property <bool> view-loaded;
     in property <string> detail-title;
     in property <string> detail-value;
@@ -72,7 +76,8 @@ export component HomewardWindow inherits Window {
     in property <string> detail-date;
     in property <string> preferences-status;
     private property <bool> connected: root.access-stage == ProAccessStage.connected;
-    callback private-view-cleared();
+    callback private-view-cleared(bool);
+    callback dashboard-changed();
     callback navigation-open();
     callback navigation-reopen();
     callback navigation-dismiss(CloseReason);
@@ -174,9 +179,9 @@ export component HomewardWindow inherits Window {
     shell := ProAdaptiveShell {
         width: content.width; height: content.height;
         visible: root.connected && !root.show-endpoint;
-        theme: root.theme; product-name: "Homeward"; workspace-label: "Ma maison";
+        theme: root.theme; product-name: "Homeward"; workspace-label: root.dashboard-title;
         compact-breakpoint: 1100px;
-        page-title: root.page == ViewPage.home ? root.page-title + " · " + root.local-clock : root.page-title;
+        page-title: root.page == ViewPage.home ? root.dashboard-title + " · " + root.local-clock : root.page-title;
         status: root.read-status == "" ? root.session-title : root.read-status;
         navigation-label: "Navigation"; close-label: "Fermer la navigation";
         search-label: "Rechercher dans ma maison"; search-placeholder: "Rechercher un élément…"; clear-search-label: "Effacer la recherche";
@@ -200,14 +205,16 @@ export component HomewardWindow inherits Window {
             home := KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
                 visible: root.page == ViewPage.home;
-                gap: root.view-loaded ? none : roomy;
+                gap: root.view-loaded && root.dashboard-status == "" ? none : roomy;
                 Rectangle {
-                    height: root.view-loaded ? 0px : read-button.preferred-height;
-                    visible: !root.view-loaded;
+                    height: root.view-loaded && root.dashboard-status == "" ? 0px : read-button.preferred-height;
+                    visible: !root.view-loaded || root.dashboard-status != "";
                     read-button := KitButton { x: 0px; y: 0px; width: min(parent.width, 250px * root.theme.text-scale);
-                        theme: root.theme; control-size: comfortable; control-width: ControlWidth.fill; disabled: root.view-loaded;
+                        theme: root.theme; control-size: comfortable; control-width: ControlWidth.fill; disabled: root.busy;
                         text: "Afficher ma maison"; busy: root.busy; activated => { root.read-protected(); } }
                 }
+                if root.dashboard-synthetic: KitAlert { theme: root.theme; title: "Serveur de test"; message: "Données synthétiques · aucun appareil réel"; severity: information; }
+                if root.dashboard-status != "": KitAlert { theme: root.theme; title: "Dashboard"; message: root.dashboard-status; severity: information; }
                 ProHomeOverview {
                     theme: root.theme; viewport-width: viewport.width; spacing: 12px;
                     observations-title: "En un regard"; rooms-title: "Vos pièces";

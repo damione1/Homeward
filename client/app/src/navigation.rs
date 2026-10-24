@@ -96,8 +96,11 @@ impl State {
             handles.push((target, focus.register(FocusId(id), scope, order, true)));
         }
         for token in (dashboard::ROOM_TOKEN_BASE
-            ..dashboard::ROOM_TOKEN_BASE + dashboard::ROOMS.len() as i32)
-            .chain(100..103)
+            ..dashboard::ROOM_TOKEN_BASE + dashboard::MAX_ROOMS as i32)
+            .chain(
+                dashboard::OBSERVATION_TOKEN_BASE
+                    ..dashboard::OBSERVATION_TOKEN_BASE + dashboard::MAX_OBSERVATIONS as i32,
+            )
         {
             handles.push((
                 Target::Home(token),
@@ -186,23 +189,28 @@ fn same_target(a: Target, b: Target) -> bool {
     }
 }
 fn render(window: &HomewardWindow, state: &State) {
+    let request = state
+        .request
+        .lock()
+        .expect("presentation request mutex poisoned");
     let (page, title) = match &state.route {
-        Route::Home => (ViewPage::Home, "Ma maison"),
+        Route::Home => (ViewPage::Home, "Accueil"),
         Route::Rooms => (ViewPage::Rooms, "Mes pièces"),
         Route::Inventory => (ViewPage::Inventory, "Inventaire"),
-        Route::Room(id) => (ViewPage::Room, dashboard::room(id).label),
+        Route::Room(id) => (
+            ViewPage::Room,
+            request
+                .dashboard
+                .layout()
+                .and_then(|layout| layout.room(id))
+                .map_or("Pièce indisponible", |room| room.label.as_str()),
+        ),
         Route::Detail(_) => (ViewPage::Detail, "Détail"),
         Route::Settings => (ViewPage::Settings, "Préférences"),
     };
     window.set_page(page);
     window.set_page_title(title.into());
-    window.set_projection_version(
-        state
-            .request
-            .lock()
-            .expect("presentation request mutex poisoned")
-            .revision,
-    );
+    window.set_projection_version(request.revision);
     window.set_navigation_drawer(DialogState {
         open: state.overlays.contains(DRAWER),
         topmost: true,
@@ -228,17 +236,7 @@ fn take_focus(window: &HomewardWindow, shared: &Rc<RefCell<State>>, target: Targ
             }
             Target::Home(token) => window.set_home_focus(FocusRequest {
                 token,
-                generation: if dashboard::SummaryKind::ALL
-                    .into_iter()
-                    .any(|kind| kind.token() == token)
-                {
-                    window.get_cache_generation()
-                } else {
-                    // UI rows and FocusRegistry registrations have distinct
-                    // generation namespaces. The registry validates its handle;
-                    // the component must receive its own model generation.
-                    dashboard::ROOM_GENERATION
-                },
+                generation: window.get_home_generation(),
                 present: true,
                 request: i32::try_from(request.serial).expect("bounded focus serial"),
             }),
@@ -453,8 +451,14 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
             window.set_home_focus(FocusRequest::default());
         }
     });
-    let state = shared.clone();
-    window.on_home_observed(move |token, _generation, focused| {
+    let (state, weak) = (shared.clone(), window.as_weak());
+    window.on_home_observed(move |token, generation, focused| {
+        if !weak
+            .upgrade()
+            .is_some_and(|window| window.get_home_generation() == generation)
+        {
+            return;
+        }
         let mut state = state.borrow_mut();
         let handle = state.handle(Target::Home(token));
         if focused {
@@ -514,20 +518,30 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
         selection.clone(),
     );
     window.on_room_open(move |token, generation| {
-        if generation != dashboard::ROOM_GENERATION {
-            return;
-        }
-        let Some(room) = token
-            .checked_sub(dashboard::ROOM_TOKEN_BASE)
-            .and_then(|index| usize::try_from(index).ok())
-            .and_then(|index| dashboard::ROOMS.get(index))
-        else {
-            return;
-        };
         if let Some(window) = weak.upgrade() {
+            let model = window.get_cache_rows();
+            let id = model
+                .as_any()
+                .downcast_ref::<CacheRows>()
+                .and_then(|model| {
+                    model.resolve_room(
+                        token,
+                        generation,
+                        state
+                            .borrow()
+                            .request
+                            .lock()
+                            .expect("presentation request mutex poisoned")
+                            .dashboard
+                            .layout(),
+                    )
+                });
+            let Some(id) = id else {
+                return;
+            };
             state
                 .borrow_mut()
-                .open(Route::Room(room.id.clone()), Target::Home(token));
+                .open(Route::Room(id), Target::Home(token));
             select_section(&selected, Section::Rooms);
             changed(&window, &state, &*run, true);
             take_focus(&window, &state, Target::Body(BodyFocus::Back));
@@ -594,9 +608,10 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
                         state.route = entry.route;
                         match entry.opener {
                             Target::Home(token)
-                                if dashboard::SummaryKind::ALL
-                                    .into_iter()
-                                    .any(|kind| kind.token() == token) =>
+                                if (dashboard::OBSERVATION_TOKEN_BASE
+                                    ..dashboard::OBSERVATION_TOKEN_BASE
+                                        + dashboard::MAX_OBSERVATIONS as i32)
+                                    .contains(&token) =>
                             {
                                 let model = window.get_cache_rows();
                                 let current =
@@ -606,7 +621,7 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
                                         .and_then(|model| {
                                             model.resolve_observation(
                                                 token,
-                                                window.get_cache_generation(),
+                                                window.get_home_generation(),
                                                 window.get_projection_version(),
                                             )
                                         });
@@ -654,8 +669,12 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
             take_focus(&window, &state, Target::Body(BodyFocus::Inventory));
         }
     });
-    let (state, weak, run, selected) =
-        (shared.clone(), window.as_weak(), refresh, selection.clone());
+    let (state, weak, run, selected) = (
+        shared.clone(),
+        window.as_weak(),
+        refresh.clone(),
+        selection.clone(),
+    );
     window.on_choose_room(move || {
         if let Some(window) = weak.upgrade() {
             state
@@ -685,8 +704,35 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
         window.invoke_go_back();
         true
     });
+    let (layout_state, layout_window, layout_refresh, layout_selection) = (
+        shared.clone(),
+        window.as_weak(),
+        refresh.clone(),
+        selection.clone(),
+    );
+    window.on_dashboard_changed(move || {
+        if let Some(window) = layout_window.upgrade() {
+            {
+                let mut state = layout_state.borrow_mut();
+                state.route = Route::Home;
+                state.history.clear();
+                state.current = None;
+                state.close(DismissReason::Programmatic);
+                state
+                    .request
+                    .lock()
+                    .expect("presentation request mutex poisoned")
+                    .query
+                    .clear();
+            }
+            window.set_search_query("".into());
+            window.set_home_focus(FocusRequest::default());
+            select_section(&layout_selection, Section::Home);
+            changed(&window, &layout_state, &*layout_refresh, true);
+        }
+    });
     let (state, weak) = (shared, window.as_weak());
-    window.on_private_view_cleared(move || {
+    window.on_private_view_cleared(move |forget_dashboard| {
         if let Some(window) = weak.upgrade() {
             {
                 let mut state = state.borrow_mut();
@@ -701,11 +747,18 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
                     .revision
                     .checked_add(1)
                     .expect("presentation revision exhausted");
-                *state
+                let mut request = state
                     .request
                     .lock()
-                    .expect("presentation request mutex poisoned") = ProjectionRequest {
+                    .expect("presentation request mutex poisoned");
+                let dashboard = if forget_dashboard {
+                    dashboard::LayoutState::default()
+                } else {
+                    request.dashboard.clone()
+                };
+                *request = ProjectionRequest {
                     revision,
+                    dashboard,
                     ..Default::default()
                 };
             }

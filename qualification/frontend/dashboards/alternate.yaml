@@ -1,0 +1,19 @@
+# A second server configuration deliberately changes titles AND exact bindings.
+views:
+- type: sections
+  path: overview
+  title: Atelier connecté de test
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      name: Mesure réaffectée
+      entity: fan.living_room_ceiling_fan
+- type: sections
+  path: experimental-zone
+  title: Zone expérimentale
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      entity: light.kitchen_main_lights

@@ -1,0 +1,50 @@
+{
+  "title": "Observatoire de test",
+  "rooms": [
+    {
+      "id": "annex",
+      "title": "Annexe synthétique",
+      "entity_ids": [
+        "private-entity-0002"
+      ]
+    },
+    {
+      "id": "workshop",
+      "title": "Atelier synthétique",
+      "entity_ids": [
+        "private-entity-0001"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "id": "environment",
+      "title": "Ambiance synthétique",
+      "entity_id": "private-entity-0000"
+    },
+    {
+      "id": "missing",
+      "title": "Mesure absente",
+      "entity_id": "private-missing"
+    },
+    {
+      "id": "air",
+      "title": "Air synthétique",
+      "entity_id": "private-entity-0002"
+    }
+  ],
+  "entities": [
+    {
+      "id": "private-entity-0000",
+      "alias": "sensor.synthetic_ambient"
+    },
+    {
+      "id": "private-entity-0001",
+      "alias": "light.synthetic_workbench_main"
+    },
+    {
+      "id": "private-entity-0002",
+      "alias": "fan.synthetic_airflow"
+    }
+  ]
+}

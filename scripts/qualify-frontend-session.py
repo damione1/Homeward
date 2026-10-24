@@ -141,6 +141,11 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKin
             assert mode is FixtureMode.PASSWORD
             env.update(HOMEWARD_NHF004_FIXTURE=str(control), HOMEWARD_NHF004_APP='true', HOMEWARD_FRONTEND_UI_PROFILE=profile.value)
             test = 'TestNHF004CacheServer'
+            if profile is UIProfile.HOME:
+                dashboard = directory / 'server-dashboard'
+                dashboard.mkdir(mode=0o700)
+                shutil.copyfile(ROOT / 'qualification/frontend/dashboards/home.yaml', dashboard / 'dashboard.yaml')
+                env['HOMEWARD_NHF005_DASHBOARD'] = str(dashboard / 'dashboard.yaml')
     with (directory / 'server.log').open('wb') as log:
         server = subprocess.Popen([str(server_binary), '-test.run=^' + test + '$', '-test.v', '-test.timeout=8m'], cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
         try:

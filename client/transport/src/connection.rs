@@ -3,7 +3,7 @@ use std::{io::Cursor, sync::Arc, time::Duration};
 use connectrpc::client::{ClientConfig, HttpClient};
 use http::Uri;
 
-use crate::{AuthTransport, Failure, StateTransport, services::home};
+use crate::{AuthTransport, DashboardTransport, Failure, StateTransport, services::home};
 
 /// A shared verified TLS connection configuration. Service facades reuse the
 /// same HTTP connection pool; no service changes the endpoint or trust roots.
@@ -64,6 +64,15 @@ impl Connection {
     pub fn auth(&self) -> AuthTransport {
         AuthTransport {
             client: home::auth::v1::AuthServiceClient::new(self.http.clone(), self.config.clone()),
+        }
+    }
+
+    pub fn dashboard(&self) -> DashboardTransport {
+        DashboardTransport {
+            client: home::dashboard::v1::DashboardServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
         }
     }
 }
