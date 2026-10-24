@@ -16,17 +16,30 @@ class Target(Enum):
 
 vendor = root / 'client/platform/vendor/slint-android-activity'
 origin = json.loads((vendor / 'ORIGIN.json').read_text())
-allowed_changes = {'Cargo.toml', 'androidwindowadapter.rs'}
+allowed_changes = {'Cargo.toml', 'androidwindowadapter.rs', 'java/SlintAndroidJavaHelper.java'}
 if set(origin['modified_files']) != allowed_changes:
     raise SystemExit('Unexpected Android backend patch scope')
 for name, expected in origin['upstream_files'].items():
     if name not in allowed_changes and hashlib.sha256((vendor / name).read_bytes()).hexdigest() != expected:
         raise SystemExit('Unexpected change to vendored Android SDK source: ' + name)
 
+rpc_vendor = root / 'client/transport/vendor/connectrpc'
+rpc_origin = json.loads((rpc_vendor / 'UPSTREAM.json').read_text())
+rpc_changes = {'Cargo.toml', 'src/client/mod.rs'}
+if rpc_origin['crate'] != 'connectrpc' or rpc_origin['version'] != '0.9.1':
+    raise SystemExit('Unexpected response-body provenance dependency')
+for name, expected in rpc_origin['upstream_files_sha256'].items():
+    if name not in rpc_changes and hashlib.sha256((rpc_vendor / name).read_bytes()).hexdigest() != expected:
+        raise SystemExit('Unexpected change to vendored ConnectRPC source: ' + name)
+
 for target in Target:
     raw = subprocess.check_output(['cargo', 'metadata', '--locked', '--format-version', '1', '--filter-platform', target.value], cwd=root)
     (proof / (target.value + '.json')).write_bytes(raw)
     packages = json.loads(raw)['packages']
+    rpc = [package for package in packages if package['name'] == 'connectrpc']
+    if (len(rpc) != 1 or rpc[0]['version'] != '0.9.1' or rpc[0]['source'] is not None
+            or rpc[0]['publish'] != [] or Path(rpc[0]['manifest_path']).resolve() != (rpc_vendor / 'Cargo.toml').resolve()):
+        raise SystemExit('Native clients must use the pinned body-provenance correction')
     for name in ['slint-kit', 'slint-kit-core', 'slint-kit-slint', 'slint-kit-build']:
         matches = [package for package in packages if package['name'] == name]
         if len(matches) != 1 or matches[0]['version'] != '0.1.0' or matches[0]['source'] is not None or not Path(matches[0]['manifest_path']).resolve().is_relative_to(Path(config['free_kit'])):

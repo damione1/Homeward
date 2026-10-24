@@ -245,9 +245,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .next()
         .await
         .expect_err("network cut not observed");
-    // connectrpc 0.9.1 reports an interrupted response body as Internal. Keep
-    // that code: do not parse its text or retry every server Internal error.
-    if interrupted_error.kind() != FailureKind::Rpc(connectrpc::ErrorCode::Internal) {
+    // The dependency retains Internal as its RPC code, with a local-only body
+    // failure marker. A server Internal error cannot forge that provenance.
+    if interrupted_error.kind() != FailureKind::NetworkInterrupted
+        || interrupted_error.rpc().map(|error| error.code) != Some(connectrpc::ErrorCode::Internal)
+    {
         return Err(interrupted_error.into());
     }
     let resume = state::WatchViewRequest {

@@ -94,6 +94,56 @@ fn certificate_failures_remain_distinct_through_nested_io_payloads() {
     assert!(AccessToken::parse("").is_err());
 }
 
+#[test]
+fn local_body_read_provenance_cannot_be_forged_by_a_server_internal_message() {
+    let remote = Failure::from(ConnectError::internal(
+        "failed to read response body: connection reset",
+    ));
+    assert_eq!(
+        remote.kind(),
+        FailureKind::Rpc(connectrpc::ErrorCode::Internal)
+    );
+    let local = Failure::from(
+        ConnectError::internal("private transport diagnostic")
+            .with_source(connectrpc::client::ResponseBodyReadError),
+    );
+    assert_eq!(local.kind(), FailureKind::NetworkInterrupted);
+    assert_eq!(local.rpc().unwrap().code, connectrpc::ErrorCode::Internal);
+    assert!(!format!("{local:?} {local}").contains("private"));
+    let detail = ErrorDetail::from_message(
+        AuthorizationTermination::FULL_NAME,
+        &AuthorizationTermination {
+            reason: AuthorizationTerminationReason::AuthorityUnavailable.into(),
+            ..Default::default()
+        },
+    );
+    let terminated = Failure::from(
+        ConnectError::internal("private")
+            .with_source(connectrpc::client::ResponseBodyReadError)
+            .with_detail(detail),
+    );
+    assert!(terminated.authorization_termination().unwrap().is_some());
+}
+
+#[test]
+fn remote_cancellation_can_resume_a_read_but_authority_cancellation_cannot() {
+    let remote = Failure::from(ConnectError::canceled("server shutdown"));
+    assert_eq!(
+        remote.kind(),
+        FailureKind::Rpc(connectrpc::ErrorCode::Canceled)
+    );
+    assert!(remote.may_resume_read());
+    let malformed_authority = Failure::from(ConnectError::canceled("server shutdown").with_detail(
+        ErrorDetail {
+            type_url: AuthorizationTermination::TYPE_URL.into(),
+            value: None,
+            debug: None,
+        },
+    ));
+    assert!(!malformed_authority.may_resume_read());
+    assert!(!Failure::from(ConnectError::internal("server fault")).may_resume_read());
+}
+
 #[tokio::test(start_paused = true)]
 async fn retry_budget_caps_waits_and_cancels_a_pending_wait() {
     assert!(ReconnectPolicy::new(0, Duration::from_secs(1), Duration::from_secs(1)).is_err());

@@ -124,6 +124,7 @@ class InputHandle extends ImageView {
 }
 
 class SlintInputView extends View {
+    private boolean mEditorEnabled = false;
     private String mText = "";
     private int mCursorPosition = 0;
     private int mAnchorPosition = 0;
@@ -164,18 +165,21 @@ class SlintInputView extends View {
 
     public SlintInputView(Context context) {
         super(context);
-        setFocusable(true);
-        setFocusableInTouchMode(true);
+        setFocusable(false);
+        setFocusableInTouchMode(false);
         mEditable = new SlintEditable();
     }
 
     @Override
     public boolean onCheckIsTextEditor() {
-        return true;
+        return mEditorEnabled;
     }
 
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+        if (!mEditorEnabled) {
+            return null;
+        }
         outAttrs.inputType = mInputType;
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI;
         outAttrs.initialSelStart = mCursorPosition;
@@ -201,6 +205,18 @@ class SlintInputView extends View {
                 return super.endBatchEdit();
             }
         };
+    }
+
+    public void setEditorEnabled(boolean enabled) {
+        // This view proxies the currently focused Slint editor, rather than
+        // being a permanent text field. Prevent Android from refocusing it and
+        // implicitly reopening IME after Disable or during activity restore.
+        mEditorEnabled = enabled;
+        setFocusableInTouchMode(enabled);
+        setFocusable(enabled);
+        if (!enabled) {
+            clearFocus();
+        }
     }
 
     public void setText(String text, int cursorPosition, int anchorPosition, int preeditStart, int preeditEnd,
@@ -552,6 +568,7 @@ public class SlintAndroidJavaHelper {
         mActivity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                mInputView.setEditorEnabled(true);
                 mInputView.requestFocus();
                 InputMethodManager imm = (InputMethodManager) mActivity.getSystemService(Context.INPUT_METHOD_SERVICE);
                 imm.showSoftInput(mInputView, 0);
@@ -563,6 +580,7 @@ public class SlintAndroidJavaHelper {
         mActivity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                mInputView.setEditorEnabled(false);
                 InputMethodManager imm = (InputMethodManager) mActivity.getSystemService(Context.INPUT_METHOD_SERVICE);
                 imm.hideSoftInputFromWindow(mInputView.getWindowToken(), 0);
                 mInputView.clearFocus();

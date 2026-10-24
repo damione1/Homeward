@@ -2,23 +2,30 @@
 //! replacement/exit; UI callbacks enqueue bounded typed intentions only.
 use crate::{
     AlertSeverity, HomewardWindow, ProAccessStage,
+    cache_view::{self, CacheProjection},
     profile::{ProfileFailure, TrustedEndpoint},
+};
+use home_client_cache::{
+    ActivationPermit, CacheHandle, CacheOwner, DeliveryTicket, Filter, Viewport,
 };
 use home_client_session::{
     CredentialKey, Phase, SecureStore, ServerRevocation, SessionCoordinator, SessionView,
     StoreFailure,
 };
-use home_client_transport::Connection;
-use slint::ComponentHandle;
+use slint::{ComponentHandle, Model, ModelRc};
 use std::{
     path::PathBuf,
+    rc::Rc,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };
-use tokio::{sync::mpsc, task::JoinSet};
+use tokio::{
+    sync::{mpsc, oneshot, watch},
+    task::JoinSet,
+};
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 
@@ -69,7 +76,7 @@ enum Action {
     Recovery(Zeroizing<String>),
     Logout,
     Cancel,
-    Read,
+    Read(ActivationPermit<CacheProjection>),
 }
 enum Intent {
     Configure {
@@ -85,11 +92,177 @@ enum Intent {
 }
 
 #[derive(Clone)]
+struct CacheBinding {
+    epoch: ProfileEpoch,
+    handle: CacheHandle<CacheProjection>,
+}
+
+struct ForegroundAdmission {
+    epoch: ProfileEpoch,
+    permit: ActivationPermit<CacheProjection>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReadIntent {
+    NotRequested,
+    Requested(ProfileEpoch),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Lifecycle {
+    Foreground,
+    Suspended,
+}
+
+#[derive(Clone)]
+pub(crate) struct LifecycleBridge {
+    events: watch::Sender<Lifecycle>,
+    transition: Arc<Mutex<()>>,
+    cache_handle: Arc<Mutex<Option<CacheBinding>>>,
+    window: Arc<Mutex<slint::Weak<HomewardWindow>>>,
+    foreground_admission: Arc<Mutex<Option<ForegroundAdmission>>>,
+    read_intent: Arc<Mutex<ReadIntent>>,
+}
+impl LifecycleBridge {
+    pub(crate) fn new() -> Self {
+        let (events, _) = watch::channel(Lifecycle::Foreground);
+        Self {
+            events,
+            transition: Arc::new(Mutex::new(())),
+            cache_handle: Arc::new(Mutex::new(None)),
+            window: Arc::new(Mutex::new(slint::Weak::default())),
+            foreground_admission: Arc::new(Mutex::new(None)),
+            read_intent: Arc::new(Mutex::new(ReadIntent::NotRequested)),
+        }
+    }
+    // Called by native event listeners on the UI thread. Cancel publication and
+    // clear the visual model before the background worker joins the read futures.
+    pub(crate) fn set(&self, state: Lifecycle) {
+        let _transition = self.transition.lock().expect("lifecycle gate poisoned");
+        if *self.events.borrow() == state {
+            return;
+        }
+        // Capture admission at the native event, before its worker handling can
+        // be delayed. A later suspend/logout invalidates this exact permit.
+        let admission = match state {
+            Lifecycle::Foreground => self
+                .cache_handle
+                .lock()
+                .expect("UI cache handle mutex poisoned")
+                .as_ref()
+                .and_then(|binding| {
+                    // Keep this lock through permit capture. UI revocation must
+                    // not be followed by a permit based on an earlier intent.
+                    let intent = self.read_intent.lock().expect("read intent mutex poisoned");
+                    if *intent != ReadIntent::Requested(binding.epoch) {
+                        return None;
+                    }
+                    binding
+                        .handle
+                        .prepare_activation()
+                        .ok()
+                        .map(|permit| ForegroundAdmission {
+                            epoch: binding.epoch,
+                            permit,
+                        })
+                }),
+            Lifecycle::Suspended => None,
+        };
+        *self
+            .foreground_admission
+            .lock()
+            .expect("foreground admission mutex poisoned") = admission;
+        if state == Lifecycle::Suspended {
+            let binding = self
+                .cache_handle
+                .lock()
+                .expect("UI cache handle mutex poisoned")
+                .clone();
+            if let Some(binding) = binding {
+                let _ = binding.handle.invalidate();
+            }
+            let window = self
+                .window
+                .lock()
+                .expect("lifecycle window mutex poisoned")
+                .clone();
+            if let Some(window) = window.upgrade() {
+                cache_view::clear(&window);
+            }
+        }
+        self.events.send_replace(state);
+    }
+
+    fn take_foreground_admission(
+        &self,
+        epoch: ProfileEpoch,
+    ) -> Option<ActivationPermit<CacheProjection>> {
+        let _transition = self.transition.lock().expect("lifecycle gate poisoned");
+        if *self.events.borrow() != Lifecycle::Foreground {
+            return None;
+        }
+        self.foreground_admission
+            .lock()
+            .expect("foreground admission mutex poisoned")
+            .take()
+            .filter(|admission| {
+                admission.epoch == epoch
+                    && *self.read_intent.lock().expect("read intent mutex poisoned")
+                        == ReadIntent::Requested(epoch)
+            })
+            .map(|admission| admission.permit)
+    }
+}
+
+fn should_resume_view(requested: bool, phase: Phase) -> bool {
+    requested && matches!(phase, Phase::Ready | Phase::Refreshing)
+}
+// A projection target must not retain the slot containing its own CacheHandle.
+// Otherwise Inner.notify -> Ui -> binding -> Inner forms a reference cycle.
+struct ProjectionTarget {
+    window: slint::Weak<HomewardWindow>,
+    epoch: Arc<AtomicU64>,
+    profile: ProfileEpoch,
+}
+impl ProjectionTarget {
+    fn post(&self, ticket: DeliveryTicket<CacheProjection>) {
+        let (epoch, profile) = (self.epoch.clone(), self.profile);
+        let _ = self.window.upgrade_in_event_loop(move |window| {
+            if epoch.load(Ordering::SeqCst) == profile.0 {
+                ticket.deliver(|generation, projection| {
+                    cache_view::render(&window, generation, projection)
+                });
+            }
+        });
+    }
+}
+#[derive(Clone)]
 struct Ui {
     window: slint::Weak<HomewardWindow>,
     epoch: Arc<AtomicU64>,
+    cache_handle: Arc<Mutex<Option<CacheBinding>>>,
+    read_intent: Arc<Mutex<ReadIntent>>,
 }
 impl Ui {
+    fn invalidate_cache(&self) {
+        *self.read_intent.lock().expect("read intent mutex poisoned") = ReadIntent::NotRequested;
+        let current = self
+            .cache_handle
+            .lock()
+            .expect("UI cache handle mutex poisoned")
+            .clone();
+        if let Some(binding) = current
+            && binding.epoch.0 == self.epoch.load(Ordering::SeqCst)
+        {
+            let _ = binding.handle.invalidate();
+        }
+    }
+    fn request_view(&self, epoch: ProfileEpoch) {
+        if self.epoch.load(Ordering::SeqCst) == epoch.0 {
+            *self.read_intent.lock().expect("read intent mutex poisoned") =
+                ReadIntent::Requested(epoch);
+        }
+    }
     fn post(&self, epoch: ProfileEpoch, update: impl FnOnce(HomewardWindow) + Send + 'static) {
         let current = self.epoch.clone();
         let _ = self.window.upgrade_in_event_loop(move |window| {
@@ -107,6 +280,28 @@ impl Ui {
     }
     fn view(&self, epoch: ProfileEpoch, view: SessionView) {
         self.post(epoch, move |window| render_view(&window, view));
+    }
+    fn projection_target(&self, profile: ProfileEpoch) -> ProjectionTarget {
+        ProjectionTarget {
+            window: self.window.clone(),
+            epoch: self.epoch.clone(),
+            profile,
+        }
+    }
+    async fn cache_event(
+        &self,
+        epoch: ProfileEpoch,
+        event: home_client_cache::CacheEvent,
+        cancel: &CancellationToken,
+    ) {
+        let (ack, received) = oneshot::channel();
+        self.post(epoch, move |window| {
+            window.set_cache_error(cache_view::event_message(event).into());
+            let _ = ack.send(());
+        });
+        // One reliable error callback in the UI queue, independently of the
+        // replaceable visual projection. Closing the profile interrupts the ack.
+        tokio::select! { biased; () = cancel.cancelled() => {}, _ = received => {} }
     }
 }
 
@@ -136,8 +331,8 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
             .into(),
     );
     window.set_session_severity(AlertSeverity::Success);
-    if view.phase != Phase::Ready {
-        window.set_read_status("".into());
+    if !matches!(view.phase, Phase::Ready | Phase::Refreshing) {
+        cache_view::clear(window);
     }
     let message = match view.phase {
         Phase::Ready | Phase::Refreshing => {
@@ -241,12 +436,25 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
 struct Profile {
     epoch: ProfileEpoch,
     owner: SessionCoordinator,
-    connection: Connection,
+    cache: CacheOwner<CacheProjection>,
     cancel: CancellationToken,
 }
-async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>) {
+async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, ui: &Ui) {
     if let Some(previous) = profile.take() {
+        {
+            let mut binding = ui
+                .cache_handle
+                .lock()
+                .expect("UI cache handle mutex poisoned");
+            if binding
+                .as_ref()
+                .is_some_and(|binding| binding.epoch == previous.epoch)
+            {
+                *binding = None;
+            }
+        }
         previous.cancel.cancel();
+        previous.cache.close().await;
         previous.owner.close().await;
         while tasks.join_next().await.is_some() {}
         // Drop the OS process lease before constructing a replacement profile.
@@ -283,12 +491,37 @@ async fn install_profile(
         window.set_endpoint_ready(true);
         window.set_show_endpoint(false);
         window.set_setup_message("".into());
+        cache_view::clear(&window);
+    });
+    let cache_target = ui.projection_target(epoch);
+    let (cache, mut events) = CacheOwner::start(
+        owner.clone(),
+        connection.state(),
+        Filter::all(),
+        cache_view::project,
+        move |ticket| cache_target.post(ticket),
+    );
+    let cache_handle = cache.handle();
+    *ui.cache_handle
+        .lock()
+        .expect("UI cache handle mutex poisoned") = Some(CacheBinding {
+        epoch,
+        handle: cache_handle.clone(),
+    });
+    let (event_ui, event_cancel) = (ui.clone(), cancel.clone());
+    tasks.spawn(async move {
+        loop {
+            let event = tokio::select! { biased; () = event_cancel.cancelled() => break, event = events.recv() => event };
+            let Some(event) = event else { break; };
+            event_ui.cache_event(epoch, event, &event_cancel).await;
+        }
     });
     let (observer, observer_cancel, observer_ui) = (owner.clone(), cancel.clone(), ui.clone());
     tasks.spawn(async move {
         let mut changes = observer.subscribe();
         loop {
             let view = *changes.borrow_and_update();
+            let _ = cache_handle.session_changed(view.phase);
             observer_ui.view(epoch, view);
             tokio::select! {
                 () = observer_cancel.cancelled() => break,
@@ -303,7 +536,7 @@ async fn install_profile(
     Ok(Profile {
         epoch,
         owner,
-        connection,
+        cache,
         cancel,
     })
 }
@@ -311,22 +544,24 @@ async fn install_profile(
 async fn session_action(
     action: Action,
     owner: SessionCoordinator,
-    connection: Connection,
-    cancel: CancellationToken,
+    cache: CacheHandle<CacheProjection>,
     ui: Ui,
     epoch: ProfileEpoch,
 ) {
     match action {
         Action::Login { login, password } => {
+            let _ = cache.invalidate();
             let _ = owner.login(login, password).await;
         }
         Action::Recovery(code) => {
             let _ = owner.complete_recovery(code).await;
         }
         Action::Cancel => {
+            let _ = cache.invalidate();
             let _ = owner.logout_local().await;
         }
         Action::Logout => {
+            let _ = cache.invalidate();
             if let Ok(ServerRevocation::Uncertain) = owner.logout().await {
                 ui.post(epoch, |window| {
                     window.set_message_title("Déconnecté sur cet appareil".into());
@@ -337,63 +572,26 @@ async fn session_action(
                 });
             }
         }
-        Action::Read => {
+        Action::Read(permit) => {
             let phase = owner.subscribe().borrow().phase;
             if matches!(phase, Phase::AuthorityUnavailable | Phase::RightsChanged)
                 && owner.allow_new_view_attempt().await.is_err()
             {
                 return;
             }
-            let Ok(lease) = owner.access(&cancel).await else {
-                return;
-            };
-            let result = connection
-                .state()
-                .open_view(
-                    crate::wire::home::state::v1::OpenViewRequest {
-                        filter: crate::wire::home::state::v1::ViewFilter::default().into(),
-                        page_size: 16,
-                        ..Default::default()
-                    },
-                    lease.token(),
-                    Duration::from_secs(10),
-                    &lease.cancellation,
-                )
-                .await;
-            if !owner.is_current(lease.generation) {
-                return;
-            }
-            match result {
-                Ok(page) => {
-                    let count = page.entities.len();
-                    let current = lease.cancellation;
-                    ui.post(epoch, move |window| {
-                        if !current.is_cancelled() {
-                            window.set_read_status(
-                                format!(
-                                    "Lecture autorisée : {count} {} dans cette première page.",
-                                    if count == 1 { "entité" } else { "entités" }
-                                )
-                                .into(),
-                            );
-                        }
-                    });
-                }
-                Err(failure) => {
-                    let _ = owner.observe_failure(lease.generation, &failure).await;
-                    let current = lease.cancellation;
-                    ui.post(epoch, move |window| {
-                        if !current.is_cancelled() {
-                            window.set_read_status("Lecture impossible. La session est conservée tant qu’elle n’est pas révoquée.".into());
-                        }
-                    });
-                }
-            }
+            let _ = cache.activate_prepared(permit);
         }
     }
 }
 
-async fn worker(mut input: mpsc::Receiver<Intent>, services: NativeServices, ui: Ui) {
+async fn worker(
+    mut input: mpsc::Receiver<Intent>,
+    services: NativeServices,
+    ui: Ui,
+    mut viewport: watch::Receiver<Viewport>,
+    bridge: LifecycleBridge,
+) {
+    let mut lifecycle = bridge.events.subscribe();
     let mut profile = None;
     let mut tasks = JoinSet::new();
     let epoch = ProfileEpoch(0);
@@ -423,7 +621,7 @@ async fn worker(mut input: mpsc::Receiver<Intent>, services: NativeServices, ui:
             intent = input.recv() => match intent {
                 Some(Intent::Configure { epoch, origin, certificates }) => {
                     if ui.epoch.load(Ordering::SeqCst) != epoch.0 { continue; }
-                    close_profile(&mut profile, &mut tasks).await;
+                    close_profile(&mut profile, &mut tasks, &ui).await;
                     match TrustedEndpoint::parse(&origin, &certificates) {
                         Ok(endpoint) => match install_profile(endpoint, epoch, &services, &ui, &mut tasks).await {
                             Ok(value) => profile = Some(value),
@@ -433,13 +631,14 @@ async fn worker(mut input: mpsc::Receiver<Intent>, services: NativeServices, ui:
                     }
                 }
                 Some(Intent::Session { epoch, action }) => {
-                    if let Some(profile) = &profile
+                    if let Some(profile) = &mut profile
                         && profile.epoch == epoch && ui.epoch.load(Ordering::SeqCst) == epoch.0 {
+                        if matches!(&action, Action::Read(_)) && *lifecycle.borrow() == Lifecycle::Suspended { continue; }
                         match action {
-                            Action::Cancel | Action::Logout => session_action(action, profile.owner.clone(), profile.connection.clone(), profile.cancel.clone(), ui.clone(), epoch).await,
-                            Action::Login { .. } | Action::Recovery(_) | Action::Read => {
+                            Action::Cancel | Action::Logout => session_action(action, profile.owner.clone(), profile.cache.handle(), ui.clone(), epoch).await,
+                            Action::Login { .. } | Action::Recovery(_) | Action::Read(_) => {
                                 if tasks.len() < 20 {
-                                    tasks.spawn(session_action(action, profile.owner.clone(), profile.connection.clone(), profile.cancel.clone(), ui.clone(), epoch));
+                                    tasks.spawn(session_action(action, profile.owner.clone(), profile.cache.handle(), ui.clone(), epoch));
                                 } else {
                                     ui.post(epoch, |window| {
                                         window.set_message_title("Opération en attente".into());
@@ -453,15 +652,48 @@ async fn worker(mut input: mpsc::Receiver<Intent>, services: NativeServices, ui:
                 Some(Intent::Close) | None => break,
             },
             _ = tasks.join_next(), if !tasks.is_empty() => {},
+            changed = viewport.changed() => {
+                if changed.is_err() { break; }
+                let visible = *viewport.borrow_and_update();
+                if let Some(profile) = &profile { let _ = profile.cache.handle().viewport(visible); }
+            },
+            changed = lifecycle.changed() => {
+                if changed.is_err() { break; }
+                let state = *lifecycle.borrow_and_update();
+                if let Some(profile) = &profile {
+                    let cache = profile.cache.handle();
+                    match state {
+                        // The native callback already invalidated synchronously.
+                        // Only join it: a fresh suspension control here could
+                        // invalidate an admission from a newer Foreground event.
+                        Lifecycle::Suspended => { let _ = cache.wait_for_control().await; },
+                        Lifecycle::Foreground => {
+                            let phase = profile.owner.subscribe().borrow().phase;
+                            let requested = *bridge.read_intent.lock().expect("read intent mutex poisoned") == ReadIntent::Requested(profile.epoch);
+                            if should_resume_view(requested, phase)
+                                && let Some(permit) = bridge.take_foreground_admission(profile.epoch) {
+                                let _ = cache.activate_prepared(permit);
+                            }
+                        },
+                    }
+                }
+            },
             _ = lifetime.tick() => {
                 if let Some(profile) = &profile { let _ = profile.owner.revalidate_lifetime().await; }
             },
         }
     }
-    close_profile(&mut profile, &mut tasks).await;
+    close_profile(&mut profile, &mut tasks, &ui).await;
 }
 
 pub(crate) fn run(services: NativeServices) -> Result<(), slint::PlatformError> {
+    run_with_lifecycle(services, LifecycleBridge::new())
+}
+
+pub(crate) fn run_with_lifecycle(
+    services: NativeServices,
+    lifecycle: LifecycleBridge,
+) -> Result<(), slint::PlatformError> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
@@ -470,21 +702,93 @@ pub(crate) fn run(services: NativeServices) -> Result<(), slint::PlatformError> 
             slint::PlatformError::Other("Le moteur de connexion n’a pas pu démarrer.".into())
         })?;
     let window = HomewardWindow::new()?;
+    *lifecycle
+        .window
+        .lock()
+        .expect("lifecycle window mutex poisoned") = window.as_weak();
+    #[cfg(not(target_os = "android"))]
+    {
+        use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
+        let events = lifecycle.clone();
+        window.window().on_winit_window_event(move |_, event| {
+            if let WindowEvent::Occluded(occluded) = event {
+                events.set(if *occluded {
+                    Lifecycle::Suspended
+                } else {
+                    Lifecycle::Foreground
+                });
+            } else if matches!(event, WindowEvent::Destroyed) {
+                events.set(Lifecycle::Suspended);
+            }
+            EventResult::Propagate
+        });
+    }
+    window.set_cache_rows(ModelRc::from(Rc::new(cache_view::CacheRows::default())));
     let ui = Ui {
         window: window.as_weak(),
         epoch: Arc::new(AtomicU64::new(0)),
+        cache_handle: lifecycle.cache_handle.clone(),
+        read_intent: lifecycle.read_intent.clone(),
     };
     let (sender, input) = mpsc::channel(16);
-    let host = runtime.spawn(worker(input, services, ui.clone()));
+    let (viewport_tx, viewport) = watch::channel(Viewport::default());
+    let visible = viewport_tx.clone();
+    window.on_cache_viewport(move |first, count| {
+        let first = (first.max(0) as usize)
+            .saturating_sub(8)
+            .min(home_client_cache::MAX_ENTITIES - 1);
+        let count = count.clamp(1, 64) as usize;
+        if let Ok(viewport) = Viewport::new(first, count) {
+            visible.send_if_modified(|previous| {
+                if *previous == viewport {
+                    false
+                } else {
+                    *previous = viewport;
+                    true
+                }
+            });
+        }
+    });
+    let weak = window.as_weak();
+    window.on_cache_navigate(move |step| {
+        use crate::NavigationStep;
+        let Some(window) = weak.upgrade() else {
+            return;
+        };
+        let count = window.get_cache_rows().row_count();
+        if count == 0 {
+            return;
+        }
+        let current = window.get_cache_active_index().max(0) as usize;
+        let page = viewport_tx.borrow().count().saturating_sub(16).max(1);
+        let next = match step {
+            NavigationStep::Next => current.saturating_add(1),
+            NavigationStep::Previous => current.saturating_sub(1),
+            NavigationStep::First => 0,
+            NavigationStep::Last => count - 1,
+            NavigationStep::PageNext => current.saturating_add(page),
+            NavigationStep::PagePrevious => current.saturating_sub(page),
+        }
+        .min(count - 1);
+        window.set_cache_active_index(next as i32);
+    });
+    let host = runtime.spawn(worker(
+        input,
+        services,
+        ui.clone(),
+        viewport,
+        lifecycle.clone(),
+    ));
     let (configure_sender, configure_ui) = (sender.clone(), ui.clone());
     window.on_connect_endpoint(move |origin, certificates| {
+        configure_ui.invalidate_cache();
         let epoch = ProfileEpoch(configure_ui.epoch.fetch_add(1, Ordering::SeqCst) + 1);
         if let Some(window) = configure_ui.window.upgrade() {
             window.set_user_draft("".into());
             window.set_password_draft("".into());
             window.set_recovery_draft("".into());
             window.set_endpoint_ready(false);
-            window.set_read_status("".into());
+            cache_view::clear(&window);
             window.set_setup_message("Ouverture du stockage sécurisé…".into());
         }
         if configure_sender
@@ -509,15 +813,20 @@ pub(crate) fn run(services: NativeServices) -> Result<(), slint::PlatformError> 
                 if !window.get_endpoint_ready() {
                     return;
                 }
-                if sender
-                    .try_send(Intent::Session {
-                        epoch: ProfileEpoch(ui.epoch.load(Ordering::SeqCst)),
-                        action,
-                    })
-                    .is_err()
-                {
+                if matches!(
+                    &action,
+                    Action::Login { .. } | Action::Logout | Action::Cancel
+                ) {
+                    ui.invalidate_cache();
+                    cache_view::clear(&window);
+                }
+                let epoch = ProfileEpoch(ui.epoch.load(Ordering::SeqCst));
+                let requesting_read = matches!(&action, Action::Read(_));
+                if sender.try_send(Intent::Session { epoch, action }).is_err() {
                     window.set_message_title("Opération en attente".into());
                     window.set_message("Réessayez dans un instant.".into());
+                } else if requesting_read {
+                    ui.request_view(epoch);
                 }
             }
         }
@@ -545,9 +854,205 @@ pub(crate) fn run(services: NativeServices) -> Result<(), slint::PlatformError> 
     window.on_sign_out(move || logout(Action::Logout));
     let cancel = send.clone();
     window.on_cancel_access(move || cancel(Action::Cancel));
-    window.on_read_protected(move || send(Action::Read));
+    window.on_read_protected(move || {
+        let binding = ui
+            .cache_handle
+            .lock()
+            .expect("UI cache handle mutex poisoned")
+            .clone();
+        if let Some(binding) = binding
+            && binding.epoch.0 == ui.epoch.load(Ordering::SeqCst)
+            && let Ok(permit) = binding.handle.prepare_activation()
+        {
+            send(Action::Read(permit));
+        }
+    });
     let result = window.run();
     let _ = sender.blocking_send(Intent::Close);
     let _ = runtime.block_on(host);
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct UnusedCredentialStore;
+    impl SecureStore for UnusedCredentialStore {
+        fn load(&self) -> Result<Option<Zeroizing<Vec<u8>>>, StoreFailure> {
+            Ok(None)
+        }
+        fn save(&self, _: &[u8]) -> Result<(), StoreFailure> {
+            Err(StoreFailure::Unavailable)
+        }
+        fn clear(&self) -> Result<(), StoreFailure> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn native_foreground_admission_cannot_outlive_suspension_or_logout() {
+        use home_client_cache::{ControlFailure, ControlOutcome};
+        let connection = home_client_transport::Connection::new(
+            "https://127.0.0.1:1",
+            include_bytes!("../tests/fixtures/trust-a.pem"),
+        )
+        .unwrap();
+        // No login or restore: the test exercises actual cache controls without
+        // credentials or network calls, independently of session admission.
+        let session = SessionCoordinator::new(connection.auth(), Arc::new(UnusedCredentialStore));
+        let (owner, _events) = CacheOwner::start(
+            session.clone(),
+            connection.state(),
+            Filter::all(),
+            cache_view::project,
+            drop,
+        );
+        let handle = owner.handle();
+        let bridge = LifecycleBridge::new();
+        let epoch = ProfileEpoch(7);
+        *bridge.cache_handle.lock().unwrap() = Some(CacheBinding {
+            epoch,
+            handle: handle.clone(),
+        });
+        let ui = Ui {
+            window: slint::Weak::default(),
+            epoch: Arc::new(AtomicU64::new(epoch.0)),
+            cache_handle: bridge.cache_handle.clone(),
+            read_intent: bridge.read_intent.clone(),
+        };
+        ui.request_view(epoch);
+
+        bridge.set(Lifecycle::Suspended);
+        bridge.set(Lifecycle::Foreground);
+        let copied_by_worker = *bridge.events.borrow();
+        assert_eq!(copied_by_worker, Lifecycle::Foreground);
+        // The worker is delayed after copying Foreground. A native suspension
+        // must prevent it from obtaining a fresh activation afterward.
+        bridge.set(Lifecycle::Suspended);
+        assert!(bridge.take_foreground_admission(epoch).is_none());
+
+        bridge.set(Lifecycle::Foreground);
+        let taken_before_suspend = bridge.take_foreground_admission(epoch).unwrap();
+        bridge.set(Lifecycle::Suspended);
+        assert_eq!(
+            handle.activate_prepared(taken_before_suspend),
+            Ok(ControlOutcome::Superseded)
+        );
+
+        bridge.set(Lifecycle::Foreground);
+        // Native foreground is queued, then the UI logout invalidates before
+        // the worker consumes the event. It cannot manufacture a newer permit.
+        let queued_before_logout = bridge.take_foreground_admission(epoch).unwrap();
+        ui.invalidate_cache();
+        assert_eq!(
+            handle.activate_prepared(queued_before_logout),
+            Ok(ControlOutcome::Superseded)
+        );
+
+        // Logout is still queued in the worker. A subsequent native cycle must
+        // not mint any fresh permit from the previous read intention.
+        bridge.set(Lifecycle::Suspended);
+        bridge.set(Lifecycle::Foreground);
+        assert!(bridge.take_foreground_admission(epoch).is_none());
+
+        // Also cover logout before the already captured event is consumed.
+        ui.request_view(epoch);
+        bridge.set(Lifecycle::Suspended);
+        bridge.set(Lifecycle::Foreground);
+        ui.invalidate_cache();
+        assert!(bridge.take_foreground_admission(epoch).is_none());
+        ui.request_view(ProfileEpoch(8));
+        assert!(matches!(
+            *bridge.read_intent.lock().unwrap(),
+            ReadIntent::NotRequested
+        ));
+
+        // Only a fresh admitted read for this profile permits resume again.
+        ui.request_view(epoch);
+        bridge.set(Lifecycle::Suspended);
+        bridge.set(Lifecycle::Foreground);
+        assert!(bridge.take_foreground_admission(ProfileEpoch(8)).is_none());
+        assert!(bridge.take_foreground_admission(epoch).is_none());
+
+        bridge.set(Lifecycle::Suspended);
+        let copied_suspension = *bridge.events.borrow();
+        assert_eq!(copied_suspension, Lifecycle::Suspended);
+        bridge.set(Lifecycle::Foreground);
+        // Foreground arrives while the worker still handles the copied suspend.
+        // Joining the existing invalidation must not invalidate this new permit.
+        assert_eq!(handle.wait_for_control().await, Ok(ControlOutcome::Applied));
+        let current = bridge.take_foreground_admission(epoch).unwrap();
+        assert_eq!(
+            handle.activate_prepared(current),
+            Ok(ControlOutcome::Applied)
+        );
+        assert!(bridge.take_foreground_admission(epoch).is_none());
+        owner.close().await;
+        assert_eq!(handle.resume(), Err(ControlFailure::Closed));
+        assert_eq!(handle.wait_for_control().await, Err(ControlFailure::Closed));
+        session.close().await;
+    }
+
+    #[test]
+    fn a_queued_projection_target_does_not_retain_its_own_control_slot() {
+        let ui = Ui {
+            window: slint::Weak::default(),
+            epoch: Arc::new(AtomicU64::new(0)),
+            cache_handle: Arc::new(Mutex::new(None)),
+            read_intent: Arc::new(Mutex::new(ReadIntent::NotRequested)),
+        };
+        let slot = Arc::downgrade(&ui.cache_handle);
+        let target = ui.projection_target(ProfileEpoch(0));
+        let callback = move |ticket| target.post(ticket);
+        drop(ui);
+        assert!(
+            slot.upgrade().is_none(),
+            "projection callback retains the cache-control slot"
+        );
+        drop(callback);
+    }
+
+    #[test]
+    fn lifecycle_notifications_are_typed_and_duplicate_native_events_do_not_restart_work() {
+        let bridge = LifecycleBridge::new();
+        let mut events = bridge.events.subscribe();
+        assert_eq!(*events.borrow(), Lifecycle::Foreground);
+        bridge.set(Lifecycle::Suspended);
+        assert!(events.has_changed().unwrap());
+        assert_eq!(*events.borrow_and_update(), Lifecycle::Suspended);
+        bridge.set(Lifecycle::Suspended);
+        assert!(!events.has_changed().unwrap());
+        bridge.set(Lifecycle::Foreground);
+        assert!(events.has_changed().unwrap());
+        assert_eq!(*events.borrow_and_update(), Lifecycle::Foreground);
+    }
+
+    #[test]
+    fn foreground_resume_never_opens_an_unrequested_or_suspended_authority_view() {
+        for phase in [Phase::Ready, Phase::Refreshing] {
+            assert!(should_resume_view(true, phase));
+            assert!(!should_resume_view(false, phase));
+        }
+        for phase in [
+            Phase::SignedOut,
+            Phase::Busy,
+            Phase::Challenge {
+                recovery: false,
+                fido2: true,
+            },
+            Phase::EnrollmentRequired,
+            Phase::NeedsLogin,
+            Phase::CredentialRejected,
+            Phase::RateLimited,
+            Phase::NetworkUnavailable,
+            Phase::AuthorityUnavailable,
+            Phase::RightsChanged,
+            Phase::StorageUnavailable,
+            Phase::UnsupportedResponse,
+            Phase::Closed,
+        ] {
+            assert!(!should_resume_view(true, phase));
+        }
+    }
 }

@@ -1,5 +1,7 @@
 import { KitButton, KitTheme, KitThemes, KitCard, KitCardHeader, KitUrlField,
-    KitTextArea, KitScrollArea, KitStack, KitAlert, AlertSeverity, ControlWidth } from "@kit/kit.slint";
+    KitTextArea, KitScrollArea, KitStack, KitAlert, AlertSeverity, ControlWidth,
+    KitDataTable, TableRow, DataSortDirection, DataAlignment, NavigationStep,
+    KitMetrics, ControlSize } from "@kit/kit.slint";
 import { ProAccessPanel, ProAccessStage } from "@kit-pro/kit-pro.slint";
 
 export component HomewardWindow inherits Window {
@@ -23,6 +25,10 @@ export component HomewardWindow inherits Window {
     in property <string> message;
     in property <AlertSeverity> message-severity: AlertSeverity.information;
     in property <string> read-status;
+    in property <string> cache-error;
+    in property <[TableRow]> cache-rows;
+    in-out property <int> cache-active-index: -1;
+    private property <length> cache-row-height: KitMetrics.control-height(ControlSize.medium, root.theme.text-scale) + 8px;
     in property <string> session-title;
     in property <string> session-description;
     in property <AlertSeverity> session-severity: AlertSeverity.success;
@@ -35,6 +41,8 @@ export component HomewardWindow inherits Window {
     callback sign-out();
     callback cancel-access();
     callback read-protected();
+    callback cache-viewport(int,int);
+    callback cache-navigate(NavigationStep);
 
     KitScrollArea {
         width: parent.width; height: parent.height;
@@ -100,6 +108,26 @@ export component HomewardWindow inherits Window {
             }
             if root.read-status != "": Text { text: root.read-status; color: root.theme.text-secondary;
                 font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+            if root.cache-error != "": Text { text: root.cache-error; color: root.theme.text-secondary;
+                font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
+            if root.cache-rows.length > 0: KitDataTable {
+                theme: root.theme; label: "États de l’installation";
+                height: 360px; rows: root.cache-rows; active-index: root.cache-active-index;
+                columns: [
+                    { token: 0, label: "Élément", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading },
+                    { token: 1, label: "État", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading },
+                    { token: 2, label: "Qualité", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading }
+                ];
+                // The public kit metric defines this table's fixed row geometry.
+                private property <int> first-visible: max(0, floor(-self.scroll-y / root.cache-row-height));
+                private property <int> visible-count: min(64, ceil(self.height / root.cache-row-height) + 16);
+                // A recreated table starts at scroll zero. Publish that initial
+                // viewport even when its value never changes after creation.
+                init => { root.cache-viewport(self.first-visible, self.visible-count); }
+                changed first-visible => { root.cache-viewport(self.first-visible, self.visible-count); }
+                changed visible-count => { root.cache-viewport(self.first-visible, self.visible-count); }
+                navigate(step) => { root.cache-navigate(step); }
+            }
             KitButton { theme: root.theme; text: "Changer de serveur";
                 activated => { root.password-draft = ""; root.recovery-draft = ""; root.show-endpoint = true; } }
         }

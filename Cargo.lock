@@ -887,8 +887,6 @@ dependencies = [
 [[package]]
 name = "connectrpc"
 version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "457cfa540c62e1b0b05db676cc9a9129162ad94d3a3eec6f2d19706c53acae7d"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1909,6 +1907,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "home-client-cache"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "buffa",
+ "buffa-types",
+ "connectrpc",
+ "home-client-model",
+ "home-client-session",
+ "home-client-transport",
+ "home-wire-contract",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-util",
+ "zeroize",
+]
+
+[[package]]
 name = "home-client-model"
 version = "0.1.0"
 
@@ -1978,6 +1996,9 @@ name = "homeward-app"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "buffa",
+ "buffa-types",
+ "home-client-cache",
  "home-client-model",
  "home-client-platform",
  "home-client-session",
@@ -4587,6 +4608,7 @@ dependencies = [
  "const-field-offset",
  "i-slint-backend-android-activity",
  "i-slint-backend-selector",
+ "i-slint-backend-winit",
  "i-slint-common",
  "i-slint-core",
  "i-slint-core-macros",

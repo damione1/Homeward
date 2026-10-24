@@ -2,6 +2,7 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 slint::include_modules!();
 
+mod cache_view;
 mod profile;
 mod session_host;
 
@@ -25,7 +26,28 @@ pub fn run() -> Result<(), slint::PlatformError> {
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
     let context = home_client_platform::NativeStoreContext::new(&app);
-    slint::android::init(app).expect("initialize Android activity");
-    session_host::run(session_host::NativeServices::Android(context))
+    let lifecycle = session_host::LifecycleBridge::new();
+    let events = lifecycle.clone();
+    slint::android::init_with_event_listener(app, move |event| {
+        use slint::android::android_activity::{MainEvent, PollEvent};
+        if matches!(
+            event,
+            PollEvent::Main(
+                MainEvent::Pause
+                    | MainEvent::Stop
+                    | MainEvent::TerminateWindow { .. }
+                    | MainEvent::Destroy
+            )
+        ) {
+            events.set(session_host::Lifecycle::Suspended);
+        } else if matches!(
+            event,
+            PollEvent::Main(MainEvent::Resume { .. } | MainEvent::InitWindow { .. })
+        ) {
+            events.set(session_host::Lifecycle::Foreground);
+        }
+    })
+    .expect("initialize Android activity");
+    session_host::run_with_lifecycle(session_host::NativeServices::Android(context), lifecycle)
         .expect("run Homeward native shell");
 }

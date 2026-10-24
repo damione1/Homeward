@@ -20,6 +20,7 @@ pub enum FailureKind {
     UntrustedCertificate,
     WrongServerName,
     TlsRejected,
+    NetworkInterrupted,
     Deadline,
     Cancelled,
     Rpc(ErrorCode),
@@ -34,6 +35,18 @@ pub struct Failure {
 impl Failure {
     pub fn kind(&self) -> FailureKind {
         self.kind
+    }
+
+    /// A read may reconnect after a transient transport/remote cancellation.
+    /// Local cancellation, TLS and any authority detail always stop it. This
+    /// decision must never be used to replay a command or session refresh.
+    pub fn may_resume_read(&self) -> bool {
+        matches!(
+            self.kind,
+            FailureKind::NetworkInterrupted
+                | FailureKind::Deadline
+                | FailureKind::Rpc(ErrorCode::Unavailable | ErrorCode::Canceled)
+        ) && matches!(self.authorization_termination(), Ok(None))
     }
 
     /// Inspect typed details explicitly; callers must not log the raw response.
@@ -87,14 +100,18 @@ impl Failure {
 impl From<ConnectError> for Failure {
     fn from(error: ConnectError) -> Self {
         let mut kind = FailureKind::Rpc(error.code);
-        if error.code == ErrorCode::Canceled {
-            kind = FailureKind::Cancelled;
-        } else if error.code == ErrorCode::DeadlineExceeded {
+        // Caller cancellation is produced by our CancellationToken branches.
+        // A server's Canceled status (including graceful restart) stays an RPC.
+        if error.code == ErrorCode::DeadlineExceeded {
             kind = FailureKind::Deadline;
         }
         let mut sources: Vec<&(dyn Error + 'static)> = vec![&error];
         for _ in 0..16 {
             let Some(current) = sources.pop() else { break };
+            if current.is::<connectrpc::client::ResponseBodyReadError>() {
+                kind = FailureKind::NetworkInterrupted;
+                break;
+            }
             if let Some(tls) = current.downcast_ref::<rustls::Error>() {
                 kind = if let rustls::Error::InvalidCertificate(reason) = tls {
                     if matches!(reason, rustls::CertificateError::UnknownIssuer) {

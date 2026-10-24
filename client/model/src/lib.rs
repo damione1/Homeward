@@ -10,7 +10,7 @@ use std::{error::Error, fmt, str::FromStr};
 /// use home_client_model::EntityId;
 /// let id = EntityId(String::new());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EntityId(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -44,6 +44,28 @@ class FixtureMode(Enum):
     RATE_LIMIT = 'rate-limit'
 
 
+class FixtureKind(Enum):
+    SESSION = 'session'
+    CACHE = 'cache'
+
+
+class CacheAction(Enum):
+    LOAD = 'load'
+
+
+class CacheImageExpectation(Enum):
+    READY = 'ready'
+    CLEARED = 'cleared'
+
+
+class NativeAction(Enum):
+    FILL_LOGIN = 'fill-login'
+    READ = 'read'
+    SIGN_OUT = 'sign-out'
+    SCROLL_END = 'scroll-end'
+    CHECK_ROW = 'check-row'
+
+
 class AppStep(Enum):
     LOGIN = 'login'
     RESTORE_READ_LOGOUT = 'restore-read-logout'
@@ -90,13 +112,20 @@ def digest(path):
 
 
 @contextlib.contextmanager
-def fixture(directory, server_binary, mode=FixtureMode.PASSWORD):
+def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKind.SESSION):
     directory.mkdir(mode=0o700)
     control = directory / 'fixture'
     env = os.environ.copy()
-    env.update(HOMEWARD_NHF003_FIXTURE=str(control), HOMEWARD_NHF003_MODE=mode.value)
+    match kind:
+        case FixtureKind.SESSION:
+            env.update(HOMEWARD_NHF003_FIXTURE=str(control), HOMEWARD_NHF003_MODE=mode.value)
+            test = 'TestNHF003SessionServer'
+        case FixtureKind.CACHE:
+            assert mode is FixtureMode.PASSWORD
+            env.update(HOMEWARD_NHF004_FIXTURE=str(control), HOMEWARD_NHF004_APP='true')
+            test = 'TestNHF004CacheServer'
     with (directory / 'server.log').open('wb') as log:
-        server = subprocess.Popen([str(server_binary), '-test.run=^TestNHF003SessionServer$', '-test.v', '-test.timeout=8m'], cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
+        server = subprocess.Popen([str(server_binary), '-test.run=^' + test + '$', '-test.v', '-test.timeout=8m'], cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
         try:
             ready = control / 'ready.json'
             deadline = time.monotonic() + 60
@@ -108,6 +137,8 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD):
             origin = urlsplit(private['origin'])
             if private['mode'] != 'synthetic-only' or origin.scheme != 'https' or origin.hostname != '127.0.0.1' or not origin.port:
                 raise RuntimeError('Refuse a non-synthetic or non-loopback fixture')
+            if kind is FixtureKind.CACHE and private['entity_count'] != 850:
+                raise RuntimeError('Native cache UI requires all 850 entities')
             yield private, control
         finally:
             if control.is_dir():
@@ -171,15 +202,46 @@ def public_profile(private):
     return {'version': '1', 'origin': private['origin'], 'certificates': private['ca_pem']}
 
 
-def validate_app_report(control, login_count):
+def validate_app_report(control, login_count, read_count=1):
     report = json.loads((control / 'result.json').read_text())
-    for key, expected in {'start_login_calls': login_count, 'refresh_calls': 0, 'state_read_calls': 1, 'state_read_ok': 1, 'revoke_calls': 1, 'revoke_ok': 1}.items():
+    for key, expected in {'start_login_calls': login_count, 'refresh_calls': 0, 'state_read_calls': read_count, 'state_read_ok': read_count, 'revoke_calls': 1, 'revoke_ok': 1}.items():
         assert report[key] == expected, 'native application counter: ' + key
     assert report['login_observation']['name_matches'] and report['login_observation']['password_matches']
     return report
 
 
-def desktop(proof, server_binary):
+def cache_load(control, alive):
+    temporary = control / 'command.writing'
+    write(temporary, {'sequence': 1, 'action': CacheAction.LOAD.value})
+    temporary.replace(control / 'command.json')
+    print('Native UI: 850 entities, starting 1,000 updates at 20/s', flush=True)
+    deadline = time.monotonic() + 70
+    while not (control / 'load-done.json').exists():
+        if not alive() or time.monotonic() >= deadline:
+            raise RuntimeError('Native loaded UI stopped or fixture load deadline exceeded')
+        time.sleep(.5)
+    report = json.loads((control / 'load-done.json').read_text())
+    assert report['updates'] == 1000 and 49 <= report['elapsed_seconds'] <= 70
+    return report
+
+
+def cache_image_helper(proof):
+    helper = proof / 'cache-image'
+    if not helper.exists():
+        modules = Path(CONFIG['frontend_cache']) / 'session-spike/swift-modules'
+        run(['xcrun', 'swiftc', '-module-cache-path', modules, ROOT / 'qualification/frontend/cache-image.swift', '-o', helper])
+    return helper
+
+
+def inspect_cache_image(helper, path, expectation):
+    if expectation is not None:
+        result = run([helper, path, expectation.value], capture_output=True, text=True)
+        write(path.with_suffix('.inspection.json'), json.loads(result.stdout))
+
+
+def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
+    load_report = None
+    image_helper = cache_image_helper(proof) if kind is FixtureKind.CACHE else None
     cliclick = shutil.which('cliclick')
     if cliclick is None:
         raise RuntimeError('Homebrew cliclick is required for native GUI qualification')
@@ -193,7 +255,7 @@ def desktop(proof, server_binary):
     if public.exists():
         raise RuntimeError('Preserve an existing product public profile')
     directory = proof / 'desktop'
-    with fixture(directory, server_binary) as (private, control):
+    with fixture(directory, server_binary, kind=kind) as (private, control):
         key = namespace(private)
         def present():
             found = subprocess.run(['security', 'find-generic-password', '-s', 'ca.homeward.session.v1', '-a', key], capture_output=True, timeout=10)
@@ -221,10 +283,14 @@ def desktop(proof, server_binary):
                     def native(command, **fields):
                         action.write_text(json.dumps({'pid': child.pid, 'command': command, **fields}))
                         return subprocess.run([str(helper), str(action)], capture_output=True, text=True, timeout=5)
+                    def accessible(command, **fields):
+                        return subprocess.run([str(helper), '-'], input=json.dumps({'pid': child.pid, 'command': command.value, 'syntheticOnly': True, **fields}), capture_output=True, text=True, timeout=20)
                     def keyboard(commands):
+                        assert native('focus').returncode == 0
                         run([cliclick, '-w', '150', '-f', '-'], input=commands, text=True, capture_output=True)
-                    def snapshot(name):
+                    def snapshot(name, expectation=None):
                         run(['screencapture', '-x', '-o', '-l', str(info['window_id']), directory / (name + '.png')], capture_output=True)
+                        inspect_cache_image(image_helper, directory / (name + '.png'), expectation)
                     try:
                         deadline = time.monotonic() + 10
                         while True:
@@ -240,8 +306,11 @@ def desktop(proof, server_binary):
                         snapshot(step.value)
                         match step:
                             case AppStep.LOGIN:
-                                assert native('click', x=90, y=130).returncode == 0
-                                keyboard('kp:tab\nt:' + private['login_name'] + '\nkp:tab\nt:' + private['password'] + '\nkp:return\n')
+                                if kind is FixtureKind.CACHE:
+                                    assert accessible(NativeAction.FILL_LOGIN, loginName=private['login_name'], password=private['password']).returncode == 0
+                                else:
+                                    assert native('click', x=90, y=130).returncode == 0
+                                    keyboard('kp:tab\nt:' + private['login_name'] + '\nkp:tab\nt:' + private['password'] + '\nkp:return\n')
                                 deadline = time.monotonic() + 10
                                 while not present() and time.monotonic() < deadline:
                                     time.sleep(.1)
@@ -249,16 +318,44 @@ def desktop(proof, server_binary):
                                 snapshot('authenticated')
                             case AppStep.RESTORE_READ_LOGOUT:
                                 assert present()
-                                assert native('click', x=90, y=130).returncode == 0
-                                keyboard('kp:tab\nkp:tab\nkp:return\n')
+                                if kind is FixtureKind.CACHE:
+                                    assert accessible(NativeAction.READ).returncode == 0
+                                else:
+                                    assert native('click', x=90, y=130).returncode == 0
+                                    keyboard('kp:tab\nkp:tab\nkp:return\n')
                                 time.sleep(1)
                                 snapshot('protected-read')
-                                keyboard('kd:shift\nkp:tab\nku:shift\nkp:return\n')
+                                if kind is FixtureKind.CACHE:
+                                    scroll = accessible(NativeAction.SCROLL_END, expectedRowLabel=private['expected_last_alias'])
+                                    assert scroll.returncode == 0, 'last entity was not projected after native scrolling'
+                                    write(directory / 'last-row-projected.json', json.loads(scroll.stdout))
+                                    time.sleep(.7)
+                                    snapshot('last-viewport-before-load', CacheImageExpectation.READY)
+                                    load_report = cache_load(control, lambda: child.poll() is None)
+                                    snapshot('loaded-850', CacheImageExpectation.READY)
+                                    assert accessible(NativeAction.SCROLL_END, expectedRowLabel=private['expected_last_alias']).returncode == 0
+                                    time.sleep(.7)
+                                    snapshot('last-viewport', CacheImageExpectation.READY)
+                                if lifecycle:
+                                    assert native('minimize').returncode == 0
+                                    time.sleep(.4)
+                                    assert native('restore').returncode == 0
+                                    info = json.loads(native('info').stdout)
+                                    time.sleep(1)
+                                    snapshot('resumed-read', CacheImageExpectation.READY if kind is FixtureKind.CACHE else None)
+                                    if kind is FixtureKind.CACHE:
+                                        check = accessible(NativeAction.CHECK_ROW, expectedRowLabel=private['expected_first_alias'])
+                                        assert check.returncode == 0, 'resumed table did not reproject its first row'
+                                        write(directory / 'resumed-first-row.json', json.loads(check.stdout))
+                                if kind is FixtureKind.CACHE:
+                                    assert accessible(NativeAction.SIGN_OUT).returncode == 0
+                                else:
+                                    keyboard('kd:shift\nkp:tab\nku:shift\nkp:return\n')
                                 deadline = time.monotonic() + 10
                                 while present() and time.monotonic() < deadline:
                                     time.sleep(.1)
                                 assert not present(), 'native client logout retained its Keychain item'
-                                snapshot('client-logout')
+                                snapshot('client-logout', CacheImageExpectation.CLEARED if kind is FixtureKind.CACHE else None)
                             case AppStep.SIGNED_OUT:
                                 assert not present()
                             case AppStep.STORE_FAILURE:
@@ -268,6 +365,10 @@ def desktop(proof, server_binary):
                         assert native('close').returncode == 0
                         child.wait(timeout=10)
                         assert child.returncode == 0
+                    except BaseException:
+                        if child.poll() is None:
+                            snapshot('failure')
+                        raise
                     finally:
                         TRANSPORT['stop'](child)
             write(directory / 'keychain.json', {'restored_across_normal_exit': True, 'absent_after_client_logout_before_harness_cleanup': not present(), 'normal_exits': 3})
@@ -287,15 +388,17 @@ def desktop(proof, server_binary):
                 cleanup_errors.append('synthetic Keychain cleanup unconfirmed')
             if cleanup_errors:
                 raise RuntimeError('; '.join(cleanup_errors))
-    write(directory / 'result.json', {'status': 'AUTOMATED_CHECKS_PASS', 'server': validate_app_report(control, 1), 'binary_sha256': digest(binary), 'screenshots_require_visual_inspection': True})
+    write(directory / 'result.json', {'status': 'AUTOMATED_CHECKS_PASS', 'server': validate_app_report(control, 1, 2 if lifecycle else 1), 'binary_sha256': digest(binary), 'native_minimize_restore_cycle': lifecycle, 'fixture_kind': kind.value, 'input_interaction': 'native-accessibility' if kind is FixtureKind.CACHE else 'keyboard', 'cache_load': load_report, 'screenshots_require_visual_inspection': True})
 
 
-def android(proof, server_binary):
+def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
+    load_report = None
+    image_helper = cache_image_helper(proof) if kind is FixtureKind.CACHE else None
     run(['python3', 'scripts/build-frontend-android.py'])
     apk = proof / 'Homeward.apk'
     shutil.copyfile(TARGET / 'debug/apk/homeward-dev.apk', apk)
     directory = proof / 'android'
-    with fixture(directory, server_binary) as (private, control):
+    with fixture(directory, server_binary, kind=kind) as (private, control):
         with TRANSPORT['android'](directory):
             port = urlsplit(private['origin']).port
             forwarded = owned = False
@@ -313,9 +416,10 @@ def android(proof, server_binary):
                 def records():
                     result = device('shell', 'run-as', PACKAGE, 'cat', prefs)
                     return ET.fromstring(result.stdout).findall('string[@name="record"]')
-                def snapshot(name):
+                def snapshot(name, expectation=None):
                     result = run([TRANSPORT['ADB'], '-s', TRANSPORT['SERIAL'], 'exec-out', 'screencap', '-p'], capture_output=True)
                     (directory / (name + '.png')).write_bytes(result.stdout)
+                    inspect_cache_image(image_helper, directory / (name + '.png'), expectation)
                 def login():
                     device('shell', 'input', 'tap', '160', '344')
                     for command in [('text', shlex.quote(private['login_name'].replace(' ', '%s'))), ('keyevent', '61'), ('text', shlex.quote(private['password'].replace(' ', '%s'))), ('keyevent', '66')]:
@@ -348,12 +452,29 @@ def android(proof, server_binary):
                             device('shell', 'input', 'keyevent', '61', '61', '66')
                             time.sleep(1)
                             snapshot('protected-read')
+                            if kind is FixtureKind.CACHE:
+                                pid = device('shell', 'pidof', PACKAGE).stdout.strip()
+                                assert pid.isdecimal(), 'expected one owned native app process'
+                                load_report = cache_load(control, lambda: device('shell', 'pidof', PACKAGE).stdout.strip() == pid)
+                                snapshot('loaded-850', CacheImageExpectation.READY)
+                                device('shell', 'input', 'keyevent', '61', '123')
+                                time.sleep(.7)
+                                snapshot('last-viewport', CacheImageExpectation.READY)
+                                device('shell', 'input', 'keycombination', '59', '61')
+                            if lifecycle:
+                                before_pid = device('shell', 'pidof', PACKAGE).stdout.strip()
+                                device('shell', 'input', 'keyevent', '3')
+                                time.sleep(.7)
+                                device('shell', 'am', 'start', '--activity-reorder-to-front', '-n', PACKAGE + '/android.app.NativeActivity')
+                                time.sleep(2)
+                                assert device('shell', 'pidof', PACKAGE).stdout.strip() == before_pid, 'foreground restarted instead of resuming the owned app'
+                                snapshot('resumed-read', CacheImageExpectation.READY if kind is FixtureKind.CACHE else None)
                             device('shell', 'input', 'keycombination', '59', '61')
                             device('shell', 'input', 'keyevent', '66')
                             time.sleep(1)
                             assert not records(), 'native client logout retained encrypted credentials'
                             write(directory / 'client-logout.json', {'credential_records': 0, 'before_harness_cleanup': True})
-                            snapshot('client-logout')
+                            snapshot('client-logout', CacheImageExpectation.CLEARED if kind is FixtureKind.CACHE else None)
                         case AppStep.STORE_FAILURE:
                             assert not records(), 'logged-out restart restored credentials'
                             device('shell', 'run-as', PACKAGE, 'chmod', '500', 'shared_prefs')
@@ -381,7 +502,7 @@ def android(proof, server_binary):
                         errors.append('owned port forwarding cleanup unconfirmed')
                 if errors:
                     raise RuntimeError('; '.join(errors))
-    write(directory / 'result.json', {'status': 'AUTOMATED_CHECKS_PASS', 'server': validate_app_report(control, 2), 'apk_sha256': digest(apk), 'actual_native_commit_failure_without_fallback': True, 'screenshots_require_visual_inspection': True})
+    write(directory / 'result.json', {'status': 'AUTOMATED_CHECKS_PASS', 'server': validate_app_report(control, 2, 2 if lifecycle else 1), 'apk_sha256': digest(apk), 'native_background_foreground_cycle': lifecycle, 'fixture_kind': kind.value, 'cache_load': load_report, 'actual_native_commit_failure_without_fallback': True, 'screenshots_require_visual_inspection': True})
 
 
 def main():
