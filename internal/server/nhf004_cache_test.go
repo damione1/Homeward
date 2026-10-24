@@ -18,6 +18,8 @@ import (
 
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	dashboardv1 "github.com/damione1/Homeward/gen/home/dashboard/v1"
+	"github.com/damione1/Homeward/gen/home/dashboard/v1/dashboardv1connect"
 	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/configactivation"
@@ -149,6 +151,10 @@ func TestNHF004CacheServer(t *testing.T) {
 	started, joined, connections := 0, 0, 0
 	var drivers uint64
 	var published uint64
+	dashboard, dashboardErr := nhf005DashboardFixture()
+	if dashboardErr != nil {
+		t.Fatal(dashboardErr)
+	}
 	publish := func(index int, sequence *uint64) {
 		t.Helper()
 		observation, err := uiProfile.observation(aliases.Entities[index].ID, sequence, time.Now().UTC())
@@ -173,12 +179,34 @@ func TestNHF004CacheServer(t *testing.T) {
 				return RuntimePlan{}, err
 			}
 		}
-		return RuntimePlan{Identity: repository,
+		var public *PublicPlan
+		if dashboard != nil {
+			public, err = NewPublicPlan(nil, nil, accountTransportAudit{store: store})
+			if err != nil {
+				return RuntimePlan{}, err
+			}
+			if err := dashboard.register(public); err != nil {
+				return RuntimePlan{}, err
+			}
+		}
+		return RuntimePlan{Identity: repository, Public: public,
+			ConfigureAuthorization: func(_ context.Context, composition AuthorizationComposition) error {
+				if dashboard != nil {
+					dashboard.authority = composition.ViewAuthorizer().(*policyViewAuthorizer).authority
+				}
+				return nil
+			},
 			Configure: func(_ context.Context, actual *integrations.Manager, _ *storage.Store) error {
 				host = actual
 				return nil
 			},
-			ConfigureActivation: func(_ context.Context, actual *configactivation.Owner) error { activation = actual; return nil },
+			ConfigureActivation: func(_ context.Context, actual *configactivation.Owner) error {
+				activation = actual
+				if dashboard != nil {
+					dashboard.activation = actual
+				}
+				return nil
+			},
 		}, nil
 	})
 	stopServer := func() {
@@ -220,6 +248,11 @@ func TestNHF004CacheServer(t *testing.T) {
 			result["state_read_ok"] = proxy.stateReadOK.Load()
 			result["action_rpc_calls"] = proxy.actions.Load()
 			result["login_observation"] = proxy.loginObservation()
+		}
+		if dashboard != nil {
+			result["dashboard_list_calls"] = dashboard.lists.Load()
+			result["dashboard_get_calls"] = dashboard.gets.Load()
+			result["dashboard_watch_calls"] = dashboard.watches.Load()
 		}
 		write("result.json", result)
 		if started != joined || connections != 0 || drivers != 0 {
@@ -275,6 +308,19 @@ func TestNHF004CacheServer(t *testing.T) {
 	startServer()
 	const login, password = "NHF004 isolated account", "NHF004 synthetic local password"
 	account := nha162RunBootstrap(t, ctx, data, login, password)
+	if dashboard != nil {
+		resolved := make(map[string]domain.EntityID)
+		for i, binding := range bindings {
+			_, entity, err := binding.IDs()
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved[aliases.Entities[i].ID] = entity
+		}
+		if err := dashboard.install(account.Value, resolved); err != nil {
+			t.Fatal(err)
+		}
+	}
 	client := nha181Client(roots)
 	defer client.CloseIdleConnections()
 	base := "https://" + address
@@ -291,11 +337,21 @@ func TestNHF004CacheServer(t *testing.T) {
 		if allow {
 			policy = fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n  - scope: {family: state_registry, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n", account.Value)
 		}
+		if allow && dashboard != nil {
+			policy += "  - scope: {family: dashboards, operation: read}\n    objects: {dashboards: {own: {}}}\n"
+		}
 		if _, err := policies.ReplacePolicy(ctx, nha141BearerRequest(&authv1.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(policy), Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, tokens.AccessToken)); err != nil {
 			t.Fatal("policy CAS:", err)
 		}
 	}
 	setPolicy(true)
+	if dashboard != nil {
+		api := dashboardv1connect.NewDashboardServiceClient(client, base)
+		response, err := api.GetDashboard(ctx, nha141BearerRequest(&dashboardv1.GetDashboardRequest{Id: &dashboardv1.DashboardId{Value: nhf005DashboardID}}, tokens.AccessToken))
+		if err != nil || response.Msg.GetDashboard().GetNativeOverview() == nil || response.Msg.ResumeToken == "" {
+			t.Fatal("synthetic dashboard TLS readiness:", err)
+		}
+	}
 	api := statev1connect.NewStateServiceClient(client, base)
 	check, err := api.OpenView(ctx, nha141BearerRequest(&statev1.OpenViewRequest{Filter: &statev1.ViewFilter{}, PageSize: 256}, tokens.AccessToken))
 	if err != nil || len(check.Msg.Entities) != 256 || check.Msg.NextPageToken == "" {
@@ -409,6 +465,13 @@ func TestNHF004CacheServer(t *testing.T) {
 				setPolicy(false)
 			case nhf004Allow:
 				setPolicy(true)
+				if dashboard != nil {
+					api := dashboardv1connect.NewDashboardServiceClient(client, base)
+					response, err := api.GetDashboard(ctx, nha141BearerRequest(&dashboardv1.GetDashboardRequest{Id: &dashboardv1.DashboardId{Value: nhf005DashboardID}}, tokens.AccessToken))
+					if err != nil || response.Msg.GetDashboard().GetNativeOverview() == nil || response.Msg.ResumeToken == "" {
+						t.Fatal("synthetic dashboard TLS readiness:", err)
+					}
+				}
 			case nhf004Withdraw:
 				if err := source.Withdraw(ctx, bindings[0]); err != nil {
 					t.Fatal("synthetic capability withdrawal:", err)

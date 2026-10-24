@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package home.dashboard.v1;
+
+import "google/protobuf/timestamp.proto";
+import "home/auth/v1/auth.proto";
+import "home/configuration/v1/configuration.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/dashboard/v1;dashboardv1";
+
+message DashboardId { string value = 1; }
+message SourceFile { string path = 1; bytes exact_source = 2; }
+message Definition {
+  DashboardId id = 1;
+  home.auth.v1.AccountId owner = 2;
+  string url_path = 3;
+  string entry = 4;
+  repeated SourceFile files = 5;
+}
+message Metadata {
+  DashboardId id = 1;
+  home.auth.v1.AccountId owner = 2;
+  string profile = 3;
+  home.configuration.v1.DocumentVersion version = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+enum DiagnosticCode {
+  DIAGNOSTIC_CODE_UNSPECIFIED = 0;
+  DIAGNOSTIC_CODE_SYNTAX = 1;
+  DIAGNOSTIC_CODE_INVALID_VALUE = 2;
+  DIAGNOSTIC_CODE_MISSING_FIELD = 3;
+  DIAGNOSTIC_CODE_UNKNOWN_FIELD = 4;
+  DIAGNOSTIC_CODE_UNSUPPORTED_VARIANT = 5;
+  DIAGNOSTIC_CODE_UNSUPPORTED_PROPERTY = 6;
+  DIAGNOSTIC_CODE_UNBOUND_HA_USER = 7;
+  DIAGNOSTIC_CODE_BLOCKED_BY_ANCESTOR = 8;
+}
+message Diagnostic {
+  DiagnosticCode code = 1;
+  string file = 2;
+  uint32 line = 3;
+  uint32 column = 4;
+  string path = 5;
+  string reason = 6;
+}
+message Dashboard {
+  Metadata metadata = 1;
+  Definition definition = 2;
+  repeated Diagnostic diagnostics = 3;
+  // Inert, versioned server projection of the configured Lovelace source.
+  // Clients never reconstruct an installation catalogue from compiled aliases.
+  NativeOverview native_overview = 4;
+}
+
+enum NativeIcon {
+  NATIVE_ICON_UNSPECIFIED = 0;
+  NATIVE_ICON_HOME = 1;
+  NATIVE_ICON_INFORMATION = 2;
+  NATIVE_ICON_CLOCK = 3;
+  NATIVE_ICON_GRID = 4;
+}
+enum ServingMode {
+  SERVING_MODE_UNSPECIFIED = 0;
+  SERVING_MODE_CONFIGURED = 1;
+  SERVING_MODE_SYNTHETIC = 2;
+}
+message OverviewRoom {
+  string id = 1;
+  string title = 2;
+  repeated string entity_ids = 3;
+}
+message OverviewObservation {
+  string id = 1;
+  string title = 2;
+  string entity_id = 3;
+  NativeIcon icon = 4;
+}
+message NativeOverview {
+  uint32 version = 1;
+  uint64 config_revision = 2;
+  bytes config_sha256 = 3;
+  string title = 4;
+  repeated OverviewRoom rooms = 5;
+  repeated OverviewObservation observations = 6;
+  ServingMode mode = 7;
+  // Must match StateService before the layout and entity view are published.
+  uint64 authorization_revision = 8;
+}
+message ListDashboardsRequest {}
+message ListDashboardsResponse { repeated Metadata dashboards = 1; string resume_token = 2; }
+message GetDashboardRequest { DashboardId id = 1; }
+message GetDashboardResponse { Dashboard dashboard = 1; string resume_token = 2; }
+message CreateDashboardRequest { Definition definition = 1; }
+message ReplaceDashboardRequest {
+  Definition definition = 1;
+  home.configuration.v1.DocumentVersion expected = 2;
+}
+message DeleteDashboardRequest {
+  DashboardId id = 1;
+  home.configuration.v1.DocumentVersion expected = 2;
+}
+message CreateDashboardResponse { home.configuration.v1.ActivationResult activation = 1; }
+message ReplaceDashboardResponse { home.configuration.v1.ActivationResult activation = 1; }
+message DeleteDashboardResponse { home.configuration.v1.ActivationResult activation = 1; }
+message WatchDashboardsRequest { string resume_token = 1; }
+message WatchDashboardsResponse {
+  oneof result {
+    ListDashboardsResponse snapshot = 1;
+    home.configuration.v1.ResyncRequired resync_required = 2;
+  }
+}
+service DashboardService {
+  rpc ListDashboards(ListDashboardsRequest) returns (ListDashboardsResponse);
+  rpc GetDashboard(GetDashboardRequest) returns (GetDashboardResponse);
+  rpc CreateDashboard(CreateDashboardRequest) returns (CreateDashboardResponse);
+  rpc ReplaceDashboard(ReplaceDashboardRequest) returns (ReplaceDashboardResponse);
+  rpc DeleteDashboard(DeleteDashboardRequest) returns (DeleteDashboardResponse);
+  // A changed source, owner, generation or replay epoch requires a new List/Get.
+  // The server never silently skips a gap or streams newly unauthorized bytes.
+  rpc WatchDashboards(WatchDashboardsRequest) returns (stream WatchDashboardsResponse);
+}

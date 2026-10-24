@@ -7,7 +7,8 @@ use crate::{
     profile::{ProfileFailure, TrustedEndpoint},
 };
 use home_client_cache::{
-    ActivationPermit, CacheHandle, CacheOwner, DeliveryTicket, Filter, Viewport,
+    ActivationPermit, CacheHandle, CacheOwner, DeliveryTicket, Filter, ProjectionMailbox,
+    Publication, PublicationRefusal, Viewport,
 };
 use home_client_session::{
     CredentialKey, Phase, SecureStore, ServerRevocation, SessionCoordinator, SessionView,
@@ -244,6 +245,7 @@ struct Ui {
     read_intent: Arc<Mutex<ReadIntent>>,
     projection_request: crate::dashboard::SharedRequest,
     viewport: watch::Sender<Viewport>,
+    dashboard_retry: Arc<tokio::sync::Notify>,
 }
 impl Ui {
     fn invalidate_cache(&self) {
@@ -511,6 +513,49 @@ async fn install_profile(
         move |ticket| cache_target.post(ticket),
     );
     let cache_handle = cache.handle();
+    let (dashboard_session, dashboard_ui, dashboard_cancel) =
+        (owner.clone(), ui.clone(), cancel.clone());
+    let dashboard_transport = connection.dashboard();
+    let dashboard_retry = ui.dashboard_retry.clone();
+    tasks.spawn(async move {
+        let guard = dashboard_session.clone();
+        let mailbox = ProjectionMailbox::new();
+        crate::dashboard_host::run(
+            dashboard_transport,
+            dashboard_session,
+            dashboard_cancel,
+            dashboard_retry,
+            move |generation, layout| {
+                let ticket = match mailbox.publish(mailbox.generation(), (generation, layout)) {
+                    Publication::Schedule(ticket) => ticket,
+                    Publication::Coalesced
+                    | Publication::Rejected(
+                        PublicationRefusal::Closed | PublicationRefusal::Obsolete,
+                    ) => return,
+                };
+                let (guard, presentation) =
+                    (guard.clone(), dashboard_ui.projection_request.clone());
+                dashboard_ui.post(epoch, move |window| {
+                    ticket.deliver(|_, (generation, layout)| {
+                        if !guard.is_current(generation) {
+                            return;
+                        }
+                        {
+                            let mut request = presentation
+                                .lock()
+                                .expect("presentation request mutex poisoned");
+                            if request.dashboard == layout {
+                                return;
+                            }
+                            request.dashboard = layout;
+                        }
+                        window.invoke_dashboard_changed();
+                    });
+                });
+            },
+        )
+        .await;
+    });
     *ui.cache_handle
         .lock()
         .expect("UI cache handle mutex poisoned") = Some(CacheBinding {
@@ -582,6 +627,7 @@ async fn session_action(
             }
         }
         Action::Read(permit) => {
+            ui.dashboard_retry.notify_one();
             let phase = owner.subscribe().borrow().phase;
             if matches!(phase, Phase::AuthorityUnavailable | Phase::RightsChanged)
                 && owner.allow_new_view_attempt().await.is_err()
@@ -694,6 +740,7 @@ async fn worker(
                         // invalidate an admission from a newer Foreground event.
                         Lifecycle::Suspended => { let _ = cache.wait_for_control().await; },
                         Lifecycle::Foreground => {
+                            ui.dashboard_retry.notify_one();
                             let phase = profile.owner.subscribe().borrow().phase;
                             let requested = *bridge.read_intent.lock().expect("read intent mutex poisoned") == ReadIntent::Requested(profile.epoch);
                             if should_resume_view(requested, phase)
@@ -784,6 +831,7 @@ pub(crate) fn run_with_lifecycle(
         read_intent: lifecycle.read_intent.clone(),
         projection_request: Arc::new(Mutex::new(crate::dashboard::ProjectionRequest::default())),
         viewport: viewport_tx.clone(),
+        dashboard_retry: Arc::new(tokio::sync::Notify::new()),
     };
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
@@ -1010,6 +1058,7 @@ mod tests {
                 Mutex::new(crate::dashboard::ProjectionRequest::default()),
             ),
             viewport: watch::channel(Viewport::default()).0,
+            dashboard_retry: Arc::new(tokio::sync::Notify::new()),
         };
         ui.request_view(epoch);
 
@@ -1095,6 +1144,7 @@ mod tests {
                 Mutex::new(crate::dashboard::ProjectionRequest::default()),
             ),
             viewport: watch::channel(Viewport::default()).0,
+            dashboard_retry: Arc::new(tokio::sync::Notify::new()),
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));

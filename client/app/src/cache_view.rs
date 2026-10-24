@@ -2,7 +2,7 @@
 //! receives at most 64 human-readable rows and scalar virtual-list positions.
 use crate::{
     HomewardWindow, IconKind, ProObservationRow, ProRoomRow, TableRow,
-    dashboard::{self, ProjectionRequest, SummaryKind},
+    dashboard::{self, Icon, Layout, ProjectionRequest},
 };
 use buffa::EnumValue;
 use home_client_cache::{CacheEvent, CachePhase, CachedView, ProjectionGeneration, Viewport};
@@ -30,7 +30,9 @@ pub(crate) struct CacheProjection {
 }
 
 struct Observation {
-    kind: SummaryKind,
+    token: i32,
+    label: String,
+    icon: Icon,
     id: Option<EntityId>,
     value: String,
     description: String,
@@ -38,6 +40,8 @@ struct Observation {
 #[derive(Default)]
 struct HomeProjection {
     captured: bool,
+    layout: Option<Layout>,
+    status: String,
     room_counts: Vec<usize>,
     observations: Vec<Observation>,
     detail: Option<[String; 4]>,
@@ -49,7 +53,15 @@ pub(crate) fn project(
     view: Option<&CachedView>,
     viewport: Viewport,
 ) -> CacheProjection {
-    project_request(phase, view, viewport, &ProjectionRequest::default())
+    project_request(
+        phase,
+        view,
+        viewport,
+        &ProjectionRequest {
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
+            ..Default::default()
+        },
+    )
 }
 
 pub(crate) fn project_request(
@@ -58,21 +70,27 @@ pub(crate) fn project_request(
     viewport: Viewport,
     request: &ProjectionRequest,
 ) -> CacheProjection {
-    let matches = |entity: &state::ViewEntity| {
-        request.room.as_ref().is_none_or(|id| {
-            dashboard::room_for_alias(&entity.current_alias).is_some_and(|room| room.id == *id)
+    let layout = request
+        .dashboard
+        .layout()
+        .filter(|layout| view.is_some_and(|view| layout.compatible(view)));
+    let matches = |id: &EntityId, entity: &state::ViewEntity| {
+        request.room.as_ref().is_none_or(|room_id| {
+            layout
+                .and_then(|layout| layout.room(room_id))
+                .is_some_and(|room| room.entities.contains(id))
         }) && (request.query.is_empty()
             || entity.current_alias.to_lowercase().contains(&request.query))
     };
     let total = view.map_or(0, |view| {
         view.entities()
-            .filter(|(_, entity)| matches(entity))
+            .filter(|(id, entity)| matches(id, entity))
             .count()
     });
     let rows = view
         .map(|view| {
             view.entities()
-                .filter(|(_, entity)| matches(entity))
+                .filter(|(id, entity)| matches(id, entity))
                 .enumerate()
                 .skip(viewport.first())
                 .take(viewport.count())
@@ -95,56 +113,49 @@ pub(crate) fn project_request(
                 .collect()
         })
         .unwrap_or_default();
-    let mut room_counts = vec![0; dashboard::ROOMS.len()];
-    if let Some(view) = view {
-        for (_, entity) in view.entities() {
-            if let Some(room) = dashboard::room_for_alias(&entity.current_alias)
-                && let Some(index) = dashboard::ROOMS
-                    .iter()
-                    .position(|candidate| candidate.id == room.id)
-            {
-                room_counts[index] += 1;
-            }
-        }
-    }
-    let observations = SummaryKind::ALL
-        .into_iter()
-        .map(|kind| {
-            let entity = view.and_then(|view| {
-                view.entities()
-                    .find(|(_, entity)| entity.current_alias == kind.alias())
-            });
-            match entity {
-                Some((id, entity)) => {
-                    let value = match entity.state.as_option() {
-                        Some(observation) => summary_text(observation),
-                        None => "Aucune observation".into(),
-                    };
+    let room_counts = layout
+        .map(|layout| {
+            layout
+                .rooms
+                .iter()
+                .map(|room| {
+                    room.entities
+                        .iter()
+                        .filter(|id| view.is_some_and(|view| view.get(id).is_some()))
+                        .count()
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let observations = layout
+        .map(|layout| {
+            layout
+                .observations
+                .iter()
+                .enumerate()
+                .map(|(index, item)| {
+                    let entity = view.and_then(|view| view.get(&item.entity));
+                    let value = entity
+                        .and_then(|entity| entity.state.as_option())
+                        .map(summary_text)
+                        .unwrap_or_else(|| "Aucune observation".into());
                     Observation {
-                        kind,
-                        id: Some(id.clone()),
+                        token: dashboard::OBSERVATION_TOKEN_BASE + index as i32,
+                        label: item.label.clone(),
+                        icon: item.icon,
+                        id: entity.map(|_| item.entity.clone()),
                         value: bounded(&value),
                         description: entity
-                            .state
-                            .as_option()
+                            .and_then(|entity| entity.state.as_option())
                             .map(quality_text)
-                            .unwrap_or_else(|| "Non renseignée".into()),
+                            .unwrap_or_else(|| {
+                                "Aucune observation autorisée pour cet élément.".into()
+                            }),
                     }
-                }
-                None => Observation {
-                    kind,
-                    id: None,
-                    value: if view.is_some() {
-                        "Indisponible"
-                    } else {
-                        "À charger"
-                    }
-                    .into(),
-                    description: "Aucune observation reçue pour ce favori.".into(),
-                },
-            }
+                })
+                .collect()
         })
-        .collect();
+        .unwrap_or_default();
     let detail = request
         .detail
         .as_ref()
@@ -183,6 +194,12 @@ pub(crate) fn project_request(
         rows,
         home: HomeProjection {
             captured: view.is_some(),
+            layout: layout.cloned(),
+            status: if layout.is_some() {
+                String::new()
+            } else {
+                request.dashboard.message().into()
+            },
             room_counts,
             observations,
             detail,
@@ -418,12 +435,14 @@ struct RowStore {
     rows: BTreeMap<usize, (Row, TableRow)>,
     revision: i32,
     observations: BTreeMap<i32, EntityId>,
+    layout: Option<Layout>,
 }
 #[derive(Default)]
 pub(crate) struct CacheRows {
     state: RefCell<RowStore>,
     notify: ModelNotify,
     serial: Cell<i32>,
+    home_serial: Cell<i32>,
     rooms: std::rc::Rc<slint::VecModel<ProRoomRow>>,
     observations: std::rc::Rc<slint::VecModel<ProObservationRow>>,
 }
@@ -443,8 +462,19 @@ impl CacheRows {
             .home
             .observations
             .iter()
-            .filter_map(|item| item.id.clone().map(|id| (item.kind.token(), id)))
+            .filter_map(|item| item.id.clone().map(|id| (item.token, id)))
             .collect::<BTreeMap<_, _>>();
+        if old.generation != Some(generation)
+            || old.observations != observation_ids
+            || old.layout != projection.home.layout
+        {
+            self.home_serial.set(
+                self.home_serial
+                    .get()
+                    .checked_add(1)
+                    .expect("home identity generation exhausted"),
+            );
+        }
         // A visual position can refer to another entity after removal, sorting
         // or a viewport change. Value updates alone preserve a held gesture.
         let identities_changed = old.rows.len() != projection.rows.len()
@@ -453,7 +483,8 @@ impl CacheRows {
                     .get(&row.index)
                     .is_none_or(|(before, _)| before.id != row.id)
             })
-            || old.observations != observation_ids;
+            || old.observations != observation_ids
+            || old.layout != projection.home.layout;
         if reset || old.revision != projection.revision || identities_changed {
             self.serial.set(
                 self.serial
@@ -489,6 +520,7 @@ impl CacheRows {
             rows,
             revision: projection.revision,
             observations: observation_ids,
+            layout: projection.home.layout,
         };
         drop(old);
         if reset {
@@ -500,6 +532,12 @@ impl CacheRows {
         }
     }
     fn clear(&self) {
+        self.home_serial.set(
+            self.home_serial
+                .get()
+                .checked_add(1)
+                .expect("home identity generation exhausted"),
+        );
         self.serial.set(
             self.serial
                 .get()
@@ -508,7 +546,7 @@ impl CacheRows {
         );
         *self.state.borrow_mut() = RowStore::default();
         self.notify.reset();
-        sync(&self.rooms, public_rooms());
+        self.rooms.set_vec(Vec::new());
         self.observations.set_vec(Vec::new());
     }
     pub(crate) fn resolve(&self, token: i32, generation: i32, revision: i32) -> Option<EntityId> {
@@ -521,13 +559,31 @@ impl CacheRows {
             .get(&usize::try_from(token).ok()?)
             .and_then(|(row, _)| row.id.clone())
     }
+    pub(crate) fn resolve_room(
+        &self,
+        token: i32,
+        generation: i32,
+        layout: Option<&Layout>,
+    ) -> Option<dashboard::RoomId> {
+        if generation != self.home_serial.get() || self.state.borrow().layout.as_ref() != layout {
+            return None;
+        }
+        let index = usize::try_from(token.checked_sub(dashboard::ROOM_TOKEN_BASE)?).ok()?;
+        self.state
+            .borrow()
+            .layout
+            .as_ref()?
+            .rooms
+            .get(index)
+            .map(|room| room.id.clone())
+    }
     pub(crate) fn resolve_observation(
         &self,
         token: i32,
         generation: i32,
         revision: i32,
     ) -> Option<EntityId> {
-        if generation != self.serial.get() || self.state.borrow().revision != revision {
+        if generation != self.home_serial.get() || self.state.borrow().revision != revision {
             return None;
         }
         self.state.borrow().observations.get(&token).cloned()
@@ -545,22 +601,8 @@ fn sync<T: Clone + PartialEq + 'static>(model: &slint::VecModel<T>, rows: Vec<T>
         }
     }
 }
-fn public_rooms() -> Vec<ProRoomRow> {
-    dashboard::ROOMS
-        .iter()
-        .enumerate()
-        .map(|(index, room)| ProRoomRow {
-            token: index as i32 + dashboard::ROOM_TOKEN_BASE,
-            generation: dashboard::ROOM_GENERATION,
-            title: room.label.into(),
-            subtitle: "Ouvrir la pièce".into(),
-            icon: IconKind::Home,
-        })
-        .collect()
-}
 pub(crate) fn bind(window: &HomewardWindow) {
     let model = std::rc::Rc::new(CacheRows::default());
-    sync(&model.rooms, public_rooms());
     window.set_home_rooms(ModelRc::from(model.rooms.clone()));
     window.set_home_observations(ModelRc::from(model.observations.clone()));
     window.set_cache_rows(ModelRc::from(model));
@@ -601,18 +643,25 @@ impl Model for CacheRows {
 }
 
 pub(crate) fn clear(window: &HomewardWindow) {
+    clear_state(window, true);
+}
+fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_view_loaded(false);
+    window.set_dashboard_title("Accueil".into());
+    window.set_dashboard_synthetic(false);
+    window.set_dashboard_status("Dashboard indisponible".into());
     window.set_home_focus(crate::FocusRequest::default());
     let model = window.get_cache_rows();
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
         model.clear();
         window.set_cache_generation(model.serial.get());
+        window.set_home_generation(model.home_serial.get());
     }
     window.set_detail_title("".into());
     window.set_detail_value("".into());
     window.set_detail_quality("".into());
     window.set_detail_date("".into());
-    window.invoke_private_view_cleared();
+    window.invoke_private_view_cleared(forget_dashboard);
     window.set_cache_active_index(-1);
     window.set_read_status("".into());
     window.set_cache_error("".into());
@@ -627,7 +676,7 @@ pub(crate) fn render(
     // Authoritative absence must clear the old private view even when a newer
     // local search has made the presentation revision obsolete.
     if !projection.home.captured && window.get_view_loaded() {
-        clear(window);
+        clear_state(window, false);
         window.set_read_status(cache_status(projection.phase, 0).into());
         return;
     }
@@ -636,23 +685,36 @@ pub(crate) fn render(
     }
     let home = &projection.home;
     window.set_view_loaded(home.captured);
-    let rooms = dashboard::ROOMS
-        .iter()
-        .enumerate()
-        .map(|(index, room)| ProRoomRow {
-            token: index as i32 + dashboard::ROOM_TOKEN_BASE,
-            generation: dashboard::ROOM_GENERATION,
-            title: room.label.into(),
-            subtitle: if !home.captured {
-                "Ouvrir la pièce".into()
-            } else if home.room_counts[index] == 0 {
-                "Aucune observation associée".into()
-            } else {
-                format!("{} éléments observés", home.room_counts[index]).into()
-            },
-            icon: IconKind::Home,
+    window.set_dashboard_status(home.status.as_str().into());
+    window.set_dashboard_title(
+        home.layout
+            .as_ref()
+            .map_or("Accueil", |layout| layout.title.as_str())
+            .into(),
+    );
+    window.set_dashboard_synthetic(
+        home.layout
+            .as_ref()
+            .is_some_and(|layout| layout.mode == dashboard::ServingMode::Synthetic),
+    );
+    let rooms = home
+        .layout
+        .as_ref()
+        .map(|layout| {
+            layout
+                .rooms
+                .iter()
+                .enumerate()
+                .map(|(index, room)| ProRoomRow {
+                    token: index as i32 + dashboard::ROOM_TOKEN_BASE,
+                    generation: 0,
+                    title: room.label.as_str().into(),
+                    subtitle: format!("{} éléments observés", home.room_counts[index]).into(),
+                    icon: IconKind::Home,
+                })
+                .collect::<Vec<_>>()
         })
-        .collect::<Vec<_>>();
+        .unwrap_or_default();
     if let Some([title, value, quality, date]) = &home.detail {
         window.set_detail_title(title.as_str().into());
         window.set_detail_value(value.as_str().into());
@@ -668,15 +730,16 @@ pub(crate) fn render(
         .observations
         .iter()
         .map(|item| ProObservationRow {
-            token: item.kind.token(),
+            token: item.token,
             generation: 0,
-            title: item.kind.label().into(),
+            title: item.label.as_str().into(),
             value: item.value.as_str().into(),
             description: item.description.as_str().into(),
-            icon: match item.kind {
-                SummaryKind::Climate => IconKind::Information,
-                SummaryKind::Weather => IconKind::Clock,
-                SummaryKind::Fan => IconKind::Grid,
+            icon: match item.icon {
+                Icon::Home => IconKind::Home,
+                Icon::Information => IconKind::Information,
+                Icon::Clock => IconKind::Clock,
+                Icon::Grid => IconKind::Grid,
             },
             available: item.id.is_some(),
         })
@@ -690,13 +753,21 @@ pub(crate) fn render(
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
         model.apply(generation, projection);
         window.set_cache_generation(model.serial.get());
+        window.set_home_generation(model.home_serial.get());
         let observations = observations
             .into_iter()
             .map(|mut row| {
-                row.generation = model.serial.get();
+                row.generation = model.home_serial.get();
                 row
             })
             .collect::<Vec<_>>();
+        let rooms = rooms
+            .into_iter()
+            .map(|mut row| {
+                row.generation = model.home_serial.get();
+                row
+            })
+            .collect();
         sync(&model.rooms, rooms);
         sync(&model.observations, observations);
     }
@@ -846,19 +917,17 @@ mod tests {
     }
 
     fn home_view() -> CachedView {
-        view_with(3, |index| state::ViewEntity {
-            entity_id: format!("private-entity-{index:04}"),
-            current_alias: [
-                "climate.home",
-                "light.kitchen_main",
-                "fan.living_room_ceiling_fan",
-            ][index]
-                .into(),
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/overview.json")).unwrap();
+        let entities = fixture["entities"].as_array().unwrap();
+        view_with(entities.len(), |index| state::ViewEntity {
+            entity_id: entities[index]["id"].as_str().unwrap().into(),
+            current_alias: entities[index]["alias"].as_str().unwrap().into(),
             state: state::ObservedState {
                 entity: home_wire_contract::home::registry::v1::EntityRef {
                     reference: Some(
                         home_wire_contract::home::registry::v1::entity_ref::Reference::EntityId(
-                            format!("private-entity-{index:04}"),
+                            entities[index]["id"].as_str().unwrap().into(),
                         ),
                     ),
                     ..Default::default()
@@ -879,27 +948,31 @@ mod tests {
         let view = home_view();
         let request = ProjectionRequest {
             revision: 7,
-            room: Some(dashboard::ROOMS[1].id.clone()),
+            room: Some(dashboard::fixture().rooms[1].id.clone()),
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
             query: "main".into(),
             detail: Some("private-entity-0001".parse().unwrap()),
         };
         let projection =
             project_request(CachePhase::Live, Some(&view), Viewport::default(), &request);
         assert_eq!(projection.total, 1);
-        assert_eq!(projection.rows[0].cells[0], "light.kitchen_main");
-        assert_eq!(projection.home.room_counts, [1, 1, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(
+            projection.rows[0].cells[0],
+            "light.synthetic_workbench_main"
+        );
+        assert_eq!(projection.home.room_counts, [1, 1]);
         let detail = projection.home.detail.unwrap();
-        assert_eq!(detail[0], "light.kitchen_main");
+        assert_eq!(detail[0], "light.synthetic_workbench_main");
         assert_eq!(detail[1], "Éteint");
         assert_eq!(detail[3], "1970-01-01T00:00:10+00:00");
         let weather = projection
             .home
             .observations
             .iter()
-            .find(|item| item.kind == SummaryKind::Weather)
+            .find(|item| item.token == dashboard::OBSERVATION_TOKEN_BASE + 1)
             .unwrap();
         assert!(weather.id.is_none());
-        assert_eq!(weather.value, "Indisponible");
+        assert_eq!(weather.value, "Aucune observation");
     }
 
     #[test]
@@ -931,20 +1004,24 @@ mod tests {
         model.apply(generation, replaced);
         assert!(model.resolve(0, first, 0).is_none());
         assert_eq!(model.resolve(0, model.serial.get(), 0), Some(replacement));
-        let previous = model.serial.get();
+        let previous = model.home_serial.get();
         let mut changed_favorite = project(CachePhase::Live, Some(&view), Viewport::default());
         changed_favorite.home.observations[0].id = Some("private-other-favorite".parse().unwrap());
         model.apply(generation, changed_favorite);
         assert!(
             model
-                .resolve_observation(SummaryKind::Climate.token(), previous, 0)
+                .resolve_observation(dashboard::OBSERVATION_TOKEN_BASE, previous, 0)
                 .is_none()
         );
         model.clear();
         assert!(model.state.borrow().observations.is_empty());
         assert!(
             model
-                .resolve_observation(SummaryKind::Climate.token(), model.serial.get(), 0)
+                .resolve_observation(
+                    dashboard::OBSERVATION_TOKEN_BASE,
+                    model.home_serial.get(),
+                    0
+                )
                 .is_none()
         );
     }
@@ -954,7 +1031,10 @@ mod tests {
         use slint::ComponentHandle;
         i_slint_backend_testing::init_no_event_loop();
         let window = HomewardWindow::new().unwrap();
-        let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest::default()));
+        let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest {
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
+            ..Default::default()
+        }));
         bind(&window);
         crate::navigation::bind(&window, request.clone(), || {});
         window.set_access_stage(crate::ProAccessStage::Connected);
@@ -970,16 +1050,16 @@ mod tests {
         let persistent = window.get_home_rooms();
         window.invoke_room_open(i32::MIN, 1);
         assert_eq!(window.get_page(), crate::ViewPage::Home);
-        window.invoke_room_open(10, 99);
+        window.invoke_room_open(dashboard::ROOM_TOKEN_BASE, 99);
         assert_eq!(window.get_page(), crate::ViewPage::Home);
-        window.invoke_room_open(10, 1);
+        window.invoke_room_open(dashboard::ROOM_TOKEN_BASE, window.get_home_generation());
         assert_eq!(window.get_page(), crate::ViewPage::Room);
         assert!(window.invoke_system_back());
         assert_eq!(window.get_page(), crate::ViewPage::Home);
-        assert_eq!(window.get_home_focus().token, 10);
+        assert_eq!(window.get_home_focus().token, dashboard::ROOM_TOKEN_BASE);
         assert_eq!(
             window.get_home_focus().generation,
-            dashboard::ROOM_GENERATION
+            window.get_home_generation()
         );
         slint::platform::update_timers_and_animations();
         for event in [
@@ -1025,7 +1105,10 @@ mod tests {
             generation,
             project_request(CachePhase::Live, Some(&view), Viewport::default(), &current),
         );
-        window.invoke_observation_open(SummaryKind::Climate.token(), window.get_cache_generation());
+        window.invoke_observation_open(
+            dashboard::OBSERVATION_TOKEN_BASE,
+            window.get_home_generation(),
+        );
         assert_eq!(window.get_page(), crate::ViewPage::Detail);
         let current = request.lock().unwrap().clone();
         render(
@@ -1033,9 +1116,12 @@ mod tests {
             generation,
             project_request(CachePhase::Live, Some(&view), Viewport::default(), &current),
         );
-        assert_eq!(window.get_detail_title().as_str(), "climate.home");
-        window.set_search_query("kitchen".into());
-        window.invoke_query_edited("kitchen".into());
+        assert_eq!(
+            window.get_detail_title().as_str(),
+            "sensor.synthetic_ambient"
+        );
+        window.set_search_query("workbench".into());
+        window.invoke_query_edited("workbench".into());
         assert_eq!(window.get_page(), crate::ViewPage::Inventory);
         let navigation = window.get_navigation_state();
         assert!(navigation.selected.present && navigation.active.present);
@@ -1082,11 +1168,85 @@ mod tests {
         assert_eq!(window.get_page(), crate::ViewPage::Home);
         assert!(
             std::ptr::eq(persistent.as_any(), window.get_home_rooms().as_any()),
-            "updates and private clear retain public room delegates"
+            "updates retain the model instance while private room data is removed"
         );
         render(&window, generation, stale);
         assert_eq!(window.get_cache_rows().row_count(), 0);
         assert_eq!(window.get_home_observations().row_count(), 0);
+    }
+
+    #[test]
+    fn server_layout_changes_invalidate_old_room_gestures_and_never_mix_config_stamps() {
+        let view = home_view();
+        let generation = ProjectionMailbox::<()>::new().generation();
+        let model = CacheRows::default();
+        let mut layout = dashboard::fixture();
+        let mut request = ProjectionRequest {
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone())),
+            ..Default::default()
+        };
+        model.apply(
+            generation,
+            project_request(CachePhase::Live, Some(&view), Viewport::default(), &request),
+        );
+        let before = model.home_serial.get();
+        assert!(
+            model
+                .resolve_room(dashboard::ROOM_TOKEN_BASE, before, Some(&layout))
+                .is_some()
+        );
+        layout.title = "Changed by server".into();
+        layout.document_revision += 1;
+        layout.document_hash = [9; 32];
+        layout.rooms[0].entities = ["private-entity-0001".parse().unwrap()]
+            .into_iter()
+            .collect();
+        request.dashboard = dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone()));
+        assert!(
+            model
+                .resolve_room(dashboard::ROOM_TOKEN_BASE, before, Some(&layout))
+                .is_none(),
+            "pending definition rejects old gestures before projection"
+        );
+        model.apply(
+            generation,
+            project_request(CachePhase::Live, Some(&view), Viewport::default(), &request),
+        );
+        assert!(
+            model
+                .resolve_room(dashboard::ROOM_TOKEN_BASE, before, Some(&layout))
+                .is_none()
+        );
+        assert!(
+            model
+                .resolve_room(
+                    dashboard::ROOM_TOKEN_BASE,
+                    model.home_serial.get(),
+                    Some(&layout)
+                )
+                .is_some()
+        );
+        layout.authorization_revision += 1;
+        request.dashboard = dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone()));
+        let unauthorized_cohort =
+            project_request(CachePhase::Live, Some(&view), Viewport::default(), &request);
+        assert!(
+            unauthorized_cohort.home.layout.is_none()
+                && unauthorized_cohort.home.observations.is_empty()
+        );
+        layout.authorization_revision -= 1;
+        layout.config_revision += 1;
+        request.dashboard = dashboard::LayoutState::Ready(std::sync::Arc::new(layout));
+        let incompatible =
+            project_request(CachePhase::Live, Some(&view), Viewport::default(), &request);
+        assert!(incompatible.home.layout.is_none());
+        assert!(incompatible.home.observations.is_empty());
+        request.dashboard = dashboard::LayoutState::Unavailable;
+        let absent = project_request(CachePhase::Live, Some(&view), Viewport::default(), &request);
+        assert!(absent.home.layout.is_none() && absent.home.room_counts.is_empty());
+        model.clear();
+        assert!(model.state.borrow().layout.is_none());
+        assert_eq!(model.rooms.row_count(), 0);
     }
 
     #[test]

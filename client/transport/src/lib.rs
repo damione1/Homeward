@@ -4,12 +4,14 @@
 mod auth;
 mod client;
 mod connection;
+mod dashboard;
 mod failure;
 mod reconnect;
 pub use auth::AuthTransport;
 pub use client::{AccessToken, StateTransport, StateWatch};
 pub use connection::Connection;
 pub use connectrpc::ErrorCode as RpcCode;
+pub use dashboard::{DashboardTransport, DashboardWatch};
 pub use failure::{DetailFailure, Failure, FailureKind};
 pub use reconnect::ReconnectPolicy;
 
@@ -22,6 +24,9 @@ pub mod services {
         }
         pub mod state {
             pub mod v1 { include!("generated/home.state.v1.rs"); }
+        }
+        pub mod dashboard {
+            pub mod v1 { include!("generated/home.dashboard.v1.rs"); }
         }
     }
 }
