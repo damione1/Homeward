@@ -4,7 +4,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location('frontend', Path(__file__).with_name('frontend.py'))
 frontend = importlib.util.module_from_spec(spec)
@@ -12,6 +12,20 @@ spec.loader.exec_module(frontend)
 
 
 class StorageGuardTests(unittest.TestCase):
+    def test_budget_stop_joins_a_child_that_exited_before_the_signal(self):
+        process = Mock(pid=123)
+        process.poll.side_effect = [None, 0]
+        with patch.object(frontend.os, 'killpg', side_effect=PermissionError):
+            frontend.stop_owned_process(process)
+        process.wait.assert_called_once_with(timeout=10)
+
+    def test_budget_stop_does_not_hide_a_live_child_signal_failure(self):
+        process = Mock(pid=123)
+        process.poll.return_value = None
+        with patch.object(frontend.os, 'killpg', side_effect=PermissionError):
+            with self.assertRaises(PermissionError):
+                frontend.stop_owned_process(process)
+
     def test_combined_growth_and_free_space_reserve(self):
         self.assertTrue(frontend.policy(frontend.LIMIT - 100, frontend.MIN_FREE + 100, 100))
         self.assertFalse(frontend.policy(frontend.LIMIT - 99, frontend.MIN_FREE + 100, 100))

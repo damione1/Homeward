@@ -1,11 +1,11 @@
-use std::{io::Cursor, sync::Arc, time::Duration};
+use std::time::Duration;
 
-use connectrpc::client::{CallOptions, ClientConfig, ClientTransport, HttpClient, ServerStream};
+use connectrpc::client::{CallOptions, ClientTransport, HttpClient, ServerStream};
 use home_wire_contract::home::state::v1 as state;
-use http::{HeaderValue, Uri};
+use http::HeaderValue;
 use tokio_util::sync::CancellationToken;
 
-use crate::{Failure, services::home::state::v1 as service};
+use crate::{Connection, Failure, services::home::state::v1 as service};
 
 /// An in-memory credential. Session coordination and secure persistence belong to NHF-003.
 #[derive(Clone)]
@@ -26,54 +26,17 @@ impl AccessToken {
 /// Read RPCs only: this layer never owns UI widgets, refreshes a session or retries writes.
 #[derive(Clone)]
 pub struct StateTransport {
-    client: service::StateServiceClient<HttpClient>,
+    pub(crate) client: service::StateServiceClient<HttpClient>,
 }
 
 impl StateTransport {
     /// Require an HTTPS origin and explicitly supplied trusted CA certificates.
     /// Rustls keeps its standard chain and server-name verification enabled.
     pub fn new(origin: &str, trusted_ca_pem: &[u8]) -> Result<Self, Failure> {
-        let uri: Uri = origin
-            .parse()
-            .map_err(|_| Failure::invalid_configuration())?;
-        if uri.scheme_str() != Some("https")
-            || uri.authority().is_none()
-            || !matches!(uri.path(), "" | "/")
-            || uri.query().is_some()
-            || uri
-                .authority()
-                .is_some_and(|value| value.as_str().contains('@'))
-        {
-            return Err(Failure::invalid_configuration());
-        }
-        let mut roots = rustls::RootCertStore::empty();
-        for certificate in rustls_pemfile::certs(&mut Cursor::new(trusted_ca_pem)) {
-            roots
-                .add(certificate.map_err(|_| Failure::invalid_configuration())?)
-                .map_err(|_| Failure::invalid_configuration())?;
-        }
-        if roots.is_empty() {
-            return Err(Failure::invalid_configuration());
-        }
-        // Select the provider explicitly even if another workspace dependency enables ring.
-        let tls = rustls::ClientConfig::builder_with_provider(Arc::new(
-            rustls::crypto::aws_lc_rs::default_provider(),
-        ))
-        .with_protocol_versions(&[&rustls::version::TLS13])
-        .map_err(|_| Failure::invalid_configuration())?
-        .with_root_certificates(roots)
-        .with_no_client_auth();
-        let http = HttpClient::builder()
-            .tcp_connect_timeout(Duration::from_secs(3))
-            .establishment_timeout(Duration::from_secs(5))
-            .with_tls(Arc::new(tls));
-        let config = ClientConfig::new(uri).with_default_max_message_size(1024 * 1024);
-        Ok(Self {
-            client: service::StateServiceClient::new(http, config),
-        })
+        Ok(Connection::new(origin, trusted_ca_pem)?.state())
     }
 
-    fn options(token: &AccessToken, timeout: Duration) -> Result<CallOptions, Failure> {
+    pub(crate) fn options(token: &AccessToken, timeout: Duration) -> Result<CallOptions, Failure> {
         CallOptions::default()
             .with_timeout(timeout)
             .try_with_header(http::header::AUTHORIZATION, token.0.clone())

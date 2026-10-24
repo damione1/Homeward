@@ -1,0 +1,26 @@
+[package]
+name = "home-client-platform"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+home-client-session = { path = "../session" }
+zeroize = "1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "=3.7.0"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "=0.21.1"
+android-activity = { version = "=0.6.1", features = ["native-activity"] }
+base64 = "0.22"
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+home-client-transport = { path = "../transport" }
+home-wire-contract = { path = "../wire" }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }

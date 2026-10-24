@@ -20,6 +20,7 @@ LIMIT = 40_000_000_000
 # The shared host's latest reserve supersedes the original 40 GiB floor.
 MIN_FREE = 50_000_000_000
 PACKAGES = ['home-client-model', 'home-wire-contract', 'homeward-app', 'home-client-transport',
+            'home-client-session', 'home-client-platform', 'i-slint-backend-android-activity',
             'slint-kit', 'slint-kit-core', 'slint-kit-slint', 'slint-kit-build',
             'slint-kit-pro', 'slint-kit-pro-build']
 
@@ -180,7 +181,8 @@ def configure(args):
               'baseline': str(frontend / 'storage-baseline.json'),
               'shared_roots': [str(cache / p) for p in ['workspace/target', 'go-build', 'go-tmp']] +
                   [str(REPO / '.tools'), str(Path.home() / '.cargo/registry')],
-              'owned_roots': [str(frontend), str(Path('/tmp') / ('android-' + getpass.getuser())),
+              'owned_roots': [str(frontend), str(Path.home() / 'Library/Application Support/Homeward'),
+                              str(Path('/tmp') / ('android-' + getpass.getuser())),
                               str(Path.home() / 'Library/Caches/TemporaryItems/avd'), '/opt/homebrew/share/android-commandlinetools',
                               '/opt/homebrew/Caskroom/android-commandlinetools',
                               '/opt/homebrew/Caskroom/android-platform-tools',
@@ -191,6 +193,25 @@ def configure(args):
     write(Path(config['baseline']), baseline)
     write(LOCAL, config)
     print('Configured local kit paths and immutable pre-frontend storage baseline.')
+
+
+def stop_owned_process(process):
+    """Join the child even if it exits between the budget sample and signal."""
+    if process.poll() is None:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            # Darwin can reject a group signal after its leader has exited.
+            # Suppress that race only after reaping our actual child.
+            if process.poll() is None:
+                raise
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
 
 
 def execute(config, argv, reserve, uses_cargo=False):
@@ -237,12 +258,7 @@ def execute(config, argv, reserve, uses_cargo=False):
                             raise RuntimeError('storage margin exhausted; stopping owned process group')
             except BaseException as error:
                 failure = str(error)
-                os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait()
+                stop_owned_process(process)
                 code = 1
             after = measure(config)
             if uses_cargo and code == 0:

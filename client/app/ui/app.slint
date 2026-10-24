@@ -1,27 +1,107 @@
-import { KitButton, KitTheme, KitThemes, KitBadge } from "@kit/kit.slint";
-import { ProSummary } from "@kit-pro/kit-pro.slint";
+import { KitButton, KitTheme, KitThemes, KitCard, KitCardHeader, KitUrlField,
+    KitTextArea, KitScrollArea, KitStack, KitAlert, AlertSeverity, ControlWidth } from "@kit/kit.slint";
+import { ProAccessPanel, ProAccessStage } from "@kit-pro/kit-pro.slint";
 
 export component HomewardWindow inherits Window {
     title: "Homeward · Développement";
-    preferred-width: 820px;
-    preferred-height: 560px;
-    min-width: 320px;
-    min-height: 380px;
+    preferred-width: 760px; preferred-height: 820px;
+    min-width: 320px; min-height: 400px;
     background: root.theme.canvas;
-    in property <KitTheme> theme: KitThemes.light;
-    in-out property <string> foundation-status: "Socle natif · hors connexion";
-    callback inspect-foundation();
-    VerticalLayout {
-        padding: 24px; spacing: 20px;
-        Text { text: "Homeward"; color: root.theme.text-primary; font-size: 30px; font-weight: 700; }
-        KitBadge { theme: root.theme; text: "Développement local"; }
-        ProSummary {
-            theme: root.theme;
-            label: "Bienvenue chez vous";
-            value: "Tout commence ici.";
-            description: root.foundation-status;
+    in-out property <bool> dark-mode;
+    in property <KitTheme> theme: root.dark-mode ? KitThemes.dark : KitThemes.light;
+    in-out property <string> server-draft;
+    in-out property <string> certificate-draft;
+    in-out property <bool> show-endpoint: true;
+    in property <bool> endpoint-ready;
+    in property <string> endpoint-label;
+    in property <string> trust-fingerprint;
+    in property <string> setup-message;
+    in-out property <ProAccessStage> access-stage: ProAccessStage.identity;
+    in property <bool> busy;
+    in property <bool> can-recover;
+    in property <string> message-title;
+    in property <string> message;
+    in property <AlertSeverity> message-severity: AlertSeverity.information;
+    in property <string> read-status;
+    in property <string> session-title;
+    in property <string> session-description;
+    in property <AlertSeverity> session-severity: AlertSeverity.success;
+    in-out property <string> user-draft;
+    in-out property <string> password-draft;
+    in-out property <string> recovery-draft;
+    callback connect-endpoint(string, string);
+    callback sign-in(string, string);
+    callback verify-recovery(string);
+    callback sign-out();
+    callback cancel-access();
+    callback read-protected();
+
+    KitScrollArea {
+        width: parent.width; height: parent.height;
+        inset: roomy; gap: roomy;
+        Text { text: "Homeward"; color: root.theme.text-primary;
+            font-size: 30px * root.theme.text-scale; font-weight: 700; wrap: word-wrap; }
+        HorizontalLayout {
+            KitButton { theme: root.theme; text: root.dark-mode ? "Thème clair" : "Thème sombre";
+                activated => { root.dark-mode = !root.dark-mode; } }
+            Rectangle { horizontal-stretch: 1; }
         }
-        KitButton { theme: root.theme; text: "Vérifier le socle"; activated => { root.inspect-foundation(); } }
-        Rectangle { vertical-stretch: 1; }
+        if root.show-endpoint: KitCard {
+            theme: root.theme;
+            KitCardHeader { theme: root.theme; title: "Votre serveur";
+                description: "Adresse HTTPS et certificat public de confiance fourni par votre administrateur."; }
+            KitUrlField { theme: root.theme; label: "Adresse du serveur";
+                placeholder: "https://home.example.com"; text <=> root.server-draft; }
+            KitTextArea { theme: root.theme; label: "Certificat de confiance (PEM)";
+                min-lines: 3; max-lines: 5; text <=> root.certificate-draft;
+                input-method-hints: { capitalization: CapitalizationMode.none, auto-correct: false, auto-complete: false }; }
+            if root.setup-message != "": KitAlert {
+                theme: root.theme; title: "Connexion au serveur"; message: root.setup-message;
+            }
+            KitButton { theme: root.theme; text: "Utiliser ce serveur"; control-width: ControlWidth.fill;
+                disabled: root.server-draft == "" || root.certificate-draft == "";
+                activated => { root.connect-endpoint(root.server-draft, root.certificate-draft); } }
+        }
+        if root.endpoint-ready && !root.show-endpoint: KitStack {
+            Text { text: root.endpoint-label; color: root.theme.text-secondary;
+                font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+            Text { text: "Confiance SHA-256 : " + root.trust-fingerprint; color: root.theme.text-secondary;
+                font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
+            ProAccessPanel {
+                theme: root.theme; stage: root.access-stage; title: "Bienvenue chez vous";
+                description: "Connectez-vous à votre installation.";
+                user-label: "Identifiant"; password-label: "Mot de passe"; submit-label: "Se connecter";
+                verification-title: "Vérification supplémentaire";
+                verification-help: "Ce compte demande un second facteur. Les clés FIDO2 ne sont pas encore prises en charge sur ce client.";
+                factor-label: "Clé de sécurité · non prise en charge";
+                recovery-choice-label: "Utiliser un code de secours";
+                recovery-label: "Code de secours"; recovery-submit-label: "Vérifier le code";
+                enrollment-title: "Enrôlement requis";
+                enrollment-help: "Une clé doit être enregistrée avant de poursuivre. Utilisez un client disposant d’un provider FIDO2 qualifié, puis recommencez la connexion ici.";
+                enroll-label: "Enrôlement indisponible sur ce client";
+                connected-title: root.session-title;
+                connected-description: root.session-description;
+                connected-severity: root.session-severity;
+                sign-out-label: "Se déconnecter"; restart-label: "Recommencer";
+                show-label: "Afficher"; hide-label: "Masquer"; cancel-label: "Annuler";
+                busy-label: "Connexion en cours…"; busy: root.busy; can-recover: root.can-recover;
+                message-title: root.message-title; message: root.message; message-severity: root.message-severity;
+                user-draft <=> root.user-draft; password-draft <=> root.password-draft; recovery-draft <=> root.recovery-draft;
+                sign-in(user, password) => { root.sign-in(user, password); }
+                choose-recovery => { root.access-stage = ProAccessStage.recovery; }
+                verify-recovery(code) => { root.verify-recovery(code); }
+                restart => { root.cancel-access(); }
+                cancel => { root.cancel-access(); }
+                sign-out => { root.sign-out(); }
+            }
+            if root.access-stage == ProAccessStage.connected: KitButton {
+                theme: root.theme; text: "Vérifier l’accès aux données"; busy: root.busy;
+                activated => { root.read-protected(); }
+            }
+            if root.read-status != "": Text { text: root.read-status; color: root.theme.text-secondary;
+                font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+            KitButton { theme: root.theme; text: "Changer de serveur";
+                activated => { root.password-draft = ""; root.recovery-draft = ""; root.show-endpoint = true; } }
+        }
     }
 }

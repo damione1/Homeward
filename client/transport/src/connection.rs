@@ -1,0 +1,69 @@
+use std::{io::Cursor, sync::Arc, time::Duration};
+
+use connectrpc::client::{ClientConfig, HttpClient};
+use http::Uri;
+
+use crate::{AuthTransport, Failure, StateTransport, services::home};
+
+/// A shared verified TLS connection configuration. Service facades reuse the
+/// same HTTP connection pool; no service changes the endpoint or trust roots.
+#[derive(Clone)]
+pub struct Connection {
+    http: HttpClient,
+    config: ClientConfig,
+}
+
+impl Connection {
+    pub fn new(origin: &str, trusted_ca_pem: &[u8]) -> Result<Self, Failure> {
+        let uri: Uri = origin
+            .parse()
+            .map_err(|_| Failure::invalid_configuration())?;
+        if uri.scheme_str() != Some("https")
+            || uri.authority().is_none()
+            || !matches!(uri.path(), "" | "/")
+            || uri.query().is_some()
+            || uri
+                .authority()
+                .is_some_and(|value| value.as_str().contains('@'))
+        {
+            return Err(Failure::invalid_configuration());
+        }
+        let mut roots = rustls::RootCertStore::empty();
+        for certificate in rustls_pemfile::certs(&mut Cursor::new(trusted_ca_pem)) {
+            roots
+                .add(certificate.map_err(|_| Failure::invalid_configuration())?)
+                .map_err(|_| Failure::invalid_configuration())?;
+        }
+        if roots.is_empty() {
+            return Err(Failure::invalid_configuration());
+        }
+        let tls = rustls::ClientConfig::builder_with_provider(Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_protocol_versions(&[&rustls::version::TLS13])
+        .map_err(|_| Failure::invalid_configuration())?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+        let http = HttpClient::builder()
+            .tcp_connect_timeout(Duration::from_secs(3))
+            .establishment_timeout(Duration::from_secs(5))
+            .with_tls(Arc::new(tls));
+        let config = ClientConfig::new(uri).with_default_max_message_size(1024 * 1024);
+        Ok(Self { http, config })
+    }
+
+    pub fn state(&self) -> StateTransport {
+        StateTransport {
+            client: home::state::v1::StateServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
+        }
+    }
+
+    pub fn auth(&self) -> AuthTransport {
+        AuthTransport {
+            client: home::auth::v1::AuthServiceClient::new(self.http.clone(), self.config.clone()),
+        }
+    }
+}

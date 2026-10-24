@@ -1,0 +1,19 @@
+[package]
+name = "home-client-session"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+home-client-transport = { path = "../transport" }
+home-wire-contract = { path = "../wire" }
+buffa = "=0.9.2"
+buffa-types = "=0.9.2"
+zeroize = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
+connectrpc = { version = "=0.9.1", default-features = false }
