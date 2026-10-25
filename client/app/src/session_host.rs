@@ -261,6 +261,34 @@ struct Ui {
     devices: Arc<Mutex<Option<DeviceBinding>>>,
 }
 impl Ui {
+    fn current_devices(&self) -> Result<(DeviceBinding, i32), Refusal> {
+        let epoch = ProfileEpoch(self.epoch.load(Ordering::SeqCst));
+        let binding = self
+            .devices
+            .lock()
+            .expect("device binding mutex")
+            .clone()
+            .filter(|binding| binding.epoch == epoch)
+            .ok_or(Refusal::Stale)?;
+        let revision = self
+            .projection_request
+            .lock()
+            .expect("presentation request mutex poisoned")
+            .revision;
+        Ok((binding, revision))
+    }
+    fn repaint_devices(&self) {
+        let binding = self
+            .cache_handle
+            .lock()
+            .expect("UI cache handle mutex poisoned")
+            .clone();
+        if let Some(binding) = binding
+            && binding.epoch.0 == self.epoch.load(Ordering::SeqCst)
+        {
+            let _ = binding.handle.viewport(*self.viewport.borrow());
+        }
+    }
     fn invalidate_cache(&self) {
         if let Some(binding) = self.devices.lock().expect("device binding mutex").clone() {
             binding.store.clear_private();
@@ -1229,12 +1257,45 @@ pub(crate) fn run_with_lifecycle(
         };
         power(token, generation, DeviceIntent::Power(intent));
     });
+    let brightness = submit_device.clone();
     window.on_device_brightness(move |token, generation, value| {
-        submit_device(
+        brightness(
             token,
             generation,
             DeviceIntent::Brightness(f64::from(value)),
         )
+    });
+    let edit_ui = ui.clone();
+    let submit_edit = submit_device.clone();
+    window.on_device_edit(move |token, generation, field, intent| {
+        let editing_draft = intent.event == crate::ProValueEvent::Draft;
+        let result = edit_ui.current_devices().and_then(|(binding, revision)| {
+            binding
+                .store
+                .edit(token, generation, revision, field, intent)
+        });
+        edit_ui.repaint_devices();
+        match result {
+            Ok(Some(intent)) => submit_edit(token, generation, intent),
+            Ok(None) => {}
+            Err(Refusal::InvalidValue) if editing_draft => {}
+            Err(refusal) => {
+                edit_ui.refuse(ProfileEpoch(edit_ui.epoch.load(Ordering::SeqCst)), refusal)
+            }
+        }
+    });
+    let choice_ui = ui.clone();
+    window.on_device_choice(move |token, generation, choice| {
+        let result = choice_ui.current_devices().and_then(|(binding, revision)| {
+            binding.store.choose(token, generation, revision, choice)
+        });
+        match result {
+            Ok(intent) => submit_device(token, generation, intent),
+            Err(refusal) => choice_ui.refuse(
+                ProfileEpoch(choice_ui.epoch.load(Ordering::SeqCst)),
+                refusal,
+            ),
+        }
     });
     let stop_ui = ui.clone();
     window.on_device_stop_tracking(move |token, generation| {

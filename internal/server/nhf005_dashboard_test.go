@@ -24,8 +24,8 @@ import (
 	dashboardv1 "github.com/damione1/Homeward/gen/home/dashboard/v1"
 	"github.com/damione1/Homeward/gen/home/dashboard/v1/dashboardv1connect"
 	"github.com/damione1/Homeward/internal/authorization"
-	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/view"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -35,7 +35,7 @@ type nhf005Dashboard struct {
 	file                 string
 	catalogue            *nhf007Catalogue
 	authority            *authorization.Authority
-	activation           *configactivation.Owner
+	activation           view.Configuration
 	mu                   sync.Mutex
 	owner                contracts.AccountID
 	bindings             map[string]domain.EntityID

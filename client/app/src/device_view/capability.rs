@@ -1,13 +1,13 @@
 //! Parse the finite native capability vocabulary once at the wire boundary.
-use super::{DeviceIntent, Power, Refusal};
+use super::{
+    DeviceIntent, Power, Refusal,
+    climate::{Climate, Fan},
+    helper::{Helper, HelperRevision},
+    light::ColorTemperature,
+    number::Bounds,
+};
 use home_wire_contract::home::{actions::v1 as action, registry::v1 as wire};
-#[derive(Clone, Copy, PartialEq)]
-pub(super) struct Bounds {
-    pub minimum: f64,
-    pub maximum: f64,
-    pub step: Option<f64>,
-}
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(super) enum Control {
     Switch {
         power: bool,
@@ -15,82 +15,31 @@ pub(super) enum Control {
     Light {
         power: bool,
         brightness: Option<Bounds>,
+        color: Option<ColorTemperature>,
     },
+    Climate(Climate),
+    Fan(Fan),
+    Helper(Helper),
     Binary,
     Measurement,
     Unsupported,
 }
 impl Power {
-    fn on(self) -> bool {
+    pub(super) fn on(self) -> bool {
         match self {
             Self::On => true,
             Self::Off => false,
         }
     }
 }
-impl Bounds {
-    fn parse(value: &wire::NumberBounds) -> Option<Self> {
-        (value.__buffa_unknown_fields.is_empty()
-            && value.minimum.is_finite()
-            && value.maximum.is_finite()
-            && value.minimum >= 0.
-            && value.maximum <= 100.
-            && value.maximum > value.minimum
-            && value.step.is_none_or(|step| {
-                step.is_finite() && step > 0. && step <= value.maximum - value.minimum
-            }))
-        .then_some(Self {
-            minimum: value.minimum,
-            maximum: value.maximum,
-            step: value.step,
-        })
-    }
-    fn canonical(self, value: f64) -> Result<f64, Refusal> {
-        // Slint emits renderer f32 values. Accept only its boundary rounding;
-        // canonical bounds and the optional device step remain server f64 facts.
-        let tolerance = f64::from(f32::EPSILON) * self.maximum.abs().max(1.) * 2.;
-        if !value.is_finite()
-            || value < self.minimum - tolerance
-            || value > self.maximum + tolerance
-        {
-            return Err(Refusal::InvalidValue);
-        }
-        let value = value.clamp(self.minimum, self.maximum);
-        let canonical = match self.step {
-            Some(step) => {
-                let units = (self.maximum - self.minimum) / step;
-                if !units.is_finite() {
-                    return Err(Refusal::InvalidValue);
-                }
-                // Match the server's 1e-9 step tolerance, including decimal
-                // boundaries such as (0.3 - 0.1) / 0.1 just below two.
-                let maximum = if (units - units.round()).abs() <= 1e-9 {
-                    units.round()
-                } else {
-                    units.floor()
-                };
-                let result = (self.minimum
-                    + ((value - self.minimum) / step).round().min(maximum) * step)
-                    .clamp(self.minimum, self.maximum);
-                let actual = (result - self.minimum) / step;
-                if !actual.is_finite() || (actual - actual.round()).abs() > 1e-9 {
-                    return Err(Refusal::InvalidValue);
-                }
-                result
-            }
-            None => value,
-        };
-        if canonical.is_finite() {
-            Ok(canonical)
-        } else {
-            Err(Refusal::InvalidValue)
-        }
-    }
-}
 impl Control {
     pub fn parse(capability: &wire::CapabilityDescription) -> Self {
         use wire::capability_description::Constraints as C;
-        if capability.major != 1 || !capability.__buffa_unknown_fields.is_empty() {
+        if capability.major != 1
+            || !capability.__buffa_unknown_fields.is_empty()
+            || !capability.descriptor_set.is_empty()
+            || !capability.descriptor_sha256.is_empty()
+        {
             return Self::Unsupported;
         }
         match capability.constraints.as_ref() {
@@ -105,7 +54,14 @@ impl Control {
                 if capability.schema_id == "core.light.v1" && c.__buffa_unknown_fields.is_empty() {
                     Self::Light {
                         power: c.set_on,
-                        brightness: c.brightness_percent.as_option().and_then(Bounds::parse),
+                        brightness: c
+                            .brightness_percent
+                            .as_option()
+                            .and_then(Bounds::percentage),
+                        color: c
+                            .color_temp_mireds
+                            .as_option()
+                            .and_then(ColorTemperature::parse),
                     }
                 } else {
                     Self::Unsupported
@@ -127,18 +83,41 @@ impl Control {
                     Self::Unsupported
                 }
             }
-            Some(
-                C::Fan(_)
-                | C::Climate(_)
-                | C::Extension(_)
-                | C::Helper(_)
-                | C::Solar(_)
-                | C::SolarEvent(_),
-            )
-            | None => Self::Unsupported,
+            Some(C::Climate(value)) => {
+                if capability.schema_id == "core.climate.v1" {
+                    Climate::parse(value)
+                        .map(Self::Climate)
+                        .unwrap_or(Self::Unsupported)
+                } else {
+                    Self::Unsupported
+                }
+            }
+            Some(C::Fan(value)) => {
+                if capability.schema_id == "core.fan.v1" {
+                    Fan::parse(value)
+                        .map(Self::Fan)
+                        .unwrap_or(Self::Unsupported)
+                } else {
+                    Self::Unsupported
+                }
+            }
+            Some(C::Helper(value)) => {
+                if capability.schema_id == "core.helper.v1" {
+                    Helper::parse(value)
+                        .map(Self::Helper)
+                        .unwrap_or(Self::Unsupported)
+                } else {
+                    Self::Unsupported
+                }
+            }
+            Some(C::Extension(_) | C::Solar(_) | C::SolarEvent(_)) | None => Self::Unsupported,
         }
     }
-    pub fn arguments(self, intent: DeviceIntent) -> Result<action::ActionArgs, Refusal> {
+    pub fn arguments(
+        &self,
+        intent: DeviceIntent,
+        helper_revision: Option<HelperRevision>,
+    ) -> Result<action::ActionArgs, Refusal> {
         use action::action_args::Arguments as A;
         let arguments = match intent {
             DeviceIntent::Power(value) => match self {
@@ -156,10 +135,13 @@ impl Control {
                     }
                     .into(),
                 ),
+                Self::Fan(fan) => A::SetFan(fan.power(value)?.into()),
                 Self::Switch { power: false }
                 | Self::Light { power: false, .. }
                 | Self::Binary
                 | Self::Measurement
+                | Self::Climate(_)
+                | Self::Helper(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Brightness(value) => match self {
@@ -179,6 +161,60 @@ impl Control {
                 | Self::Switch { .. }
                 | Self::Binary
                 | Self::Measurement
+                | Self::Climate(_)
+                | Self::Fan(_)
+                | Self::Helper(_)
+                | Self::Unsupported => return Err(Refusal::Unsupported),
+            },
+            DeviceIntent::ColorTemperature(value) => match self {
+                Self::Light {
+                    color: Some(color), ..
+                } => A::SetLight(
+                    action::SetLight {
+                        color_temp_mireds: Some(color.admit(value)?.wire()),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+                Self::Light { color: None, .. }
+                | Self::Switch { .. }
+                | Self::Climate(_)
+                | Self::Fan(_)
+                | Self::Helper(_)
+                | Self::Binary
+                | Self::Measurement
+                | Self::Unsupported => return Err(Refusal::Unsupported),
+            },
+            DeviceIntent::Climate(intent) => match self {
+                Self::Climate(climate) => A::SetClimate(climate.arguments(intent)?.into()),
+                Self::Switch { .. }
+                | Self::Light { .. }
+                | Self::Fan(_)
+                | Self::Binary
+                | Self::Measurement
+                | Self::Helper(_)
+                | Self::Unsupported => return Err(Refusal::Unsupported),
+            },
+            DeviceIntent::FanSpeed(speed) => match self {
+                Self::Fan(fan) => A::SetFan(fan.speed(speed)?.into()),
+                Self::Switch { .. }
+                | Self::Light { .. }
+                | Self::Climate(_)
+                | Self::Binary
+                | Self::Measurement
+                | Self::Helper(_)
+                | Self::Unsupported => return Err(Refusal::Unsupported),
+            },
+            DeviceIntent::Helper(intent) => match self {
+                Self::Helper(helper) => {
+                    A::Helper(helper.arguments(intent, helper_revision)?.into())
+                }
+                Self::Switch { .. }
+                | Self::Light { .. }
+                | Self::Climate(_)
+                | Self::Fan(_)
+                | Self::Binary
+                | Self::Measurement
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
         };
@@ -186,26 +222,5 @@ impl Control {
             arguments: Some(arguments),
             ..Default::default()
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn renderer_rounding_preserves_decimal_endpoints_and_never_leaves_the_device_grid() {
-        let bounds = Bounds {
-            minimum: 0.1,
-            maximum: 0.3,
-            step: Some(0.1),
-        };
-        assert_eq!(bounds.canonical(f64::from(0.3_f32)).unwrap(), 0.3);
-        let bounds = Bounds {
-            minimum: 20.,
-            maximum: 80.,
-            step: Some(7.),
-        };
-        assert_eq!(bounds.canonical(80.).unwrap(), 76.);
-        assert!(matches!(bounds.canonical(81.), Err(Refusal::InvalidValue)));
     }
 }

@@ -1,5 +1,5 @@
 import { KitWrap, KitTheme } from "@kit/kit.slint";
-import { ProDeviceCard, ProDeviceRow, ProPowerIntent } from "@kit-pro/kit-pro.slint";
+import { ProDeviceCard, ProDeviceRow, ProPowerIntent, ProValueIntent } from "@kit-pro/kit-pro.slint";
 // Product composition and French labels. Every card's behavior lives in Pro;
 // server identities, permission checks and execution remain in Rust.
 export component HomewardDevices inherits KitWrap {
@@ -9,6 +9,8 @@ export component HomewardDevices inherits KitWrap {
     in property <bool> interactive;
     in property <bool> commands-ready;
     in property <bool> show-details: true;
+    callback edit(int,int,int,ProValueIntent);
+    callback choose(int,int,int);
     callback power(int,int,ProPowerIntent);
     callback brightness(int,int,float);
     callback stop-tracking(int,int);
@@ -23,6 +25,9 @@ export component HomewardDevices inherits KitWrap {
         on-label: "Allumer"; off-label: "Éteindre"; brightness-label: "Luminosité";
         unknown-access-label: "Droit de commande inconnu"; denied-label: "Lecture seule";
         stop-label: "Arrêter le suivi"; details-label: "Détails";
+        apply-label: "Appliquer"; increment-label: "Augmenter"; decrement-label: "Diminuer";
+        edit(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
+        choose(token,generation,choice) => { root.choose(token,generation,choice); }
         power-requested(token,generation,intent) => { root.power(token,generation,intent); }
         brightness-requested(token,generation,value) => { root.brightness(token,generation,value); }
         stop-tracking(token,generation) => { root.stop-tracking(token,generation); }
