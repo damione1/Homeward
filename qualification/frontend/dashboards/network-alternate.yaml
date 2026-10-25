@@ -1,0 +1,42 @@
+# Synthetic server-owned second dashboard; all bindings resolve inside fake Host.
+views:
+- type: sections
+  path: home
+  title: Atelier réseau
+  max_columns: 2
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Confort réseau
+      heading_style: title
+      grid_options:
+        columns: full
+    - type: grid
+      columns: 2
+      square: false
+      grid_options:
+        columns: full
+      cards:
+      - type: tile
+        name: Mesure réseau
+        entity: sensor.backyard_all_count
+      - type: horizontal-stack
+        cards:
+        - type: tile
+          name: Lumière réseau
+          entity: light.basement_lights
+        - type: tile
+          name: Contact réseau
+          entity: binary_sensor.arc_soundbar_microphone
+- type: sections
+  path: workshop
+  title: Pièce réseau
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Éclairage réseau
+    - type: tile
+      name: Relais pièce réseau
+      entity: switch.basement_relay

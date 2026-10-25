@@ -257,6 +257,7 @@ struct Ui {
     projection_request: crate::dashboard::SharedRequest,
     viewport: watch::Sender<Viewport>,
     dashboard_retry: Arc<tokio::sync::Notify>,
+    dashboard_choices: crate::dashboard_selection::Choices,
     devices: Arc<Mutex<Option<DeviceBinding>>>,
 }
 impl Ui {
@@ -641,6 +642,8 @@ async fn install_profile(
         (owner.clone(), ui.clone(), cancel.clone());
     let dashboard_transport = connection.dashboard();
     let dashboard_retry = ui.dashboard_retry.clone();
+    let dashboard_choices = ui.dashboard_choices.clone();
+    dashboard_choices.clear();
     tasks.spawn(async move {
         let guard = dashboard_session.clone();
         let mailbox = ProjectionMailbox::new();
@@ -649,30 +652,41 @@ async fn install_profile(
             dashboard_session,
             dashboard_cancel,
             dashboard_retry,
-            move |generation, layout| {
-                let ticket = match mailbox.publish(mailbox.generation(), (generation, layout)) {
+            dashboard_choices,
+            move |generation, revision, catalogue, layout| {
+                let ticket = match mailbox.publish(
+                    mailbox.generation(),
+                    (generation, revision, catalogue, layout),
+                ) {
                     Publication::Schedule(ticket) => ticket,
                     Publication::Coalesced
                     | Publication::Rejected(
                         PublicationRefusal::Closed | PublicationRefusal::Obsolete,
                     ) => return,
                 };
-                let (guard, presentation) =
-                    (guard.clone(), dashboard_ui.projection_request.clone());
+                let (guard, presentation, choices) = (
+                    guard.clone(),
+                    dashboard_ui.projection_request.clone(),
+                    dashboard_ui.dashboard_choices.clone(),
+                );
                 dashboard_ui.post(epoch, move |window| {
-                    ticket.deliver(|_, (generation, layout)| {
-                        if !guard.is_current(generation) {
+                    ticket.deliver(|_, (generation, revision, catalogue, layout)| {
+                        if !guard.is_current(generation) || !choices.accept(revision, catalogue) {
                             return;
                         }
                         {
                             let mut request = presentation
                                 .lock()
                                 .expect("presentation request mutex poisoned");
+                            window.invoke_dashboard_catalogue_changed();
                             if request.dashboard == layout {
                                 return;
                             }
                             request.dashboard = layout;
                         }
+                        // A different server layout invalidates both page models,
+                        // even if a coalesced loading notification was skipped.
+                        cache_view::clear_for_layout(&window);
                         window.invoke_dashboard_changed();
                     });
                 });
@@ -994,6 +1008,7 @@ pub(crate) fn run_with_lifecycle(
         projection_request: Arc::new(Mutex::new(crate::dashboard::ProjectionRequest::default())),
         viewport: viewport_tx.clone(),
         dashboard_retry: Arc::new(tokio::sync::Notify::new()),
+        dashboard_choices: crate::dashboard_selection::Choices::default(),
         devices: Arc::new(Mutex::new(None)),
     };
     let (sender, input) = mpsc::channel(16);
@@ -1025,6 +1040,29 @@ pub(crate) fn run_with_lifecycle(
                 .and_then(|binding| binding.store.entity(token, generation, revision))
         },
     );
+    let (selection_ui, selection_window) = (ui.clone(), window.as_weak());
+    crate::dashboard_selection::bind(&window, ui.dashboard_choices.clone(), move || {
+        let Some(window) = selection_window.upgrade() else {
+            return;
+        };
+        selection_ui
+            .projection_request
+            .lock()
+            .expect("presentation request mutex poisoned")
+            .dashboard = crate::dashboard::LayoutState::Loading;
+        if let Some(binding) = selection_ui
+            .devices
+            .lock()
+            .expect("device binding mutex")
+            .as_ref()
+        {
+            binding.store.clear_private();
+        }
+        cache_view::clear_for_layout(&window);
+        window.invoke_dashboard_catalogue_changed();
+        window.invoke_dashboard_changed();
+        selection_ui.dashboard_retry.notify_one();
+    });
     let clock_window = window.as_weak();
     let clock = slint::Timer::default();
     let update_clock = move || {
@@ -1292,6 +1330,7 @@ mod tests {
             ),
             viewport: watch::channel(Viewport::default()).0,
             dashboard_retry: Arc::new(tokio::sync::Notify::new()),
+            dashboard_choices: crate::dashboard_selection::Choices::default(),
             devices: Arc::new(Mutex::new(None)),
         };
         ui.request_view(epoch);
@@ -1379,6 +1418,7 @@ mod tests {
             ),
             viewport: watch::channel(Viewport::default()).0,
             dashboard_retry: Arc::new(tokio::sync::Notify::new()),
+            dashboard_choices: crate::dashboard_selection::Choices::default(),
             devices: Arc::new(Mutex::new(None)),
         };
         let slot = Arc::downgrade(&ui.cache_handle);

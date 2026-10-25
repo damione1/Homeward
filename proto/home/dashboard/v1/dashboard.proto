@@ -23,6 +23,8 @@ message Metadata {
   string profile = 3;
   home.configuration.v1.DocumentVersion version = 4;
   google.protobuf.Timestamp updated_at = 5;
+  // Display label only; identity and selection always use DashboardId.
+  string title = 6;
 }
 enum DiagnosticCode {
   DIAGNOSTIC_CODE_UNSPECIFIED = 0;
@@ -50,6 +52,70 @@ message Dashboard {
   // Inert, versioned server projection of the configured Lovelace source.
   // Clients never reconstruct an installation catalogue from compiled aliases.
   NativeOverview native_overview = 4;
+  NativeLayout native_layout = 5;
+}
+
+// Inert vocabulary negotiated independently from the preserved Lovelace source.
+// No server-provided widget code or action expression is executable by a client.
+enum LayoutKind {
+  LAYOUT_KIND_UNSPECIFIED = 0;
+  LAYOUT_KIND_VIEW = 1;
+  LAYOUT_KIND_SECTION = 2;
+  LAYOUT_KIND_GRID = 3;
+  LAYOUT_KIND_HORIZONTAL_STACK = 4;
+  LAYOUT_KIND_HEADING = 5;
+  LAYOUT_KIND_TILE = 6;
+  LAYOUT_KIND_UNSUPPORTED = 7;
+}
+enum LayoutDimensionKind {
+  LAYOUT_DIMENSION_KIND_UNSPECIFIED = 0;
+  LAYOUT_DIMENSION_KIND_COUNT = 1;
+  LAYOUT_DIMENSION_KIND_FULL = 2;
+  LAYOUT_DIMENSION_KIND_AUTO = 3;
+}
+message LayoutDimension { LayoutDimensionKind kind = 1; uint32 count = 2; }
+enum NativeHeadingStyle {
+  NATIVE_HEADING_STYLE_UNSPECIFIED = 0;
+  NATIVE_HEADING_STYLE_DEFAULT = 1;
+  NATIVE_HEADING_STYLE_TITLE = 2;
+  NATIVE_HEADING_STYLE_SUBTITLE = 3;
+}
+message LayoutSource {
+  string file = 1;
+  uint32 line = 2;
+  uint32 column = 3;
+  string path = 4;
+  // The original type/strategy label, including unknown custom card names.
+  string variant = 5;
+}
+message LayoutNode {
+  string id = 1;
+  LayoutKind kind = 2;
+  LayoutSource source = 3;
+  string title = 4;
+  string entity_id = 5;
+  repeated string children = 6;
+  string diagnostic = 7;
+  uint32 columns = 8;
+  LayoutDimension column_span = 9;
+  LayoutDimension row_span = 10;
+  optional bool square = 11;
+  optional bool vertical = 12;
+  optional bool hide_state = 13;
+  NativeHeadingStyle heading_style = 14;
+  // Stable configured view path; independent of its source array position.
+  string route = 15;
+}
+message NativeLayout {
+  uint32 version = 1;
+  repeated string views = 2;
+  // A bounded forest with unique source identities, no shared child or cycle.
+  repeated LayoutNode nodes = 3;
+}
+message ClientLayoutSupport {
+  string profile = 1;
+  uint32 version = 2;
+  repeated LayoutKind kinds = 3;
 }
 
 enum NativeIcon {
@@ -86,9 +152,9 @@ message NativeOverview {
   // Must match StateService before the layout and entity view are published.
   uint64 authorization_revision = 8;
 }
-message ListDashboardsRequest {}
+message ListDashboardsRequest { ClientLayoutSupport support = 1; }
 message ListDashboardsResponse { repeated Metadata dashboards = 1; string resume_token = 2; }
-message GetDashboardRequest { DashboardId id = 1; }
+message GetDashboardRequest { DashboardId id = 1; ClientLayoutSupport support = 2; }
 message GetDashboardResponse { Dashboard dashboard = 1; string resume_token = 2; }
 message CreateDashboardRequest { Definition definition = 1; }
 message ReplaceDashboardRequest {

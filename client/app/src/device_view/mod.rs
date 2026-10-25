@@ -19,7 +19,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-const MAX_CARDS: usize = 64;
+const MAX_CARDS: usize = 2048;
+const MAX_ACTION_HISTORY: usize = 64;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct CardToken(i32);
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -89,6 +90,7 @@ pub(crate) struct DeviceProjection {
     pub rows: Vec<ProDeviceRow>,
     pub ready: bool,
     pub represented: BTreeSet<EntityId>,
+    pub entities: Vec<EntityId>,
 }
 pub(crate) struct Prepared {
     pub target: ActionTarget,
@@ -114,6 +116,38 @@ fn selected<'a>(
         return view
             .get(id)
             .map(|entity| vec![(bounded(&entity.current_alias), entity)])
+            .unwrap_or_default();
+    }
+    if let Some(native) = &layout.native {
+        let mut seen = BTreeSet::new();
+        return native
+            .root(request.room.as_ref())
+            .map(|root| {
+                native
+                    .ordered_nodes(root)
+                    .into_iter()
+                    .filter_map(|node| {
+                        let id = node.entity.as_ref()?;
+                        if !seen.insert(id.clone()) {
+                            return None;
+                        }
+                        let entity = view.get(id)?;
+                        if !request.query.is_empty()
+                            && !entity.current_alias.to_lowercase().contains(&request.query)
+                        {
+                            return None;
+                        }
+                        Some((
+                            if node.title.is_empty() {
+                                bounded(&entity.current_alias)
+                            } else {
+                                node.title.clone()
+                            },
+                            entity,
+                        ))
+                    })
+                    .collect()
+            })
             .unwrap_or_default();
     }
     let entries = match &request.room {
@@ -184,7 +218,18 @@ impl DeviceStore {
                 else {
                     continue;
                 };
-                let access = write_access(entity, target.schema(), target.endpoint());
+                let access = if layout.is_some_and(|layout| {
+                    layout.native.as_ref().is_none_or(|native| {
+                        native
+                            .nodes
+                            .values()
+                            .any(|node| node.kind == crate::dashboard_layout::Kind::View)
+                    })
+                }) {
+                    write_access(entity, target.schema(), target.endpoint())
+                } else {
+                    WriteAccess::Denied
+                };
                 let control = Control::parse(capability);
                 let row = card(&title, entity, control, access);
                 slots.push(Slot {
@@ -254,7 +299,19 @@ impl DeviceStore {
                     .collect()
             })
             .unwrap_or_default();
+        let entities = state
+            .context
+            .as_ref()
+            .map(|context| {
+                context
+                    .slots
+                    .iter()
+                    .map(|slot| slot.target.entity().clone())
+                    .collect()
+            })
+            .unwrap_or_default();
         DeviceProjection {
+            entities,
             rows: cards,
             ready,
             represented,
@@ -301,7 +358,7 @@ impl DeviceStore {
         state.actions.retain(|(old, _)| old != &target);
         // At most 32 controller records can still be active. Retaining 64
         // presentation records permits eviction of a finished older record.
-        if state.actions.len() == MAX_CARDS {
+        if state.actions.len() == MAX_ACTION_HISTORY {
             let retired = state
                 .actions
                 .iter()
