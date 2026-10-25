@@ -790,7 +790,7 @@ fn callback_on_back_invoked<'local>(
     _class: JClass<'local>,
 ) -> Result<(), jni::errors::Error> {
     // Forward Back as a Key.Back KeyPressed + KeyReleased pair; fall back to
-    // Activity.finish() if unhandled.
+    // the window close-request policy if unhandled, including without a focused widget.
     let _ = i_slint_core::api::invoke_from_event_loop(move || {
         if let Some(adaptor) = CURRENT_WINDOW.with_borrow(|x| x.upgrade()) {
             let text: SharedString = Key::Back.into();
@@ -802,9 +802,7 @@ fn callback_on_back_invoked<'local>(
             let handled = matches!(pressed, Ok(WindowEventDispatchResult::Accepted))
                 || matches!(released, Ok(WindowEventDispatchResult::Accepted));
             if !handled {
-                if let Err(e) = adaptor.java_helper.finish_activity() {
-                    i_slint_core::debug_log!("finish_activity failed: {e:#?}");
-                }
+                adaptor.request_back_close();
             }
         }
     });

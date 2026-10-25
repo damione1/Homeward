@@ -105,6 +105,18 @@ message ViewCursor {
   bytes admission_proof = 7;
   bytes grant_sha256 = 8;
 }
+enum ActionAccess {
+  ACTION_ACCESS_UNSPECIFIED = 0;
+  ACTION_ACCESS_DENIED = 1;
+  ACTION_ACCESS_ALLOWED = 2;
+}
+// Current permission for an already readable capability slot. This is not a
+// command admission: the server revalidates rights and arguments on Submit.
+message CapabilityActionAccess {
+  string schema_id = 1;
+  string endpoint = 2;
+  ActionAccess access = 3;
+}
 // One registry identity and its declarations/state from the same capture.
 message ViewEntity {
   string entity_id = 1;
@@ -114,6 +126,9 @@ message ViewEntity {
   repeated string historical_aliases = 5;
   repeated home.registry.v1.CapabilityDescription capabilities = 6;
   ObservedState state = 7;
+  // Absent entries are unknown, never implicitly writable. These facts share
+  // the enclosing snapshot's authorization/configuration references.
+  repeated CapabilityActionAccess action_access = 8;
 }
 message ViewFilter {
   repeated string entity_ids = 1;

@@ -468,6 +468,12 @@ func TestNHA041PreparationSaturationAndJoin(t *testing.T) {
 	case <-time.After(8 * time.Second):
 		t.Fatal("Run did not start")
 	}
+	defer func() {
+		if t.Failed() {
+			traces, dropped := composition.Traces()
+			t.Logf("preparation saturation: entered=%d dropped=%d traces=%+v", len(entered), dropped, traces)
+		}
+	}()
 	nha041ServerWait(t, func() bool { return nha041ServerHas(composition, automationruns.DecisionPreparationSaturated) })
 	if len(entered) != automationruns.MaxPreparing {
 		t.Fatalf("preparation count exceeded/underused cap: %d", len(entered))

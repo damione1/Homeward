@@ -7,7 +7,7 @@ import CoreGraphics
 // applications, inspect editor values, or retain credentials in input files.
 enum Command: String, Decodable {
     case info, click, close, minimize, restore, focus
-    case tap, resize, key, scroll, tree
+    case tap, resize, key, scroll, tree, press, release
     case fillLogin = "fill-login", read, signOut = "sign-out", scrollEnd = "scroll-end", checkRow = "check-row"
 }
 enum NativeKey: String, Decodable {
@@ -21,6 +21,7 @@ struct Input: Decodable {
     let expectedRowLabel: String?
     let label: String?; let key: NativeKey?
     let width: Double?; let height: Double?; let delta: Int32?
+    let fraction: Double?
 }
 enum ProbeFailure: Error { case invalidInput, missingWindow, accessibilityUnavailable }
 
@@ -152,7 +153,7 @@ do {
         guard let native = ownedWindow(input.pid), let bounds = native[kCGWindowBounds as String] as? [String: Any] else { throw ProbeFailure.missingWindow }
         let data = try JSONSerialization.data(withJSONObject: ["pid": input.pid, "window_id": native[kCGWindowNumber as String] ?? 0, "bounds": bounds, "accessibility_trusted": AXIsProcessTrusted(), "post_events_allowed": CGPreflightPostEventAccess()], options: [.sortedKeys])
         print(String(decoding: data, as: UTF8.self))
-    case .click, .close, .minimize, .restore, .focus, .fillLogin, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree:
+    case .click, .close, .minimize, .restore, .focus, .fillLogin, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree, .press, .release:
         guard AXIsProcessTrusted(), let windows = attribute(application, kAXWindowsAttribute as CFString) as? [AXUIElement], let window = windows.first else { throw ProbeFailure.accessibilityUnavailable }
         if case .restore = input.command {
             guard AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse) == .success else { throw ProbeFailure.invalidInput }
@@ -168,6 +169,30 @@ do {
         case .tap:
             guard input.syntheticOnly == true, let label = input.label else { throw ProbeFailure.invalidInput }
             try tap(window, label)
+        case .press:
+            guard input.syntheticOnly == true, let label = input.label,
+                  let fraction = input.fraction, fraction >= 0, fraction <= 1,
+                  let slider = descendants(window).first(where: {
+                      attribute($0, kAXRoleAttribute as CFString) as? String == "AXSlider"
+                      && attribute($0, kAXTitleAttribute as CFString) as? String == label
+                  }) else { throw ProbeFailure.invalidInput }
+            let frame = try geometry(slider), bounds = try geometry(window)
+            let point = CGPoint(x: frame.minX + 12 + (frame.width - 24) * fraction, y: frame.midY)
+            let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+            guard frame.width >= 48, bounds.insetBy(dx: 1, dy: 30).contains(point), NSScreen.screens.contains(where: {
+                CGRect(x: $0.frame.minX, y: mainHeight - $0.frame.maxY, width: $0.frame.width, height: $0.frame.height).contains(point)
+            }) else { throw ProbeFailure.invalidInput }
+            for kind in [CGEventType.mouseMoved, .leftMouseDown] {
+                CGEvent(mouseEventSource: nil, mouseType: kind, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+            let result = try JSONSerialization.data(withJSONObject: ["x": point.x, "y": point.y])
+            FileHandle.standardOutput.write(result)
+        case .release:
+            guard input.syntheticOnly == true, let x = input.x, let y = input.y,
+                  (try geometry(window)).insetBy(dx: 1, dy: 30).contains(CGPoint(x: x, y: y)) else { throw ProbeFailure.invalidInput }
+            CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: CGPoint(x: x, y: y), mouseButton: .left)?.post(tap: .cghidEventTap)
+            Thread.sleep(forTimeInterval: 0.05)
         case .resize:
             guard input.syntheticOnly == true, let width = input.width, let height = input.height,
                   width >= 320, width <= 2000, height >= 400, height <= 2000 else { throw ProbeFailure.invalidInput }
@@ -200,6 +225,7 @@ do {
                         // Never read an editable or secure text-field value.
                         "text": role == "AXStaticText" ? attribute(item, kAXValueAttribute as CFString) as? String ?? "" : "",
                         "focused": attribute(item, kAXFocusedAttribute as CFString) as? Bool ?? false,
+                        "enabled": attribute(item, kAXEnabledAttribute as CFString) as? Bool ?? false,
                         "x": bounds?.minX ?? 0, "y": bounds?.minY ?? 0,
                         "width": bounds?.width ?? 0, "height": bounds?.height ?? 0]
             }

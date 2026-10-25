@@ -1132,7 +1132,7 @@ func TestNHA040ResyncCancelsStaleSunCallWithoutParallelCalls(t *testing.T) {
 	}
 	service.ctx, service.cancel = context.WithCancel(context.Background())
 	service.mu.Lock()
-	service.scheduleRuleLocked(0, clock.Now())
+	service.scheduleRuleLocked(0, service.sampleScheduleTime())
 	service.mu.Unlock()
 	start, err := seq.Start()
 	if err != nil {
@@ -1146,7 +1146,8 @@ func TestNHA040ResyncCancelsStaleSunCallWithoutParallelCalls(t *testing.T) {
 	planning := make(chan struct{})
 	go func() {
 		service.mu.Lock()
-		service.scheduleRuleLocked(0, clock.Now().Add(time.Hour))
+		clock.Advance(time.Hour, time.Hour)
+		service.scheduleRuleLocked(0, service.sampleScheduleTime())
 		service.mu.Unlock()
 		close(planning)
 	}()

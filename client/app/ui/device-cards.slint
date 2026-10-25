@@ -1,0 +1,31 @@
+import { KitWrap, KitTheme } from "@kit/kit.slint";
+import { ProDeviceCard, ProDeviceRow, ProPowerIntent } from "@kit-pro/kit-pro.slint";
+// Product composition and French labels. Every card's behavior lives in Pro;
+// server identities, permission checks and execution remain in Rust.
+export component HomewardDevices inherits KitWrap {
+    in property <KitTheme> theme;
+    in property <length> viewport-width;
+    in property <[ProDeviceRow]> devices;
+    in property <bool> interactive;
+    in property <bool> commands-ready;
+    in property <bool> show-details: true;
+    callback power(int,int,ProPowerIntent);
+    callback brightness(int,int,float);
+    callback stop-tracking(int,int);
+    callback details(int,int);
+    width: root.viewport-width; spacing: 16px;
+    private property <int> columns: max(1,floor((root.viewport-width + 16px)/(300px * root.theme.text-scale + 16px)));
+    for device in root.devices: ProDeviceCard {
+        width: max(0px,(root.viewport-width - (root.columns - 1) * 16px)/root.columns);
+        theme: root.theme; device: device;
+        show-details: root.show-details;
+        interactive: root.interactive; commands-enabled: root.commands-ready;
+        on-label: "Allumer"; off-label: "Éteindre"; brightness-label: "Luminosité";
+        unknown-access-label: "Droit de commande inconnu"; denied-label: "Lecture seule";
+        stop-label: "Arrêter le suivi"; details-label: "Détails";
+        power-requested(token,generation,intent) => { root.power(token,generation,intent); }
+        brightness-requested(token,generation,value) => { root.brightness(token,generation,value); }
+        stop-tracking(token,generation) => { root.stop-tracking(token,generation); }
+        details-requested(token,generation) => { root.details(token,generation); }
+    }
+}

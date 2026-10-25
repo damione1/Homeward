@@ -273,7 +273,18 @@ fn select_section(binding: &SelectBinding<Section>, section: Section) {
     binding.open();
 }
 
+#[cfg(test)]
 pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: impl Fn() + 'static) {
+    bind_devices(window, request, refresh, |_, _, _| None);
+}
+pub(crate) fn bind_devices(
+    window: &HomewardWindow,
+    request: SharedRequest,
+    refresh: impl Fn() + 'static,
+    resolve_device: impl Fn(i32, i32, i32) -> Option<home_client_model::EntityId> + 'static,
+) {
+    #[cfg(target_os = "android")]
+    bind_native_back(window);
     let shared = Rc::new(RefCell::new(State::new(request)));
     let refresh: Rc<dyn Fn()> = Rc::new(refresh);
     let weak = window.as_weak();
@@ -382,7 +393,11 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
                         Target::Body(BodyFocus::Read)
                     }
                 }
-                Route::Inventory | Route::Room(_) => Target::Body(BodyFocus::Inventory),
+                Route::Inventory => Target::Body(BodyFocus::Inventory),
+                Route::Room(_) => match window.get_room_view() {
+                    crate::RoomView::Cards => Target::Body(BodyFocus::Back),
+                    crate::RoomView::List => Target::Body(BodyFocus::Inventory),
+                },
                 Route::Detail(_) => Target::Body(BodyFocus::Back),
                 Route::Settings => Target::Body(BodyFocus::Settings),
             };
@@ -585,6 +600,21 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
             }
         }
     });
+    let (state, weak, run) = (shared.clone(), window.as_weak(), refresh.clone());
+    window.on_device_details(move |token, generation| {
+        if let Some(window) = weak.upgrade()
+            && let Some(id) = resolve_device(token, generation, window.get_projection_version())
+        {
+            if state.borrow().route == Route::Detail(id.clone()) {
+                return;
+            }
+            state
+                .borrow_mut()
+                .open(Route::Detail(id), Target::Body(BodyFocus::Back));
+            changed(&window, &state, &*run, false);
+            take_focus(&window, &state, Target::Body(BodyFocus::Back));
+        }
+    });
     let (state, weak, run, selected) = (
         shared.clone(),
         window.as_weak(),
@@ -698,6 +728,11 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
             window.invoke_navigation_dismiss(CloseReason::SystemBack);
             return true;
         }
+        if window.get_page() == ViewPage::Room && window.get_room_view() == crate::RoomView::List {
+            window.set_room_view(crate::RoomView::Cards);
+            take_focus(&window, &state, Target::Body(BodyFocus::Back));
+            return true;
+        }
         if state.borrow().route == Route::Home {
             return false;
         }
@@ -765,6 +800,23 @@ pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: imp
             window.set_search_query("".into());
             select_section(&selection, Section::Home);
             render(&window, &state.borrow());
+        }
+    });
+}
+
+// Android's Back fallback must reach the route owner even with no focused
+// widget. Desktop window-close keeps its ordinary close semantics.
+#[cfg(any(target_os = "android", test))]
+pub(crate) fn bind_native_back(window: &HomewardWindow) {
+    let weak = window.as_weak();
+    window.window().on_close_requested(move || {
+        if weak
+            .upgrade()
+            .is_some_and(|window| window.invoke_system_back())
+        {
+            slint::CloseRequestResponse::KeepWindowShown
+        } else {
+            slint::CloseRequestResponse::HideWindow
         }
     });
 }

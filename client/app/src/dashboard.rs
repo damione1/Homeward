@@ -32,11 +32,36 @@ impl DashboardId {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ObservationId(String);
+/// Server order plus a derived membership index. Room cards preserve the wire
+/// order; inventory filtering keeps logarithmic membership checks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RoomEntities {
+    ordered: Vec<EntityId>,
+    membership: BTreeSet<EntityId>,
+}
+impl RoomEntities {
+    pub(crate) fn new(ordered: Vec<EntityId>) -> Result<Self, LayoutFailure> {
+        let membership = ordered.iter().cloned().collect::<BTreeSet<_>>();
+        if membership.len() != ordered.len() {
+            return Err(LayoutFailure::Invalid);
+        }
+        Ok(Self {
+            ordered,
+            membership,
+        })
+    }
+    pub fn contains(&self, id: &EntityId) -> bool {
+        self.membership.contains(id)
+    }
+    pub fn iter(&self) -> impl Iterator<Item = &EntityId> {
+        self.ordered.iter()
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Room {
     pub id: RoomId,
     pub label: String,
-    pub entities: BTreeSet<EntityId>,
+    pub entities: RoomEntities,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Icon {
@@ -136,16 +161,17 @@ impl TryFrom<&wire::Dashboard> for Layout {
             if binding_count > 4096 {
                 return Err(LayoutFailure::Budget);
             }
-            let mut entities = BTreeSet::new();
+            let mut entities = Vec::new();
             for id in &room.entity_ids {
-                if !text(id) || !entities.insert(id.parse().map_err(|_| LayoutFailure::Invalid)?) {
+                if !text(id) {
                     return Err(LayoutFailure::Invalid);
                 }
+                entities.push(id.parse().map_err(|_| LayoutFailure::Invalid)?);
             }
             rooms.push(Room {
                 id: RoomId(room.id.clone()),
                 label: room.title.clone(),
-                entities,
+                entities: RoomEntities::new(entities)?,
             });
         }
         let mut observation_ids = BTreeSet::new();
@@ -223,6 +249,12 @@ impl LayoutState {
     pub fn layout(&self) -> Option<&Layout> {
         match self {
             Self::Ready(layout) => Some(layout),
+            Self::Loading | Self::Unavailable | Self::Invalid => None,
+        }
+    }
+    pub fn shared_layout(&self) -> Option<Arc<Layout>> {
+        match self {
+            Self::Ready(layout) => Some(layout.clone()),
             Self::Loading | Self::Unavailable | Self::Invalid => None,
         }
     }
@@ -318,6 +350,28 @@ pub(crate) fn fixture() -> Layout {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn room_binding_order_is_received_data_and_membership_is_only_a_derived_index() {
+        let mut doc = fixture_wire();
+        doc.native_overview.as_option_mut().unwrap().rooms[0].entity_ids =
+            vec!["ordered-entity-z".into(), "ordered-entity-a".into()];
+        let layout = Layout::try_from(&doc).unwrap();
+        let bindings = &layout.rooms[0].entities;
+        assert_eq!(
+            bindings.iter().map(EntityId::as_str).collect::<Vec<_>>(),
+            ["ordered-entity-z", "ordered-entity-a"]
+        );
+        assert!(bindings.contains(&"ordered-entity-a".parse().unwrap()));
+        assert!(bindings.contains(&"ordered-entity-z".parse().unwrap()));
+        doc.native_overview.as_option_mut().unwrap().rooms[0]
+            .entity_ids
+            .reverse();
+        let reordered = Layout::try_from(&doc).unwrap();
+        assert_ne!(
+            layout, reordered,
+            "a server reorder is a new layout even with identical membership"
+        );
+    }
     #[test]
     fn rejects_future_profiles_duplicate_bindings_and_unbounded_data() {
         let mut doc = fixture_wire();

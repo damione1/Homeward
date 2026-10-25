@@ -56,7 +56,7 @@ func EncodePage(page Page) (*statewire.OpenViewResponse, error) {
 		}
 		originalText, _ := original.Value()
 		currentText, _ := current.Value()
-		wire := &statewire.ViewEntity{EntityId: entityText, DeviceId: deviceText, OriginalAlias: originalText, CurrentAlias: currentText, Capabilities: item.Capabilities()}
+		wire := &statewire.ViewEntity{EntityId: entityText, DeviceId: deviceText, OriginalAlias: originalText, CurrentAlias: currentText, Capabilities: item.Capabilities(), ActionAccess: item.ActionAccess()}
 		for _, alias := range aliases {
 			value, _ := alias.Value()
 			if value != currentText {

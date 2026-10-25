@@ -325,7 +325,7 @@ func (r *PlanRetention) SchedulePublication(ctx context.Context) error {
 	stop := context.AfterFunc(ctx, cancel)
 	s.publicationContext = bounded
 	defer func() { stop(); cancel(); s.publicationContext = nil }()
-	now := s.clock.Now().UTC()
+	now := s.sampleScheduleTime()
 	for slot := range s.permanentSlots {
 		if err := ctx.Err(); err != nil {
 			return err

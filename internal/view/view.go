@@ -15,6 +15,7 @@ import (
 	"time"
 
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
+	statewire "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -74,6 +75,7 @@ type Grant struct {
 	digest   [32]byte
 	slots    map[domain.EntityID]map[authorization.CapabilitySlot]struct{}
 	complete map[domain.EntityID]bool
+	actions  map[domain.EntityID]map[authorization.CapabilitySlot]statewire.ActionAccess
 }
 
 func NewGrant(actor ActorID, revision uint64, allowed []domain.EntityID) (Grant, error) {
@@ -204,6 +206,7 @@ type Item struct {
 	state        domain.ObservedState
 	hasState     bool
 	capabilities []*wireregistry.CapabilityDescription
+	actions      []*statewire.CapabilityActionAccess
 }
 
 func (i Item) Registry() integrations.RegistryRecord { return i.record }
@@ -212,6 +215,13 @@ func (i Item) Capabilities() []*wireregistry.CapabilityDescription {
 	out := make([]*wireregistry.CapabilityDescription, len(i.capabilities))
 	for n, d := range i.capabilities {
 		out[n] = proto.Clone(d).(*wireregistry.CapabilityDescription)
+	}
+	return out
+}
+func (i Item) ActionAccess() []*statewire.CapabilityActionAccess {
+	out := make([]*statewire.CapabilityActionAccess, len(i.actions))
+	for n, permission := range i.actions {
+		out[n] = proto.CloneOf(permission)
 	}
 	return out
 }
@@ -395,6 +405,10 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 			}
 			itemBytes += encoded * 4
 		}
+		actions := lastGrant.actionAccess(id, descriptions)
+		for _, permission := range actions {
+			itemBytes += 4*proto.Size(permission) + 64
+		}
 		if hasState {
 			stateBytes, err := sequencer.EstimateTriggerStateBytes(id, state)
 			if err != nil || stateBytes > MaxSnapshotBytes-itemBytes {
@@ -406,7 +420,7 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 			return Page{}, ErrResourceExhausted
 		}
 		bytes += itemBytes
-		items = append(items, Item{record: record, state: state, hasState: hasState, capabilities: descriptions})
+		items = append(items, Item{record: record, state: state, hasState: hasState, capabilities: descriptions, actions: actions})
 	}
 	pageCount := (len(items) + pageSize - 1) / pageSize
 	bytes += pageCount*160 + 1024

@@ -174,6 +174,23 @@ impl i_slint_core::window::WindowAdapterInternal for AndroidWindowAdapter {
 }
 
 impl AndroidWindowAdapter {
+    // Homeward NHF-006: an unfocused view still needs its window-level Back
+    // policy. Preserve focused widgets' first refusal, then let the normal
+    // close-request callback veto leaving the Activity (for example, to pop a
+    // page). Without a veto, native Back retains its default finish behavior.
+    pub(crate) fn request_back_close(&self) {
+        let result = self
+            .window
+            .dispatch_event_with_result(WindowEvent::CloseRequested);
+        if matches!(&result, Ok(WindowEventDispatchResult::Accepted)) {
+            if self.java_helper.finish_activity().is_err() {
+                i_slint_core::debug_log!("Back Activity finish failed");
+            }
+        } else if result.is_err() {
+            i_slint_core::debug_log!("Back close request failed");
+        }
+    }
+
     pub fn new(app: AndroidApp) -> Rc<Self> {
         let java_helper = JavaHelper::new(&app).unwrap_or_else(|e| print_jni_error(&app, e));
         Rc::<Self>::new_cyclic(|w| Self {
@@ -282,16 +299,29 @@ impl AndroidWindowAdapter {
         loop {
             let mut result = Ok(());
             let read_input = iter.next(|event| match event {
-                InputEvent::KeyEvent(key_event) => match map_key_event(&self.app, key_event) {
-                    Some(ev) => match self.window.dispatch_event_with_result(ev) {
-                        Ok(WindowEventDispatchResult::Accepted) => InputStatus::Handled,
-                        Ok(_) => InputStatus::Unhandled,
-                        Err(e) => {
-                            result = Err(e);
-                            InputStatus::Unhandled
-                        }
-                    },
-                    None => InputStatus::Unhandled,
+                InputEvent::KeyEvent(key_event) => {
+                    let back = key_event.key_code() == Keycode::Back;
+                    if back && key_event.repeat_count() > 0 {
+                        return InputStatus::Handled;
+                    }
+                    match map_key_event(&self.app, key_event) {
+                        Some(ev) => match self.window.dispatch_event_with_result(ev) {
+                            Ok(WindowEventDispatchResult::Accepted) => InputStatus::Handled,
+                            Ok(_) if back => {
+                                if key_event.action() == KeyAction::Down {
+                                    self.request_back_close();
+                                }
+                                InputStatus::Handled
+                            }
+                            Ok(_) => InputStatus::Unhandled,
+                            Err(e) => {
+                                result = Err(e);
+                                InputStatus::Unhandled
+                            }
+                        },
+                        None if back => InputStatus::Handled,
+                        None => InputStatus::Unhandled,
+                    }
                 },
                 InputEvent::MotionEvent(motion_event) => {
                     let offset = self.offset.get();

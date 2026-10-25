@@ -297,6 +297,71 @@ impl ::buffa::Enumeration for FanSpeed {
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
+pub enum ActionAccess {
+    ACTION_ACCESS_UNSPECIFIED = 0i32,
+    ACTION_ACCESS_DENIED = 1i32,
+    ACTION_ACCESS_ALLOWED = 2i32,
+}
+impl ActionAccess {
+    ///Idiomatic alias for [`Self::ACTION_ACCESS_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::ACTION_ACCESS_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::ACTION_ACCESS_DENIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Denied: Self = Self::ACTION_ACCESS_DENIED;
+    ///Idiomatic alias for [`Self::ACTION_ACCESS_ALLOWED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Allowed: Self = Self::ACTION_ACCESS_ALLOWED;
+}
+impl ::core::default::Default for ActionAccess {
+    fn default() -> Self {
+        Self::ACTION_ACCESS_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for ActionAccess {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::ACTION_ACCESS_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::ACTION_ACCESS_DENIED),
+            2i32 => ::core::option::Option::Some(Self::ACTION_ACCESS_ALLOWED),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::ACTION_ACCESS_UNSPECIFIED => "ACTION_ACCESS_UNSPECIFIED",
+            Self::ACTION_ACCESS_DENIED => "ACTION_ACCESS_DENIED",
+            Self::ACTION_ACCESS_ALLOWED => "ACTION_ACCESS_ALLOWED",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "ACTION_ACCESS_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::ACTION_ACCESS_UNSPECIFIED)
+            }
+            "ACTION_ACCESS_DENIED" => {
+                ::core::option::Option::Some(Self::ACTION_ACCESS_DENIED)
+            }
+            "ACTION_ACCESS_ALLOWED" => {
+                ::core::option::Option::Some(Self::ACTION_ACCESS_ALLOWED)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::ACTION_ACCESS_UNSPECIFIED,
+            Self::ACTION_ACCESS_DENIED,
+            Self::ACTION_ACCESS_ALLOWED,
+        ]
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
 pub enum ResyncReason {
     RESYNC_REASON_UNSPECIFIED = 0i32,
     RESYNC_REASON_EPOCH_CHANGED = 1i32,
@@ -2404,6 +2469,148 @@ impl ::buffa::ExtensionSet for ViewCursor {
         &mut self.__buffa_unknown_fields
     }
 }
+/// Current permission for an already readable capability slot. This is not a
+/// command admission: the server revalidates rights and arguments on Submit.
+#[derive(Clone, PartialEq, Default)]
+pub struct CapabilityActionAccess {
+    /// Field 1: `schema_id`
+    pub schema_id: ::buffa::alloc::string::String,
+    /// Field 2: `endpoint`
+    pub endpoint: ::buffa::alloc::string::String,
+    /// Field 3: `access`
+    pub access: ::buffa::EnumValue<ActionAccess>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for CapabilityActionAccess {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("CapabilityActionAccess")
+            .field("schema_id", &self.schema_id)
+            .field("endpoint", &self.endpoint)
+            .field("access", &self.access)
+            .finish()
+    }
+}
+impl CapabilityActionAccess {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.CapabilityActionAccess";
+}
+::buffa::impl_default_instance!(CapabilityActionAccess);
+impl ::buffa::MessageName for CapabilityActionAccess {
+    const PACKAGE: &'static str = "home.state.v1";
+    const NAME: &'static str = "CapabilityActionAccess";
+    const FULL_NAME: &'static str = "home.state.v1.CapabilityActionAccess";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.CapabilityActionAccess";
+}
+impl ::buffa::Message for CapabilityActionAccess {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.schema_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.schema_id) as u64;
+        }
+        if !self.endpoint.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.endpoint) as u64;
+        }
+        {
+            let val = self.access.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.schema_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.schema_id, buf);
+        }
+        if !self.endpoint.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.endpoint, buf);
+        }
+        {
+            let val = self.access.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.schema_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.endpoint, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.access = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.schema_id.clear();
+        self.endpoint.clear();
+        self.access = ::buffa::EnumValue::from(0);
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for CapabilityActionAccess {
+    const PROTO_FQN: &'static str = "home.state.v1.CapabilityActionAccess";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
 /// One registry identity and its declarations/state from the same capture.
 #[derive(Clone, PartialEq, Default)]
 pub struct ViewEntity {
@@ -2423,6 +2630,11 @@ pub struct ViewEntity {
     >,
     /// Field 7: `state`
     pub state: ::buffa::MessageField<ObservedState, ::buffa::Inline<ObservedState>>,
+    /// Absent entries are unknown, never implicitly writable. These facts share
+    /// the enclosing snapshot's authorization/configuration references.
+    ///
+    /// Field 8: `action_access`
+    pub action_access: ::buffa::alloc::vec::Vec<CapabilityActionAccess>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -2436,6 +2648,7 @@ impl ::core::fmt::Debug for ViewEntity {
             .field("historical_aliases", &self.historical_aliases)
             .field("capabilities", &self.capabilities)
             .field("state", &self.state)
+            .field("action_access", &self.action_access)
             .finish()
     }
 }
@@ -2500,6 +2713,14 @@ impl ::buffa::Message for ViewEntity {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.action_access {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2540,6 +2761,14 @@ impl ::buffa::Message for ViewEntity {
                 buf,
             );
             self.state.write_to(__cache, buf);
+        }
+        for v in &self.action_access {
+            ::buffa::types::put_len_delimited_header(
+                8u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2616,6 +2845,18 @@ impl ::buffa::Message for ViewEntity {
                     ctx,
                 )?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.action_access.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2631,6 +2872,7 @@ impl ::buffa::Message for ViewEntity {
         self.historical_aliases.clear();
         self.capabilities.clear();
         self.state = ::buffa::MessageField::none();
+        self.action_access.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7464,6 +7706,301 @@ pub mod __buffa {
             type View<'a> = ViewCursorView<'a>;
             type ViewHandle = ViewCursorOwnedView;
         }
+        /// Current permission for an already readable capability slot. This is not a
+        /// command admission: the server revalidates rights and arguments on Submit.
+        #[derive(Clone, Debug, Default)]
+        pub struct CapabilityActionAccessView<'a> {
+            /// Field 1: `schema_id`
+            pub schema_id: &'a str,
+            /// Field 2: `endpoint`
+            pub endpoint: &'a str,
+            /// Field 3: `access`
+            pub access: ::buffa::EnumValue<super::super::ActionAccess>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for CapabilityActionAccessView<'a> {
+            type Owned = super::super::CapabilityActionAccess;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.schema_id = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.endpoint = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.access = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::CapabilityActionAccess,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::CapabilityActionAccess,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::CapabilityActionAccess {
+                    schema_id: self.schema_id.to_string(),
+                    endpoint: self.endpoint.to_string(),
+                    access: self.access,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for CapabilityActionAccessView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.schema_id.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.schema_id) as u64;
+                }
+                if !self.endpoint.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.endpoint) as u64;
+                }
+                {
+                    let val = self.access.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.schema_id.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.schema_id, buf);
+                }
+                if !self.endpoint.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.endpoint, buf);
+                }
+                {
+                    let val = self.access.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(3u32, val, buf);
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for CapabilityActionAccessView<'a> {
+            const PACKAGE: &'static str = "home.state.v1";
+            const NAME: &'static str = "CapabilityActionAccess";
+            const FULL_NAME: &'static str = "home.state.v1.CapabilityActionAccess";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.CapabilityActionAccess";
+        }
+        ::buffa::impl_default_view_instance!(CapabilityActionAccessView);
+        ::buffa::impl_view_reborrow!(CapabilityActionAccessView);
+        /** Self-contained, `'static` owned view of a `CapabilityActionAccess` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`CapabilityActionAccessView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`CapabilityActionAccessView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct CapabilityActionAccessOwnedView(
+            ::buffa::OwnedView<CapabilityActionAccessView<'static>>,
+        );
+        impl CapabilityActionAccessOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    CapabilityActionAccessOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    CapabilityActionAccessOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::CapabilityActionAccess,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    CapabilityActionAccessOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`CapabilityActionAccessView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &CapabilityActionAccessView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::CapabilityActionAccess {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `schema_id`
+            #[must_use]
+            pub fn schema_id(&self) -> &'_ str {
+                self.0.reborrow().schema_id
+            }
+            /// Field 2: `endpoint`
+            #[must_use]
+            pub fn endpoint(&self) -> &'_ str {
+                self.0.reborrow().endpoint
+            }
+            /// Field 3: `access`
+            #[must_use]
+            pub fn access(&self) -> ::buffa::EnumValue<super::super::ActionAccess> {
+                self.0.reborrow().access
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<CapabilityActionAccessView<'static>>,
+        > for CapabilityActionAccessOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<CapabilityActionAccessView<'static>>,
+            ) -> Self {
+                CapabilityActionAccessOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<CapabilityActionAccessOwnedView>
+        for ::buffa::OwnedView<CapabilityActionAccessView<'static>> {
+            fn from(wrapper: CapabilityActionAccessOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<CapabilityActionAccessView<'static>>,
+        > for CapabilityActionAccessOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<CapabilityActionAccessView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::CapabilityActionAccess {
+            type View<'a> = CapabilityActionAccessView<'a>;
+            type ViewHandle = CapabilityActionAccessOwnedView;
+        }
         /// One registry identity and its declarations/state from the same capture.
         #[derive(Clone, Debug, Default)]
         pub struct ViewEntityView<'a> {
@@ -7487,6 +8024,14 @@ pub mod __buffa {
             /// Field 7: `state`
             pub state: ::buffa::MessageFieldView<
                 super::super::__buffa::view::ObservedStateView<'a>,
+            >,
+            /// Absent entries are unknown, never implicitly writable. These facts share
+            /// the enclosing snapshot's authorization/configuration references.
+            ///
+            /// Field 8: `action_access`
+            pub action_access: ::buffa::RepeatedView<
+                'a,
+                super::super::__buffa::view::CapabilityActionAccessView<'a>,
             >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
@@ -7610,6 +8155,26 @@ pub mod __buffa {
                                 )?,
                             );
                     }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::core::mem::size_of::<
+                                super::super::__buffa::view::CapabilityActionAccessView,
+                            >(),
+                        )?;
+                        view.action_access
+                            .push(
+                                <super::super::__buffa::view::CapabilityActionAccessView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            );
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -7656,6 +8221,11 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    action_access: self
+                        .action_access
+                        .iter()
+                        .map(|v| v.to_owned_from_source(__buffa_src))
+                        .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -7711,6 +8281,14 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                for v in &self.action_access {
+                    let __slot = __cache.reserve();
+                    let inner_size = v.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -7752,6 +8330,14 @@ pub mod __buffa {
                         buf,
                     );
                     self.state.write_to(__cache, buf);
+                }
+                for v in &self.action_access {
+                    ::buffa::types::put_len_delimited_header(
+                        8u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    v.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -7891,6 +8477,19 @@ pub mod __buffa {
                 super::super::__buffa::view::ObservedStateView<'_>,
             > {
                 &self.0.reborrow().state
+            }
+            /// Absent entries are unknown, never implicitly writable. These facts share
+            /// the enclosing snapshot's authorization/configuration references.
+            ///
+            /// Field 8: `action_access`
+            #[must_use]
+            pub fn action_access(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                super::super::__buffa::view::CapabilityActionAccessView<'_>,
+            > {
+                &self.0.reborrow().action_access
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<ViewEntityView<'static>>>
@@ -11156,6 +11755,10 @@ pub use self::__buffa::view::ObservedStateOwnedView;
 pub use self::__buffa::view::ViewCursorView;
 #[doc(inline)]
 pub use self::__buffa::view::ViewCursorOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CapabilityActionAccessView;
+#[doc(inline)]
+pub use self::__buffa::view::CapabilityActionAccessOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ViewEntityView;
 #[doc(inline)]

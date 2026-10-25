@@ -29,6 +29,7 @@ pub mod home {
     pub mod lists { pub mod v1 { include!("generated/home.lists.v1.rs"); } }
 }
 
+pub mod actions_contract;
 pub mod auth_contract;
 pub mod authorization_contract;
 pub mod config_plans;

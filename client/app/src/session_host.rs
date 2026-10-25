@@ -1,11 +1,13 @@
 //! Own the runtime and session outside Slint. Every job is joined on profile
 //! replacement/exit; UI callbacks enqueue bounded typed intentions only.
+use crate::device_view::{DeviceIntent, DeviceStore, Prepared, Refusal};
 use crate::{
     AlertSeverity, HomewardWindow, ProAccessStage,
     cache_view::{self, CacheProjection},
     preferences::Preferences,
     profile::{ProfileFailure, TrustedEndpoint},
 };
+use home_client_actions::{ActionController, ControllerError, NoticeKind};
 use home_client_cache::{
     ActivationPermit, CacheHandle, CacheOwner, DeliveryTicket, Filter, ProjectionMailbox,
     Publication, PublicationRefusal, Viewport,
@@ -80,6 +82,10 @@ enum Action {
     Read(ActivationPermit<CacheProjection>),
 }
 enum Intent {
+    Device {
+        epoch: ProfileEpoch,
+        prepared: Box<Prepared>,
+    },
     Configure {
         epoch: ProfileEpoch,
         origin: String,
@@ -96,6 +102,11 @@ enum Intent {
 struct CacheBinding {
     epoch: ProfileEpoch,
     handle: CacheHandle<CacheProjection>,
+}
+#[derive(Clone)]
+struct DeviceBinding {
+    epoch: ProfileEpoch,
+    store: DeviceStore,
 }
 
 struct ForegroundAdmission {
@@ -246,9 +257,13 @@ struct Ui {
     projection_request: crate::dashboard::SharedRequest,
     viewport: watch::Sender<Viewport>,
     dashboard_retry: Arc<tokio::sync::Notify>,
+    devices: Arc<Mutex<Option<DeviceBinding>>>,
 }
 impl Ui {
     fn invalidate_cache(&self) {
+        if let Some(binding) = self.devices.lock().expect("device binding mutex").clone() {
+            binding.store.clear_private();
+        }
         *self.read_intent.lock().expect("read intent mutex poisoned") = ReadIntent::NotRequested;
         let current = self
             .cache_handle
@@ -266,6 +281,69 @@ impl Ui {
             *self.read_intent.lock().expect("read intent mutex poisoned") =
                 ReadIntent::Requested(epoch);
         }
+    }
+    fn refuse(&self, epoch: ProfileEpoch, refusal: Refusal) {
+        self.post(epoch, move |window| {
+            window.set_action_feedback(refusal.message().into())
+        });
+    }
+    fn prepare_device(
+        &self,
+        token: i32,
+        generation: i32,
+        intent: DeviceIntent,
+    ) -> Result<(ProfileEpoch, Prepared), Refusal> {
+        let epoch = ProfileEpoch(self.epoch.load(Ordering::SeqCst));
+        let devices = self
+            .devices
+            .lock()
+            .expect("device binding mutex")
+            .clone()
+            .filter(|binding| binding.epoch == epoch)
+            .ok_or(Refusal::Stale)?;
+        let cache = self
+            .cache_handle
+            .lock()
+            .expect("UI cache handle mutex poisoned")
+            .clone()
+            .filter(|binding| binding.epoch == epoch)
+            .ok_or(Refusal::Stale)?;
+        let permit = cache
+            .handle
+            .prepare_activation()
+            .map_err(|_| Refusal::Stale)?;
+        if !permit.is_active() {
+            return Err(Refusal::Stale);
+        }
+        let request = self
+            .projection_request
+            .lock()
+            .expect("presentation request mutex poisoned")
+            .clone();
+        let mut prepared = devices
+            .store
+            .prepare(token, generation, request.revision, intent)?;
+        if request.dashboard.layout() != Some(prepared.layout.as_ref()) {
+            return Err(Refusal::Stale);
+        }
+        let (current_epoch, presentation, context, valid) = (
+            self.epoch.clone(),
+            self.projection_request.clone(),
+            request,
+            prepared.guard.clone(),
+        );
+        prepared.guard = Arc::new(move || {
+            if current_epoch.load(Ordering::SeqCst) != epoch.0 || !permit.is_active() {
+                return false;
+            }
+            let request = presentation
+                .lock()
+                .expect("presentation request mutex poisoned");
+            request.revision == context.revision
+                && request.dashboard == context.dashboard
+                && valid()
+        });
+        Ok((epoch, prepared))
     }
     fn post(&self, epoch: ProfileEpoch, update: impl FnOnce(HomewardWindow) + Send + 'static) {
         let current = self.epoch.clone();
@@ -442,6 +520,8 @@ struct Profile {
     owner: SessionCoordinator,
     cache: CacheOwner<CacheProjection>,
     cancel: CancellationToken,
+    actions: ActionController,
+    devices: DeviceStore,
 }
 async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, ui: &Ui) {
     if let Some(previous) = profile.take() {
@@ -458,6 +538,9 @@ async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, u
             }
         }
         previous.cancel.cancel();
+        previous.devices.clear_private();
+        *ui.devices.lock().expect("device binding mutex") = None;
+        previous.actions.close().await;
         previous.cache.close().await;
         previous.owner.close().await;
         while tasks.join_next().await.is_some() {}
@@ -477,6 +560,10 @@ async fn install_profile(
         .map_err(|_| StoreFailure::Unavailable)?;
     let connection = endpoint.connection();
     let owner = SessionCoordinator::new(connection.auth(), store);
+    let devices = DeviceStore::default();
+    let (actions, mut action_notices) =
+        ActionController::start(owner.clone(), connection.actions());
+    let mut action_updates = actions.subscribe_updates();
     let cancel = CancellationToken::new();
     let origin = endpoint.origin().to_owned();
     let certificates = endpoint.certificates().to_owned();
@@ -499,6 +586,7 @@ async fn install_profile(
     });
     let cache_target = ui.projection_target(epoch);
     let presentation = ui.projection_request.clone();
+    let projected_devices = devices.clone();
     let (cache, mut events) = CacheOwner::start(
         owner.clone(),
         connection.state(),
@@ -508,11 +596,47 @@ async fn install_profile(
                 .lock()
                 .expect("presentation request mutex poisoned")
                 .clone();
-            cache_view::project_request(phase, view, viewport, &request)
+            cache_view::project_devices(phase, view, viewport, &request, &projected_devices)
         },
         move |ticket| cache_target.post(ticket),
     );
     let cache_handle = cache.handle();
+    *ui.devices.lock().expect("device binding mutex") = Some(DeviceBinding {
+        epoch,
+        store: devices.clone(),
+    });
+    let (action_ui, action_cancel, action_cache) =
+        (ui.clone(), cancel.clone(), cache_handle.clone());
+    tasks.spawn(async move {
+        loop {
+            tokio::select! { biased;
+                () = action_cancel.cancelled() => break,
+                changed = action_updates.changed() => {
+                    if changed.is_err() {break;}
+                    let _ = action_cache.viewport(*action_ui.viewport.borrow());
+                }
+            }
+        }
+    });
+    let (notice_ui, notice_cancel) = (ui.clone(), cancel.clone());
+    tasks.spawn(async move {
+        loop {
+            let notice = tokio::select!{biased; ()=notice_cancel.cancelled()=>break, notice=action_notices.recv()=>notice};
+            let Some(notice) = notice else {break;};
+            let message = match notice.kind {
+                NoticeKind::NotSent => Some("Commande non envoyée : le contexte du geste a changé."),
+                NoticeKind::SubmissionUncertain => Some("Réponse de soumission perdue. Consultation de la même commande, sans renvoi."),
+                NoticeKind::TrackingUnavailable => Some("Le suivi en direct de cette commande est indisponible."),
+                NoticeKind::TrackingInterrupted => Some("Le suivi est interrompu. La commande n’est pas renvoyée."),
+                NoticeKind::SubmissionResult | NoticeKind::Terminal | NoticeKind::Stopped => None,
+            };
+            if let Some(message) = message {
+                let (ack, received) = oneshot::channel();
+                notice_ui.post(epoch,move|window|{window.set_action_feedback(message.into());let _=ack.send(());});
+                tokio::select!{biased; ()=notice_cancel.cancelled()=>break, _=received=>{}}
+            }
+        }
+    });
     let (dashboard_session, dashboard_ui, dashboard_cancel) =
         (owner.clone(), ui.clone(), cancel.clone());
     let dashboard_transport = connection.dashboard();
@@ -570,11 +694,29 @@ async fn install_profile(
             event_ui.cache_event(epoch, event, &event_cancel).await;
         }
     });
-    let (observer, observer_cancel, observer_ui) = (owner.clone(), cancel.clone(), ui.clone());
+    let (observer, observer_cancel, observer_ui, observed_devices) =
+        (owner.clone(), cancel.clone(), ui.clone(), devices.clone());
     tasks.spawn(async move {
         let mut changes = observer.subscribe();
         loop {
             let view = *changes.borrow_and_update();
+            match view.phase {
+                Phase::SignedOut
+                | Phase::NeedsLogin
+                | Phase::CredentialRejected
+                | Phase::RightsChanged
+                | Phase::Closed => observed_devices.clear_private(),
+                Phase::Ready
+                | Phase::Refreshing
+                | Phase::Busy
+                | Phase::Challenge { .. }
+                | Phase::EnrollmentRequired
+                | Phase::RateLimited
+                | Phase::NetworkUnavailable
+                | Phase::AuthorityUnavailable
+                | Phase::StorageUnavailable
+                | Phase::UnsupportedResponse => {}
+            }
             let _ = cache_handle.session_changed(view.phase);
             observer_ui.view(epoch, view);
             tokio::select! {
@@ -592,6 +734,8 @@ async fn install_profile(
         owner,
         cache,
         cancel,
+        actions,
+        devices,
     })
 }
 
@@ -675,6 +819,24 @@ async fn worker(
     loop {
         tokio::select! {
             intent = input.recv() => match intent {
+                Some(Intent::Device { epoch, prepared }) => {
+                    if let Some(profile)=&profile && profile.epoch==epoch && ui.epoch.load(Ordering::SeqCst)==epoch.0 {
+                        let Prepared{target,request,guard,layout:_}=*prepared;
+                        match profile.actions.client().submit(request,guard) {
+                            Ok(handle)=>{
+                                profile.devices.remember(target,handle);
+                                let _=profile.cache.handle().viewport(*ui.viewport.borrow());
+                                ui.post(epoch,|window|window.set_action_feedback("".into()));
+                            }
+                            Err(error)=>ui.refuse(epoch,match error {
+                                ControllerError::Busy|ControllerError::Capacity=>Refusal::Capacity,
+                                ControllerError::Closed|ControllerError::NotReady=>Refusal::Stale,
+                                ControllerError::InvalidRequest=>Refusal::InvalidValue,
+                                ControllerError::IdentityUnavailable=>Refusal::Unavailable,
+                            }),
+                        }
+                    }
+                }
                 Some(Intent::Configure { epoch, origin, certificates }) => {
                     if ui.epoch.load(Ordering::SeqCst) != epoch.0 { continue; }
                     close_profile(&mut profile, &mut tasks, &ui).await;
@@ -832,21 +994,37 @@ pub(crate) fn run_with_lifecycle(
         projection_request: Arc::new(Mutex::new(crate::dashboard::ProjectionRequest::default())),
         viewport: viewport_tx.clone(),
         dashboard_retry: Arc::new(tokio::sync::Notify::new()),
+        devices: Arc::new(Mutex::new(None)),
     };
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
-    crate::navigation::bind(&window, ui.projection_request.clone(), move || {
-        let binding = presentation_ui
-            .cache_handle
-            .lock()
-            .expect("UI cache handle mutex poisoned")
-            .clone();
-        if let Some(binding) = binding
-            && binding.epoch.0 == presentation_ui.epoch.load(Ordering::SeqCst)
-        {
-            let _ = binding.handle.viewport(*presentation_ui.viewport.borrow());
-        }
-    });
+    let device_ui = ui.clone();
+    crate::navigation::bind_devices(
+        &window,
+        ui.projection_request.clone(),
+        move || {
+            let binding = presentation_ui
+                .cache_handle
+                .lock()
+                .expect("UI cache handle mutex poisoned")
+                .clone();
+            if let Some(binding) = binding
+                && binding.epoch.0 == presentation_ui.epoch.load(Ordering::SeqCst)
+            {
+                let _ = binding.handle.viewport(*presentation_ui.viewport.borrow());
+            }
+        },
+        move |token, generation, revision| {
+            let binding = device_ui
+                .devices
+                .lock()
+                .expect("device binding mutex")
+                .clone();
+            binding
+                .filter(|binding| binding.epoch.0 == device_ui.epoch.load(Ordering::SeqCst))
+                .and_then(|binding| binding.store.entity(token, generation, revision))
+        },
+    );
     let clock_window = window.as_weak();
     let clock = slint::Timer::default();
     let update_clock = move || {
@@ -984,6 +1162,61 @@ pub(crate) fn run_with_lifecycle(
         }
         recover(Action::Recovery(code));
     });
+    let device_ui = ui.clone();
+    let device_sender = sender.clone();
+    let submit_device = move |token, generation, intent| match device_ui
+        .prepare_device(token, generation, intent)
+    {
+        Ok((epoch, prepared)) => {
+            if device_sender
+                .try_send(Intent::Device {
+                    epoch,
+                    prepared: Box::new(prepared),
+                })
+                .is_err()
+            {
+                device_ui.refuse(epoch, Refusal::Capacity);
+            }
+        }
+        Err(refusal) => device_ui.refuse(
+            ProfileEpoch(device_ui.epoch.load(Ordering::SeqCst)),
+            refusal,
+        ),
+    };
+    let power = submit_device.clone();
+    window.on_device_power(move |token, generation, intent| {
+        let intent = match intent {
+            crate::ProPowerIntent::On => crate::device_view::Power::On,
+            crate::ProPowerIntent::Off => crate::device_view::Power::Off,
+        };
+        power(token, generation, DeviceIntent::Power(intent));
+    });
+    window.on_device_brightness(move |token, generation, value| {
+        submit_device(
+            token,
+            generation,
+            DeviceIntent::Brightness(f64::from(value)),
+        )
+    });
+    let stop_ui = ui.clone();
+    window.on_device_stop_tracking(move |token, generation| {
+        let epoch = ProfileEpoch(stop_ui.epoch.load(Ordering::SeqCst));
+        let binding = stop_ui
+            .devices
+            .lock()
+            .expect("device binding mutex")
+            .clone();
+        if let Some(binding) = binding
+            && binding.epoch == epoch
+        {
+            let revision = stop_ui
+                .projection_request
+                .lock()
+                .expect("presentation request mutex poisoned")
+                .revision;
+            binding.store.stop(token, generation, revision);
+        }
+    });
     let logout = send.clone();
     window.on_sign_out(move || logout(Action::Logout));
     let cancel = send.clone();
@@ -1059,6 +1292,7 @@ mod tests {
             ),
             viewport: watch::channel(Viewport::default()).0,
             dashboard_retry: Arc::new(tokio::sync::Notify::new()),
+            devices: Arc::new(Mutex::new(None)),
         };
         ui.request_view(epoch);
 
@@ -1145,6 +1379,7 @@ mod tests {
             ),
             viewport: watch::channel(Viewport::default()).0,
             dashboard_retry: Arc::new(tokio::sync::Notify::new()),
+            devices: Arc::new(Mutex::new(None)),
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));

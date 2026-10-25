@@ -27,6 +27,7 @@ pub(crate) struct CacheProjection {
     total: usize,
     rows: Vec<Row>,
     home: HomeProjection,
+    devices: crate::device_view::DeviceProjection,
 }
 
 struct Observation {
@@ -64,11 +65,28 @@ pub(crate) fn project(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn project_request(
     phase: CachePhase,
     view: Option<&CachedView>,
     viewport: Viewport,
     request: &ProjectionRequest,
+) -> CacheProjection {
+    project_devices(
+        phase,
+        view,
+        viewport,
+        request,
+        &crate::device_view::DeviceStore::default(),
+    )
+}
+
+pub(crate) fn project_devices(
+    phase: CachePhase,
+    view: Option<&CachedView>,
+    viewport: Viewport,
+    request: &ProjectionRequest,
+    devices: &crate::device_view::DeviceStore,
 ) -> CacheProjection {
     let layout = request
         .dashboard
@@ -188,6 +206,7 @@ pub(crate) fn project_request(
             ]
         });
     CacheProjection {
+        devices: devices.project(phase, view, request),
         revision: request.revision,
         phase,
         total,
@@ -210,7 +229,7 @@ pub(crate) fn project_request(
 fn on_off(value: bool) -> &'static str {
     if value { "Allumé" } else { "Éteint" }
 }
-fn bounded(text: &str) -> String {
+pub(crate) fn bounded(text: &str) -> String {
     match text.char_indices().nth(256) {
         Some((end, _)) => format!("{}…", &text[..end]),
         None => text.to_owned(),
@@ -274,7 +293,7 @@ fn summary_text(observation: &state::ObservedState) -> String {
     }
 }
 
-fn value_text(observation: &state::ObservedState) -> String {
+pub(crate) fn value_text(observation: &state::ObservedState) -> String {
     if !observation.__buffa_unknown_fields.is_empty() {
         return "Valeur non prise en charge".into();
     }
@@ -398,7 +417,7 @@ fn value_text(observation: &state::ObservedState) -> String {
     }
 }
 
-fn quality_text(observation: &state::ObservedState) -> String {
+pub(crate) fn quality_text(observation: &state::ObservedState) -> String {
     let Some(quality) = observation.quality.as_option() else {
         return "Qualité absente".into();
     };
@@ -445,6 +464,7 @@ pub(crate) struct CacheRows {
     home_serial: Cell<i32>,
     rooms: std::rc::Rc<slint::VecModel<ProRoomRow>>,
     observations: std::rc::Rc<slint::VecModel<ProObservationRow>>,
+    devices: std::rc::Rc<slint::VecModel<crate::ProDeviceRow>>,
 }
 fn table_row(row: &Row, _offline: bool) -> TableRow {
     TableRow {
@@ -548,6 +568,7 @@ impl CacheRows {
         self.notify.reset();
         self.rooms.set_vec(Vec::new());
         self.observations.set_vec(Vec::new());
+        self.devices.set_vec(Vec::new());
     }
     pub(crate) fn resolve(&self, token: i32, generation: i32, revision: i32) -> Option<EntityId> {
         if generation != self.serial.get() || self.state.borrow().revision != revision {
@@ -605,6 +626,7 @@ pub(crate) fn bind(window: &HomewardWindow) {
     let model = std::rc::Rc::new(CacheRows::default());
     window.set_home_rooms(ModelRc::from(model.rooms.clone()));
     window.set_home_observations(ModelRc::from(model.observations.clone()));
+    window.set_device_cards(ModelRc::from(model.devices.clone()));
     window.set_cache_rows(ModelRc::from(model));
 }
 impl Model for CacheRows {
@@ -647,6 +669,8 @@ pub(crate) fn clear(window: &HomewardWindow) {
 }
 fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_view_loaded(false);
+    window.set_commands_ready(false);
+    window.set_action_feedback("".into());
     window.set_dashboard_title("Accueil".into());
     window.set_dashboard_synthetic(false);
     window.set_dashboard_status("Dashboard indisponible".into());
@@ -656,6 +680,8 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
         model.clear();
         window.set_cache_generation(model.serial.get());
         window.set_home_generation(model.home_serial.get());
+    } else {
+        window.set_device_cards(Default::default());
     }
     window.set_detail_title("".into());
     window.set_detail_value("".into());
@@ -670,7 +696,7 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
 pub(crate) fn render(
     window: &HomewardWindow,
     generation: ProjectionGeneration,
-    projection: CacheProjection,
+    mut projection: CacheProjection,
 ) {
     // This ticket has already crossed the cache owner's publication barrier.
     // Authoritative absence must clear the old private view even when a newer
@@ -729,6 +755,11 @@ pub(crate) fn render(
     let observations = home
         .observations
         .iter()
+        .filter(|item| {
+            item.id
+                .as_ref()
+                .is_none_or(|id| !projection.devices.represented.contains(id))
+        })
         .map(|item| ProObservationRow {
             token: item.token,
             generation: 0,
@@ -751,6 +782,8 @@ pub(crate) fn render(
     window.set_read_status(cache_status(projection.phase, total).into());
     let model = window.get_cache_rows();
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
+        window.set_commands_ready(projection.devices.ready);
+        sync(&model.devices, std::mem::take(&mut projection.devices.rows));
         model.apply(generation, projection);
         window.set_cache_generation(model.serial.get());
         window.set_home_generation(model.home_serial.get());
@@ -1027,6 +1060,85 @@ mod tests {
     }
 
     #[test]
+    fn room_list_transfers_focus_and_two_back_key_events_return_through_cards_to_home() {
+        use i_slint_backend_testing::ElementQuery;
+        use slint::{
+            ComponentHandle,
+            platform::{Key, PointerEventButton, WindowEvent},
+        };
+        i_slint_backend_testing::init_no_event_loop();
+        let window = HomewardWindow::new().unwrap();
+        let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest {
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
+            ..Default::default()
+        }));
+        bind(&window);
+        crate::navigation::bind(&window, request, || {});
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_show_endpoint(false);
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(1280., 800.));
+        window.show().unwrap();
+        render(
+            &window,
+            ProjectionMailbox::<()>::new().generation(),
+            project(CachePhase::Live, Some(&home_view()), Viewport::default()),
+        );
+        window.invoke_room_open(dashboard::ROOM_TOKEN_BASE, window.get_home_generation());
+        let button = ElementQuery::from_root(&window)
+            .match_inherits("KitButton")
+            .match_predicate(|item| {
+                item.accessible_label().as_deref() == Some("Liste complète des éléments")
+            })
+            .find_first()
+            .unwrap();
+        let p = button.absolute_position();
+        let size = button.size();
+        let position = slint::LogicalPosition::new(p.x + size.width / 2., p.y + size.height / 2.);
+        window.window().dispatch_event(WindowEvent::PointerPressed {
+            position,
+            button: PointerEventButton::Left,
+        });
+        window
+            .window()
+            .dispatch_event(WindowEvent::PointerReleased {
+                position,
+                button: PointerEventButton::Left,
+            });
+        assert_eq!(window.get_room_view(), crate::RoomView::List);
+        for expected_page in [crate::ViewPage::Room, crate::ViewPage::Home] {
+            window.window().dispatch_event(WindowEvent::KeyPressed {
+                text: Key::Back.into(),
+            });
+            window.window().dispatch_event(WindowEvent::KeyReleased {
+                text: Key::Back.into(),
+            });
+            assert_eq!(
+                window.get_room_view(),
+                crate::RoomView::Cards,
+                "Back must reach the content handler after its old focused control is hidden"
+            );
+            assert_eq!(window.get_page(), expected_page);
+        }
+        assert_eq!(window.get_page(), crate::ViewPage::Home);
+        crate::navigation::bind_native_back(&window);
+        window.invoke_choose_room();
+        assert_eq!(window.get_page(), crate::ViewPage::Rooms);
+        window.window().dispatch_event(WindowEvent::CloseRequested);
+        assert_eq!(window.get_page(), crate::ViewPage::Home);
+        assert!(
+            window.window().is_visible(),
+            "native Back pops a route without closing the window"
+        );
+        window.window().dispatch_event(WindowEvent::CloseRequested);
+        assert!(
+            !window.window().is_visible(),
+            "native Back may leave the application only at home"
+        );
+    }
+
+    #[test]
     fn route_changes_reject_stale_projections_and_private_clear_drops_every_new_surface() {
         use slint::ComponentHandle;
         i_slint_backend_testing::init_no_event_loop();
@@ -1198,9 +1310,8 @@ mod tests {
         layout.title = "Changed by server".into();
         layout.document_revision += 1;
         layout.document_hash = [9; 32];
-        layout.rooms[0].entities = ["private-entity-0001".parse().unwrap()]
-            .into_iter()
-            .collect();
+        layout.rooms[0].entities =
+            dashboard::RoomEntities::new(vec!["private-entity-0001".parse().unwrap()]).unwrap();
         request.dashboard = dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone()));
         assert!(
             model
