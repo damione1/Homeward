@@ -8,6 +8,9 @@ use std::{
 use buffa::MessageName;
 use connectrpc::{ConnectError, ErrorDetail};
 use home_client_transport::{AccessToken, DetailFailure, Failure, FailureKind, ReconnectPolicy};
+use home_wire_contract::home::actions::v1::{
+    ActionOperationFailure, ActionOperationFailureKind, ActionStatus, CommandResponse,
+};
 use home_wire_contract::home::auth::v1::{
     AuthorizationTermination, AuthorizationTerminationReason,
 };
@@ -62,6 +65,74 @@ fn typed_details_keep_future_reasons_and_reject_ambiguous_or_corrupt_known_detai
         ErrorDetail::from_message(AuthorizationTermination::FULL_NAME, &future),
     ));
     assert_eq!(failure.authorization_termination().unwrap(), Some(future));
+}
+
+#[test]
+fn action_error_details_preserve_uncertain_response_and_reject_ambiguous_or_corrupt_data() {
+    let known = ActionOperationFailure {
+        kind: ActionOperationFailureKind::CommitOutcomeUnknown.into(),
+        response: Some(CommandResponse {
+            command_id: "same-command-id".into(),
+            status: ActionStatus::Acknowledged.into(),
+            ..Default::default()
+        })
+        .into(),
+        ..Default::default()
+    };
+    let detail = ErrorDetail::from_message(ActionOperationFailure::FULL_NAME, &known);
+    let authority = AuthorizationTermination {
+        reason: AuthorizationTerminationReason::AuthorityUnavailable.into(),
+        ..Default::default()
+    };
+    let failure = Failure::from(
+        ConnectError::unknown("private action response")
+            .with_detail(ErrorDetail::from_message(
+                AuthorizationTermination::FULL_NAME,
+                &authority,
+            ))
+            .with_detail(detail.clone()),
+    );
+    assert_eq!(failure.action_operation_failure().unwrap(), Some(known));
+    assert_eq!(
+        failure.authorization_termination().unwrap(),
+        Some(authority)
+    );
+    assert!(!format!("{failure:?} {failure}").contains("private"));
+    assert!(!format!("{failure:?} {failure}").contains("same-command-id"));
+    let duplicate = Failure::from(
+        ConnectError::unknown("private")
+            .with_detail(detail.clone())
+            .with_detail(detail),
+    );
+    assert_eq!(
+        duplicate.action_operation_failure(),
+        Err(DetailFailure::Duplicate)
+    );
+    for value in [None, Some("%%%".into()), Some("/w".into())] {
+        let failure = Failure::from(ConnectError::unknown("private").with_detail(ErrorDetail {
+            type_url: ActionOperationFailure::TYPE_URL.into(),
+            value,
+            debug: None,
+        }));
+        assert_eq!(
+            failure.action_operation_failure(),
+            Err(DetailFailure::Malformed)
+        );
+    }
+    let future = ActionOperationFailure {
+        kind: 999.into(),
+        ..Default::default()
+    };
+    let failure = Failure::from(ConnectError::unknown("private").with_detail(
+        ErrorDetail::from_message(ActionOperationFailure::FULL_NAME, &future),
+    ));
+    assert_eq!(failure.action_operation_failure().unwrap(), Some(future));
+    assert!(
+        Failure::from(ConnectError::unavailable("private"))
+            .action_operation_failure()
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]

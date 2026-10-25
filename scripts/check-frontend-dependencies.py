@@ -16,7 +16,7 @@ class Target(Enum):
 
 vendor = root / 'client/platform/vendor/slint-android-activity'
 origin = json.loads((vendor / 'ORIGIN.json').read_text())
-allowed_changes = {'Cargo.toml', 'androidwindowadapter.rs', 'java/SlintAndroidJavaHelper.java'}
+allowed_changes = {'Cargo.toml', 'androidwindowadapter.rs', 'javahelper.rs', 'java/SlintAndroidJavaHelper.java'}
 if set(origin['modified_files']) != allowed_changes:
     raise SystemExit('Unexpected Android backend patch scope')
 for name, expected in origin['upstream_files'].items():

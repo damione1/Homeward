@@ -68,6 +68,10 @@ func (a *policyViewAuthorizer) CurrentGrant(ctx context.Context, actor view.Acto
 	if err := current.AdmitRoute(permission); err != nil {
 		return view.Grant{}, err
 	}
+	writePermission, err := authorization.NewPermission(authv1.ScopeFamily_SCOPE_FAMILY_ACTIONS, authv1.ScopeOperation_SCOPE_OPERATION_WRITE)
+	if err != nil {
+		return view.Grant{}, err
+	}
 	// Current/principal/route/credential ceiling remain authoritative on EVERY
 	// hit. Only the immutable equipment projection and grant expansion are reused.
 	revision, binding, err := current.Binding()
@@ -98,6 +102,7 @@ func (a *policyViewAuthorizer) CurrentGrant(ctx context.Context, actor view.Acto
 		}
 		all := make([]authorization.CapabilitySlot, 0, len(descriptions))
 		readable := make([]authorization.CapabilitySlot, 0, len(descriptions))
+		writable := make([]authorization.CapabilitySlot, 0, len(descriptions))
 		for _, description := range descriptions {
 			if description == nil {
 				return view.Grant{}, authorization.ErrUnavailable
@@ -113,12 +118,15 @@ func (a *policyViewAuthorizer) CurrentGrant(ctx context.Context, actor view.Acto
 			}
 			if current.Authorize(permission, object) == nil {
 				readable = append(readable, slot)
+				if current.Authorize(writePermission, object) == nil {
+					writable = append(writable, slot)
+				}
 			}
 		}
 		if len(readable) == 0 {
 			continue
 		}
-		entry, err := view.NewEntityAccess(entity, all, readable)
+		entry, err := view.NewEntityAccessWithActions(entity, all, readable, writable)
 		if err != nil {
 			return view.Grant{}, err
 		}
@@ -127,7 +135,7 @@ func (a *policyViewAuthorizer) CurrentGrant(ctx context.Context, actor view.Acto
 		retainedBytes += 256 + 2*len(name)
 		for _, slot := range readable {
 			schema, endpoint, _ := slot.Values()
-			retainedBytes += 256 + 2*(len(schema)+len(endpoint))
+			retainedBytes += 512 + 4*(len(schema)+len(endpoint))
 		}
 	}
 	grant, err := view.NewScopedGrant(actor, revision, binding, access)

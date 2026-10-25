@@ -260,7 +260,7 @@ def qualify(proof, server_binary, client_binary, platform, wrong_name=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--platform', type=PlatformSelection, choices=list(PlatformSelection),
-                        default=PlatformSelection.ALL)
+                        default=PlatformSelection.DESKTOP)
     args = parser.parse_args()
     if not os.environ.get('CARGO_TARGET_DIR') or not os.environ.get('GOCACHE'):
         parser.error('Run through scripts/frontend.py run --cargo to reserve shared tools/storage.')

@@ -18,7 +18,9 @@ home-client-transport = { path = "../transport" }
 home-client-session = { path = "../session" }
 home-client-platform = { path = "../platform" }
 home-client-cache = { path = "../cache" }
+home-client-actions = { path = "../actions" }
 buffa = "=0.9.2"
+buffa-types = "=0.9.2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 zeroize = "1"
@@ -42,7 +44,6 @@ slint = { version = "=1.18.1", default-features = false, features = ["std", "com
 slint-kit-pro-build = { path = "../../.tools/frontend-kits/pro/crates/kit-pro-build" }
 
 [dev-dependencies]
-buffa-types = "=0.9.2"
 i-slint-backend-testing = "=1.18.1"
 
 [package.metadata.android]

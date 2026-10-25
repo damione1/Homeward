@@ -20,7 +20,7 @@ LIMIT = 40_000_000_000
 # The shared host's latest reserve supersedes the original 40 GiB floor.
 MIN_FREE = 50_000_000_000
 PACKAGES = ['home-client-model', 'home-wire-contract', 'homeward-app', 'home-client-transport', 'home-client-cache',
-            'home-client-session', 'home-client-platform', 'i-slint-backend-android-activity',
+            'home-client-session', 'home-client-platform', 'home-client-actions', 'i-slint-backend-android-activity',
             'slint-kit', 'slint-kit-core', 'slint-kit-slint', 'slint-kit-build',
             'slint-kit-pro', 'slint-kit-pro-build']
 

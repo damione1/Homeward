@@ -30,9 +30,10 @@ with tempfile.TemporaryDirectory(prefix='homeward-connect-') as temp:
     subprocess.run(['buf', 'generate', '--template', str(template), '--path',
                     'proto/home/state/v1/state.proto', '--path',
                     'proto/home/auth/v1/auth.proto', '--path',
-                    'proto/home/dashboard/v1/dashboard.proto'], cwd=ROOT, check=True)
+                    'proto/home/dashboard/v1/dashboard.proto', '--path',
+                    'proto/home/actions/v1/actions_rpc.proto'], cwd=ROOT, check=True)
     files = {p.name: p.read_bytes() for p in generated.iterdir() if p.is_file()}
-    if set(files) != {'home.state.v1.rs', 'home.auth.v1.rs', 'home.dashboard.v1.rs'}:
+    if set(files) != {'home.state.v1.rs', 'home.auth.v1.rs', 'home.dashboard.v1.rs', 'home.actions.v1.rs'}:
         raise SystemExit('Unexpected service-stub output; inspect before accepting it.')
     if args.check:
         existing = {p.name: p.read_bytes() for p in OUTPUT.iterdir() if p.is_file()}

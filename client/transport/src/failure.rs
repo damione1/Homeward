@@ -6,7 +6,9 @@ use base64::{
 };
 use buffa::{Message, MessageName};
 use connectrpc::{ConnectError, ErrorCode};
-use home_wire_contract::home::auth::v1::AuthorizationTermination;
+use home_wire_contract::home::{
+    actions::v1::ActionOperationFailure, auth::v1::AuthorizationTermination,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DetailFailure {
@@ -59,11 +61,21 @@ impl Failure {
     pub fn authorization_termination(
         &self,
     ) -> Result<Option<AuthorizationTermination>, DetailFailure> {
+        self.typed_detail()
+    }
+
+    /// A dispatch response can accompany an error through this detail. Keep
+    /// its exact command ID and uncertainty; an error is no retry permission.
+    pub fn action_operation_failure(
+        &self,
+    ) -> Result<Option<ActionOperationFailure>, DetailFailure> {
+        self.typed_detail()
+    }
+
+    fn typed_detail<T: Message + MessageName>(&self) -> Result<Option<T>, DetailFailure> {
         let mut found = None;
         for detail in self.rpc().into_iter().flat_map(|rpc| &rpc.details) {
-            if detail.type_url != AuthorizationTermination::FULL_NAME
-                && detail.type_url != AuthorizationTermination::TYPE_URL
-            {
+            if detail.type_url != T::FULL_NAME && detail.type_url != T::TYPE_URL {
                 continue;
             }
             if found.is_some() {
@@ -74,10 +86,7 @@ impl Failure {
                 .decode(value)
                 .or_else(|_| STANDARD.decode(value))
                 .map_err(|_| DetailFailure::Malformed)?;
-            found = Some(
-                AuthorizationTermination::decode_from_slice(&bytes)
-                    .map_err(|_| DetailFailure::Malformed)?,
-            );
+            found = Some(T::decode_from_slice(&bytes).map_err(|_| DetailFailure::Malformed)?);
         }
         Ok(found)
     }

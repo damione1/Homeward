@@ -19,7 +19,8 @@
   "modified_files": [
     "Cargo.toml",
     "androidwindowadapter.rs",
+    "javahelper.rs",
     "java/SlintAndroidJavaHelper.java"
   ],
-  "reason": "Resolve raw Android printable keys through the device KeyCharacterMap and event meta state; retain named/control shortcut mapping. Gate the native IME proxy's editor/focus/InputConnection state on Slint Enable/Disable so Android cannot implicitly reopen the keyboard after editor removal or activity restore. No password normalization or shared registry edits."
+  "reason": "Resolve raw Android printable keys through the device KeyCharacterMap and event meta state; retain named/control shortcut mapping. Gate the native IME proxy's editor/focus/InputConnection state on Slint Enable/Disable so Android cannot implicitly reopen the keyboard after editor removal or activity restore. Forward unhandled native Back through the window CloseRequested policy, including when no widget has focus, while preserving Activity.finish when the application accepts closing. No password normalization or shared registry edits."
 }

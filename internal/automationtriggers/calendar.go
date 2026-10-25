@@ -211,7 +211,8 @@ func (s *Service) replaceCalendarWindowLocked(ctx context.Context, window Calend
 			stale = true
 		}
 	}
-	now := s.clock.Now().UTC()
+	sample := s.sampleScheduleTime()
+	now := sample.wall
 	if !to.After(now) || to.Sub(now) > MaxCalendarHorizon || from.After(to) {
 		return ErrInvalidPlan
 	}
@@ -355,7 +356,7 @@ func (s *Service) replaceCalendarWindowLocked(ctx context.Context, window Calend
 		if r.trigger.Kind() == ir.TriggerCalendar && r.calendar == source {
 			delete(s.scheduled, i)
 			delete(s.scheduledMono, i)
-			s.scheduleRuleLocked(i, now)
+			s.scheduleRuleLocked(i, sample)
 		}
 	}
 	s.signalWake()

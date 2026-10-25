@@ -1,0 +1,34 @@
+# Isolated fake-device dashboard; never a client-side installation catalogue.
+views:
+- type: sections
+  path: home
+  title: Maison synthétique
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      name: Lumière synthétique
+      entity: light.basement_lights
+    - type: tile
+      name: Relais synthétique
+      entity: switch.basement_relay
+    - type: tile
+      name: Contact synthétique
+      entity: binary_sensor.arc_soundbar_microphone
+    - type: tile
+      name: Mesure synthétique
+      entity: sensor.backyard_all_count
+- type: sections
+  path: simulation
+  title: Pièce synthétique
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      entity: light.basement_lights
+    - type: tile
+      entity: switch.basement_relay
+    - type: tile
+      entity: binary_sensor.arc_soundbar_microphone
+    - type: tile
+      entity: sensor.backyard_all_count

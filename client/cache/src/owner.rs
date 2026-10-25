@@ -123,6 +123,22 @@ pub struct ActivationPermit<P> {
     owner: Weak<Inner<P>>,
     sequence: u64,
 }
+impl<P> ActivationPermit<P> {
+    /// A read-only, synchronous fence for an intention captured from this
+    /// cache. It does not establish write permission or activate a view. The
+    /// caller must separately validate the exact capability and server grant.
+    pub fn is_active(&self) -> bool {
+        let Some(owner) = self.owner.upgrade() else {
+            return false;
+        };
+        let _gate = owner.gate.lock().expect("cache control gate poisoned");
+        let desired = owner.desired.borrow();
+        desired.mode == Mode::Active
+            && desired.sequence == self.sequence
+            && !desired.cancel.is_cancelled()
+            && !owner.stopped.is_cancelled()
+    }
+}
 impl<P> Clone for CacheHandle<P> {
     fn clone(&self) -> Self {
         Self {
@@ -723,6 +739,30 @@ mod tests {
                 .await
                 .unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn a_captured_active_fence_is_withdrawn_synchronously_and_never_revives() {
+        let rig = Rig::new();
+        let handle = rig.owner.handle();
+        assert!(!handle.prepare_activation().unwrap().is_active());
+        handle.activate().unwrap();
+        let before = handle.prepare_activation().unwrap();
+        assert!(before.is_active());
+        handle.invalidate().unwrap();
+        assert!(
+            !before.is_active(),
+            "does not wait for a worker or UI callback"
+        );
+        handle.activate().unwrap();
+        assert!(
+            !before.is_active(),
+            "a later activation cannot revive an old gesture"
+        );
+        let current = handle.prepare_activation().unwrap();
+        assert!(current.is_active());
+        rig.owner.close().await;
+        assert!(!current.is_active());
     }
 
     #[tokio::test]

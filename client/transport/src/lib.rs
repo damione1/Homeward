@@ -1,12 +1,14 @@
 //! Native asynchronous transport over the existing Buffa wire types.
 #![deny(clippy::wildcard_enum_match_arm)]
 
+mod actions;
 mod auth;
 mod client;
 mod connection;
 mod dashboard;
 mod failure;
 mod reconnect;
+pub use actions::{ActionTransport, ActionWatch};
 pub use auth::AuthTransport;
 pub use client::{AccessToken, StateTransport, StateWatch};
 pub use connection::Connection;
@@ -19,6 +21,9 @@ pub use reconnect::ReconnectPolicy;
 #[rustfmt::skip]
 pub mod services {
     pub mod home {
+        pub mod actions {
+            pub mod v1 { include!("generated/home.actions.v1.rs"); }
+        }
         pub mod auth {
             pub mod v1 { include!("generated/home.auth.v1.rs"); }
         }

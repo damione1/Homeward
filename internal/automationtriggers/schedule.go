@@ -97,6 +97,18 @@ func nextCivilTime(now time.Time, location *time.Location, trigger ir.Trigger, h
 	return time.Time{}, false
 }
 
+// Keep the civil instant and its monotonic lower bound together through plan
+// calculation, including source calls which temporarily release the mutex.
+type civilScheduleSample struct {
+	wall time.Time
+	mono time.Duration
+}
+
+func (s *Service) sampleScheduleTime() civilScheduleSample {
+	mono := s.clock.MonoNow()
+	return civilScheduleSample{wall: s.clock.Now().UTC(), mono: mono}
+}
+
 func (s *Service) scheduleAllLocked() {
 	s.planning = true
 	defer func() {
@@ -108,7 +120,7 @@ func (s *Service) scheduleAllLocked() {
 	if s.suspended || !s.admissionsOpen || s.closed {
 		return
 	}
-	now := s.clock.Now().UTC()
+	now := s.sampleScheduleTime()
 	generation := s.generation
 	publication := s.publicationEpoch
 	for i := range s.plan.rules {
@@ -119,16 +131,16 @@ func (s *Service) scheduleAllLocked() {
 	}
 }
 
-func (s *Service) setScheduleLocked(i int, instant, now time.Time) {
+func (s *Service) setScheduleLocked(i int, instant time.Time, sample civilScheduleSample) {
 	s.scheduled[i] = instant
-	delay := instant.Sub(now)
+	delay := instant.Sub(sample.wall)
 	if delay < 0 {
 		delay = 0
 	}
-	s.scheduledMono[i] = s.clock.MonoNow() + delay
+	s.scheduledMono[i] = sample.mono + delay
 }
 
-func (s *Service) scheduleRuleLocked(i int, now time.Time) {
+func (s *Service) scheduleRuleLocked(i int, sample civilScheduleSample) {
 	if s.suspended || !s.admissionsOpen || s.closed {
 		return
 	}
@@ -141,10 +153,11 @@ func (s *Service) scheduleRuleLocked(i int, now time.Time) {
 	if owner != nil && owner.admitted != nil {
 		location = owner.admitted.location
 	}
+	now := sample.wall
 	switch r.trigger.Kind() {
 	case ir.TriggerTime, ir.TriggerTimePattern:
 		if next, ok := nextCivilTime(now, location, r.trigger, s.civil[i]); ok {
-			s.setScheduleLocked(i, next, now)
+			s.setScheduleLocked(i, next, sample)
 		}
 	case ir.TriggerSunset:
 		offset := time.Duration(r.trigger.OffsetSeconds()) * time.Second
@@ -176,7 +189,7 @@ func (s *Service) scheduleRuleLocked(i int, now time.Time) {
 			return
 		}
 		if candidate.After(now) && civilKey(candidate, location) > s.civil[i] {
-			s.setScheduleLocked(i, candidate, now)
+			s.setScheduleLocked(i, candidate, sample)
 		} else if civilKey(candidate, location) <= s.civil[i] {
 			s.suspendLocked(DegradedSource)
 		}
@@ -206,7 +219,7 @@ func (s *Service) scheduleRuleLocked(i int, now time.Time) {
 			}
 		}
 		if !first.IsZero() {
-			s.setScheduleLocked(i, first, now)
+			s.setScheduleLocked(i, first, sample)
 		}
 	}
 }
@@ -367,8 +380,11 @@ func (s *Service) flushJournalLocked() {
 }
 
 func (s *Service) runDueLocked() {
+	sample := s.sampleScheduleTime()
+	nowWall := sample.wall
+	// Sample elapsed time after the civil reading when deciding whether the
+	// deadline was reached; clock-read latency must not look like a wall jump.
 	nowMono := s.clock.MonoNow()
-	nowWall := s.clock.Now().UTC()
 	generation := s.generation
 	publication := s.publicationEpoch
 	for i := range s.plan.rules {
@@ -449,7 +465,7 @@ func (s *Service) runDueLocked() {
 		if s.suspended {
 			return
 		}
-		s.scheduleRuleLocked(i, nowWall)
+		s.scheduleRuleLocked(i, sample)
 	}
 	if s.generation != generation || s.closed || s.suspended || !s.admissionsOpen {
 		return

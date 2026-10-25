@@ -1,0 +1,6 @@
+[
+  {"kind":"light","alias":"light.basement_lights","title":"Lumière synthétique","endpoint":"lamp"},
+  {"kind":"switch","alias":"switch.basement_relay","title":"Relais synthétique","endpoint":"relay"},
+  {"kind":"binary","alias":"binary_sensor.arc_soundbar_microphone","title":"Contact synthétique","endpoint":"contact"},
+  {"kind":"measurement","alias":"sensor.backyard_all_count","title":"Mesure synthétique","endpoint":"temperature"}
+]

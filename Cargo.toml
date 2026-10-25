@@ -1,5 +1,5 @@
 [workspace]
-members = ["client/model", "client/wire", "client/app", "client/transport", "client/session", "client/platform", "client/cache"]
+members = ["client/model", "client/wire", "client/app", "client/transport", "client/session", "client/platform", "client/cache", "client/actions"]
 exclude = ["client/platform/vendor/slint-android-activity", "client/transport/vendor/connectrpc", ".tools/frontend-kits/pro/crates/kit-pro", ".tools/frontend-kits/pro/crates/kit-pro-build"]
 resolver = "2"
 

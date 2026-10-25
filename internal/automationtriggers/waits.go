@@ -247,7 +247,7 @@ func (s *Service) observeWaitLocked(ctx context.Context, definition waitDefiniti
 		if h.closing {
 			break
 		}
-		s.scheduleRuleLocked(slot, s.clock.Now().UTC())
+		s.scheduleRuleLocked(slot, s.sampleScheduleTime())
 	}
 	h.planning--
 	s.finishWaitJoinLocked(h)
