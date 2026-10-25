@@ -9,14 +9,23 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-pub(crate) const MAX_ROOMS: usize = 64;
+pub(crate) const MAX_ROOMS: usize = 127;
 pub(crate) const MAX_OBSERVATIONS: usize = 64;
 pub(crate) const ROOM_TOKEN_BASE: i32 = 1000;
 pub(crate) const OBSERVATION_TOKEN_BASE: i32 = 2000;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct RoomId(String);
-#[derive(Clone, Debug, PartialEq, Eq)]
+impl RoomId {
+    pub(crate) fn parse(value: &str) -> Result<Self, LayoutFailure> {
+        if text(value) {
+            Ok(Self(value.to_owned()))
+        } else {
+            Err(LayoutFailure::Invalid)
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct DashboardId(String);
 impl DashboardId {
     pub fn parse(value: &str) -> Result<Self, LayoutFailure> {
@@ -94,6 +103,7 @@ pub(crate) struct Layout {
     pub mode: ServingMode,
     pub rooms: Vec<Room>,
     pub observations: Vec<Observation>,
+    pub native: Option<crate::dashboard_layout::NativeLayout>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum LayoutFailure {
@@ -214,6 +224,11 @@ impl TryFrom<&wire::Dashboard> for Layout {
             mode,
             rooms,
             observations,
+            native: value
+                .native_layout
+                .as_option()
+                .map(crate::dashboard_layout::NativeLayout::try_from)
+                .transpose()?,
         })
     }
 }
@@ -233,29 +248,57 @@ pub(crate) enum LayoutState {
     Loading,
     Unavailable,
     Invalid,
+    Unsupported(Arc<str>),
     Ready(Arc<Layout>),
 }
 impl LayoutState {
-    pub fn message(&self) -> &'static str {
+    pub fn unsupported(value: &wire::Dashboard) -> Self {
+        let label = |text: &str| {
+            if !text.is_empty() && text.len() <= 256 && !text.chars().any(char::is_control) {
+                text.to_owned()
+            } else {
+                "non précisé".into()
+            }
+        };
+        let profile = label(
+            value
+                .metadata
+                .as_option()
+                .map_or("", |metadata| metadata.profile.as_str()),
+        );
+        let source = label(
+            value
+                .definition
+                .as_option()
+                .map_or("", |definition| definition.entry.as_str()),
+        );
+        let version = value
+            .native_overview
+            .as_option()
+            .map_or(0, |overview| overview.version);
+        Self::Unsupported(format!("Profil de dashboard non pris en charge : {profile} · version {version} · source {source}").into())
+    }
+    pub fn message(&self) -> &str {
         match self {
             Self::Loading => "Chargement du dashboard depuis le serveur…",
             Self::Unavailable => "Le serveur ne fournit pas de dashboard autorisé.",
             Self::Invalid => {
                 "La définition du dashboard ne peut pas être affichée par cette version."
             }
+            Self::Unsupported(message) => message,
             Self::Ready(_) => "Synchronisation du dashboard et des observations…",
         }
     }
     pub fn layout(&self) -> Option<&Layout> {
         match self {
             Self::Ready(layout) => Some(layout),
-            Self::Loading | Self::Unavailable | Self::Invalid => None,
+            Self::Loading | Self::Unavailable | Self::Invalid | Self::Unsupported(_) => None,
         }
     }
     pub fn shared_layout(&self) -> Option<Arc<Layout>> {
         match self {
             Self::Ready(layout) => Some(layout.clone()),
-            Self::Loading | Self::Unavailable | Self::Invalid => None,
+            Self::Loading | Self::Unavailable | Self::Invalid | Self::Unsupported(_) => None,
         }
     }
 }
@@ -350,6 +393,23 @@ pub(crate) fn fixture() -> Layout {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn unsupported_profile_keeps_a_bounded_sourced_diagnostic_and_no_layout() {
+        let mut document = fixture_wire();
+        document.metadata.as_option_mut().unwrap().profile = "homeward-dashboard-99".into();
+        document.definition = wire::Definition {
+            entry: "external.yaml".into(),
+            ..Default::default()
+        }
+        .into();
+        assert_eq!(Layout::try_from(&document), Err(LayoutFailure::Unsupported));
+        let unsupported = LayoutState::unsupported(&document);
+        assert!(
+            unsupported.message().contains("homeward-dashboard-99")
+                && unsupported.message().contains("external.yaml")
+        );
+        assert!(unsupported.layout().is_none());
+    }
     #[test]
     fn room_binding_order_is_received_data_and_membership_is_only_a_derived_index() {
         let mut doc = fixture_wire();

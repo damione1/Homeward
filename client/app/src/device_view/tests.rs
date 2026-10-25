@@ -354,3 +354,63 @@ fn configuration_selects_cards_and_presentation_never_contains_opaque_identity()
         "opaque identity remains in Rust"
     );
 }
+
+#[test]
+fn an_unknown_layout_version_never_enables_commands_through_the_overview() {
+    use home_wire_contract::home::dashboard::v1 as dashboard_wire;
+    let mut request = request();
+    let entity = light(&request);
+    let cache = view(&request, vec![entity]);
+    let store = DeviceStore::default();
+    let before = store.project(CachePhase::Live, Some(&cache), &request);
+    assert_eq!(before.rows[0].access, crate::ProControlAccess::Allowed);
+    let mut layout = request.dashboard.layout().unwrap().clone();
+    layout.native = Some(
+        crate::dashboard_layout::NativeLayout::try_from(&dashboard_wire::NativeLayout {
+            version: 99,
+            views: vec!["source-view".into()],
+            nodes: vec![dashboard_wire::LayoutNode {
+                id: "source-view".into(),
+                kind: dashboard_wire::LayoutKind::View.into(),
+                source: dashboard_wire::LayoutSource {
+                    file: "synthetic.yaml".into(),
+                    path: "views[0]".into(),
+                    variant: "future-view".into(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        })
+        .unwrap(),
+    );
+    request.dashboard = LayoutState::Ready(Arc::new(layout));
+    let after = store.project(CachePhase::Live, Some(&cache), &request);
+    assert!(
+        after.rows.is_empty(),
+        "unknown layout exposes no configured interactive card"
+    );
+    request.detail = Some(cache.entities().next().unwrap().0.clone());
+    let after = store.project(CachePhase::Live, Some(&cache), &request);
+    assert_eq!(after.rows[0].access, crate::ProControlAccess::Denied);
+    assert!(matches!(
+        store.prepare(
+            after.rows[0].token,
+            after.rows[0].generation,
+            0,
+            DeviceIntent::Power(Power::On)
+        ),
+        Err(Refusal::ReadOnly)
+    ));
+    assert!(
+        store
+            .prepare(
+                before.rows[0].token,
+                before.rows[0].generation,
+                0,
+                DeviceIntent::Power(Power::On)
+            )
+            .is_err()
+    );
+}

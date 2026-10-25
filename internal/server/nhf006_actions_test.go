@@ -314,6 +314,7 @@ func TestNHF006ActionServer(t *testing.T) {
 		defer calls.mu.Unlock()
 		result := map[string]any{"server_joined": started == joined, "servers_started": started, "servers_joined": joined, "fake_driver_calls": driver.count.Load(), "command_driver_entries": entries, "submit_ids": calls.submit, "get_ids": calls.get, "watch_ids": calls.watch, "lost_responses": calls.lost.Load(), "refusal_faults": calls.refusalFaults.Load(), "scenario": scenario, "native_login_calls": calls.logins.Load(), "native_open_views": calls.views.Load(), "native_revokes": calls.revokes.Load(), "entity_count": len(devices)}
 		if dashboard != nil {
+			result["dashboard_list_calls"] = dashboard.lists.Load()
 			result["dashboard_get_calls"] = dashboard.gets.Load()
 			result["dashboard_watch_calls"] = dashboard.watches.Load()
 		}
@@ -395,6 +396,7 @@ func TestNHF006ActionServer(t *testing.T) {
 	base := "https://" + address
 	tokens := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, base), login, password)
 	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
+	dashboardRead := true
 	setPolicy := func(write bool) {
 		t.Helper()
 		current, err := policies.GetPolicy(ctx, nha141BearerRequest(&auth.GetPolicyRequest{AccountId: account}, tokens.AccessToken))
@@ -409,7 +411,7 @@ func TestNHF006ActionServer(t *testing.T) {
 		for _, permission := range permissions {
 			policy += fmt.Sprintf("  - scope: {family: %s, operation: %s}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n", permission.family, permission.operation)
 		}
-		if dashboard != nil {
+		if dashboard != nil && dashboardRead {
 			policy += "  - scope: {family: dashboards, operation: read}\n    objects: {dashboards: {own: {}}}\n"
 		}
 		if _, err := policies.ReplacePolicy(ctx, nha141BearerRequest(&auth.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(policy), Precondition: &auth.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, tokens.AccessToken)); err != nil {
@@ -474,6 +476,12 @@ func TestNHF006ActionServer(t *testing.T) {
 				calls.network.cut()
 			case nhf006Restore:
 				calls.network.outage.Store(false)
+			case nhf007DenyDashboards:
+				dashboardRead = false
+				setPolicy(true)
+			case nhf007AllowDashboards:
+				dashboardRead = true
+				setPolicy(true)
 			case nhf006DenyWrite:
 				setPolicy(false)
 			case nhf006AllowWrite:

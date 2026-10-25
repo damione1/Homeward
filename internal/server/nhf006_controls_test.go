@@ -19,15 +19,17 @@ import (
 type nhf006ControlAction string
 
 const (
-	nhf006Cut            nhf006ControlAction = "outage"
-	nhf006Restore        nhf006ControlAction = "restore"
-	nhf006DenyWrite      nhf006ControlAction = "deny-write"
-	nhf006AllowWrite     nhf006ControlAction = "allow-write"
-	nhf006WithdrawLight  nhf006ControlAction = "withdraw-light"
-	nhf006WithdrawSwitch nhf006ControlAction = "withdraw-switch"
-	nhf006Rediscover     nhf006ControlAction = "rediscover"
-	nhf006Confirm        nhf006ControlAction = "confirm-last"
-	nhf006Restart        nhf006ControlAction = "restart"
+	nhf006Cut             nhf006ControlAction = "outage"
+	nhf006Restore         nhf006ControlAction = "restore"
+	nhf006DenyWrite       nhf006ControlAction = "deny-write"
+	nhf006AllowWrite      nhf006ControlAction = "allow-write"
+	nhf006WithdrawLight   nhf006ControlAction = "withdraw-light"
+	nhf006WithdrawSwitch  nhf006ControlAction = "withdraw-switch"
+	nhf006Rediscover      nhf006ControlAction = "rediscover"
+	nhf006Confirm         nhf006ControlAction = "confirm-last"
+	nhf006Restart         nhf006ControlAction = "restart"
+	nhf007DenyDashboards  nhf006ControlAction = "deny-dashboards"
+	nhf007AllowDashboards nhf006ControlAction = "allow-dashboards"
 )
 
 func (a *nhf006ControlAction) UnmarshalJSON(raw []byte) error {
@@ -37,7 +39,7 @@ func (a *nhf006ControlAction) UnmarshalJSON(raw []byte) error {
 	}
 	value := nhf006ControlAction(input)
 	switch value {
-	case nhf006Cut, nhf006Restore, nhf006DenyWrite, nhf006AllowWrite, nhf006WithdrawLight, nhf006WithdrawSwitch, nhf006Rediscover, nhf006Confirm, nhf006Restart:
+	case nhf006Cut, nhf006Restore, nhf006DenyWrite, nhf006AllowWrite, nhf006WithdrawLight, nhf006WithdrawSwitch, nhf006Rediscover, nhf006Confirm, nhf006Restart, nhf007DenyDashboards, nhf007AllowDashboards:
 		*a = value
 		return nil
 	default:

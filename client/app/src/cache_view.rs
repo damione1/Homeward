@@ -1,5 +1,6 @@
 //! Product projection: private identities/cursors stay in the Rust cache. Slint
-//! receives at most 64 human-readable rows and scalar virtual-list positions.
+//! keeps the inventory virtualized at 64 rows. Configured dashboard forests
+//! are separately bounded by their negotiated profile.
 use crate::{
     HomewardWindow, IconKind, ProObservationRow, ProRoomRow, TableRow,
     dashboard::{self, Icon, Layout, ProjectionRequest},
@@ -28,6 +29,7 @@ pub(crate) struct CacheProjection {
     rows: Vec<Row>,
     home: HomeProjection,
     devices: crate::device_view::DeviceProjection,
+    board: crate::dashboard_presentation::Board,
 }
 
 struct Observation {
@@ -205,8 +207,11 @@ pub(crate) fn project_devices(
                 date,
             ]
         });
+    let devices = devices.project(phase, view, request);
+    let board = crate::dashboard_presentation::Board::project(layout, request, &devices);
     CacheProjection {
-        devices: devices.project(phase, view, request),
+        devices,
+        board,
         revision: request.revision,
         phase,
         total,
@@ -465,6 +470,8 @@ pub(crate) struct CacheRows {
     rooms: std::rc::Rc<slint::VecModel<ProRoomRow>>,
     observations: std::rc::Rc<slint::VecModel<ProObservationRow>>,
     devices: std::rc::Rc<slint::VecModel<crate::ProDeviceRow>>,
+    home_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
+    room_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
 }
 fn table_row(row: &Row, _offline: bool) -> TableRow {
     TableRow {
@@ -569,6 +576,8 @@ impl CacheRows {
         self.rooms.set_vec(Vec::new());
         self.observations.set_vec(Vec::new());
         self.devices.set_vec(Vec::new());
+        self.home_layout_nodes.set_vec(Vec::new());
+        self.room_layout_nodes.set_vec(Vec::new());
     }
     pub(crate) fn resolve(&self, token: i32, generation: i32, revision: i32) -> Option<EntityId> {
         if generation != self.serial.get() || self.state.borrow().revision != revision {
@@ -627,6 +636,9 @@ pub(crate) fn bind(window: &HomewardWindow) {
     window.set_home_rooms(ModelRc::from(model.rooms.clone()));
     window.set_home_observations(ModelRc::from(model.observations.clone()));
     window.set_device_cards(ModelRc::from(model.devices.clone()));
+    window.set_home_layout_nodes(ModelRc::from(model.home_layout_nodes.clone()));
+    window.set_room_layout_nodes(ModelRc::from(model.room_layout_nodes.clone()));
+    crate::dashboard_presentation::bind(window);
     window.set_cache_rows(ModelRc::from(model));
 }
 impl Model for CacheRows {
@@ -667,6 +679,9 @@ impl Model for CacheRows {
 pub(crate) fn clear(window: &HomewardWindow) {
     clear_state(window, true);
 }
+pub(crate) fn clear_for_layout(window: &HomewardWindow) {
+    clear_state(window, false);
+}
 fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_view_loaded(false);
     window.set_commands_ready(false);
@@ -682,11 +697,16 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
         window.set_home_generation(model.home_serial.get());
     } else {
         window.set_device_cards(Default::default());
+        window.set_home_layout_nodes(Default::default());
+        window.set_room_layout_nodes(Default::default());
     }
     window.set_detail_title("".into());
     window.set_detail_value("".into());
     window.set_detail_quality("".into());
     window.set_detail_date("".into());
+    if forget_dashboard {
+        window.invoke_dashboard_catalogue_cleared();
+    }
     window.invoke_private_view_cleared(forget_dashboard);
     window.set_cache_active_index(-1);
     window.set_read_status("".into());
@@ -783,6 +803,19 @@ pub(crate) fn render(
     let model = window.get_cache_rows();
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
         window.set_commands_ready(projection.devices.ready);
+        match projection.board.target() {
+            crate::dashboard_presentation::BoardTarget::Clear => {
+                sync(&model.home_layout_nodes, Vec::new());
+                sync(&model.room_layout_nodes, Vec::new());
+            }
+            crate::dashboard_presentation::BoardTarget::Retain => {}
+            crate::dashboard_presentation::BoardTarget::Home => {
+                sync(&model.home_layout_nodes, projection.board.rows())
+            }
+            crate::dashboard_presentation::BoardTarget::Room => {
+                sync(&model.room_layout_nodes, projection.board.rows())
+            }
+        }
         sync(&model.devices, std::mem::take(&mut projection.devices.rows));
         model.apply(generation, projection);
         window.set_cache_generation(model.serial.get());
@@ -1452,5 +1485,141 @@ mod tests {
             helper_text(&helpers::HelperValue::default()),
             "Valeur absente"
         );
+    }
+    #[test]
+    fn native_layout_models_survive_switching_and_private_clear_without_losing_their_binding() {
+        use home_wire_contract::home::dashboard::v1 as wire;
+        use slint::ComponentHandle;
+        i_slint_backend_testing::init_no_event_loop();
+        let window = HomewardWindow::new().unwrap();
+        window.set_show_endpoint(false);
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        let node =
+            |id: &str, kind: wire::LayoutKind, children: &[&str], title: &str| wire::LayoutNode {
+                id: id.into(),
+                kind: kind.into(),
+                title: title.into(),
+                children: children.iter().map(|id| (*id).into()).collect(),
+                source: wire::LayoutSource {
+                    file: "synthetic.yaml".into(),
+                    path: id.into(),
+                    variant: "synthetic".into(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            };
+        let mut layout = dashboard::fixture();
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/overview.json")).unwrap();
+        let mut room_node = node("room", wire::LayoutKind::View, &["room-section"], "Room");
+        room_node.route = fixture["rooms"][0]["id"].as_str().unwrap().into();
+        layout.native = Some(
+            crate::dashboard_layout::NativeLayout::try_from(&wire::NativeLayout {
+                version: 1,
+                views: vec!["view".into(), "room".into()],
+                nodes: vec![
+                    node("view", wire::LayoutKind::View, &["section"], "Home"),
+                    node(
+                        "section",
+                        wire::LayoutKind::Section,
+                        &["heading", "unknown"],
+                        "",
+                    ),
+                    node("heading", wire::LayoutKind::Heading, &[], "Server heading"),
+                    node(
+                        "unknown",
+                        wire::LayoutKind::Unsupported,
+                        &[],
+                        "Unknown custom card",
+                    ),
+                    room_node,
+                    node(
+                        "room-section",
+                        wire::LayoutKind::Section,
+                        &["room-heading"],
+                        "",
+                    ),
+                    node(
+                        "room-heading",
+                        wire::LayoutKind::Heading,
+                        &[],
+                        "Room heading",
+                    ),
+                ],
+                ..Default::default()
+            })
+            .unwrap(),
+        );
+        let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest {
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone())),
+            ..Default::default()
+        }));
+        bind(&window);
+        crate::navigation::bind(&window, request.clone(), || {});
+        let generation = ProjectionMailbox::<()>::new().generation();
+        let cache = home_view();
+        render(
+            &window,
+            generation,
+            project_request(
+                CachePhase::Live,
+                Some(&cache),
+                Viewport::default(),
+                &request.lock().unwrap(),
+            ),
+        );
+        window.show().unwrap();
+        let model = window.get_home_layout_nodes();
+        assert_eq!(model.row_count(), 4);
+        assert_eq!(model.row_data(1).unwrap().title, "");
+        assert_eq!(model.row_data(2).unwrap().title, "Server heading");
+        assert_eq!(
+            model.row_data(3).unwrap().kind,
+            crate::ProLayoutKind::Diagnostic
+        );
+        request.lock().unwrap().room = Some(layout.rooms[0].id.clone());
+        render(
+            &window,
+            generation,
+            project_request(
+                CachePhase::Live,
+                Some(&cache),
+                Viewport::default(),
+                &request.lock().unwrap(),
+            ),
+        );
+        assert_eq!(window.get_room_layout_nodes().row_count(), 3);
+        assert_eq!(
+            model.row_count(),
+            4,
+            "a room publication must preserve the hidden home content and its scroll extent"
+        );
+        assert_eq!(model.row_data(2).unwrap().title, "Server heading");
+        request.lock().unwrap().room = None;
+        clear_for_layout(&window);
+        assert_eq!(window.get_home_layout_nodes().row_count(), 0);
+        assert_eq!(window.get_room_layout_nodes().row_count(), 0);
+        assert!(
+            std::ptr::eq(model.as_any(), window.get_home_layout_nodes().as_any()),
+            "selection must clear rows, not replace the persistent model"
+        );
+        layout.title = "Second server dashboard".into();
+        request.lock().unwrap().dashboard =
+            dashboard::LayoutState::Ready(std::sync::Arc::new(layout));
+        render(
+            &window,
+            generation,
+            project_request(
+                CachePhase::Live,
+                Some(&cache),
+                Viewport::default(),
+                &request.lock().unwrap(),
+            ),
+        );
+        assert_eq!(window.get_home_layout_nodes().row_count(), 4);
+        assert_eq!(window.get_dashboard_title(), "Second server dashboard");
+        clear(&window);
+        assert_eq!(model.row_count(), 0);
     }
 }

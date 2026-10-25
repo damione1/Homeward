@@ -33,6 +33,7 @@ import (
 type nhf005Dashboard struct {
 	dashboardv1connect.UnimplementedDashboardServiceHandler
 	file                 string
+	catalogue            *nhf007Catalogue
 	authority            *authorization.Authority
 	activation           *configactivation.Owner
 	mu                   sync.Mutex
@@ -160,6 +161,9 @@ func (h *nhf005Dashboard) capture(ctx context.Context) (*dashboardv1.Dashboard, 
 }
 func (h *nhf005Dashboard) ListDashboards(ctx context.Context, _ *connect.Request[dashboardv1.ListDashboardsRequest]) (*connect.Response[dashboardv1.ListDashboardsResponse], error) {
 	h.lists.Add(1)
+	if h.catalogue != nil {
+		return h.listCatalogue(ctx)
+	}
 	permit, err := h.permit(ctx)
 	if err != nil {
 		return nil, err
@@ -176,6 +180,9 @@ func (h *nhf005Dashboard) ListDashboards(ctx context.Context, _ *connect.Request
 }
 func (h *nhf005Dashboard) GetDashboard(ctx context.Context, request *connect.Request[dashboardv1.GetDashboardRequest]) (*connect.Response[dashboardv1.GetDashboardResponse], error) {
 	h.gets.Add(1)
+	if h.catalogue != nil {
+		return h.getCatalogue(ctx, request.Msg)
+	}
 	permit, err := h.permit(ctx)
 	if err != nil {
 		return nil, err
@@ -195,6 +202,9 @@ func (h *nhf005Dashboard) GetDashboard(ctx context.Context, request *connect.Req
 }
 func (h *nhf005Dashboard) WatchDashboards(ctx context.Context, request *connect.Request[dashboardv1.WatchDashboardsRequest], stream *connect.ServerStream[dashboardv1.WatchDashboardsResponse]) error {
 	h.watches.Add(1)
+	if h.catalogue != nil {
+		return h.watchCatalogue(ctx, request.Msg, stream)
+	}
 	permit, err := h.permit(ctx)
 	if err != nil {
 		return err
@@ -251,6 +261,13 @@ func (h *nhf005Dashboard) register(plan *PublicPlan) error {
 }
 func nhf005DashboardFixture() (*nhf005Dashboard, error) {
 	file := os.Getenv("HOMEWARD_NHF005_DASHBOARD")
+	catalogue := os.Getenv("HOMEWARD_NHF007_CATALOGUE")
+	if catalogue != "" {
+		if file != "" || !filepath.IsAbs(catalogue) {
+			return nil, errors.New("synthetic dashboard catalogue must be absolute and exclusive")
+		}
+		return &nhf005Dashboard{catalogue: &nhf007Catalogue{file: catalogue, versions: make(map[string]nhf007Version)}}, nil
+	}
 	if file == "" {
 		return nil, nil
 	}

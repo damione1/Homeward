@@ -47,7 +47,7 @@ func descendants(_ root: AXUIElement) -> [AXUIElement] {
 func action(_ window: AXUIElement, _ label: String) -> AXUIElement? {
     descendants(window).first { item in
         let role = attribute(item, kAXRoleAttribute as CFString) as? String ?? ""
-        return ["AXButton", "AXRow", "AXCell", "AXMenuItem", "AXRadioButton", "AXTextField", "AXStaticText"].contains(role)
+        return ["AXButton", "AXPopUpButton", "AXComboBox", "AXRow", "AXCell", "AXMenuItem", "AXRadioButton", "AXTextField", "AXStaticText"].contains(role)
             && [kAXTitleAttribute, kAXDescriptionAttribute].contains { attribute(item, $0 as CFString) as? String == label }
     }
 }

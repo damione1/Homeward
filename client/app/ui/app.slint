@@ -1,10 +1,11 @@
-import { KitButton, KitTheme, KitThemes, KitCard, KitCardHeader, KitUrlField,
+import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitUrlField,
     KitTextArea, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth,
     KitDataTable, TableRow, DataSortDirection, DataAlignment, NavigationStep,
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest, IconKind } from "@kit/kit.slint";
-import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent } from "@kit-pro/kit-pro.slint";
+import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell } from "@kit-pro/kit-pro.slint";
 import { HomewardSkin } from "skin.slint";
 import { HomewardDevices } from "device-cards.slint";
+import { HomewardDashboard } from "native-dashboard.slint";
 
 export enum ViewPage { home, rooms, inventory, room, detail, settings }
 export enum RoomView { cards, list }
@@ -59,6 +60,15 @@ export component HomewardWindow inherits Window {
     in property <string> dashboard-title: "Accueil";
     in property <string> dashboard-status;
     in property <bool> dashboard-synthetic;
+    in property <[OptionRow]> dashboard-choices;
+    in property <SelectState> dashboard-choice-state;
+    callback dashboard-catalogue-changed();
+    callback dashboard-catalogue-cleared();
+    callback dashboard-choice-open();
+    callback dashboard-choice-activate(int,int);
+    callback dashboard-choice-step(NavigationStep);
+    callback dashboard-choice-dismiss(CloseReason);
+    callback dashboard-choice-typeahead(string);
     in property <string> local-clock;
     in property <string> local-date;
     in property <[OptionRow]> navigation-rows;
@@ -68,6 +78,9 @@ export component HomewardWindow inherits Window {
     in property <[ProRoomRow]> home-rooms;
     in property <[ProObservationRow]> home-observations;
     in property <[ProDeviceRow]> device-cards;
+    in property <[ProLayoutNode]> home-layout-nodes;
+    in property <[ProLayoutNode]> room-layout-nodes;
+    pure callback layout-arrange([ProLayoutInput],int,int) -> [ProLayoutCell];
     in property <bool> commands-ready;
     in property <string> action-feedback;
     in-out property <RoomView> room-view: RoomView.cards;
@@ -224,10 +237,30 @@ export component HomewardWindow inherits Window {
                         theme: root.theme; control-size: comfortable; control-width: ControlWidth.fill; disabled: root.busy;
                         text: "Afficher ma maison"; busy: root.busy; activated => { root.read-protected(); } }
                 }
+                if root.dashboard-choices.length > 1: KitSelect {
+                    theme: root.theme; rows: root.dashboard-choices; state: root.dashboard-choice-state;
+                    placeholder: "Choisir un dashboard"; control-size: comfortable;
+                    disabled: !root.connected;
+                    open-requested => { root.dashboard-choice-open(); }
+                    activate(token,generation) => { root.dashboard-choice-activate(token,generation); }
+                    navigate(step) => { root.dashboard-choice-step(step); }
+                    dismiss(reason) => { root.dashboard-choice-dismiss(reason); }
+                    typeahead(text) => { root.dashboard-choice-typeahead(text); }
+                }
                 if root.dashboard-synthetic: KitAlert { theme: root.theme; title: "Serveur de test"; message: "Données synthétiques · aucun appareil réel"; severity: information; }
                 if root.dashboard-status != "": KitAlert { theme: root.theme; title: "Dashboard"; message: root.dashboard-status; severity: information; }
-                if root.device-cards.length > 0: Text { text: "En un regard"; color: root.theme.text-primary; font-size: 20px * root.theme.text-scale; font-weight: 600; }
-                if root.device-cards.length > 0: HomewardDevices {
+                if root.home-layout-nodes.length > 0: HomewardDashboard {
+                    theme: root.theme; viewport-width: viewport.width;
+                    nodes: root.home-layout-nodes; node-index: 0;
+                    interactive: root.connected && root.page == ViewPage.home; commands-enabled: root.commands-ready;
+                    arrange(inputs,columns,base) => { return root.layout-arrange(inputs,columns,base); }
+                    power(token,generation,intent) => { root.device-power(token,generation,intent); }
+                    brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
+                    stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
+                    details(token,generation) => { root.device-details(token,generation); }
+                }
+                if root.home-layout-nodes.length == 0 && root.device-cards.length > 0: Text { text: "En un regard"; color: root.theme.text-primary; font-size: 20px * root.theme.text-scale; font-weight: 600; }
+                if root.home-layout-nodes.length == 0 && root.device-cards.length > 0: HomewardDevices {
                     theme: root.theme; viewport-width: viewport.width; devices: root.device-cards;
                     interactive: root.connected && root.page == ViewPage.home; commands-ready: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
@@ -239,7 +272,7 @@ export component HomewardWindow inherits Window {
                 ProHomeOverview {
                     theme: root.theme; viewport-width: viewport.width; spacing: 12px;
                     observations-title: root.device-cards.length == 0 ? "En un regard" : "Autres observations"; rooms-title: "Vos pièces";
-                    observations: root.home-observations;
+                    observations: root.home-layout-nodes.length > 0 ? [] : root.home-observations;
                     rooms: root.home-rooms;
                     interactive: root.connected && root.page == ViewPage.home;
                     focus-request: root.home-focus;
@@ -267,9 +300,19 @@ export component HomewardWindow inherits Window {
                 visible: root.page == ViewPage.room && root.room-view == RoomView.cards;
                 room-back := KitButton { theme: root.theme; text: "Retour"; control-size: comfortable; activated => { root.go-back(); } }
                 Text { text: "Commandes et observations autorisées"; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
-                if root.device-cards.length == 0: Text { text: "Aucune carte disponible pour les fonctions de cette pièce. La liste complète reste accessible."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
+                if root.room-layout-nodes.length == 0 && root.device-cards.length == 0: Text { text: "Aucune carte disponible pour les fonctions de cette pièce. La liste complète reste accessible."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
                 if root.action-feedback != "": KitAlert { theme: root.theme; title: "Commande"; message: root.action-feedback; severity: information; }
-                HomewardDevices {
+                if root.room-layout-nodes.length > 0: HomewardDashboard {
+                    theme: root.theme; viewport-width: viewport.width;
+                    nodes: root.room-layout-nodes; node-index: 0;
+                    interactive: root.connected && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-enabled: root.commands-ready;
+                    arrange(inputs,columns,base) => { return root.layout-arrange(inputs,columns,base); }
+                    power(token,generation,intent) => { root.device-power(token,generation,intent); }
+                    brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
+                    stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
+                    details(token,generation) => { root.device-details(token,generation); }
+                }
+                if root.room-layout-nodes.length == 0: HomewardDevices {
                     theme: root.theme; viewport-width: viewport.width; devices: root.device-cards;
                     interactive: root.connected && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-ready: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }

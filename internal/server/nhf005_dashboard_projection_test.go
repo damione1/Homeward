@@ -26,10 +26,13 @@ func projectDashboardOverview(definition imported.Definition, stamp view.ConfigS
 	result := &dashboardv1.NativeOverview{Version: 1, ConfigRevision: revision,
 		ConfigSha256: append([]byte(nil), hash[:]...), Mode: mode, AuthorizationRevision: authorizationRevision}
 	views := definition.Views()
-	if len(views) == 0 || len(views) > 65 {
+	if len(views) > 128 {
 		return nil, ErrInvalidPublicPlan
 	}
-	result.Title = views[0].Title()
+	result.Title = "Dashboard"
+	if len(views) != 0 && views[0].Title() != "" {
+		result.Title = views[0].Title()
+	}
 	var collect func([]imported.Card, func(imported.Card, string))
 	collect = func(cards []imported.Card, visit func(imported.Card, string)) {
 		for _, card := range cards {
@@ -64,7 +67,7 @@ func projectDashboardOverview(definition imported.Definition, stamp view.ConfigS
 					room.EntityIds = append(room.EntityIds, entity)
 					seen[entity] = true
 				}
-				if index == 0 {
+				if index == 0 && len(result.Observations) < 64 {
 					title, present := card.Name()
 					if !present {
 						if alias, present := card.Entity(); present {

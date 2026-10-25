@@ -10,6 +10,25 @@ pub struct DashboardTransport {
     pub(crate) client: service::DashboardServiceClient<HttpClient>,
 }
 impl DashboardTransport {
+    fn support() -> wire::ClientLayoutSupport {
+        wire::ClientLayoutSupport {
+            profile: "homeward-dashboard-1".into(),
+            version: 1,
+            kinds: [
+                wire::LayoutKind::View,
+                wire::LayoutKind::Section,
+                wire::LayoutKind::Grid,
+                wire::LayoutKind::HorizontalStack,
+                wire::LayoutKind::Heading,
+                wire::LayoutKind::Tile,
+                wire::LayoutKind::Unsupported,
+            ]
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+            ..Default::default()
+        }
+    }
     pub async fn list(
         &self,
         token: &AccessToken,
@@ -19,7 +38,7 @@ impl DashboardTransport {
         let options = StateTransport::options(token, timeout)?;
         tokio::select! { biased;
             () = cancel.cancelled() => Err(Failure::cancelled()),
-            result = self.client.list_dashboards_with_options(wire::ListDashboardsRequest::default(), options) =>
+            result = self.client.list_dashboards_with_options(wire::ListDashboardsRequest { support: Self::support().into(), ..Default::default() }, options) =>
                 result.map(|value| value.into_owned()).map_err(Failure::from),
         }
     }
@@ -32,6 +51,7 @@ impl DashboardTransport {
     ) -> Result<wire::GetDashboardResponse, Failure> {
         let options = StateTransport::options(token, timeout)?;
         let request = wire::GetDashboardRequest {
+            support: Self::support().into(),
             id: wire::DashboardId {
                 value: id,
                 ..Default::default()
