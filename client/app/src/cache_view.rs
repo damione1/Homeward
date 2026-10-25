@@ -324,8 +324,11 @@ pub(crate) fn value_text(observation: &state::ObservedState) -> String {
             if let Some(brightness) = value.brightness_percent {
                 parts.push(format!("{} %", number(brightness)));
             }
-            if let Some(mireds) = value.color_temp_mireds {
-                parts.push(format!("{mireds} mired"));
+            if let Some(value) = value
+                .color_temp_mireds
+                .and_then(crate::device_view::color_temperature_text)
+            {
+                parts.push(value);
             }
             if parts.is_empty() {
                 "Valeur absente".into()
@@ -809,14 +812,23 @@ pub(crate) fn render(
                 sync(&model.room_layout_nodes, Vec::new());
             }
             crate::dashboard_presentation::BoardTarget::Retain => {}
-            crate::dashboard_presentation::BoardTarget::Home => {
-                sync(&model.home_layout_nodes, projection.board.rows())
-            }
-            crate::dashboard_presentation::BoardTarget::Room => {
-                sync(&model.room_layout_nodes, projection.board.rows())
-            }
+            crate::dashboard_presentation::BoardTarget::Home => sync(
+                &model.home_layout_nodes,
+                projection.board.rows(&model.home_layout_nodes),
+            ),
+            crate::dashboard_presentation::BoardTarget::Room => sync(
+                &model.room_layout_nodes,
+                projection.board.rows(&model.room_layout_nodes),
+            ),
         }
-        sync(&model.devices, std::mem::take(&mut projection.devices.rows));
+        sync(
+            &model.devices,
+            std::mem::take(&mut projection.devices.rows)
+                .iter()
+                .enumerate()
+                .map(|(index, row)| row.ui(model.devices.row_data(index).as_ref()))
+                .collect(),
+        );
         model.apply(generation, projection);
         window.set_cache_generation(model.serial.get());
         window.set_home_generation(model.home_serial.get());
@@ -1401,6 +1413,23 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(value_text(&observation), "Éteint");
+        observation.value = Some(Value::Light(Box::new(state::LightValue {
+            on: Some(false),
+            color_temp_mireds: Some(334),
+            ..Default::default()
+        })));
+        assert_eq!(
+            value_text(&observation),
+            "Éteint · ≈ 2994.012 K · 334 mireds"
+        );
+        for color_temp_mireds in [None, Some(0), Some(1001)] {
+            observation.value = Some(Value::Light(Box::new(state::LightValue {
+                color_temp_mireds,
+                ..Default::default()
+            })));
+            assert_eq!(value_text(&observation), "Valeur absente");
+        }
+        observation.value = Some(Value::SwitchOn(false));
         let mut extended = observation.encode_to_vec();
         extended.extend_from_slice(&[0x9a, 0x06, 0x02, 0x08, 0x01]);
         let extended = state::ObservedState::decode_from_slice(&extended).unwrap();

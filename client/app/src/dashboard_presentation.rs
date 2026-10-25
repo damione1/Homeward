@@ -8,13 +8,13 @@ use crate::{
     dashboard_layout::{Dimension, HeadingStyle, Kind, Node},
     device_view::DeviceProjection,
 };
-use slint::ModelRc;
+use slint::{Model, ModelRc};
 use std::collections::BTreeMap;
 
 pub(crate) struct BoardNode {
     data: Node,
     children: Vec<usize>,
-    device: Option<crate::ProDeviceRow>,
+    device: Option<crate::device_view::presentation::CardRow>,
     square: bool,
 }
 #[derive(Clone, Copy, Default)]
@@ -95,10 +95,11 @@ impl Board {
     pub fn target(&self) -> BoardTarget {
         self.target
     }
-    pub fn rows(&self) -> Vec<ProLayoutNode> {
+    pub fn rows(&self, previous: &slint::VecModel<ProLayoutNode>) -> Vec<ProLayoutNode> {
         self.nodes
             .iter()
-            .map(|node| {
+            .enumerate()
+            .map(|(index, node)| {
                 let data = &node.data;
                 let kind = match data.kind {
                     Kind::View | Kind::Section | Kind::Grid | Kind::HorizontalStack => {
@@ -191,7 +192,7 @@ impl Board {
                     vertical: data.vertical.unwrap_or(false),
                     hide_state: data.hide_state.unwrap_or(false),
                     children: ModelRc::from(children.as_slice()),
-                    device,
+                    device: device.ui(previous.row_data(index).as_ref().map(|node| &node.device)),
                     ..Default::default()
                 }
             })

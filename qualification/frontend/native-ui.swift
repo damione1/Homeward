@@ -14,6 +14,9 @@ enum NativeKey: String, Decodable {
     case tab, backtab, up, down, home, end, enter, escape, space
     case letterK = "letter-k", letterI = "letter-i", letterT = "letter-t", letterC = "letter-c"
     case letterH = "letter-h", letterE = "letter-e", letterN = "letter-n"
+    case digit0 = "digit-0", digit1 = "digit-1", digit2 = "digit-2", digit5 = "digit-5"
+    case digit3 = "digit-3", digit4 = "digit-4", digit6 = "digit-6", digit7 = "digit-7", digit8 = "digit-8", digit9 = "digit-9"
+    case minus, period, colon, civilSeparator = "civil-separator", selectAll = "select-all"
 }
 struct Input: Decodable {
     let command: Command; let pid: Int32; let x: Double?; let y: Double?
@@ -99,10 +102,69 @@ func sendKey(_ pid: Int32, _ key: NativeKey) throws {
     case .letterH: code = 4; flags = []
     case .letterE: code = 14; flags = []
     case .letterN: code = 45; flags = []
+    case .digit0: code = 29; flags = []
+    case .digit1: code = 18; flags = []
+    case .digit2: code = 19; flags = []
+    case .digit3: code = 20; flags = []
+    case .digit4: code = 21; flags = []
+    case .digit5: code = 23; flags = []
+    case .digit6: code = 22; flags = []
+    case .digit7: code = 26; flags = []
+    case .digit8: code = 28; flags = []
+    case .digit9: code = 25; flags = []
+    case .minus: code = 27; flags = []
+    case .period: code = 47; flags = []
+    case .colon: code = 41; flags = .maskShift
+    case .civilSeparator: code = 17; flags = .maskShift
+    case .selectAll: code = 0; flags = .maskCommand
+    }
+    // Synthetic numeric fixtures must type the same characters independently
+    // of the user's active keyboard layout. They still travel as native key
+    // events through the editor; no AX value injection or editor read is used.
+    let fixtureText: String?
+    switch key {
+    case .digit0: fixtureText = "0"
+    case .digit1: fixtureText = "1"
+    case .digit2: fixtureText = "2"
+    case .digit3: fixtureText = "3"
+    case .digit4: fixtureText = "4"
+    case .digit5: fixtureText = "5"
+    case .digit6: fixtureText = "6"
+    case .digit7: fixtureText = "7"
+    case .digit8: fixtureText = "8"
+    case .digit9: fixtureText = "9"
+    case .minus: fixtureText = "-"
+    case .period: fixtureText = "."
+    case .colon: fixtureText = ":"
+    case .civilSeparator: fixtureText = "T"
+    case .selectAll: fixtureText = "a"
+    case .tab, .backtab, .up, .down, .home, .end, .enter, .escape, .space,
+         .letterK, .letterI, .letterT, .letterC, .letterH, .letterE, .letterN:
+        fixtureText = nil
+    }
+    // Winit tracks modifier transitions separately from text key events. A
+    // flag on the A event alone does not reproduce pressing Command+A.
+    let modifier: CGKeyCode? = flags.contains(.maskCommand) ? 55 : flags.contains(.maskShift) ? 56 : nil
+    if let modifier = modifier {
+        guard let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: modifier, keyDown: true) else { throw ProbeFailure.invalidInput }
+        event.flags = flags; event.postToPid(pid)
+        Thread.sleep(forTimeInterval: 0.06)
     }
     for down in [true, false] {
         guard let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: code, keyDown: down) else { throw ProbeFailure.invalidInput }
-        event.flags = flags; event.postToPid(pid)
+        event.flags = flags
+        if let text = fixtureText {
+            let units = Array(text.utf16)
+            units.withUnsafeBufferPointer { buffer in
+                event.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: buffer.baseAddress!)
+            }
+        }
+        event.postToPid(pid)
+        Thread.sleep(forTimeInterval: 0.06)
+    }
+    if let modifier = modifier {
+        guard let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: modifier, keyDown: false) else { throw ProbeFailure.invalidInput }
+        event.flags = []; event.postToPid(pid)
         Thread.sleep(forTimeInterval: 0.06)
     }
 }

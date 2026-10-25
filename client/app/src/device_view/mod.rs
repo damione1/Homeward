@@ -1,9 +1,16 @@
 //! Exact server-selected cards, command admission and bounded local action
 //! history. UI tokens are ephemeral; identities/permissions never come from UI.
 mod capability;
+mod climate;
+mod helper;
+mod light;
+mod number;
+mod panel;
+pub(crate) mod presentation;
 mod progress;
+mod selection;
 use crate::{
-    IconKind, ProControlAccess, ProDeviceKind, ProDeviceRow,
+    IconKind, ProControlAccess, ProDeviceKind,
     cache_view::{bounded, quality_text, value_text},
     dashboard::{Layout, ProjectionRequest},
 };
@@ -14,8 +21,9 @@ use home_client_model::EntityId;
 use home_wire_contract::home::{
     actions::v1 as actions, registry::v1 as registry, state::v1 as state,
 };
+use presentation::CardRow;
 use std::{
-    collections::{BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     sync::{Arc, Mutex},
 };
 
@@ -23,17 +31,21 @@ const MAX_CARDS: usize = 2048;
 const MAX_ACTION_HISTORY: usize = 64;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct CardToken(i32);
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct CardGeneration(i32);
 #[derive(Clone, Copy)]
 pub(crate) enum Power {
     On,
     Off,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) enum DeviceIntent {
     Power(Power),
     Brightness(f64),
+    ColorTemperature(light::Mireds),
+    Climate(climate::ClimateIntent),
+    FanSpeed(state::FanSpeed),
+    Helper(helper::HelperIntent),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Refusal {
@@ -62,10 +74,21 @@ impl Refusal {
 }
 #[derive(Clone, PartialEq)]
 struct Slot {
+    generation: CardGeneration,
     target: ActionTarget,
     capability: registry::CapabilityDescription,
     access: WriteAccess,
     control: Control,
+    helper_revision: Option<helper::HelperRevision>,
+}
+impl Slot {
+    fn same_admission(&self, other: &Self) -> bool {
+        self.target == other.target
+            && self.capability == other.capability
+            && self.access == other.access
+            && self.control == other.control
+            && self.helper_revision == other.helper_revision
+    }
 }
 #[derive(Clone, PartialEq)]
 struct Context {
@@ -78,16 +101,29 @@ struct Context {
     slots: Vec<Slot>,
     live: bool,
 }
+impl Context {
+    fn same_view(&self, other: &Self) -> bool {
+        self.revision == other.revision
+            && self.layout == other.layout
+            && self.epoch == other.epoch
+            && self.config_revision == other.config_revision
+            && self.authorization_revision == other.authorization_revision
+            && self.grant_hash == other.grant_hash
+            && self.live == other.live
+    }
+}
 struct State {
     serial: CardGeneration,
     context: Option<Context>,
     actions: VecDeque<(ActionTarget, ActionHandle)>,
+    drafts: BTreeMap<(CardGeneration, i32), panel::Draft>,
+    selections: BTreeMap<CardGeneration, selection::Selection>,
 }
 #[derive(Clone)]
 pub(crate) struct DeviceStore(Arc<Mutex<State>>);
 #[derive(Default)]
 pub(crate) struct DeviceProjection {
-    pub rows: Vec<ProDeviceRow>,
+    pub rows: Vec<CardRow>,
     pub ready: bool,
     pub represented: BTreeSet<EntityId>,
     pub entities: Vec<EntityId>,
@@ -104,6 +140,8 @@ impl Default for DeviceStore {
             serial: CardGeneration(0),
             context: None,
             actions: VecDeque::new(),
+            drafts: BTreeMap::new(),
+            selections: BTreeMap::new(),
         })))
     }
 }
@@ -183,6 +221,8 @@ impl DeviceStore {
     pub fn clear_private(&self) {
         let mut state = self.0.lock().expect("device store mutex");
         state.context = None;
+        state.drafts.clear();
+        state.selections.clear();
         state.serial = CardGeneration(state.serial.0.saturating_add(1));
         for (_, handle) in state.actions.drain(..) {
             handle.stop_tracking();
@@ -205,6 +245,8 @@ impl DeviceStore {
         };
         let mut slots = Vec::new();
         let mut cards = Vec::new();
+        let mut editors = Vec::new();
+        let mut helper_selections = Vec::new();
         for (title, entity) in selection {
             for capability in &entity.capabilities {
                 if cards.len() == MAX_CARDS {
@@ -231,12 +273,50 @@ impl DeviceStore {
                     WriteAccess::Denied
                 };
                 let control = Control::parse(capability);
-                let row = card(&title, entity, control, access);
+                let helper_revision = if matches!(&control, Control::Helper(_)) {
+                    entity
+                        .state
+                        .as_option()
+                        .filter(|value| value.__buffa_unknown_fields.is_empty())
+                        .and_then(|value| match value.value.as_ref() {
+                            Some(state::observed_state::Value::Helper(value)) => {
+                                helper::HelperRevision::from_observation(value)
+                            }
+                            Some(
+                                state::observed_state::Value::SwitchOn(_)
+                                | state::observed_state::Value::Measurement(_)
+                                | state::observed_state::Value::Light(_)
+                                | state::observed_state::Value::Fan(_)
+                                | state::observed_state::Value::Climate(_)
+                                | state::observed_state::Value::Solar(_)
+                                | state::observed_state::Value::SolarEvent(_),
+                            )
+                            | None => None,
+                        })
+                } else {
+                    None
+                };
+                let mut row = card(&title, entity, &control, access);
+                if let Control::Helper(helper) = &control {
+                    row.command_unavailable = helper_revision.is_none() || !helper.available();
+                }
+                helper_selections.push(helper::observation(entity).and_then(|value|match value.value.as_ref() {
+                    Some(home_wire_contract::home::helpers::v1::helper_value::Value::SelectedOption(value)) => Some(value.clone()),
+                    Some(home_wire_contract::home::helpers::v1::helper_value::Value::Boolean(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Number(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Counter(_) | home_wire_contract::home::helpers::v1::helper_value::Value::ButtonPressedAt(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Date(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Time(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Datetime(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Text(_)) | None => None,
+                }));
+                editors.push(
+                    panel::editors(&control)
+                        .into_iter()
+                        .map(|editor| (editor, editor.initial(entity, &control)))
+                        .collect::<Vec<_>>(),
+                );
                 slots.push(Slot {
+                    generation: CardGeneration(0),
                     target,
                     capability: capability.clone(),
                     access,
                     control,
+                    helper_revision,
                 });
                 cards.push(row);
             }
@@ -244,7 +324,7 @@ impl DeviceStore {
                 break;
             }
         }
-        let context = match (view, layout) {
+        let mut context = match (view, layout) {
             (Some(view), Some(_)) => Some(Context {
                 revision: request.revision,
                 layout: request
@@ -260,24 +340,95 @@ impl DeviceStore {
             }),
             (None, Some(_)) | (Some(_), None) | (None, None) => None,
         };
-        if state.context != context {
-            let Some(next) = state.serial.0.checked_add(1) else {
-                state.context = None;
-                return DeviceProjection::default();
-            };
-            state.serial = CardGeneration(next);
-            state.context = context;
+        let same_view = match (&state.context, &context) {
+            (Some(previous), Some(current)) => previous.same_view(current),
+            (Some(_), None) | (None, Some(_)) | (None, None) => false,
+        };
+        if let Some(current) = context.as_mut() {
+            for (index, slot) in current.slots.iter_mut().enumerate() {
+                let previous = state
+                    .context
+                    .as_ref()
+                    .filter(|_| same_view)
+                    .and_then(|previous| previous.slots.get(index))
+                    .filter(|previous| previous.same_admission(slot))
+                    .map(|previous| previous.generation);
+                slot.generation = match previous {
+                    Some(generation) => generation,
+                    None => {
+                        let Some(next) = state.serial.0.checked_add(1) else {
+                            state.context = None;
+                            return DeviceProjection::default();
+                        };
+                        state.serial = CardGeneration(next);
+                        state.serial
+                    }
+                };
+            }
         }
-        let generation = state.serial.0;
+        state.context = context;
+        let generations = state
+            .context
+            .as_ref()
+            .map(|context| {
+                context
+                    .slots
+                    .iter()
+                    .map(|slot| slot.generation)
+                    .collect::<BTreeSet<_>>()
+            })
+            .unwrap_or_default();
+        state
+            .drafts
+            .retain(|(generation, _), _| generations.contains(generation));
+        state
+            .selections
+            .retain(|generation, _| generations.contains(generation));
         let ready = state.context.as_ref().is_some_and(|context| context.live);
         for (index, row) in cards.iter_mut().enumerate() {
             row.token = index as i32;
-            row.generation = generation;
-            let slot = &state
+            let slot = state
                 .context
                 .as_ref()
                 .expect("cards require coherent context")
-                .slots[index];
+                .slots[index]
+                .clone();
+            row.generation = slot.generation.0;
+            row.values = editors[index]
+                .iter()
+                .enumerate()
+                .map(|(index, (editor, initial))| {
+                    let draft = state
+                        .drafts
+                        .entry((slot.generation, index as i32))
+                        .or_insert_with(|| initial.clone());
+                    if !draft.dirty {
+                        *draft = initial.clone();
+                    }
+                    editor.row(index as i32, draft, &slot.control)
+                })
+                .collect::<Vec<_>>();
+            if let Control::Helper(helper) = &slot.control
+                && matches!(helper.kind(), helper::Kind::Select(_))
+                && !row.command_unavailable
+            {
+                if let std::collections::btree_map::Entry::Vacant(entry) =
+                    state.selections.entry(slot.generation)
+                    && let Some(selection) =
+                        selection::Selection::new(helper, helper_selections[index].clone())
+                {
+                    entry.insert(selection);
+                }
+                if let Some(selection) = state.selections.get_mut(&slot.generation) {
+                    selection.observe(helper_selections[index].clone());
+                    if let Some((options, selected)) = selection.project() {
+                        row.select_options = options;
+                        row.select_state = selected;
+                    } else {
+                        row.command_unavailable = true;
+                    }
+                }
+            }
             let snapshot = state
                 .actions
                 .iter()
@@ -320,13 +471,61 @@ impl DeviceStore {
     pub fn entity(&self, token: i32, generation: i32, revision: i32) -> Option<EntityId> {
         let state = self.0.lock().expect("device store mutex");
         let context = state.context.as_ref()?;
-        if state.serial != CardGeneration(generation) || context.revision != revision {
+        if context.revision != revision {
             return None;
         }
         context
             .slots
             .get(usize::try_from(CardToken(token).0).ok()?)
+            .filter(|slot| slot.generation == CardGeneration(generation))
             .map(|slot| slot.target.entity().clone())
+    }
+    pub fn edit(
+        &self,
+        token: i32,
+        generation: i32,
+        revision: i32,
+        field: i32,
+        intent: crate::ProValueIntent,
+    ) -> Result<Option<DeviceIntent>, Refusal> {
+        let mut state = self.0.lock().expect("device store mutex");
+        let slot = active_slot(&state, token, generation, revision)?;
+        let control = slot.control.clone();
+        let editor = usize::try_from(field)
+            .ok()
+            .and_then(|index| panel::editors(&slot.control).get(index).copied())
+            .ok_or(Refusal::Unsupported)?;
+        if matches!(&control,Control::Helper(helper) if matches!(helper.kind(),helper::Kind::Select(_)))
+        {
+            return state
+                .selections
+                .get_mut(&CardGeneration(generation))
+                .ok_or(Refusal::Unavailable)?
+                .edit(intent);
+        }
+        let draft = state
+            .drafts
+            .get_mut(&(CardGeneration(generation), field))
+            .ok_or(Refusal::Stale)?;
+        editor.edit(draft, intent, &control)
+    }
+    pub fn choose(
+        &self,
+        token: i32,
+        generation: i32,
+        revision: i32,
+        choice: i32,
+    ) -> Result<DeviceIntent, Refusal> {
+        let state = self.0.lock().expect("device store mutex");
+        let slot = active_slot(&state, token, generation, revision)?;
+        usize::try_from(choice)
+            .ok()
+            .and_then(|index| {
+                panel::choices(&slot.control)
+                    .get(index)
+                    .map(|choice| choice.intent.clone())
+            })
+            .ok_or(Refusal::Unsupported)
     }
     pub fn stop(&self, token: i32, generation: i32, revision: i32) {
         let handle = {
@@ -334,12 +533,13 @@ impl DeviceStore {
             let Some(context) = state.context.as_ref() else {
                 return;
             };
-            if state.serial != CardGeneration(generation) || context.revision != revision {
+            if context.revision != revision {
                 return;
             }
             let Some(slot) = usize::try_from(token)
                 .ok()
                 .and_then(|index| context.slots.get(index))
+                .filter(|slot| slot.generation == CardGeneration(generation))
             else {
                 return;
             };
@@ -382,20 +582,17 @@ impl DeviceStore {
         let context = state
             .context
             .as_ref()
-            .filter(|context| {
-                context.live
-                    && context.revision == revision
-                    && state.serial == CardGeneration(generation)
-            })
+            .filter(|context| context.live && context.revision == revision)
             .ok_or(Refusal::Stale)?;
         let slot = usize::try_from(token)
             .ok()
             .and_then(|index| context.slots.get(index))
+            .filter(|slot| slot.generation == CardGeneration(generation))
             .ok_or(Refusal::Stale)?;
         if slot.access != WriteAccess::Allowed {
             return Err(Refusal::ReadOnly);
         }
-        let arguments = slot.control.arguments(intent)?;
+        let arguments = slot.control.arguments(intent, slot.helper_revision)?;
         let request = actions::CommandRequest {
             expires_at: buffa_types::google::protobuf::Timestamp::from_unix_secs(
                 i64::try_from(
@@ -431,12 +628,11 @@ impl DeviceStore {
                 return false;
             };
             let state = shared.lock().expect("device store mutex");
-            state.serial == CardGeneration(generation)
-                && state.context.as_ref().is_some_and(|current| {
-                    current.live
-                        && current.revision == revision
-                        && current.slots.get(token as usize) == Some(&expected)
-                })
+            state.context.as_ref().is_some_and(|current| {
+                current.live
+                    && current.revision == revision
+                    && current.slots.get(token as usize) == Some(&expected)
+            })
         });
         Ok(Prepared {
             target,
@@ -447,16 +643,42 @@ impl DeviceStore {
     }
 }
 
+fn active_slot(
+    state: &State,
+    token: i32,
+    generation: i32,
+    revision: i32,
+) -> Result<&Slot, Refusal> {
+    let context = state
+        .context
+        .as_ref()
+        .filter(|context| context.live && context.revision == revision)
+        .ok_or(Refusal::Stale)?;
+    let slot = usize::try_from(token)
+        .ok()
+        .and_then(|index| context.slots.get(index))
+        .filter(|slot| slot.generation == CardGeneration(generation))
+        .ok_or(Refusal::Stale)?;
+    if slot.access != WriteAccess::Allowed {
+        return Err(Refusal::ReadOnly);
+    }
+    if matches!(&slot.control,Control::Helper(helper) if !helper.available() || slot.helper_revision.is_none())
+    {
+        return Err(Refusal::Unavailable);
+    }
+    Ok(slot)
+}
+
 #[cfg(test)]
 mod tests;
 
 fn card(
     title: &str,
     entity: &state::ViewEntity,
-    control: Control,
+    control: &Control,
     access: WriteAccess,
-) -> ProDeviceRow {
-    let mut row = ProDeviceRow {
+) -> CardRow {
+    let mut row = CardRow {
         title: bounded(title).into(),
         value: entity
             .state
@@ -486,7 +708,7 @@ fn card(
     match control {
         Control::Switch { power } => {
             row.kind = ProDeviceKind::Switch;
-            row.can_power = power;
+            row.can_power = *power;
             if let Some(state::observed_state::Value::SwitchOn(on)) =
                 observation.and_then(|state| state.value.as_ref())
             {
@@ -494,16 +716,18 @@ fn card(
                 row.power_on = *on;
             }
         }
-        Control::Light { power, brightness } => {
+        Control::Light {
+            power, brightness, ..
+        } => {
             row.kind = ProDeviceKind::Light;
-            row.can_power = power;
+            row.can_power = *power;
             if let Some(bounds) = brightness {
                 row.can_brightness = true;
-                row.brightness_minimum = bounds.minimum as f32;
-                row.brightness_maximum = bounds.maximum as f32;
+                row.brightness_minimum = bounds.minimum() as f32;
+                row.brightness_maximum = bounds.maximum() as f32;
                 row.brightness_step = bounds
-                    .step
-                    .unwrap_or(1_f64.min(bounds.maximum - bounds.minimum))
+                    .step()
+                    .unwrap_or(1_f64.min(bounds.maximum() - bounds.minimum()))
                     as f32;
             }
             if let Some(state::observed_state::Value::Light(value)) =
@@ -525,10 +749,49 @@ fn card(
             }
         }
         Control::Measurement => row.kind = ProDeviceKind::Measurement,
+        Control::Climate(_) => {
+            row.kind = ProDeviceKind::Climate;
+            row.value = "Climat".into();
+            row.readings = panel::readings(control, entity).into();
+        }
+        Control::Fan(fan) => {
+            row.kind = ProDeviceKind::Fan;
+            row.can_power = fan.can_power();
+            if let Some(state::observed_state::Value::Fan(value)) =
+                observation.and_then(|value| value.value.as_ref())
+                && value.__buffa_unknown_fields.is_empty()
+            {
+                match value.speed.as_known() {
+                    Some(state::FanSpeed::Off) => {
+                        row.power_known = true;
+                        row.power_on = false;
+                    }
+                    Some(
+                        state::FanSpeed::Low
+                        | state::FanSpeed::Medium
+                        | state::FanSpeed::MediumHigh
+                        | state::FanSpeed::High,
+                    ) => {
+                        row.power_known = true;
+                        row.power_on = true;
+                    }
+                    Some(state::FanSpeed::Unspecified) | None => {}
+                }
+            }
+        }
+        Control::Helper(helper) => {
+            row.kind = ProDeviceKind::Helper;
+            if !helper.available() {
+                row.quality = format!("{} · Aucune cible autorisée", row.quality).into();
+            } else if helper::observation(entity).is_none() {
+                row.quality = format!("{} · Révision du helper indisponible", row.quality).into();
+            }
+        }
         Control::Unsupported => {
             row.quality = format!("{} · Fonction non prise en charge", row.quality).into();
         }
     }
+    row.choices = panel::choice_rows(control);
     row.freshness = entity
         .state
         .as_option()
@@ -538,4 +801,8 @@ fn card(
         .unwrap_or_else(|| "Date non renseignée".into())
         .into();
     row
+}
+
+pub(crate) fn color_temperature_text(value: u32) -> Option<String> {
+    light::Mireds::from_wire(value).map(light::Mireds::observation)
 }

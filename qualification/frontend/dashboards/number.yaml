@@ -1,0 +1,9 @@
+# Separate contract fixture: input_number is absent from the frozen household.
+views:
+- type: sections
+  path: home
+  title: Nombre simulé
+  sections:
+  - type: grid
+    cards:
+    - {type: tile, name: Nombre simulé, entity: input_number.nhf008_number}

@@ -588,7 +588,20 @@ func TestNHA186RunPersistsProducerManifestAcrossReopenWithoutReplay(t *testing.T
 	second.run.waitReady(t)
 	nha042ServerProbe(t, second)
 	nha042ServerNoRoutineResumed(t, second)
-	after := nha186ReadAll(t, second.store, epoch)
+	// Join the reopened server before comparing its predecessor's pages. The
+	// real maintenance owner may otherwise advance retention between pages;
+	// rejecting that stale cursor is correct, even for recent retained rows.
+	second.run.cancel()
+	if err := second.run.waitDone(t); err != nil {
+		t.Fatal(err)
+	}
+	nha034WaitRunStoreClosed(t, second.store)
+	comparison, err := storage.Open(context.Background(), settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer comparison.Close()
+	after := nha186ReadAll(t, comparison, epoch)
 	if !reflect.DeepEqual(before, after) {
 		t.Fatal("reopen changed committed identities/content")
 	}

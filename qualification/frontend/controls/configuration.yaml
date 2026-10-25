@@ -1,0 +1,15 @@
+# Synthetic definitions for the real local helper pilot and SQL repository.
+input_boolean:
+  away_mode: {name: Booléen simulé, initial: false}
+counter:
+  bathroom_heating_used_today: {name: Compteur simulé, minimum: 0, maximum: 100, step: 2, initial: 0, restore: true}
+input_button:
+  start_bird_s_radio: {name: Bouton sans cible}
+input_text:
+  guest_bedroom_remote_last_event: {name: Texte simulé, min: 0, max: 12, initial: ''}
+input_select:
+  time_of_day: {name: Choix simulé, options: [Night, Morning, Evening], initial: Night}
+input_datetime:
+  gazon_date_de_semis: {name: Date simulée, has_date: true, has_time: false, initial: '2026-10-25'}
+  bathroom_heating_time: {name: Heure simulée, has_date: false, has_time: true, initial: '00:00:00'}
+  sdb1_occupancy_last_time: {name: Instant civil simulé, has_date: true, has_time: true, initial: '2026-10-25 00:00:00'}

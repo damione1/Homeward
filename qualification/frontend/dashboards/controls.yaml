@@ -1,0 +1,20 @@
+# Server-owned synthetic source. No client installation catalogue.
+views:
+- type: sections
+  path: home
+  title: Contrôles simulés
+  sections:
+  - type: grid
+    cards:
+    - {type: tile, name: Thermostat simulé, entity: climate.neviweb130_climate_sous_sol}
+    - {type: tile, name: HVAC simulé, entity: climate.chambre_eugenie}
+    - {type: tile, name: Ventilateur simulé, entity: fan.living_room_ceiling_fan}
+    - {type: tile, name: Couleur simulée, entity: light.basement_lights}
+    - {type: tile, name: Booléen simulé, entity: input_boolean.away_mode}
+    - {type: tile, name: Compteur simulé, entity: counter.bathroom_heating_used_today}
+    - {type: tile, name: Bouton sans cible, entity: input_button.start_bird_s_radio}
+    - {type: tile, name: Texte simulé, entity: input_text.guest_bedroom_remote_last_event}
+    - {type: tile, name: Choix simulé, entity: input_select.time_of_day}
+    - {type: tile, name: Date simulée, entity: input_datetime.gazon_date_de_semis}
+    - {type: tile, name: Heure simulée, entity: input_datetime.bathroom_heating_time}
+    - {type: tile, name: Instant civil simulé, entity: input_datetime.sdb1_occupancy_last_time}

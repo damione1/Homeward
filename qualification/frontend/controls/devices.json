@@ -1,0 +1,6 @@
+[
+  {"kind":"thermostat","alias":"climate.neviweb130_climate_sous_sol","title":"Thermostat simulé","endpoint":"temperature"},
+  {"kind":"hvac","alias":"climate.chambre_eugenie","title":"HVAC simulé","endpoint":"temperature"},
+  {"kind":"fan","alias":"fan.living_room_ceiling_fan","title":"Ventilateur simulé","endpoint":"speed"},
+  {"kind":"light","alias":"light.basement_lights","title":"Couleur simulée","endpoint":"lamp"}
+]
