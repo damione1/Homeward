@@ -165,7 +165,11 @@ func (h *nhf005Dashboard) captureCatalogue(ctx context.Context, support *dashboa
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	ownerText, err := h.owner.Value()
+	owner, err := h.configuredOwner(principal)
+	if err != nil {
+		return nhf007Capture{}, coreRPCError(ctx, err)
+	}
+	ownerText, err := owner.Value()
 	if err != nil {
 		return nhf007Capture{}, coreRPCError(ctx, err)
 	}
@@ -183,7 +187,7 @@ func (h *nhf005Dashboard) captureCatalogue(ctx context.Context, support *dashboa
 	var projections []nhf007Projection
 	for _, entry := range config.Dashboards {
 		id, _ := authorization.ParseDashboardID(entry.ID)
-		permit, err := h.cataloguePermit(ctx, id, h.owner)
+		permit, err := h.cataloguePermit(ctx, id, owner)
 		if err != nil {
 			if connect.CodeOf(err) == connect.CodePermissionDenied {
 				continue

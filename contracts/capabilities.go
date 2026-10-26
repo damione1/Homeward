@@ -26,18 +26,21 @@ import (
 // The schema identifiers are open. These constants name only codecs implemented by
 // the MVP core. No device-kind enumeration is implied by this list.
 const (
-	SwitchSchema      = "core.switch.v1"
-	LightSchema       = "core.light.v1"
-	FanSchema         = "core.fan.v1"
-	ClimateSchema     = "core.climate.v1"
-	MeasurementSchema = "core.measurement.v1"
-	BinarySchema      = "core.binary.v1"
-	HelperSchema      = "core.helper.v1"
-	SolarSchema       = "core.solar.v1"
-	SolarEventSchema  = "core.solar_event.v1"
-	CoverSchema       = "core.cover.v1"
-	LockSchema        = "core.lock.v1"
-	AlarmSchema       = "core.alarm.v1"
+	SwitchSchema          = "core.switch.v1"
+	LightSchema           = "core.light.v1"
+	FanSchema             = "core.fan.v1"
+	ClimateSchema         = "core.climate.v1"
+	MeasurementSchema     = "core.measurement.v1"
+	BinarySchema          = "core.binary.v1"
+	HelperSchema          = "core.helper.v1"
+	SolarSchema           = "core.solar.v1"
+	SolarEventSchema      = "core.solar_event.v1"
+	CoverSchema           = "core.cover.v1"
+	LockSchema            = "core.lock.v1"
+	AlarmSchema           = "core.alarm.v1"
+	WeatherSchema         = "core.weather.v1"
+	PresenceSchema        = "core.presence.v1"
+	PresenceDetailsSchema = "core.presence_details.v1"
 )
 
 var extensionSchema = regexp.MustCompile(`^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*\.v[1-9][0-9]*$`)
@@ -192,6 +195,8 @@ func (c *CapabilityCatalog) AdmitReadOnlyDriverCapability(d *registry.Capability
 		return err
 	}
 	switch constraints := d.Constraints.(type) {
+	case *registry.CapabilityDescription_Weather, *registry.CapabilityDescription_Presence, *registry.CapabilityDescription_PresenceDetails:
+		return nil
 	case *registry.CapabilityDescription_Cover:
 		if len(constraints.Cover.Operations) == 0 && constraints.Cover.SetPositionPercent == nil {
 			return nil
@@ -435,6 +440,18 @@ func (c *CapabilityCatalog) validateDescription(d *registry.CapabilityDescriptio
 		}
 	case *registry.CapabilityDescription_Solar:
 		if constraints == nil || d.SchemaId != SolarSchema || !validSolarConstraints(constraints.Solar) {
+			return ErrInvalidCapability
+		}
+	case *registry.CapabilityDescription_Weather:
+		if constraints == nil || d.SchemaId != WeatherSchema || constraints.Weather == nil || !knownFieldsOnly(constraints.Weather.ProtoReflect()) {
+			return ErrInvalidCapability
+		}
+	case *registry.CapabilityDescription_Presence:
+		if constraints == nil || d.SchemaId != PresenceSchema || constraints.Presence == nil || !knownFieldsOnly(constraints.Presence.ProtoReflect()) {
+			return ErrInvalidCapability
+		}
+	case *registry.CapabilityDescription_PresenceDetails:
+		if constraints == nil || d.SchemaId != PresenceDetailsSchema || constraints.PresenceDetails == nil || !knownFieldsOnly(constraints.PresenceDetails.ProtoReflect()) {
 			return ErrInvalidCapability
 		}
 	case *registry.CapabilityDescription_SolarEvent:
@@ -977,7 +994,8 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 			return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.extension.protobuf_payload", err.Error())
 		}
 		return nil
-	case *registry.CapabilityDescription_Measurement, *registry.CapabilityDescription_Binary, *registry.CapabilityDescription_Solar, *registry.CapabilityDescription_SolarEvent:
+	case *registry.CapabilityDescription_Measurement, *registry.CapabilityDescription_Binary, *registry.CapabilityDescription_Solar, *registry.CapabilityDescription_SolarEvent,
+		*registry.CapabilityDescription_Weather, *registry.CapabilityDescription_Presence, *registry.CapabilityDescription_PresenceDetails:
 		return commandError(actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY, "capability_schema_id", "capability is observation only")
 	}
 	return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments", "action is outside advertised instance constraints")

@@ -1197,12 +1197,12 @@ pub(crate) fn run_with_lifecycle(
         selection_ui.dashboard_retry.notify_one();
     });
     let clock_window = window.as_weak();
+    let clock_ui = ui.clone();
     let clock = slint::Timer::default();
     let update_clock = move || {
         if let Some(window) = clock_window.upgrade() {
-            let now = chrono::Local::now();
-            window.set_local_clock(now.format("%H:%M").to_string().into());
-            window.set_local_date(now.format("%d/%m/%Y").to_string().into());
+            cache_view::refresh_clock(&window);
+            clock_ui.repaint_devices();
         }
     };
     update_clock();

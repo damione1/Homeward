@@ -6,6 +6,7 @@ use std::{
 use buffa::Message;
 use buffa_types::google::protobuf::Timestamp;
 use home_client_model::EntityId;
+use home_wire_contract::home::environment::v1::DisplayProfile;
 use home_wire_contract::home::state::v1 as wire;
 
 use crate::{
@@ -26,6 +27,7 @@ pub struct SnapshotCapture {
     entities: BTreeMap<EntityId, Arc<wire::ViewEntity>>,
     encoded_bytes: usize,
     abandoned: bool,
+    display_profile: Option<DisplayProfile>,
 }
 
 impl SnapshotCapture {
@@ -64,6 +66,7 @@ impl SnapshotCapture {
             entities: BTreeMap::new(),
             encoded_bytes: 0,
             abandoned: false,
+            display_profile: first.display_profile.as_option().cloned(),
         };
         capture.append(first, now)?;
         Ok(capture)
@@ -104,6 +107,7 @@ impl SnapshotCapture {
         self.entities.clear();
         self.next.clear();
         self.encoded_bytes = 0;
+        self.display_profile = None;
     }
 
     fn unexpired(&self, now: &Timestamp) -> Result<(), CacheFailure> {
@@ -125,6 +129,7 @@ impl SnapshotCapture {
         if page.snapshot_token != self.token
             || page.cursor.as_option() != Some(&self.cursor)
             || page.expires_at.as_option() != Some(&self.expires_at)
+            || page.display_profile.as_option() != self.display_profile.as_ref()
         {
             return Err(CacheFailure::GenerationChanged);
         }
@@ -183,6 +188,7 @@ impl SnapshotCapture {
             cursor: self.cursor,
             filter: self.filter,
             encoded_bytes: self.encoded_bytes,
+            display_profile: self.display_profile,
         })
     }
 }

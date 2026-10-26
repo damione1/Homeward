@@ -164,7 +164,7 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 					return nil, rpcInvalid()
 				}
 			}
-			if contracts.NativeSolarDescription(description) {
+			if contracts.NativeSolarDescription(description) || contracts.NativeControlDescription(description) || contracts.NativeEnvironmentDescription(description) {
 				return nil, rpcInvalid()
 			}
 			if description != nil && (description.SchemaId == contracts.HelperSchema || description.GetHelper() != nil) {

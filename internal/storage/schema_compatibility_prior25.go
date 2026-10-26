@@ -40,9 +40,9 @@ func validatePrior25SchemaWindow(ctx context.Context, tx pgx.Tx, current Version
 		return &Error{kind: InconsistentSchema}
 	}
 	build := CurrentSchemaBuild()
-	validRelease := build.version.number == 27 && build.release == schemaReleaseBaseline
+	validRelease := build.version.number == schemaWindowBaseline && build.release == schemaReleaseBaseline
 	if !build.Valid() || !validRelease ||
-		build.profile.baseline.number != 27 || build.profile.successor.number != 28 || len(migrations) < 27 {
+		build.profile.baseline.number != schemaWindowBaseline || build.profile.successor.number != schemaWindowSuccessor || len(migrations) < int(schemaWindowBaseline) {
 		return failure()
 	}
 	// Historical SQL must stay byte-identical to the actual released prefix.

@@ -30,6 +30,7 @@ pub(crate) struct CacheProjection {
     home: HomeProjection,
     devices: crate::device_view::DeviceProjection,
     board: crate::dashboard_presentation::Board,
+    profile_zone: crate::environment_view::ProfileZone,
 }
 
 struct Observation {
@@ -207,11 +208,14 @@ pub(crate) fn project_devices(
                 date,
             ]
         });
+    let profile_zone =
+        crate::environment_view::ProfileZone::from_profile(view.and_then(|v| v.display_profile()));
     let devices = devices.project(phase, view, request);
     let board = crate::dashboard_presentation::Board::project(layout, request, &devices);
     CacheProjection {
         devices,
         board,
+        profile_zone,
         revision: request.revision,
         phase,
         total,
@@ -240,7 +244,7 @@ pub(crate) fn bounded(text: &str) -> String {
         None => text.to_owned(),
     }
 }
-fn number(value: f64) -> String {
+pub(crate) fn number(value: f64) -> String {
     if value.is_finite() {
         value.to_string()
     } else {
@@ -295,7 +299,10 @@ fn summary_text(observation: &state::ObservedState) -> String {
             | state::observed_state::Value::SolarEvent(_)
             | state::observed_state::Value::Cover(_)
             | state::observed_state::Value::Lock(_)
-            | state::observed_state::Value::Alarm(_),
+            | state::observed_state::Value::Alarm(_)
+            | state::observed_state::Value::Weather(_)
+            | state::observed_state::Value::Presence(_)
+            | state::observed_state::Value::PresenceDetails(_),
         )
         | None => value_text(observation),
     }
@@ -390,6 +397,9 @@ pub(crate) fn value_text(observation: &state::ObservedState) -> String {
                 parts.join(" · ")
             }
         }
+        Some(Value::Weather(value)) => crate::environment_text::weather(value),
+        Some(Value::Presence(value)) => crate::environment_text::presence(value),
+        Some(Value::PresenceDetails(value)) => crate::environment_text::details(value),
         Some(Value::Helper(value)) => helper_text(value),
         Some(Value::Solar(value)) => {
             let mut parts = Vec::new();
@@ -476,6 +486,7 @@ pub(crate) struct CacheRows {
     notify: ModelNotify,
     serial: Cell<i32>,
     home_serial: Cell<i32>,
+    profile_zone: Cell<crate::environment_view::ProfileZone>,
     rooms: std::rc::Rc<slint::VecModel<ProRoomRow>>,
     observations: std::rc::Rc<slint::VecModel<ProObservationRow>>,
     devices: std::rc::Rc<slint::VecModel<crate::ProDeviceRow>>,
@@ -493,6 +504,7 @@ fn table_row(row: &Row, _offline: bool) -> TableRow {
 }
 impl CacheRows {
     fn apply(&self, generation: ProjectionGeneration, projection: CacheProjection) {
+        self.profile_zone.set(projection.profile_zone);
         let mut old = self.state.borrow_mut();
         let reset = old.generation != Some(generation) || old.total != projection.total;
         let observation_ids = projection
@@ -705,6 +717,7 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.invoke_native_route_changed();
     let model = window.get_cache_rows();
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
+        model.profile_zone.set(Default::default());
         model.clear();
         window.set_cache_generation(model.serial.get());
         window.set_home_generation(model.home_serial.get());
@@ -726,6 +739,19 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_read_status("".into());
     window.set_cache_error("".into());
     window.invoke_recipe_context_changed();
+    refresh_clock(window);
+}
+
+pub(crate) fn refresh_clock(window: &HomewardWindow) {
+    let rows = window.get_cache_rows();
+    let zone = rows
+        .as_any()
+        .downcast_ref::<CacheRows>()
+        .map(|model| model.profile_zone.get())
+        .unwrap_or_default();
+    let (clock, date) = zone.clock(crate::environment_view::now());
+    window.set_local_clock(clock.into());
+    window.set_local_date(date.into());
 }
 
 pub(crate) fn render(
@@ -869,6 +895,7 @@ pub(crate) fn render(
     }
     window.invoke_recipe_context_changed();
     window.invoke_native_layout_published(revision);
+    refresh_clock(window);
 }
 
 pub(crate) fn clear_native_target(

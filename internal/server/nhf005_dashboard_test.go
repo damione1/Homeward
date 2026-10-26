@@ -32,21 +32,41 @@ import (
 
 type nhf005Dashboard struct {
 	dashboardv1connect.UnimplementedDashboardServiceHandler
-	file                 string
-	compilation          imported.CompilationProfile
-	catalogue            *nhf007Catalogue
-	authority            *authorization.Authority
-	activation           view.Configuration
-	mu                   sync.Mutex
-	owner                contracts.AccountID
-	bindings             map[string]domain.EntityID
-	lastHash             [32]byte
-	revision             int64
-	epoch                [16]byte
+	file        string
+	compilation imported.CompilationProfile
+	catalogue   *nhf007Catalogue
+	authority   *authorization.Authority
+	activation  view.Configuration
+	mu          sync.Mutex
+	owner       contracts.AccountID
+	bindings    map[string]domain.EntityID
+	lastHash    [32]byte
+	revision    int64
+	epoch       [16]byte
+	// Optional server-owned personal dashboard copies, used by multi-user
+	// qualification. Nil preserves the original single-owner fixture.
+	owners               map[contracts.AccountID]contracts.AccountID
 	lists, gets, watches atomic.Uint64
 }
 
 const nhf005DashboardID = "synthetic-dashboard"
+
+// Called under h.mu. Ownership is configured by the isolated server, never
+// supplied by a dashboard request or inferred from a policy's broad selector.
+func (h *nhf005Dashboard) configuredOwner(principal authorization.Principal) (contracts.AccountID, error) {
+	if h.owners == nil {
+		return h.owner, nil
+	}
+	account, err := principal.Account()
+	if err != nil {
+		return contracts.AccountID{}, err
+	}
+	owner, ok := h.owners[account]
+	if !ok {
+		return contracts.AccountID{}, authorization.ErrDenied
+	}
+	return owner, nil
+}
 
 func (h *nhf005Dashboard) compilationProfile() imported.CompilationProfile {
 	switch h.compilation {
@@ -74,8 +94,11 @@ func (h *nhf005Dashboard) permit(ctx context.Context) (*authorization.Permit, er
 		return nil, coreRPCError(ctx, err)
 	}
 	h.mu.Lock()
-	owner := h.owner
+	owner, ownerErr := h.configuredOwner(principal)
 	h.mu.Unlock()
+	if ownerErr != nil {
+		return nil, coreRPCError(ctx, ownerErr)
+	}
 	id, err := authorization.ParseDashboardID(nhf005DashboardID)
 	if err != nil {
 		return nil, coreRPCError(ctx, err)

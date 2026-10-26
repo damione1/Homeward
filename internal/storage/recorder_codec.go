@@ -250,6 +250,18 @@ func encodeRecorderObserved(state domain.ObservedState, maxPayload int) (recorde
 			if _, ok := value.Alarm(); !ok || encodedKind != 11 {
 				return recorderObserved{}, ErrRecorderInvalid
 			}
+		case domain.ValueWeather:
+			if _, ok := value.Weather(); !ok || encodedKind != 12 {
+				return recorderObserved{}, ErrRecorderInvalid
+			}
+		case domain.ValuePresence:
+			if _, ok := value.Presence(); !ok || encodedKind != 13 {
+				return recorderObserved{}, ErrRecorderInvalid
+			}
+		case domain.ValuePresenceDetails:
+			if _, ok := value.PresenceDetails(); !ok || encodedKind != 14 {
+				return recorderObserved{}, ErrRecorderInvalid
+			}
 		case domain.ValueUnspecified:
 			return recorderObserved{}, ErrRecorderInvalid
 		default:

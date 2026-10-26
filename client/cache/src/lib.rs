@@ -13,6 +13,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use buffa_types::google::protobuf::Timestamp;
 use home_client_model::EntityId;
+use home_wire_contract::home::environment::v1::DisplayProfile;
 use home_wire_contract::home::state::v1 as wire;
 
 pub use capture::SnapshotCapture;
@@ -63,6 +64,7 @@ pub struct CachedView {
     pub(crate) cursor: wire::ViewCursor,
     pub(crate) filter: Filter,
     pub(crate) encoded_bytes: usize,
+    pub(crate) display_profile: Option<DisplayProfile>,
 }
 
 impl CachedView {
@@ -85,6 +87,11 @@ impl CachedView {
     }
     pub fn filter(&self) -> &Filter {
         &self.filter
+    }
+    /// Snapshot-scoped presentation metadata. The host admits the timezone;
+    /// absence or an unsupported profile never implies the machine timezone.
+    pub fn display_profile(&self) -> Option<&DisplayProfile> {
+        self.display_profile.as_ref()
     }
 }
 

@@ -25,7 +25,10 @@ pub(super) fn observation(
         | Value::SolarEvent(_)
         | Value::Cover(_)
         | Value::Lock(_)
-        | Value::Alarm(_) => None,
+        | Value::Alarm(_)
+        | Value::Weather(_)
+        | Value::Presence(_)
+        | Value::PresenceDetails(_) => None,
     }
 }
 pub(super) fn draft_text(value: &wire::HelperValue, kind: &Kind) -> Option<String> {

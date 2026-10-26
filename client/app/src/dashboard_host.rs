@@ -203,13 +203,21 @@ pub(crate) async fn run(
             match result {
                 Err(ReadFailure::Transport(failure)) => {
                     let _ = session.observe_failure(view.generation, &failure).await;
-                    publish(
-                        view.generation,
-                        revision,
-                        choices.hidden(),
-                        LayoutState::Unavailable,
-                    );
-                    if !(failure.may_resume_read()
+                    // A transient read interruption does not revoke a coherent
+                    // server catalogue already on screen. Entity freshness and
+                    // command admission still follow the cache's offline state.
+                    // Authority failures (including malformed typed details)
+                    // never take this retention path.
+                    let resumable = failure.may_resume_read();
+                    if !resumable || choices.snapshot().1.snapshot.is_none() {
+                        publish(
+                            view.generation,
+                            revision,
+                            choices.hidden(),
+                            LayoutState::Unavailable,
+                        );
+                    }
+                    if !(resumable
                         || failure.kind() == FailureKind::Rpc(RpcCode::FailedPrecondition)
                         || failure.kind() == FailureKind::Rpc(RpcCode::NotFound))
                     {

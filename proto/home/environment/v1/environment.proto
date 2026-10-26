@@ -1,0 +1,134 @@
+syntax = "proto3";
+package home.environment.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/environment/v1;environmentv1";
+
+// Snapshot-scoped display data. No coordinates or system-zone fallback.
+message DisplayProfile { string time_zone = 1; }
+
+enum WeatherCondition {
+  WEATHER_CONDITION_UNSPECIFIED = 0;
+  WEATHER_CONDITION_UNKNOWN = 1;
+  WEATHER_CONDITION_CLEAR_DAY = 2;
+  WEATHER_CONDITION_CLEAR_NIGHT = 3;
+  WEATHER_CONDITION_CLOUDY = 4;
+  WEATHER_CONDITION_PARTLY_CLOUDY = 5;
+  WEATHER_CONDITION_RAINY = 6;
+  WEATHER_CONDITION_POURING = 7;
+  WEATHER_CONDITION_SNOWY = 8;
+  WEATHER_CONDITION_SNOWY_RAINY = 9;
+  WEATHER_CONDITION_HAIL = 10;
+  WEATHER_CONDITION_LIGHTNING = 11;
+  WEATHER_CONDITION_LIGHTNING_RAINY = 12;
+  WEATHER_CONDITION_WINDY = 13;
+  WEATHER_CONDITION_WINDY_VARIANT = 14;
+  WEATHER_CONDITION_FOG = 15;
+  WEATHER_CONDITION_EXCEPTIONAL = 16;
+}
+enum TemperatureUnit {
+  TEMPERATURE_UNIT_UNSPECIFIED = 0;
+  TEMPERATURE_UNIT_CELSIUS = 1;
+  TEMPERATURE_UNIT_FAHRENHEIT = 2;
+  TEMPERATURE_UNIT_KELVIN = 3;
+}
+message Temperature {
+  optional double value = 1;
+  TemperatureUnit unit = 2;
+}
+enum SpeedUnit {
+  SPEED_UNIT_UNSPECIFIED = 0;
+  SPEED_UNIT_METERS_PER_SECOND = 1;
+  SPEED_UNIT_KILOMETERS_PER_HOUR = 2;
+  SPEED_UNIT_MILES_PER_HOUR = 3;
+  SPEED_UNIT_KNOTS = 4;
+}
+message Wind {
+  optional double speed = 1;
+  SpeedUnit unit = 2;
+  optional double bearing_degrees = 3;
+}
+enum PrecipitationUnit {
+  PRECIPITATION_UNIT_UNSPECIFIED = 0;
+  PRECIPITATION_UNIT_MILLIMETERS = 1;
+  PRECIPITATION_UNIT_INCHES = 2;
+}
+message Precipitation {
+  optional double amount = 1;
+  PrecipitationUnit unit = 2;
+}
+enum ForecastKind {
+  FORECAST_KIND_UNSPECIFIED = 0;
+  FORECAST_KIND_HOURLY = 1;
+  FORECAST_KIND_DAILY = 2;
+}
+// Half-open absolute period [starts_at, ends_at); no local-time reinterpretation.
+message ForecastPeriod {
+  google.protobuf.Timestamp starts_at = 1;
+  google.protobuf.Timestamp ends_at = 2;
+  ForecastKind kind = 3;
+  optional WeatherCondition condition = 4;
+  Temperature temperature = 5;
+  Temperature low = 6;
+  Temperature high = 7;
+  optional double precipitation_probability_percent = 8;
+  Precipitation precipitation = 9;
+}
+message Forecast {
+  google.protobuf.Timestamp issued_at = 1;
+  google.protobuf.Timestamp valid_until = 2;
+  // At most 256 ordered, non-overlapping periods in the initial native profile.
+  repeated ForecastPeriod periods = 3;
+}
+message WeatherValue {
+  optional WeatherCondition condition = 1;
+  Temperature temperature = 2;
+  optional double humidity_percent = 3;
+  Wind wind = 4;
+  Forecast forecast = 5;
+  string source_label = 6;
+}
+message WeatherConstraints {}
+
+enum Residence {
+  RESIDENCE_UNSPECIFIED = 0;
+  RESIDENCE_HOME = 1;
+  RESIDENCE_AWAY = 2;
+  RESIDENCE_UNKNOWN = 3;
+}
+enum PresenceConfidence {
+  PRESENCE_CONFIDENCE_UNSPECIFIED = 0;
+  PRESENCE_CONFIDENCE_UNKNOWN = 1;
+  PRESENCE_CONFIDENCE_LOW = 2;
+  PRESENCE_CONFIDENCE_MEDIUM = 3;
+  PRESENCE_CONFIDENCE_HIGH = 4;
+}
+// Aggregate observation. Detailed location is structurally absent, even for a
+// privileged reader. UI lifecycle is not a source of geographic presence.
+message PresenceValue {
+  string person_id = 1;
+  Residence residence = 2;
+  PresenceConfidence confidence = 3;
+  string source_label = 4;
+}
+message PresenceConstraints {}
+
+message PresenceZone {
+  string zone_id = 1;
+  string label = 2;
+}
+message Coordinates {
+  optional double latitude_degrees = 1;
+  optional double longitude_degrees = 2;
+  optional double accuracy_meters = 3;
+}
+// An independent readable entity with its own grant. Never attach this payload
+// to the aggregate presence entity, or send it to a simplified/guest view.
+message PresenceDetailsValue {
+  string person_id = 1;
+  PresenceZone zone = 2;
+  Coordinates coordinates = 3;
+  string source_label = 4;
+}
+message PresenceDetailsConstraints {}

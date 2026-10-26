@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "dashboards": [
+    {"id":"synthetic-environment","url_path":"lovelace","file":"native-home.yaml"}
+  ]
+}

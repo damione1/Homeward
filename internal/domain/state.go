@@ -109,6 +109,9 @@ const (
 	ValueCover
 	ValueLock
 	ValueAlarm
+	ValueWeather
+	ValuePresence
+	ValuePresenceDetails
 )
 
 // FanSpeed is closed to the LEAP speeds the Host can prove. The zero value is
@@ -277,7 +280,8 @@ func (v StateValue) Kind() (ValueKind, error) {
 		if _, err := v.climate.Components(); err == nil {
 			return ValueClimate, nil
 		}
-	case ValueHelper, ValueSolar, ValueSolarEvent, ValueCover, ValueLock, ValueAlarm:
+	case ValueHelper, ValueSolar, ValueSolarEvent, ValueCover, ValueLock, ValueAlarm,
+		ValueWeather, ValuePresence, ValuePresenceDetails:
 		return v.nativeKind()
 	case ValueUnspecified:
 	default:

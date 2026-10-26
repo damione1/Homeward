@@ -40,6 +40,12 @@ func EncodePage(page Page) (*statewire.OpenViewResponse, error) {
 		ExpiresAt:     timestamppb.New(page.ExpiresAt.UTC()),
 		Entities:      make([]*statewire.ViewEntity, 0, len(page.Items)),
 	}
+	if page.DisplayProfile != nil {
+		if len(page.DisplayProfile.ProtoReflect().GetUnknown()) != 0 || !validDisplayTimeZone(page.DisplayProfile.TimeZone) {
+			return nil, ErrInvalidInput
+		}
+		response.DisplayProfile = proto.CloneOf(page.DisplayProfile)
+	}
 	if err := response.ExpiresAt.CheckValid(); err != nil {
 		return nil, ErrInvalidInput
 	}

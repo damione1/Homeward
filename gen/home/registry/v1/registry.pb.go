@@ -8,6 +8,7 @@ package registryv1
 
 import (
 	v12 "github.com/damione1/Homeward/gen/home/controls/v1"
+	v13 "github.com/damione1/Homeward/gen/home/environment/v1"
 	v1 "github.com/damione1/Homeward/gen/home/helpers/v1"
 	v11 "github.com/damione1/Homeward/gen/home/solar/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -448,6 +449,9 @@ type CapabilityDescription struct {
 	//	*CapabilityDescription_Cover
 	//	*CapabilityDescription_Lock
 	//	*CapabilityDescription_Alarm
+	//	*CapabilityDescription_Weather
+	//	*CapabilityDescription_Presence
+	//	*CapabilityDescription_PresenceDetails
 	Constraints   isCapabilityDescription_Constraints `protobuf_oneof:"constraints"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -649,6 +653,33 @@ func (x *CapabilityDescription) GetAlarm() *v12.AlarmConstraints {
 	return nil
 }
 
+func (x *CapabilityDescription) GetWeather() *v13.WeatherConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_Weather); ok {
+			return x.Weather
+		}
+	}
+	return nil
+}
+
+func (x *CapabilityDescription) GetPresence() *v13.PresenceConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_Presence); ok {
+			return x.Presence
+		}
+	}
+	return nil
+}
+
+func (x *CapabilityDescription) GetPresenceDetails() *v13.PresenceDetailsConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*CapabilityDescription_PresenceDetails); ok {
+			return x.PresenceDetails
+		}
+	}
+	return nil
+}
+
 type isCapabilityDescription_Constraints interface {
 	isCapabilityDescription_Constraints()
 }
@@ -705,6 +736,18 @@ type CapabilityDescription_Alarm struct {
 	Alarm *v12.AlarmConstraints `protobuf:"bytes,19,opt,name=alarm,proto3,oneof"`
 }
 
+type CapabilityDescription_Weather struct {
+	Weather *v13.WeatherConstraints `protobuf:"bytes,20,opt,name=weather,proto3,oneof"`
+}
+
+type CapabilityDescription_Presence struct {
+	Presence *v13.PresenceConstraints `protobuf:"bytes,21,opt,name=presence,proto3,oneof"`
+}
+
+type CapabilityDescription_PresenceDetails struct {
+	PresenceDetails *v13.PresenceDetailsConstraints `protobuf:"bytes,22,opt,name=presence_details,json=presenceDetails,proto3,oneof"`
+}
+
 func (*CapabilityDescription_Switch) isCapabilityDescription_Constraints() {}
 
 func (*CapabilityDescription_Light) isCapabilityDescription_Constraints() {}
@@ -730,6 +773,12 @@ func (*CapabilityDescription_Cover) isCapabilityDescription_Constraints() {}
 func (*CapabilityDescription_Lock) isCapabilityDescription_Constraints() {}
 
 func (*CapabilityDescription_Alarm) isCapabilityDescription_Constraints() {}
+
+func (*CapabilityDescription_Weather) isCapabilityDescription_Constraints() {}
+
+func (*CapabilityDescription_Presence) isCapabilityDescription_Constraints() {}
+
+func (*CapabilityDescription_PresenceDetails) isCapabilityDescription_Constraints() {}
 
 type NumberBounds struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1371,13 +1420,14 @@ var File_home_registry_v1_registry_proto protoreflect.FileDescriptor
 
 const file_home_registry_v1_registry_proto_rawDesc = "" +
 	"\n" +
-	"\x1fhome/registry/v1/registry.proto\x12\x10home.registry.v1\x1a\x1dhome/helpers/v1/helpers.proto\x1a\x19home/solar/v1/solar.proto\x1a\x1fhome/controls/v1/controls.proto\" \n" +
+	"\x1fhome/registry/v1/registry.proto\x12\x10home.registry.v1\x1a\x1dhome/helpers/v1/helpers.proto\x1a\x19home/solar/v1/solar.proto\x1a\x1fhome/controls/v1/controls.proto\x1a%home/environment/v1/environment.proto\" \n" +
 	"\bEntityId\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\"g\n" +
 	"\tEntityRef\x12\x1d\n" +
 	"\tentity_id\x18\x01 \x01(\tH\x00R\bentityId\x12\x1b\n" +
 	"\bha_alias\x18\x02 \x01(\tH\x00R\ahaAliasB\v\n" +
-	"\treferenceJ\x04\b\x03\x10\x04R\vlegacy_name\"\xa5\b\n" +
+	"\treferenceJ\x04\b\x03\x10\x04R\vlegacy_name\"\x90\n" +
+	"\n" +
 	"\x15CapabilityDescription\x12\x1b\n" +
 	"\tschema_id\x18\x01 \x01(\tR\bschemaId\x12\x14\n" +
 	"\x05major\x18\x02 \x01(\rR\x05major\x12!\n" +
@@ -1399,7 +1449,10 @@ const file_home_registry_v1_registry_proto_rawDesc = "" +
 	"solarEvent\x12:\n" +
 	"\x05cover\x18\x11 \x01(\v2\".home.controls.v1.CoverConstraintsH\x00R\x05cover\x127\n" +
 	"\x04lock\x18\x12 \x01(\v2!.home.controls.v1.LockConstraintsH\x00R\x04lock\x12:\n" +
-	"\x05alarm\x18\x13 \x01(\v2\".home.controls.v1.AlarmConstraintsH\x00R\x05alarmB\r\n" +
+	"\x05alarm\x18\x13 \x01(\v2\".home.controls.v1.AlarmConstraintsH\x00R\x05alarm\x12C\n" +
+	"\aweather\x18\x14 \x01(\v2'.home.environment.v1.WeatherConstraintsH\x00R\aweather\x12F\n" +
+	"\bpresence\x18\x15 \x01(\v2(.home.environment.v1.PresenceConstraintsH\x00R\bpresence\x12\\\n" +
+	"\x10presence_details\x18\x16 \x01(\v2/.home.environment.v1.PresenceDetailsConstraintsH\x00R\x0fpresenceDetailsB\r\n" +
 	"\vconstraints\"d\n" +
 	"\fNumberBounds\x12\x18\n" +
 	"\aminimum\x18\x01 \x01(\x01R\aminimum\x12\x18\n" +
@@ -1521,6 +1574,9 @@ var file_home_registry_v1_registry_proto_goTypes = []any{
 	(*v12.CoverConstraints)(nil),            // 21: home.controls.v1.CoverConstraints
 	(*v12.LockConstraints)(nil),             // 22: home.controls.v1.LockConstraints
 	(*v12.AlarmConstraints)(nil),            // 23: home.controls.v1.AlarmConstraints
+	(*v13.WeatherConstraints)(nil),          // 24: home.environment.v1.WeatherConstraints
+	(*v13.PresenceConstraints)(nil),         // 25: home.environment.v1.PresenceConstraints
+	(*v13.PresenceDetailsConstraints)(nil),  // 26: home.environment.v1.PresenceDetailsConstraints
 }
 var file_home_registry_v1_registry_proto_depIdxs = []int32{
 	9,  // 0: home.registry.v1.CapabilityDescription.switch:type_name -> home.registry.v1.SwitchConstraints
@@ -1536,31 +1592,34 @@ var file_home_registry_v1_registry_proto_depIdxs = []int32{
 	21, // 10: home.registry.v1.CapabilityDescription.cover:type_name -> home.controls.v1.CoverConstraints
 	22, // 11: home.registry.v1.CapabilityDescription.lock:type_name -> home.controls.v1.LockConstraints
 	23, // 12: home.registry.v1.CapabilityDescription.alarm:type_name -> home.controls.v1.AlarmConstraints
-	8,  // 13: home.registry.v1.LightConstraints.brightness_percent:type_name -> home.registry.v1.NumberBounds
-	8,  // 14: home.registry.v1.LightConstraints.color_temp_mireds:type_name -> home.registry.v1.NumberBounds
-	8,  // 15: home.registry.v1.LightConstraints.transition_seconds:type_name -> home.registry.v1.NumberBounds
-	8,  // 16: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
-	0,  // 17: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
-	1,  // 18: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
-	13, // 19: home.registry.v1.ClimateConstraints.observed_temperature_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
-	13, // 20: home.registry.v1.ClimateConstraints.observed_setpoint_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
-	14, // 21: home.registry.v1.ClimateConstraints.observed_setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
-	0,  // 22: home.registry.v1.ClimateConstraints.observed_mode_options:type_name -> home.registry.v1.ClimateMode
-	14, // 23: home.registry.v1.ClimateConstraints.setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
-	2,  // 24: home.registry.v1.ClimateConstraints.fan_target_options:type_name -> home.registry.v1.ClimateFanTarget
-	8,  // 25: home.registry.v1.ClimateConstraints.observed_humidity_percent:type_name -> home.registry.v1.NumberBounds
-	2,  // 26: home.registry.v1.ClimateConstraints.observed_fan_target_options:type_name -> home.registry.v1.ClimateFanTarget
-	8,  // 27: home.registry.v1.ClimateTemperatureObservation.bounds:type_name -> home.registry.v1.NumberBounds
-	8,  // 28: home.registry.v1.ClimateSetpointRangeConstraints.low_celsius:type_name -> home.registry.v1.NumberBounds
-	8,  // 29: home.registry.v1.ClimateSetpointRangeConstraints.high_celsius:type_name -> home.registry.v1.NumberBounds
-	3,  // 30: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
-	4,  // 31: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
-	8,  // 32: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
-	33, // [33:33] is the sub-list for method output_type
-	33, // [33:33] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	24, // 13: home.registry.v1.CapabilityDescription.weather:type_name -> home.environment.v1.WeatherConstraints
+	25, // 14: home.registry.v1.CapabilityDescription.presence:type_name -> home.environment.v1.PresenceConstraints
+	26, // 15: home.registry.v1.CapabilityDescription.presence_details:type_name -> home.environment.v1.PresenceDetailsConstraints
+	8,  // 16: home.registry.v1.LightConstraints.brightness_percent:type_name -> home.registry.v1.NumberBounds
+	8,  // 17: home.registry.v1.LightConstraints.color_temp_mireds:type_name -> home.registry.v1.NumberBounds
+	8,  // 18: home.registry.v1.LightConstraints.transition_seconds:type_name -> home.registry.v1.NumberBounds
+	8,  // 19: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
+	0,  // 20: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
+	1,  // 21: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
+	13, // 22: home.registry.v1.ClimateConstraints.observed_temperature_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
+	13, // 23: home.registry.v1.ClimateConstraints.observed_setpoint_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
+	14, // 24: home.registry.v1.ClimateConstraints.observed_setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
+	0,  // 25: home.registry.v1.ClimateConstraints.observed_mode_options:type_name -> home.registry.v1.ClimateMode
+	14, // 26: home.registry.v1.ClimateConstraints.setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
+	2,  // 27: home.registry.v1.ClimateConstraints.fan_target_options:type_name -> home.registry.v1.ClimateFanTarget
+	8,  // 28: home.registry.v1.ClimateConstraints.observed_humidity_percent:type_name -> home.registry.v1.NumberBounds
+	2,  // 29: home.registry.v1.ClimateConstraints.observed_fan_target_options:type_name -> home.registry.v1.ClimateFanTarget
+	8,  // 30: home.registry.v1.ClimateTemperatureObservation.bounds:type_name -> home.registry.v1.NumberBounds
+	8,  // 31: home.registry.v1.ClimateSetpointRangeConstraints.low_celsius:type_name -> home.registry.v1.NumberBounds
+	8,  // 32: home.registry.v1.ClimateSetpointRangeConstraints.high_celsius:type_name -> home.registry.v1.NumberBounds
+	3,  // 33: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
+	4,  // 34: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
+	8,  // 35: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
+	36, // [36:36] is the sub-list for method output_type
+	36, // [36:36] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_home_registry_v1_registry_proto_init() }
@@ -1586,6 +1645,9 @@ func file_home_registry_v1_registry_proto_init() {
 		(*CapabilityDescription_Cover)(nil),
 		(*CapabilityDescription_Lock)(nil),
 		(*CapabilityDescription_Alarm)(nil),
+		(*CapabilityDescription_Weather)(nil),
+		(*CapabilityDescription_Presence)(nil),
+		(*CapabilityDescription_PresenceDetails)(nil),
 	}
 	file_home_registry_v1_registry_proto_msgTypes[3].OneofWrappers = []any{}
 	file_home_registry_v1_registry_proto_msgTypes[9].OneofWrappers = []any{}

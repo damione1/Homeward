@@ -8,6 +8,14 @@ use super::{
     number::Bounds,
 };
 use home_wire_contract::home::{actions::v1 as action, registry::v1 as wire};
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ObservationKind {
+    Weather,
+    Presence,
+    Details,
+    Solar,
+    SolarEvent(home_wire_contract::home::solar::v1::SolarEventKind),
+}
 #[derive(Clone, PartialEq)]
 pub(super) enum Control {
     Switch {
@@ -26,6 +34,7 @@ pub(super) enum Control {
     Alarm(Alarm),
     Binary,
     Measurement,
+    ReadOnly(ObservationKind),
     Unsupported,
 }
 impl Power {
@@ -123,13 +132,52 @@ impl Control {
             Some(C::Alarm(value)) if capability.schema_id == "core.alarm.v1" => Alarm::parse(value)
                 .map(Self::Alarm)
                 .unwrap_or(Self::Unsupported),
+            Some(C::Weather(value))
+                if capability.schema_id == "core.weather.v1"
+                    && value.__buffa_unknown_fields.is_empty() =>
+            {
+                Self::ReadOnly(ObservationKind::Weather)
+            }
+            Some(C::Presence(value))
+                if capability.schema_id == "core.presence.v1"
+                    && value.__buffa_unknown_fields.is_empty() =>
+            {
+                Self::ReadOnly(ObservationKind::Presence)
+            }
+            Some(C::PresenceDetails(value))
+                if capability.schema_id == "core.presence_details.v1"
+                    && value.__buffa_unknown_fields.is_empty() =>
+            {
+                Self::ReadOnly(ObservationKind::Details)
+            }
+            Some(C::Solar(value))
+                if capability.schema_id == "core.solar.v1"
+                    && value.__buffa_unknown_fields.is_empty() =>
+            {
+                Self::ReadOnly(ObservationKind::Solar)
+            }
+            Some(C::SolarEvent(value))
+                if capability.schema_id == "core.solar_event.v1"
+                    && value.__buffa_unknown_fields.is_empty()
+                    && home_wire_contract::solar_contract::event_kind(value.event) =>
+            {
+                match value.event {
+                    buffa::EnumValue::Known(event) => {
+                        Self::ReadOnly(ObservationKind::SolarEvent(event))
+                    }
+                    buffa::EnumValue::Unknown(_) => Self::Unsupported,
+                }
+            }
             Some(
                 C::Extension(_)
                 | C::Solar(_)
                 | C::SolarEvent(_)
                 | C::Cover(_)
                 | C::Lock(_)
-                | C::Alarm(_),
+                | C::Alarm(_)
+                | C::Weather(_)
+                | C::Presence(_)
+                | C::PresenceDetails(_),
             )
             | None => Self::Unsupported,
         }
@@ -166,6 +214,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Brightness(value) => match self {
@@ -191,6 +240,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::ColorTemperature(value) => match self {
@@ -213,6 +263,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Climate(intent) => match self {
@@ -226,6 +277,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::FanSpeed(speed) => match self {
@@ -239,6 +291,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Helper(intent) => match self {
@@ -254,6 +307,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Cover(intent) => match self {
@@ -267,6 +321,7 @@ impl Control {
                 | Self::Measurement
                 | Self::Lock(_)
                 | Self::Alarm(_)
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Lock(intent) => match self {
@@ -280,6 +335,7 @@ impl Control {
                 | Self::Measurement
                 | Self::Cover(_)
                 | Self::Alarm(_)
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Alarm(intent) => match self {
@@ -293,6 +349,7 @@ impl Control {
                 | Self::Measurement
                 | Self::Cover(_)
                 | Self::Lock(_)
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
         };
@@ -300,5 +357,47 @@ impl Control {
             arguments: Some(arguments),
             ..Default::default()
         })
+    }
+}
+
+#[cfg(test)]
+mod observation_tests {
+    use super::*;
+    use home_wire_contract::home::environment::v1 as env;
+
+    #[test]
+    fn environmental_capabilities_are_known_observations_and_cannot_build_power_commands() {
+        use wire::capability_description::Constraints as C;
+        for (schema, constraints) in [
+            (
+                "core.weather.v1",
+                C::Weather(env::WeatherConstraints::default().into()),
+            ),
+            (
+                "core.presence.v1",
+                C::Presence(env::PresenceConstraints::default().into()),
+            ),
+            (
+                "core.presence_details.v1",
+                C::PresenceDetails(env::PresenceDetailsConstraints::default().into()),
+            ),
+        ] {
+            let mut description = wire::CapabilityDescription {
+                schema_id: schema.into(),
+                major: 1,
+                endpoint: "value".into(),
+                display_name: "Synthetic observation".into(),
+                constraints: Some(constraints),
+                ..Default::default()
+            };
+            let control = Control::parse(&description);
+            assert!(matches!(control, Control::ReadOnly(_)));
+            assert!(matches!(
+                control.arguments(DeviceIntent::Power(Power::On), None),
+                Err(Refusal::Unsupported)
+            ));
+            description.major = 2;
+            assert!(matches!(Control::parse(&description), Control::Unsupported));
+        }
     }
 }

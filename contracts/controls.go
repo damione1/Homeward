@@ -34,14 +34,14 @@ var alarmStates = map[control.AlarmState]domain.AlarmState{
 	control.AlarmState_ALARM_STATE_TRIGGERED:           domain.AlarmStateTriggered,
 }
 
-func admitControlEnum[W, D comparable](value W, mapping map[W]D) (D, error) {
+func admitNativeEnum[W, D comparable](value W, mapping map[W]D) (D, error) {
 	if admitted, ok := mapping[value]; ok {
 		return admitted, nil
 	}
 	var zero D
 	return zero, ErrInvalidWireState
 }
-func wireControlEnum[W, D comparable](value D, mapping map[W]D) (W, error) {
+func wireNativeEnum[W, D comparable](value D, mapping map[W]D) (W, error) {
 	for wire, admitted := range mapping {
 		if admitted == value {
 			return wire, nil
@@ -137,7 +137,7 @@ func AdmitWireCoverValue(value *control.CoverValue) (domain.CoverValue, error) {
 	}
 	var state *domain.CoverState
 	if value.State != nil {
-		admitted, err := admitControlEnum(*value.State, coverStates)
+		admitted, err := admitNativeEnum(*value.State, coverStates)
 		if err != nil {
 			return domain.CoverValue{}, err
 		}
@@ -152,7 +152,7 @@ func EncodeCoverValue(value domain.CoverValue) (*control.CoverValue, error) {
 	}
 	out := &control.CoverValue{PositionPercent: position, Obstructed: obstruction}
 	if state != nil {
-		encoded, err := wireControlEnum(*state, coverStates)
+		encoded, err := wireNativeEnum(*state, coverStates)
 		if err != nil {
 			return nil, err
 		}
@@ -164,10 +164,10 @@ func AdmitWireLockValue(value *control.LockValue) (domain.LockState, error) {
 	if value == nil || !knownFieldsOnly(value.ProtoReflect()) {
 		return domain.LockStateUnspecified, ErrInvalidWireState
 	}
-	return admitControlEnum(value.State, lockStates)
+	return admitNativeEnum(value.State, lockStates)
 }
 func EncodeLockValue(value domain.LockState) (*control.LockValue, error) {
-	state, err := wireControlEnum(value, lockStates)
+	state, err := wireNativeEnum(value, lockStates)
 	if err != nil {
 		return nil, err
 	}
@@ -177,16 +177,16 @@ func AdmitWireAlarmValue(value *control.AlarmValue) (domain.AlarmState, error) {
 	if value == nil || !knownFieldsOnly(value.ProtoReflect()) {
 		return domain.AlarmStateUnspecified, ErrInvalidWireState
 	}
-	return admitControlEnum(value.State, alarmStates)
+	return admitNativeEnum(value.State, alarmStates)
 }
 func EncodeAlarmValue(value domain.AlarmState) (*control.AlarmValue, error) {
-	state, err := wireControlEnum(value, alarmStates)
+	state, err := wireNativeEnum(value, alarmStates)
 	if err != nil {
 		return nil, err
 	}
 	return &control.AlarmValue{State: state}, nil
 }
-func (c *CapabilityCatalog) controlDescription(entity domain.EntityID, endpoint, schema string) (*registry.CapabilityDescription, error) {
+func (c *CapabilityCatalog) nativeDescription(entity domain.EntityID, endpoint, schema string) (*registry.CapabilityDescription, error) {
 	if !c.ready() || endpoint == "" {
 		return nil, ErrInvalidCapability
 	}
@@ -203,7 +203,7 @@ func (c *CapabilityCatalog) controlDescription(entity domain.EntityID, endpoint,
 	return description, nil
 }
 func (c *CapabilityCatalog) AdmitDomainCover(entity domain.EntityID, endpoint string, value domain.CoverValue) error {
-	description, err := c.controlDescription(entity, endpoint, CoverSchema)
+	description, err := c.nativeDescription(entity, endpoint, CoverSchema)
 	if err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ func (c *CapabilityCatalog) AdmitDomainCover(entity domain.EntityID, endpoint st
 		return err
 	}
 	if state != nil {
-		wire, err := wireControlEnum(*state, coverStates)
+		wire, err := wireNativeEnum(*state, coverStates)
 		if err != nil || !contains(limits.ObservedStates, wire) {
 			return ErrInvalidWireState
 		}
@@ -227,26 +227,44 @@ func (c *CapabilityCatalog) AdmitDomainCover(entity domain.EntityID, endpoint st
 	return nil
 }
 func (c *CapabilityCatalog) AdmitDomainLock(entity domain.EntityID, endpoint string, value domain.LockState) error {
-	description, err := c.controlDescription(entity, endpoint, LockSchema)
+	description, err := c.nativeDescription(entity, endpoint, LockSchema)
 	if err != nil {
 		return err
 	}
 	limits := description.GetLock()
-	state, err := wireControlEnum(value, lockStates)
+	state, err := wireNativeEnum(value, lockStates)
 	if err != nil || !validLockConstraints(limits) || !contains(limits.ObservedStates, state) {
 		return ErrInvalidWireState
 	}
 	return nil
 }
 func (c *CapabilityCatalog) AdmitDomainAlarm(entity domain.EntityID, endpoint string, value domain.AlarmState) error {
-	description, err := c.controlDescription(entity, endpoint, AlarmSchema)
+	description, err := c.nativeDescription(entity, endpoint, AlarmSchema)
 	if err != nil {
 		return err
 	}
 	limits := description.GetAlarm()
-	state, err := wireControlEnum(value, alarmStates)
+	state, err := wireNativeEnum(value, alarmStates)
 	if err != nil || !validAlarmConstraints(limits) || !contains(limits.ObservedStates, state) {
 		return ErrInvalidWireState
 	}
 	return nil
+}
+
+// The current codec can decode these additive messages, but historical
+// external Host profiles never admitted their capability or report semantics.
+func NativeControlDescription(description *registry.CapabilityDescription) bool {
+	if description == nil {
+		return false
+	}
+	switch description.SchemaId {
+	case CoverSchema, LockSchema, AlarmSchema:
+		return true
+	}
+	switch description.Constraints.(type) {
+	case *registry.CapabilityDescription_Cover, *registry.CapabilityDescription_Lock, *registry.CapabilityDescription_Alarm:
+		return true
+	default:
+		return false
+	}
 }

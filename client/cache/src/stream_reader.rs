@@ -170,6 +170,7 @@ mod tests {
             filter,
             entities,
             encoded_bytes: 100_000,
+            display_profile: None,
         }
     }
 

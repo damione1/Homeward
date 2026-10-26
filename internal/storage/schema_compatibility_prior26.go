@@ -38,8 +38,8 @@ func validatePrior26SchemaWindow(ctx context.Context, tx pgx.Tx, current Version
 		return &Error{kind: InconsistentSchema}
 	}
 	build := CurrentSchemaBuild()
-	if !build.Valid() || build.version.number != 27 || build.release != schemaReleaseBaseline ||
-		build.profile.baseline.number != 27 || build.profile.successor.number != 28 || len(migrations) < 27 {
+	if !build.Valid() || build.version.number != schemaWindowBaseline || build.release != schemaReleaseBaseline ||
+		build.profile.baseline.number != schemaWindowBaseline || build.profile.successor.number != schemaWindowSuccessor || len(migrations) < int(schemaWindowBaseline) {
 		return failure()
 	}
 	plan := schemaPlanSHA256(migrations[:26])

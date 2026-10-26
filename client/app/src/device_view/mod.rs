@@ -1,6 +1,6 @@
 //! Exact server-selected cards, command admission and bounded local action
 //! history. UI tokens are ephemeral; identities/permissions never come from UI.
-mod capability;
+pub(crate) mod capability;
 mod climate;
 mod controls;
 mod helper;
@@ -405,7 +405,10 @@ impl DeviceStore {
                             | state::observed_state::Value::SolarEvent(_)
                             | state::observed_state::Value::Cover(_)
                             | state::observed_state::Value::Lock(_)
-                            | state::observed_state::Value::Alarm(_),
+                            | state::observed_state::Value::Alarm(_)
+                            | state::observed_state::Value::Weather(_)
+                            | state::observed_state::Value::Presence(_)
+                            | state::observed_state::Value::PresenceDetails(_),
                         )
                         | None => None,
                     })
@@ -413,6 +416,17 @@ impl DeviceStore {
                 None
             };
             let mut row = card(&title, entity, &control, access);
+            if let Control::ReadOnly(kind) = &control {
+                let zone = crate::environment_view::ProfileZone::from_profile(
+                    view.and_then(|v| v.display_profile()),
+                );
+                let now = crate::environment_view::now();
+                row.environment =
+                    crate::environment_view::project(*kind, entity.state.as_option(), zone, now);
+                row.freshness =
+                    crate::environment_view::observed_age(entity.state.as_option(), zone, now)
+                        .into();
+            }
             if let Control::Helper(helper) = &control {
                 row.command_unavailable = helper_revision.is_none() || !helper.available();
             }
@@ -922,6 +936,10 @@ fn card(
             } else if helper::observation(entity).is_none() {
                 row.quality = format!("{} · Révision du helper indisponible", row.quality).into();
             }
+        }
+        Control::ReadOnly(_) => {
+            row.kind = ProDeviceKind::Observation;
+            row.quality = format!("{} · Lecture seule", row.quality).into();
         }
         Control::Unsupported => {
             row.quality = format!("{} · Fonction non prise en charge", row.quality).into();

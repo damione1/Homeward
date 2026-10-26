@@ -31,6 +31,7 @@ import (
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
+	"github.com/damione1/Homeward/internal/view"
 	"github.com/damione1/Homeward/internal/workday"
 	"github.com/damione1/Homeward/internal/worker"
 	"github.com/damione1/Homeward/scope"
@@ -53,6 +54,8 @@ func (unconfiguredIdentity) Resolve(context.Context, domain.IntegrationInstanceI
 // drains the command service. Run also joins its job scheduler before closing
 // PostgreSQL, using the same shutdown budget for both owners.
 type RuntimePlan struct {
+	// Optional trusted profile source; absent by default, never the host zone.
+	DisplayProfiles view.DisplayProfileSource
 	remoteCalendar  *remoteCalendarRuntime
 	scopeManifest   registry.Manifest
 	sourceOwnership *heatingownership.Decision
@@ -734,7 +737,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		})
 	}
 	if activation != nil {
-		core, coreErr := prepareCoreRPC(ctx, sessions, sequence, plan.Identity, activation, commands)
+		core, coreErr := prepareCoreRPC(ctx, sessions, sequence, plan.Identity, activation, commands, plan.DisplayProfiles)
 		if coreErr == nil {
 			coreErr = registerCoreRPCRoutes(plan.Public, core)
 		}
