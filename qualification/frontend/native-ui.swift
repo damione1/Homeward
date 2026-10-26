@@ -9,13 +9,16 @@ enum Command: String, Decodable {
     case info, click, close, minimize, restore, focus
     case tap, resize, key, scroll, tree, press, release, gesture
     case gestureBegin = "gesture-begin"
+    case canvas
     case fillLogin = "fill-login", read, signOut = "sign-out", scrollEnd = "scroll-end", checkRow = "check-row"
 }
 enum NativeGesture: String, Decodable {
     case tap, hold, doubleTap = "double-tap"
 }
+enum CanvasGesture: String, Decodable { case inspect, select }
 enum NativeKey: String, Decodable {
     case tab, backtab, up, down, home, end, enter, escape, space
+    case left, right, shiftLeft = "shift-left", shiftRight = "shift-right"
     case letterK = "letter-k", letterI = "letter-i", letterT = "letter-t", letterC = "letter-c"
     case letterH = "letter-h", letterE = "letter-e", letterN = "letter-n"
     case digit0 = "digit-0", digit1 = "digit-1", digit2 = "digit-2", digit5 = "digit-5"
@@ -30,6 +33,7 @@ struct Input: Decodable {
     let width: Double?; let height: Double?; let delta: Int32?
     let fraction: Double?
     let gesture: NativeGesture?
+    let canvasGesture: CanvasGesture?; let endFraction: Double?
 }
 enum ProbeFailure: Error { case invalidInput, missingWindow, accessibilityUnavailable }
 
@@ -111,6 +115,45 @@ func nativeGesture(_ window: AXUIElement, _ label: String, _ gesture: NativeGest
         post(.leftMouseDown, 2); post(.leftMouseUp, 2)
     }
 }
+// A bounded pointer sequence inside one explicitly labelled synthetic canvas.
+// Fractions select positions in that AX group; neither arbitrary screen paths
+// nor caller-provided event scripts/timings are admitted.
+func canvasGesture(_ window: AXUIElement, _ label: String, _ gesture: CanvasGesture, _ fraction: Double, _ endFraction: Double?) throws {
+    guard fraction.isFinite, fraction >= 0, fraction <= 1,
+          let target = descendants(window).first(where: { item in
+              attribute(item, kAXRoleAttribute as CFString) as? String == "AXGroup"
+              && [kAXTitleAttribute, kAXDescriptionAttribute].contains { attribute(item, $0 as CFString) as? String == label }
+          }) else { throw ProbeFailure.invalidInput }
+    let frame = try geometry(target), bounds = try geometry(window)
+    let visible = frame.intersection(bounds.insetBy(dx: 1, dy: 30))
+    guard frame.width >= 1, !visible.isNull, visible.height >= 2 else { throw ProbeFailure.invalidInput }
+    let y = visible.minY + min(40, visible.height / 4)
+    let start = CGPoint(x: frame.minX + 0.5 + max(0, frame.width - 1) * fraction, y: y)
+    let end: CGPoint
+    switch gesture {
+    case .inspect: guard endFraction == nil else { throw ProbeFailure.invalidInput }; end = start
+    case .select:
+        guard let endFraction, endFraction.isFinite, endFraction >= 0, endFraction <= 1 else { throw ProbeFailure.invalidInput }
+        end = CGPoint(x: frame.minX + 0.5 + max(0, frame.width - 1) * endFraction, y: y)
+    }
+    let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+    for point in [start, end] {
+        guard frame.contains(point), bounds.insetBy(dx: 1, dy: 30).contains(point), NSScreen.screens.contains(where: { screen in
+            CGRect(x: screen.frame.minX, y: mainHeight - screen.frame.maxY, width: screen.frame.width, height: screen.frame.height).contains(point)
+        }) else { throw ProbeFailure.invalidInput }
+    }
+    func post(_ kind: CGEventType, _ point: CGPoint) {
+        CGEvent(mouseEventSource: nil, mouseType: kind, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+        Thread.sleep(forTimeInterval: 0.04)
+    }
+    post(.mouseMoved, start); post(.leftMouseDown, start)
+    switch gesture {
+    case .inspect: break
+    case .select:
+        for step in 1...8 { post(.leftMouseDragged, CGPoint(x: start.x + (end.x - start.x) * Double(step) / 8, y: y)) }
+    }
+    post(.leftMouseUp, end)
+}
 func navigate(_ window: AXUIElement, _ label: String) throws {
     if action(window, label) == nil {
         try press(window, "Navigation")
@@ -126,6 +169,10 @@ func sendKey(_ pid: Int32, _ key: NativeKey) throws {
     case .backtab: code = 48; flags = .maskShift
     case .up: code = 126; flags = []
     case .down: code = 125; flags = []
+    case .left: code = 123; flags = []
+    case .right: code = 124; flags = []
+    case .shiftLeft: code = 123; flags = .maskShift
+    case .shiftRight: code = 124; flags = .maskShift
     case .home: code = 115; flags = []
     case .end: code = 119; flags = []
     case .enter: code = 36; flags = []
@@ -174,7 +221,7 @@ func sendKey(_ pid: Int32, _ key: NativeKey) throws {
     case .colon: fixtureText = ":"
     case .civilSeparator: fixtureText = "T"
     case .selectAll: fixtureText = "a"
-    case .tab, .backtab, .up, .down, .home, .end, .enter, .escape, .space,
+    case .tab, .backtab, .up, .down, .left, .right, .shiftLeft, .shiftRight, .home, .end, .enter, .escape, .space,
          .letterK, .letterI, .letterT, .letterC, .letterH, .letterE, .letterN:
         fixtureText = nil
     }
@@ -251,7 +298,7 @@ do {
         guard let native = ownedWindow(input.pid), let bounds = native[kCGWindowBounds as String] as? [String: Any] else { throw ProbeFailure.missingWindow }
         let data = try JSONSerialization.data(withJSONObject: ["pid": input.pid, "window_id": native[kCGWindowNumber as String] ?? 0, "bounds": bounds, "accessibility_trusted": AXIsProcessTrusted(), "post_events_allowed": CGPreflightPostEventAccess()], options: [.sortedKeys])
         print(String(decoding: data, as: UTF8.self))
-    case .click, .close, .minimize, .restore, .focus, .fillLogin, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree, .press, .release, .gesture, .gestureBegin:
+    case .click, .close, .minimize, .restore, .focus, .fillLogin, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree, .press, .release, .gesture, .gestureBegin, .canvas:
         guard AXIsProcessTrusted(), let windows = attribute(application, kAXWindowsAttribute as CFString) as? [AXUIElement], let window = windows.first else { throw ProbeFailure.accessibilityUnavailable }
         if case .restore = input.command {
             guard AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse) == .success else { throw ProbeFailure.invalidInput }
@@ -264,6 +311,10 @@ do {
         switch input.command {
         case .info: throw ProbeFailure.invalidInput
         case .focus: break
+        case .canvas:
+            guard input.syntheticOnly == true, let label = input.label,
+                  let gesture = input.canvasGesture, let fraction = input.fraction else { throw ProbeFailure.invalidInput }
+            try canvasGesture(window, label, gesture, fraction, input.endFraction)
         case .gesture:
             guard input.syntheticOnly == true, let label = input.label, let gesture = input.gesture else { throw ProbeFailure.invalidInput }
             try nativeGesture(window, label, gesture)
