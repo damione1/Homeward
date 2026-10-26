@@ -6,6 +6,9 @@ use home_client_model::lists::{ItemUid, ListId};
 use home_wire_contract::{home::lists::v1 as wire, lists_contract};
 use std::{collections::BTreeSet, sync::Arc};
 
+mod reader;
+pub use reader::{ListReadEvent, ListReadExit, ListReadSnapshot, read_lists_once};
+
 const MAX_ROWS: usize = 65_536;
 const MAX_BYTES: usize = 32 << 20;
 const MAX_TOKEN_BYTES: usize = 1024;
