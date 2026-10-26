@@ -314,8 +314,11 @@ func TestNHA030EncodedByteThresholdFlushesBeforeCount(t *testing.T) {
 		if err := session.Publish(context.Background(), bindings[0], observation); err != nil {
 			t.Fatal(err)
 		}
+		// Large values can overflow the bounded mailbox if the producer runs
+		// ahead. Hold time frozen and acknowledge each consumed entry so this
+		// test isolates the encoded-byte flush boundary without losing states.
+		before = controlled.awaitPrefix(t, before, 1)
 	}
-	controlled.awaitPrefix(t, before, 7)
 	batches, checkpoint := nha183Batches(writer)
 	if len(batches) < 2 {
 		t.Fatal("encoded-byte threshold did not flush at frozen time")
