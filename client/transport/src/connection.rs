@@ -4,8 +4,8 @@ use connectrpc::client::{ClientConfig, HttpClient};
 use http::Uri;
 
 use crate::{
-    ActionTransport, AuthTransport, DashboardTransport, Failure, ListTransport, StateTransport,
-    services::home,
+    ActionTransport, AuthTransport, DashboardTransport, Failure, HistoryTransport, ListTransport,
+    StateTransport, services::home,
 };
 
 /// A shared verified TLS connection configuration. Service facades reuse the
@@ -81,6 +81,14 @@ impl Connection {
     pub fn actions(&self) -> ActionTransport {
         ActionTransport {
             client: home::actions::v1::ActionServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
+        }
+    }
+    pub fn history(&self) -> HistoryTransport {
+        HistoryTransport {
+            client: home::history::v1::HistoryServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),
