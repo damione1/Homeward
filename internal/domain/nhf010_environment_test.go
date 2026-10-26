@@ -168,3 +168,90 @@ func TestNHF010PresenceRefusesInvalidIdentityConfidenceAndCoordinates(t *testing
 		t.Fatal("empty zone identity admitted")
 	}
 }
+
+func TestNHF010EnvironmentStateSumRejectsPayloadConfusion(t *testing.T) {
+	weather, _ := NewWeatherValue(nhf010WeatherParts())
+	person, _ := ParsePersonID("synthetic-person")
+	presence, _ := NewPresenceValue(PresenceParts{Person: person, Residence: ResidenceUnknown, Confidence: PresenceConfidenceUnknown})
+	details, _ := NewPresenceDetailsValue(PresenceDetailsParts{Person: person})
+	weatherState, err := NewWeatherStateValue(weather)
+	if err != nil {
+		t.Fatal(err)
+	}
+	presenceState, err := NewPresenceStateValue(presence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	detailState, err := NewPresenceDetailsStateValue(details)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []struct {
+		state StateValue
+		want  ValueKind
+	}{
+		{weatherState, ValueWeather}, {presenceState, ValuePresence}, {detailState, ValuePresenceDetails},
+	} {
+		if kind, err := value.state.Kind(); err != nil || kind != value.want {
+			t.Fatal("wrong admitted state kind", kind, err)
+		}
+	}
+	if _, ok := presenceState.PresenceDetails(); ok {
+		t.Fatal("aggregate exposed a private location branch")
+	}
+	if _, ok := detailState.Presence(); ok {
+		t.Fatal("details became an inferred aggregate presence")
+	}
+	for _, bad := range []StateValue{
+		{kind: ValueWeather}, {kind: ValuePresence}, {kind: ValuePresenceDetails},
+		{kind: ValueWeather, native: (*weatherStatePayload)(nil)},
+		{kind: ValueWeather, native: &weatherStatePayload{}},
+		{kind: ValuePresence, native: &presenceStatePayload{}},
+		{kind: ValuePresenceDetails, native: &presenceDetailsStatePayload{}},
+		{kind: ValuePresence, native: weatherState.native},
+		{kind: ValueWeather, native: detailState.native},
+	} {
+		if _, err := bad.Kind(); err == nil {
+			t.Fatal("forged state payload admitted")
+		}
+		if _, ok := bad.Weather(); ok {
+			t.Fatal("invalid weather exposed")
+		}
+		if _, ok := bad.Presence(); ok {
+			t.Fatal("invalid presence exposed")
+		}
+		if _, ok := bad.PresenceDetails(); ok {
+			t.Fatal("invalid private details exposed")
+		}
+	}
+	if sameBusinessValue(weatherState, presenceState) || sameBusinessValue(presenceState, detailState) {
+		t.Fatal("different state variants considered equal")
+	}
+}
+
+func TestNHF010EnvironmentBusinessEqualityUsesDataAndAbsoluteInstants(t *testing.T) {
+	parts := nhf010WeatherParts()
+	first, _ := NewWeatherValue(parts)
+	left, _ := NewWeatherStateValue(first)
+	parts.Forecast.IssuedAt = parts.Forecast.IssuedAt.In(time.FixedZone("synthetic presentation zone", 3600))
+	parts.Forecast.Periods[0].StartsAt = parts.Forecast.Periods[0].StartsAt.In(time.FixedZone("synthetic other zone", -3600))
+	second, _ := NewWeatherValue(parts)
+	right, _ := NewWeatherStateValue(second)
+	if !sameBusinessValue(left, right) {
+		t.Fatal("equal absolute forecast depends on pointer or timezone identity")
+	}
+	parts.HumidityPercent = nil
+	missing, _ := NewWeatherValue(parts)
+	changed, _ := NewWeatherStateValue(missing)
+	if sameBusinessValue(left, changed) {
+		t.Fatal("missing humidity became observed zero")
+	}
+	person, _ := ParsePersonID("synthetic-person")
+	empty, _ := NewPresenceDetailsValue(PresenceDetailsParts{Person: person})
+	zero, _ := NewPresenceDetailsValue(PresenceDetailsParts{Person: person, Coordinates: &Coordinates{}})
+	emptyState, _ := NewPresenceDetailsStateValue(empty)
+	zeroState, _ := NewPresenceDetailsStateValue(zero)
+	if sameBusinessValue(emptyState, zeroState) {
+		t.Fatal("absent coordinates became the real zero coordinate pair")
+	}
+}

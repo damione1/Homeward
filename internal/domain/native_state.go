@@ -39,6 +39,8 @@ func NewSolarEventStateValue(value SolarEventValue) (StateValue, error) {
 
 func (v StateValue) nativeKind() (ValueKind, error) {
 	switch v.kind {
+	case ValueWeather, ValuePresence, ValuePresenceDetails:
+		return v.environmentKind()
 	case ValueCover:
 		if p, ok := v.native.(*coverStatePayload); ok && p != nil {
 			if _, _, _, err := p.value.Components(); err == nil {
@@ -107,6 +109,8 @@ func sameBusinessValue(a, b StateValue) bool {
 		return false
 	}
 	switch left {
+	case ValueWeather, ValuePresence, ValuePresenceDetails:
+		return sameEnvironmentValue(a, b)
 	case ValueCover:
 		return a.native.(*coverStatePayload).value == b.native.(*coverStatePayload).value
 	case ValueLock:
