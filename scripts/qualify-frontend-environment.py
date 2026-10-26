@@ -32,6 +32,11 @@ class Control(Enum):
     TORONTO = 'profile-toronto'
     REVOKE = 'revoke-details'
     ALLOW = 'allow-details'
+    OUTAGE = 'outage'
+    NETWORK = 'restore-network'
+
+
+EXPECTED_CONTROLS = tuple(Control) + (Control.NOMINAL,)
 
 
 def source_inventory(config):
@@ -121,7 +126,8 @@ def qualify(proof, server_binary, client_binary):
                             action = Control(command['action'])
                             if (set(command) != {'sequence', 'action'}
                                     or command['sequence'] != len(controls) + 1
-                                    or action != list(Control)[len(controls)]):
+                                    or len(controls) >= len(EXPECTED_CONTROLS)
+                                    or action != EXPECTED_CONTROLS[len(controls)]):
                                 raise RuntimeError('unbound or out of order fixture control')
                             acknowledge(fixture, server, command)
                             controls.append(command)
@@ -140,8 +146,9 @@ def qualify(proof, server_binary, client_binary):
             if not (report['pass'] and report['guest_entities'] == 3 and report['member_entities'] == 4
                     and report['typed_host_cards'] and report['ordered_watch']
                     and report['profile_hot_reload'] and report['private_purge']
-                    and report['no_real_devices'] and report['controls'] == len(Control)
-                    and len(controls) == len(Control)):
+                    and report['suspension_keeps_absolute_events'] and report['offline_reconnect']
+                    and report['no_real_devices'] and report['controls'] == len(EXPECTED_CONTROLS)
+                    and len(controls) == len(EXPECTED_CONTROLS)):
                 raise RuntimeError('incomplete actual Rust host evidence')
             if not (final['server_joined'] and final['real_device_writes'] == 0
                     and final['command_driver_entries'] == final['fake_driver_calls'] == 0

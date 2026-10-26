@@ -74,6 +74,8 @@ enum Control {
     AllowDetails,
     ProfileParis,
     ProfileToronto,
+    Outage,
+    RestoreNetwork,
 }
 #[derive(Default)]
 struct Controls(u64);
@@ -146,6 +148,18 @@ fn weather(view: &CachedView) -> Option<&env::WeatherValue> {
     view.entities().find_map(|(_, entity)| {
         if let Some(state::observed_state::Value::Weather(value)) = entity.state.value.as_ref() {
             Some(value.as_ref())
+        } else {
+            None
+        }
+    })
+}
+fn solar_instant(view: &CachedView) -> Option<(i64, i32)> {
+    view.entities().find_map(|(_, entity)| {
+        if let Some(state::observed_state::Value::SolarEvent(value)) = entity.state.value.as_ref()
+            && let Some(home_wire_contract::home::solar::v1::solar_occurrence::Occurrence::At(at)) =
+                value.occurrence.occurrence.as_ref()
+        {
+            Some((at.seconds, at.nanos))
         } else {
             None
         }
@@ -346,8 +360,8 @@ async fn run(fixture: Fixture) -> Result<()> {
         })
         .await?;
     controls.send(Control::RevokeDetails).await?;
-    // This also verifies that an old pending ticket cannot expose coordinates
-    // after the owner applies authority termination or a resync.
+    // The actual owner must publish a private clear or a newly authorized view
+    // after authority termination/resync; old details cannot remain projected.
     queue
         .until(|p| p.view.is_none() || p.view.as_ref().is_some_and(|v| !private(v)))
         .await?;
@@ -361,8 +375,47 @@ async fn run(fixture: Fixture) -> Result<()> {
     assert!(!private(restricted.view.as_ref().unwrap()));
     controls.send(Control::AllowDetails).await?;
     admit(handle.activate())?;
-    queue
+    let restored = queue
         .until(|p| p.phase == CachePhase::Live && p.view.as_ref().is_some_and(private))
+        .await?;
+    let before_suspend = solar_instant(restored.view.as_ref().unwrap())
+        .ok_or("solar instant missing before suspend")?;
+    admit(handle.suspend().await)?;
+    queue
+        .until(|p| p.phase == CachePhase::Suspended && p.view.is_none())
+        .await?;
+    admit(handle.resume())?;
+    let resumed = queue
+        .until(|p| p.phase == CachePhase::Live && p.view.as_ref().is_some_and(private))
+        .await?;
+    assert_eq!(
+        solar_instant(resumed.view.as_ref().unwrap()),
+        Some(before_suspend)
+    );
+    assert!(resumed.view.as_ref().unwrap().entities().any(|(_, e)| {
+        if let Some(state::observed_state::Value::Presence(value)) = e.state.value.as_ref() {
+            value.residence == env::Residence::Home
+        } else {
+            false
+        }
+    }));
+    controls.send(Control::Outage).await?;
+    let offline = queue
+        .until(|p| p.phase == CachePhase::Offline && p.view.as_ref().is_some_and(private))
+        .await?;
+    assert_eq!(
+        solar_instant(offline.view.as_ref().unwrap()),
+        Some(before_suspend)
+    );
+    controls.send(Control::RestoreNetwork).await?;
+    controls.send(Control::Nominal).await?;
+    queue
+        .until(|p| {
+            p.phase == CachePhase::Live
+                && p.view.as_ref().and_then(weather).is_some_and(|v| {
+                    v.forecast.valid_until.seconds > chrono::Utc::now().timestamp()
+                })
+        })
         .await?;
     // A retained CacheHandle also retains the reliable event sender. Release
     // the probe's handle before waiting for that receiver to finish draining.
@@ -373,7 +426,7 @@ async fn run(fixture: Fixture) -> Result<()> {
     session.close().await;
     println!(
         "NHF010_RESULT {}",
-        serde_json::json!({"pass":true,"guest_entities":3,"member_entities":4,"typed_host_cards":true,"ordered_watch":true,"profile_hot_reload":true,"private_purge":true,"controls":controls.0,"no_real_devices":true})
+        serde_json::json!({"pass":true,"guest_entities":3,"member_entities":4,"typed_host_cards":true,"ordered_watch":true,"profile_hot_reload":true,"private_purge":true,"suspension_keeps_absolute_events":true,"offline_reconnect":true,"controls":controls.0,"no_real_devices":true})
     );
     Ok(())
 }
