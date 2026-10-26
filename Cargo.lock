@@ -1912,6 +1912,7 @@ version = "0.1.0"
 dependencies = [
  "buffa",
  "buffa-types",
+ "connectrpc",
  "getrandom 0.3.4",
  "home-client-model",
  "home-client-session",
@@ -2022,6 +2023,7 @@ dependencies = [
  "buffa",
  "buffa-types",
  "chrono",
+ "connectrpc",
  "home-client-actions",
  "home-client-cache",
  "home-client-model",

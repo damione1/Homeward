@@ -67,12 +67,12 @@ func geometry(_ element: AXUIElement) throws -> CGRect {
           AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size) else { throw ProbeFailure.invalidInput }
     return CGRect(origin: position, size: size)
 }
-func tap(_ window: AXUIElement, _ label: String) throws {
+func tap(_ window: AXUIElement, _ label: String, at requestedPoint: CGPoint? = nil) throws {
     guard let target = action(window, label) else { throw ProbeFailure.invalidInput }
     let frame = try geometry(target), bounds = try geometry(window)
-    let point = CGPoint(x: frame.midX, y: frame.midY)
+    let point = requestedPoint ?? CGPoint(x: frame.midX, y: frame.midY)
     let mainHeight = NSScreen.screens.first?.frame.height ?? 0
-    guard bounds.insetBy(dx: 1, dy: 30).contains(point), NSScreen.screens.contains(where: { screen in
+    guard frame.contains(point), bounds.insetBy(dx: 1, dy: 30).contains(point), NSScreen.screens.contains(where: { screen in
         CGRect(x: screen.frame.minX, y: mainHeight - screen.frame.maxY, width: screen.frame.width, height: screen.frame.height).contains(point)
     }) else { throw ProbeFailure.invalidInput }
     for kind in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
@@ -284,7 +284,10 @@ do {
             FileHandle.standardOutput.write(result)
         case .tap:
             guard input.syntheticOnly == true, let label = input.label else { throw ProbeFailure.invalidInput }
-            try tap(window, label)
+            guard (input.x == nil) == (input.y == nil) else { throw ProbeFailure.invalidInput }
+            let point: CGPoint?
+            if let x = input.x, let y = input.y { point = CGPoint(x: x, y: y) } else { point = nil }
+            try tap(window, label, at: point)
         case .press:
             guard input.syntheticOnly == true, let label = input.label,
                   let fraction = input.fraction, fraction >= 0, fraction <= 1,
@@ -321,9 +324,11 @@ do {
             try sendKey(input.pid, key)
         case .scroll:
             guard input.syntheticOnly == true, let delta = input.delta, abs(Int64(delta)) <= 1000 else { throw ProbeFailure.invalidInput }
-            let frame = try geometry(window), point = CGPoint(x: frame.midX, y: frame.midY)
+            let frame = try geometry(window)
+            guard (input.x == nil) == (input.y == nil) else { throw ProbeFailure.invalidInput }
+            let point = CGPoint(x: input.x ?? frame.midX, y: input.y ?? frame.midY)
             let mainHeight = NSScreen.screens.first?.frame.height ?? 0
-            guard NSScreen.screens.contains(where: { CGRect(x: $0.frame.minX, y: mainHeight - $0.frame.maxY, width: $0.frame.width, height: $0.frame.height).contains(point) }) else { throw ProbeFailure.invalidInput }
+            guard frame.insetBy(dx: 1, dy: 30).contains(point), NSScreen.screens.contains(where: { CGRect(x: $0.frame.minX, y: mainHeight - $0.frame.maxY, width: $0.frame.width, height: $0.frame.height).contains(point) }) else { throw ProbeFailure.invalidInput }
             CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
             Thread.sleep(forTimeInterval: 0.05)
             let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: delta, wheel2: 0, wheel3: 0)

@@ -1,0 +1,106 @@
+import { KitTheme, KitContentList, ContentItem, KitTextField, KitWrap, KitScrollArea, FieldAccess, NavigationStep, ControlSize } from "@kit/kit.slint";
+import { ProTaskList, ProTaskRow, ProTaskAccess, ProTaskAction, ProIdentityButton } from "@kit-pro/kit-pro.slint";
+export component HomewardLists inherits Rectangle {
+    in property <KitTheme> theme;
+    in property <int> generation;
+    in property <[ContentItem]> catalog;
+    in property <[ProTaskRow]> tasks;
+    in property <bool> catalog-ready;
+    in property <bool> write-ready;
+    in property <bool> busy;
+    in property <bool> selected;
+    in property <string> title;
+    in property <string> catalog-count;
+    in property <string> item-count;
+    in property <string> notice;
+    in property <string> cached-at;
+    in property <ProTaskAccess> access;
+    in property <bool> task-selected;
+    in property <ProTaskRow> task-selection;
+    in property <int> active-index;
+    in-out property <string> draft;
+    in-out property <string> create-draft;
+    in-out property <string> rename-draft;
+    in-out property <string> add-draft;
+    out property <bool> editor-focused: task-list.editor-focused;
+    out property <length> scroll-y: task-list.scroll-y;
+    callback choose(int,int);
+    callback select-task(int,int);
+    callback edit(int,int,string);
+    callback complete(int,int,bool);
+    callback action(int,int,ProTaskAction);
+    callback create(int,string);
+    callback rename(int,string);
+    callback delete(int);
+    callback add(int,string);
+    callback reload(int);
+    callback navigate(NavigationStep);
+    public function focus-editor() { task-list.focus-editor(); }
+    public function scroll-to(y: length) { task-list.scroll-to(y); }
+    public function take-focus() { catalog-list.take-focus(); }
+    page := KitScrollArea {
+        width: root.width; height: root.height;
+        HorizontalLayout {
+            padding: 16px; spacing: 16px;
+            VerticalLayout {
+                preferred-width: root.selected ? 260px : 600px;
+                max-width: root.selected ? 300px : 100000px;
+                spacing: 12px;
+                catalog-controls := VerticalLayout {
+                    spacing: 12px;
+                    KitTextField { theme: root.theme; label: "Nouvelle liste"; text <=> root.create-draft; access: root.catalog-ready ? FieldAccess.editable : FieldAccess.disabled; }
+                    KitWrap {
+                        spacing: 8px;
+                        ProIdentityButton { theme: root.theme; control-size: ControlSize.comfortable; text: "Créer la liste"; generation: root.generation; disabled: !root.catalog-ready; trigger(t,g) => { root.create(g,root.create-draft); } }
+                        ProIdentityButton { theme: root.theme; control-size: ControlSize.comfortable; text: "Relire les listes"; generation: root.generation; disabled: root.busy; trigger(t,g) => { root.reload(g); } }
+                    }
+                    Text { text: root.catalog-count; color: root.theme.text-secondary; font-size: 13px * root.theme.text-scale; }
+                    if root.notice != "": Text { text: root.notice; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+                }
+                catalog-list := KitContentList {
+                    preferred-height: max(self.min-height,page.visible-height - catalog-controls.preferred-height - 44px);
+                    theme: root.theme; items: root.catalog; generation: root.generation; label: "Listes synchronisées";
+                    activate(token,generation) => { root.choose(token,generation); }
+                }
+            }
+            Rectangle {
+                visible: root.selected; horizontal-stretch: 1;
+                max-width: root.selected ? 100000px : 0px;
+                min-height: root.selected ? detail.min-height : 0px;
+                preferred-height: root.selected ? detail.preferred-height : 0px;
+                max-height: root.selected ? 100000px : 0px;
+                detail := VerticalLayout {
+                    spacing: 8px;
+                    detail-controls := VerticalLayout {
+                        spacing: 8px;
+                        KitWrap {
+                            spacing: 8px;
+                            KitTextField { theme: root.theme; label: "Renommer la liste"; placeholder: root.title; text <=> root.rename-draft; access: root.write-ready ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; }
+                            ProIdentityButton { theme: root.theme; text: "Renommer"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.write-ready; trigger(t,g) => { root.rename(g,root.rename-draft); } }
+                            ProIdentityButton { theme: root.theme; text: "Supprimer la liste"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.write-ready; trigger(t,g) => { root.delete(g); } }
+                        }
+                        KitWrap {
+                            spacing: 8px;
+                            KitTextField { theme: root.theme; label: "Nouvel élément"; text <=> root.add-draft; access: root.write-ready ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; }
+                            ProIdentityButton { theme: root.theme; text: "Ajouter"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.write-ready; trigger(t,g) => { root.add(g,root.add-draft); } }
+                        }
+                    }
+                    task-list := ProTaskList {
+                        preferred-height: max(self.min-height,page.visible-height - detail-controls.preferred-height - 40px);
+                        theme: root.theme; rows: root.tasks; title: root.title; count-label: root.item-count;
+                        access: root.access; cached-at: root.cached-at; offline-label: "Hors ligne · cache du";
+                        selected: root.task-selected; selection: root.task-selection; active-index: root.active-index; draft <=> root.draft;
+                        empty-label: "Aucun élément"; edit-label: "Modifier"; summary-label: "Élément";
+                        save-label: "Enregistrer"; remove-label: "Supprimer"; first-label: "En premier"; up-label: "Monter"; down-label: "Descendre";
+                        reload-label: "Version serveur"; resolve-label: "Conserver mon brouillon";
+                        select(t,g) => { root.select-task(t,g); }
+                        complete(t,g,v) => { root.complete(t,g,v); }
+                        edited(t,g,v) => { root.edit(t,g,v); }
+                        action(t,g,a) => { root.action(t,g,a); }
+                        navigate(step) => { root.navigate(step); }
+                    }
+                }
+            }
+        }
+    }
+}

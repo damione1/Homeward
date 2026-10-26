@@ -83,6 +83,10 @@ func nha162SetPolicy(t *testing.T, rig *nha162RPCRig, target contracts.AccountID
 }
 
 func nha162NewRPCRig(t *testing.T) *nha162RPCRig {
+	return nha162NewRPCRigWithLifetime(t, 120*time.Second)
+}
+
+func nha162NewRPCRigWithLifetime(t *testing.T, lifetime time.Duration) *nha162RPCRig {
 	t.Helper()
 	cluster := testpg.Start(t)
 	dataDir := shortPrivateDataDir(t)
@@ -91,7 +95,7 @@ func nha162NewRPCRig(t *testing.T) *nha162RPCRig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), lifetime)
 	store, err := storage.Open(ctx, postgres)
 	if err != nil {
 		cancel()

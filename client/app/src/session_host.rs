@@ -134,6 +134,7 @@ pub(crate) struct LifecycleBridge {
     window: Arc<Mutex<slint::Weak<HomewardWindow>>>,
     foreground_admission: Arc<Mutex<Option<ForegroundAdmission>>>,
     read_intent: Arc<Mutex<ReadIntent>>,
+    lists: Arc<Mutex<Option<crate::list_host::Lists>>>,
 }
 impl LifecycleBridge {
     pub(crate) fn new() -> Self {
@@ -145,6 +146,7 @@ impl LifecycleBridge {
             window: Arc::new(Mutex::new(slint::Weak::default())),
             foreground_admission: Arc::new(Mutex::new(None)),
             read_intent: Arc::new(Mutex::new(ReadIntent::NotRequested)),
+            lists: Arc::new(Mutex::new(None)),
         }
     }
     // Called by native event listeners on the UI thread. Cancel publication and
@@ -153,6 +155,9 @@ impl LifecycleBridge {
         let _transition = self.transition.lock().expect("lifecycle gate poisoned");
         if *self.events.borrow() == state {
             return;
+        }
+        if let Some(lists) = self.lists.lock().expect("lifecycle lists mutex").as_ref() {
+            lists.foreground(state == Lifecycle::Foreground);
         }
         // Capture admission at the native event, before its worker handling can
         // be delayed. A later suspend/logout invalidates this exact permit.
@@ -259,6 +264,7 @@ struct Ui {
     dashboard_retry: Arc<tokio::sync::Notify>,
     dashboard_choices: crate::dashboard_selection::Choices,
     devices: Arc<Mutex<Option<DeviceBinding>>>,
+    lists: crate::list_host::Lists,
 }
 impl Ui {
     fn current_devices(&self) -> Result<(DeviceBinding, i32), Refusal> {
@@ -290,6 +296,7 @@ impl Ui {
         }
     }
     fn invalidate_cache(&self) {
+        self.lists.clear();
         if let Some(binding) = self.devices.lock().expect("device binding mutex").clone() {
             binding.store.clear_private();
         }
@@ -607,6 +614,7 @@ struct Profile {
     devices: DeviceStore,
 }
 async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, ui: &Ui) {
+    ui.lists.clear();
     if let Some(previous) = profile.take() {
         {
             let mut binding = ui
@@ -648,6 +656,16 @@ async fn install_profile(
         ActionController::start(owner.clone(), connection.actions());
     let mut action_updates = actions.subscribe_updates();
     let cancel = CancellationToken::new();
+    ui.lists.clear();
+    let (lists, list_session, list_transport, list_cancel) = (
+        ui.lists.clone(),
+        owner.clone(),
+        connection.lists(),
+        cancel.clone(),
+    );
+    tasks.spawn(async move {
+        lists.run(list_session, list_transport, list_cancel).await;
+    });
     let origin = endpoint.origin().to_owned();
     let certificates = endpoint.certificates().to_owned();
     let fingerprint = endpoint
@@ -1092,6 +1110,8 @@ pub(crate) fn run_with_lifecycle(
         });
     }
     cache_view::bind(&window);
+    let lists = crate::list_host::Lists::bind(&window);
+    *lifecycle.lists.lock().expect("lifecycle lists mutex") = Some(lists.clone());
     let (viewport_tx, viewport) = watch::channel(Viewport::default());
     let ui = Ui {
         window: window.as_weak(),
@@ -1103,6 +1123,7 @@ pub(crate) fn run_with_lifecycle(
         dashboard_retry: Arc::new(tokio::sync::Notify::new()),
         dashboard_choices: crate::dashboard_selection::Choices::default(),
         devices: Arc::new(Mutex::new(None)),
+        lists,
     };
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
@@ -1498,6 +1519,7 @@ mod tests {
             dashboard_retry: Arc::new(tokio::sync::Notify::new()),
             dashboard_choices: crate::dashboard_selection::Choices::default(),
             devices: Arc::new(Mutex::new(None)),
+            lists: crate::list_host::Lists::detached(),
         };
         ui.request_view(epoch);
 
@@ -1586,6 +1608,7 @@ mod tests {
             dashboard_retry: Arc::new(tokio::sync::Notify::new()),
             dashboard_choices: crate::dashboard_selection::Choices::default(),
             devices: Arc::new(Mutex::new(None)),
+            lists: crate::list_host::Lists::detached(),
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));

@@ -44,6 +44,7 @@ slint = { version = "=1.18.1", default-features = false, features = ["std", "com
 slint-kit-pro-build = { path = "../../.tools/frontend-kits/pro/crates/kit-pro-build" }
 
 [dev-dependencies]
+connectrpc = { version = "=0.9.1", default-features = false }
 i-slint-backend-testing = "=1.18.1"
 
 [package.metadata.android]

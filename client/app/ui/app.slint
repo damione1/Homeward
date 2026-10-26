@@ -1,17 +1,18 @@
 import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitUrlField,
     KitTextArea, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth,
-    KitDataTable, TableRow, DataSortDirection, DataAlignment, NavigationStep,
+    KitDataTable, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest, IconKind } from "@kit/kit.slint";
-import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData } from "@kit-pro/kit-pro.slint";
+import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction } from "@kit-pro/kit-pro.slint";
+import { HomewardLists } from "lists.slint";
 import { HomewardSkin } from "skin.slint";
 import { HomewardDevices } from "device-cards.slint";
 import { HomewardDashboard } from "native-dashboard.slint";
 import { HomewardConfirmation } from "native-confirmation.slint";
 import { HomewardPopup } from "native-popup.slint";
 
-export enum ViewPage { home, rooms, inventory, room, detail, settings }
+export enum ViewPage { home, rooms, inventory, room, detail, lists, settings }
 export enum RoomView { cards, list }
-export enum BodyFocus { read, inventory, back, settings, popup }
+export enum BodyFocus { read, inventory, back, settings, lists, popup }
 
 export component HomewardWindow inherits Window {
     title: "Homeward · Développement";
@@ -57,6 +58,44 @@ export component HomewardWindow inherits Window {
     in-out property <bool> opaque-surfaces: true;
     in-out property <bool> large-text;
     in-out property <bool> reduced-motion: true;
+
+    in property <int> lists-generation;
+    in-out property <int> lists-privacy-generation;
+    in-out property <int> lists-list-token;
+    in-out property <string> lists-create-draft;
+    in-out property <string> lists-rename-draft;
+    in-out property <string> lists-add-draft;
+    in property <[ContentItem]> lists-catalog;
+    in property <[ProTaskRow]> lists-tasks;
+    in property <bool> lists-catalog-ready;
+    in property <bool> lists-write-ready;
+    in property <bool> lists-busy;
+    in property <bool> lists-selected;
+    in property <string> lists-title;
+    in property <string> lists-catalog-count;
+    in property <string> lists-item-count;
+    in property <string> lists-notice;
+    in property <string> lists-cached-at;
+    in property <ProTaskAccess> lists-access: ProTaskAccess.read-only;
+    in property <bool> lists-task-selected;
+    in property <ProTaskRow> lists-task-selection;
+    in property <int> lists-active-index: -1;
+    in-out property <string> lists-draft;
+    out property <bool> lists-editor-focused: lists-pane.editor-focused;
+    out property <length> lists-scroll-y: lists-pane.scroll-y;
+    callback lists-choose(int,int);
+    callback lists-select-task(int,int);
+    callback lists-edit(int,int,string);
+    callback lists-complete(int,int,bool);
+    callback lists-action(int,int,ProTaskAction);
+    callback lists-create(int,string);
+    callback lists-rename(int,string);
+    callback lists-delete(int);
+    callback lists-add(int,string);
+    callback lists-reload(int);
+    callback lists-navigate(NavigationStep);
+    public function lists-focus-editor() { lists-pane.focus-editor(); }
+    public function lists-scroll-to(y: length) { lists-pane.scroll-to(y); }
     in property <ViewPage> page: ViewPage.home;
     in property <string> page-title: "Accueil";
     in property <string> dashboard-title: "Accueil";
@@ -160,6 +199,7 @@ export component HomewardWindow inherits Window {
         if (target == BodyFocus.read) { if (!root.view-loaded) { read-button.take-focus(); } else { shell.take-focus(ProShellFocus.workspace); } }
         else if (target == BodyFocus.inventory) { table.take-focus(); }
         else if (target == BodyFocus.back) { if (root.page == ViewPage.detail) { detail-back.take-focus(); } else if (root.page == ViewPage.room && root.room-view == RoomView.cards) { room-back.take-focus(); } else { back-button.take-focus(); } }
+        else if (target == BodyFocus.lists) { lists-pane.take-focus(); }
         else if (target == BodyFocus.settings) { theme-button.take-focus(); }
         else if (target == BodyFocus.popup) { popup-dialog.take-focus(); }
     }
@@ -270,6 +310,26 @@ export component HomewardWindow inherits Window {
         viewport := Rectangle {
             min-width: 0px; min-height: 0px; max-width: 100000px; max-height: 100000px;
             horizontal-stretch: 1; vertical-stretch: 1;
+            lists-pane := HomewardLists {
+                width: viewport.width; height: viewport.height; visible: root.page == ViewPage.lists;
+                create-draft <=> root.lists-create-draft; rename-draft <=> root.lists-rename-draft; add-draft <=> root.lists-add-draft;
+                theme: root.theme; generation: root.lists-generation; catalog: root.lists-catalog; tasks: root.lists-tasks;
+                catalog-ready: root.lists-catalog-ready; write-ready: root.lists-write-ready; busy: root.lists-busy;
+                selected: root.lists-selected; title: root.lists-title; catalog-count: root.lists-catalog-count; item-count: root.lists-item-count;
+                notice: root.lists-notice; cached-at: root.lists-cached-at; access: root.lists-access;
+                task-selected: root.lists-task-selected; task-selection: root.lists-task-selection; active-index: root.lists-active-index; draft <=> root.lists-draft;
+                choose(t,g) => { root.lists-choose(t,g); }
+                select-task(t,g) => { root.lists-select-task(t,g); }
+                edit(t,g,v) => { root.lists-edit(t,g,v); }
+                complete(t,g,v) => { root.lists-complete(t,g,v); }
+                action(t,g,a) => { root.lists-action(t,g,a); }
+                create(g,v) => { root.lists-create(g,v); }
+                rename(g,v) => { root.lists-rename(g,v); }
+                delete(g) => { root.lists-delete(g); }
+                add(g,v) => { root.lists-add(g,v); }
+                reload(g) => { root.lists-reload(g); }
+                navigate(step) => { root.lists-navigate(step); }
+            }
             home := KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
                 visible: root.page == ViewPage.home;
