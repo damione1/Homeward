@@ -26,6 +26,9 @@ fn condition(value: EnumValue<env::WeatherCondition>) -> Option<StateText> {
     };
     Some(StateText { label, literal })
 }
+pub(crate) fn condition_label(value: EnumValue<env::WeatherCondition>) -> &'static str {
+    condition(value).map_or("Condition non prise en charge", |v| v.label)
+}
 
 pub(crate) fn weather_literal(value: &env::WeatherValue) -> Option<&'static str> {
     value.condition.and_then(condition).map(|v| v.literal)

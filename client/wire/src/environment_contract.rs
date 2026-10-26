@@ -63,7 +63,7 @@ fn percent(value: f64) -> bool {
     value.is_finite() && (0.0..=100.0).contains(&value)
 }
 
-fn wind(value: &env::Wind) -> bool {
+pub fn wind(value: &env::Wind) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && value.speed.is_some_and(|v| v.is_finite() && v >= 0.0)
         && value
@@ -80,7 +80,7 @@ fn wind(value: &env::Wind) -> bool {
         }
 }
 
-fn precipitation(value: &env::Precipitation) -> bool {
+pub fn precipitation(value: &env::Precipitation) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && value.amount.is_some_and(|v| v.is_finite() && v >= 0.0)
         && match value.unit {
@@ -121,6 +121,38 @@ pub fn forecast_period(value: &env::ForecastPeriod) -> bool {
     kind && range
 }
 
+/// Structural envelope validation permits the host to show an unsupported
+/// individual field without discarding other admitted forecast readings.
+pub fn forecast_structure(value: &env::Forecast) -> bool {
+    value.__buffa_unknown_fields.is_empty()
+        && !value.periods.is_empty()
+        && value.periods.len() <= MAX_FORECAST_PERIODS
+        && value
+            .issued_at
+            .as_option()
+            .and_then(instant)
+            .zip(value.valid_until.as_option().and_then(instant))
+            .is_some_and(|(a, b)| a < b)
+        && value.periods.iter().all(|p| {
+            p.__buffa_unknown_fields.is_empty()
+                && matches!(
+                    p.kind,
+                    EnumValue::Known(env::ForecastKind::Hourly | env::ForecastKind::Daily)
+                )
+                && p.starts_at
+                    .as_option()
+                    .and_then(instant)
+                    .zip(p.ends_at.as_option().and_then(instant))
+                    .is_some_and(|(a, b)| a < b)
+        })
+        && value.periods.windows(2).all(|p| {
+            p[0].ends_at
+                .as_option()
+                .and_then(instant)
+                .zip(p[1].starts_at.as_option().and_then(instant))
+                .is_some_and(|(a, b)| a <= b)
+        })
+}
 pub fn forecast(value: &env::Forecast) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && !value.periods.is_empty()

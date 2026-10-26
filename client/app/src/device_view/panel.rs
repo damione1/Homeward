@@ -69,7 +69,7 @@ pub(super) fn editors(control: &Control) -> Vec<Editor> {
         | Control::Measurement
         | Control::Lock(_)
         | Control::Alarm(_)
-        | Control::ReadOnly
+        | Control::ReadOnly(_)
         | Control::Unsupported => {}
     }
     result
@@ -199,7 +199,7 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
         | Control::Light { .. }
         | Control::Binary
         | Control::Measurement
-        | Control::ReadOnly
+        | Control::ReadOnly(_)
         | Control::Unsupported => {}
     }
     choices
@@ -408,7 +408,7 @@ impl Editor {
             | Control::Measurement
             | Control::Lock(_)
             | Control::Alarm(_)
-            | Control::ReadOnly
+            | Control::ReadOnly(_)
             | Control::Unsupported => Err(Refusal::Unsupported),
         }
     }
@@ -441,7 +441,7 @@ impl Editor {
                 | Control::Cover(_)
                 | Control::Lock(_)
                 | Control::Alarm(_)
-                | Control::ReadOnly
+                | Control::ReadOnly(_)
                 | Control::Unsupported => Err(Refusal::Unsupported),
             },
         }
@@ -507,7 +507,7 @@ impl Editor {
             | Control::Measurement
             | Control::Lock(_)
             | Control::Alarm(_)
-            | Control::ReadOnly
+            | Control::ReadOnly(_)
             | Control::Unsupported => false,
         };
         if !advertised {

@@ -135,7 +135,7 @@ impl Control {
                 | Self::Alarm(_)
                 | Self::Binary
                 | Self::Measurement
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => Err(Refusal::Unsupported),
             },
             CommandKind::TurnOn | CommandKind::TurnOff => {
@@ -157,7 +157,7 @@ impl Control {
                     | Self::Alarm(_)
                     | Self::Binary
                     | Self::Measurement
-                    | Self::ReadOnly
+                    | Self::ReadOnly(_)
                     | Self::Unsupported => Err(Refusal::Unsupported),
                 }
             }
@@ -180,7 +180,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => Err(Refusal::Unsupported),
             },
             CommandKind::CoverOpen => Ok(DeviceIntent::Cover(

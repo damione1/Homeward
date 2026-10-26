@@ -1,6 +1,6 @@
 //! Exact server-selected cards, command admission and bounded local action
 //! history. UI tokens are ephemeral; identities/permissions never come from UI.
-mod capability;
+pub(crate) mod capability;
 mod climate;
 mod controls;
 mod helper;
@@ -416,6 +416,17 @@ impl DeviceStore {
                 None
             };
             let mut row = card(&title, entity, &control, access);
+            if let Control::ReadOnly(kind) = &control {
+                let zone = crate::environment_view::ProfileZone::from_profile(
+                    view.and_then(|v| v.display_profile()),
+                );
+                let now = crate::environment_view::now();
+                row.environment =
+                    crate::environment_view::project(*kind, entity.state.as_option(), zone, now);
+                row.freshness =
+                    crate::environment_view::observed_age(entity.state.as_option(), zone, now)
+                        .into();
+            }
             if let Control::Helper(helper) = &control {
                 row.command_unavailable = helper_revision.is_none() || !helper.available();
             }
@@ -926,7 +937,7 @@ fn card(
                 row.quality = format!("{} · Révision du helper indisponible", row.quality).into();
             }
         }
-        Control::ReadOnly => {
+        Control::ReadOnly(_) => {
             row.kind = ProDeviceKind::Observation;
             row.quality = format!("{} · Lecture seule", row.quality).into();
         }

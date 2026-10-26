@@ -89,7 +89,7 @@ fn features(control: &Control) -> BTreeSet<FeatureKind> {
         Control::Lock(_)
         | Control::Binary
         | Control::Measurement
-        | Control::ReadOnly
+        | Control::ReadOnly(_)
         | Control::Unsupported => {}
     }
     result
@@ -118,7 +118,7 @@ fn restrict(control: &Control, node: &Node) -> Option<Control> {
                 | Control::Cover(_)
                 | Control::Lock(_)
                 | Control::Alarm(_)
-                | Control::ReadOnly
+                | Control::ReadOnly(_)
                 | Control::Unsupported => false,
             };
             if !valid {
@@ -167,7 +167,7 @@ fn restrict(control: &Control, node: &Node) -> Option<Control> {
             | Control::Cover(_)
             | Control::Lock(_)
             | Control::Alarm(_)
-            | Control::ReadOnly
+            | Control::ReadOnly(_)
             | Control::Unsupported => control.clone(),
         });
     }
@@ -207,7 +207,7 @@ fn restrict(control: &Control, node: &Node) -> Option<Control> {
         Control::Lock(_)
         | Control::Binary
         | Control::Measurement
-        | Control::ReadOnly
+        | Control::ReadOnly(_)
         | Control::Unsupported => {
             return None;
         }

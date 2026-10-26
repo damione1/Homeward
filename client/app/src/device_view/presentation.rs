@@ -39,11 +39,14 @@ macro_rules! card_row {
             pub values: Vec<ProDeviceValue>,
             pub choices: Vec<ProDeviceChoice>,
             pub select_options: Vec<OptionRow>,
+            pub environment: crate::environment_view::Presentation,
         }
         impl CardRow {
             pub fn ui(&self, previous: Option<&ProDeviceRow>) -> ProDeviceRow {
                 let previous=previous.filter(|row|row.token==self.token && row.generation==self.generation);
+                let (environment_kind,weather,solar,presence)=self.environment.ui(previous);
                 ProDeviceRow {
+                    environment_kind, weather, solar, presence,
                     $($field:self.$field.to_owned(),)*
                     cover_operations:nested(self.cover_operations.as_slice(),previous.map(|row|&row.cover_operations)),
                     lock_operations:nested(self.lock_operations.as_slice(),previous.map(|row|&row.lock_operations)),

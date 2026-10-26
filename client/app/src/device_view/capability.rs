@@ -8,6 +8,14 @@ use super::{
     number::Bounds,
 };
 use home_wire_contract::home::{actions::v1 as action, registry::v1 as wire};
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ObservationKind {
+    Weather,
+    Presence,
+    Details,
+    Solar,
+    SolarEvent(home_wire_contract::home::solar::v1::SolarEventKind),
+}
 #[derive(Clone, PartialEq)]
 pub(super) enum Control {
     Switch {
@@ -26,7 +34,7 @@ pub(super) enum Control {
     Alarm(Alarm),
     Binary,
     Measurement,
-    ReadOnly,
+    ReadOnly(ObservationKind),
     Unsupported,
 }
 impl Power {
@@ -128,32 +136,37 @@ impl Control {
                 if capability.schema_id == "core.weather.v1"
                     && value.__buffa_unknown_fields.is_empty() =>
             {
-                Self::ReadOnly
+                Self::ReadOnly(ObservationKind::Weather)
             }
             Some(C::Presence(value))
                 if capability.schema_id == "core.presence.v1"
                     && value.__buffa_unknown_fields.is_empty() =>
             {
-                Self::ReadOnly
+                Self::ReadOnly(ObservationKind::Presence)
             }
             Some(C::PresenceDetails(value))
                 if capability.schema_id == "core.presence_details.v1"
                     && value.__buffa_unknown_fields.is_empty() =>
             {
-                Self::ReadOnly
+                Self::ReadOnly(ObservationKind::Details)
             }
             Some(C::Solar(value))
                 if capability.schema_id == "core.solar.v1"
                     && value.__buffa_unknown_fields.is_empty() =>
             {
-                Self::ReadOnly
+                Self::ReadOnly(ObservationKind::Solar)
             }
             Some(C::SolarEvent(value))
                 if capability.schema_id == "core.solar_event.v1"
                     && value.__buffa_unknown_fields.is_empty()
                     && home_wire_contract::solar_contract::event_kind(value.event) =>
             {
-                Self::ReadOnly
+                match value.event {
+                    buffa::EnumValue::Known(event) => {
+                        Self::ReadOnly(ObservationKind::SolarEvent(event))
+                    }
+                    buffa::EnumValue::Unknown(_) => Self::Unsupported,
+                }
             }
             Some(
                 C::Extension(_)
@@ -201,7 +214,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Brightness(value) => match self {
@@ -227,7 +240,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::ColorTemperature(value) => match self {
@@ -250,7 +263,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Climate(intent) => match self {
@@ -264,7 +277,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::FanSpeed(speed) => match self {
@@ -278,7 +291,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Helper(intent) => match self {
@@ -294,7 +307,7 @@ impl Control {
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Cover(intent) => match self {
@@ -308,7 +321,7 @@ impl Control {
                 | Self::Measurement
                 | Self::Lock(_)
                 | Self::Alarm(_)
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Lock(intent) => match self {
@@ -322,7 +335,7 @@ impl Control {
                 | Self::Measurement
                 | Self::Cover(_)
                 | Self::Alarm(_)
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Alarm(intent) => match self {
@@ -336,7 +349,7 @@ impl Control {
                 | Self::Measurement
                 | Self::Cover(_)
                 | Self::Lock(_)
-                | Self::ReadOnly
+                | Self::ReadOnly(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
         };
@@ -378,7 +391,7 @@ mod observation_tests {
                 ..Default::default()
             };
             let control = Control::parse(&description);
-            assert!(matches!(control, Control::ReadOnly));
+            assert!(matches!(control, Control::ReadOnly(_)));
             assert!(matches!(
                 control.arguments(DeviceIntent::Power(Power::On), None),
                 Err(Refusal::Unsupported)
