@@ -418,12 +418,12 @@ func TestNHA014EnumAndOneofCoverage(t *testing.T) {
 		t.Fatal("missing aggregation admitted")
 	}
 	fields := (&registry.CapabilityDescription{}).ProtoReflect().Descriptor().Oneofs().ByName("constraints").Fields()
-	for _, name := range []protoreflect.Name{"switch", "light", "fan", "climate", "measurement", "binary", "extension", "helper", "solar", "solar_event"} {
+	for _, name := range []protoreflect.Name{"switch", "light", "fan", "climate", "measurement", "binary", "extension", "helper", "solar", "solar_event", "cover", "lock", "alarm"} {
 		if fields.ByName(name) == nil {
 			t.Fatalf("missing %s admission branch", name)
 		}
 	}
-	if fields.Len() != 10 || fields.ByName("helper").Number() != 14 || fields.ByName("solar").Number() != 15 || fields.ByName("solar_event").Number() != 16 {
+	if fields.Len() != 13 || fields.ByName("helper").Number() != 14 || fields.ByName("solar").Number() != 15 || fields.ByName("solar_event").Number() != 16 || fields.ByName("cover").Number() != 17 || fields.ByName("lock").Number() != 18 || fields.ByName("alarm").Number() != 19 {
 		t.Fatal("new constraint branch needs explicit admission review")
 	}
 }

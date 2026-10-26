@@ -3,6 +3,7 @@
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod home {
+    pub mod controls { pub mod v1 { include!("generated/home.controls.v1.rs"); } }
     pub mod dashboard { pub mod v1 { include!("generated/home.dashboard.v1.rs"); } }
     pub mod configurationapply { pub mod v1 { include!("generated/home.configurationapply.v1.rs"); } }
     pub mod configurationsimulation {
@@ -34,6 +35,8 @@ pub mod auth_contract;
 pub mod authorization_contract;
 pub mod config_plans;
 pub mod configuration_contract;
+pub mod controls_contract;
+pub mod dashboard_contract;
 pub mod history_contract;
 pub mod integration_admin_contract;
 pub mod lists_contract;
@@ -168,6 +171,9 @@ pub fn validate_command(
         | Some(Arguments::SetLight(_))
         | Some(Arguments::SetFan(_))
         | Some(Arguments::SetClimate(_))
+        | Some(Arguments::Cover(_))
+        | Some(Arguments::Lock(_))
+        | Some(Arguments::Alarm(_))
         | None => Err(fail(ErrorCode::InvalidArgument, "arguments")),
     }
 }

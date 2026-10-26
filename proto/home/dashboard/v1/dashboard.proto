@@ -66,6 +66,10 @@ enum LayoutKind {
   LAYOUT_KIND_HEADING = 5;
   LAYOUT_KIND_TILE = 6;
   LAYOUT_KIND_UNSUPPORTED = 7;
+  LAYOUT_KIND_RECIPE = 8;
+  LAYOUT_KIND_VERTICAL_STACK = 9;
+  LAYOUT_KIND_POPUP = 10;
+  LAYOUT_KIND_CHIP_GROUP = 11;
 }
 enum LayoutDimensionKind {
   LAYOUT_DIMENSION_KIND_UNSPECIFIED = 0;
@@ -105,6 +109,124 @@ message LayoutNode {
   NativeHeadingStyle heading_style = 14;
   // Stable configured view path; independent of its source array position.
   string route = 15;
+  // Requires native layout version 2 and explicit client negotiation. Version 1
+  // clients must receive an inert diagnostic for nodes requiring these recipes.
+  NativeRecipes recipes = 16;
+  NativeRecipeKind recipe_kind = 17;
+  string secondary = 18;
+  repeated NativeFeatureKind features = 19;
+}
+
+enum NativeRecipeKind {
+  NATIVE_RECIPE_KIND_UNSPECIFIED = 0;
+  NATIVE_RECIPE_KIND_TEMPLATE = 1;
+  NATIVE_RECIPE_KIND_SELECT = 2;
+  NATIVE_RECIPE_KIND_ALARM = 3;
+  NATIVE_RECIPE_KIND_BUBBLE_BUTTON = 4;
+  NATIVE_RECIPE_KIND_BUBBLE_POPUP = 5;
+  NATIVE_RECIPE_KIND_CHIPS = 6;
+  NATIVE_RECIPE_KIND_TEMPLATE_CHIP = 7;
+  NATIVE_RECIPE_KIND_BUTTON = 8;
+  NATIVE_RECIPE_KIND_ENTITY = 9;
+  // Plain bounded text; no HTML, Markdown code, JS, or Jinja interpretation.
+  NATIVE_RECIPE_KIND_TEXT = 10;
+}
+enum NativeFeatureKind {
+  NATIVE_FEATURE_KIND_UNSPECIFIED = 0;
+  NATIVE_FEATURE_KIND_TOGGLE = 1;
+  NATIVE_FEATURE_KIND_BRIGHTNESS = 2;
+  NATIVE_FEATURE_KIND_COLOR_TEMPERATURE = 3;
+  NATIVE_FEATURE_KIND_TARGET_TEMPERATURE = 4;
+  NATIVE_FEATURE_KIND_CLIMATE_MODES = 5;
+  NATIVE_FEATURE_KIND_FAN_SPEED = 6;
+  NATIVE_FEATURE_KIND_NUMERIC_INPUT = 7;
+  NATIVE_FEATURE_KIND_COVER_OPEN_CLOSE = 8;
+  NATIVE_FEATURE_KIND_COVER_POSITION = 9;
+  NATIVE_FEATURE_KIND_ALARM_MODES = 10;
+}
+
+// These are data-only, server-resolved intentions. The client still checks its
+// current session/view/capabilities and submits through ActionService. Neither
+// a configured recipe nor a confirmation grants permission to an entity.
+enum NativeGesture {
+  NATIVE_GESTURE_UNSPECIFIED = 0;
+  NATIVE_GESTURE_TAP = 1;
+  NATIVE_GESTURE_HOLD = 2;
+  NATIVE_GESTURE_DOUBLE_TAP = 3;
+}
+enum NativePresentation {
+  NATIVE_PRESENTATION_UNSPECIFIED = 0;
+  NATIVE_PRESENTATION_PAGE = 1;
+  NATIVE_PRESENTATION_POPUP = 2;
+}
+message NativeDestination {
+  DashboardId dashboard_id = 1;
+  // Stable source identity, not an array index, HA URL, or downloaded expression.
+  string node_id = 2;
+  NativePresentation presentation = 3;
+}
+enum NativeCommandKind {
+  NATIVE_COMMAND_KIND_UNSPECIFIED = 0;
+  NATIVE_COMMAND_KIND_TOGGLE = 1;
+  NATIVE_COMMAND_KIND_TURN_ON = 2;
+  NATIVE_COMMAND_KIND_TURN_OFF = 3;
+  NATIVE_COMMAND_KIND_ACTIVATE = 4;
+  NATIVE_COMMAND_KIND_COVER_OPEN = 5;
+  NATIVE_COMMAND_KIND_COVER_CLOSE = 6;
+  NATIVE_COMMAND_KIND_COVER_STOP = 7;
+  NATIVE_COMMAND_KIND_LOCK = 8;
+  NATIVE_COMMAND_KIND_UNLOCK = 9;
+  NATIVE_COMMAND_KIND_ALARM_ARM_HOME = 10;
+  NATIVE_COMMAND_KIND_ALARM_ARM_AWAY = 11;
+  NATIVE_COMMAND_KIND_ALARM_DISARM = 12;
+}
+message NativeEntityTarget { string entity_id = 1; }
+message NativeCommand {
+  string entity_id = 1;
+  NativeCommandKind kind = 2;
+}
+message NativeNoAction {}
+message NativeConfirmation { string text = 1; }
+message NativeInteraction {
+  NativeGesture gesture = 1;
+  oneof intention {
+    NativeNoAction none = 2;
+    NativeEntityTarget more_info = 3;
+    NativeDestination navigate = 4;
+    NativeCommand command = 5;
+  }
+  // Presence matters even if the configured text is empty (use native prompt).
+  NativeConfirmation confirmation = 6;
+  LayoutSource source = 7;
+}
+enum NativeComparison {
+  NATIVE_COMPARISON_UNSPECIFIED = 0;
+  NATIVE_COMPARISON_EQUAL = 1;
+  NATIVE_COMPARISON_NOT_EQUAL = 2;
+}
+message NativeStatePredicate {
+  string entity_id = 1;
+  // An exact HA state literal, not code. Unavailable/missing is never a value
+  // and cannot satisfy even a not-equal test. Authorization is independent.
+  string state = 2;
+  NativeComparison comparison = 3;
+}
+message NativePredicateList { repeated NativePredicate conditions = 1; }
+message NativePredicate {
+  oneof condition {
+    bool constant = 1;
+    NativeStatePredicate state = 2;
+    NativePredicateList all = 3;
+    NativePredicateList any = 4;
+  }
+  LayoutSource source = 5;
+}
+message NativeRecipes {
+  uint32 version = 1;
+  // At most one recipe per gesture; no implicit tap when explicitly disabled.
+  repeated NativeInteraction interactions = 2;
+  // Absent means no predicate. Unknown/invalid predicates make the node inert.
+  NativePredicate visibility = 3;
 }
 message NativeLayout {
   uint32 version = 1;

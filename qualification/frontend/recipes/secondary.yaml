@@ -1,0 +1,14 @@
+views:
+- title: Dashboard secondaire simulé
+  path: overview
+  sections:
+  - type: grid
+    cards:
+    - type: custom:mushroom-template-card
+      primary: Retour à la maison simulée
+      tap_action: {action: navigate, navigation_path: /lovelace/home}
+    - type: tile
+      name: Alarme secondaire simulée
+      entity: alarm_control_panel.alarm
+      features: [{type: alarm-modes}]
+      tap_action: {action: more-info}

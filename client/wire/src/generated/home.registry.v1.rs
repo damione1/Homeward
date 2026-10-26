@@ -805,6 +805,30 @@ impl ::buffa::Message for CapabilityDescription {
                         += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::capability_description::Constraints::Cover(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::capability_description::Constraints::Lock(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::capability_description::Constraints::Alarm(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -912,6 +936,30 @@ impl ::buffa::Message for CapabilityDescription {
                 __buffa::oneof::capability_description::Constraints::SolarEvent(x) => {
                     ::buffa::types::put_len_delimited_header(
                         16u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::capability_description::Constraints::Cover(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        17u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::capability_description::Constraints::Lock(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        18u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::capability_description::Constraints::Alarm(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        19u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -1189,6 +1237,72 @@ impl ::buffa::Message for CapabilityDescription {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.constraints = ::core::option::Option::Some(
                         __buffa::oneof::capability_description::Constraints::SolarEvent(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::capability_description::Constraints::Cover(
+                        ref mut existing,
+                    ),
+                ) = self.constraints
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.constraints = ::core::option::Option::Some(
+                        __buffa::oneof::capability_description::Constraints::Cover(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::capability_description::Constraints::Lock(
+                        ref mut existing,
+                    ),
+                ) = self.constraints
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.constraints = ::core::option::Option::Some(
+                        __buffa::oneof::capability_description::Constraints::Lock(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::capability_description::Constraints::Alarm(
+                        ref mut existing,
+                    ),
+                ) = self.constraints
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.constraints = ::core::option::Option::Some(
+                        __buffa::oneof::capability_description::Constraints::Alarm(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -4083,6 +4197,99 @@ pub mod __buffa {
                             );
                         }
                     }
+                    17u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::capability_description::Constraints::Cover(
+                                ref mut existing,
+                            ),
+                        ) = view.constraints
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.constraints = Some(
+                                super::super::__buffa::view::oneof::capability_description::Constraints::Cover(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::controls::v1::__buffa::view::CoverConstraintsView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    18u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::capability_description::Constraints::Lock(
+                                ref mut existing,
+                            ),
+                        ) = view.constraints
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.constraints = Some(
+                                super::super::__buffa::view::oneof::capability_description::Constraints::Lock(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::controls::v1::__buffa::view::LockConstraintsView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    19u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::capability_description::Constraints::Alarm(
+                                ref mut existing,
+                            ),
+                        ) = view.constraints
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.constraints = Some(
+                                super::super::__buffa::view::oneof::capability_description::Constraints::Alarm(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::controls::v1::__buffa::view::AlarmConstraintsView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -4207,6 +4414,33 @@ pub mod __buffa {
                                         v,
                                     ) => {
                                         super::super::__buffa::oneof::capability_description::Constraints::SolarEvent(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::capability_description::Constraints::Cover(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::capability_description::Constraints::Cover(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::capability_description::Constraints::Lock(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::capability_description::Constraints::Lock(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::capability_description::Constraints::Alarm(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::capability_description::Constraints::Alarm(
                                             ::buffa::alloc::boxed::Box::new(
                                                 v.to_owned_from_source(__buffa_src)?,
                                             ),
@@ -4364,6 +4598,36 @@ pub mod __buffa {
                                 += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                                     + inner as u64;
                         }
+                        super::super::__buffa::view::oneof::capability_description::Constraints::Cover(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::capability_description::Constraints::Lock(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::capability_description::Constraints::Alarm(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
                     }
                 }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -4500,6 +4764,36 @@ pub mod __buffa {
                         ) => {
                             ::buffa::types::put_len_delimited_header(
                                 16u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::capability_description::Constraints::Cover(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                17u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::capability_description::Constraints::Lock(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                18u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::capability_description::Constraints::Alarm(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                19u32,
                                 u64::from(__cache.consume_next()),
                                 buf,
                             );
@@ -8497,6 +8791,27 @@ pub mod __buffa {
                             >,
                         >,
                     ),
+                    Cover(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::controls::v1::__buffa::view::CoverConstraintsView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Lock(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::controls::v1::__buffa::view::LockConstraintsView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Alarm(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::controls::v1::__buffa::view::AlarmConstraintsView<
+                                'a,
+                            >,
+                        >,
+                    ),
                 }
             }
         }
@@ -8552,6 +8867,21 @@ pub mod __buffa {
                 SolarEvent(
                     ::buffa::alloc::boxed::Box<
                         super::super::super::super::super::solar::v1::SolarEventConstraints,
+                    >,
+                ),
+                Cover(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::controls::v1::CoverConstraints,
+                    >,
+                ),
+                Lock(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::controls::v1::LockConstraints,
+                    >,
+                ),
+                Alarm(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::controls::v1::AlarmConstraints,
                     >,
                 ),
             }
@@ -8679,6 +9009,54 @@ pub mod __buffa {
             > for ::core::option::Option<Constraints> {
                 fn from(
                     v: super::super::super::super::super::solar::v1::SolarEventConstraints,
+                ) -> Self {
+                    Self::Some(Constraints::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::CoverConstraints>
+            for Constraints {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::CoverConstraints,
+                ) -> Self {
+                    Self::Cover(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::CoverConstraints>
+            for ::core::option::Option<Constraints> {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::CoverConstraints,
+                ) -> Self {
+                    Self::Some(Constraints::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::LockConstraints>
+            for Constraints {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::LockConstraints,
+                ) -> Self {
+                    Self::Lock(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::LockConstraints>
+            for ::core::option::Option<Constraints> {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::LockConstraints,
+                ) -> Self {
+                    Self::Some(Constraints::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::AlarmConstraints>
+            for Constraints {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::AlarmConstraints,
+                ) -> Self {
+                    Self::Alarm(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::AlarmConstraints>
+            for ::core::option::Option<Constraints> {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::AlarmConstraints,
                 ) -> Self {
                     Self::Some(Constraints::from(v))
                 }

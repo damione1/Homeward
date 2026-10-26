@@ -180,6 +180,11 @@ func predicateFor(request *actions.CommandRequest) actionPredicate {
 		// A helper is local SQL state. A matching observation is not evidence of
 		// COMMIT; its pilot supplies the confirmed CAS receipt via ConfirmProtocol.
 		return actionPredicate{}
+	case *actions.ActionArgs_Cover, *actions.ActionArgs_Lock, *actions.ActionArgs_Alarm:
+		// A state does not prove the requested protocol effect: an open cover
+		// may be partly open, and a stopped cover has no dedicated state.
+		// These drivers must supply their qualified protocol confirmation.
+		return actionPredicate{}
 	case *actions.ActionArgs_SetClimate, *actions.ActionArgs_Extension:
 		return actionPredicate{}
 	default:

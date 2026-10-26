@@ -3,11 +3,16 @@
 slint::include_modules!();
 
 mod cache_view;
+mod control_text;
 mod dashboard;
+mod dashboard_catalogue;
+mod dashboard_focus;
+mod dashboard_gestures;
 mod dashboard_host;
 mod dashboard_layout;
 mod dashboard_presentation;
 mod dashboard_selection;
+mod dashboard_visibility;
 mod device_view;
 mod navigation;
 mod preferences;

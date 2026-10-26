@@ -1,12 +1,15 @@
 //! Transferable projection data. Slint's nested models use Rc and are created
 //! only on the UI thread, after the cache publication fence has been checked.
 use crate::{
-    IconKind, OptionRow, ProActionPhase, ProControlAccess, ProDeviceChoice, ProDeviceKind,
-    ProDeviceRow, ProDeviceValue, SelectState,
+    IconKind, OptionRow, ProActionPhase, ProAlarmChoice, ProControlAccess, ProCoverChoice,
+    ProDeviceChoice, ProDeviceKind, ProDeviceRow, ProDeviceValue, ProLockChoice, SelectState,
 };
 use slint::{Model, ModelRc, SharedString, VecModel};
 
-fn nested<T: Clone + PartialEq + 'static>(rows: &[T], previous: Option<&ModelRc<T>>) -> ModelRc<T> {
+pub(crate) fn nested<T: Clone + PartialEq + 'static>(
+    rows: &[T],
+    previous: Option<&ModelRc<T>>,
+) -> ModelRc<T> {
     if let Some(previous) = previous
         && let Some(model) = previous.as_any().downcast_ref::<VecModel<T>>()
     {
@@ -30,6 +33,9 @@ macro_rules! card_row {
         #[derive(Clone,Default,Debug)]
         pub(crate) struct CardRow {
             $(pub $field: $ty,)*
+            pub cover_operations: Vec<ProCoverChoice>,
+            pub lock_operations: Vec<ProLockChoice>,
+            pub alarm_operations: Vec<ProAlarmChoice>,
             pub values: Vec<ProDeviceValue>,
             pub choices: Vec<ProDeviceChoice>,
             pub select_options: Vec<OptionRow>,
@@ -39,6 +45,9 @@ macro_rules! card_row {
                 let previous=previous.filter(|row|row.token==self.token && row.generation==self.generation);
                 ProDeviceRow {
                     $($field:self.$field.to_owned(),)*
+                    cover_operations:nested(self.cover_operations.as_slice(),previous.map(|row|&row.cover_operations)),
+                    lock_operations:nested(self.lock_operations.as_slice(),previous.map(|row|&row.lock_operations)),
+                    alarm_operations:nested(self.alarm_operations.as_slice(),previous.map(|row|&row.alarm_operations)),
                     values:nested(self.values.as_slice(),previous.map(|row|&row.values)),
                     choices:nested(self.choices.as_slice(),previous.map(|row|&row.choices)),
                     select_options:nested(self.select_options.as_slice(),previous.map(|row|&row.select_options)),

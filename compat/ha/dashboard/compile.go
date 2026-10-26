@@ -20,6 +20,7 @@ const (
 )
 
 type compiler struct {
+	profile    CompilationProfile
 	result     Result
 	cards      int
 	sections   int
@@ -29,27 +30,35 @@ type compiler struct {
 
 // Import reads the entry and includes once through the shared confined loader.
 func Import(bundleRoot string, source Source) (Result, error) {
-	if !source.valid() {
+	return ImportWithProfile(bundleRoot, source, CompilationBasic)
+}
+
+func ImportWithProfile(bundleRoot string, source Source, profile CompilationProfile) (Result, error) {
+	if !source.valid() || profile.Name() == "" {
 		return Result{}, ErrInvalidInput
 	}
 	doc, err := parser.LoadProfile(bundleRoot, source.entry, parser.SyntaxProfileLovelace)
 	if err != nil {
 		return syntaxFailure(err), nil
 	}
-	return Compile(source, doc)
+	return CompileWithProfile(source, doc, profile)
 }
 
 // Restore never touches the filesystem. LoadSources verifies every detached
 // snapshot hash and rejects missing, duplicate or unused included files.
 func Restore(source Source, files []parser.SourceFile) (Result, error) {
-	if !source.valid() {
+	return RestoreWithProfile(source, files, CompilationBasic)
+}
+
+func RestoreWithProfile(source Source, files []parser.SourceFile, profile CompilationProfile) (Result, error) {
+	if !source.valid() || profile.Name() == "" {
 		return Result{}, ErrInvalidInput
 	}
 	doc, err := parser.LoadSources(source.entry, files, parser.SyntaxProfileLovelace)
 	if err != nil {
 		return syntaxFailure(err), nil
 	}
-	return Compile(source, doc)
+	return CompileWithProfile(source, doc, profile)
 }
 
 func syntaxFailure(err error) Result {
@@ -63,16 +72,20 @@ func syntaxFailure(err error) Result {
 // Compile accepts only a document returned by the Lovelace syntax profile.
 // Every unknown semantic subtree is retained and cannot become executable.
 func Compile(source Source, doc *parser.Document) (Result, error) {
-	if !source.valid() || doc == nil || doc.Profile() != parser.LovelaceProfile {
+	return CompileWithProfile(source, doc, CompilationBasic)
+}
+
+func CompileWithProfile(source Source, doc *parser.Document, profile CompilationProfile) (Result, error) {
+	if !source.valid() || profile.Name() == "" || doc == nil || doc.Profile() != parser.LovelaceProfile {
 		return Result{}, ErrInvalidInput
 	}
 	files := doc.Sources()
 	if len(files) == 0 || files[0].Path() != source.entry {
 		return Result{}, ErrInvalidInput
 	}
-	c := compiler{result: Result{status: StatusSupported, source: source, sources: files}}
+	c := compiler{profile: profile, result: Result{status: StatusSupported, source: source, sources: files}}
 	digest := bundleDigest(source, files)
-	definition := Definition{source: source, profile: Profile, digest: digest}
+	definition := Definition{source: source, profile: profile.Name(), digest: digest}
 	root := doc.Root()
 	if root.Kind() != parser.KindMapping {
 		c.fatal(CodeInvalidValue, root, "dashboard root must be a mapping")
@@ -100,6 +113,13 @@ func Compile(source Source, doc *parser.Document) (Result, error) {
 	for _, entry := range root.Entries() {
 		switch entry.Key {
 		case "views":
+		case "kiosk_mode":
+			if profile == CompilationRecipes {
+				c.unsupported(CodeUnsupportedProperty, entry.Value, "HA kiosk presentation policy is not applied to native authorization or navigation")
+			} else {
+				c.unknown(entry, "dashboard property outside profile")
+				rootBlocked = true
+			}
 		case "strategy":
 			c.unsupported(CodeUnsupportedVariant, entry.Value, "runtime strategy is not compiled")
 			rootBlocked = true
@@ -136,6 +156,9 @@ func Compile(source Source, doc *parser.Document) (Result, error) {
 		return c.result, nil
 	}
 	definition.requirements = collectRequirements(definition.views)
+	if profile == CompilationRecipes {
+		definition.requirements.version = 2
+	}
 	c.result.definition = definition
 	c.result.hasDefinition = true
 	if len(c.result.diagnostics) > 0 {

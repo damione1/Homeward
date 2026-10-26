@@ -381,6 +381,9 @@ fn historical_state(v: &state::ObservedState) -> bool {
         Some(Value::Helper(h)) => helper(h),
         Some(Value::Solar(s)) => crate::solar_contract::admit_solar_value(s).is_ok(),
         Some(Value::SolarEvent(s)) => crate::solar_contract::admit_solar_event_value(s).is_ok(),
+        Some(Value::Cover(value)) => crate::controls_contract::cover_value(value),
+        Some(Value::Lock(value)) => crate::controls_contract::lock_value(value),
+        Some(Value::Alarm(value)) => crate::controls_contract::alarm_value(value),
     }
 }
 fn climate(v: &state::ClimateValue) -> bool {

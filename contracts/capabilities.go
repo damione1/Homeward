@@ -35,6 +35,9 @@ const (
 	HelperSchema      = "core.helper.v1"
 	SolarSchema       = "core.solar.v1"
 	SolarEventSchema  = "core.solar_event.v1"
+	CoverSchema       = "core.cover.v1"
+	LockSchema        = "core.lock.v1"
+	AlarmSchema       = "core.alarm.v1"
 )
 
 var extensionSchema = regexp.MustCompile(`^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*\.v[1-9][0-9]*$`)
@@ -189,6 +192,18 @@ func (c *CapabilityCatalog) AdmitReadOnlyDriverCapability(d *registry.Capability
 		return err
 	}
 	switch constraints := d.Constraints.(type) {
+	case *registry.CapabilityDescription_Cover:
+		if len(constraints.Cover.Operations) == 0 && constraints.Cover.SetPositionPercent == nil {
+			return nil
+		}
+	case *registry.CapabilityDescription_Lock:
+		if len(constraints.Lock.Operations) == 0 {
+			return nil
+		}
+	case *registry.CapabilityDescription_Alarm:
+		if len(constraints.Alarm.Operations) == 0 {
+			return nil
+		}
 	case *registry.CapabilityDescription_Switch:
 		if !constraints.Switch.SetOn {
 			return nil
@@ -401,6 +416,18 @@ func (c *CapabilityCatalog) validateDescription(d *registry.CapabilityDescriptio
 		}
 		if v := constraints.Binary.DeviceClass; v != nil && (strings.TrimSpace(*v) != *v || *v == "") {
 			return errors.New("invalid binary class")
+		}
+	case *registry.CapabilityDescription_Cover:
+		if constraints == nil || d.SchemaId != CoverSchema || !validCoverConstraints(constraints.Cover) {
+			return ErrInvalidCapability
+		}
+	case *registry.CapabilityDescription_Lock:
+		if constraints == nil || d.SchemaId != LockSchema || !validLockConstraints(constraints.Lock) {
+			return ErrInvalidCapability
+		}
+	case *registry.CapabilityDescription_Alarm:
+		if constraints == nil || d.SchemaId != AlarmSchema || !validAlarmConstraints(constraints.Alarm) {
+			return ErrInvalidCapability
 		}
 	case *registry.CapabilityDescription_Helper:
 		if constraints == nil || d.SchemaId != HelperSchema || !validHelperConstraints(constraints.Helper) {
@@ -893,6 +920,18 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 			break
 		}
 		return nil
+	case *registry.CapabilityDescription_Cover:
+		if admitCoverAction(cmd.Arguments.GetCover(), constraints.Cover) {
+			return nil
+		}
+	case *registry.CapabilityDescription_Lock:
+		if admitLockAction(cmd.Arguments.GetLock(), constraints.Lock) {
+			return nil
+		}
+	case *registry.CapabilityDescription_Alarm:
+		if admitAlarmAction(cmd.Arguments.GetAlarm(), constraints.Alarm) {
+			return nil
+		}
 	case *registry.CapabilityDescription_Helper:
 		arg := cmd.Arguments.GetHelper()
 		if arg == nil || !knownFieldsOnly(arg.ProtoReflect()) || !validHelperConstraints(constraints.Helper) || arg.ExpectedHelperRevision == nil || *arg.ExpectedHelperRevision > math.MaxInt64 {

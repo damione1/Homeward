@@ -1990,6 +1990,7 @@ dependencies = [
  "buffa",
  "buffa-types",
  "connectrpc",
+ "home-client-model",
  "home-wire-contract",
  "http",
  "rustls",

@@ -374,6 +374,60 @@ impl Ui {
         });
         Ok((epoch, prepared))
     }
+    fn prepare_recipe(
+        &self,
+        token: i32,
+        generation: i32,
+        gesture: home_client_model::dashboard::Gesture,
+    ) -> Result<(ProfileEpoch, crate::device_view::NativePrepared), Refusal> {
+        let (devices, revision) = self.current_devices()?;
+        let epoch = devices.epoch;
+        let cache = self
+            .cache_handle
+            .lock()
+            .expect("UI cache handle mutex poisoned")
+            .clone()
+            .filter(|binding| binding.epoch == epoch)
+            .ok_or(Refusal::Stale)?;
+        let permit = cache
+            .handle
+            .prepare_activation()
+            .map_err(|_| Refusal::Stale)?;
+        if !permit.is_active() {
+            return Err(Refusal::Stale);
+        }
+        let request = self
+            .projection_request
+            .lock()
+            .expect("presentation request mutex poisoned")
+            .clone();
+        let mut prepared = devices
+            .store
+            .prepare_recipe(token, generation, revision, gesture)?;
+        if request.revision != revision
+            || request.dashboard.layout() != Some(prepared.layout.as_ref())
+        {
+            return Err(Refusal::Stale);
+        }
+        let current_epoch = self.epoch.clone();
+        let presentation = self.projection_request.clone();
+        let inner = prepared.guard.clone();
+        prepared.guard = Arc::new(move || {
+            if current_epoch.load(Ordering::SeqCst) != epoch.0 || !permit.is_active() {
+                return false;
+            }
+            let current = presentation
+                .lock()
+                .expect("presentation request mutex poisoned");
+            current.revision == request.revision
+                && current.dashboard == request.dashboard
+                && inner()
+        });
+        if let crate::device_view::NativeIntent::Command(command) = &mut prepared.intent {
+            command.guard = prepared.guard.clone();
+        }
+        Ok((epoch, prepared))
+    }
     fn post(&self, epoch: ProfileEpoch, update: impl FnOnce(HomewardWindow) + Send + 'static) {
         let current = self.epoch.clone();
         let _ = self.window.upgrade_in_event_loop(move |window| {
@@ -699,18 +753,29 @@ async fn install_profile(
                 );
                 dashboard_ui.post(epoch, move |window| {
                     ticket.deliver(|_, (generation, revision, catalogue, layout)| {
-                        if !guard.is_current(generation) || !choices.accept(revision, catalogue) {
+                        if !guard.is_current(generation) {
                             return;
                         }
+                        let Some(catalogue) = choices.accept_publication(revision, catalogue)
+                        else {
+                            return;
+                        };
+                        let layout = match (&catalogue.snapshot, &catalogue.selected) {
+                            (Some(snapshot), Some(id)) => snapshot.state(id),
+                            (Some(_), None) | (None, _) => layout,
+                        };
                         {
                             let mut request = presentation
                                 .lock()
                                 .expect("presentation request mutex poisoned");
                             window.invoke_dashboard_catalogue_changed();
-                            if request.dashboard == layout {
+                            if request.dashboard == layout
+                                && request.catalogue == catalogue.snapshot
+                            {
                                 return;
                             }
                             request.dashboard = layout;
+                            request.catalogue = catalogue.snapshot;
                         }
                         // A different server layout invalidates both page models,
                         // even if a coalesced loading notification was skipped.
@@ -1042,7 +1107,7 @@ pub(crate) fn run_with_lifecycle(
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
     let device_ui = ui.clone();
-    crate::navigation::bind_devices(
+    let native_navigation = crate::navigation::bind_devices(
         &window,
         ui.projection_request.clone(),
         move || {
@@ -1057,7 +1122,7 @@ pub(crate) fn run_with_lifecycle(
                 let _ = binding.handle.viewport(*presentation_ui.viewport.borrow());
             }
         },
-        move |token, generation, revision| {
+        move || {
             let binding = device_ui
                 .devices
                 .lock()
@@ -1065,8 +1130,48 @@ pub(crate) fn run_with_lifecycle(
                 .clone();
             binding
                 .filter(|binding| binding.epoch.0 == device_ui.epoch.load(Ordering::SeqCst))
-                .and_then(|binding| binding.store.entity(token, generation, revision))
+                .map(|binding| binding.store)
         },
+    );
+    let recipe_ui = ui.clone();
+    native_navigation.attach_catalogue(ui.dashboard_choices.clone());
+    let dispatch_ui = ui.clone();
+    let recipe_sender = sender.clone();
+    let restore_navigation = native_navigation.clone();
+    crate::dashboard_gestures::bind(
+        &window,
+        move |token, generation, gesture| {
+            recipe_ui
+                .prepare_recipe(token, generation, gesture)
+                .map(|(_, prepared)| prepared)
+        },
+        move |prepared| {
+            let epoch = ProfileEpoch(dispatch_ui.epoch.load(Ordering::SeqCst));
+            let origin = crate::dashboard_focus::Origin::prepared(&prepared);
+            match prepared.intent {
+                crate::device_view::NativeIntent::MoreInfo(entity) => {
+                    if let Err(refusal) = native_navigation.more_info(entity, Some(origin)) {
+                        dispatch_ui.refuse(epoch, refusal);
+                    }
+                }
+                crate::device_view::NativeIntent::Navigate(destination) => {
+                    if let Err(refusal) =
+                        native_navigation.navigate(destination, &prepared.layout, Some(origin))
+                    {
+                        dispatch_ui.refuse(epoch, refusal);
+                    }
+                }
+                crate::device_view::NativeIntent::Command(prepared) => {
+                    if recipe_sender
+                        .try_send(Intent::Device { epoch, prepared })
+                        .is_err()
+                    {
+                        dispatch_ui.refuse(epoch, Refusal::Capacity);
+                    }
+                }
+            }
+        },
+        move |prepared| restore_navigation.restore_origin(prepared),
     );
     let (selection_ui, selection_window) = (ui.clone(), window.as_weak());
     crate::dashboard_selection::bind(&window, ui.dashboard_choices.clone(), move || {

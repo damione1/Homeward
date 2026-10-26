@@ -7,8 +7,12 @@ import CoreGraphics
 // applications, inspect editor values, or retain credentials in input files.
 enum Command: String, Decodable {
     case info, click, close, minimize, restore, focus
-    case tap, resize, key, scroll, tree, press, release
+    case tap, resize, key, scroll, tree, press, release, gesture
+    case gestureBegin = "gesture-begin"
     case fillLogin = "fill-login", read, signOut = "sign-out", scrollEnd = "scroll-end", checkRow = "check-row"
+}
+enum NativeGesture: String, Decodable {
+    case tap, hold, doubleTap = "double-tap"
 }
 enum NativeKey: String, Decodable {
     case tab, backtab, up, down, home, end, enter, escape, space
@@ -25,6 +29,7 @@ struct Input: Decodable {
     let label: String?; let key: NativeKey?
     let width: Double?; let height: Double?; let delta: Int32?
     let fraction: Double?
+    let gesture: NativeGesture?
 }
 enum ProbeFailure: Error { case invalidInput, missingWindow, accessibilityUnavailable }
 
@@ -73,6 +78,37 @@ func tap(_ window: AXUIElement, _ label: String) throws {
     for kind in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
         CGEvent(mouseEventSource: nil, mouseType: kind, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
         Thread.sleep(forTimeInterval: 0.05)
+    }
+}
+// One owned synthetic window and one fixed-duration pointer sequence. Keeping
+// a double tap inside this process avoids process-launch latency changing its
+// meaning. No caller-supplied script, arbitrary timing or device RPC is used.
+func nativeGesture(_ window: AXUIElement, _ label: String, _ gesture: NativeGesture) throws {
+    guard let target = action(window, label) else { throw ProbeFailure.invalidInput }
+    let frame = try geometry(target), bounds = try geometry(window)
+    let point = CGPoint(x: frame.midX, y: frame.midY)
+    let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+    guard bounds.insetBy(dx: 1, dy: 30).contains(point), NSScreen.screens.contains(where: { screen in
+        CGRect(x: screen.frame.minX, y: mainHeight - screen.frame.maxY, width: screen.frame.width, height: screen.frame.height).contains(point)
+    }) else { throw ProbeFailure.invalidInput }
+    func post(_ kind: CGEventType, _ count: Int64) {
+        let event = CGEvent(mouseEventSource: nil, mouseType: kind, mouseCursorPosition: point, mouseButton: .left)
+        event?.setIntegerValueField(.mouseEventClickState, value: count)
+        event?.post(tap: .cghidEventTap)
+        Thread.sleep(forTimeInterval: 0.04)
+    }
+    post(.mouseMoved, 1)
+    switch gesture {
+    case .tap:
+        post(.leftMouseDown, 1); post(.leftMouseUp, 1)
+    case .hold:
+        post(.leftMouseDown, 1)
+        Thread.sleep(forTimeInterval: 0.7)
+        post(.leftMouseUp, 1)
+    case .doubleTap:
+        post(.leftMouseDown, 1); post(.leftMouseUp, 1)
+        Thread.sleep(forTimeInterval: 0.06)
+        post(.leftMouseDown, 2); post(.leftMouseUp, 2)
     }
 }
 func navigate(_ window: AXUIElement, _ label: String) throws {
@@ -215,7 +251,7 @@ do {
         guard let native = ownedWindow(input.pid), let bounds = native[kCGWindowBounds as String] as? [String: Any] else { throw ProbeFailure.missingWindow }
         let data = try JSONSerialization.data(withJSONObject: ["pid": input.pid, "window_id": native[kCGWindowNumber as String] ?? 0, "bounds": bounds, "accessibility_trusted": AXIsProcessTrusted(), "post_events_allowed": CGPreflightPostEventAccess()], options: [.sortedKeys])
         print(String(decoding: data, as: UTF8.self))
-    case .click, .close, .minimize, .restore, .focus, .fillLogin, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree, .press, .release:
+    case .click, .close, .minimize, .restore, .focus, .fillLogin, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree, .press, .release, .gesture, .gestureBegin:
         guard AXIsProcessTrusted(), let windows = attribute(application, kAXWindowsAttribute as CFString) as? [AXUIElement], let window = windows.first else { throw ProbeFailure.accessibilityUnavailable }
         if case .restore = input.command {
             guard AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse) == .success else { throw ProbeFailure.invalidInput }
@@ -228,6 +264,24 @@ do {
         switch input.command {
         case .info: throw ProbeFailure.invalidInput
         case .focus: break
+        case .gesture:
+            guard input.syntheticOnly == true, let label = input.label, let gesture = input.gesture else { throw ProbeFailure.invalidInput }
+            try nativeGesture(window, label, gesture)
+        case .gestureBegin:
+            guard input.syntheticOnly == true, let label = input.label,
+                  let target = action(window, label) else { throw ProbeFailure.invalidInput }
+            let frame = try geometry(target), bounds = try geometry(window)
+            let point = CGPoint(x: frame.midX, y: frame.midY)
+            let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+            guard bounds.insetBy(dx: 1, dy: 30).contains(point), NSScreen.screens.contains(where: {
+                CGRect(x: $0.frame.minX, y: mainHeight - $0.frame.maxY, width: $0.frame.width, height: $0.frame.height).contains(point)
+            }) else { throw ProbeFailure.invalidInput }
+            for kind in [CGEventType.mouseMoved, .leftMouseDown] {
+                CGEvent(mouseEventSource: nil, mouseType: kind, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+            let result = try JSONSerialization.data(withJSONObject: ["x": point.x, "y": point.y])
+            FileHandle.standardOutput.write(result)
         case .tap:
             guard input.syntheticOnly == true, let label = input.label else { throw ProbeFailure.invalidInput }
             try tap(window, label)

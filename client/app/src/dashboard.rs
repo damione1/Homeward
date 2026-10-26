@@ -3,6 +3,7 @@
 use buffa::EnumValue;
 use home_client_cache::CachedView;
 use home_client_model::EntityId;
+use home_client_model::dashboard::{Destination, NodeId, Presentation, Profile};
 use home_wire_contract::home::dashboard::v1 as wire;
 use std::{
     collections::BTreeSet,
@@ -131,7 +132,22 @@ impl TryFrom<&wire::Dashboard> for Layout {
             .native_overview
             .as_option()
             .ok_or(LayoutFailure::Unsupported)?;
-        if metadata.profile != "homeward-dashboard-1"
+        let profile =
+            Profile::try_from(metadata.profile.as_str()).map_err(|_| LayoutFailure::Unsupported)?;
+        // Recipes require their native tree. An overview alone cannot safely
+        // substitute for configured gestures, visibility or popup ownership.
+        match profile {
+            Profile::Basic => {}
+            Profile::Recipes => {
+                if value.native_layout.as_option().is_none() {
+                    return Err(LayoutFailure::Unsupported);
+                }
+            }
+        }
+        if value
+            .native_layout
+            .as_option()
+            .is_some_and(|layout| layout.version != profile.layout_version())
             || overview.version != 1
             || !metadata.__buffa_unknown_fields.is_empty()
             || !overview.__buffa_unknown_fields.is_empty()
@@ -308,6 +324,7 @@ pub(crate) enum Route {
     Rooms,
     Inventory,
     Room(RoomId),
+    Native(Destination),
     Detail(EntityId),
     Settings,
 }
@@ -318,11 +335,32 @@ pub(crate) struct ProjectionRequest {
     pub room: Option<RoomId>,
     pub detail: Option<EntityId>,
     pub dashboard: LayoutState,
+    pub catalogue: Option<Arc<crate::dashboard_catalogue::Snapshot>>,
+    pub native: Option<Destination>,
+}
+impl ProjectionRequest {
+    pub fn native_root<'a>(&'a self, layout: &'a Layout) -> Option<&'a NodeId> {
+        let native = layout.native.as_ref()?;
+        match self.native.as_ref() {
+            None => native.root(self.room.as_ref()),
+            Some(destination) => {
+                if destination.dashboard.as_str() != layout.id.as_str() {
+                    return None;
+                }
+                let node = native.nodes.get(&destination.node)?;
+                let expected = match destination.presentation {
+                    Presentation::Page => crate::dashboard_layout::Kind::View,
+                    Presentation::Popup => crate::dashboard_layout::Kind::Popup,
+                };
+                (node.kind == expected).then_some(&node.id)
+            }
+        }
+    }
 }
 pub(crate) type SharedRequest = Arc<Mutex<ProjectionRequest>>;
 
 #[cfg(test)]
-fn fixture_wire() -> wire::Dashboard {
+pub(crate) fn fixture_wire() -> wire::Dashboard {
     let data: serde_json::Value =
         serde_json::from_str(include_str!("../tests/fixtures/overview.json")).unwrap();
     let rooms = data["rooms"]
@@ -393,6 +431,20 @@ pub(crate) fn fixture() -> Layout {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn an_extended_layout_cannot_be_activated_under_basic_metadata() {
+        let mut doc = fixture_wire();
+        doc.native_layout = crate::dashboard_layout::tests::extended_forest().into();
+        assert_eq!(Layout::try_from(&doc), Err(LayoutFailure::Unsupported));
+        doc.metadata.as_option_mut().unwrap().profile = Profile::Recipes.name().into();
+        assert!(Layout::try_from(&doc).unwrap().native.is_some());
+        doc.native_layout = Default::default();
+        assert_eq!(
+            Layout::try_from(&doc),
+            Err(LayoutFailure::Unsupported),
+            "recipes require their tree"
+        );
+    }
     #[test]
     fn unsupported_profile_keeps_a_bounded_sourced_diagnostic_and_no_layout() {
         let mut document = fixture_wire();

@@ -3,6 +3,7 @@ package home.registry.v1;
 
 import "home/helpers/v1/helpers.proto";
 import "home/solar/v1/solar.proto";
+import "home/controls/v1/controls.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/registry/v1;registryv1";
 message EntityId {
@@ -37,6 +38,9 @@ message CapabilityDescription {
     home.helpers.v1.HelperConstraints helper = 14;
     home.solar.v1.SolarConstraints solar = 15;
     home.solar.v1.SolarEventConstraints solar_event = 16;
+    home.controls.v1.CoverConstraints cover = 17;
+    home.controls.v1.LockConstraints lock = 18;
+    home.controls.v1.AlarmConstraints alarm = 19;
   }
 }
 

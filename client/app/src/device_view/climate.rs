@@ -162,6 +162,19 @@ pub(crate) enum ClimateIntent {
     FanTarget(wire::ClimateFanTarget),
 }
 impl Climate {
+    pub fn restricted(&self, temperature: bool, modes: bool) -> Self {
+        Self {
+            setpoint: self.setpoint.filter(|_| temperature),
+            range: self.range.filter(|_| temperature),
+            modes: if modes {
+                self.modes.clone()
+            } else {
+                Vec::new()
+            },
+            fan_targets: Vec::new(),
+            observes: self.observes.clone(),
+        }
+    }
     pub fn setpoint(&self) -> Option<Bounds> {
         self.setpoint
     }
@@ -247,6 +260,16 @@ pub(super) struct Fan {
     speeds: Vec<state::FanSpeed>,
 }
 impl Fan {
+    pub fn restricted(&self, power: bool, speed: bool) -> Self {
+        Self {
+            power: self.power && power,
+            speeds: if speed {
+                self.speeds.clone()
+            } else {
+                Vec::new()
+            },
+        }
+    }
     pub fn can_power(&self) -> bool {
         self.power
     }

@@ -19,7 +19,7 @@ import (
 func projectDashboardOverview(definition imported.Definition, stamp view.ConfigStamp, authorizationRevision uint64,
 	mode dashboardv1.ServingMode, resolve func(domain.HAAlias) (domain.EntityID, bool)) (*dashboardv1.NativeOverview, error) {
 	revision, hash, err := stamp.Components()
-	if err != nil || authorizationRevision == 0 || resolve == nil || definition.Profile() != imported.Profile ||
+	if err != nil || authorizationRevision == 0 || resolve == nil || (definition.Profile() != imported.Profile && definition.Profile() != imported.RecipesProfile) ||
 		(mode != dashboardv1.ServingMode_SERVING_MODE_CONFIGURED && mode != dashboardv1.ServingMode_SERVING_MODE_SYNTHETIC) {
 		return nil, ErrInvalidPublicPlan
 	}
@@ -53,10 +53,11 @@ func projectDashboardOverview(definition imported.Definition, stamp view.ConfigS
 		if configured.Status() != imported.StatusSupported || len(configured.Visibility()) != 0 {
 			continue
 		}
-		if configured.Path() == "" || configured.Title() == "" {
+		route := configured.NativeRoute()
+		if route == "" || configured.Title() == "" {
 			return nil, ErrInvalidPublicPlan
 		}
-		room := &dashboardv1.OverviewRoom{Id: configured.Path(), Title: configured.Title()}
+		room := &dashboardv1.OverviewRoom{Id: route, Title: configured.Title()}
 		seen := map[string]bool{}
 		for _, section := range configured.Sections() {
 			if section.Status() != imported.StatusSupported || len(section.Visibility()) != 0 {
@@ -75,7 +76,7 @@ func projectDashboardOverview(definition imported.Definition, stamp view.ConfigS
 						}
 					}
 					result.Observations = append(result.Observations, &dashboardv1.OverviewObservation{
-						Id: configured.Path() + ":" + card.Location().Path(), Title: title, EntityId: entity,
+						Id: route + ":" + card.Location().Path(), Title: title, EntityId: entity,
 						Icon: dashboardv1.NativeIcon_NATIVE_ICON_INFORMATION})
 				}
 			})

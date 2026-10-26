@@ -15,6 +15,7 @@ pub(crate) struct Choice {
 pub(crate) struct Catalogue {
     pub choices: Vec<Choice>,
     pub selected: Option<DashboardId>,
+    pub snapshot: Option<Arc<crate::dashboard_catalogue::Snapshot>>,
 }
 impl Catalogue {
     pub fn from_wire(
@@ -51,7 +52,11 @@ impl Catalogue {
             .filter(|id| choices.iter().any(|choice| choice.id == **id))
             .cloned()
             .or_else(|| choices.first().map(|choice| choice.id.clone()));
-        Ok(Self { choices, selected })
+        Ok(Self {
+            choices,
+            selected,
+            snapshot: None,
+        })
     }
 }
 #[derive(Default)]
@@ -70,14 +75,50 @@ impl Choices {
         Catalogue {
             choices: Vec::new(),
             selected: self.snapshot().1.selected,
+            snapshot: None,
         }
     }
+    #[cfg(test)]
     pub fn accept(&self, revision: u64, catalogue: Catalogue) -> bool {
+        self.accept_publication(revision, catalogue).is_some()
+    }
+    pub fn accept_publication(&self, revision: u64, mut catalogue: Catalogue) -> Option<Catalogue> {
         let mut state = self.0.lock().expect("dashboard choice mutex");
         if state.revision != revision {
-            return false;
+            return None;
+        }
+        // Navigation within an already authorized cohort does not restart the
+        // watch. A completed cohort read must honor the latest local selection.
+        if catalogue.snapshot.is_some()
+            && let Some(selected) = &state.catalogue.selected
+            && catalogue
+                .choices
+                .iter()
+                .any(|choice| &choice.id == selected)
+        {
+            catalogue.selected = Some(selected.clone());
         }
         state.catalogue = catalogue;
+        // Return the accepted selection and its cohort under this same lock.
+        // A separate read could combine an old layout with a newer clear.
+        Some(state.catalogue.clone())
+    }
+    pub fn select_authorized(
+        &self,
+        snapshot: &crate::dashboard_catalogue::Snapshot,
+        id: &DashboardId,
+    ) -> bool {
+        let mut state = self.0.lock().expect("dashboard choice mutex");
+        if state.catalogue.snapshot.as_deref() != Some(snapshot)
+            || !state
+                .catalogue
+                .choices
+                .iter()
+                .any(|choice| &choice.id == id)
+        {
+            return false;
+        }
+        state.catalogue.selected = Some(id.clone());
         true
     }
     pub fn select(&self, id: DashboardId) -> bool {
@@ -204,6 +245,45 @@ pub(crate) fn bind(window: &HomewardWindow, choices: Choices, changed: impl Fn()
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_cohort_publication_preserves_local_navigation_and_cannot_restore_a_retired_selection() {
+        let mut one = crate::dashboard::fixture();
+        one.id = DashboardId::parse("one").unwrap();
+        let mut two = one.clone();
+        two.id = DashboardId::parse("two").unwrap();
+        let snapshot = crate::dashboard_catalogue::Snapshot::fixture(
+            "cohort-a",
+            vec![Arc::new(one.clone()), Arc::new(two)],
+        );
+        let choices = Choices::default();
+        let mut incoming = catalogue();
+        incoming.snapshot = Some(snapshot.clone());
+        assert!(choices.accept(0, incoming.clone()));
+        let target = DashboardId::parse("two").unwrap();
+        assert!(choices.select_authorized(&snapshot, &target));
+        assert_eq!(
+            choices.snapshot().0,
+            0,
+            "coherent navigation keeps its watch alive"
+        );
+        let publication = choices.accept_publication(0, incoming).unwrap();
+        assert_eq!(publication.selected, Some(target.clone()));
+        assert_eq!(publication.snapshot, Some(snapshot.clone()));
+        assert_eq!(choices.snapshot().1.selected, Some(target.clone()));
+        let replacement =
+            crate::dashboard_catalogue::Snapshot::fixture("cohort-b", vec![Arc::new(one)]);
+        let mut remaining = catalogue();
+        remaining
+            .choices
+            .retain(|choice| choice.id.as_str() == "one");
+        remaining.snapshot = Some(replacement);
+        assert!(choices.accept(0, remaining));
+        assert_eq!(choices.snapshot().1.selected.unwrap().as_str(), "one");
+        assert!(!choices.select_authorized(&snapshot, &target));
+        choices.clear();
+        assert!(!choices.accept(0, catalogue()));
+        assert!(!choices.select_authorized(&snapshot, &target));
+    }
     fn catalogue() -> Catalogue {
         Catalogue {
             choices: vec![
@@ -217,6 +297,7 @@ mod tests {
                 },
             ],
             selected: Some(DashboardId::parse("one").unwrap()),
+            snapshot: None,
         }
     }
     #[test]

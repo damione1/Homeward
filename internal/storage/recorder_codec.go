@@ -238,6 +238,18 @@ func encodeRecorderObserved(state domain.ObservedState, maxPayload int) (recorde
 			if _, ok := value.SolarEvent(); !ok || encodedKind != 8 {
 				return recorderObserved{}, ErrRecorderInvalid
 			}
+		case domain.ValueCover:
+			if _, ok := value.Cover(); !ok || encodedKind != 9 {
+				return recorderObserved{}, ErrRecorderInvalid
+			}
+		case domain.ValueLock:
+			if _, ok := value.Lock(); !ok || encodedKind != 10 {
+				return recorderObserved{}, ErrRecorderInvalid
+			}
+		case domain.ValueAlarm:
+			if _, ok := value.Alarm(); !ok || encodedKind != 11 {
+				return recorderObserved{}, ErrRecorderInvalid
+			}
 		case domain.ValueUnspecified:
 			return recorderObserved{}, ErrRecorderInvalid
 		default:

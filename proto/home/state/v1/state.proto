@@ -5,6 +5,7 @@ import "google/protobuf/timestamp.proto";
 import "home/registry/v1/registry.proto";
 import "home/helpers/v1/helpers.proto";
 import "home/solar/v1/solar.proto";
+import "home/controls/v1/controls.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/state/v1;statev1";
 enum Availability {
@@ -90,6 +91,9 @@ message ObservedState {
     home.helpers.v1.HelperValue helper = 16;
     home.solar.v1.SolarValue solar = 17;
     home.solar.v1.SolarEventValue solar_event = 18;
+    home.controls.v1.CoverValue cover = 19;
+    home.controls.v1.LockValue lock = 20;
+    home.controls.v1.AlarmValue alarm = 21;
   }
 }
 

@@ -1,0 +1,1147 @@
+kiosk_mode:
+  user_settings:
+  - users:
+    - kiosk2
+    - kiosk
+    kiosk: true
+    block_overflow: true
+views:
+- title: Home
+  type: sections
+  max_columns: 3
+  theme: Graphite
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Quick Controls
+      heading_style: subtitle
+    - type: custom:clock-weather-card
+      entity: weather.maison
+      sun_entity: sun.sun
+      weather_icon_type: line
+      animated_icon: false
+      forecast_rows: 3
+      locale: en
+      time_format: '12'
+    - type: tile
+      entity: climate.home
+      name: Home Climate
+      features:
+      - type: target-temperature
+    - type: tile
+      entity: scene.turn_off_main_floor
+      name: Turn off lights
+      icon: mdi:weather-night
+      color: purple
+      vertical: false
+      features_position: bottom
+    - type: tile
+      entity: fan.living_room_ceiling_fan
+      name: Ceiling Fan
+      features:
+      - type: fan-speed
+    - type: tile
+      entity: script.morning_routine_work_day
+      name: Morning
+      icon: mdi:coffee
+      tap_action:
+        action: toggle
+      color: amber
+  - type: grid
+    cards:
+    - type: heading
+      heading: Rooms
+      heading_style: subtitle
+    - type: custom:bubble-card
+      card_type: button
+      entity: light.living_room_lights
+      name: Living Room
+      icon: mdi:sofa
+      button_type: name
+      show_state: true
+      button_action:
+        tap_action:
+          action: navigate
+          navigation_path: '#living-room'
+    - type: custom:bubble-card
+      card_type: button
+      entity: light.kitchen_main_lights
+      name: Kitchen
+      icon: mdi:knife
+      button_type: name
+      show_state: true
+      button_action:
+        tap_action:
+          action: navigate
+          navigation_path: '#kitchen'
+    - type: custom:bubble-card
+      card_type: button
+      entity: light.dining_room_pendants
+      name: Dining Room
+      icon: mdi:table-chair
+      button_type: name
+      show_state: true
+      button_action:
+        tap_action:
+          action: navigate
+          navigation_path: '#dining-room'
+    - type: custom:bubble-card
+      card_type: button
+      entity: light.master_bedroom_table_lamps
+      name: Master Bedroom
+      icon: mdi:bed-king-outline
+      button_type: name
+      show_state: true
+      button_action:
+        tap_action:
+          action: navigate
+          navigation_path: '#master-bedroom'
+    - type: custom:bubble-card
+      card_type: button
+      entity: light.eugenie_bedroom_light
+      name: Eugénie's
+      icon: mdi:baby-face
+      button_type: name
+      show_state: true
+      button_action:
+        tap_action:
+          action: navigate
+          navigation_path: '#eugenie'
+    - type: custom:bubble-card
+      card_type: button
+      entity: climate.neviweb130_climate_salle_de_bain
+      name: Bathroom
+      icon: mdi:shower
+      button_type: name
+      show_state: true
+      button_action:
+        tap_action:
+          action: navigate
+          navigation_path: '#bathroom'
+    - type: custom:bubble-card
+      card_type: button
+      entity: light.basement_sitting_area_spot_lights
+      name: Office
+      icon: mdi:desk
+      button_type: name
+      show_state: true
+      button_action:
+        tap_action:
+          action: navigate
+          navigation_path: '#office'
+    - type: custom:bubble-card
+      card_type: button
+      entity: light.guest_bedroom_main_lights
+      name: Guest Bedroom
+      icon: mdi:bed-king
+      button_type: name
+      show_state: true
+      button_action:
+        tap_action:
+          action: navigate
+          navigation_path: '#guest-bedroom'
+    - type: custom:bubble-card
+      card_type: button
+      entity: light.switch_porch
+      name: Outdoor
+      icon: mdi:tree
+      button_type: name
+      show_state: true
+      button_action:
+        tap_action:
+          action: navigate
+          navigation_path: '#outdoor'
+  - type: grid
+    cards:
+    - type: heading
+      heading: Calendar
+      heading_style: subtitle
+    - entities:
+      - calendar.family
+      - calendar.famille
+      - calendar.anniversaires
+      days_to_show: 7
+      compact_events_to_show: 10
+      weather:
+        position: date
+        date:
+          show_conditions: true
+          show_high_temp: true
+          show_low_temp: false
+          icon_size: 14px
+          font_size: 12px
+          color: var(--primary-text-color)
+        event:
+          show_conditions: true
+          show_temp: true
+          icon_size: 14px
+          font_size: 12px
+          color: var(--primary-text-color)
+      type: custom:calendar-card-pro
+  - type: grid
+    column_span: 4
+    cards:
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#living-room'
+      name: Living Room
+      icon: mdi:sofa
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: heading
+        heading: Scenes
+        heading_style: subtitle
+        grid_options:
+          columns: 12
+          rows: auto
+      - square: true
+        type: grid
+        columns: 4
+        cards:
+        - type: tile
+          entity: scene.living_room_daylight
+          name: Daylight
+          icon: mdi:white-balance-sunny
+          color: amber
+          hide_state: true
+          vertical: true
+          tap_action:
+            action: toggle
+          features_position: bottom
+        - type: tile
+          entity: scene.living_room_in_between
+          name: Evening
+          icon: mdi:weather-sunset
+          color: deep-orange
+          hide_state: true
+          vertical: true
+          tap_action:
+            action: toggle
+          features_position: bottom
+        - type: tile
+          entity: scene.cosy
+          name: Cosy
+          icon: mdi:candle
+          color: orange
+          show_entity_picture: false
+          hide_state: true
+          vertical: true
+          tap_action:
+            action: toggle
+          features_position: bottom
+        - type: tile
+          entity: scene.turn_off_living_room
+          name: Night
+          icon: mdi:lightbulb-off
+          color: indigo
+          hide_state: true
+          vertical: true
+          tap_action:
+            action: toggle
+          features_position: bottom
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: heading
+        heading: Lights
+        heading_style: subtitle
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.living_room_lights
+        name: Main Lights
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.living_room_stairs
+        name: Stairs
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.library_lamp
+        name: Library Lamp
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.table_lamp
+        name: Table Lamp
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: switch.design_lamp_relay
+        name: Design lamp
+        vertical: false
+        tap_action:
+          action: toggle
+        icon_tap_action:
+          action: toggle
+        features:
+        - type: light-brightness
+        features_position: bottom
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: heading
+        heading: Climate & Fan
+        heading_style: subtitle
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_living_room
+        name: Living Room Heater
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: fan.living_room_ceiling_fan
+        name: Ceiling Fan
+        features:
+        - type: fan-speed
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: heading
+        heading: Media
+        heading_style: subtitle
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: custom:mini-media-player
+        entity: media_player.soundbar
+        name: Soundbar
+        group: false
+        artwork: cover
+        hide:
+          power: false
+          volume: false
+          mute: false
+          source: true
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: media_player.shield_2
+        name: Shield TV
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#kitchen'
+      name: Kitchen
+      icon: mdi:knife
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: heading
+        heading: Scenes
+        heading_style: subtitle
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: grid
+        columns: 3
+        cards:
+        - type: tile
+          entity: scene.kitchen_cooking_mode
+          name: Cooking
+          icon: mdi:stove
+          color: amber
+          hide_state: true
+          vertical: true
+          tap_action:
+            action: toggle
+          features_position: bottom
+        - type: tile
+          entity: scene.kitchen_cosy_mode
+          name: Cosy
+          icon: mdi:candle
+          color: orange
+          hide_state: true
+          vertical: true
+          tap_action:
+            action: toggle
+          features_position: bottom
+        - type: tile
+          entity: scene.night_mode
+          name: Night
+          icon: mdi:lightbulb-off
+          color: indigo
+          hide_state: true
+          vertical: true
+          tap_action:
+            action: toggle
+          features_position: bottom
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: heading
+        heading: Lights
+        heading_style: subtitle
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.kitchen_main_lights
+        name: Main Lights
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.kitchen_lights
+        name: Countertop
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.kitchen_table_pendants
+        name: Table Pendants
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.kitchen_sink_light
+        name: Sink Light
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: heading
+        heading: Climate
+        heading_style: subtitle
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_plancher_cuisine
+        name: Heated Floor
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: heading
+        heading: Media
+        heading_style: subtitle
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: custom:mini-media-player
+        entity: media_player.kitchen
+        name: Kitchen Speaker
+        group: false
+        artwork: cover
+        hide:
+          power: false
+          volume: false
+          source: true
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: heading
+        heading: Sensors
+        heading_style: subtitle
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: binary_sensor.kitchen_sink_leak_sensor_water_leak
+        name: Sink Leak
+        icon: mdi:water-alert
+        color: red
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#dining-room'
+      name: Dining Room
+      icon: mdi:table-chair
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: tile
+        entity: light.dining_room_pendants
+        name: Pendants
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_salle_a_manger
+        name: Dining Room
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#master-bedroom'
+      name: Master Bedroom
+      icon: mdi:bed-king-outline
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: tile
+        entity: light.master_bedroom_table_lamps
+        name: Table Lamps
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_chambre_principale
+        name: Master Bedroom
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        grid_options:
+          rows: 1
+          columns: 12
+        entity: switch.eugenie_webcam_relay
+        name: Camera
+        icon: mdi:cctv
+        show_entity_picture: false
+        hide_state: false
+        vertical: false
+        tap_action:
+          action: toggle
+        icon_tap_action:
+          action: toggle
+        features_position: bottom
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#eugenie'
+      name: Eugénie's Bedroom
+      icon: mdi:baby-face
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: tile
+        entity: light.eugenie_bedroom_light
+        name: Bedroom Light
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_chambre_eugenie
+        name: Eugénie's Room
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#bathroom'
+      name: Bathroom
+      icon: mdi:shower
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: tile
+        entity: climate.neviweb130_climate_salle_de_bain
+        name: Bathroom
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: custom:mini-media-player
+        entity: media_player.bathroom_speaker
+        name: Bathroom Speaker
+        group: false
+        artwork: cover
+        hide:
+          power: false
+          volume: false
+          source: true
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#office'
+      name: Damien's Office
+      icon: mdi:desk
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: tile
+        entity: light.basement_sitting_area_spot_lights
+        name: Spot Lights
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: switch.vintage_lamp_relay
+        name: Desk lamp
+        vertical: false
+        features:
+        - type: light-brightness
+        features_position: bottom
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: switch.basement_relay
+        name: TV lamp
+        vertical: false
+        features:
+        - type: light-brightness
+        features_position: bottom
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.wled_desk
+        name: WLED Desk
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_sous_sol
+        name: Basement
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#guest-bedroom'
+      name: Guest Bedroom
+      icon: mdi:bed-king
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: tile
+        entity: light.guest_bedroom_main_lights
+        name: Main Lights
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.bed_lamp_guest_bedroom
+        name: Bed Lamp
+        features:
+        - type: light-brightness
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_chambre_sous_sol
+        name: Guest Bedroom
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: media_player.guest_bedroom_tv_2
+        name: Guest TV
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#outdoor'
+      name: Outdoor
+      icon: mdi:tree
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: tile
+        entity: light.switch_porch
+        name: Front Lights
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: light.sw_side_entrance_light_switch_01_salon2
+        name: Side Entrance
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: cover.konnected_52362c_garage_door
+        name: Garage Door
+        features:
+        - type: cover-open-close
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: lock.konnected_52362c_lock
+        name: Garage Lock
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: custom:mushroom-media-player-card
+        entity: media_player.gazebo_speaker
+        media_controls: []
+        show_volume_level: true
+        use_media_info: true
+        fill_container: false
+        volume_controls:
+        - volume_set
+        - volume_mute
+        collapsible_controls: false
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: custom:mushroom-media-player-card
+        entity: media_player.garage
+        media_controls: []
+        show_volume_level: true
+        use_media_info: true
+        fill_container: false
+        volume_controls:
+        - volume_set
+        - volume_mute
+        collapsible_controls: false
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#music'
+      name: Music
+      icon: mdi:music
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: custom:sonos-card
+        entityId: media_player.living_room_2
+        entities:
+        - media_player.living_room_2
+        - media_player.soundbar
+        - media_player.kitchen
+        - media_player.bathroom
+        - media_player.basement
+        - media_player.porch_speaker
+        - media_player.gazebo_speaker
+        - media_player.bathroom_speaker
+        - media_player.garage
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#security'
+      name: Security
+      icon: mdi:shield-home
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: grid
+        columns: 2
+        cards:
+        - type: picture-entity
+          entity: camera.front_door
+          name: Porch
+          show_state: false
+          camera_view: live
+        - type: picture-entity
+          entity: camera.driveway
+          name: Driveway
+          show_state: false
+          camera_view: live
+        - type: picture-entity
+          entity: camera.backyard
+          name: Backyard
+          show_state: false
+          camera_view: live
+        - type: picture-entity
+          entity: camera.side_yard
+          name: Side
+          show_state: false
+          camera_view: live
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: binary_sensor.basement_leak_sensor_water_leak
+        name: Basement Leak
+        icon: mdi:water-alert
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: binary_sensor.kitchen_sink_leak_sensor_water_leak
+        name: Kitchen Leak
+        icon: mdi:water-alert
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#climate-popup'
+      name: Climate
+      icon: mdi:thermometer
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - type: tile
+        entity: climate.home
+        name: Home
+        features:
+        - type: target-temperature
+        - type: climate-hvac-modes
+          hvac_modes:
+          - 'off'
+          - heat
+          - cool
+          - auto
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_living_room
+        name: Living Room
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_salle_a_manger
+        name: Dining Room
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_plancher_cuisine
+        name: Kitchen Floor
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_chambre_principale
+        name: Master Bedroom
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_chambre_eugenie
+        name: Eugénie
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_salle_de_bain
+        name: Bathroom
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_chambre_sous_sol
+        name: Guest Bedroom
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: climate.neviweb130_climate_sous_sol
+        name: Basement/Office
+        features:
+        - type: target-temperature
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: fan.living_room_ceiling_fan
+        name: Ceiling Fan
+        features:
+        - type: fan-speed
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#more'
+      name: More
+      icon: mdi:dots-horizontal
+      button_type: name
+      sub_button:
+        main: []
+        bottom: []
+      cards:
+      - entities:
+        - calendar.family
+        - calendar.famille
+        - calendar.anniversaires
+        days_to_show: 7
+        compact_events_to_show: 10
+        weather:
+          position: date
+          date:
+            show_conditions: true
+            show_high_temp: true
+            show_low_temp: false
+            icon_size: 14px
+            font_size: 12px
+            color: var(--primary-text-color)
+          event:
+            show_conditions: true
+            show_temp: true
+            icon_size: 14px
+            font_size: 12px
+            color: var(--primary-text-color)
+        type: custom:calendar-card-pro
+        grid_options:
+          columns: 12
+          rows: auto
+      - display_order: none
+        type: todo-list
+        entity: todo.shopping_list
+        title: Shopping
+        hide_completed: true
+        grid_options:
+          columns: 12
+          rows: auto
+      - display_order: none
+        type: todo-list
+        entity: todo.costco
+        title: Costco
+        hide_completed: true
+        grid_options:
+          columns: 12
+          rows: auto
+      - display_order: none
+        type: todo-list
+        entity: todo.grosseries
+        title: Groceries
+        hide_completed: true
+        grid_options:
+          columns: 12
+          rows: auto
+      - display_order: none
+        type: todo-list
+        entity: todo.brico
+        title: Brico
+        hide_completed: true
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: tile
+        entity: switch.sprinklers_garden_sprinklers
+        name: Garden Sprinklers
+        grid_options:
+          columns: 12
+          rows: auto
+      - type: grid
+        columns: 5
+        cards:
+        - type: tile
+          entity: switch.sprinklers_zone_1
+          name: Zone 1
+          hide_state: false
+          vertical: true
+          features_position: bottom
+        - type: tile
+          entity: switch.sprinklers_zone_2
+          name: Zone 2
+          vertical: true
+          features_position: bottom
+        - type: tile
+          entity: switch.sprinklers_zone_3
+          name: Zone 3
+          vertical: true
+          features_position: bottom
+        - type: tile
+          entity: switch.sprinklers_zone_4
+          name: Zone 4
+          hide_state: false
+          vertical: true
+          features_position: bottom
+        - type: tile
+          entity: switch.sprinklers_zone_5
+          name: Zone 5
+          vertical: true
+          features_position: bottom
+        grid_options:
+          columns: 12
+          rows: auto
+      auto_close: '60000'
+  cards: []
+  footer:
+    card:
+      type: horizontal-stack
+      cards:
+      - type: custom:bubble-card
+        card_type: button
+        name: Music
+        icon: mdi:music
+        button_type: name
+        show_state: false
+        button_action:
+          tap_action:
+            action: navigate
+            navigation_path: '#music'
+      - type: custom:bubble-card
+        card_type: button
+        name: Security
+        icon: mdi:shield-home
+        button_type: name
+        show_state: false
+        button_action:
+          tap_action:
+            action: navigate
+            navigation_path: '#security'
+      - type: custom:bubble-card
+        card_type: button
+        name: Climate
+        icon: mdi:thermometer
+        button_type: name
+        show_state: false
+        button_action:
+          tap_action:
+            action: navigate
+            navigation_path: '#climate-popup'
+      - type: custom:bubble-card
+        card_type: button
+        name: More
+        icon: mdi:dots-horizontal
+        button_type: name
+        show_state: false
+        button_action:
+          tap_action:
+            action: navigate
+            navigation_path: '#more'
+    max_width: 900
+  badges:
+  - type: custom:mushroom-chips-card
+    chips:
+    - type: template
+      icon: mdi:shield-home
+      icon_color: '{% if is_state(''alarm_control_panel.alarm'', ''disarmed'') %}green{% elif is_state(''alarm_control_panel.alarm'',
+        ''armed_away'') or is_state(''alarm_control_panel.alarm'', ''armed_home'') %}red{% else %}orange{% endif
+        %}'
+      content: '{{ states(''alarm_control_panel.alarm'') | replace(''_'', '' '') | title }}'
+      tap_action:
+        action: navigate
+        navigation_path: '#security'
+    - type: weather
+      entity: weather.maison
+      show_conditions: true
+      show_temperature: true
+    - type: template
+      icon: '{% if is_state(''cover.konnected_52362c_garage_door'', ''open'') %}mdi:garage-open{% else %}mdi:garage{%
+        endif %}'
+      icon_color: '{% if is_state(''cover.konnected_52362c_garage_door'', ''open'') %}red{% else %}green{% endif
+        %}'
+      content: Garage
+      entity: cover.konnected_52362c_garage_door
+      tap_action:
+        action: more-info
+    - type: template
+      icon: mdi:water-alert
+      icon_color: '{% if is_state(''binary_sensor.kitchen_sink_leak_sensor_water_leak'', ''on'') or is_state(''binary_sensor.basement_leak_sensor_water_leak'',
+        ''on'') %}red{% else %}grey{% endif %}'
+      content: Leak
+      tap_action:
+        action: none
+      hold_action:
+        action: none
+      double_tap_action:
+        action: none
+    - type: template
+      icon: mdi:package-variant
+      icon_color: '{% if states(''sensor.package_package_count'') | int > 0 %}amber{% else %}grey{% endif %}'
+      content: Package
+    - type: template
+      icon: mdi:washing-machine
+      icon_color: '{% if is_state(''input_boolean.washing_machine_running'', ''on'') %}cyan{% else %}grey{% endif
+        %}'
+      content: Washer
+  header:
+    layout: start
+    badges_position: bottom
+    badges_wrap: wrap

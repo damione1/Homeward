@@ -1,0 +1,76 @@
+import { KitDialogSurface, KitDialogPanel, KitButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy } from "@kit/kit.slint";
+import { ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProRecipeGesture } from "@kit-pro/kit-pro.slint";
+import { HomewardDashboard } from "native-dashboard.slint";
+
+export component HomewardPopup inherits KitDialogSurface {
+    in property <int> generation;
+    in property <string> title;
+    in property <[ProLayoutNode]> nodes;
+    in property <bool> commands-enabled;
+    in property <string> action-feedback;
+    callback close(int,CloseReason);
+    pure callback arrange([ProLayoutInput],int,int) -> [ProLayoutCell];
+    callback power(int,int,ProPowerIntent);
+    callback edit(int,int,int,ProValueIntent);
+    callback choose(int,int,int);
+    callback brightness(int,int,float);
+    callback stop-tracking(int,int);
+    callback details(int,int);
+    callback gesture(int,int,ProRecipeGesture);
+    in property <FocusRequest> recipe-focus;
+    callback recipe-focus-applied(int,int,int);
+    callback recipe-focus-observed(int,int,bool);
+    callback recipe-focus-revealed(int,int,length,length);
+    callback scroll-interacted();
+    out property <float> scroll-offset: scroll.content-y / 1px;
+    public function restore-scroll(offset: float) { scroll.content-y = clamp(offset * 1px, -max(0px,scroll.content-height - scroll.visible-height),0px); }
+    public function reveal-focus(top: length, bottom: length) { scroll.reveal(top - scroll.absolute-position.y - scroll.content-y,bottom - scroll.absolute-position.y - scroll.content-y); }
+    private property <int> armed-generation;
+    private property <bool> opened: root.state.open;
+    dismiss-on-backdrop: false;
+    tab-policy: DialogTabPolicy.native;
+    public function take-focus() { if (root.state.open && root.state.topmost) { close-button.take-focus(); } }
+    changed generation => { close-button.cancel-press(); }
+    changed opened => { close-button.cancel-press(); if (root.opened) { root.take-focus(); } }
+    dismiss(reason) => { root.close(root.generation, reason); }
+    KitDialogPanel {
+        theme: root.theme; accessible-name: root.title;
+        width: max(0px, min(root.width - 32px, 1120px));
+        height: max(0px, min(root.height - 32px, 760px * root.theme.text-scale));
+        x: (root.width - self.width) / 2; y: (root.height - self.height) / 2;
+        VerticalLayout {
+            padding: 16px; spacing: 12px;
+            close-button := KitButton {
+                theme: root.theme; text: "Fermer"; control-size: ControlSize.comfortable;
+                disabled: !root.state.open || !root.state.topmost || root.state.busy;
+                activation-started => { root.armed-generation = root.generation; }
+                activated => { if (root.armed-generation == root.generation) { root.close(root.armed-generation, CloseReason.programmatic); } }
+            }
+            scroll := KitScrollArea {
+                vertical-stretch: 1;
+                scrolled => { root.scroll-interacted(); }
+                Text { text: root.title; color: root.theme.text-primary; font-size: 22px * root.theme.text-scale; font-weight: 600; wrap: word-wrap; }
+                if root.nodes.length == 0: Text { text: "Cet élément n’est pas disponible dans la vue actuelle."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
+                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Commande"; message: root.action-feedback; }
+                if root.nodes.length > 0: HomewardDashboard {
+                    recipe-focus: root.recipe-focus;
+                    recipe-focus-applied(token,generation,serial) => { root.recipe-focus-applied(token,generation,serial); }
+                    recipe-focus-observed(token,generation,focused) => { root.recipe-focus-observed(token,generation,focused); }
+                    recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
+                    theme: root.theme; viewport-width: scroll.visible-width;
+                    nodes: root.nodes; node-index: 0;
+                    interactive: root.state.open && root.state.topmost && !root.state.busy;
+                    commands-enabled: root.commands-enabled;
+                    arrange(inputs,columns,base) => { return root.arrange(inputs,columns,base); }
+                    power(token,generation,intent) => { root.power(token,generation,intent); }
+                    edit(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
+                    choose(token,generation,choice) => { root.choose(token,generation,choice); }
+                    brightness(token,generation,value) => { root.brightness(token,generation,value); }
+                    stop-tracking(token,generation) => { root.stop-tracking(token,generation); }
+                    details(token,generation) => { root.details(token,generation); }
+                    gesture(token,generation,gesture) => { root.gesture(token,generation,gesture); }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,63 @@
+# Server-owned synthetic source. Explicit mock mode, never an installation fallback.
+# The frozen registry admits only retained aliases. Every binding here is served
+# by the isolated fake driver. A retained light alias deliberately hosts the
+# second Cover variant: command family comes from capabilities, never the alias.
+views:
+- title: Maison simulée
+  path: home
+  sections:
+  - type: grid
+    cards:
+    - type: custom:bubble-card
+      card_type: button
+      name: Accès simulé
+      button_action:
+        tap_action: {action: navigate, navigation_path: '#synthetic-entry'}
+    - type: tile
+      name: Volet simulé
+      visibility: [{condition: state, entity: cover.konnected_52362c_garage_door, state: open}]
+      double_tap_action: {action: navigate, navigation_path: /secondary/overview}
+      entity: cover.konnected_52362c_garage_door
+      features: [{type: cover-open-close}, {type: cover-position}]
+      tap_action: {action: more-info}
+      hold_action:
+        action: perform-action
+        perform_action: cover.close_cover
+        target: {entity_id: cover.konnected_52362c_garage_door}
+        confirmation: {text: 'Fermer le volet simulé ?'}
+    - type: tile
+      name: Garage simulé
+      entity: light.konnected_52362c_garage_light
+      features: [{type: cover-open-close}]
+      tap_action: {action: more-info}
+    - type: custom:mushroom-alarm-control-panel-card
+      name: Alarme simulée
+      entity: alarm_control_panel.alarm
+      tap_action: {action: more-info}
+    - type: custom:mushroom-template-card
+      primary: Autre dashboard simulé
+      secondary: Navigation sans commande
+      tap_action: {action: navigate, navigation_path: /secondary/overview}
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#synthetic-entry'
+      name: Accès simulé
+      cards:
+      - type: tile
+        name: Serrure simulée
+        entity: lock.konnected_52362c_lock
+        tap_action: {action: more-info}
+        hold_action:
+          action: perform-action
+          perform_action: lock.unlock
+          target: {entity_id: lock.konnected_52362c_lock}
+          confirmation: {text: 'Déverrouiller l’accès simulé ?'}
+- title: Commandes simulées
+  path: commands
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      name: Serrure simulée
+      entity: lock.konnected_52362c_lock
+      tap_action: {action: more-info}

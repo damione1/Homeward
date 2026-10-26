@@ -4,20 +4,23 @@ use super::{
     DeviceIntent, Refusal,
     capability::Control,
     climate::{ClimateIntent, Range},
+    controls::CoverIntent,
     helper::{HelperIntent, Kind},
     number::{Bounds, NumericInput},
 };
 use crate::{
-    NavigationStep, ProDeviceChoice, ProDeviceValue, ProValueEvent, ProValueIntent, ProValueKind,
-    ProValueMode, RangeThumb, StepDirection,
+    NavigationStep, ProAlarmChoice, ProAlarmOperation, ProCoverChoice, ProCoverOperation,
+    ProDeviceChoice, ProDeviceValue, ProLockChoice, ProLockOperation, ProValueEvent,
+    ProValueIntent, ProValueKind, ProValueMode, RangeThumb, StepDirection,
 };
 use home_wire_contract::home::{
-    helpers::v1 as helpers, registry::v1 as registry, state::v1 as state,
+    controls::v1 as controls, helpers::v1 as helpers, registry::v1 as registry, state::v1 as state,
 };
 
 #[derive(Clone, Copy)]
 pub(super) enum Editor {
     Setpoint(Bounds),
+    CoverPosition(Bounds),
     Range(Range),
     Helper,
     ColorTemperature,
@@ -54,11 +57,18 @@ pub(super) fn editors(control: &Control) -> Vec<Editor> {
             }
         }
         Control::Light { color: Some(_), .. } => result.push(Editor::ColorTemperature),
+        Control::Cover(cover) => {
+            if let Some(bounds) = cover.position() {
+                result.push(Editor::CoverPosition(bounds));
+            }
+        }
         Control::Switch { .. }
         | Control::Light { color: None, .. }
         | Control::Fan(_)
         | Control::Binary
         | Control::Measurement
+        | Control::Lock(_)
+        | Control::Alarm(_)
         | Control::Unsupported => {}
     }
     result
@@ -154,6 +164,36 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
                 }
             }
         }
+        Control::Cover(cover) => {
+            for operation in cover.operations() {
+                choices.push(Choice {
+                    label: crate::control_text::cover_operation(*operation)
+                        .unwrap_or_default()
+                        .into(),
+                    intent: DeviceIntent::Cover(CoverIntent::Operation(*operation)),
+                });
+            }
+        }
+        Control::Lock(lock) => {
+            for operation in lock.operations() {
+                choices.push(Choice {
+                    label: crate::control_text::lock_operation(*operation)
+                        .unwrap_or_default()
+                        .into(),
+                    intent: DeviceIntent::Lock(*operation),
+                });
+            }
+        }
+        Control::Alarm(alarm) => {
+            for operation in alarm.operations() {
+                choices.push(Choice {
+                    label: crate::control_text::alarm_operation(*operation)
+                        .unwrap_or_default()
+                        .into(),
+                    intent: DeviceIntent::Alarm(*operation),
+                });
+            }
+        }
         Control::Switch { .. }
         | Control::Light { .. }
         | Control::Binary
@@ -163,6 +203,12 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
     choices
 }
 pub(super) fn choice_rows(control: &Control) -> Vec<ProDeviceChoice> {
+    if matches!(
+        control,
+        Control::Cover(_) | Control::Lock(_) | Control::Alarm(_)
+    ) {
+        return Vec::new();
+    }
     choices(control)
         .into_iter()
         .enumerate()
@@ -170,6 +216,74 @@ pub(super) fn choice_rows(control: &Control) -> Vec<ProDeviceChoice> {
             token: token as i32,
             label: choice.label.into(),
             selected: false,
+        })
+        .collect()
+}
+
+pub(super) fn cover_rows(control: &Control) -> Vec<ProCoverChoice> {
+    let Control::Cover(cover) = control else {
+        return Vec::new();
+    };
+    cover
+        .operations()
+        .iter()
+        .enumerate()
+        .filter_map(|(token, operation)| {
+            let kind = match *operation {
+                controls::CoverOperation::Open => ProCoverOperation::Open,
+                controls::CoverOperation::Close => ProCoverOperation::Close,
+                controls::CoverOperation::Stop => ProCoverOperation::Stop,
+                controls::CoverOperation::Unspecified => return None,
+            };
+            Some(ProCoverChoice {
+                token: token as i32,
+                label: crate::control_text::cover_operation(*operation)?.into(),
+                operation: kind,
+            })
+        })
+        .collect()
+}
+pub(super) fn lock_rows(control: &Control) -> Vec<ProLockChoice> {
+    let Control::Lock(lock) = control else {
+        return Vec::new();
+    };
+    lock.operations()
+        .iter()
+        .enumerate()
+        .filter_map(|(token, operation)| {
+            let kind = match *operation {
+                controls::LockOperation::Lock => ProLockOperation::Lock,
+                controls::LockOperation::Unlock => ProLockOperation::Unlock,
+                controls::LockOperation::Unspecified => return None,
+            };
+            Some(ProLockChoice {
+                token: token as i32,
+                label: crate::control_text::lock_operation(*operation)?.into(),
+                operation: kind,
+            })
+        })
+        .collect()
+}
+pub(super) fn alarm_rows(control: &Control) -> Vec<ProAlarmChoice> {
+    let Control::Alarm(alarm) = control else {
+        return Vec::new();
+    };
+    alarm
+        .operations()
+        .iter()
+        .enumerate()
+        .filter_map(|(token, operation)| {
+            let kind = match *operation {
+                controls::AlarmOperation::ArmHome => ProAlarmOperation::ArmHome,
+                controls::AlarmOperation::ArmAway => ProAlarmOperation::ArmAway,
+                controls::AlarmOperation::Disarm => ProAlarmOperation::Disarm,
+                controls::AlarmOperation::Unspecified => return None,
+            };
+            Some(ProAlarmChoice {
+                token: token as i32,
+                label: crate::control_text::alarm_operation(*operation)?.into(),
+                operation: kind,
+            })
         })
         .collect()
 }
@@ -188,7 +302,10 @@ fn climate_observation(entity: &state::ViewEntity) -> Option<&state::ClimateValu
         | state::observed_state::Value::Fan(_)
         | state::observed_state::Value::Helper(_)
         | state::observed_state::Value::Solar(_)
-        | state::observed_state::Value::SolarEvent(_) => None,
+        | state::observed_state::Value::SolarEvent(_)
+        | state::observed_state::Value::Cover(_)
+        | state::observed_state::Value::Lock(_)
+        | state::observed_state::Value::Alarm(_) => None,
     }
 }
 pub(super) fn readings(control: &Control, entity: &state::ViewEntity) -> String {
@@ -281,14 +398,17 @@ impl Editor {
             | Control::Climate(_)
             | Control::Fan(_)
             | Control::Helper(_)
+            | Control::Cover(_)
             | Control::Binary
             | Control::Measurement
+            | Control::Lock(_)
+            | Control::Alarm(_)
             | Control::Unsupported => Err(Refusal::Unsupported),
         }
     }
     fn bounds(self, control: &Control) -> Result<(Bounds, Option<Bounds>), Refusal> {
         match self {
-            Self::Setpoint(bounds) => Ok((bounds, None)),
+            Self::Setpoint(bounds) | Self::CoverPosition(bounds) => Ok((bounds, None)),
             Self::ColorTemperature => Ok((Self::color(control)?.presentation(), None)),
             Self::Range(range) => {
                 let (low, high) = range.bounds();
@@ -312,12 +432,28 @@ impl Editor {
                 | Control::Light { .. }
                 | Control::Binary
                 | Control::Measurement
+                | Control::Cover(_)
+                | Control::Lock(_)
+                | Control::Alarm(_)
                 | Control::Unsupported => Err(Refusal::Unsupported),
             },
         }
     }
     pub fn initial(self, entity: &state::ViewEntity, control: &Control) -> Draft {
         let mut draft = Draft::default();
+        if let Self::CoverPosition(_) = self {
+            if let Control::Cover(cover) = control
+                && let Some(observation) = entity
+                    .state
+                    .as_option()
+                    .filter(|v| v.__buffa_unknown_fields.is_empty())
+                && let Some(state::observed_state::Value::Cover(value)) = &observation.value
+                && let Some(position) = cover.observed_position(value)
+            {
+                draft.lower = position.to_string();
+            }
+            return draft;
+        }
         if matches!(self, Self::ColorTemperature) {
             if let Ok(color) = Self::color(control)
                 && let Some(value) = entity
@@ -353,14 +489,17 @@ impl Editor {
             Control::Climate(climate) => match self {
                 Self::Setpoint(_) => climate.observes().setpoint,
                 Self::Range(_) => climate.observes().range,
-                Self::Helper | Self::ColorTemperature => false,
+                Self::Helper | Self::ColorTemperature | Self::CoverPosition(_) => false,
             },
             Control::Switch { .. }
             | Control::Light { .. }
             | Control::Fan(_)
             | Control::Helper(_)
+            | Control::Cover(_)
             | Control::Binary
             | Control::Measurement
+            | Control::Lock(_)
+            | Control::Alarm(_)
             | Control::Unsupported => false,
         };
         if !advertised {
@@ -401,7 +540,10 @@ impl Editor {
                 )
                 | (Self::Range(_), Some(state::climate_value::Setpoint::SetpointCelsius(_)))
                 | (Self::Setpoint(_) | Self::Range(_), None)
-                | (Self::Helper | Self::ColorTemperature, Some(_) | None) => {}
+                | (
+                    Self::Helper | Self::ColorTemperature | Self::CoverPosition(_),
+                    Some(_) | None,
+                ) => {}
             }
         }
         draft
@@ -420,6 +562,11 @@ impl Editor {
                 .input(draft.lower.clone(), None)
                 .map(DeviceIntent::Helper);
         }
+        if let Self::CoverPosition(bounds) = self {
+            return Ok(DeviceIntent::Cover(CoverIntent::Position(
+                NumericInput::Renderer(NumericInput::Text(draft.lower.clone()).admit(bounds)?),
+            )));
+        }
         let low = NumericInput::Text(draft.lower.clone());
         let intent = match self {
             Self::Setpoint(bounds) => {
@@ -429,7 +576,9 @@ impl Editor {
                 let (low, high) = range.admit(low, NumericInput::Text(draft.upper.clone()))?;
                 ClimateIntent::Range(NumericInput::Renderer(low), NumericInput::Renderer(high))
             }
-            Self::Helper | Self::ColorTemperature => return Err(Refusal::Unsupported),
+            Self::Helper | Self::ColorTemperature | Self::CoverPosition(_) => {
+                return Err(Refusal::Unsupported);
+            }
         };
         Ok(DeviceIntent::Climate(intent))
     }
@@ -439,6 +588,7 @@ impl Editor {
         };
         let (mode, label) = match self {
             Self::Setpoint(_) => (ProValueMode::Single, "Consigne"),
+            Self::CoverPosition(_) => (ProValueMode::Single, "Position"),
             Self::Range(_) => (ProValueMode::Range, "Plage de consigne"),
             Self::Helper => (ProValueMode::Single, "Valeur"),
             Self::ColorTemperature => (ProValueMode::Single, "Température de couleur"),
@@ -477,6 +627,7 @@ impl Editor {
                 Self::Setpoint(_) | Self::Range(_) => "°C",
                 Self::Helper => "",
                 Self::ColorTemperature => "K",
+                Self::CoverPosition(_) => "%",
             }
             .into(),
             description: format!(

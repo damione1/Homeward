@@ -12,13 +12,17 @@ pub struct DashboardTransport {
 impl DashboardTransport {
     fn support() -> wire::ClientLayoutSupport {
         wire::ClientLayoutSupport {
-            profile: "homeward-dashboard-1".into(),
-            version: 1,
+            profile: home_client_model::dashboard::Profile::Recipes.name().into(),
+            version: home_client_model::dashboard::Profile::Recipes.layout_version(),
             kinds: [
                 wire::LayoutKind::View,
                 wire::LayoutKind::Section,
                 wire::LayoutKind::Grid,
                 wire::LayoutKind::HorizontalStack,
+                wire::LayoutKind::VerticalStack,
+                wire::LayoutKind::Recipe,
+                wire::LayoutKind::Popup,
+                wire::LayoutKind::ChipGroup,
                 wire::LayoutKind::Heading,
                 wire::LayoutKind::Tile,
                 wire::LayoutKind::Unsupported,

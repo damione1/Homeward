@@ -43,6 +43,7 @@ func collectVisibility(target map[VisibilityKind]bool, values []Visibility) {
 	for _, value := range values {
 		if value.status == StatusSupported {
 			target[value.kind] = true
+			collectVisibility(target, value.children)
 		}
 	}
 }

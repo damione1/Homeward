@@ -2,14 +2,16 @@ import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitU
     KitTextArea, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth,
     KitDataTable, TableRow, DataSortDirection, DataAlignment, NavigationStep,
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest, IconKind } from "@kit/kit.slint";
-import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell } from "@kit-pro/kit-pro.slint";
+import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture } from "@kit-pro/kit-pro.slint";
 import { HomewardSkin } from "skin.slint";
 import { HomewardDevices } from "device-cards.slint";
 import { HomewardDashboard } from "native-dashboard.slint";
+import { HomewardConfirmation } from "native-confirmation.slint";
+import { HomewardPopup } from "native-popup.slint";
 
 export enum ViewPage { home, rooms, inventory, room, detail, settings }
 export enum RoomView { cards, list }
-export enum BodyFocus { read, inventory, back, settings }
+export enum BodyFocus { read, inventory, back, settings, popup }
 
 export component HomewardWindow inherits Window {
     title: "Homeward · Développement";
@@ -80,6 +82,32 @@ export component HomewardWindow inherits Window {
     in property <[ProDeviceRow]> device-cards;
     in property <[ProLayoutNode]> home-layout-nodes;
     in property <[ProLayoutNode]> room-layout-nodes;
+    in property <[ProLayoutNode]> popup-layout-nodes;
+    in property <DialogState> native-popup;
+    in property <int> native-popup-generation;
+    in property <string> native-popup-title;
+    in property <bool> native-page;
+    callback native-popup-dismiss(int,CloseReason);
+    callback recipe-gesture(int,int,ProRecipeGesture);
+    callback recipe-confirm(int);
+    callback recipe-dismiss(int,CloseReason);
+    callback recipe-context-changed();
+    callback native-route-changed();
+    callback native-focus-cancelled();
+    callback native-layout-published(int);
+    in property <FocusRequest> recipe-focus;
+    callback recipe-focus-applied(int,int,int);
+    callback recipe-focus-observed(int,int,bool);
+    callback recipe-focus-revealed(int,int,length,length);
+    out property <float> home-scroll: home.content-y / 1px;
+    out property <float> room-scroll: room-area.content-y / 1px;
+    out property <float> popup-scroll: popup-dialog.scroll-offset;
+    out property <bool> search-focused: shell.search-focused;
+    in property <DialogState> recipe-confirmation;
+    in property <int> recipe-confirmation-id;
+    in property <string> recipe-confirmation-title;
+    in property <string> recipe-confirmation-message;
+    in property <string> recipe-confirmation-description;
     pure callback layout-arrange([ProLayoutInput],int,int) -> [ProLayoutCell];
     in property <bool> commands-ready;
     in property <string> action-feedback;
@@ -102,6 +130,7 @@ export component HomewardWindow inherits Window {
     in property <string> detail-date;
     in property <string> preferences-status;
     private property <bool> connected: root.access-stage == ProAccessStage.connected;
+    private property <bool> background-interactive: root.connected && !root.native-popup.open && !root.recipe-confirmation.open;
     callback private-view-cleared(bool);
     callback dashboard-changed();
     callback navigation-open();
@@ -132,8 +161,20 @@ export component HomewardWindow inherits Window {
         else if (target == BodyFocus.inventory) { table.take-focus(); }
         else if (target == BodyFocus.back) { if (root.page == ViewPage.detail) { detail-back.take-focus(); } else if (root.page == ViewPage.room && root.room-view == RoomView.cards) { room-back.take-focus(); } else { back-button.take-focus(); } }
         else if (target == BodyFocus.settings) { theme-button.take-focus(); }
+        else if (target == BodyFocus.popup) { popup-dialog.take-focus(); }
     }
     public function reset-list() { root.cache-active-index = 0; table.reveal-active(); }
+    public function restore-board-scroll(home-offset: float, room-offset: float, popup-offset: float) {
+        home.content-y = clamp(home-offset * 1px, -max(0px, home.content-height - home.visible-height), 0px);
+        room-area.content-y = clamp(room-offset * 1px, -max(0px, room-area.content-height - room-area.visible-height), 0px);
+        popup-dialog.restore-scroll(popup-offset);
+    }
+    public function reveal-recipe(top: length, bottom: length) {
+        if (root.recipe-confirmation.open) { return; }
+        if (root.native-popup.open) { popup-dialog.reveal-focus(top,bottom); }
+        else if (root.page == ViewPage.home) { home.reveal(top - home.absolute-position.y - home.content-y, bottom - home.absolute-position.y - home.content-y); }
+        else if (root.page == ViewPage.room && root.room-view == RoomView.cards) { room-area.reveal(top - room-area.absolute-position.y - room-area.content-y, bottom - room-area.absolute-position.y - room-area.content-y); }
+    }
     function preferences-edited() { root.preferences-changed(root.dark-mode, root.opaque-surfaces, root.large-text, root.reduced-motion); }
 
     content := FocusScope {
@@ -203,6 +244,7 @@ export component HomewardWindow inherits Window {
 
     }
     shell := ProAdaptiveShell {
+        interactive: root.background-interactive;
         width: content.width; height: content.height;
         visible: root.connected && !root.show-endpoint;
         theme: root.theme; product-name: "Homeward"; workspace-label: root.dashboard-title;
@@ -231,18 +273,19 @@ export component HomewardWindow inherits Window {
             home := KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
                 visible: root.page == ViewPage.home;
+                scrolled => { root.native-focus-cancelled(); }
                 gap: root.view-loaded && root.dashboard-status == "" ? none : roomy;
                 Rectangle {
                     height: root.view-loaded && root.dashboard-status == "" ? 0px : read-button.preferred-height;
                     visible: !root.view-loaded || root.dashboard-status != "";
                     read-button := KitButton { x: 0px; y: 0px; width: min(parent.width, 250px * root.theme.text-scale);
-                        theme: root.theme; control-size: comfortable; control-width: ControlWidth.fill; disabled: root.busy;
+                        theme: root.theme; control-size: comfortable; control-width: ControlWidth.fill; disabled: root.busy || !root.background-interactive;
                         text: "Afficher ma maison"; busy: root.busy; activated => { root.read-protected(); } }
                 }
                 if root.dashboard-choices.length > 1: KitSelect {
                     theme: root.theme; rows: root.dashboard-choices; state: root.dashboard-choice-state;
                     placeholder: "Choisir un dashboard"; control-size: comfortable;
-                    disabled: !root.connected;
+                    disabled: !root.background-interactive;
                     open-requested => { root.dashboard-choice-open(); }
                     activate(token,generation) => { root.dashboard-choice-activate(token,generation); }
                     navigate(step) => { root.dashboard-choice-step(step); }
@@ -252,9 +295,13 @@ export component HomewardWindow inherits Window {
                 if root.dashboard-synthetic: KitAlert { theme: root.theme; title: "Serveur de test"; message: "Données synthétiques · aucun appareil réel"; severity: information; }
                 if root.dashboard-status != "": KitAlert { theme: root.theme; title: "Dashboard"; message: root.dashboard-status; severity: information; }
                 if root.home-layout-nodes.length > 0: HomewardDashboard {
+                    recipe-focus: root.recipe-focus;
+                    recipe-focus-applied(token,generation,serial) => { root.recipe-focus-applied(token,generation,serial); }
+                    recipe-focus-observed(token,generation,focused) => { root.recipe-focus-observed(token,generation,focused); }
+                    recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
                     theme: root.theme; viewport-width: viewport.width;
                     nodes: root.home-layout-nodes; node-index: 0;
-                    interactive: root.connected && root.page == ViewPage.home; commands-enabled: root.commands-ready;
+                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.home; commands-enabled: root.commands-ready;
                     arrange(inputs,columns,base) => { return root.layout-arrange(inputs,columns,base); }
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
@@ -262,11 +309,12 @@ export component HomewardWindow inherits Window {
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
                     stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
                     details(token,generation) => { root.device-details(token,generation); }
+                    gesture(token,generation,gesture) => { root.recipe-gesture(token,generation,gesture); }
                 }
                 if root.home-layout-nodes.length == 0 && root.device-cards.length > 0: Text { text: "En un regard"; color: root.theme.text-primary; font-size: 20px * root.theme.text-scale; font-weight: 600; }
                 if root.home-layout-nodes.length == 0 && root.device-cards.length > 0: HomewardDevices {
                     theme: root.theme; viewport-width: viewport.width; devices: root.device-cards;
-                    interactive: root.connected && root.page == ViewPage.home; commands-ready: root.commands-ready;
+                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.home; commands-ready: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -280,7 +328,7 @@ export component HomewardWindow inherits Window {
                     observations-title: root.device-cards.length == 0 ? "En un regard" : "Autres observations"; rooms-title: "Vos pièces";
                     observations: root.home-layout-nodes.length > 0 ? [] : root.home-observations;
                     rooms: root.home-rooms;
-                    interactive: root.connected && root.page == ViewPage.home;
+                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.home;
                     focus-request: root.home-focus;
                     room-open(token,generation) => { root.room-open(token,generation); }
                     observation-open(token,generation) => { root.observation-open(token,generation); }
@@ -295,23 +343,28 @@ export component HomewardWindow inherits Window {
                 ProHomeOverview {
                     theme: root.theme; viewport-width: viewport.width; spacing: 12px;
                     rooms-title: "Choisissez une pièce"; rooms: root.home-rooms;
-                    interactive: root.connected && root.page == ViewPage.rooms;
+                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.rooms;
                     focus-request: root.home-focus;
                     room-open(token,generation) => { root.room-open(token,generation); }
                     room-focus-observed(token,generation,focused) => { root.home-observed(token,generation,focused); }
                 }
             }
-            KitScrollArea {
+            room-area := KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
                 visible: root.page == ViewPage.room && root.room-view == RoomView.cards;
-                room-back := KitButton { theme: root.theme; text: "Retour"; control-size: comfortable; activated => { root.go-back(); } }
+                scrolled => { root.native-focus-cancelled(); }
+                room-back := KitButton { disabled: !root.background-interactive; theme: root.theme; text: "Retour"; control-size: comfortable; activated => { root.go-back(); } }
                 Text { text: "Commandes et observations autorisées"; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
                 if root.room-layout-nodes.length == 0 && root.device-cards.length == 0: Text { text: "Aucune carte disponible pour les fonctions de cette pièce. La liste complète reste accessible."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
                 if root.action-feedback != "": KitAlert { theme: root.theme; title: "Commande"; message: root.action-feedback; severity: information; }
                 if root.room-layout-nodes.length > 0: HomewardDashboard {
+                    recipe-focus: root.recipe-focus;
+                    recipe-focus-applied(token,generation,serial) => { root.recipe-focus-applied(token,generation,serial); }
+                    recipe-focus-observed(token,generation,focused) => { root.recipe-focus-observed(token,generation,focused); }
+                    recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
                     theme: root.theme; viewport-width: viewport.width;
                     nodes: root.room-layout-nodes; node-index: 0;
-                    interactive: root.connected && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-enabled: root.commands-ready;
+                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-enabled: root.commands-ready;
                     arrange(inputs,columns,base) => { return root.layout-arrange(inputs,columns,base); }
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
@@ -319,10 +372,11 @@ export component HomewardWindow inherits Window {
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
                     stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
                     details(token,generation) => { root.device-details(token,generation); }
+                    gesture(token,generation,gesture) => { root.recipe-gesture(token,generation,gesture); }
                 }
                 if root.room-layout-nodes.length == 0: HomewardDevices {
                     theme: root.theme; viewport-width: viewport.width; devices: root.device-cards;
-                    interactive: root.connected && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-ready: root.commands-ready;
+                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-ready: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -330,17 +384,18 @@ export component HomewardWindow inherits Window {
                     stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
                     details(token,generation) => { root.device-details(token,generation); }
                 }
-                KitButton { theme: root.theme; text: "Liste complète des éléments"; control-size: comfortable; activated => { root.room-view = RoomView.list; root.content-focus(); } }
+                KitButton { disabled: !root.background-interactive; visible: !root.native-page; theme: root.theme; text: "Liste complète des éléments"; control-size: comfortable; activated => { root.room-view = RoomView.list; root.content-focus(); } }
             }
             inventory := Rectangle {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
                 visible: root.page == ViewPage.inventory || (root.page == ViewPage.room && root.room-view == RoomView.list);
                 VerticalLayout {
                     spacing: 12px;
-                    back-button := KitButton { theme: root.theme; control-size: comfortable; text: "Retour"; activated => { if (root.page == ViewPage.room) { root.room-view = RoomView.cards; root.content-focus(); } else { root.go-back(); } } }
+                    back-button := KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: "Retour"; activated => { if (root.page == ViewPage.room) { root.room-view = RoomView.cards; root.content-focus(); } else { root.go-back(); } } }
                     Text { visible: root.cache-rows.length == 0; text: root.search-query == "" ? "Aucune observation associée. Affichez votre maison pour charger les états autorisés." : "Aucun résultat pour cette recherche.";
                         color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
                     table := KitDataTable {
+                        interactive: root.background-interactive;
                         theme: root.theme; control-size: comfortable; label: "États de l’installation";
                         rows: root.cache-rows; active-index: root.cache-active-index; generation: root.cache-generation;
                         vertical-stretch: 1;
@@ -363,7 +418,7 @@ export component HomewardWindow inherits Window {
             KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
                 visible: root.page == ViewPage.detail;
-                detail-back := KitButton { theme: root.theme; control-size: comfortable; text: "Retour aux éléments"; activated => { root.go-back(); } }
+                detail-back := KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: "Retour aux éléments"; activated => { root.go-back(); } }
                 KitCard { theme: root.theme;
                     KitCardHeader { theme: root.theme; title: root.detail-title; description: "Observation reçue · consultation"; }
                     Text { text: root.detail-value; color: root.theme.text-primary; font-size: 26px * root.theme.text-scale; wrap: word-wrap; }
@@ -373,7 +428,7 @@ export component HomewardWindow inherits Window {
                 if root.action-feedback != "": KitAlert { theme: root.theme; title: "Commande"; message: root.action-feedback; severity: information; }
                 HomewardDevices {
                     theme: root.theme; viewport-width: viewport.width; devices: root.device-cards; show-details: false;
-                    interactive: root.connected && root.page == ViewPage.detail; commands-ready: root.commands-ready;
+                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.detail; commands-ready: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -387,10 +442,10 @@ export component HomewardWindow inherits Window {
                 KitCard { theme: root.theme;
                     KitCardHeader { theme: root.theme; title: "À votre mesure"; description: "Préférences de cet appareil"; }
                     KitWrap {
-                        theme-button := KitButton { theme: root.theme; control-size: comfortable; text: root.dark-mode ? "Thème clair" : "Thème sombre"; activated => { root.dark-mode = !root.dark-mode; root.preferences-edited(); } }
-                        KitButton { theme: root.theme; control-size: comfortable; text: root.opaque-surfaces ? "Surfaces translucides" : "Surfaces opaques"; activated => { root.opaque-surfaces = !root.opaque-surfaces; root.preferences-edited(); } }
-                        KitButton { theme: root.theme; control-size: comfortable; text: root.large-text ? "Texte standard" : "Texte à 200 %"; activated => { root.large-text = !root.large-text; root.preferences-edited(); } }
-                        KitButton { theme: root.theme; control-size: comfortable; text: root.reduced-motion ? "Autoriser les animations" : "Réduire les animations"; activated => { root.reduced-motion = !root.reduced-motion; root.preferences-edited(); } }
+                        theme-button := KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.dark-mode ? "Thème clair" : "Thème sombre"; activated => { root.dark-mode = !root.dark-mode; root.preferences-edited(); } }
+                        KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.opaque-surfaces ? "Surfaces translucides" : "Surfaces opaques"; activated => { root.opaque-surfaces = !root.opaque-surfaces; root.preferences-edited(); } }
+                        KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.large-text ? "Texte standard" : "Texte à 200 %"; activated => { root.large-text = !root.large-text; root.preferences-edited(); } }
+                        KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.reduced-motion ? "Autoriser les animations" : "Réduire les animations"; activated => { root.reduced-motion = !root.reduced-motion; root.preferences-edited(); } }
                     }
                     Text { text: root.preferences-status; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
                 }
@@ -398,12 +453,42 @@ export component HomewardWindow inherits Window {
                     KitCardHeader { theme: root.theme; title: root.session-title; description: root.session-description; }
                     Text { text: root.endpoint-label; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
                     KitWrap {
-                        KitButton { theme: root.theme; control-size: comfortable; text: "Se déconnecter"; activated => { root.sign-out(); } }
-                        KitButton { theme: root.theme; control-size: comfortable; text: "Changer de serveur"; activated => { root.cancel-access(); root.show-endpoint = true; } }
+                        KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: "Se déconnecter"; activated => { root.sign-out(); } }
+                        KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: "Changer de serveur"; activated => { root.cancel-access(); root.show-endpoint = true; } }
                     }
                 }
             }
         }
     }
 }
+    popup-dialog := HomewardPopup {
+        width: root.width; height: root.height; theme: root.theme;
+        state: { open: root.native-popup.open, topmost: root.native-popup.topmost && !root.recipe-confirmation.open, busy: root.native-popup.busy };
+        generation: root.native-popup-generation; title: root.native-popup-title;
+        nodes: root.popup-layout-nodes; commands-enabled: root.commands-ready;
+        action-feedback: root.action-feedback;
+        recipe-focus: root.recipe-focus;
+        recipe-focus-applied(token,generation,serial) => { root.recipe-focus-applied(token,generation,serial); }
+        recipe-focus-observed(token,generation,focused) => { root.recipe-focus-observed(token,generation,focused); }
+        recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
+        scroll-interacted => { root.native-focus-cancelled(); }
+        close(generation,reason) => { root.native-popup-dismiss(generation,reason); }
+        arrange(inputs,columns,base) => { return root.layout-arrange(inputs,columns,base); }
+        power(token,generation,intent) => { root.device-power(token,generation,intent); }
+        edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
+        choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
+        brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
+        stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
+        details(token,generation) => { root.device-details(token,generation); }
+        gesture(token,generation,gesture) => { root.recipe-gesture(token,generation,gesture); }
+    }
+    HomewardConfirmation {
+        width: root.width; height: root.height;
+        theme: root.theme; state: root.recipe-confirmation;
+        confirmation-id: root.recipe-confirmation-id;
+        title: root.recipe-confirmation-title; message: root.recipe-confirmation-message;
+        action-description: root.recipe-confirmation-description;
+        confirm(id) => { root.recipe-confirm(id); }
+        dismiss(reason) => { root.recipe-dismiss(root.recipe-confirmation-id, reason); }
+    }
 }

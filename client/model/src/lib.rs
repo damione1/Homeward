@@ -3,6 +3,8 @@
 
 use std::{error::Error, fmt, str::FromStr};
 
+pub mod dashboard;
+
 /// Opaque internal identity. Parsing proves representation, not host provenance.
 /// No default, public field or mutable string access can create an empty identity.
 ///

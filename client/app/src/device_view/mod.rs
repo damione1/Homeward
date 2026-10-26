@@ -2,12 +2,15 @@
 //! history. UI tokens are ephemeral; identities/permissions never come from UI.
 mod capability;
 mod climate;
+mod controls;
 mod helper;
 mod light;
+mod native;
 mod number;
 mod panel;
 pub(crate) mod presentation;
 mod progress;
+mod recipes;
 mod selection;
 use crate::{
     IconKind, ProControlAccess, ProDeviceKind,
@@ -22,6 +25,7 @@ use home_wire_contract::home::{
     actions::v1 as actions, registry::v1 as registry, state::v1 as state,
 };
 use presentation::CardRow;
+pub(crate) use recipes::{GestureAccess, NativeIntent, NativePrepared, RecipePresentation};
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     sync::{Arc, Mutex},
@@ -33,7 +37,7 @@ const MAX_ACTION_HISTORY: usize = 64;
 struct CardToken(i32);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct CardGeneration(i32);
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Power {
     On,
     Off,
@@ -46,6 +50,9 @@ pub(crate) enum DeviceIntent {
     Climate(climate::ClimateIntent),
     FanSpeed(state::FanSpeed),
     Helper(helper::HelperIntent),
+    Cover(controls::CoverIntent),
+    Lock(home_wire_contract::home::controls::v1::LockOperation),
+    Alarm(home_wire_contract::home::controls::v1::AlarmOperation),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Refusal {
@@ -74,6 +81,7 @@ impl Refusal {
 }
 #[derive(Clone, PartialEq)]
 struct Slot {
+    source: ControlSource,
     generation: CardGeneration,
     target: ActionTarget,
     capability: registry::CapabilityDescription,
@@ -83,33 +91,77 @@ struct Slot {
 }
 impl Slot {
     fn same_admission(&self, other: &Self) -> bool {
-        self.target == other.target
+        self.source == other.source
+            && self.target == other.target
             && self.capability == other.capability
             && self.access == other.access
             && self.control == other.control
             && self.helper_revision == other.helper_revision
     }
 }
+#[derive(Clone, PartialEq, Eq)]
+enum ControlSource {
+    General,
+    Native(crate::dashboard_layout::NodeId),
+}
+struct CardInput<'a> {
+    source: ControlSource,
+    title: String,
+    entity: &'a state::ViewEntity,
+    capability: &'a registry::CapabilityDescription,
+    target: ActionTarget,
+    control: Control,
+}
+impl<'a> CardInput<'a> {
+    fn new(
+        source: ControlSource,
+        title: String,
+        entity: &'a state::ViewEntity,
+        capability: &'a registry::CapabilityDescription,
+        control: Control,
+    ) -> Option<Self> {
+        let target = ActionTarget::new(
+            entity.entity_id.parse().ok()?,
+            &capability.schema_id,
+            &capability.endpoint,
+        )?;
+        Some(Self {
+            source,
+            title,
+            entity,
+            capability,
+            target,
+            control,
+        })
+    }
+}
 #[derive(Clone, PartialEq)]
 struct Context {
     revision: i32,
     layout: Arc<Layout>,
+    catalogue: Option<crate::dashboard_catalogue::CatalogueToken>,
     epoch: String,
     config_revision: u64,
     authorization_revision: u64,
     grant_hash: Vec<u8>,
     slots: Vec<Slot>,
     live: bool,
+    native_nodes: Vec<(
+        crate::dashboard_layout::NodeId,
+        crate::dashboard_layout::Kind,
+    )>,
 }
 impl Context {
     fn same_view(&self, other: &Self) -> bool {
         self.revision == other.revision
             && self.layout == other.layout
+            && self.catalogue == other.catalogue
             && self.epoch == other.epoch
             && self.config_revision == other.config_revision
             && self.authorization_revision == other.authorization_revision
             && self.grant_hash == other.grant_hash
             && self.live == other.live
+            && self.native_nodes == other.native_nodes
     }
 }
 struct State {
@@ -118,6 +170,7 @@ struct State {
     actions: VecDeque<(ActionTarget, ActionHandle)>,
     drafts: BTreeMap<(CardGeneration, i32), panel::Draft>,
     selections: BTreeMap<CardGeneration, selection::Selection>,
+    recipe_bindings: recipes::Bindings,
 }
 #[derive(Clone)]
 pub(crate) struct DeviceStore(Arc<Mutex<State>>);
@@ -127,6 +180,9 @@ pub(crate) struct DeviceProjection {
     pub ready: bool,
     pub represented: BTreeSet<EntityId>,
     pub entities: Vec<EntityId>,
+    pub native_nodes: Vec<crate::dashboard_layout::Node>,
+    pub native_devices: BTreeMap<crate::dashboard_layout::NodeId, CardRow>,
+    pub recipes: BTreeMap<crate::dashboard_layout::NodeId, RecipePresentation>,
 }
 pub(crate) struct Prepared {
     pub target: ActionTarget,
@@ -142,6 +198,7 @@ impl Default for DeviceStore {
             actions: VecDeque::new(),
             drafts: BTreeMap::new(),
             selections: BTreeMap::new(),
+            recipe_bindings: recipes::Bindings::default(),
         })))
     }
 }
@@ -149,6 +206,7 @@ fn selected<'a>(
     view: &'a CachedView,
     layout: &Layout,
     request: &ProjectionRequest,
+    native_nodes: &[crate::dashboard_layout::Node],
 ) -> Vec<(String, &'a state::ViewEntity)> {
     if let Some(id) = &request.detail {
         return view
@@ -156,37 +214,47 @@ fn selected<'a>(
             .map(|entity| vec![(bounded(&entity.current_alias), entity)])
             .unwrap_or_default();
     }
-    if let Some(native) = &layout.native {
+    if layout.native.is_some() {
         let mut seen = BTreeSet::new();
-        return native
-            .root(request.room.as_ref())
-            .map(|root| {
-                native
-                    .ordered_nodes(root)
-                    .into_iter()
-                    .filter_map(|node| {
-                        let id = node.entity.as_ref()?;
-                        if !seen.insert(id.clone()) {
-                            return None;
-                        }
-                        let entity = view.get(id)?;
-                        if !request.query.is_empty()
-                            && !entity.current_alias.to_lowercase().contains(&request.query)
-                        {
-                            return None;
-                        }
-                        Some((
-                            if node.title.is_empty() {
-                                bounded(&entity.current_alias)
-                            } else {
-                                node.title.clone()
-                            },
-                            entity,
-                        ))
-                    })
-                    .collect()
+        return native_nodes
+            .iter()
+            .flat_map(|node| {
+                node.entity
+                    .iter()
+                    .chain(node.recipes.iter().flat_map(|recipes| {
+                        recipes.interactions.values().filter_map(|interaction| {
+                            match &interaction.intention {
+                                home_client_model::dashboard::Intention::Command {
+                                    entity, ..
+                                } => Some(entity),
+                                home_client_model::dashboard::Intention::None
+                                | home_client_model::dashboard::Intention::MoreInfo(_)
+                                | home_client_model::dashboard::Intention::Navigate(_) => None,
+                            }
+                        })
+                    }))
+                    .map(move |id| (node, id))
             })
-            .unwrap_or_default();
+            .filter_map(|(node, id)| {
+                if !seen.insert(id.clone()) {
+                    return None;
+                }
+                let entity = view.get(id)?;
+                if !request.query.is_empty()
+                    && !entity.current_alias.to_lowercase().contains(&request.query)
+                {
+                    return None;
+                }
+                Some((
+                    if node.title.is_empty() {
+                        bounded(&entity.current_alias)
+                    } else {
+                        node.title.clone()
+                    },
+                    entity,
+                ))
+            })
+            .collect();
     }
     let entries = match &request.room {
         Some(room) => layout
@@ -221,6 +289,7 @@ impl DeviceStore {
     pub fn clear_private(&self) {
         let mut state = self.0.lock().expect("device store mutex");
         state.context = None;
+        state.recipe_bindings = recipes::Bindings::default();
         state.drafts.clear();
         state.selections.clear();
         state.serial = CardGeneration(state.serial.0.saturating_add(1));
@@ -239,94 +308,142 @@ impl DeviceStore {
             .dashboard
             .layout()
             .filter(|layout| view.is_some_and(|view| layout.compatible(view)));
+        let mut native_nodes = layout
+            .and_then(|layout| {
+                request
+                    .native_root(layout)
+                    .map(|root| crate::dashboard_visibility::project(layout, root, phase, view))
+            })
+            .unwrap_or_default();
+        let native_controls = native::admit(&mut native_nodes, view);
         let selection = match (view, layout) {
-            (Some(view), Some(layout)) => selected(view, layout, request),
+            (Some(view), Some(layout)) => selected(view, layout, request, &native_nodes),
             (None, Some(_)) | (Some(_), None) | (None, None) => Vec::new(),
         };
         let mut slots = Vec::new();
         let mut cards = Vec::new();
         let mut editors = Vec::new();
         let mut helper_selections = Vec::new();
-        for (title, entity) in selection {
-            for capability in &entity.capabilities {
-                if cards.len() == MAX_CARDS {
-                    break;
+        let mut inputs = selection
+            .into_iter()
+            .flat_map(|(title, entity)| {
+                entity.capabilities.iter().filter_map(move |capability| {
+                    CardInput::new(
+                        ControlSource::General,
+                        title.clone(),
+                        entity,
+                        capability,
+                        Control::parse(capability),
+                    )
+                })
+            })
+            .take(MAX_CARDS)
+            .collect::<Vec<_>>();
+        for (node, admitted) in native_controls {
+            let Some(entity) = view.and_then(|view| view.get(&admitted.entity)) else {
+                continue;
+            };
+            let Some(capability) = entity.capabilities.get(admitted.capability) else {
+                continue;
+            };
+            let title = admitted.title;
+            if let Some(input) = CardInput::new(
+                ControlSource::Native(node),
+                title,
+                entity,
+                capability,
+                admitted.control,
+            ) {
+                inputs.push(input);
+            }
+        }
+        let mut ordinary_count = 0;
+        let mut native_indices = BTreeMap::new();
+        for input in inputs {
+            let CardInput {
+                source,
+                title,
+                entity,
+                capability,
+                target,
+                control,
+            } = input;
+            match &source {
+                ControlSource::General => ordinary_count += 1,
+                ControlSource::Native(node) => {
+                    native_indices.insert(node.clone(), cards.len());
                 }
-                let Some(id) = entity.entity_id.parse().ok() else {
-                    continue;
-                };
-                let Some(target) =
-                    ActionTarget::new(id, &capability.schema_id, &capability.endpoint)
-                else {
-                    continue;
-                };
-                let access = if layout.is_some_and(|layout| {
-                    layout.native.as_ref().is_none_or(|native| {
-                        native
-                            .nodes
-                            .values()
-                            .any(|node| node.kind == crate::dashboard_layout::Kind::View)
+            }
+            let access = if layout.is_some_and(|layout| {
+                layout.native.as_ref().is_none_or(|native| {
+                    native
+                        .nodes
+                        .values()
+                        .any(|node| node.kind == crate::dashboard_layout::Kind::View)
+                })
+            }) {
+                write_access(entity, target.schema(), target.endpoint())
+            } else {
+                WriteAccess::Denied
+            };
+            let helper_revision = if matches!(&control, Control::Helper(_)) {
+                entity
+                    .state
+                    .as_option()
+                    .filter(|value| value.__buffa_unknown_fields.is_empty())
+                    .and_then(|value| match value.value.as_ref() {
+                        Some(state::observed_state::Value::Helper(value)) => {
+                            helper::HelperRevision::from_observation(value)
+                        }
+                        Some(
+                            state::observed_state::Value::SwitchOn(_)
+                            | state::observed_state::Value::Measurement(_)
+                            | state::observed_state::Value::Light(_)
+                            | state::observed_state::Value::Fan(_)
+                            | state::observed_state::Value::Climate(_)
+                            | state::observed_state::Value::Solar(_)
+                            | state::observed_state::Value::SolarEvent(_)
+                            | state::observed_state::Value::Cover(_)
+                            | state::observed_state::Value::Lock(_)
+                            | state::observed_state::Value::Alarm(_),
+                        )
+                        | None => None,
                     })
-                }) {
-                    write_access(entity, target.schema(), target.endpoint())
-                } else {
-                    WriteAccess::Denied
-                };
-                let control = Control::parse(capability);
-                let helper_revision = if matches!(&control, Control::Helper(_)) {
-                    entity
-                        .state
-                        .as_option()
-                        .filter(|value| value.__buffa_unknown_fields.is_empty())
-                        .and_then(|value| match value.value.as_ref() {
-                            Some(state::observed_state::Value::Helper(value)) => {
-                                helper::HelperRevision::from_observation(value)
-                            }
-                            Some(
-                                state::observed_state::Value::SwitchOn(_)
-                                | state::observed_state::Value::Measurement(_)
-                                | state::observed_state::Value::Light(_)
-                                | state::observed_state::Value::Fan(_)
-                                | state::observed_state::Value::Climate(_)
-                                | state::observed_state::Value::Solar(_)
-                                | state::observed_state::Value::SolarEvent(_),
-                            )
-                            | None => None,
-                        })
-                } else {
-                    None
-                };
-                let mut row = card(&title, entity, &control, access);
-                if let Control::Helper(helper) = &control {
-                    row.command_unavailable = helper_revision.is_none() || !helper.available();
-                }
-                helper_selections.push(helper::observation(entity).and_then(|value|match value.value.as_ref() {
+            } else {
+                None
+            };
+            let mut row = card(&title, entity, &control, access);
+            if let Control::Helper(helper) = &control {
+                row.command_unavailable = helper_revision.is_none() || !helper.available();
+            }
+            helper_selections.push(helper::observation(entity).and_then(|value|match value.value.as_ref() {
                     Some(home_wire_contract::home::helpers::v1::helper_value::Value::SelectedOption(value)) => Some(value.clone()),
                     Some(home_wire_contract::home::helpers::v1::helper_value::Value::Boolean(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Number(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Counter(_) | home_wire_contract::home::helpers::v1::helper_value::Value::ButtonPressedAt(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Date(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Time(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Datetime(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Text(_)) | None => None,
                 }));
-                editors.push(
-                    panel::editors(&control)
-                        .into_iter()
-                        .map(|editor| (editor, editor.initial(entity, &control)))
-                        .collect::<Vec<_>>(),
-                );
-                slots.push(Slot {
-                    generation: CardGeneration(0),
-                    target,
-                    capability: capability.clone(),
-                    access,
-                    control,
-                    helper_revision,
-                });
-                cards.push(row);
-            }
-            if cards.len() == MAX_CARDS {
-                break;
-            }
+            editors.push(
+                panel::editors(&control)
+                    .into_iter()
+                    .map(|editor| (editor, editor.initial(entity, &control)))
+                    .collect::<Vec<_>>(),
+            );
+            slots.push(Slot {
+                source,
+                generation: CardGeneration(0),
+                target,
+                capability: capability.clone(),
+                access,
+                control,
+                helper_revision,
+            });
+            cards.push(row);
         }
         let mut context = match (view, layout) {
             (Some(view), Some(_)) => Some(Context {
                 revision: request.revision,
+                catalogue: request
+                    .catalogue
+                    .as_ref()
+                    .map(|snapshot| snapshot.token().clone()),
                 layout: request
                     .dashboard
                     .shared_layout()
@@ -337,6 +454,10 @@ impl DeviceStore {
                 grant_hash: view.cursor().grant_sha256.clone(),
                 slots,
                 live: phase == CachePhase::Live,
+                native_nodes: native_nodes
+                    .iter()
+                    .map(|node| (node.id.clone(), node.kind))
+                    .collect(),
             }),
             (None, Some(_)) | (Some(_), None) | (None, None) => None,
         };
@@ -439,6 +560,12 @@ impl DeviceStore {
             row.action_label = label.into();
             row.action_detail = detail.into();
         }
+        let recipes = recipes::project(&mut state, phase, view, &native_nodes);
+        let native_devices = native_indices
+            .into_iter()
+            .map(|(node, index)| (node, cards[index].clone()))
+            .collect();
+        cards.truncate(ordinary_count);
         let represented = state
             .context
             .as_ref()
@@ -457,11 +584,15 @@ impl DeviceStore {
                 context
                     .slots
                     .iter()
+                    .take(ordinary_count)
                     .map(|slot| slot.target.entity().clone())
                     .collect()
             })
             .unwrap_or_default();
         DeviceProjection {
+            recipes,
+            native_nodes,
+            native_devices,
             entities,
             rows: cards,
             ready,
@@ -670,6 +801,8 @@ fn active_slot(
 }
 
 #[cfg(test)]
+mod recipe_tests;
+#[cfg(test)]
 mod tests;
 
 fn card(
@@ -748,6 +881,9 @@ fn card(
                 row.value = if *on { "Actif" } else { "Inactif" }.into();
             }
         }
+        Control::Cover(_) => row.kind = ProDeviceKind::Cover,
+        Control::Lock(_) => row.kind = ProDeviceKind::Lock,
+        Control::Alarm(_) => row.kind = ProDeviceKind::Alarm,
         Control::Measurement => row.kind = ProDeviceKind::Measurement,
         Control::Climate(_) => {
             row.kind = ProDeviceKind::Climate;
@@ -792,6 +928,9 @@ fn card(
         }
     }
     row.choices = panel::choice_rows(control);
+    row.cover_operations = panel::cover_rows(control);
+    row.lock_operations = panel::lock_rows(control);
+    row.alarm_operations = panel::alarm_rows(control);
     row.freshness = entity
         .state
         .as_option()
@@ -806,3 +945,9 @@ fn card(
 pub(crate) fn color_temperature_text(value: u32) -> Option<String> {
     light::Mireds::from_wire(value).map(light::Mireds::observation)
 }
+
+#[cfg(test)]
+mod secure_tests;
+
+#[cfg(test)]
+mod tls_probe;

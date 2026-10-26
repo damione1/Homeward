@@ -120,7 +120,7 @@ func NewPoint(in PointInput) (Point, error) {
 		}
 		n := *in.Numeric
 		in.Numeric = &n
-	case domain.ValueSwitch, domain.ValueLight, domain.ValueFan, domain.ValueClimate, domain.ValueHelper, domain.ValueSolar, domain.ValueSolarEvent:
+	case domain.ValueSwitch, domain.ValueLight, domain.ValueFan, domain.ValueClimate, domain.ValueHelper, domain.ValueSolar, domain.ValueSolarEvent, domain.ValueCover, domain.ValueLock, domain.ValueAlarm:
 		if in.Numeric != nil {
 			return Point{}, ErrInvalid
 		}

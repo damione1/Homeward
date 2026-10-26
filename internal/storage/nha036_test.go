@@ -92,7 +92,7 @@ func TestNHA036BaselineAndFutureDefault(t *testing.T) {
 	if release != build.Release() || version != int(build.Version().Number()) || string(digest) != string(build.plan[:]) {
 		t.Fatal("window disagrees with compiled authority")
 	}
-	if _, err := store.pool.Exec(ctx, `INSERT INTO public.homeward_schema_migrations(version) VALUES ($1)`, build.Profile().Successor().Number()); err != nil {
+	if _, err := store.pool.Exec(ctx, `INSERT INTO public.homeward_schema_migrations(version) VALUES ($1)`, build.Version().Number()+1); err != nil {
 		t.Fatal(err)
 	}
 	var classified *Error

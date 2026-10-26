@@ -9,8 +9,8 @@ import (
 )
 
 // This is a fixed upgrade bridge from the delivered SQL25 release, not another
-// runtime profile or an admission of its readers on SQL26. Keep the old release
-// outside parseSchemaRelease: an old process must refuse the native26 window.
+// runtime profile or an admission of its readers on SQL27. Keep the old release
+// outside parseSchemaRelease: an old process must refuse the native27 window.
 const prior25SchemaRelease = "homeward-window-25-26-baseline"
 
 type prior25SchemaWindow struct {
@@ -28,7 +28,7 @@ func (w prior25SchemaWindow) validFor(plan [sha256.Size]byte) bool {
 }
 
 // The caller holds the migration transaction advisory lock. A missing or
-// damaged old declaration is never overwritten by a fresh release26 window.
+// damaged old declaration is never overwritten by a fresh release27 window.
 func validatePrior25SchemaWindow(ctx context.Context, tx pgx.Tx, current Version) error {
 	if current.number != 25 {
 		return nil
@@ -40,8 +40,9 @@ func validatePrior25SchemaWindow(ctx context.Context, tx pgx.Tx, current Version
 		return &Error{kind: InconsistentSchema}
 	}
 	build := CurrentSchemaBuild()
-	if !build.Valid() || build.version.number != 26 || build.release != schemaReleaseBaseline ||
-		build.profile.baseline.number != 26 || build.profile.successor.number != 27 || len(migrations) < 26 {
+	validRelease := build.version.number == 27 && build.release == schemaReleaseBaseline
+	if !build.Valid() || !validRelease ||
+		build.profile.baseline.number != 27 || build.profile.successor.number != 28 || len(migrations) < 27 {
 		return failure()
 	}
 	// Historical SQL must stay byte-identical to the actual released prefix.

@@ -7,6 +7,7 @@
 package actionsv1
 
 import (
+	v12 "github.com/damione1/Homeward/gen/home/controls/v1"
 	v11 "github.com/damione1/Homeward/gen/home/helpers/v1"
 	v1 "github.com/damione1/Homeward/gen/home/registry/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -466,6 +467,9 @@ type ActionArgs struct {
 	//	*ActionArgs_SetFan
 	//	*ActionArgs_SetClimate
 	//	*ActionArgs_Helper
+	//	*ActionArgs_Cover
+	//	*ActionArgs_Lock
+	//	*ActionArgs_Alarm
 	Arguments     isActionArgs_Arguments `protobuf_oneof:"arguments"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -562,6 +566,33 @@ func (x *ActionArgs) GetHelper() *v11.HelperAction {
 	return nil
 }
 
+func (x *ActionArgs) GetCover() *v12.CoverAction {
+	if x != nil {
+		if x, ok := x.Arguments.(*ActionArgs_Cover); ok {
+			return x.Cover
+		}
+	}
+	return nil
+}
+
+func (x *ActionArgs) GetLock() *v12.LockAction {
+	if x != nil {
+		if x, ok := x.Arguments.(*ActionArgs_Lock); ok {
+			return x.Lock
+		}
+	}
+	return nil
+}
+
+func (x *ActionArgs) GetAlarm() *v12.AlarmAction {
+	if x != nil {
+		if x, ok := x.Arguments.(*ActionArgs_Alarm); ok {
+			return x.Alarm
+		}
+	}
+	return nil
+}
+
 type isActionArgs_Arguments interface {
 	isActionArgs_Arguments()
 }
@@ -590,6 +621,18 @@ type ActionArgs_Helper struct {
 	Helper *v11.HelperAction `protobuf:"bytes,6,opt,name=helper,proto3,oneof"`
 }
 
+type ActionArgs_Cover struct {
+	Cover *v12.CoverAction `protobuf:"bytes,7,opt,name=cover,proto3,oneof"`
+}
+
+type ActionArgs_Lock struct {
+	Lock *v12.LockAction `protobuf:"bytes,8,opt,name=lock,proto3,oneof"`
+}
+
+type ActionArgs_Alarm struct {
+	Alarm *v12.AlarmAction `protobuf:"bytes,9,opt,name=alarm,proto3,oneof"`
+}
+
 func (*ActionArgs_SetSwitch) isActionArgs_Arguments() {}
 
 func (*ActionArgs_Extension) isActionArgs_Arguments() {}
@@ -601,6 +644,12 @@ func (*ActionArgs_SetFan) isActionArgs_Arguments() {}
 func (*ActionArgs_SetClimate) isActionArgs_Arguments() {}
 
 func (*ActionArgs_Helper) isActionArgs_Arguments() {}
+
+func (*ActionArgs_Cover) isActionArgs_Arguments() {}
+
+func (*ActionArgs_Lock) isActionArgs_Arguments() {}
+
+func (*ActionArgs_Alarm) isActionArgs_Arguments() {}
 
 type CommandRequest struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
@@ -894,7 +943,7 @@ var File_home_actions_v1_actions_proto protoreflect.FileDescriptor
 
 const file_home_actions_v1_actions_proto_rawDesc = "" +
 	"\n" +
-	"\x1dhome/actions/v1/actions.proto\x12\x0fhome.actions.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fhome/registry/v1/registry.proto\x1a\x1dhome/helpers/v1/helpers.proto\"\x1b\n" +
+	"\x1dhome/actions/v1/actions.proto\x12\x0fhome.actions.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fhome/registry/v1/registry.proto\x1a\x1dhome/helpers/v1/helpers.proto\x1a\x1fhome/controls/v1/controls.proto\"\x1b\n" +
 	"\tSetSwitch\x12\x0e\n" +
 	"\x02on\x18\x01 \x01(\bR\x02on\"\x83\x02\n" +
 	"\bSetLight\x12\x13\n" +
@@ -928,7 +977,7 @@ const file_home_actions_v1_actions_proto_rawDesc = "" +
 	"\tschema_id\x18\x01 \x01(\tR\bschemaId\x12\x14\n" +
 	"\x05major\x18\x02 \x01(\rR\x05major\x12+\n" +
 	"\x11descriptor_sha256\x18\x03 \x01(\fR\x10descriptorSha256\x12)\n" +
-	"\x10protobuf_payload\x18\x04 \x01(\fR\x0fprotobufPayload\"\x80\x03\n" +
+	"\x10protobuf_payload\x18\x04 \x01(\fR\x0fprotobufPayload\"\xa2\x04\n" +
 	"\n" +
 	"ActionArgs\x12;\n" +
 	"\n" +
@@ -938,7 +987,10 @@ const file_home_actions_v1_actions_proto_rawDesc = "" +
 	"\aset_fan\x18\x04 \x01(\v2\x17.home.actions.v1.SetFanH\x00R\x06setFan\x12>\n" +
 	"\vset_climate\x18\x05 \x01(\v2\x1b.home.actions.v1.SetClimateH\x00R\n" +
 	"setClimate\x127\n" +
-	"\x06helper\x18\x06 \x01(\v2\x1d.home.helpers.v1.HelperActionH\x00R\x06helperB\v\n" +
+	"\x06helper\x18\x06 \x01(\v2\x1d.home.helpers.v1.HelperActionH\x00R\x06helper\x125\n" +
+	"\x05cover\x18\a \x01(\v2\x1d.home.controls.v1.CoverActionH\x00R\x05cover\x122\n" +
+	"\x04lock\x18\b \x01(\v2\x1c.home.controls.v1.LockActionH\x00R\x04lock\x125\n" +
+	"\x05alarm\x18\t \x01(\v2\x1d.home.controls.v1.AlarmActionH\x00R\x05alarmB\v\n" +
 	"\targuments\"\xdd\x03\n" +
 	"\x0eCommandRequest\x12\x1d\n" +
 	"\n" +
@@ -1016,8 +1068,11 @@ var file_home_actions_v1_actions_proto_goTypes = []any{
 	(v1.ClimateMode)(0),           // 12: home.registry.v1.ClimateMode
 	(v1.ClimateFanTarget)(0),      // 13: home.registry.v1.ClimateFanTarget
 	(*v11.HelperAction)(nil),      // 14: home.helpers.v1.HelperAction
-	(*v1.EntityRef)(nil),          // 15: home.registry.v1.EntityRef
-	(*timestamppb.Timestamp)(nil), // 16: google.protobuf.Timestamp
+	(*v12.CoverAction)(nil),       // 15: home.controls.v1.CoverAction
+	(*v12.LockAction)(nil),        // 16: home.controls.v1.LockAction
+	(*v12.AlarmAction)(nil),       // 17: home.controls.v1.AlarmAction
+	(*v1.EntityRef)(nil),          // 18: home.registry.v1.EntityRef
+	(*timestamppb.Timestamp)(nil), // 19: google.protobuf.Timestamp
 }
 var file_home_actions_v1_actions_proto_depIdxs = []int32{
 	12, // 0: home.actions.v1.SetClimate.mode:type_name -> home.registry.v1.ClimateMode
@@ -1028,18 +1083,21 @@ var file_home_actions_v1_actions_proto_depIdxs = []int32{
 	4,  // 5: home.actions.v1.ActionArgs.set_fan:type_name -> home.actions.v1.SetFan
 	5,  // 6: home.actions.v1.ActionArgs.set_climate:type_name -> home.actions.v1.SetClimate
 	14, // 7: home.actions.v1.ActionArgs.helper:type_name -> home.helpers.v1.HelperAction
-	15, // 8: home.actions.v1.CommandRequest.target:type_name -> home.registry.v1.EntityRef
-	7,  // 9: home.actions.v1.CommandRequest.arguments:type_name -> home.actions.v1.ActionArgs
-	16, // 10: home.actions.v1.CommandRequest.expires_at:type_name -> google.protobuf.Timestamp
-	0,  // 11: home.actions.v1.ContractError.code:type_name -> home.actions.v1.ErrorCode
-	9,  // 12: home.actions.v1.ContractError.detail:type_name -> home.actions.v1.ErrorDetail
-	1,  // 13: home.actions.v1.CommandResponse.status:type_name -> home.actions.v1.ActionStatus
-	10, // 14: home.actions.v1.CommandResponse.error:type_name -> home.actions.v1.ContractError
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	15, // 8: home.actions.v1.ActionArgs.cover:type_name -> home.controls.v1.CoverAction
+	16, // 9: home.actions.v1.ActionArgs.lock:type_name -> home.controls.v1.LockAction
+	17, // 10: home.actions.v1.ActionArgs.alarm:type_name -> home.controls.v1.AlarmAction
+	18, // 11: home.actions.v1.CommandRequest.target:type_name -> home.registry.v1.EntityRef
+	7,  // 12: home.actions.v1.CommandRequest.arguments:type_name -> home.actions.v1.ActionArgs
+	19, // 13: home.actions.v1.CommandRequest.expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 14: home.actions.v1.ContractError.code:type_name -> home.actions.v1.ErrorCode
+	9,  // 15: home.actions.v1.ContractError.detail:type_name -> home.actions.v1.ErrorDetail
+	1,  // 16: home.actions.v1.CommandResponse.status:type_name -> home.actions.v1.ActionStatus
+	10, // 17: home.actions.v1.CommandResponse.error:type_name -> home.actions.v1.ContractError
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_home_actions_v1_actions_proto_init() }
@@ -1057,6 +1115,9 @@ func file_home_actions_v1_actions_proto_init() {
 		(*ActionArgs_SetFan)(nil),
 		(*ActionArgs_SetClimate)(nil),
 		(*ActionArgs_Helper)(nil),
+		(*ActionArgs_Cover)(nil),
+		(*ActionArgs_Lock)(nil),
+		(*ActionArgs_Alarm)(nil),
 	}
 	file_home_actions_v1_actions_proto_msgTypes[6].OneofWrappers = []any{}
 	file_home_actions_v1_actions_proto_msgTypes[7].OneofWrappers = []any{}
