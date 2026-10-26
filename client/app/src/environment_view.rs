@@ -35,10 +35,20 @@ impl ProfileZone {
         match value.and_then(instant) {
             None => "Date non fournie ou non prise en charge".into(),
             Some(at) => match self {
-                Self::Known(zone) => zone.local(at).to_string(),
+                Self::Known(zone) => {
+                    let local = zone.local(at);
+                    format!("{} {} {}", local.date(), local.clock(), local.offset())
+                }
                 Self::Missing => "Fuseau du profil non fourni".into(),
                 Self::Unsupported => "Fuseau du profil non pris en charge".into(),
             },
+        }
+    }
+    fn label(self) -> String {
+        match self {
+            Self::Known(zone) => format!("Fuseau du profil · {}", zone.name()),
+            Self::Missing => "Fuseau du profil non fourni".into(),
+            Self::Unsupported => "Fuseau du profil non pris en charge".into(),
         }
     }
     pub fn clock(self, now: UtcInstant) -> (String, String) {
@@ -70,7 +80,18 @@ fn age(at: Option<&Timestamp>, now: UtcInstant) -> String {
     match at.and_then(instant).map(|at| at.age_at(now)) {
         None => "Âge non fourni".into(),
         Some(Age::Current) => "À l’instant".into(),
-        Some(Age::Elapsed(seconds)) => format!("Il y a {} s", seconds.get()),
+        Some(Age::Elapsed(seconds)) => {
+            let seconds = seconds.get();
+            if seconds < 60 {
+                format!("Il y a {seconds} s")
+            } else if seconds < 3600 {
+                format!("Il y a {} min", seconds / 60)
+            } else if seconds < 86400 {
+                format!("Il y a {} h", seconds / 3600)
+            } else {
+                format!("Il y a {} j", seconds / 86400)
+            }
+        }
         Some(Age::ClockAhead) => "Date future · vérifier l’horloge".into(),
     }
 }
@@ -182,6 +203,7 @@ impl Presentation {
 
 fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Weather {
     let mut row = Weather {
+        notice: zone.label(),
         temperature: value
             .temperature
             .as_option()
@@ -200,7 +222,10 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
         ..Default::default()
     };
     if !value.__buffa_unknown_fields.is_empty() {
-        row.notice = "Certains champs météo ne sont pas pris en charge".into();
+        row.notice = format!(
+            "{} · Certains champs météo ne sont pas pris en charge",
+            row.notice
+        );
     }
     if let Some(humidity) = value.humidity_percent {
         row.facts.push(fact(
@@ -435,6 +460,11 @@ pub(crate) fn project(
                 date,
                 ..Default::default()
             };
+            if let ProfileZone::Known(zone) = zone {
+                let local = zone.local(now);
+                row.date = local.date();
+                row.time_zone = format!("{} · {}", zone.name(), local.offset());
+            }
             match value {
                 Some(state::observed_state::Value::Solar(value))
                     if kind == K::Solar
@@ -506,6 +536,95 @@ pub(crate) fn project(
 mod tests {
     use super::*;
     use crate::device_view::capability::ObservationKind;
+    #[test]
+    fn replaced_solar_reading_reaches_the_native_board_with_reused_models() {
+        use crate::device_view::presentation::CardRow;
+        use crate::{
+            ProAccessStage, ProDeviceKind, ProLayoutFlow, ProLayoutInput, ProLayoutKind,
+            ProLayoutNode, ViewPage,
+        };
+        use i_slint_backend_testing::ElementQuery;
+        use slint::{ComponentHandle, Model, ModelRc, VecModel};
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::HomewardWindow::new().unwrap();
+        crate::cache_view::bind(&window);
+        window.set_access_stage(ProAccessStage::Connected);
+        window.set_endpoint_ready(true);
+        window.set_show_endpoint(false);
+        window.set_view_loaded(true);
+        window.set_dashboard_status("".into());
+        window.set_page(ViewPage::Home);
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(1280., 1000.));
+        let mut row = CardRow {
+            kind: ProDeviceKind::Observation,
+            token: 1,
+            generation: 1,
+            title: "Synthetic sun".into(),
+            environment: Presentation::Solar(Solar {
+                events: vec![fact("Rise", "06:30 -05:00".into())],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let nodes = std::rc::Rc::new(VecModel::from(vec![
+            ProLayoutNode {
+                kind: ProLayoutKind::Container,
+                flow: ProLayoutFlow::Vertical,
+                children: ModelRc::from([ProLayoutInput {
+                    index: 1,
+                    rows: 1,
+                    ..Default::default()
+                }]),
+                ..Default::default()
+            },
+            ProLayoutNode {
+                kind: ProLayoutKind::Device,
+                device: row.ui(None),
+                ..Default::default()
+            },
+        ]));
+        window.set_home_layout_nodes(ModelRc::from(nodes.clone()));
+        window.show().unwrap();
+        let has = |label: &str| {
+            let label = label.to_owned();
+            ElementQuery::from_root(&window)
+                .match_predicate(move |e| e.accessible_label().as_deref() == Some(label.as_str()))
+                .find_first()
+                .is_some()
+        };
+        assert!(has("06:30 -05:00"));
+        row.environment = Presentation::Solar(Solar {
+            events: vec![fact("Rise", "Absent in search horizon".into())],
+            ..Default::default()
+        });
+        let previous = nodes.row_data(1).unwrap();
+        let next = ProLayoutNode {
+            device: row.ui(Some(&previous.device)),
+            ..previous.clone()
+        };
+        if previous != next {
+            nodes.set_row_data(1, next);
+        }
+        assert_eq!(
+            nodes
+                .row_data(1)
+                .unwrap()
+                .device
+                .solar
+                .events
+                .row_data(0)
+                .unwrap()
+                .value,
+            "Absent in search horizon"
+        );
+        assert!(
+            has("Absent in search horizon"),
+            "the host/board adapter retained the old solar instant"
+        );
+        assert!(!has("06:30 -05:00"));
+    }
     fn at(text: &str) -> Timestamp {
         let at = chrono::DateTime::parse_from_rfc3339(text).unwrap();
         Timestamp {
@@ -556,9 +675,7 @@ mod tests {
         assert_eq!(row.temperature, "0 °C");
         assert_eq!(row.condition, "Pluie");
         assert_eq!(row.facts[0].value, "0 %");
-        assert!(
-            row.forecast_status.contains("Périmées") && row.forecast_status.contains("14400 s")
-        );
+        assert!(row.forecast_status.contains("Périmées") && row.forecast_status.contains("4 h"));
         assert_eq!(row.forecast.len(), 1);
         let period = &row.forecast[0];
         assert!(period.period.contains("01:30 -04:00") && period.period.contains("01:30 -05:00"));

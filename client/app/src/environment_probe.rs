@@ -322,7 +322,20 @@ async fn run(fixture: Fixture) -> Result<()> {
         })
         .await?;
     controls.send(Control::Absent).await?;
-    queue.until(|p|p.view.as_ref().is_some_and(|v|v.entities().any(|(_,e)|if let Some(state::observed_state::Value::SolarEvent(value))=e.state.value.as_ref(){matches!(value.occurrence.occurrence,Some(home_wire_contract::home::solar::v1::solar_occurrence::Occurrence::Absent(_)))}else{false}))).await?;
+    let absent=queue.until(|p|p.view.as_ref().is_some_and(|v|v.entities().any(|(_,e)|if let Some(state::observed_state::Value::SolarEvent(value))=e.state.value.as_ref(){matches!(value.occurrence.occurrence,Some(home_wire_contract::home::solar::v1::solar_occurrence::Occurrence::Absent(_)))}else{false}))).await?;
+    let absent_projection = store.project(CachePhase::Live, absent.view.as_ref(), &request);
+    let solar = absent_projection
+        .native_devices
+        .values()
+        .map(|row| row.ui(None))
+        .find(|row| row.environment_kind == crate::ProEnvironmentKind::Solar)
+        .ok_or("solar card missing after absent event")?;
+    assert!(
+        slint::Model::row_data(&solar.solar.events, 0)
+            .unwrap()
+            .value
+            .contains("Absent dans l’horizon")
+    );
     controls.send(Control::Missing).await?;
     queue
         .until(|p| {
