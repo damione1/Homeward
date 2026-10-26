@@ -37,3 +37,4 @@ subprocess.run(['python3', 'scripts/qualify-frontend-transport.py', '--platform'
 subprocess.run(['python3', 'scripts/qualify-frontend-actions.py', '--platform', args.platform.value], cwd=root, check=True)
 subprocess.run(['python3', 'scripts/qualify-frontend-recipes.py'], cwd=root, check=True)
 subprocess.run(['python3', 'scripts/qualify-frontend-environment.py'], cwd=root, check=True)
+subprocess.run(['python3', 'scripts/qualify-frontend-lists.py'], cwd=root, check=True)

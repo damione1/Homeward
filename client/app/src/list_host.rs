@@ -2,6 +2,8 @@
 //! Watch, a single in-flight write, and one coalesced visual notification.
 mod projection;
 mod recovery;
+#[cfg(test)]
+mod tls_probe;
 use crate::{
     HomewardWindow, NavigationStep, ProTaskAction,
     list_state::{Freshness, Prepared, Refusal, State, Write},
