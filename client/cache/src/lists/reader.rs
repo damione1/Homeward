@@ -12,8 +12,14 @@ use tokio_util::sync::CancellationToken;
 /// number of delegates or the number of currently visible UI rows.
 pub struct ListReadSnapshot {
     pub rows: CapturedRows,
+    pub metadata: ListReadMetadata,
     pub count: u64,
     pub fetched_at: SystemTime,
+}
+
+pub enum ListReadMetadata {
+    Catalog,
+    List(Arc<wire::ListSnapshot>),
 }
 
 pub enum ListReadEvent {
@@ -40,6 +46,7 @@ enum Page {
 #[async_trait]
 trait ReadApi: Send + Sync {
     async fn count(&self, scope: &Scope) -> Result<u64, ListReadExit>;
+    async fn metadata(&self, scope: &Scope) -> Result<Option<wire::ListSnapshot>, ListReadExit>;
     async fn page(&self, scope: &Scope, token: String) -> Result<Page, ListReadExit>;
 }
 #[async_trait]
@@ -67,6 +74,30 @@ fn id(value: &home_client_model::lists::ListId) -> wire::ListId {
 
 #[async_trait]
 impl ReadApi for NativeApi<'_> {
+    async fn metadata(&self, scope: &Scope) -> Result<Option<wire::ListSnapshot>, ListReadExit> {
+        match scope {
+            Scope::Catalog => Ok(None),
+            Scope::Items(list) => {
+                let response = self
+                    .transport
+                    .get_list(
+                        wire::GetListRequest {
+                            list_id: id(list).into(),
+                            ..Default::default()
+                        },
+                        self.lease.token(),
+                        Duration::from_secs(10),
+                        &self.lease.cancellation,
+                    )
+                    .await
+                    .map_err(ListReadExit::Transport)?;
+                if !response.__buffa_unknown_fields.is_empty() {
+                    return Err(ListReadExit::Contract(ReadFailure::InvalidResponse));
+                }
+                Ok(response.list.as_option().cloned())
+            }
+        }
+    }
     async fn count(&self, scope: &Scope) -> Result<u64, ListReadExit> {
         let timeout = Duration::from_secs(10);
         let (count, clean) = match scope {
@@ -214,8 +245,24 @@ async fn capture(
     api: &impl ReadApi,
     scope: &Scope,
     mut capture: ListCapture,
-) -> Result<(ListCapture, u64), ListReadExit> {
+) -> Result<(ListCapture, u64, ListReadMetadata), ListReadExit> {
     let count = api.count(scope).await?;
+    // GetList is part of the same Watch-fenced capture as its items. Fetching
+    // a newer revision only when submitting would silently rebase a stale edit.
+    let metadata = match (scope, api.metadata(scope).await?) {
+        (Scope::Catalog, None) => ListReadMetadata::Catalog,
+        (Scope::Items(expected), Some(list)) => {
+            home_wire_contract::lists_contract::admit_list_snapshot(&list)
+                .map_err(|_| ListReadExit::Contract(ReadFailure::InvalidResponse))?;
+            if list.id.value != expected.as_str() {
+                return Err(ListReadExit::Contract(ReadFailure::WrongScope));
+            }
+            ListReadMetadata::List(Arc::new(list))
+        }
+        (Scope::Catalog, Some(_)) | (Scope::Items(_), None) => {
+            return Err(ListReadExit::Contract(ReadFailure::InvalidResponse));
+        }
+    };
     loop {
         match api.page(scope, capture.next_token().to_owned()).await? {
             Page::Catalog(page) => capture.push_lists(page),
@@ -223,7 +270,7 @@ async fn capture(
         }
         .map_err(ListReadExit::Contract)?;
         if capture.next_token().is_empty() {
-            return Ok((capture, count));
+            return Ok((capture, count, metadata));
         }
     }
 }
@@ -255,7 +302,7 @@ async fn drive(
         // the last page is blocked. No provisional prefix reaches the host.
         let read = capture(api, &scope, provisional);
         tokio::pin!(read);
-        let (complete, count) = tokio::select! { biased;
+        let (complete, count, metadata) = tokio::select! { biased;
                 frame = receive(stream, cancel, access) => {
                     let frame = match frame { Ok(frame) => frame, Err(exit) => return exit };
                     match watch.apply(frame) {
@@ -301,6 +348,7 @@ async fn drive(
         };
         on_event(ListReadEvent::Published(Arc::new(ListReadSnapshot {
             rows,
+            metadata,
             count,
             fetched_at: SystemTime::now(),
         })));

@@ -27,6 +27,9 @@ struct Api {
 
 #[async_trait]
 impl ReadApi for Api {
+    async fn metadata(&self, _: &Scope) -> Result<Option<wire::ListSnapshot>, ListReadExit> {
+        Ok(None)
+    }
     async fn count(&self, _: &Scope) -> Result<u64, ListReadExit> {
         self.counts.fetch_add(1, Ordering::SeqCst);
         Ok(93) // Deliberately separate from the loaded row count.
@@ -187,6 +190,9 @@ impl Drop for DropRead<'_> {
 }
 #[async_trait]
 impl ReadApi for BlockedApi {
+    async fn metadata(&self, _: &Scope) -> Result<Option<wire::ListSnapshot>, ListReadExit> {
+        panic!("blocked Count precedes metadata")
+    }
     async fn count(&self, _: &Scope) -> Result<u64, ListReadExit> {
         let _drop = DropRead(&self.dropped);
         self.started.notify_one();
@@ -239,5 +245,95 @@ async fn authority_resync_and_access_cancellation_drop_a_blocked_read_without_pu
             Stop::Access => assert!(matches!(exit, ListReadExit::Cancelled)),
         }
         assert_eq!(api.dropped.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[tokio::test]
+async fn item_capture_carries_its_list_revision_and_refuses_missing_foreign_or_invalid_metadata() {
+    struct MetadataApi {
+        list: Option<wire::ListSnapshot>,
+        pages: AtomicUsize,
+    }
+    #[async_trait]
+    impl ReadApi for MetadataApi {
+        async fn count(&self, _: &Scope) -> Result<u64, ListReadExit> {
+            Ok(93)
+        }
+        async fn metadata(&self, _: &Scope) -> Result<Option<wire::ListSnapshot>, ListReadExit> {
+            Ok(self.list.clone())
+        }
+        async fn page(&self, _: &Scope, _: String) -> Result<Page, ListReadExit> {
+            self.pages.fetch_add(1, Ordering::SeqCst);
+            Ok(Page::Items(wire::ListItemsResponse::default()))
+        }
+    }
+    enum Metadata {
+        Missing,
+        Foreign,
+        InvalidRevision,
+        Valid,
+    }
+    for scenario in [
+        Metadata::Missing,
+        Metadata::Foreign,
+        Metadata::InvalidRevision,
+        Metadata::Valid,
+    ] {
+        let list = match scenario {
+            Metadata::Missing => None,
+            Metadata::Foreign => Some(page("other", "").lists.remove(0)),
+            Metadata::InvalidRevision | Metadata::Valid => {
+                let mut row = page("a", "").lists.remove(0);
+                row.revision.get_or_insert_default().number = match scenario {
+                    Metadata::InvalidRevision => 0,
+                    Metadata::Valid => 12,
+                    Metadata::Missing | Metadata::Foreign => unreachable!(),
+                };
+                Some(row)
+            }
+        };
+        let api = MetadataApi {
+            list,
+            pages: AtomicUsize::new(0),
+        };
+        let (sender, receiver) = mpsc::unbounded_channel();
+        sender.send(ready()).unwrap();
+        let mut stream = Frames(receiver);
+        let cancel = CancellationToken::new();
+        let access = CancellationToken::new();
+        let mut published = 0;
+        let exit = drive(&api, &mut stream, Scope::Items("a".parse().unwrap()), &cancel, &access, |event| {
+            let ListReadEvent::Published(snapshot) = event else { panic!("no changed frame") };
+            let ListReadMetadata::List(list) = &snapshot.metadata else { panic!("item capture needs list metadata") };
+            assert_eq!(list.id.value, "a");
+            assert_eq!(list.revision.number, 12);
+            assert_eq!(snapshot.count, 93);
+            assert!(matches!(&snapshot.rows, CapturedRows::Items { list, rows } if list.as_str() == "a" && rows.is_empty()));
+            published += 1;
+            cancel.cancel();
+        }).await;
+        match scenario {
+            Metadata::Valid => {
+                assert!(matches!(exit, ListReadExit::Cancelled));
+                assert_eq!(published, 1);
+                assert_eq!(api.pages.load(Ordering::SeqCst), 1);
+            }
+            Metadata::Foreign => {
+                assert!(matches!(
+                    exit,
+                    ListReadExit::Contract(ReadFailure::WrongScope)
+                ));
+                assert_eq!(published, 0);
+                assert_eq!(api.pages.load(Ordering::SeqCst), 0);
+            }
+            Metadata::Missing | Metadata::InvalidRevision => {
+                assert!(matches!(
+                    exit,
+                    ListReadExit::Contract(ReadFailure::InvalidResponse)
+                ));
+                assert_eq!(published, 0);
+                assert_eq!(api.pages.load(Ordering::SeqCst), 0);
+            }
+        }
     }
 }
