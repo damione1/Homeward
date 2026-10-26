@@ -241,14 +241,17 @@ func TestNHA017WireEnumCoverage(t *testing.T) {
 		}
 	}
 	fields := (&state.ObservedState{}).ProtoReflect().Descriptor().Oneofs().ByName("value").Fields()
-	if fields.Len() != 11 || fields.ByName("switch_on") == nil || fields.ByName("measurement") == nil ||
+	if fields.Len() != 14 || fields.ByName("switch_on") == nil || fields.ByName("measurement") == nil ||
 		fields.ByName("light") == nil || fields.ByName("fan") == nil || fields.ByName("climate") == nil || fields.ByName("climate").Number() != 15 ||
 		fields.ByName("helper") == nil || fields.ByName("helper").Number() != 16 ||
 		fields.ByName("solar") == nil || fields.ByName("solar").Number() != 17 ||
 		fields.ByName("solar_event") == nil || fields.ByName("solar_event").Number() != 18 ||
 		fields.ByName("cover") == nil || fields.ByName("cover").Number() != 19 ||
 		fields.ByName("lock") == nil || fields.ByName("lock").Number() != 20 ||
-		fields.ByName("alarm") == nil || fields.ByName("alarm").Number() != 21 {
+		fields.ByName("alarm") == nil || fields.ByName("alarm").Number() != 21 ||
+		fields.ByName("weather") == nil || fields.ByName("weather").Number() != 22 ||
+		fields.ByName("presence") == nil || fields.ByName("presence").Number() != 23 ||
+		fields.ByName("presence_details") == nil || fields.ByName("presence_details").Number() != 24 {
 		t.Fatal("state value oneof changed; review admission and encoding")
 	}
 }

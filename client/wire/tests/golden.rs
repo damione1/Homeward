@@ -484,6 +484,13 @@ fn nha014_capability_constraints_and_action_presence_survive_rust_codec() {
             Some(Constraints::Cover(_) | Constraints::Lock(_) | Constraints::Alarm(_)) => {
                 panic!("unexpected control in core fixture")
             }
+            Some(
+                Constraints::Weather(_)
+                | Constraints::Presence(_)
+                | Constraints::PresenceDetails(_),
+            ) => {
+                panic!("unexpected environmental observation in core fixture")
+            }
             Some(Constraints::SolarEvent(_)) => panic!("unexpected solar event in core fixture"),
             Some(Constraints::Extension(_)) => panic!("unexpected extension in core fixture"),
             None => panic!("missing constraints"),

@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestNHF009RecorderUpgrade26To27PreservesHistoryAndControlValues(t *testing.T) {
+func TestNHF009RecorderUpgrade26ToCurrentPreservesHistoryAndControlValues(t *testing.T) {
 	ctx := context.Background()
 	settings := testSettings(t, testCluster(t))
 	store, err := Open(ctx, settings)
@@ -80,12 +80,12 @@ func TestNHF009RecorderUpgrade26To27PreservesHistoryAndControlValues(t *testing.
 			t.Fatal(err)
 		}
 	}
-	if version, err := store.Migrate(ctx); err != nil || version.Number() != 27 {
-		t.Fatalf("schema27: %v", err)
+	if version, err := store.Migrate(ctx); err != nil || version != CurrentVersion() {
+		t.Fatalf("current schema: %v", err)
 	}
 	build := CurrentSchemaBuild()
 	if build.Release() != schemaWindowBaselineRelease || build.reader != schemaReleaseBaseline || build.writer != schemaReleaseBaseline {
-		t.Fatal("schema27 falsely promises old reader/writer compatibility")
+		t.Fatal("current schema falsely promises old reader/writer compatibility")
 	}
 	position, obstructed := 0.0, false
 	cover, _ := domain.NewCoverValue(nil, &position, &obstructed)
@@ -106,7 +106,7 @@ func TestNHF009RecorderUpgrade26To27PreservesHistoryAndControlValues(t *testing.
 	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM public.state_history WHERE value_kind IN (9,10,11) AND measurement_value IS NULL AND measurement_unit IS NULL`).Scan(&count); err != nil || count != 3 {
 		t.Fatal("control observations became numeric measurements", err)
 	}
-	if _, err := store.pool.Exec(ctx, `UPDATE public.state_history SET value_kind=12 WHERE sequence=2`); err == nil {
+	if _, err := store.pool.Exec(ctx, `UPDATE public.state_history SET value_kind=32767 WHERE sequence=2`); err == nil {
 		t.Fatal("unknown future kind admitted")
 	} else {
 		nha151SQLState(t, err, "23514")

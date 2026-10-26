@@ -5,7 +5,10 @@ import (
 	"testing"
 	"time"
 
+	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 	env "github.com/damione1/Homeward/gen/home/environment/v1"
+	registry "github.com/damione1/Homeward/gen/home/registry/v1"
+	"github.com/damione1/Homeward/internal/domain"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -179,6 +182,72 @@ func TestNHF010EnvironmentEnumMappingsCoverEveryDeclaredOperationalVariant(t *te
 	} {
 		if row.descriptor.Values().Len() != row.entries+1 {
 			t.Fatal("wire enum changed without an explicit domain mapping", row.descriptor.FullName())
+		}
+	}
+}
+
+func nhf010EnvironmentCases(t *testing.T) []struct {
+	description *registry.CapabilityDescription
+	value       domain.StateValue
+} {
+	t.Helper()
+	weather, err := AdmitWireWeatherValue(nhf010WireWeather())
+	if err != nil {
+		t.Fatal(err)
+	}
+	weatherState, _ := domain.NewWeatherStateValue(weather)
+	person, _ := domain.ParsePersonID("synthetic-person")
+	presence, _ := domain.NewPresenceValue(domain.PresenceParts{Person: person, Residence: domain.ResidenceUnknown, Confidence: domain.PresenceConfidenceUnknown})
+	presenceState, _ := domain.NewPresenceStateValue(presence)
+	details, _ := domain.NewPresenceDetailsValue(domain.PresenceDetailsParts{Person: person, Coordinates: &domain.Coordinates{}})
+	detailState, _ := domain.NewPresenceDetailsStateValue(details)
+	return []struct {
+		description *registry.CapabilityDescription
+		value       domain.StateValue
+	}{
+		{&registry.CapabilityDescription{SchemaId: WeatherSchema, Major: 1, Endpoint: "value", DisplayName: "Synthetic weather", Constraints: &registry.CapabilityDescription_Weather{Weather: &env.WeatherConstraints{}}}, weatherState},
+		{&registry.CapabilityDescription{SchemaId: PresenceSchema, Major: 1, Endpoint: "value", DisplayName: "Synthetic aggregate", Constraints: &registry.CapabilityDescription_Presence{Presence: &env.PresenceConstraints{}}}, presenceState},
+		{&registry.CapabilityDescription{SchemaId: PresenceDetailsSchema, Major: 1, Endpoint: "value", DisplayName: "Synthetic private details", Constraints: &registry.CapabilityDescription_PresenceDetails{PresenceDetails: &env.PresenceDetailsConstraints{}}}, detailState},
+	}
+}
+
+func TestNHF010EnvironmentalObservationsRequireTheirExactReadOnlyCapability(t *testing.T) {
+	q, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessStale, domain.ProvenanceEstimated)
+	cases := nhf010EnvironmentCases(t)
+	for _, item := range cases {
+		catalog, _ := nha174Catalog(t, item.description)
+		if err := catalog.AdmitReadOnlyDriverCapability(item.description); err != nil {
+			t.Fatal("read-only environment declaration rejected", err)
+		}
+		wire, _ := testNHA017Wire(t, nil, q, &item.value, time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC), 1)
+		context := &StateCapabilityAdmission{Catalog: catalog, Endpoint: item.description.Endpoint}
+		admitted, err := AdmitWireState(wire, nil, context)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := EncodeObservedState(admitted)
+		if err != nil || !proto.Equal(wire, encoded) {
+			t.Fatal("typed state round trip lost environment metadata", err)
+		}
+		if _, err := AdmitWireState(wire, nil, nil); err == nil {
+			t.Fatal("missing catalogue context admitted")
+		}
+		context.Endpoint = "other"
+		if _, err := AdmitWireState(wire, nil, context); err == nil {
+			t.Fatal("wrong endpoint admitted")
+		}
+		for _, other := range cases {
+			if other.description.SchemaId == item.description.SchemaId {
+				continue
+			}
+			foreign, _ := nha174Catalog(t, other.description)
+			if _, err := AdmitWireState(wire, nil, &StateCapabilityAdmission{Catalog: foreign, Endpoint: other.description.Endpoint}); err == nil {
+				t.Fatal("foreign capability admitted an environment payload")
+			}
+		}
+		cmd := testNHA014Command(item.description.SchemaId, item.description.Endpoint, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetSwitch{SetSwitch: &actions.SetSwitch{On: true}}})
+		if err := catalog.AdmitCapabilityCommand(cmd, "epoch-a", 1); err == nil || err.Code != actions.ErrorCode_ERROR_CODE_UNSUPPORTED_CAPABILITY || err.FieldPath != "capability_schema_id" {
+			t.Fatal("read-only environment accepted a write command")
 		}
 	}
 }

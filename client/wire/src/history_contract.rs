@@ -384,6 +384,11 @@ fn historical_state(v: &state::ObservedState) -> bool {
         Some(Value::Cover(value)) => crate::controls_contract::cover_value(value),
         Some(Value::Lock(value)) => crate::controls_contract::lock_value(value),
         Some(Value::Alarm(value)) => crate::controls_contract::alarm_value(value),
+        Some(Value::Weather(value)) => crate::environment_contract::weather_value(value),
+        Some(Value::Presence(value)) => crate::environment_contract::presence_value(value),
+        Some(Value::PresenceDetails(value)) => {
+            crate::environment_contract::presence_details_value(value)
+        }
     }
 }
 fn climate(v: &state::ClimateValue) -> bool {

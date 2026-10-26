@@ -86,7 +86,11 @@ fn features(control: &Control) -> BTreeSet<FeatureKind> {
                 result.insert(FeatureKind::AlarmModes);
             }
         }
-        Control::Lock(_) | Control::Binary | Control::Measurement | Control::Unsupported => {}
+        Control::Lock(_)
+        | Control::Binary
+        | Control::Measurement
+        | Control::ReadOnly
+        | Control::Unsupported => {}
     }
     result
 }
@@ -114,6 +118,7 @@ fn restrict(control: &Control, node: &Node) -> Option<Control> {
                 | Control::Cover(_)
                 | Control::Lock(_)
                 | Control::Alarm(_)
+                | Control::ReadOnly
                 | Control::Unsupported => false,
             };
             if !valid {
@@ -162,6 +167,7 @@ fn restrict(control: &Control, node: &Node) -> Option<Control> {
             | Control::Cover(_)
             | Control::Lock(_)
             | Control::Alarm(_)
+            | Control::ReadOnly
             | Control::Unsupported => control.clone(),
         });
     }
@@ -198,7 +204,11 @@ fn restrict(control: &Control, node: &Node) -> Option<Control> {
             has(FeatureKind::CoverPosition),
         )),
         Control::Alarm(alarm) => Control::Alarm(alarm.clone()),
-        Control::Lock(_) | Control::Binary | Control::Measurement | Control::Unsupported => {
+        Control::Lock(_)
+        | Control::Binary
+        | Control::Measurement
+        | Control::ReadOnly
+        | Control::Unsupported => {
             return None;
         }
     })

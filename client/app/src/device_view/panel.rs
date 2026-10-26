@@ -69,6 +69,7 @@ pub(super) fn editors(control: &Control) -> Vec<Editor> {
         | Control::Measurement
         | Control::Lock(_)
         | Control::Alarm(_)
+        | Control::ReadOnly
         | Control::Unsupported => {}
     }
     result
@@ -198,6 +199,7 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
         | Control::Light { .. }
         | Control::Binary
         | Control::Measurement
+        | Control::ReadOnly
         | Control::Unsupported => {}
     }
     choices
@@ -305,7 +307,10 @@ fn climate_observation(entity: &state::ViewEntity) -> Option<&state::ClimateValu
         | state::observed_state::Value::SolarEvent(_)
         | state::observed_state::Value::Cover(_)
         | state::observed_state::Value::Lock(_)
-        | state::observed_state::Value::Alarm(_) => None,
+        | state::observed_state::Value::Alarm(_)
+        | state::observed_state::Value::Weather(_)
+        | state::observed_state::Value::Presence(_)
+        | state::observed_state::Value::PresenceDetails(_) => None,
     }
 }
 pub(super) fn readings(control: &Control, entity: &state::ViewEntity) -> String {
@@ -403,6 +408,7 @@ impl Editor {
             | Control::Measurement
             | Control::Lock(_)
             | Control::Alarm(_)
+            | Control::ReadOnly
             | Control::Unsupported => Err(Refusal::Unsupported),
         }
     }
@@ -435,6 +441,7 @@ impl Editor {
                 | Control::Cover(_)
                 | Control::Lock(_)
                 | Control::Alarm(_)
+                | Control::ReadOnly
                 | Control::Unsupported => Err(Refusal::Unsupported),
             },
         }
@@ -500,6 +507,7 @@ impl Editor {
             | Control::Measurement
             | Control::Lock(_)
             | Control::Alarm(_)
+            | Control::ReadOnly
             | Control::Unsupported => false,
         };
         if !advertised {

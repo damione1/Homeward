@@ -186,7 +186,7 @@ func EncodeAlarmValue(value domain.AlarmState) (*control.AlarmValue, error) {
 	}
 	return &control.AlarmValue{State: state}, nil
 }
-func (c *CapabilityCatalog) controlDescription(entity domain.EntityID, endpoint, schema string) (*registry.CapabilityDescription, error) {
+func (c *CapabilityCatalog) nativeDescription(entity domain.EntityID, endpoint, schema string) (*registry.CapabilityDescription, error) {
 	if !c.ready() || endpoint == "" {
 		return nil, ErrInvalidCapability
 	}
@@ -203,7 +203,7 @@ func (c *CapabilityCatalog) controlDescription(entity domain.EntityID, endpoint,
 	return description, nil
 }
 func (c *CapabilityCatalog) AdmitDomainCover(entity domain.EntityID, endpoint string, value domain.CoverValue) error {
-	description, err := c.controlDescription(entity, endpoint, CoverSchema)
+	description, err := c.nativeDescription(entity, endpoint, CoverSchema)
 	if err != nil {
 		return err
 	}
@@ -227,7 +227,7 @@ func (c *CapabilityCatalog) AdmitDomainCover(entity domain.EntityID, endpoint st
 	return nil
 }
 func (c *CapabilityCatalog) AdmitDomainLock(entity domain.EntityID, endpoint string, value domain.LockState) error {
-	description, err := c.controlDescription(entity, endpoint, LockSchema)
+	description, err := c.nativeDescription(entity, endpoint, LockSchema)
 	if err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (c *CapabilityCatalog) AdmitDomainLock(entity domain.EntityID, endpoint str
 	return nil
 }
 func (c *CapabilityCatalog) AdmitDomainAlarm(entity domain.EntityID, endpoint string, value domain.AlarmState) error {
-	description, err := c.controlDescription(entity, endpoint, AlarmSchema)
+	description, err := c.nativeDescription(entity, endpoint, AlarmSchema)
 	if err != nil {
 		return err
 	}
@@ -249,4 +249,22 @@ func (c *CapabilityCatalog) AdmitDomainAlarm(entity domain.EntityID, endpoint st
 		return ErrInvalidWireState
 	}
 	return nil
+}
+
+// The current codec can decode these additive messages, but historical
+// external Host profiles never admitted their capability or report semantics.
+func NativeControlDescription(description *registry.CapabilityDescription) bool {
+	if description == nil {
+		return false
+	}
+	switch description.SchemaId {
+	case CoverSchema, LockSchema, AlarmSchema:
+		return true
+	}
+	switch description.Constraints.(type) {
+	case *registry.CapabilityDescription_Cover, *registry.CapabilityDescription_Lock, *registry.CapabilityDescription_Alarm:
+		return true
+	default:
+		return false
+	}
 }

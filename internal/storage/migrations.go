@@ -678,7 +678,7 @@ END
 $$;
 CREATE TRIGGER command_intention_identity BEFORE UPDATE ON public.command_intents
     FOR EACH ROW EXECUTE FUNCTION public.homeward_command_guard_identity();
-`}, {version: Version{12}, sql: recorderSchemaSQL}, {version: Version{13}, sql: helperValuesSchema}, {version: Version{14}, sql: scheduledJobsSchema}, {version: Version{15}, sql: calendarSchemaSQL}, {version: Version{16}, sql: helperValuesV16 + recorderHelperSchemaSQL}, {version: Version{17}, sql: recorderSolarSchemaSQL}, {version: Version{18}, sql: mfaMigration18SQL}, {version: Version{19}, sql: localListsSchemaSQL}, {version: Version{20}, sql: executionHistorySchemaSQL}, {version: Version{21}, sql: recorderAggregateSchemaSQL}, {version: Version{22}, sql: configActivationSchemaSQL}, {version: Version{23}, sql: remoteCalendarSchemaSQL}, {version: Version{24}, sql: mcpKeysSchemaSQL}, {version: Version{25}, sql: schemaCompatibilitySchemaSQL}, {version: Version{26}, sql: configEditableSourcesSchemaSQL}, {version: Version{27}, sql: recorderControlsSchemaSQL}}
+`}, {version: Version{12}, sql: recorderSchemaSQL}, {version: Version{13}, sql: helperValuesSchema}, {version: Version{14}, sql: scheduledJobsSchema}, {version: Version{15}, sql: calendarSchemaSQL}, {version: Version{16}, sql: helperValuesV16 + recorderHelperSchemaSQL}, {version: Version{17}, sql: recorderSolarSchemaSQL}, {version: Version{18}, sql: mfaMigration18SQL}, {version: Version{19}, sql: localListsSchemaSQL}, {version: Version{20}, sql: executionHistorySchemaSQL}, {version: Version{21}, sql: recorderAggregateSchemaSQL}, {version: Version{22}, sql: configActivationSchemaSQL}, {version: Version{23}, sql: remoteCalendarSchemaSQL}, {version: Version{24}, sql: mcpKeysSchemaSQL}, {version: Version{25}, sql: schemaCompatibilitySchemaSQL}, {version: Version{26}, sql: configEditableSourcesSchemaSQL}, {version: Version{27}, sql: recorderControlsSchemaSQL}, {version: Version{28}, sql: recorderEnvironmentSchemaSQL}}
 
 var latestVersion = migrations[len(migrations)-1].version
 
@@ -725,6 +725,9 @@ func (s *Store) migrate(ctx context.Context, plan []migration) (Version, error) 
 		return Version{}, err
 	}
 	if err := validatePrior26SchemaWindow(ctx, tx, current); err != nil {
+		return Version{}, err
+	}
+	if err := validatePrior27SchemaWindow(ctx, tx, current); err != nil {
 		return Version{}, err
 	}
 	if current.number > latestVersion.number {

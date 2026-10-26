@@ -405,7 +405,10 @@ impl DeviceStore {
                             | state::observed_state::Value::SolarEvent(_)
                             | state::observed_state::Value::Cover(_)
                             | state::observed_state::Value::Lock(_)
-                            | state::observed_state::Value::Alarm(_),
+                            | state::observed_state::Value::Alarm(_)
+                            | state::observed_state::Value::Weather(_)
+                            | state::observed_state::Value::Presence(_)
+                            | state::observed_state::Value::PresenceDetails(_),
                         )
                         | None => None,
                     })
@@ -922,6 +925,10 @@ fn card(
             } else if helper::observation(entity).is_none() {
                 row.quality = format!("{} · Révision du helper indisponible", row.quality).into();
             }
+        }
+        Control::ReadOnly => {
+            row.kind = ProDeviceKind::Observation;
+            row.quality = format!("{} · Lecture seule", row.quality).into();
         }
         Control::Unsupported => {
             row.quality = format!("{} · Fonction non prise en charge", row.quality).into();

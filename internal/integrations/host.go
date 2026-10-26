@@ -1306,6 +1306,30 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 				}
 				matched = true
 			}
+		case domain.ValueWeather:
+			if description.SchemaId == contracts.WeatherSchema {
+				value, ok := observation.value.Weather()
+				if !ok || h.catalog.AdmitDomainWeather(binding.entity, observation.endpoint, value) != nil {
+					return ErrInvalidInput
+				}
+				matched = true
+			}
+		case domain.ValuePresence:
+			if description.SchemaId == contracts.PresenceSchema {
+				value, ok := observation.value.Presence()
+				if !ok || h.catalog.AdmitDomainPresence(binding.entity, observation.endpoint, value) != nil {
+					return ErrInvalidInput
+				}
+				matched = true
+			}
+		case domain.ValuePresenceDetails:
+			if description.SchemaId == contracts.PresenceDetailsSchema {
+				value, ok := observation.value.PresenceDetails()
+				if !ok || h.catalog.AdmitDomainPresenceDetails(binding.entity, observation.endpoint, value) != nil {
+					return ErrInvalidInput
+				}
+				matched = true
+			}
 		case domain.ValueUnspecified:
 			return ErrInvalidInput
 		default:

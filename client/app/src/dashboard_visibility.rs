@@ -60,6 +60,7 @@ pub(crate) fn power(entity: &state::ViewEntity) -> Option<bool> {
         | Value::Cover(_)
         | Value::Lock(_)
         | Value::Alarm(_) => None,
+        Value::Weather(_) | Value::Presence(_) | Value::PresenceDetails(_) => None,
     }
 }
 fn literal(entity: &state::ViewEntity) -> Option<&str> {
@@ -153,7 +154,9 @@ fn literal(entity: &state::ViewEntity) -> Option<&str> {
                 .and_then(crate::control_text::alarm_state)
                 .map(|text| text.literal)
         }
-        Value::Solar(_) | Value::SolarEvent(_) => None,
+        Value::Weather(value) => crate::environment_text::weather_literal(value),
+        Value::Presence(value) => crate::environment_text::presence_literal(value),
+        Value::Solar(_) | Value::SolarEvent(_) | Value::PresenceDetails(_) => None,
     }?;
     (value.len() <= 256 && !value.contains('\0')).then_some(value)
 }

@@ -123,6 +123,12 @@ func historicalRawKind(wire *state.ObservedState) *int16 {
 		kind = int16(domain.ValueLock)
 	case *state.ObservedState_Alarm:
 		kind = int16(domain.ValueAlarm)
+	case *state.ObservedState_Weather:
+		kind = int16(domain.ValueWeather)
+	case *state.ObservedState_Presence:
+		kind = int16(domain.ValuePresence)
+	case *state.ObservedState_PresenceDetails:
+		kind = int16(domain.ValuePresenceDetails)
 	default:
 		kind = -1
 	}

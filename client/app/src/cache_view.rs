@@ -240,7 +240,7 @@ pub(crate) fn bounded(text: &str) -> String {
         None => text.to_owned(),
     }
 }
-fn number(value: f64) -> String {
+pub(crate) fn number(value: f64) -> String {
     if value.is_finite() {
         value.to_string()
     } else {
@@ -295,7 +295,10 @@ fn summary_text(observation: &state::ObservedState) -> String {
             | state::observed_state::Value::SolarEvent(_)
             | state::observed_state::Value::Cover(_)
             | state::observed_state::Value::Lock(_)
-            | state::observed_state::Value::Alarm(_),
+            | state::observed_state::Value::Alarm(_)
+            | state::observed_state::Value::Weather(_)
+            | state::observed_state::Value::Presence(_)
+            | state::observed_state::Value::PresenceDetails(_),
         )
         | None => value_text(observation),
     }
@@ -390,6 +393,9 @@ pub(crate) fn value_text(observation: &state::ObservedState) -> String {
                 parts.join(" · ")
             }
         }
+        Some(Value::Weather(value)) => crate::environment_text::weather(value),
+        Some(Value::Presence(value)) => crate::environment_text::presence(value),
+        Some(Value::PresenceDetails(value)) => crate::environment_text::details(value),
         Some(Value::Helper(value)) => helper_text(value),
         Some(Value::Solar(value)) => {
             let mut parts = Vec::new();

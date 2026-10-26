@@ -38,6 +38,7 @@ pub mod config_plans;
 pub mod configuration_contract;
 pub mod controls_contract;
 pub mod dashboard_contract;
+pub mod environment_contract;
 pub mod history_contract;
 pub mod integration_admin_contract;
 pub mod lists_contract;

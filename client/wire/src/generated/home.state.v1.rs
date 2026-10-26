@@ -1821,6 +1821,30 @@ impl ::buffa::Message for ObservedState {
                         += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::observed_state::Value::Weather(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::observed_state::Value::Presence(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::observed_state::Value::PresenceDetails(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -1978,6 +2002,30 @@ impl ::buffa::Message for ObservedState {
                 __buffa::oneof::observed_state::Value::Alarm(x) => {
                     ::buffa::types::put_len_delimited_header(
                         21u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::observed_state::Value::Weather(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        22u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::observed_state::Value::Presence(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        23u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::observed_state::Value::PresenceDetails(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        24u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -2304,6 +2352,68 @@ impl ::buffa::Message for ObservedState {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.value = ::core::option::Option::Some(
                         __buffa::oneof::observed_state::Value::Alarm(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            22u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::observed_state::Value::Weather(ref mut existing),
+                ) = self.value
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.value = ::core::option::Option::Some(
+                        __buffa::oneof::observed_state::Value::Weather(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            23u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::observed_state::Value::Presence(ref mut existing),
+                ) = self.value
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.value = ::core::option::Option::Some(
+                        __buffa::oneof::observed_state::Value::Presence(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            24u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::observed_state::Value::PresenceDetails(
+                        ref mut existing,
+                    ),
+                ) = self.value
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.value = ::core::option::Option::Some(
+                        __buffa::oneof::observed_state::Value::PresenceDetails(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -3243,6 +3353,14 @@ pub struct OpenViewResponse {
     >,
     /// Field 7: `entities`
     pub entities: ::buffa::alloc::vec::Vec<ViewEntity>,
+    /// Display data belongs to this authorized snapshot and must agree on every
+    /// page. A changed profile requires a new configuration/view generation.
+    ///
+    /// Field 8: `display_profile`
+    pub display_profile: ::buffa::MessageField<
+        super::super::environment::v1::DisplayProfile,
+        ::buffa::Inline<super::super::environment::v1::DisplayProfile>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -3256,6 +3374,7 @@ impl ::core::fmt::Debug for OpenViewResponse {
             .field("next_page_token", &self.next_page_token)
             .field("expires_at", &self.expires_at)
             .field("entities", &self.entities)
+            .field("display_profile", &self.display_profile)
             .finish()
     }
 }
@@ -3336,6 +3455,14 @@ impl ::buffa::Message for OpenViewResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.display_profile.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.display_profile.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3391,6 +3518,14 @@ impl ::buffa::Message for OpenViewResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.display_profile.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                8u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.display_profile.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3477,6 +3612,17 @@ impl ::buffa::Message for OpenViewResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.entities.push(elem);
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.display_profile.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3492,6 +3638,7 @@ impl ::buffa::Message for OpenViewResponse {
         self.next_page_token.clear();
         self.expires_at = ::buffa::MessageField::none();
         self.entities.clear();
+        self.display_profile = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -6784,6 +6931,99 @@ pub mod __buffa {
                             );
                         }
                     }
+                    22u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::observed_state::Value::Weather(
+                                ref mut existing,
+                            ),
+                        ) = view.value
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.value = Some(
+                                super::super::__buffa::view::oneof::observed_state::Value::Weather(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::environment::v1::__buffa::view::WeatherValueView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    23u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::observed_state::Value::Presence(
+                                ref mut existing,
+                            ),
+                        ) = view.value
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.value = Some(
+                                super::super::__buffa::view::oneof::observed_state::Value::Presence(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::environment::v1::__buffa::view::PresenceValueView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    24u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::observed_state::Value::PresenceDetails(
+                                ref mut existing,
+                            ),
+                        ) = view.value
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.value = Some(
+                                super::super::__buffa::view::oneof::observed_state::Value::PresenceDetails(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::environment::v1::__buffa::view::PresenceDetailsValueView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -6977,6 +7217,33 @@ pub mod __buffa {
                                         v,
                                     ) => {
                                         super::super::__buffa::oneof::observed_state::Value::Alarm(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::observed_state::Value::Weather(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::observed_state::Value::Weather(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::observed_state::Value::Presence(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::observed_state::Value::Presence(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::observed_state::Value::PresenceDetails(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::observed_state::Value::PresenceDetails(
                                             ::buffa::alloc::boxed::Box::new(
                                                 v.to_owned_from_source(__buffa_src)?,
                                             ),
@@ -7178,6 +7445,36 @@ pub mod __buffa {
                                 += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                                     + inner as u64;
                         }
+                        super::super::__buffa::view::oneof::observed_state::Value::Weather(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::observed_state::Value::Presence(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::observed_state::Value::PresenceDetails(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
                     }
                 }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -7358,6 +7655,36 @@ pub mod __buffa {
                         ) => {
                             ::buffa::types::put_len_delimited_header(
                                 21u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::observed_state::Value::Weather(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                22u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::observed_state::Value::Presence(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                23u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::observed_state::Value::PresenceDetails(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                24u32,
                                 u64::from(__cache.consume_next()),
                                 buf,
                             );
@@ -9360,6 +9687,15 @@ pub mod __buffa {
                 'a,
                 super::super::__buffa::view::ViewEntityView<'a>,
             >,
+            /// Display data belongs to this authorized snapshot and must agree on every
+            /// page. A changed profile requires a new configuration/view generation.
+            ///
+            /// Field 8: `display_profile`
+            pub display_profile: ::buffa::MessageFieldView<
+                super::super::super::super::environment::v1::__buffa::view::DisplayProfileView<
+                    'a,
+                >,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for OpenViewResponseView<'a> {
@@ -9455,6 +9791,31 @@ pub mod __buffa {
                             None => {
                                 view.expires_at = ::buffa::MessageFieldView::set(
                                     <::buffa_types::google::protobuf::__buffa::view::TimestampView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.display_profile.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.display_profile = ::buffa::MessageFieldView::set(
+                                    <super::super::super::super::environment::v1::__buffa::view::DisplayProfileView as ::buffa::MessageView>::decode_view_ctx(
                                         sub,
                                         __sub_ctx,
                                     )?,
@@ -9586,6 +9947,17 @@ pub mod __buffa {
                         .iter()
                         .map(|v| v.to_owned_from_source(__buffa_src))
                         .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+                    display_profile: match self.display_profile.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::super::super::environment::v1::DisplayProfile,
+                                ::buffa::Inline<
+                                    super::super::super::super::environment::v1::DisplayProfile,
+                                >,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -9652,6 +10024,14 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                if self.display_profile.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.display_profile.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -9708,6 +10088,14 @@ pub mod __buffa {
                         buf,
                     );
                     v.write_to(__cache, buf);
+                }
+                if self.display_profile.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        8u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.display_profile.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -9863,6 +10251,20 @@ pub mod __buffa {
                 super::super::__buffa::view::ViewEntityView<'_>,
             > {
                 &self.0.reborrow().entities
+            }
+            /// Display data belongs to this authorized snapshot and must agree on every
+            /// page. A changed profile requires a new configuration/view generation.
+            ///
+            /// Field 8: `display_profile`
+            #[must_use]
+            pub fn display_profile(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::super::super::environment::v1::__buffa::view::DisplayProfileView<
+                    '_,
+                >,
+            > {
+                &self.0.reborrow().display_profile
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<OpenViewResponseView<'static>>>
@@ -11826,6 +12228,27 @@ pub mod __buffa {
                             >,
                         >,
                     ),
+                    Weather(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::environment::v1::__buffa::view::WeatherValueView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Presence(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::environment::v1::__buffa::view::PresenceValueView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    PresenceDetails(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::environment::v1::__buffa::view::PresenceDetailsValueView<
+                                'a,
+                            >,
+                        >,
+                    ),
                 }
             }
             pub mod watch_view_response {
@@ -11915,6 +12338,21 @@ pub mod __buffa {
                 Alarm(
                     ::buffa::alloc::boxed::Box<
                         super::super::super::super::super::controls::v1::AlarmValue,
+                    >,
+                ),
+                Weather(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::environment::v1::WeatherValue,
+                    >,
+                ),
+                Presence(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::environment::v1::PresenceValue,
+                    >,
+                ),
+                PresenceDetails(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::environment::v1::PresenceDetailsValue,
                     >,
                 ),
             }
@@ -12054,6 +12492,56 @@ pub mod __buffa {
             for ::core::option::Option<Value> {
                 fn from(
                     v: super::super::super::super::super::controls::v1::AlarmValue,
+                ) -> Self {
+                    Self::Some(Value::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::environment::v1::WeatherValue>
+            for Value {
+                fn from(
+                    v: super::super::super::super::super::environment::v1::WeatherValue,
+                ) -> Self {
+                    Self::Weather(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::environment::v1::WeatherValue>
+            for ::core::option::Option<Value> {
+                fn from(
+                    v: super::super::super::super::super::environment::v1::WeatherValue,
+                ) -> Self {
+                    Self::Some(Value::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::environment::v1::PresenceValue>
+            for Value {
+                fn from(
+                    v: super::super::super::super::super::environment::v1::PresenceValue,
+                ) -> Self {
+                    Self::Presence(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::environment::v1::PresenceValue>
+            for ::core::option::Option<Value> {
+                fn from(
+                    v: super::super::super::super::super::environment::v1::PresenceValue,
+                ) -> Self {
+                    Self::Some(Value::from(v))
+                }
+            }
+            impl From<
+                super::super::super::super::super::environment::v1::PresenceDetailsValue,
+            > for Value {
+                fn from(
+                    v: super::super::super::super::super::environment::v1::PresenceDetailsValue,
+                ) -> Self {
+                    Self::PresenceDetails(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<
+                super::super::super::super::super::environment::v1::PresenceDetailsValue,
+            > for ::core::option::Option<Value> {
+                fn from(
+                    v: super::super::super::super::super::environment::v1::PresenceDetailsValue,
                 ) -> Self {
                     Self::Some(Value::from(v))
                 }

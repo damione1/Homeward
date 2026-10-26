@@ -211,6 +211,54 @@ func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, m
 	}
 	var value *domain.StateValue
 	switch item := wire.Value.(type) {
+	case *state.ObservedState_Weather:
+		if item == nil || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		weather, err := AdmitWireWeatherValue(item.Weather)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		if err := measurement.Catalog.AdmitDomainWeather(entity, measurement.Endpoint, weather); err != nil {
+			return domain.ObservedState{}, err
+		}
+		admitted, err := domain.NewWeatherStateValue(weather)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &admitted
+	case *state.ObservedState_Presence:
+		if item == nil || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		presence, err := AdmitWirePresenceValue(item.Presence)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		if err := measurement.Catalog.AdmitDomainPresence(entity, measurement.Endpoint, presence); err != nil {
+			return domain.ObservedState{}, err
+		}
+		admitted, err := domain.NewPresenceStateValue(presence)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &admitted
+	case *state.ObservedState_PresenceDetails:
+		if item == nil || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		details, err := AdmitWirePresenceDetailsValue(item.PresenceDetails)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		if err := measurement.Catalog.AdmitDomainPresenceDetails(entity, measurement.Endpoint, details); err != nil {
+			return domain.ObservedState{}, err
+		}
+		admitted, err := domain.NewPresenceDetailsStateValue(details)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &admitted
 	case *state.ObservedState_Cover:
 		if item == nil || measurement == nil || measurement.Catalog == nil {
 			return domain.ObservedState{}, ErrInvalidWireState
@@ -419,6 +467,27 @@ func EncodeObservedState(observed domain.ObservedState) (*state.ObservedState, e
 			return nil, err
 		}
 		switch kind {
+		case domain.ValueWeather:
+			weather, _ := value.Weather()
+			encoded, err := EncodeWeatherValue(weather)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_Weather{Weather: encoded}
+		case domain.ValuePresence:
+			presence, _ := value.Presence()
+			encoded, err := EncodePresenceValue(presence)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_Presence{Presence: encoded}
+		case domain.ValuePresenceDetails:
+			details, _ := value.PresenceDetails()
+			encoded, err := EncodePresenceDetailsValue(details)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_PresenceDetails{PresenceDetails: encoded}
 		case domain.ValueCover:
 			value, _ := value.Cover()
 			encoded, err := EncodeCoverValue(value)

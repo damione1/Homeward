@@ -418,12 +418,12 @@ func TestNHA014EnumAndOneofCoverage(t *testing.T) {
 		t.Fatal("missing aggregation admitted")
 	}
 	fields := (&registry.CapabilityDescription{}).ProtoReflect().Descriptor().Oneofs().ByName("constraints").Fields()
-	for _, name := range []protoreflect.Name{"switch", "light", "fan", "climate", "measurement", "binary", "extension", "helper", "solar", "solar_event", "cover", "lock", "alarm"} {
+	for _, name := range []protoreflect.Name{"switch", "light", "fan", "climate", "measurement", "binary", "extension", "helper", "solar", "solar_event", "cover", "lock", "alarm", "weather", "presence", "presence_details"} {
 		if fields.ByName(name) == nil {
 			t.Fatalf("missing %s admission branch", name)
 		}
 	}
-	if fields.Len() != 13 || fields.ByName("helper").Number() != 14 || fields.ByName("solar").Number() != 15 || fields.ByName("solar_event").Number() != 16 || fields.ByName("cover").Number() != 17 || fields.ByName("lock").Number() != 18 || fields.ByName("alarm").Number() != 19 {
+	if fields.Len() != 16 || fields.ByName("helper").Number() != 14 || fields.ByName("solar").Number() != 15 || fields.ByName("solar_event").Number() != 16 || fields.ByName("cover").Number() != 17 || fields.ByName("lock").Number() != 18 || fields.ByName("alarm").Number() != 19 || fields.ByName("weather").Number() != 20 || fields.ByName("presence").Number() != 21 || fields.ByName("presence_details").Number() != 22 {
 		t.Fatal("new constraint branch needs explicit admission review")
 	}
 }

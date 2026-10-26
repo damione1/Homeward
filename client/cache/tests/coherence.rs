@@ -80,6 +80,70 @@ fn complete() -> CachedView {
     .unwrap()
 }
 
+#[test]
+fn display_profile_is_snapshot_scoped_and_cannot_drift_between_pages() {
+    use home_wire_contract::home::environment::v1::DisplayProfile;
+    let filter = Filter::all();
+    let with_profile = |ids: &[&str], next: &str, zone: Option<&str>| {
+        let mut response = page(&filter, ids, next);
+        response.display_profile = zone
+            .map(|time_zone| DisplayProfile {
+                time_zone: time_zone.into(),
+                ..Default::default()
+            })
+            .into();
+        response
+    };
+    for (first_zone, second_zone) in [
+        (Some("America/Toronto"), Some("Europe/Paris")),
+        (Some("America/Toronto"), None),
+        (None, Some("America/Toronto")),
+    ] {
+        let mut capture = SnapshotCapture::begin(
+            filter.clone(),
+            1,
+            with_profile(&["a"], "next", first_zone),
+            &at(0),
+        )
+        .unwrap();
+        assert_eq!(
+            capture.push(with_profile(&["b"], "", second_zone), &at(1)),
+            Err(CacheFailure::GenerationChanged)
+        );
+        assert!(capture.next_request().is_none());
+        assert!(matches!(
+            capture.finish(&at(2)),
+            Err(CacheFailure::Abandoned)
+        ));
+    }
+    // The cache preserves absent and unsupported metadata for explicit host
+    // presentation, rather than substituting a local timezone or losing data.
+    for zone in [None, Some("America/Toronto"), Some("future/timezone")] {
+        let mut capture = SnapshotCapture::begin(
+            filter.clone(),
+            1,
+            with_profile(&["a"], "next", zone),
+            &at(0),
+        )
+        .unwrap();
+        capture
+            .push(with_profile(&["b"], "", zone), &at(1))
+            .unwrap();
+        let view = capture.finish(&at(2)).unwrap();
+        assert_eq!(view.len(), 2);
+        assert_eq!(view.display_profile().map(|p| p.time_zone.as_str()), zone);
+        let original = view.clone();
+        let mut live = LiveView::new(view);
+        live.apply(delta(&original, 1, 101, vec![observed("a", 2)]))
+            .unwrap();
+        assert_eq!(
+            live.current().unwrap().display_profile(),
+            original.display_profile()
+        );
+        assert!(complete().display_profile().is_none());
+    }
+}
+
 fn delta(
     view: &CachedView,
     stream: u64,
@@ -254,6 +318,9 @@ fn full_observation_replacement_preserves_false_zero_absence_quality_and_future_
         | wire::observed_state::Value::SolarEvent(_)
         | wire::observed_state::Value::Cover(_)
         | wire::observed_state::Value::Lock(_)
+        | wire::observed_state::Value::Weather(_)
+        | wire::observed_state::Value::Presence(_)
+        | wire::observed_state::Value::PresenceDetails(_)
         | wire::observed_state::Value::Alarm(_) => panic!("expected light state"),
     }
     assert_eq!(state.quality.provenance, wire::Provenance::Estimated);

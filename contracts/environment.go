@@ -4,6 +4,7 @@ import (
 	"time"
 
 	env "github.com/damione1/Homeward/gen/home/environment/v1"
+	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -321,4 +322,60 @@ func environmentCopy[T any](value *T) *T {
 	}
 	copy := *value
 	return &copy
+}
+
+func (c *CapabilityCatalog) AdmitDomainWeather(entity domain.EntityID, endpoint string, value domain.WeatherValue) error {
+	if _, err := value.Components(); err != nil {
+		return err
+	}
+	description, err := c.nativeDescription(entity, endpoint, WeatherSchema)
+	if err != nil {
+		return err
+	}
+	if description.GetWeather() == nil {
+		return ErrInvalidCapability
+	}
+	return nil
+}
+func (c *CapabilityCatalog) AdmitDomainPresence(entity domain.EntityID, endpoint string, value domain.PresenceValue) error {
+	if _, err := value.Components(); err != nil {
+		return err
+	}
+	description, err := c.nativeDescription(entity, endpoint, PresenceSchema)
+	if err != nil {
+		return err
+	}
+	if description.GetPresence() == nil {
+		return ErrInvalidCapability
+	}
+	return nil
+}
+func (c *CapabilityCatalog) AdmitDomainPresenceDetails(entity domain.EntityID, endpoint string, value domain.PresenceDetailsValue) error {
+	if _, err := value.Components(); err != nil {
+		return err
+	}
+	description, err := c.nativeDescription(entity, endpoint, PresenceDetailsSchema)
+	if err != nil {
+		return err
+	}
+	if description.GetPresenceDetails() == nil {
+		return ErrInvalidCapability
+	}
+	return nil
+}
+
+func NativeEnvironmentDescription(description *registry.CapabilityDescription) bool {
+	if description == nil {
+		return false
+	}
+	switch description.SchemaId {
+	case WeatherSchema, PresenceSchema, PresenceDetailsSchema:
+		return true
+	}
+	switch description.Constraints.(type) {
+	case *registry.CapabilityDescription_Weather, *registry.CapabilityDescription_Presence, *registry.CapabilityDescription_PresenceDetails:
+		return true
+	default:
+		return false
+	}
 }

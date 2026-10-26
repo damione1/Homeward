@@ -6,6 +6,7 @@ import "home/registry/v1/registry.proto";
 import "home/helpers/v1/helpers.proto";
 import "home/solar/v1/solar.proto";
 import "home/controls/v1/controls.proto";
+import "home/environment/v1/environment.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/state/v1;statev1";
 enum Availability {
@@ -94,6 +95,9 @@ message ObservedState {
     home.controls.v1.CoverValue cover = 19;
     home.controls.v1.LockValue lock = 20;
     home.controls.v1.AlarmValue alarm = 21;
+    home.environment.v1.WeatherValue weather = 22;
+    home.environment.v1.PresenceValue presence = 23;
+    home.environment.v1.PresenceDetailsValue presence_details = 24;
   }
 }
 
@@ -149,6 +153,9 @@ message OpenViewResponse {
   string next_page_token = 5;
   google.protobuf.Timestamp expires_at = 6;
   repeated ViewEntity entities = 7;
+  // Display data belongs to this authorized snapshot and must agree on every
+  // page. A changed profile requires a new configuration/view generation.
+  home.environment.v1.DisplayProfile display_profile = 8;
 }
 message ReadPageRequest {
   string snapshot_token = 1;

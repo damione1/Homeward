@@ -14,6 +14,7 @@ mod dashboard_presentation;
 mod dashboard_selection;
 mod dashboard_visibility;
 mod device_view;
+mod environment_text;
 mod navigation;
 mod preferences;
 mod profile;

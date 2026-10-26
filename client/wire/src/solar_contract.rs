@@ -19,7 +19,7 @@ impl<T> Admitted<T> {
     }
 }
 
-fn event_kind(value: EnumValue<solar::SolarEventKind>) -> bool {
+pub fn event_kind(value: EnumValue<solar::SolarEventKind>) -> bool {
     match value {
         EnumValue::Known(
             solar::SolarEventKind::Dawn

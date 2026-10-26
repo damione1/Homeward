@@ -129,7 +129,10 @@ impl Family {
             | C::Binary(_)
             | C::Solar(_)
             | C::SolarEvent(_)
-            | C::Extension(_) => panic!("fixture family"),
+            | C::Extension(_)
+            | C::Weather(_)
+            | C::Presence(_)
+            | C::PresenceDetails(_) => panic!("fixture family"),
         }
     }
 }
