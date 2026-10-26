@@ -2,7 +2,7 @@ use super::*;
 use crate::dashboard::{self, LayoutState};
 use buffa_types::google::protobuf::Timestamp;
 use home_client_cache::{Filter, SnapshotCapture};
-fn request() -> ProjectionRequest {
+pub(super) fn request() -> ProjectionRequest {
     let layout = dashboard::fixture();
     ProjectionRequest {
         room: Some(layout.rooms[1].id.clone()),
@@ -10,7 +10,7 @@ fn request() -> ProjectionRequest {
         ..Default::default()
     }
 }
-fn light(request: &ProjectionRequest) -> state::ViewEntity {
+pub(super) fn light(request: &ProjectionRequest) -> state::ViewEntity {
     let layout = request.dashboard.layout().unwrap();
     let id = layout
         .room(request.room.as_ref().unwrap())
@@ -70,7 +70,7 @@ fn light(request: &ProjectionRequest) -> state::ViewEntity {
         ..Default::default()
     }
 }
-fn view(request: &ProjectionRequest, entities: Vec<state::ViewEntity>) -> CachedView {
+pub(super) fn view(request: &ProjectionRequest, entities: Vec<state::ViewEntity>) -> CachedView {
     let layout = request.dashboard.layout().unwrap();
     let filter = Filter::all();
     let now = Timestamp::from_unix_secs(0);
@@ -102,6 +102,198 @@ fn prepare(store: &DeviceStore, row: &CardRow) -> Prepared {
         .prepare(row.token, row.generation, 0, DeviceIntent::Power(Power::On))
         .ok()
         .unwrap()
+}
+#[test]
+fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visible() {
+    use crate::dashboard_layout::{Kind, NativeLayout, NodeId};
+    use home_client_model::dashboard::{Comparison, Predicate, Recipes};
+    let mut request = request();
+    let mut entity = light(&request);
+    entity.state.as_option_mut().unwrap().quality = state::Quality {
+        availability: state::Availability::Available.into(),
+        freshness: state::Freshness::Fresh.into(),
+        provenance: state::Provenance::Observed.into(),
+        ..Default::default()
+    }
+    .into();
+    let set_on = |entity: &mut state::ViewEntity, on| {
+        let Some(state::observed_state::Value::Light(value)) =
+            entity.state.as_option_mut().unwrap().value.as_mut()
+        else {
+            panic!()
+        };
+        value.on = Some(on);
+    };
+    set_on(&mut entity, true);
+    let mut layout = request.dashboard.layout().unwrap().clone();
+    let mut native =
+        NativeLayout::try_from(&crate::dashboard_layout::tests::extended_forest()).unwrap();
+    for node in native.nodes.values_mut() {
+        if node.entity.is_some() {
+            node.entity = Some(entity.entity_id.parse().unwrap());
+        }
+    }
+    native
+        .nodes
+        .get_mut(&NodeId::parse("grid").unwrap())
+        .unwrap()
+        .recipes = Some(Recipes {
+        interactions: BTreeMap::new(),
+        visibility: Some(Predicate::State {
+            entity: entity.entity_id.parse().unwrap(),
+            expected: "on".into(),
+            comparison: Comparison::Equal,
+        }),
+    });
+    let mut duplicate = native.nodes[&NodeId::parse("tile").unwrap()].clone();
+    duplicate.id = NodeId::parse("always-visible").unwrap();
+    duplicate.source.path = "always-visible".into();
+    native
+        .nodes
+        .get_mut(&NodeId::parse("section").unwrap())
+        .unwrap()
+        .children
+        .push(duplicate.id.clone());
+    native.nodes.insert(duplicate.id.clone(), duplicate);
+    layout.native = Some(native);
+    request.room = None;
+    request.dashboard = LayoutState::Ready(Arc::new(layout));
+    let store = DeviceStore::default();
+    let before = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity.clone()])),
+        &request,
+    );
+    assert_eq!(
+        before.rows.len(),
+        1,
+        "two occurrences share one exact device target"
+    );
+    let prepared = prepare(&store, &before.rows[0]);
+    entity.state.as_option_mut().unwrap().revision += 1;
+    let updated = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity.clone()])),
+        &request,
+    );
+    assert_eq!(updated.rows[0].generation, before.rows[0].generation);
+    assert!(
+        (prepared.guard)(),
+        "ordinary observations preserve a held gesture"
+    );
+    set_on(&mut entity, false);
+    let hidden = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity.clone()])),
+        &request,
+    );
+    assert_eq!(
+        hidden.rows.len(),
+        1,
+        "the unconditional occurrence remains visible"
+    );
+    assert!(
+        !hidden
+            .native_nodes
+            .iter()
+            .any(|node| node.id.as_str() == "tile")
+    );
+    assert_ne!(hidden.rows[0].generation, before.rows[0].generation);
+    let rendered = crate::dashboard_presentation::Board::project(
+        request.dashboard.layout(),
+        &request,
+        &hidden,
+    )
+    .rows(&slint::VecModel::default());
+    assert_eq!(
+        rendered.len(),
+        3,
+        "the renderer consumes the exact visibility-filtered projection"
+    );
+    assert_eq!(
+        rendered
+            .iter()
+            .filter(|row| row.kind == crate::ProLayoutKind::Device)
+            .count(),
+        1
+    );
+    assert!(
+        !(prepared.guard)(),
+        "the hidden occurrence must lose its captured authority"
+    );
+    set_on(&mut entity, true);
+    let visible = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity.clone()])),
+        &request,
+    );
+    assert_ne!(visible.rows[0].generation, before.rows[0].generation);
+    assert!(
+        !(prepared.guard)(),
+        "reappearance cannot revive an old intention"
+    );
+    let fresh = prepare(&store, &visible.rows[0]);
+    entity
+        .state
+        .as_option_mut()
+        .unwrap()
+        .quality
+        .as_option_mut()
+        .unwrap()
+        .freshness = state::Freshness::Stale.into();
+    let stale = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity.clone()])),
+        &request,
+    );
+    let diagnostic = stale
+        .native_nodes
+        .iter()
+        .find(|node| node.id.as_str() == "grid")
+        .unwrap();
+    assert_eq!(diagnostic.kind, Kind::Unsupported);
+    assert!(
+        diagnostic.entity.is_none()
+            && diagnostic.children.is_empty()
+            && diagnostic.recipes.is_none()
+    );
+    assert!(
+        !(fresh.guard)(),
+        "loss of fresh predicate evidence cancels a prepared command"
+    );
+    entity
+        .state
+        .as_option_mut()
+        .unwrap()
+        .quality
+        .as_option_mut()
+        .unwrap()
+        .freshness = state::Freshness::Fresh.into();
+    let cache = view(&request, vec![entity.clone()]);
+    let offline = store.project(CachePhase::Offline, Some(&cache), &request);
+    assert!(!offline.ready);
+    assert!(
+        offline
+            .native_nodes
+            .iter()
+            .any(|node| node.id.as_str() == "grid" && node.kind == Kind::Unsupported)
+    );
+    assert!(matches!(
+        store.prepare(
+            offline.rows[0].token,
+            offline.rows[0].generation,
+            request.revision,
+            DeviceIntent::Power(Power::On)
+        ),
+        Err(Refusal::Stale)
+    ));
+    let mut foreign_request = request.clone();
+    let mut foreign_layout = request.dashboard.layout().unwrap().clone();
+    foreign_layout.config_revision += 1;
+    foreign_request.dashboard = LayoutState::Ready(Arc::new(foreign_layout));
+    let foreign_cache = view(&foreign_request, vec![entity]);
+    let mismatched = store.project(CachePhase::Live, Some(&foreign_cache), &request);
+    assert!(mismatched.rows.is_empty() && mismatched.native_nodes.is_empty());
 }
 #[test]
 fn room_cards_follow_server_order_and_reordering_withdraws_a_captured_gesture() {
@@ -711,7 +903,7 @@ fn missing_helper_state_never_invents_a_zero_sql_precondition() {
     ));
 }
 
-fn climate_entity(request: &ProjectionRequest) -> state::ViewEntity {
+pub(super) fn climate_entity(request: &ProjectionRequest) -> state::ViewEntity {
     let mut entity = light(request);
     entity.capabilities[0].schema_id = "core.climate.v1".into();
     entity.action_access[0].schema_id = "core.climate.v1".into();
@@ -975,7 +1167,7 @@ fn choice_tokens_cannot_retarget_modes_and_absent_observations_are_removed() {
     assert!(!(prepared.guard)());
 }
 
-fn helper_entity(
+pub(super) fn helper_entity(
     request: &ProjectionRequest,
     kind: home_wire_contract::home::helpers::v1::HelperKind,
 ) -> state::ViewEntity {

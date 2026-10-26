@@ -103,7 +103,7 @@ func TestAdmissionOneofCoverage(t *testing.T) {
 		names   []protoreflect.Name
 	}{
 		{&registry.EntityRef{}, "reference", []protoreflect.Name{"entity_id", "ha_alias"}},
-		{&actions.ActionArgs{}, "arguments", []protoreflect.Name{"set_switch", "extension", "set_light", "set_fan", "set_climate", "helper"}},
+		{&actions.ActionArgs{}, "arguments", []protoreflect.Name{"set_switch", "extension", "set_light", "set_fan", "set_climate", "helper", "cover", "lock", "alarm"}},
 	}
 	for _, tt := range tests {
 		fields := tt.message.ProtoReflect().Descriptor().Oneofs().ByName(tt.oneof).Fields()

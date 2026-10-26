@@ -211,6 +211,54 @@ func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, m
 	}
 	var value *domain.StateValue
 	switch item := wire.Value.(type) {
+	case *state.ObservedState_Cover:
+		if item == nil || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		cover, err := AdmitWireCoverValue(item.Cover)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		if err := measurement.Catalog.AdmitDomainCover(entity, measurement.Endpoint, cover); err != nil {
+			return domain.ObservedState{}, err
+		}
+		admitted, err := domain.NewCoverStateValue(cover)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &admitted
+	case *state.ObservedState_Lock:
+		if item == nil || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		lock, err := AdmitWireLockValue(item.Lock)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		if err := measurement.Catalog.AdmitDomainLock(entity, measurement.Endpoint, lock); err != nil {
+			return domain.ObservedState{}, err
+		}
+		admitted, err := domain.NewLockStateValue(lock)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &admitted
+	case *state.ObservedState_Alarm:
+		if item == nil || measurement == nil || measurement.Catalog == nil {
+			return domain.ObservedState{}, ErrInvalidWireState
+		}
+		alarm, err := AdmitWireAlarmValue(item.Alarm)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		if err := measurement.Catalog.AdmitDomainAlarm(entity, measurement.Endpoint, alarm); err != nil {
+			return domain.ObservedState{}, err
+		}
+		admitted, err := domain.NewAlarmStateValue(alarm)
+		if err != nil {
+			return domain.ObservedState{}, err
+		}
+		value = &admitted
 	case *state.ObservedState_SwitchOn:
 		if item == nil {
 			return domain.ObservedState{}, ErrInvalidWireState
@@ -371,6 +419,27 @@ func EncodeObservedState(observed domain.ObservedState) (*state.ObservedState, e
 			return nil, err
 		}
 		switch kind {
+		case domain.ValueCover:
+			value, _ := value.Cover()
+			encoded, err := EncodeCoverValue(value)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_Cover{Cover: encoded}
+		case domain.ValueLock:
+			value, _ := value.Lock()
+			encoded, err := EncodeLockValue(value)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_Lock{Lock: encoded}
+		case domain.ValueAlarm:
+			value, _ := value.Alarm()
+			encoded, err := EncodeAlarmValue(value)
+			if err != nil {
+				return nil, err
+			}
+			w.Value = &state.ObservedState_Alarm{Alarm: encoded}
 		case domain.ValueSwitch:
 			on, _ := value.Switch()
 			w.Value = &state.ObservedState_SwitchOn{SwitchOn: on}

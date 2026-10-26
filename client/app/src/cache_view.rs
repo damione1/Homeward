@@ -292,7 +292,10 @@ fn summary_text(observation: &state::ObservedState) -> String {
             | state::observed_state::Value::Fan(_)
             | state::observed_state::Value::Helper(_)
             | state::observed_state::Value::Solar(_)
-            | state::observed_state::Value::SolarEvent(_),
+            | state::observed_state::Value::SolarEvent(_)
+            | state::observed_state::Value::Cover(_)
+            | state::observed_state::Value::Lock(_)
+            | state::observed_state::Value::Alarm(_),
         )
         | None => value_text(observation),
     }
@@ -304,6 +307,9 @@ pub(crate) fn value_text(observation: &state::ObservedState) -> String {
     }
     use state::observed_state::Value;
     match observation.value.as_ref() {
+        Some(Value::Cover(value)) => crate::control_text::cover(value),
+        Some(Value::Lock(value)) => crate::control_text::lock(value).into(),
+        Some(Value::Alarm(value)) => crate::control_text::alarm(value).into(),
         Some(Value::SwitchOn(value)) => on_off(*value).into(),
         Some(Value::Measurement(value)) => format!(
             "{} {}",
@@ -475,6 +481,7 @@ pub(crate) struct CacheRows {
     devices: std::rc::Rc<slint::VecModel<crate::ProDeviceRow>>,
     home_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
     room_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
+    popup_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
 }
 fn table_row(row: &Row, _offline: bool) -> TableRow {
     TableRow {
@@ -581,6 +588,7 @@ impl CacheRows {
         self.devices.set_vec(Vec::new());
         self.home_layout_nodes.set_vec(Vec::new());
         self.room_layout_nodes.set_vec(Vec::new());
+        self.popup_layout_nodes.set_vec(Vec::new());
     }
     pub(crate) fn resolve(&self, token: i32, generation: i32, revision: i32) -> Option<EntityId> {
         if generation != self.serial.get() || self.state.borrow().revision != revision {
@@ -641,6 +649,7 @@ pub(crate) fn bind(window: &HomewardWindow) {
     window.set_device_cards(ModelRc::from(model.devices.clone()));
     window.set_home_layout_nodes(ModelRc::from(model.home_layout_nodes.clone()));
     window.set_room_layout_nodes(ModelRc::from(model.room_layout_nodes.clone()));
+    window.set_popup_layout_nodes(ModelRc::from(model.popup_layout_nodes.clone()));
     crate::dashboard_presentation::bind(window);
     window.set_cache_rows(ModelRc::from(model));
 }
@@ -693,6 +702,7 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_dashboard_synthetic(false);
     window.set_dashboard_status("Dashboard indisponible".into());
     window.set_home_focus(crate::FocusRequest::default());
+    window.invoke_native_route_changed();
     let model = window.get_cache_rows();
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
         model.clear();
@@ -702,6 +712,7 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
         window.set_device_cards(Default::default());
         window.set_home_layout_nodes(Default::default());
         window.set_room_layout_nodes(Default::default());
+        window.set_popup_layout_nodes(Default::default());
     }
     window.set_detail_title("".into());
     window.set_detail_value("".into());
@@ -714,6 +725,7 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_cache_active_index(-1);
     window.set_read_status("".into());
     window.set_cache_error("".into());
+    window.invoke_recipe_context_changed();
 }
 
 pub(crate) fn render(
@@ -732,6 +744,7 @@ pub(crate) fn render(
     if projection.revision != window.get_projection_version() {
         return;
     }
+    let revision = projection.revision;
     let home = &projection.home;
     window.set_view_loaded(home.captured);
     window.set_dashboard_status(home.status.as_str().into());
@@ -810,6 +823,7 @@ pub(crate) fn render(
             crate::dashboard_presentation::BoardTarget::Clear => {
                 sync(&model.home_layout_nodes, Vec::new());
                 sync(&model.room_layout_nodes, Vec::new());
+                sync(&model.popup_layout_nodes, Vec::new());
             }
             crate::dashboard_presentation::BoardTarget::Retain => {}
             crate::dashboard_presentation::BoardTarget::Home => sync(
@@ -819,6 +833,10 @@ pub(crate) fn render(
             crate::dashboard_presentation::BoardTarget::Room => sync(
                 &model.room_layout_nodes,
                 projection.board.rows(&model.room_layout_nodes),
+            ),
+            crate::dashboard_presentation::BoardTarget::Popup => sync(
+                &model.popup_layout_nodes,
+                projection.board.rows(&model.popup_layout_nodes),
             ),
         }
         sync(
@@ -848,6 +866,25 @@ pub(crate) fn render(
             .collect();
         sync(&model.rooms, rooms);
         sync(&model.observations, observations);
+    }
+    window.invoke_recipe_context_changed();
+    window.invoke_native_layout_published(revision);
+}
+
+pub(crate) fn clear_native_target(
+    window: &HomewardWindow,
+    presentation: home_client_model::dashboard::Presentation,
+) {
+    let model = window.get_cache_rows();
+    if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
+        match presentation {
+            home_client_model::dashboard::Presentation::Page => {
+                model.room_layout_nodes.set_vec(Vec::new())
+            }
+            home_client_model::dashboard::Presentation::Popup => {
+                model.popup_layout_nodes.set_vec(Vec::new())
+            }
+        }
     }
 }
 
@@ -1027,9 +1064,11 @@ mod tests {
         let request = ProjectionRequest {
             revision: 7,
             room: Some(dashboard::fixture().rooms[1].id.clone()),
+            native: None,
             dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
             query: "main".into(),
             detail: Some("private-entity-0001".parse().unwrap()),
+            catalogue: None,
         };
         let projection =
             project_request(CachePhase::Live, Some(&view), Viewport::default(), &request);

@@ -1,0 +1,160 @@
+kiosk_mode:
+  user_settings:
+  - users:
+    - kiosk_phone
+    kiosk: true
+    block_overflow: true
+views:
+- title: Home
+  sections:
+  - type: grid
+    cards:
+    - type: custom:mushroom-alarm-control-panel-card
+      entity: alarm_control_panel.konnected_8813bf465e98_konnected_alarm
+      states:
+      - armed_home
+      - armed_away
+      fill_container: false
+      layout: vertical
+      grid_options:
+        columns: full
+    - features:
+      - type: cover-open-close
+      type: tile
+      entity: cover.konnected_52362c_garage_door
+      icon: mdi:garage
+      vertical: true
+      hide_state: false
+      grid_options:
+        columns: full
+        rows: 6
+      show_entity_picture: false
+      state_content:
+      - last_changed
+      - state
+      name: Garage Door
+  - type: grid
+    cards:
+    - type: heading
+      heading_style: title
+      icon: mdi:mushroom
+      heading: Rooms
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: Living room
+        icon: mdi:sofa-outline
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/living-room
+        secondary_info: none
+        icon_color: purple
+        fill_container: false
+        multiline_secondary: false
+        layout: vertical
+        secondary: ''
+      - type: custom:mushroom-template-card
+        primary: Dining room
+        icon: mdi:table-furniture
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/dining-room
+        secondary_info: none
+        icon_color: purple
+        layout: vertical
+        secondary: ''
+      - type: custom:mushroom-template-card
+        primary: Kitchen
+        icon: mdi:knife
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/kitchen
+        secondary_info: none
+        icon_color: purple
+        layout: vertical
+        secondary: ''
+      grid_options:
+        rows: auto
+        columns: full
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: Master
+        icon: mdi:bed-king-outline
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/master-bedroom
+        secondary_info: none
+        icon_color: blue
+        layout: vertical
+        secondary: Bedroom
+      - type: custom:mushroom-template-card
+        primary: Eugénie’s
+        icon: mdi:baby-face
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/eugenie-bedroom
+        secondary_info: none
+        icon_color: blue
+        layout: vertical
+        secondary: Bedroom
+      - type: custom:mushroom-template-card
+        primary: Bathroom
+        icon: mdi:shower
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/bathroom
+        secondary_info: none
+        icon_color: blue
+        layout: vertical
+        secondary: ' _'
+      grid_options:
+        columns: full
+        rows: auto
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: 'Damien’s Office '
+        icon: mdi:desk
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/basement
+        secondary_info: none
+        icon_color: teal
+        layout: vertical
+      - type: custom:mushroom-template-card
+        primary: Guest’s Bedroom
+        icon: mdi:bed-double-outline
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/basement
+        secondary_info: none
+        icon_color: teal
+        layout: vertical
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: Entrance
+        icon: mdi:home
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/entrance
+        secondary_info: none
+        icon_color: green
+        secondary: ''
+        layout: vertical
+        multiline_secondary: true
+      - type: custom:mushroom-template-card
+        primary: Garage
+        icon: mdi:car
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/garage
+        secondary_info: none
+        icon_color: green
+        layout: vertical
+        secondary: ''
+      grid_options:
+        rows: auto
+        columns: full
+    column_span: 1

@@ -1,0 +1,46 @@
+import { KitDialogSurface, KitDialogPanel, KitButton, KitScrollArea, KitWrap, ControlSize, CloseReason } from "@kit/kit.slint";
+enum ConfirmationFocus { cancel, confirm }
+export component HomewardConfirmation inherits KitDialogSurface {
+    in property <int> confirmation-id;
+    in property <string> title;
+    in property <string> message;
+    in property <string> action-description;
+    callback confirm(int);
+    private property <bool> opened: root.state.open;
+    private property <ConfirmationFocus> focused;
+    private property <int> armed-confirmation;
+    private property <int> armed-cancel;
+    function cancel-presses() { confirm-button.cancel-press(); cancel-button.cancel-press(); }
+    changed opened => { root.cancel-presses(); if (root.opened) { root.focused = ConfirmationFocus.cancel; cancel-button.take-focus(); } }
+    changed confirmation-id => { root.cancel-presses(); if (root.opened) { root.focused = ConfirmationFocus.cancel; cancel-button.take-focus(); } }
+    focus-next(reverse) => {
+        if (root.focused == ConfirmationFocus.cancel) { root.focused = ConfirmationFocus.confirm; confirm-button.take-focus(); }
+        else { root.focused = ConfirmationFocus.cancel; cancel-button.take-focus(); }
+    }
+    KitDialogPanel {
+        theme: root.theme; accessible-name: root.title;
+        accessible-description-text: root.action-description + " · " + root.message;
+        width: max(0px, min(root.width - 32px, 560px * root.theme.text-scale));
+        height: max(0px, min(root.height - 32px, 440px * root.theme.text-scale));
+        x: (root.width - self.width) / 2; y: (root.height - self.height) / 2;
+        VerticalLayout {
+            padding: 16px; spacing: 16px;
+            KitScrollArea {
+                vertical-stretch: 1;
+                Text { text: root.title; color: root.theme.text-primary; font-size: 20px * root.theme.text-scale; font-weight: 600; wrap: word-wrap; }
+                Text { text: root.action-description; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
+                Text { text: root.message; color: root.theme.text-primary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
+            }
+            KitWrap {
+                cancel-button := KitButton { theme: root.theme; text: "Annuler"; control-size: ControlSize.comfortable;
+                    disabled: !root.state.open || !root.state.topmost || root.state.busy;
+                    activation-started => { root.armed-cancel = root.confirmation-id; }
+                    activated => { if (root.armed-cancel == root.confirmation-id) { root.dismiss(CloseReason.programmatic); } } }
+                confirm-button := KitButton { theme: root.theme; text: "Confirmer"; control-size: ControlSize.comfortable;
+                    disabled: !root.state.open || !root.state.topmost || root.state.busy;
+                    activation-started => { root.armed-confirmation = root.confirmation-id; }
+                    activated => { if (root.armed-confirmation == root.confirmation-id) { root.confirm(root.armed-confirmation); } } }
+            }
+        }
+    }
+}

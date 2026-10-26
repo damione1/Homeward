@@ -116,6 +116,12 @@ func scanNumericRow(row pgx.Row) (numericRow, error) {
 			in.Kind = domain.ValueSolar
 		case 8:
 			in.Kind = domain.ValueSolarEvent
+		case 9:
+			in.Kind = domain.ValueCover
+		case 10:
+			in.Kind = domain.ValueLock
+		case 11:
+			in.Kind = domain.ValueAlarm
 		default:
 			return out, recordermaintenance.ErrIntegrity
 		}

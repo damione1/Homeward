@@ -24,9 +24,10 @@ _sym_db = _symbol_database.Default()
 
 from home.helpers.v1 import helpers_pb2 as home_dot_helpers_dot_v1_dot_helpers__pb2
 from home.solar.v1 import solar_pb2 as home_dot_solar_dot_v1_dot_solar__pb2
+from home.controls.v1 import controls_pb2 as home_dot_controls_dot_v1_dot_controls__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fhome/registry/v1/registry.proto\x12\x10home.registry.v1\x1a\x1dhome/helpers/v1/helpers.proto\x1a\x19home/solar/v1/solar.proto\"\x19\n\x08\x45ntityId\x12\r\n\x05value\x18\x01 \x01(\t\"T\n\tEntityRef\x12\x13\n\tentity_id\x18\x01 \x01(\tH\x00\x12\x12\n\x08ha_alias\x18\x02 \x01(\tH\x00\x42\x0b\n\treferenceJ\x04\x08\x03\x10\x04R\x0blegacy_name\"\xd3\x05\n\x15\x43\x61pabilityDescription\x12\x11\n\tschema_id\x18\x01 \x01(\t\x12\r\n\x05major\x18\x02 \x01(\r\x12\x14\n\x0c\x64isplay_name\x18\x03 \x01(\t\x12\x10\n\x08\x65ndpoint\x18\x04 \x01(\t\x12\x16\n\x0e\x64\x65scriptor_set\x18\x05 \x01(\x0c\x12\x19\n\x11\x64\x65scriptor_sha256\x18\x06 \x01(\x0c\x12\x35\n\x06switch\x18\x07 \x01(\x0b\x32#.home.registry.v1.SwitchConstraintsH\x00\x12\x33\n\x05light\x18\x08 \x01(\x0b\x32\".home.registry.v1.LightConstraintsH\x00\x12/\n\x03\x66\x61n\x18\t \x01(\x0b\x32 .home.registry.v1.FanConstraintsH\x00\x12\x37\n\x07\x63limate\x18\n \x01(\x0b\x32$.home.registry.v1.ClimateConstraintsH\x00\x12?\n\x0bmeasurement\x18\x0b \x01(\x0b\x32(.home.registry.v1.MeasurementConstraintsH\x00\x12\x35\n\x06\x62inary\x18\x0c \x01(\x0b\x32#.home.registry.v1.BinaryConstraintsH\x00\x12;\n\textension\x18\r \x01(\x0b\x32&.home.registry.v1.ExtensionConstraintsH\x00\x12\x34\n\x06helper\x18\x0e \x01(\x0b\x32\".home.helpers.v1.HelperConstraintsH\x00\x12\x30\n\x05solar\x18\x0f \x01(\x0b\x32\x1f.home.solar.v1.SolarConstraintsH\x00\x12;\n\x0bsolar_event\x18\x10 \x01(\x0b\x32$.home.solar.v1.SolarEventConstraintsH\x00\x42\r\n\x0b\x63onstraints\"L\n\x0cNumberBounds\x12\x0f\n\x07minimum\x18\x01 \x01(\x01\x12\x0f\n\x07maximum\x18\x02 \x01(\x01\x12\x11\n\x04step\x18\x03 \x01(\x01H\x00\x88\x01\x01\x42\x07\n\x05_step\"#\n\x11SwitchConstraints\x12\x0e\n\x06set_on\x18\x01 \x01(\x08\"\xd5\x01\n\x10LightConstraints\x12\x0e\n\x06set_on\x18\x01 \x01(\x08\x12:\n\x12\x62rightness_percent\x18\x02 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12\x39\n\x11\x63olor_temp_mireds\x18\x03 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12:\n\x12transition_seconds\x18\x04 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\"7\n\x0e\x46\x61nConstraints\x12\x0e\n\x06set_on\x18\x01 \x01(\x08\x12\x15\n\rspeed_options\x18\x02 \x03(\t\"\xc3\x06\n\x12\x43limateConstraints\x12\x38\n\x10setpoint_celsius\x18\x01 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12\x33\n\x0cmode_options\x18\x02 \x03(\x0e\x32\x1d.home.registry.v1.ClimateMode\x12;\n\x10\x61\x63tivity_options\x18\x03 \x03(\x0e\x32!.home.registry.v1.ClimateActivity\x12U\n\x1cobserved_temperature_celsius\x18\x04 \x01(\x0b\x32/.home.registry.v1.ClimateTemperatureObservation\x12R\n\x19observed_setpoint_celsius\x18\x05 \x01(\x0b\x32/.home.registry.v1.ClimateTemperatureObservation\x12Z\n\x1fobserved_setpoint_range_celsius\x18\x06 \x01(\x0b\x32\x31.home.registry.v1.ClimateSetpointRangeConstraints\x12<\n\x15observed_mode_options\x18\x07 \x03(\x0e\x32\x1d.home.registry.v1.ClimateMode\x12\x1d\n\x15observes_fan_activity\x18\x08 \x01(\x08\x12Q\n\x16setpoint_range_celsius\x18\t \x01(\x0b\x32\x31.home.registry.v1.ClimateSetpointRangeConstraints\x12>\n\x12\x66\x61n_target_options\x18\n \x03(\x0e\x32\".home.registry.v1.ClimateFanTarget\x12\x41\n\x19observed_humidity_percent\x18\x0b \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12G\n\x1bobserved_fan_target_options\x18\x0c \x03(\x0e\x32\".home.registry.v1.ClimateFanTarget\"O\n\x1d\x43limateTemperatureObservation\x12.\n\x06\x62ounds\x18\x01 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\"\x88\x02\n\x1f\x43limateSetpointRangeConstraints\x12\x33\n\x0blow_celsius\x18\x01 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12\x34\n\x0chigh_celsius\x18\x02 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12\"\n\x15minimum_delta_celsius\x18\x03 \x01(\x01H\x00\x88\x01\x01\x12\"\n\x15maximum_delta_celsius\x18\x04 \x01(\x01H\x01\x88\x01\x01\x42\x18\n\x16_minimum_delta_celsiusB\x18\n\x16_maximum_delta_celsius\"\xe0\x01\n\x16MeasurementConstraints\x12\x0c\n\x04unit\x18\x01 \x01(\t\x12\x11\n\tprecision\x18\x02 \x01(\r\x12\x37\n\x08semantic\x18\x03 \x01(\x0e\x32%.home.registry.v1.MeasurementSemantic\x12=\n\x0b\x61ggregation\x18\x04 \x01(\x0e\x32(.home.registry.v1.MeasurementAggregation\x12-\n\x05value\x18\x05 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\"?\n\x11\x42inaryConstraints\x12\x19\n\x0c\x64\x65vice_class\x18\x01 \x01(\tH\x00\x88\x01\x01\x42\x0f\n\r_device_class\"F\n\x14\x45xtensionConstraints\x12\x1b\n\x0e\x61\x63tion_message\x18\x01 \x01(\tH\x00\x88\x01\x01\x42\x11\n\x0f_action_message*\xb7\x01\n\x0b\x43limateMode\x12\x1c\n\x18\x43LIMATE_MODE_UNSPECIFIED\x10\x00\x12\x14\n\x10\x43LIMATE_MODE_OFF\x10\x01\x12\x15\n\x11\x43LIMATE_MODE_HEAT\x10\x02\x12\x15\n\x11\x43LIMATE_MODE_COOL\x10\x03\x12\x15\n\x11\x43LIMATE_MODE_AUTO\x10\x04\x12\x14\n\x10\x43LIMATE_MODE_DRY\x10\x05\x12\x19\n\x15\x43LIMATE_MODE_FAN_ONLY\x10\x06*\xc6\x01\n\x0f\x43limateActivity\x12 \n\x1c\x43LIMATE_ACTIVITY_UNSPECIFIED\x10\x00\x12\x19\n\x15\x43LIMATE_ACTIVITY_IDLE\x10\x01\x12\x1c\n\x18\x43LIMATE_ACTIVITY_HEATING\x10\x02\x12\x1c\n\x18\x43LIMATE_ACTIVITY_COOLING\x10\x03\x12\x1b\n\x17\x43LIMATE_ACTIVITY_DRYING\x10\x04\x12\x1d\n\x19\x43LIMATE_ACTIVITY_FAN_ONLY\x10\x05*n\n\x10\x43limateFanTarget\x12\"\n\x1e\x43LIMATE_FAN_TARGET_UNSPECIFIED\x10\x00\x12\x19\n\x15\x43LIMATE_FAN_TARGET_ON\x10\x01\x12\x1b\n\x17\x43LIMATE_FAN_TARGET_AUTO\x10\x02*\xac\x01\n\x13MeasurementSemantic\x12$\n MEASUREMENT_SEMANTIC_UNSPECIFIED\x10\x00\x12$\n MEASUREMENT_SEMANTIC_MEASUREMENT\x10\x01\x12\x1e\n\x1aMEASUREMENT_SEMANTIC_TOTAL\x10\x02\x12)\n%MEASUREMENT_SEMANTIC_TOTAL_INCREASING\x10\x03*\xa9\x01\n\x16MeasurementAggregation\x12\'\n#MEASUREMENT_AGGREGATION_UNSPECIFIED\x10\x00\x12#\n\x1fMEASUREMENT_AGGREGATION_CURRENT\x10\x01\x12\x1f\n\x1bMEASUREMENT_AGGREGATION_SUM\x10\x02\x12 \n\x1cMEASUREMENT_AGGREGATION_MEAN\x10\x03\x42>Z<github.com/damione1/Homeward/gen/home/registry/v1;registryv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fhome/registry/v1/registry.proto\x12\x10home.registry.v1\x1a\x1dhome/helpers/v1/helpers.proto\x1a\x19home/solar/v1/solar.proto\x1a\x1fhome/controls/v1/controls.proto\"\x19\n\x08\x45ntityId\x12\r\n\x05value\x18\x01 \x01(\t\"T\n\tEntityRef\x12\x13\n\tentity_id\x18\x01 \x01(\tH\x00\x12\x12\n\x08ha_alias\x18\x02 \x01(\tH\x00\x42\x0b\n\treferenceJ\x04\x08\x03\x10\x04R\x0blegacy_name\"\xf0\x06\n\x15\x43\x61pabilityDescription\x12\x11\n\tschema_id\x18\x01 \x01(\t\x12\r\n\x05major\x18\x02 \x01(\r\x12\x14\n\x0c\x64isplay_name\x18\x03 \x01(\t\x12\x10\n\x08\x65ndpoint\x18\x04 \x01(\t\x12\x16\n\x0e\x64\x65scriptor_set\x18\x05 \x01(\x0c\x12\x19\n\x11\x64\x65scriptor_sha256\x18\x06 \x01(\x0c\x12\x35\n\x06switch\x18\x07 \x01(\x0b\x32#.home.registry.v1.SwitchConstraintsH\x00\x12\x33\n\x05light\x18\x08 \x01(\x0b\x32\".home.registry.v1.LightConstraintsH\x00\x12/\n\x03\x66\x61n\x18\t \x01(\x0b\x32 .home.registry.v1.FanConstraintsH\x00\x12\x37\n\x07\x63limate\x18\n \x01(\x0b\x32$.home.registry.v1.ClimateConstraintsH\x00\x12?\n\x0bmeasurement\x18\x0b \x01(\x0b\x32(.home.registry.v1.MeasurementConstraintsH\x00\x12\x35\n\x06\x62inary\x18\x0c \x01(\x0b\x32#.home.registry.v1.BinaryConstraintsH\x00\x12;\n\textension\x18\r \x01(\x0b\x32&.home.registry.v1.ExtensionConstraintsH\x00\x12\x34\n\x06helper\x18\x0e \x01(\x0b\x32\".home.helpers.v1.HelperConstraintsH\x00\x12\x30\n\x05solar\x18\x0f \x01(\x0b\x32\x1f.home.solar.v1.SolarConstraintsH\x00\x12;\n\x0bsolar_event\x18\x10 \x01(\x0b\x32$.home.solar.v1.SolarEventConstraintsH\x00\x12\x33\n\x05\x63over\x18\x11 \x01(\x0b\x32\".home.controls.v1.CoverConstraintsH\x00\x12\x31\n\x04lock\x18\x12 \x01(\x0b\x32!.home.controls.v1.LockConstraintsH\x00\x12\x33\n\x05\x61larm\x18\x13 \x01(\x0b\x32\".home.controls.v1.AlarmConstraintsH\x00\x42\r\n\x0b\x63onstraints\"L\n\x0cNumberBounds\x12\x0f\n\x07minimum\x18\x01 \x01(\x01\x12\x0f\n\x07maximum\x18\x02 \x01(\x01\x12\x11\n\x04step\x18\x03 \x01(\x01H\x00\x88\x01\x01\x42\x07\n\x05_step\"#\n\x11SwitchConstraints\x12\x0e\n\x06set_on\x18\x01 \x01(\x08\"\xd5\x01\n\x10LightConstraints\x12\x0e\n\x06set_on\x18\x01 \x01(\x08\x12:\n\x12\x62rightness_percent\x18\x02 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12\x39\n\x11\x63olor_temp_mireds\x18\x03 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12:\n\x12transition_seconds\x18\x04 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\"7\n\x0e\x46\x61nConstraints\x12\x0e\n\x06set_on\x18\x01 \x01(\x08\x12\x15\n\rspeed_options\x18\x02 \x03(\t\"\xc3\x06\n\x12\x43limateConstraints\x12\x38\n\x10setpoint_celsius\x18\x01 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12\x33\n\x0cmode_options\x18\x02 \x03(\x0e\x32\x1d.home.registry.v1.ClimateMode\x12;\n\x10\x61\x63tivity_options\x18\x03 \x03(\x0e\x32!.home.registry.v1.ClimateActivity\x12U\n\x1cobserved_temperature_celsius\x18\x04 \x01(\x0b\x32/.home.registry.v1.ClimateTemperatureObservation\x12R\n\x19observed_setpoint_celsius\x18\x05 \x01(\x0b\x32/.home.registry.v1.ClimateTemperatureObservation\x12Z\n\x1fobserved_setpoint_range_celsius\x18\x06 \x01(\x0b\x32\x31.home.registry.v1.ClimateSetpointRangeConstraints\x12<\n\x15observed_mode_options\x18\x07 \x03(\x0e\x32\x1d.home.registry.v1.ClimateMode\x12\x1d\n\x15observes_fan_activity\x18\x08 \x01(\x08\x12Q\n\x16setpoint_range_celsius\x18\t \x01(\x0b\x32\x31.home.registry.v1.ClimateSetpointRangeConstraints\x12>\n\x12\x66\x61n_target_options\x18\n \x03(\x0e\x32\".home.registry.v1.ClimateFanTarget\x12\x41\n\x19observed_humidity_percent\x18\x0b \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12G\n\x1bobserved_fan_target_options\x18\x0c \x03(\x0e\x32\".home.registry.v1.ClimateFanTarget\"O\n\x1d\x43limateTemperatureObservation\x12.\n\x06\x62ounds\x18\x01 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\"\x88\x02\n\x1f\x43limateSetpointRangeConstraints\x12\x33\n\x0blow_celsius\x18\x01 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12\x34\n\x0chigh_celsius\x18\x02 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\x12\"\n\x15minimum_delta_celsius\x18\x03 \x01(\x01H\x00\x88\x01\x01\x12\"\n\x15maximum_delta_celsius\x18\x04 \x01(\x01H\x01\x88\x01\x01\x42\x18\n\x16_minimum_delta_celsiusB\x18\n\x16_maximum_delta_celsius\"\xe0\x01\n\x16MeasurementConstraints\x12\x0c\n\x04unit\x18\x01 \x01(\t\x12\x11\n\tprecision\x18\x02 \x01(\r\x12\x37\n\x08semantic\x18\x03 \x01(\x0e\x32%.home.registry.v1.MeasurementSemantic\x12=\n\x0b\x61ggregation\x18\x04 \x01(\x0e\x32(.home.registry.v1.MeasurementAggregation\x12-\n\x05value\x18\x05 \x01(\x0b\x32\x1e.home.registry.v1.NumberBounds\"?\n\x11\x42inaryConstraints\x12\x19\n\x0c\x64\x65vice_class\x18\x01 \x01(\tH\x00\x88\x01\x01\x42\x0f\n\r_device_class\"F\n\x14\x45xtensionConstraints\x12\x1b\n\x0e\x61\x63tion_message\x18\x01 \x01(\tH\x00\x88\x01\x01\x42\x11\n\x0f_action_message*\xb7\x01\n\x0b\x43limateMode\x12\x1c\n\x18\x43LIMATE_MODE_UNSPECIFIED\x10\x00\x12\x14\n\x10\x43LIMATE_MODE_OFF\x10\x01\x12\x15\n\x11\x43LIMATE_MODE_HEAT\x10\x02\x12\x15\n\x11\x43LIMATE_MODE_COOL\x10\x03\x12\x15\n\x11\x43LIMATE_MODE_AUTO\x10\x04\x12\x14\n\x10\x43LIMATE_MODE_DRY\x10\x05\x12\x19\n\x15\x43LIMATE_MODE_FAN_ONLY\x10\x06*\xc6\x01\n\x0f\x43limateActivity\x12 \n\x1c\x43LIMATE_ACTIVITY_UNSPECIFIED\x10\x00\x12\x19\n\x15\x43LIMATE_ACTIVITY_IDLE\x10\x01\x12\x1c\n\x18\x43LIMATE_ACTIVITY_HEATING\x10\x02\x12\x1c\n\x18\x43LIMATE_ACTIVITY_COOLING\x10\x03\x12\x1b\n\x17\x43LIMATE_ACTIVITY_DRYING\x10\x04\x12\x1d\n\x19\x43LIMATE_ACTIVITY_FAN_ONLY\x10\x05*n\n\x10\x43limateFanTarget\x12\"\n\x1e\x43LIMATE_FAN_TARGET_UNSPECIFIED\x10\x00\x12\x19\n\x15\x43LIMATE_FAN_TARGET_ON\x10\x01\x12\x1b\n\x17\x43LIMATE_FAN_TARGET_AUTO\x10\x02*\xac\x01\n\x13MeasurementSemantic\x12$\n MEASUREMENT_SEMANTIC_UNSPECIFIED\x10\x00\x12$\n MEASUREMENT_SEMANTIC_MEASUREMENT\x10\x01\x12\x1e\n\x1aMEASUREMENT_SEMANTIC_TOTAL\x10\x02\x12)\n%MEASUREMENT_SEMANTIC_TOTAL_INCREASING\x10\x03*\xa9\x01\n\x16MeasurementAggregation\x12\'\n#MEASUREMENT_AGGREGATION_UNSPECIFIED\x10\x00\x12#\n\x1fMEASUREMENT_AGGREGATION_CURRENT\x10\x01\x12\x1f\n\x1bMEASUREMENT_AGGREGATION_SUM\x10\x02\x12 \n\x1cMEASUREMENT_AGGREGATION_MEAN\x10\x03\x42>Z<github.com/damione1/Homeward/gen/home/registry/v1;registryv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,40 +35,40 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'home.registry.v1.registry_p
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z<github.com/damione1/Homeward/gen/home/registry/v1;registryv1'
-  _globals['_CLIMATEMODE']._serialized_start=2889
-  _globals['_CLIMATEMODE']._serialized_end=3072
-  _globals['_CLIMATEACTIVITY']._serialized_start=3075
-  _globals['_CLIMATEACTIVITY']._serialized_end=3273
-  _globals['_CLIMATEFANTARGET']._serialized_start=3275
-  _globals['_CLIMATEFANTARGET']._serialized_end=3385
-  _globals['_MEASUREMENTSEMANTIC']._serialized_start=3388
-  _globals['_MEASUREMENTSEMANTIC']._serialized_end=3560
-  _globals['_MEASUREMENTAGGREGATION']._serialized_start=3563
-  _globals['_MEASUREMENTAGGREGATION']._serialized_end=3732
-  _globals['_ENTITYID']._serialized_start=111
-  _globals['_ENTITYID']._serialized_end=136
-  _globals['_ENTITYREF']._serialized_start=138
-  _globals['_ENTITYREF']._serialized_end=222
-  _globals['_CAPABILITYDESCRIPTION']._serialized_start=225
-  _globals['_CAPABILITYDESCRIPTION']._serialized_end=948
-  _globals['_NUMBERBOUNDS']._serialized_start=950
-  _globals['_NUMBERBOUNDS']._serialized_end=1026
-  _globals['_SWITCHCONSTRAINTS']._serialized_start=1028
-  _globals['_SWITCHCONSTRAINTS']._serialized_end=1063
-  _globals['_LIGHTCONSTRAINTS']._serialized_start=1066
-  _globals['_LIGHTCONSTRAINTS']._serialized_end=1279
-  _globals['_FANCONSTRAINTS']._serialized_start=1281
-  _globals['_FANCONSTRAINTS']._serialized_end=1336
-  _globals['_CLIMATECONSTRAINTS']._serialized_start=1339
-  _globals['_CLIMATECONSTRAINTS']._serialized_end=2174
-  _globals['_CLIMATETEMPERATUREOBSERVATION']._serialized_start=2176
-  _globals['_CLIMATETEMPERATUREOBSERVATION']._serialized_end=2255
-  _globals['_CLIMATESETPOINTRANGECONSTRAINTS']._serialized_start=2258
-  _globals['_CLIMATESETPOINTRANGECONSTRAINTS']._serialized_end=2522
-  _globals['_MEASUREMENTCONSTRAINTS']._serialized_start=2525
-  _globals['_MEASUREMENTCONSTRAINTS']._serialized_end=2749
-  _globals['_BINARYCONSTRAINTS']._serialized_start=2751
-  _globals['_BINARYCONSTRAINTS']._serialized_end=2814
-  _globals['_EXTENSIONCONSTRAINTS']._serialized_start=2816
-  _globals['_EXTENSIONCONSTRAINTS']._serialized_end=2886
+  _globals['_CLIMATEMODE']._serialized_start=3079
+  _globals['_CLIMATEMODE']._serialized_end=3262
+  _globals['_CLIMATEACTIVITY']._serialized_start=3265
+  _globals['_CLIMATEACTIVITY']._serialized_end=3463
+  _globals['_CLIMATEFANTARGET']._serialized_start=3465
+  _globals['_CLIMATEFANTARGET']._serialized_end=3575
+  _globals['_MEASUREMENTSEMANTIC']._serialized_start=3578
+  _globals['_MEASUREMENTSEMANTIC']._serialized_end=3750
+  _globals['_MEASUREMENTAGGREGATION']._serialized_start=3753
+  _globals['_MEASUREMENTAGGREGATION']._serialized_end=3922
+  _globals['_ENTITYID']._serialized_start=144
+  _globals['_ENTITYID']._serialized_end=169
+  _globals['_ENTITYREF']._serialized_start=171
+  _globals['_ENTITYREF']._serialized_end=255
+  _globals['_CAPABILITYDESCRIPTION']._serialized_start=258
+  _globals['_CAPABILITYDESCRIPTION']._serialized_end=1138
+  _globals['_NUMBERBOUNDS']._serialized_start=1140
+  _globals['_NUMBERBOUNDS']._serialized_end=1216
+  _globals['_SWITCHCONSTRAINTS']._serialized_start=1218
+  _globals['_SWITCHCONSTRAINTS']._serialized_end=1253
+  _globals['_LIGHTCONSTRAINTS']._serialized_start=1256
+  _globals['_LIGHTCONSTRAINTS']._serialized_end=1469
+  _globals['_FANCONSTRAINTS']._serialized_start=1471
+  _globals['_FANCONSTRAINTS']._serialized_end=1526
+  _globals['_CLIMATECONSTRAINTS']._serialized_start=1529
+  _globals['_CLIMATECONSTRAINTS']._serialized_end=2364
+  _globals['_CLIMATETEMPERATUREOBSERVATION']._serialized_start=2366
+  _globals['_CLIMATETEMPERATUREOBSERVATION']._serialized_end=2445
+  _globals['_CLIMATESETPOINTRANGECONSTRAINTS']._serialized_start=2448
+  _globals['_CLIMATESETPOINTRANGECONSTRAINTS']._serialized_end=2712
+  _globals['_MEASUREMENTCONSTRAINTS']._serialized_start=2715
+  _globals['_MEASUREMENTCONSTRAINTS']._serialized_end=2939
+  _globals['_BINARYCONSTRAINTS']._serialized_start=2941
+  _globals['_BINARYCONSTRAINTS']._serialized_end=3004
+  _globals['_EXTENSIONCONSTRAINTS']._serialized_start=3006
+  _globals['_EXTENSIONCONSTRAINTS']._serialized_end=3076
 # @@protoc_insertion_point(module_scope)

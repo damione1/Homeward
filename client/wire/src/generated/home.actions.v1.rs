@@ -1102,6 +1102,30 @@ impl ::buffa::Message for ActionArgs {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::action_args::Arguments::Cover(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::action_args::Arguments::Lock(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::action_args::Arguments::Alarm(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -1159,6 +1183,30 @@ impl ::buffa::Message for ActionArgs {
                 __buffa::oneof::action_args::Arguments::Helper(x) => {
                     ::buffa::types::put_len_delimited_header(
                         6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::action_args::Arguments::Cover(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::action_args::Arguments::Lock(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        8u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::action_args::Arguments::Alarm(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        9u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -1294,6 +1342,66 @@ impl ::buffa::Message for ActionArgs {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.arguments = ::core::option::Option::Some(
                         __buffa::oneof::action_args::Arguments::Helper(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::action_args::Arguments::Cover(ref mut existing),
+                ) = self.arguments
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.arguments = ::core::option::Option::Some(
+                        __buffa::oneof::action_args::Arguments::Cover(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::action_args::Arguments::Lock(ref mut existing),
+                ) = self.arguments
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.arguments = ::core::option::Option::Some(
+                        __buffa::oneof::action_args::Arguments::Lock(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::action_args::Arguments::Alarm(ref mut existing),
+                ) = self.arguments
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.arguments = ::core::option::Option::Some(
+                        __buffa::oneof::action_args::Arguments::Alarm(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -5617,6 +5725,99 @@ pub mod __buffa {
                             );
                         }
                     }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::action_args::Arguments::Cover(
+                                ref mut existing,
+                            ),
+                        ) = view.arguments
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.arguments = Some(
+                                super::super::__buffa::view::oneof::action_args::Arguments::Cover(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::controls::v1::__buffa::view::CoverActionView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::action_args::Arguments::Lock(
+                                ref mut existing,
+                            ),
+                        ) = view.arguments
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.arguments = Some(
+                                super::super::__buffa::view::oneof::action_args::Arguments::Lock(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::controls::v1::__buffa::view::LockActionView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    9u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::action_args::Arguments::Alarm(
+                                ref mut existing,
+                            ),
+                        ) = view.arguments
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.arguments = Some(
+                                super::super::__buffa::view::oneof::action_args::Arguments::Alarm(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::super::super::controls::v1::__buffa::view::AlarmActionView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -5693,6 +5894,33 @@ pub mod __buffa {
                                         v,
                                     ) => {
                                         super::super::__buffa::oneof::action_args::Arguments::Helper(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::action_args::Arguments::Cover(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::action_args::Arguments::Cover(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::action_args::Arguments::Lock(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::action_args::Arguments::Lock(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::action_args::Arguments::Alarm(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::action_args::Arguments::Alarm(
                                             ::buffa::alloc::boxed::Box::new(
                                                 v.to_owned_from_source(__buffa_src)?,
                                             ),
@@ -5779,6 +6007,36 @@ pub mod __buffa {
                                 += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                                     + inner as u64;
                         }
+                        super::super::__buffa::view::oneof::action_args::Arguments::Cover(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::action_args::Arguments::Lock(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::action_args::Arguments::Alarm(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
                     }
                 }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -5849,6 +6107,36 @@ pub mod __buffa {
                         ) => {
                             ::buffa::types::put_len_delimited_header(
                                 6u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::action_args::Arguments::Cover(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                7u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::action_args::Arguments::Lock(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                8u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::action_args::Arguments::Alarm(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                9u32,
                                 u64::from(__cache.consume_next()),
                                 buf,
                             );
@@ -10534,6 +10822,27 @@ pub mod __buffa {
                             >,
                         >,
                     ),
+                    Cover(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::controls::v1::__buffa::view::CoverActionView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Lock(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::controls::v1::__buffa::view::LockActionView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Alarm(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::super::super::controls::v1::__buffa::view::AlarmActionView<
+                                'a,
+                            >,
+                        >,
+                    ),
                 }
             }
             pub mod get_action_response {
@@ -10598,6 +10907,21 @@ pub mod __buffa {
                 Helper(
                     ::buffa::alloc::boxed::Box<
                         super::super::super::super::super::helpers::v1::HelperAction,
+                    >,
+                ),
+                Cover(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::controls::v1::CoverAction,
+                    >,
+                ),
+                Lock(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::controls::v1::LockAction,
+                    >,
+                ),
+                Alarm(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::super::super::controls::v1::AlarmAction,
                     >,
                 ),
             }
@@ -10669,6 +10993,54 @@ pub mod __buffa {
             for ::core::option::Option<Arguments> {
                 fn from(
                     v: super::super::super::super::super::helpers::v1::HelperAction,
+                ) -> Self {
+                    Self::Some(Arguments::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::CoverAction>
+            for Arguments {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::CoverAction,
+                ) -> Self {
+                    Self::Cover(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::CoverAction>
+            for ::core::option::Option<Arguments> {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::CoverAction,
+                ) -> Self {
+                    Self::Some(Arguments::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::LockAction>
+            for Arguments {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::LockAction,
+                ) -> Self {
+                    Self::Lock(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::LockAction>
+            for ::core::option::Option<Arguments> {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::LockAction,
+                ) -> Self {
+                    Self::Some(Arguments::from(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::AlarmAction>
+            for Arguments {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::AlarmAction,
+                ) -> Self {
+                    Self::Alarm(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::super::super::controls::v1::AlarmAction>
+            for ::core::option::Option<Arguments> {
+                fn from(
+                    v: super::super::super::super::super::controls::v1::AlarmAction,
                 ) -> Self {
                     Self::Some(Arguments::from(v))
                 }

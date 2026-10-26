@@ -1,0 +1,97 @@
+syntax = "proto3";
+package home.controls.v1;
+
+option go_package = "github.com/damione1/Homeward/gen/home/controls/v1;controlsv1";
+
+// Instance-specific command limits. Observed positions are independently 0..100.
+message PercentBounds {
+  double minimum = 1;
+  double maximum = 2;
+  optional double step = 3;
+}
+enum CoverState {
+  COVER_STATE_UNSPECIFIED = 0;
+  // Open includes a stopped, partly open cover; it does not imply position 100.
+  COVER_STATE_OPEN = 1;
+  COVER_STATE_CLOSED = 2;
+  COVER_STATE_OPENING = 3;
+  COVER_STATE_CLOSING = 4;
+}
+enum CoverOperation {
+  COVER_OPERATION_UNSPECIFIED = 0;
+  COVER_OPERATION_OPEN = 1;
+  COVER_OPERATION_CLOSE = 2;
+  COVER_OPERATION_STOP = 3;
+}
+message CoverConstraints {
+  repeated CoverOperation operations = 1;
+  PercentBounds set_position_percent = 2;
+  repeated CoverState observed_states = 3;
+  bool observes_position_percent = 4;
+  bool observes_obstruction = 5;
+}
+message CoverValue {
+  optional CoverState state = 1;
+  // Zero is a present closed position; absence means no position reading.
+  optional double position_percent = 2;
+  optional bool obstructed = 3;
+}
+message CoverAction {
+  oneof command {
+    CoverOperation operation = 1;
+    double position_percent = 2;
+  }
+}
+
+enum LockState {
+  LOCK_STATE_UNSPECIFIED = 0;
+  LOCK_STATE_LOCKED = 1;
+  LOCK_STATE_UNLOCKED = 2;
+  LOCK_STATE_LOCKING = 3;
+  LOCK_STATE_UNLOCKING = 4;
+  LOCK_STATE_JAMMED = 5;
+  LOCK_STATE_OPENING = 6;
+  LOCK_STATE_OPEN = 7;
+}
+enum LockOperation {
+  LOCK_OPERATION_UNSPECIFIED = 0;
+  LOCK_OPERATION_LOCK = 1;
+  LOCK_OPERATION_UNLOCK = 2;
+}
+message LockConstraints {
+  repeated LockOperation operations = 1;
+  repeated LockState observed_states = 2;
+}
+message LockValue { LockState state = 1; }
+message LockAction { LockOperation operation = 1; }
+
+enum AlarmState {
+  ALARM_STATE_UNSPECIFIED = 0;
+  ALARM_STATE_DISARMED = 1;
+  ALARM_STATE_ARMED_HOME = 2;
+  ALARM_STATE_ARMED_AWAY = 3;
+  ALARM_STATE_ARMED_NIGHT = 4;
+  ALARM_STATE_ARMED_VACATION = 5;
+  ALARM_STATE_ARMED_CUSTOM_BYPASS = 6;
+  ALARM_STATE_PENDING = 7;
+  ALARM_STATE_ARMING = 8;
+  ALARM_STATE_DISARMING = 9;
+  ALARM_STATE_TRIGGERED = 10;
+}
+enum AlarmOperation {
+  ALARM_OPERATION_UNSPECIFIED = 0;
+  ALARM_OPERATION_ARM_HOME = 1;
+  ALARM_OPERATION_ARM_AWAY = 2;
+  ALARM_OPERATION_DISARM = 3;
+}
+message AlarmConstraints {
+  repeated AlarmOperation operations = 1;
+  repeated AlarmState observed_states = 2;
+}
+message AlarmValue { AlarmState state = 1; }
+message AlarmAction { AlarmOperation operation = 1; }
+
+// Drivers advertise an operation only when their composed handler can execute
+// it using server-owned configuration. Per-request device codes, unlatching,
+// tilt and other alarm modes are outside this profile, never guessed or coerced.
+// Every action still crosses ordinary session authorization and core admission.

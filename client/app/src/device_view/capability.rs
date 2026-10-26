@@ -2,6 +2,7 @@
 use super::{
     DeviceIntent, Power, Refusal,
     climate::{Climate, Fan},
+    controls::{Alarm, Cover, Lock},
     helper::{Helper, HelperRevision},
     light::ColorTemperature,
     number::Bounds,
@@ -20,6 +21,9 @@ pub(super) enum Control {
     Climate(Climate),
     Fan(Fan),
     Helper(Helper),
+    Cover(Cover),
+    Lock(Lock),
+    Alarm(Alarm),
     Binary,
     Measurement,
     Unsupported,
@@ -110,7 +114,24 @@ impl Control {
                     Self::Unsupported
                 }
             }
-            Some(C::Extension(_) | C::Solar(_) | C::SolarEvent(_)) | None => Self::Unsupported,
+            Some(C::Cover(value)) if capability.schema_id == "core.cover.v1" => Cover::parse(value)
+                .map(Self::Cover)
+                .unwrap_or(Self::Unsupported),
+            Some(C::Lock(value)) if capability.schema_id == "core.lock.v1" => Lock::parse(value)
+                .map(Self::Lock)
+                .unwrap_or(Self::Unsupported),
+            Some(C::Alarm(value)) if capability.schema_id == "core.alarm.v1" => Alarm::parse(value)
+                .map(Self::Alarm)
+                .unwrap_or(Self::Unsupported),
+            Some(
+                C::Extension(_)
+                | C::Solar(_)
+                | C::SolarEvent(_)
+                | C::Cover(_)
+                | C::Lock(_)
+                | C::Alarm(_),
+            )
+            | None => Self::Unsupported,
         }
     }
     pub fn arguments(
@@ -142,6 +163,9 @@ impl Control {
                 | Self::Measurement
                 | Self::Climate(_)
                 | Self::Helper(_)
+                | Self::Cover(_)
+                | Self::Lock(_)
+                | Self::Alarm(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Brightness(value) => match self {
@@ -164,6 +188,9 @@ impl Control {
                 | Self::Climate(_)
                 | Self::Fan(_)
                 | Self::Helper(_)
+                | Self::Cover(_)
+                | Self::Lock(_)
+                | Self::Alarm(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::ColorTemperature(value) => match self {
@@ -183,6 +210,9 @@ impl Control {
                 | Self::Helper(_)
                 | Self::Binary
                 | Self::Measurement
+                | Self::Cover(_)
+                | Self::Lock(_)
+                | Self::Alarm(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Climate(intent) => match self {
@@ -193,6 +223,9 @@ impl Control {
                 | Self::Binary
                 | Self::Measurement
                 | Self::Helper(_)
+                | Self::Cover(_)
+                | Self::Lock(_)
+                | Self::Alarm(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::FanSpeed(speed) => match self {
@@ -203,6 +236,9 @@ impl Control {
                 | Self::Binary
                 | Self::Measurement
                 | Self::Helper(_)
+                | Self::Cover(_)
+                | Self::Lock(_)
+                | Self::Alarm(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
             DeviceIntent::Helper(intent) => match self {
@@ -215,6 +251,48 @@ impl Control {
                 | Self::Fan(_)
                 | Self::Binary
                 | Self::Measurement
+                | Self::Cover(_)
+                | Self::Lock(_)
+                | Self::Alarm(_)
+                | Self::Unsupported => return Err(Refusal::Unsupported),
+            },
+            DeviceIntent::Cover(intent) => match self {
+                Self::Cover(control) => A::Cover(control.arguments(intent)?.into()),
+                Self::Switch { .. }
+                | Self::Light { .. }
+                | Self::Climate(_)
+                | Self::Fan(_)
+                | Self::Helper(_)
+                | Self::Binary
+                | Self::Measurement
+                | Self::Lock(_)
+                | Self::Alarm(_)
+                | Self::Unsupported => return Err(Refusal::Unsupported),
+            },
+            DeviceIntent::Lock(intent) => match self {
+                Self::Lock(control) => A::Lock(control.arguments(intent)?.into()),
+                Self::Switch { .. }
+                | Self::Light { .. }
+                | Self::Climate(_)
+                | Self::Fan(_)
+                | Self::Helper(_)
+                | Self::Binary
+                | Self::Measurement
+                | Self::Cover(_)
+                | Self::Alarm(_)
+                | Self::Unsupported => return Err(Refusal::Unsupported),
+            },
+            DeviceIntent::Alarm(intent) => match self {
+                Self::Alarm(control) => A::Alarm(control.arguments(intent)?.into()),
+                Self::Switch { .. }
+                | Self::Light { .. }
+                | Self::Climate(_)
+                | Self::Fan(_)
+                | Self::Helper(_)
+                | Self::Binary
+                | Self::Measurement
+                | Self::Cover(_)
+                | Self::Lock(_)
                 | Self::Unsupported => return Err(Refusal::Unsupported),
             },
         };

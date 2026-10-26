@@ -251,7 +251,10 @@ fn full_observation_replacement_preserves_false_zero_absence_quality_and_future_
         | wire::observed_state::Value::Climate(_)
         | wire::observed_state::Value::Helper(_)
         | wire::observed_state::Value::Solar(_)
-        | wire::observed_state::Value::SolarEvent(_) => panic!("expected light state"),
+        | wire::observed_state::Value::SolarEvent(_)
+        | wire::observed_state::Value::Cover(_)
+        | wire::observed_state::Value::Lock(_)
+        | wire::observed_state::Value::Alarm(_) => panic!("expected light state"),
     }
     assert_eq!(state.quality.provenance, wire::Provenance::Estimated);
     assert_eq!(original.get(&id).unwrap().state.revision, 1); // Published clones are immutable.

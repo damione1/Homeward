@@ -1,0 +1,2690 @@
+kiosk_mode:
+  user_settings:
+  - users:
+    - kiosk2
+    - kiosk
+    kiosk: true
+    block_overflow: true
+views:
+- title: Home
+  sections:
+  - type: grid
+    cards:
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: Living room
+        icon: mdi:sofa-outline
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/living-room
+        secondary_info: none
+        icon_color: purple
+        fill_container: false
+        multiline_secondary: false
+        layout: vertical
+        secondary: ''
+      - type: custom:mushroom-template-card
+        primary: Dining room
+        icon: mdi:table-furniture
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/dining-room
+        secondary_info: none
+        icon_color: purple
+        layout: vertical
+        secondary: ''
+      - type: custom:mushroom-template-card
+        primary: Kitchen
+        icon: mdi:knife
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/kitchen
+        secondary_info: none
+        icon_color: purple
+        layout: vertical
+        secondary: ''
+      grid_options:
+        rows: auto
+        columns: full
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: Master
+        icon: mdi:bed-king-outline
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/master-bedroom
+        secondary_info: none
+        icon_color: blue
+        layout: vertical
+        secondary: Bedroom
+      - type: custom:mushroom-template-card
+        primary: Eugénie’s
+        icon: mdi:baby-face
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/eugenie-bedroom
+        secondary_info: none
+        icon_color: blue
+        layout: vertical
+        secondary: Bedroom
+      - type: custom:mushroom-template-card
+        primary: Bathroom
+        icon: mdi:shower
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/bathroom
+        secondary_info: none
+        icon_color: blue
+        layout: vertical
+        secondary: ' _'
+      grid_options:
+        columns: full
+        rows: auto
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: 'Damien’s Office '
+        icon: mdi:desk
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/basement
+        secondary_info: none
+        icon_color: teal
+        layout: vertical
+      - type: custom:mushroom-template-card
+        primary: Guest’s Bedroom
+        icon: mdi:bed-double-outline
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/guest-bedroom
+        secondary_info: none
+        icon_color: teal
+        layout: vertical
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: Frontyard
+        icon: mdi:home
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/frontyard
+        secondary_info: none
+        icon_color: green
+        secondary: ''
+        layout: vertical
+        multiline_secondary: true
+      - type: custom:mushroom-template-card
+        primary: Backyard
+        icon: mdi:tree
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/backyard
+        secondary_info: none
+        icon_color: green
+        layout: vertical
+        secondary: ''
+      - type: custom:mushroom-template-card
+        icon: mdi:garage
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/garage
+        secondary_info: none
+        icon_color: green
+        secondary: ''
+        layout: vertical
+        multiline_secondary: true
+        primary: Garage
+      grid_options:
+        rows: auto
+        columns: full
+    - type: custom:horizon-card
+      title: ''
+      moon: true
+      refresh_period: 60
+      fields:
+        sunrise: true
+        sunset: true
+        dawn: false
+        noon: false
+        dusk: false
+        azimuth: false
+        sun_azimuth: false
+        moon_azimuth: false
+        elevation: false
+        sun_elevation: false
+        moon_elevation: false
+        moonrise: false
+        moonset: false
+        moon_phase: false
+      southern_flip: false
+      moon_phase_rotation: -10
+      language: en
+      time_format: language
+      number_format: language
+      latitude: '[EXPURGÉ]'
+      longitude: '[EXPURGÉ]'
+      debug_level: 0
+    column_span: 1
+  - type: grid
+    cards:
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: Good Morning
+        secondary: Work day
+        icon: mdi:sun-angle-outline
+        layout: vertical
+        entity: script.morning_routine_work_day
+        tap_action:
+          action: toggle
+      - type: custom:mushroom-template-card
+        primary: Good Morning
+        secondary: Weekend
+        icon: mdi:sun-angle-outline
+        layout: vertical
+        entity: script.morning_routine_weekend
+        tap_action:
+          action: toggle
+      visibility:
+      - condition: state
+        entity: input_boolean.morning_routine_done
+        state_not: 'on'
+    - type: horizontal-stack
+      cards:
+      - type: tile
+        entity: scene.turn_off_main_floor
+        tap_action:
+          action: toggle
+        color: indigo
+        name: Main floor off
+        icon: mdi:home-floor-0
+        vertical: true
+      - type: tile
+        entity: scene.turn_off_basement
+        vertical: true
+        tap_action:
+          action: toggle
+        color: indigo
+        features_position: bottom
+        name: Basement off
+      - type: tile
+        entity: scene.turn_off_all_lights
+        tap_action:
+          action: toggle
+        color: indigo
+        name: All lights off
+        vertical: true
+        icon: mdi:home-lightbulb-outline
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: Scenes
+        secondary: ''
+        icon: mdi:lightbulb
+        icon_color: amber
+        layout: vertical
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/scenes
+      - type: custom:mushroom-template-card
+        primary: Overview
+        secondary: ''
+        icon: mdi:eye
+        icon_color: green
+        layout: vertical
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/check
+      - type: custom:mushroom-template-card
+        primary: Security
+        secondary: ''
+        icon: mdi:cctv
+        icon_color: red
+        layout: vertical
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/security
+    - type: horizontal-stack
+      cards:
+      - type: custom:mushroom-template-card
+        primary: Climate
+        secondary: '-'
+        icon: mdi:temperature-celsius
+        icon_color: red
+        layout: vertical
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/climate
+      - type: custom:mushroom-template-card
+        primary: Music
+        secondary: '-'
+        icon: mdi:music
+        icon_color: blue
+        layout: vertical
+        tap_action:
+          action: navigate
+          navigation_path: /d5369777_music_assistant
+      - type: tile
+        entity: todo.shopping_list
+        name: Lists
+        vertical: true
+        hide_state: false
+        show_entity_picture: false
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/lists
+        icon_tap_action:
+          action: navigate
+          navigation_path: /lovelace/lists
+        hold_action:
+          action: navigate
+          navigation_path: /lovelace/lists
+        color: deep-purple
+        features_position: bottom
+    - type: tile
+      entity: climate.home
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+      tap_action:
+        action: navigate
+        navigation_path: /lovelace/climate
+    - type: tile
+      entity: person.damien
+      state_content:
+      - state
+      - last_changed
+      tap_action:
+        action: none
+      hold_action:
+        action: more-info
+      visibility:
+      - condition: screen
+        media_query: '(min-width: 768px)'
+    - type: tile
+      entity: person.katarina
+      state_content:
+      - state
+      - last_changed
+      tap_action:
+        action: none
+      hold_action:
+        action: more-info
+      visibility:
+      - condition: screen
+        media_query: '(min-width: 768px)'
+    - type: tile
+      entity: person.irina
+      state_content:
+      - state
+      - last_changed
+      tap_action:
+        action: none
+      hold_action:
+        action: more-info
+      visibility:
+      - condition: screen
+        media_query: '(min-width: 768px)'
+    column_span: 1
+  - type: grid
+    cards:
+    - type: tile
+      entity: alarm_control_panel.konnected_8813bf465e98_konnected_alarm
+      name: Alarm
+      vertical: true
+      features:
+      - type: alarm-modes
+        modes:
+        - armed_home
+        - armed_away
+        - armed_night
+      grid_options:
+        columns: full
+      visibility:
+      - condition: or
+        conditions:
+        - condition: state
+          entity: alarm_control_panel.konnected_8813bf465e98_konnected_alarm
+          state_not: disarmed
+        - condition: state
+          entity: alarm_control_panel.alarm
+          state: unavailable
+    - type: tile
+      entity: binary_sensor.basement_leak_sensor_water_leak
+      grid_options:
+        columns: full
+        rows: 2
+      vertical: true
+      icon: mdi:water
+      name: Basement leak
+      color: red
+      show_entity_picture: false
+      hide_state: false
+      visibility:
+      - condition: state
+        entity: binary_sensor.basement_leak_sensor_water_leak
+        state: 'on'
+    - type: tile
+      entity: cover.konnected_52362c_garage_door
+      visibility:
+      - condition: or
+        conditions:
+        - condition: state
+          entity: cover.konnected_52362c_garage_door
+          state: closing
+        - condition: state
+          entity: cover.konnected_52362c_garage_door
+          state: open
+        - condition: state
+          entity: cover.konnected_52362c_garage_door
+          state: opening
+      grid_options:
+        columns: full
+        rows: 2
+      vertical: true
+      icon: mdi:garage
+      name: Garage door
+      color: red
+      show_entity_picture: false
+      hide_state: false
+      state_content:
+      - last_changed
+      - state
+    - type: tile
+      entity: binary_sensor.kitchen_sink_leak_sensor_water_leak
+      grid_options:
+        columns: full
+        rows: 2
+      vertical: true
+      icon: mdi:water
+      name: Leak under kitchen sink
+      color: red
+      show_entity_picture: false
+      hide_state: false
+      visibility:
+      - condition: state
+        entity: binary_sensor.kitchen_sink_leak_sensor_water_leak
+        state: 'on'
+    - type: tile
+      grid_options:
+        rows: 2
+        columns: full
+      visibility:
+      - condition: state
+        entity: binary_sensor.entrance_package_detected
+        state: 'on'
+      entity: binary_sensor.package_all_occupancy
+      name: Package detected
+      icon: mdi:package-variant-closed-check
+      color: red
+      show_entity_picture: false
+      hide_state: true
+      vertical: true
+      features_position: bottom
+    - type: tile
+      grid_options:
+        columns: full
+        rows: 2
+      visibility:
+      - condition: state
+        entity: input_boolean.washing_machine_running
+        state: 'on'
+      entity: input_boolean.washing_machine_running
+      name:
+        type: entity
+      icon: ''
+      color: primary
+      show_entity_picture: false
+      hide_state: false
+      state_content: last_changed
+      vertical: true
+      tap_action:
+        action: none
+      icon_tap_action:
+        action: none
+      features_position: bottom
+    - type: custom:clock-weather-card
+      entity: weather.maison
+      sun_entity: sun.sun
+      weather_icon_type: line
+      animated_icon: false
+      forecast_rows: 5
+      locale: en-CA
+      time_pattern: HH:mm
+      time_format: 24
+      date_pattern: ccc, d.MM.yy
+      hide_today_section: false
+      hide_forecast_section: false
+      show_humidity: true
+      hide_clock: false
+      hide_date: false
+      hourly_forecast: false
+      use_browser_time: false
+      time_zone: null
+      show_decimal: false
+    - entities:
+      - calendar.anniversaires
+      - entity: calendar.black_bin_collections
+        label: mdi:trash-can
+        color: ''
+      - entity: calendar.blue_bin_collections
+        label: mdi:trash-can-outline
+        color: blue
+        accent_color: blue
+      - entity: calendar.calendar
+      - entity: calendar.famille
+      - entity: calendar.holidays
+      days_to_show: 7
+      weather:
+        position: date
+        date:
+          show_conditions: true
+          show_high_temp: true
+          show_low_temp: true
+          icon_size: 14px
+          font_size: 12px
+          color: var(--primary-text-color)
+        event:
+          show_conditions: true
+          show_temp: true
+          icon_size: 14px
+          font_size: 12px
+          color: var(--primary-text-color)
+        entity: weather.maison
+      type: custom:calendar-card-pro
+    - type: tile
+      entity: image.wifi
+      show_entity_picture: false
+      hide_state: true
+      color: primary
+      icon: mdi:wifi
+    column_span: 1
+  cards: []
+  badges: []
+  type: sections
+  max_columns: 3
+  dense_section_placement: true
+  subview: false
+  icon: mdi:home
+- type: sections
+  max_columns: 2
+  path: bathroom
+  title: Bathroom
+  icon: mdi:shower
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Bathroom
+      heading_style: title
+      icon: mdi:shower
+    - type: tile
+      entity: climate.neviweb130_climate_salle_de_bain
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+  - type: grid
+    cards:
+    - type: heading
+      heading_style: title
+      heading: Sonos
+    - type: tile
+      entity: media_player.bathroom
+      show_entity_picture: true
+      state_content: media_channel
+      vertical: false
+      features:
+      - type: media-player-volume-slider
+      features_position: bottom
+  cards: []
+  subview: true
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '#  Bathroom'
+- type: sections
+  max_columns: 1
+  title: Dining room
+  path: dining-room
+  icon: mdi:table-chair
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Dining Room
+      heading_style: title
+      icon: mdi:table-furniture
+    - features:
+      - type: target-temperature
+      type: tile
+      entity: climate.neviweb130_climate_salle_a_manger
+      grid_options:
+        columns: full
+      color: accent
+      show_entity_picture: false
+      vertical: false
+      hide_state: false
+      icon: mdi:home-thermometer-outline
+    - type: tile
+      entity: light.dining_room_pendants
+      vertical: false
+      hide_state: false
+      grid_options:
+        columns: full
+        rows: 1
+      show_entity_picture: false
+      features:
+      - type: light-brightness
+  subview: true
+  cards: []
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Dining room'
+- type: sections
+  max_columns: 2
+  title: Living Room
+  path: living-room
+  icon: mdi:sofa
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Scenes
+      heading_style: title
+      icon: mdi:progress-star
+    - type: tile
+      visibility:
+      - condition: time
+        after: '17:00:00'
+        before: '23:00:00'
+        weekdays: []
+      entity: script.dodo
+      name: Dodo
+      icon: mdi:sleep
+      color: deep-purple
+      vertical: true
+      tap_action:
+        action: call-service
+        service: script.turn_on
+        target:
+          entity_id: script.dodo
+      features_position: bottom
+      grid_options:
+        columns: 12
+        rows: 2
+    - type: tile
+      entity: scene.living_room_daylight
+      vertical: true
+      tap_action:
+        action: toggle
+      color: accent
+      name: Daylight
+    - type: tile
+      entity: scene.living_room_in_between
+      vertical: true
+      tap_action:
+        action: toggle
+      color: red
+      name: In between
+    - type: tile
+      entity: scene.cosy
+      vertical: true
+      tap_action:
+        action: toggle
+      color: pink
+      name: Cosy
+    - type: tile
+      entity: scene.turn_off_living_room
+      vertical: true
+      tap_action:
+        action: toggle
+      color: primary
+      name: Night
+    - type: heading
+      heading_style: title
+      icon: mdi:lightbulb
+      heading: Controls
+    - type: tile
+      entity: light.living_room_lights
+      features:
+      - type: light-brightness
+      tap_action:
+        action: toggle
+      hide_state: true
+    - type: tile
+      entity: light.living_room_stairs
+      features:
+      - type: light-brightness
+      tap_action:
+        action: toggle
+      hide_state: true
+    - type: tile
+      entity: light.table_lamp
+      name: Table lamp
+      icon: mdi:lamp
+      hide_state: true
+      vertical: false
+      tap_action:
+        action: toggle
+      features_position: bottom
+      features:
+      - type: light-brightness
+      - type: light-color-temp
+    - type: tile
+      entity: switch.design_lamp_relay
+      name: Design lamp
+      icon: mdi:floor-lamp
+      tap_action:
+        action: toggle
+      hide_state: true
+    - type: tile
+      entity: light.library_lamp
+      name: Library lamp
+      icon: mdi:lamp
+      hide_state: true
+      vertical: false
+      tap_action:
+        action: toggle
+      features_position: bottom
+      features:
+      - type: light-brightness
+      - type: light-color-temp
+    - type: tile
+      entity: fan.living_room_ceiling_fan
+      features:
+      - type: fan-speed
+      hide_state: true
+  - type: grid
+    cards:
+    - type: heading
+      heading: Living room
+      heading_style: title
+      icon: mdi:sofa-outline
+    - type: tile
+      entity: climate.home
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: climate.neviweb130_climate_living_room
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: media_player.shield_2
+      name: TV
+      icon: mdi:youtube-tv
+      features:
+      - type: media-player-volume-slider
+    - type: tile
+      entity: script.baby_monitor_toggle
+      name: Open/Close baby monitor
+      icon: mdi:baby-face
+      show_entity_picture: false
+      hide_state: true
+      vertical: true
+      features_position: bottom
+    - type: heading
+      heading: Sonos
+      heading_style: title
+    - type: tile
+      entity: media_player.living_room_2
+      show_entity_picture: true
+      state_content: media_channel
+      vertical: false
+      features:
+      - type: media-player-volume-slider
+      features_position: bottom
+  cards: []
+  subview: true
+  dense_section_placement: true
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Living room'
+  top_margin: true
+- type: sections
+  max_columns: 1
+  title: Master Bedroom
+  path: master-bedroom
+  icon: mdi:bed-king-outline
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Master Bedroom
+      heading_style: title
+      icon: mdi:bed-king-outline
+    - features:
+      - type: light-brightness
+      type: tile
+      entity: light.master_bedroom_table_lamps
+      vertical: true
+      hide_state: true
+      grid_options:
+        rows: 1
+      show_entity_picture: false
+      icon: mdi:floor-lamp
+      name: Bed lights
+      features_position: bottom
+    - type: tile
+      entity: switch.eugenie_webcam_relay
+      vertical: true
+      hide_state: false
+      grid_options:
+        rows: 1
+      show_entity_picture: false
+      icon: mdi:cctv
+      name: Camera
+      features_position: bottom
+      tap_action:
+        action: toggle
+      icon_tap_action:
+        action: toggle
+    - type: tile
+      entity: climate.neviweb130_climate_chambre_principale
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+  - type: grid
+    cards:
+    - type: heading
+      heading: Bedroom
+    - type: tile
+      entity: binary_sensor.bedroom_motion
+    - type: tile
+      entity: binary_sensor.bedroom_occupancy
+    - type: tile
+      entity: sensor.bedroom_temperature
+  subview: true
+  cards: []
+  badges: []
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Master bedroom'
+    layout: responsive
+    badges_position: bottom
+    badges_wrap: scroll
+  dense_section_placement: false
+  background:
+    opacity: 33
+    alignment: center
+    size: cover
+    repeat: repeat
+    attachment: fixed
+- type: sections
+  max_columns: 1
+  title: 'Eugénie’s Bedroom  '
+  path: eugenie-bedroom
+  icon: mdi:baby-face-outline
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: 'Eugénie’s Bedroom '
+      heading_style: title
+      icon: mdi:baby-face-outline
+    - type: tile
+      entity: climate.neviweb130_climate_chambre_eugenie
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: light.eugenie_bedroom_light
+      features:
+      - type: light-brightness
+      tap_action:
+        action: toggle
+      hide_state: true
+  subview: true
+  cards: []
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Eugénie''s bedroom'
+- type: sections
+  max_columns: 4
+  title: Basement
+  path: basement
+  icon: mdi:home-floor-b
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      entity: climate.neviweb130_climate_sous_sol
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+      grid_options:
+        columns: 12
+        rows: 2
+    - type: tile
+      vertical: true
+      hide_state: true
+      grid_options:
+        rows: 1
+        columns: full
+      show_entity_picture: false
+      icon: ''
+      name: Main lights
+      tap_action:
+        action: toggle
+      features_position: bottom
+      entity: light.basement_sitting_area_spot_lights
+      features:
+      - type: light-brightness
+  - type: grid
+    cards:
+    - type: heading
+      heading: Desk Zone
+      heading_style: title
+      icon: mdi:desk
+    - features:
+      - type: light-brightness
+      type: tile
+      entity: light.wled_desk
+      vertical: true
+      hide_state: false
+      grid_options:
+        rows: 1
+      show_entity_picture: false
+      icon: ''
+      name: Desk back
+    - type: custom:mushroom-select-card
+      entity: select.wled_desk_preset
+      fill_container: false
+      layout: vertical
+    - type: tile
+      grid_options:
+        rows: 3
+        columns: 6
+      entity: switch.vintage_lamp_relay
+      name: Desk lamp
+      icon: mdi:desk-lamp-on
+      show_entity_picture: false
+      hide_state: true
+      vertical: true
+      features_position: bottom
+    - type: tile
+      entity: scene.basement_work_mode
+      vertical: true
+      tap_action:
+        action: toggle
+      color: teal
+      name: Work scene
+    - type: tile
+      entity: scene.turn_off_basement
+      vertical: true
+      tap_action:
+        action: toggle
+      color: indigo
+      name: Turn off basement
+  - type: grid
+    cards:
+    - type: heading
+      heading_style: title
+      heading: TV Zone
+      icon: mdi:sofa-outline
+    - type: tile
+      entity: switch.basement_relay
+      vertical: true
+      hide_state: true
+      grid_options:
+        rows: 1
+      show_entity_picture: false
+      icon: mdi:floor-lamp-dual
+      name: TV Lamp
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: media_player.basement
+      grid_options:
+        columns: 6
+        rows: 2
+  - type: grid
+    cards:
+    - type: heading
+      heading: Sensors
+      heading_style: title
+    - type: tile
+      entity: switch.3d_printer_relay
+      vertical: true
+      hide_state: true
+      show_entity_picture: false
+      icon: mdi:printer-3d-nozzle
+      name: 3D Printer
+  cards: []
+  subview: true
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Basement'
+- type: sections
+  max_columns: 2
+  title: Kitchen
+  path: kitchen
+  icon: mdi:knife
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Kitchen
+      heading_style: title
+      icon: mdi:knife
+    - type: tile
+      entity: climate.neviweb130_climate_plancher_cuisine
+      icon: mdi:heating-coil
+      name: Heated floor
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+      grid_options:
+        columns: 12
+        rows: 2
+    - features:
+      - type: light-brightness
+      type: tile
+      entity: light.kitchen_main_lights
+      vertical: true
+      hide_state: false
+      grid_options:
+        rows: 1
+      show_entity_picture: false
+      icon: ''
+      name: Main
+    - features:
+      - type: light-brightness
+      type: tile
+      entity: light.kitchen_lights
+      vertical: true
+      hide_state: false
+      grid_options:
+        rows: 1
+      show_entity_picture: false
+      icon: ''
+      name: Countertop
+    - features:
+      - type: light-brightness
+      type: tile
+      entity: light.kitchen_sink_light
+      vertical: true
+      hide_state: false
+      grid_options:
+        rows: 1
+      show_entity_picture: false
+      icon: mdi:faucet
+      name: Sink
+    - features:
+      - type: light-brightness
+      type: tile
+      entity: light.kitchen_table_pendants
+      vertical: true
+      hide_state: false
+      grid_options:
+        rows: 1
+      show_entity_picture: false
+      icon: ''
+      name: Pendant
+    - type: heading
+      heading: Scenes
+      heading_style: title
+      icon: mdi:creation-outline
+    - type: horizontal-stack
+      cards:
+      - type: tile
+        entity: scene.night_mode
+        vertical: true
+        tap_action:
+          action: toggle
+        color: primary
+        name: Night
+      - type: tile
+        entity: scene.kitchen_cosy_mode
+        vertical: true
+        tap_action:
+          action: toggle
+        color: purple
+        name: Cosy
+      - type: tile
+        entity: scene.kitchen_cooking_mode
+        vertical: true
+        tap_action:
+          action: toggle
+        color: red
+        name: Cooking mode
+    - type: heading
+      heading: Others
+      heading_style: title
+    - type: tile
+      entity: binary_sensor.kitchen_sink_leak_sensor_water_leak
+      name: Leak Sensor
+  - type: grid
+    cards:
+    - type: heading
+      heading: Sonos
+      heading_style: title
+    - type: tile
+      entity: media_player.kitchen
+      show_entity_picture: true
+      state_content: media_channel
+      vertical: false
+      features:
+      - type: media-player-volume-slider
+      features_position: bottom
+  cards: []
+  dense_section_placement: true
+  subview: true
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Kitchen'
+- type: sections
+  max_columns: 2
+  title: Security
+  path: security
+  icon: mdi:cctv
+  sections:
+  - type: grid
+    cards:
+    - type: custom:frigate-card
+      cameras:
+      - camera_entity: camera.driveway
+        live_provider: go2rtc
+      view:
+        default: live
+      live:
+        lazy_load: false
+        draggable: false
+        zoomable: false
+        controls:
+          builtin: false
+      menu:
+        style: none
+      event_viewer:
+        auto_play: false
+        auto_unmute: false
+        controls:
+          builtin: false
+      media_viewer:
+        controls:
+          builtin: false
+      image:
+        mode: camera
+      performance:
+        style:
+          border_radius: false
+          box_shadow: false
+        features:
+          animated_progress_indicator: false
+          card_loading_indicator: false
+          media_loaded_info: false
+    - type: custom:frigate-card
+      cameras:
+      - camera_entity: camera.backyard_low_resolution_channel
+        live_provider: webrtc-card
+        webrtc_card:
+          entity: camera.backyard_low_resolution_channel
+      view:
+        default: live
+      live:
+        lazy_load: true
+        draggable: false
+        zoomable: false
+        controls:
+          builtin: false
+      visibility:
+      - condition: screen
+        media_query: '(min-width: 768px)'
+      menu:
+        style: none
+      performance:
+        style:
+          border_radius: false
+          box_shadow: false
+        features:
+          animated_progress_indicator: false
+          card_loading_indicator: false
+  - type: grid
+    cards:
+    - type: custom:frigate-card
+      cameras:
+      - camera_entity: camera.side_entrance_low_resolution_channel
+        live_provider: webrtc-card
+        webrtc_card:
+          entity: camera.side_entrance_low_resolution_channel
+      view:
+        default: live
+      live:
+        lazy_load: true
+        draggable: false
+        zoomable: false
+        controls:
+          builtin: false
+      visibility:
+      - condition: screen
+        media_query: '(min-width: 768px)'
+      menu:
+        style: none
+      performance:
+        style:
+          border_radius: false
+          box_shadow: false
+        features:
+          animated_progress_indicator: false
+          card_loading_indicator: false
+    - type: custom:frigate-card
+      cameras:
+      - camera_entity: camera.porch_low_resolution_channel
+        live_provider: webrtc-card
+        webrtc_card:
+          entity: camera.porch_low_resolution_channel
+      view:
+        default: live
+      live:
+        lazy_load: true
+        draggable: false
+        zoomable: false
+        controls:
+          builtin: false
+      visibility:
+      - condition: screen
+        media_query: '(min-width: 768px)'
+      menu:
+        style: none
+      performance:
+        style:
+          border_radius: false
+          box_shadow: false
+        features:
+          animated_progress_indicator: false
+          card_loading_indicator: false
+  - type: grid
+    cards:
+    - type: heading
+      heading: Sensors
+      heading_style: title
+    - type: tile
+      entity: binary_sensor.konnected_8813bf465e98_basement
+      show_entity_picture: false
+      vertical: true
+      name: Basement
+      tap_action:
+        action: none
+      icon_tap_action:
+        action: none
+      hold_action:
+        action: more-info
+      state_content:
+      - state
+      - last_changed
+    - type: tile
+      entity: binary_sensor.konnected_8813bf465e98_living_room
+      show_entity_picture: false
+      vertical: true
+      name: Living room
+      tap_action:
+        action: none
+      icon_tap_action:
+        action: none
+      hold_action:
+        action: more-info
+      state_content:
+      - state
+      - last_changed
+    - type: tile
+      entity: binary_sensor.konnected_8813bf465e98_server_room
+      show_entity_picture: false
+      vertical: true
+      name: Server room
+      tap_action:
+        action: none
+      icon_tap_action:
+        action: none
+      hold_action:
+        action: more-info
+      state_content:
+      - state
+      - last_changed
+    - type: tile
+      entity: binary_sensor.driveway_person_detected
+      show_entity_picture: false
+      vertical: true
+      tap_action:
+        action: none
+      icon_tap_action:
+        action: none
+      hold_action:
+        action: more-info
+      state_content:
+      - state
+      - last_changed
+  - type: grid
+    cards:
+    - type: tile
+      entity: alarm_control_panel.konnected_8813bf465e98_konnected_alarm
+      name: Alarm
+      vertical: true
+      features:
+      - type: alarm-modes
+        modes:
+        - armed_home
+        - armed_away
+        - armed_night
+      grid_options:
+        columns: full
+    - type: tile
+      entity: light.switch_porch
+      icon: mdi:outdoor-lamp
+      tap_action:
+        action: toggle
+      features_position: bottom
+      vertical: true
+    - type: tile
+      entity: switch.gazebo_lights
+      icon: mdi:string-lights
+      tap_action:
+        action: toggle
+      features_position: bottom
+      vertical: true
+  - type: grid
+    cards:
+    - type: history-graph
+      entities:
+      - entity: alarm_control_panel.konnected_8813bf465e98_konnected_alarm
+      - entity: binary_sensor.konnected_8813bf465e98_basement
+      - entity: binary_sensor.konnected_8813bf465e98_living_room
+      - entity: binary_sensor.konnected_8813bf465e98_server_room
+      - entity: binary_sensor.konnected_52362c_motion
+      hours_to_show: 1
+    - type: history-graph
+      entities:
+      - entity: person.damien
+      - entity: person.katarina
+      - entity: person.irina
+      hours_to_show: 1
+  subview: true
+  cards: []
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Security'
+  dense_section_placement: true
+- type: sections
+  max_columns: 4
+  title: At a glance
+  path: check
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading_style: title
+      heading: 'Batteries '
+      icon: mdi:battery
+    - type: tile
+      entity: sensor.basement_leak_sensor_battery
+      name: 'Basement Leak Sensor '
+    - type: tile
+      entity: sensor.garage_door_battery
+      name: Garage Door
+    - type: tile
+      entity: sensor.damien_s_office_door_battery
+      name: 'Damien’s office door '
+    - type: tile
+      entity: sensor.kitchen_ikea_switch_battery
+      name: Kitchen Switch
+    - type: tile
+      entity: sensor.sonos_remote_kitchen_battery
+    - type: tile
+      entity: sensor.bathroom_motion_battery
+      vertical: false
+      features_position: bottom
+    - type: tile
+      entity: sensor.kitchen_sink_leak_sensor_battery
+      name: Kitchen Sink Leak Sensor
+    - type: tile
+      entity: sensor.desk_switch_battery
+      name: Desk Remote
+    - type: tile
+      entity: sensor.bedroom_battery
+      name: Ecobee Bedroom Sensor
+    - type: heading
+      icon: mdi:cellphone
+      heading: Phones
+      heading_style: title
+    - type: tile
+      entity: sensor.pixel_8_battery_level
+      name: Damien’s phone
+    - type: tile
+      entity: sensor.pixel_8_katarina_battery_level
+      name: Katarina’s phone
+      hide_state: false
+      vertical: false
+  - type: grid
+    cards:
+    - type: heading
+      heading: Leak
+      heading_style: title
+      icon: mdi:water-outline
+    - type: tile
+      entity: binary_sensor.basement_leak_sensor_water_leak
+    - type: tile
+      entity: binary_sensor.kitchen_sink_leak_sensor_water_leak
+  - type: grid
+    cards:
+    - type: heading
+      heading: Ups
+    - type: tile
+      entity: sensor.ups_battery_charge
+    - type: tile
+      entity: sensor.ups_input_voltage
+    - type: tile
+      entity: sensor.ups_load
+    - type: tile
+      entity: sensor.ups_status
+    - type: tile
+      entity: sensor.ups_status_data
+  - type: grid
+    cards:
+    - type: heading
+      heading: Hilo
+      heading_style: title
+    - type: tile
+      entity: sensor.meter00_power
+      name: Instant Consuption
+      icon: mdi:transmission-tower-export
+    - type: tile
+      entity: sensor.defi_hilo
+      name: Defi
+      icon: mdi:lightning-bolt
+    - type: tile
+      entity: sensor.recompenses_hilo
+      icon: mdi:hand-coin
+      name: Rewards
+    - type: tile
+      entity: sensor.notifications_hilo
+      name: Notification
+      icon: mdi:bell
+    column_span: 1
+  - type: grid
+    cards:
+    - type: heading
+      heading: Options
+      heading_style: title
+      icon: mdi:wrench
+    - type: tile
+      entity: input_boolean.guests
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: input_boolean.heating_season
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: binary_sensor.garage_door_contact
+    - type: tile
+      entity: switch.presence_simulator
+    - type: tile
+      entity: binary_sensor.bathroom_motion_occupancy
+    - type: tile
+      entity: sensor.bathroom_motion_illuminance
+  - type: grid
+    cards:
+    - type: heading
+      heading_style: title
+      heading: Bins
+      icon: mdi:trash-can
+    - type: custom:mushroom-template-card
+      primary: Black bin collection
+      secondary: "{% set midnight = today_at() %}\n{% set event = state_attr('calendar.black_bin_collections', 'start_time')\
+        \ | as_datetime | as_local %}\n{% set delta = event - midnight %}\n{% if delta.days == 0 %}\n  Today\n{%\
+        \ elif delta.days == 1 %}\n  Tomorrow\n{% elif delta.days == 2 %}\n  Day After Tomorrow\n{% else %}\n  In\
+        \ {{ delta.days }} Days\n{% endif %}"
+      icon: mdi:trash-can
+      icon_color: grey
+      tap_action:
+        action: none
+      layout: vertical
+    - type: custom:mushroom-template-card
+      primary: Blue bin collection
+      secondary: "{% set midnight = today_at() %}\n{% set event = state_attr('calendar.blue_bin_collections', 'start_time')\
+        \ | as_datetime | as_local %}\n{% set delta = event - midnight %}\n{% if delta.days == 0 %}\n  Today\n{%\
+        \ elif delta.days == 1 %}\n  Tomorrow\n{% elif delta.days == 2 %}\n  Day After Tomorrow\n{% else %}\n  In\
+        \ {{ delta.days }} Days\n{% endif %}"
+      icon: mdi:trash-can
+      icon_color: blue
+      tap_action:
+        action: none
+      layout: vertical
+    - type: custom:mushroom-template-card
+      primary: Green bin collection
+      secondary: "{% set midnight = today_at() %}\n{% set event = state_attr('calendar.green_bin_collections', 'start_time')\
+        \ | as_datetime | as_local %}\n{% set delta = event - midnight %}\n{% if delta.days == 0 %}\n  Today\n{%\
+        \ elif delta.days == 1 %}\n  Tomorrow\n{% elif delta.days == 2 %}\n  Day After Tomorrow\n{% else %}\n  In\
+        \ {{ delta.days }} Days\n{% endif %}"
+      icon: mdi:trash-can
+      icon_color: green
+      tap_action:
+        action: none
+      layout: vertical
+    - type: custom:mushroom-template-card
+      primary: Branches collection
+      secondary: "{% set midnight = today_at() %}\n{% set event = state_attr('calendar.branches_collections', 'start_time')\
+        \ | as_datetime | as_local %}\n{% set delta = event - midnight %}\n{% if delta.days == 0 %}\n  Today\n{%\
+        \ elif delta.days == 1 %}\n  Tomorrow\n{% elif delta.days == 2 %}\n  Day After Tomorrow\n{% else %}\n  In\
+        \ {{ delta.days }} Days\n{% endif %}"
+      icon: mdi:tree
+      icon_color: green
+      tap_action:
+        action: none
+      layout: vertical
+  - type: grid
+    cards:
+    - type: heading
+      heading: Fire Tablet
+    - type: tile
+      entity: button.fire_tablet_bring_to_foreground
+    - type: tile
+      entity: switch.fire_tablet_kiosk_lock
+    - type: tile
+      entity: button.fire_tablet_load_start_url
+    - type: tile
+      entity: switch.fire_tablet_maintenance_mode
+    - type: tile
+      entity: switch.fire_tablet_motion_detection
+    - type: tile
+      entity: button.fire_tablet_restart_browser
+    - type: tile
+      entity: button.fire_tablet_restart_device
+    - type: tile
+      entity: number.fire_tablet_screen_brightness
+    - type: tile
+      entity: number.fire_tablet_screen_off_timer
+    - type: tile
+      entity: number.fire_tablet_screensaver_brightness
+    - type: tile
+      entity: number.fire_tablet_screensaver_timer
+    - type: tile
+      entity: button.fire_tablet_send_to_background
+  - type: grid
+    cards:
+    - type: heading
+      heading: Fire Tablet
+    - type: tile
+      entity: media_player.fire_tablet
+    - type: tile
+      entity: switch.fire_tablet_screen
+    - type: tile
+      entity: switch.fire_tablet_screensaver
+  - type: grid
+    cards:
+    - type: heading
+      heading: Garage Door
+    - type: tile
+      entity: sensor.konnected_52362c_garage_openings
+    - type: tile
+      entity: binary_sensor.konnected_52362c_motion
+    - type: tile
+      entity: binary_sensor.konnected_52362c_motor
+    - type: tile
+      entity: binary_sensor.konnected_52362c_obstruction
+    - type: tile
+      entity: binary_sensor.konnected_52362c_synced
+    - type: tile
+      entity: binary_sensor.konnected_52362c_wall_button
+  cards: []
+  icon: mdi:eye
+  dense_section_placement: false
+  subview: true
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Overview'
+- type: sections
+  title: Climate
+  path: climate
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      entity: climate.home
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: climate.neviweb130_climate_chambre_eugenie
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: climate.neviweb130_climate_salle_a_manger
+      icon: mdi:home-thermometer-outline
+      name: Dining room
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: climate.neviweb130_climate_plancher_cuisine
+      icon: mdi:home-thermometer-outline
+      name: Heated floor
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: climate.neviweb130_climate_sous_sol
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: climate.neviweb130_climate_salle_de_bain
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: climate.neviweb130_climate_chambre_sous_sol
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: climate.neviweb130_climate_chambre_principale
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    - type: tile
+      entity: climate.neviweb130_climate_living_room
+      icon: mdi:home-thermometer-outline
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+    column_span: 4
+  max_columns: 2
+  dense_section_placement: false
+  cards: []
+  icon: mdi:home-thermometer-outline
+  subview: true
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  - type: entity
+    entity: sensor.home_current_humidity
+  - type: entity
+    entity: sensor.home_current_temperature
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Climate'
+- type: sections
+  max_columns: 2
+  title: Frontyard
+  path: frontyard
+  icon: mdi:car
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Driveway
+      heading_style: title
+      icon: mdi:car
+    - type: tile
+      entity: cover.konnected_52362c_garage_door
+      grid_options:
+        rows: 2
+        columns: full
+      vertical: true
+      icon: mdi:garage
+      name: Garage door
+      color: red
+      show_entity_picture: false
+      hide_state: false
+      state_content:
+      - last_changed
+      - state
+      features_position: bottom
+    - type: custom:frigate-card
+      cameras:
+      - camera_entity: camera.driveway_low_resolution_channel
+        live_provider: webrtc-card
+        webrtc_card:
+          entity: camera.driveway_low_resolution_channel
+      view:
+        default: live
+      live:
+        lazy_load: true
+        draggable: false
+        zoomable: false
+        controls:
+          builtin: false
+      menu:
+        style: none
+      performance:
+        style:
+          border_radius: false
+          box_shadow: false
+        features:
+          animated_progress_indicator: false
+          card_loading_indicator: false
+  - type: grid
+    cards:
+    - type: heading
+      heading: Porch
+      heading_style: title
+      icon: mdi:door
+    - type: tile
+      entity: camera.porch_package_camera
+      grid_options:
+        rows: 2
+        columns: full
+      vertical: true
+      icon: mdi:package-variant-closed-check
+      name: Package detected
+      color: red
+      show_entity_picture: false
+      hide_state: true
+      visibility:
+      - condition: state
+        entity: binary_sensor.entrance_package_detected
+        state: 'on'
+      features_position: bottom
+    - type: custom:frigate-card
+      cameras:
+      - camera_entity: camera.porch_low_resolution_channel
+        live_provider: webrtc-card
+        webrtc_card:
+          entity: camera.porch_low_resolution_channel
+      view:
+        default: live
+      live:
+        lazy_load: true
+        draggable: false
+        zoomable: false
+        controls:
+          builtin: false
+      menu:
+        style: none
+      performance:
+        style:
+          border_radius: false
+          box_shadow: false
+        features:
+          animated_progress_indicator: false
+          card_loading_indicator: false
+    - type: tile
+      entity: light.switch_porch
+      icon: mdi:outdoor-lamp
+      tap_action:
+        action: toggle
+      features_position: bottom
+      vertical: true
+      grid_options:
+        columns: full
+  - type: grid
+    cards:
+    - type: heading
+      heading: Side
+      heading_style: title
+      icon: mdi:door-closed
+    - type: custom:frigate-card
+      cameras:
+      - camera_entity: camera.side_entrance_low_resolution_channel
+        live_provider: webrtc-card
+        webrtc_card:
+          entity: camera.side_entrance_low_resolution_channel
+      view:
+        default: live
+      live:
+        lazy_load: true
+        draggable: false
+        zoomable: false
+        controls:
+          builtin: false
+      menu:
+        style: none
+      performance:
+        style:
+          border_radius: false
+          box_shadow: false
+        features:
+          animated_progress_indicator: false
+          card_loading_indicator: false
+    - type: tile
+      entity: light.sw_side_entrance_light_switch_01_salon2
+      vertical: true
+      icon: mdi:coach-lamp
+      tap_action:
+        action: toggle
+      features_position: bottom
+      name: 'Side light '
+      grid_options:
+        columns: full
+  subview: true
+  cards: []
+  badges: []
+  header:
+    card:
+      type: markdown
+      content: '# Front'
+      text_only: true
+- type: sections
+  max_columns: 4
+  title: Scenes
+  path: scenes
+  icon: mdi:creation
+  subview: true
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: House
+      heading_style: title
+      icon: mdi:home
+    - type: tile
+      entity: scene.turn_off_all_lights
+      tap_action:
+        action: toggle
+      color: indigo
+      name: Turn off all lights
+      vertical: true
+      icon: mdi:lightbulb-off
+    - type: tile
+      entity: scene.turn_off_basement
+      tap_action:
+        action: toggle
+      color: indigo
+      name: Turn off basement
+      icon: mdi:home-floor-b
+      vertical: true
+    - type: tile
+      entity: scene.turn_off_main_floor
+      tap_action:
+        action: toggle
+      color: indigo
+      name: Turn off main floor
+      icon: mdi:home-floor-0
+      vertical: true
+  - type: grid
+    cards:
+    - type: heading
+      heading: Living Room
+      heading_style: title
+      icon: mdi:sofa
+    - type: tile
+      entity: scene.living_room_daylight
+      tap_action:
+        action: toggle
+      color: accent
+      name: Daylight
+      vertical: true
+      icon: mdi:sun-wireless
+    - type: tile
+      entity: scene.living_room_in_between
+      tap_action:
+        action: toggle
+      color: deep-orange
+      name: In between
+      vertical: true
+      icon: mdi:clouds
+    - type: tile
+      entity: scene.cosy
+      tap_action:
+        action: toggle
+      color: pink
+      name: Cosy
+      vertical: true
+      icon: mdi:sofa
+    - type: tile
+      entity: scene.turn_off_living_room
+      tap_action:
+        action: toggle
+      color: cyan
+      name: Turn off
+      vertical: true
+      icon: mdi:lightbulb-off
+  - type: grid
+    cards:
+    - type: heading
+      heading: Kitchen
+      heading_style: title
+      icon: mdi:knife
+    - type: tile
+      entity: scene.night_mode
+      tap_action:
+        action: toggle
+      color: blue
+      name: Night Mode
+      vertical: true
+      icon: mdi:weather-night
+    - type: tile
+      entity: scene.kitchen_cosy_mode
+      tap_action:
+        action: toggle
+      color: accent
+      name: Cozy Mode
+      vertical: true
+      icon: mdi:weather-night
+    - type: tile
+      entity: scene.kitchen_cooking_mode
+      tap_action:
+        action: toggle
+      color: red
+      name: Cooking Mode
+      vertical: true
+      icon: mdi:fire
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Scenes'
+- type: sections
+  max_columns: 2
+  title: Garage
+  path: garage
+  icon: mdi:garage
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Garage Door
+      heading_style: title
+      icon: mdi:garage-variant
+    - type: tile
+      entity: cover.konnected_52362c_garage_door
+      icon: mdi:garage
+      vertical: true
+      hide_state: false
+      features:
+      - type: cover-open-close
+      - type: cover-position
+      grid_options:
+        columns: full
+    - type: tile
+      entity: light.konnected_52362c_garage_light
+      vertical: true
+      icon: mdi:alarm-light
+      name: Garage door light
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: light.sw_side_entrance_light_switch_01_salon2
+      vertical: true
+      icon: mdi:coach-lamp
+      tap_action:
+        action: toggle
+      features_position: bottom
+      name: 'Side light '
+    - type: tile
+      entity: lock.konnected_52362c_lock
+  - type: grid
+    cards:
+    - type: heading
+      heading: Music
+      heading_style: title
+    - type: tile
+      entity: media_player.garage
+      show_entity_picture: true
+      state_content: media_channel
+      vertical: false
+      features:
+      - type: media-player-volume-slider
+      features_position: bottom
+  - type: grid
+    cards:
+    - type: custom:frigate-card
+      cameras:
+      - live_provider: webrtc-card
+        webrtc_card:
+          entity: camera.garage_high_resolution_channel
+        camera_entity: camera.garage_high_resolution_channel
+      view:
+        default: live
+      live:
+        lazy_load: true
+        draggable: false
+        zoomable: false
+        controls:
+          builtin: false
+      menu:
+        style: none
+      performance:
+        style:
+          border_radius: false
+          box_shadow: false
+        features:
+          animated_progress_indicator: false
+          card_loading_indicator: false
+  subview: true
+  cards: []
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Garage'
+- type: sections
+  max_columns: 1
+  title: Guest's bedroom
+  path: guest-bedroom
+  icon: mdi:account-group
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      vertical: true
+      hide_state: true
+      grid_options:
+        rows: 3
+        columns: 6
+      show_entity_picture: false
+      icon: mdi:wall-sconce-round
+      name: Main lights
+      entity: light.guest_bedroom_main_lights
+      tap_action:
+        action: toggle
+      icon_tap_action:
+        action: more-info
+      features:
+      - type: light-brightness
+    - type: tile
+      grid_options:
+        rows: 3
+        columns: 6
+      entity: light.bed_lamp_guest_bedroom
+      name: Bed lamp
+      icon: mdi:wall-sconce-round
+      show_entity_picture: false
+      hide_state: true
+      vertical: true
+      tap_action:
+        action: toggle
+      icon_tap_action:
+        action: more-info
+      features:
+      - type: light-brightness
+      features_position: bottom
+    - type: tile
+      entity: climate.neviweb130_climate_chambre_sous_sol
+      icon: mdi:home-thermometer-outline
+      name: Bedroom
+      state_content:
+      - state
+      - current_temperature
+      features:
+      - type: climate-hvac-modes
+      - type: target-temperature
+  - type: grid
+    cards:
+    - type: heading
+      heading: New section
+    - type: tile
+      entity: input_boolean.guests
+      tap_action:
+        action: toggle
+  - type: grid
+    cards:
+    - type: heading
+      heading: Guest Bedroom TV
+    - type: tile
+      entity: media_player.guest_bedroom_tv_2
+    - type: tile
+      entity: remote.guest_bedroom_tv
+  cards: []
+  subview: true
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Guests bedroom'
+- type: sections
+  max_columns: 2
+  title: Listes
+  path: lists
+  icon: mdi:account-file
+  subview: true
+  sections:
+  - type: grid
+    cards:
+    - display_order: none
+      type: todo-list
+      hide_completed: true
+      entity: todo.costco
+      title: 'Costco '
+    - display_order: none
+      type: todo-list
+      entity: todo.shopping_list
+      hide_completed: true
+      title: 'Walmart '
+    - display_order: none
+      type: todo-list
+      hide_completed: true
+      entity: todo.grosseries
+      title: Grosseries
+    - display_order: none
+      type: todo-list
+      hide_completed: false
+      entity: todo.summer_fun
+      title: Summer fun
+    - display_order: none
+      type: todo-list
+      entity: todo.brico
+      hide_completed: true
+      title: Brico
+  - type: grid
+    cards:
+    - display_order: none
+      type: todo-list
+      entity: todo.to_do
+      hide_completed: true
+      title: Todo
+    - display_order: none
+      type: todo-list
+      entity: todo.to_do_secondary
+      hide_completed: true
+      title: Todo secondary
+      visibility:
+      - condition: user
+        users:
+        - 30376976181a40ff9da45df3a0450201
+  header:
+    card:
+      type: markdown
+      text_only: true
+      content: '# Lists'
+- title: Garden Sprinkler System
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: 🌱 Mode Germination du gazon
+    - type: tile
+      entity: input_boolean.gazon_mode_germination
+      name: Mode germination actif
+      icon: mdi:sprout
+      tap_action:
+        action: toggle
+      features:
+      - type: toggle
+    - type: tile
+      entity: input_datetime.gazon_date_de_semis
+      name: Date du semis
+      icon: mdi:calendar-sprout
+    - type: markdown
+      content: '### 🌱 Statut de germination
+
+
+        {% set semis = states(''input_datetime.gazon_date_de_semis'') %}
+
+        {% if states(''input_boolean.gazon_mode_germination'') == ''on'' and semis not in [''unknown'',''unavailable'']
+        %}
+
+        {% set jours = (now().date() - (semis | as_datetime).date()).days %}
+
+        **Jour {{ jours }}** depuis le semis du {{ semis }}
+
+
+        **Phase actuelle :** {% if jours <= 13 %}🌾 Germination — arrosages 7h / 12h / 16h{% elif jours <= 20 %}🌿
+        Levee — arrosages 7h / 16h{% elif jours <= 34 %}🌳 Enracinement — arrosage 7h seulement{% else %}✅ Cycle
+        termine, en attente de desactivation{% endif %}
+
+
+        **Fin prevue du mode :** {{ (as_datetime(semis) + timedelta(days=35)).strftime(''%d %B %Y'') }}
+
+        {% else %}
+
+        Mode germination inactif — l''arrosage normal est en vigueur.
+
+        {% endif %}
+
+        '
+      card_mod:
+        style: "ha-card {\n  background: rgba(76, 175, 80, 0.1);\n  border-left: 4px solid #4CAF50;\n}\n"
+    - type: tile
+      entity: automation.arrosage_germination_gazon
+      name: Automatisation - Arrosage germination
+      icon: mdi:sprinkler-variant
+      tap_action:
+        action: toggle
+      features:
+      - type: toggle
+    - type: tile
+      entity: automation.fin_cycle_germination_gazon
+      name: Automatisation - Fin de cycle (J+35)
+      icon: mdi:calendar-check
+      tap_action:
+        action: toggle
+      features:
+      - type: toggle
+    - type: button
+      name: Terminer maintenant
+      icon: mdi:stop-circle
+      tap_action:
+        action: call-service
+        service: script.turn_on
+        service_data:
+          entity_id: script.gazon_terminer_germination
+      card_mod:
+        style: "ha-card {\n  background: linear-gradient(135deg, #FF9800, #FFB74D);\n  color: white;\n  font-weight:\
+          \ bold;\n  border: none;\n}\n"
+    - type: button
+      name: Nouveau semis aujourd'hui
+      icon: mdi:sprout
+      tap_action:
+        action: call-service
+        service: script.turn_on
+        service_data:
+          entity_id: script.gazon_nouveau_semis
+      card_mod:
+        style: "ha-card {\n  background: linear-gradient(135deg, #4CAF50, #81C784);\n  color: white;\n  font-weight:\
+          \ bold;\n  border: none;\n}\n"
+  - type: grid
+    cards:
+    - type: heading
+      heading: Contrôles du système
+    - type: tile
+      entity: automation.start_sprinklers
+      name: Arrosage normal (automatisation)
+      icon: mdi:calendar-clock
+      tap_action:
+        action: toggle
+      features:
+      - type: toggle
+    - type: tile
+      entity: switch.sprinklers_garden_sprinklers
+      name: Full Cycle
+      icon: mdi:play-circle
+      tap_action:
+        action: toggle
+      features:
+      - type: toggle
+    - type: tile
+      entity: switch.sprinklers_auto_advance
+      name: Auto Advance
+      icon: mdi:skip-next-circle
+      tap_action:
+        action: toggle
+      features:
+      - type: toggle
+    - type: tile
+      entity: number.sprinklers_sprinkler_multiplier
+      name: Duration Multiplier
+      icon: mdi:multiplication
+      features:
+      - type: numeric-input
+        style: buttons
+    - type: heading
+      heading: Aperçu du système
+    - type: markdown
+      content: "### \U0001F331 Live System Status\n\n**Active Zone:** {% set active_zones = [\n  'switch.sprinklers_zone_1',\n\
+        \  'switch.sprinklers_zone_2',\n  'switch.sprinklers_zone_3',\n  'switch.sprinklers_zone_4',\n  'switch.sprinklers_zone_5'\n\
+        ] | select('is_state', 'on') | list %}\n{% if active_zones | length > 0 %}\n  Zone {{ active_zones[0].split('_')[-1]\
+        \ | title }} \U0001F7E2\n{% else %}\n  None ⚫\n{% endif %}\n\n**Multiplier:** {{ states('number.sprinklers_sprinkler_multiplier')\
+        \ }}x\n\n**Calculated Durations:**\n- Zone 1 (ga pelouse avant): {{ (states('number.sprinklers_zone_1_duration')\
+        \ | float * states('number.sprinklers_sprinkler_multiplier') | float) | round(0) }}min\n- Zone 2 (pb. avant\
+        \ + coté gauche)): {{ (states('number.sprinklers_zone_2_duration') | float * states('number.sprinklers_sprinkler_multiplier')\
+        \ | float) | round(0) }}min\n- Zone 3 (court arrière): {{ (states('number.sprinklers_zone_3_duration') |\
+        \ float * states('number.sprinklers_sprinkler_multiplier') | float) | round(0) }}min\n- Zone 4 (arrière\
+        \ piscine): {{ (states('number.sprinklers_zone_4_duration') | float * states('number.sprinklers_sprinkler_multiplier')\
+        \ | float) | round(0) }}min\n- Zone 5 (coté droit): {{ (states('number.sprinklers_zone_5_duration') | float\
+        \ * states('number.sprinklers_sprinkler_multiplier') | float) | round(0) }}min\n\n**Total Cycle Time:**\
+        \ {{ ((states('number.sprinklers_zone_1_duration') | float + states('number.sprinklers_zone_2_duration')\
+        \ | float + states('number.sprinklers_zone_3_duration') | float + states('number.sprinklers_zone_4_duration')\
+        \ | float + states('number.sprinklers_zone_5_duration') | float) * states('number.sprinklers_sprinkler_multiplier')\
+        \ | float) | round(0) }}min\n"
+      card_mod:
+        style: "ha-card {\n  background: rgba(76, 175, 80, 0.1);\n  border-left: 4px solid #4CAF50;\n}\n"
+  - type: grid
+    cards:
+    - type: heading
+      heading: Contrôle des zones
+    - features:
+      - type: toggle
+      type: tile
+      entity: switch.sprinklers_zone_1
+      name: GA Pelouse avant
+      icon: mdi:sprinkler
+      tap_action:
+        action: toggle
+      features_position: bottom
+      vertical: false
+    - type: tile
+      entity: number.sprinklers_zone_1_duration
+      name: Zone 1 Duration
+      icon: mdi:timer-settings
+      features:
+      - type: numeric-input
+        style: buttons
+    - features:
+      - type: toggle
+      type: tile
+      entity: switch.sprinklers_zone_2
+      name: pb avant + coté gauche
+      icon: mdi:sprinkler
+      tap_action:
+        action: toggle
+      features_position: bottom
+      vertical: false
+    - type: tile
+      entity: number.sprinklers_zone_2_duration
+      name: Zone 2 Duration
+      icon: mdi:timer-settings
+      features:
+      - type: numeric-input
+        style: buttons
+    - features:
+      - type: toggle
+      type: tile
+      entity: switch.sprinklers_zone_3
+      name: Cour arrière
+      icon: mdi:sprinkler
+      tap_action:
+        action: toggle
+      features_position: bottom
+      vertical: false
+    - type: tile
+      entity: number.sprinklers_zone_3_duration
+      name: Zone 3 Duration
+      icon: mdi:timer-settings
+      features:
+      - type: numeric-input
+        style: buttons
+    - features:
+      - type: toggle
+      type: tile
+      entity: switch.sprinklers_zone_4
+      name: Arrière piscine
+      icon: mdi:sprinkler
+      tap_action:
+        action: toggle
+      features_position: bottom
+      vertical: false
+    - type: tile
+      entity: number.sprinklers_zone_4_duration
+      name: Zone 4 Duration
+      icon: mdi:timer-settings
+      features:
+      - type: numeric-input
+        style: buttons
+    - features:
+      - type: toggle
+      type: tile
+      entity: switch.sprinklers_zone_5
+      name: Coté droit
+      icon: mdi:sprinkler
+      tap_action:
+        action: toggle
+      features_position: bottom
+      vertical: false
+    - type: tile
+      entity: number.sprinklers_zone_5_duration
+      name: Zone 5 Duration
+      icon: mdi:timer-settings
+      features:
+      - type: numeric-input
+        style: buttons
+  - type: grid
+    cards:
+    - type: heading
+      heading: Activation des zones
+    - type: entities
+      entities:
+      - entity: switch.sprinklers_enable_zone_1
+        name: Include Zone 1 in Cycles
+        icon: mdi:checkbox-marked-circle
+      - entity: switch.sprinklers_enable_zone_2
+        name: Include Zone 2 in Cycles
+        icon: mdi:checkbox-marked-circle
+      - entity: switch.sprinklers_enable_zone_3
+        name: Include Zone 3 in Cycles
+        icon: mdi:checkbox-marked-circle
+      - entity: switch.sprinklers_enable_zone_4
+        name: Include Zone 4 in Cycles
+        icon: mdi:checkbox-marked-circle
+      - entity: switch.sprinklers_enable_zone_5
+        name: Include Zone 5 in Cycles
+        icon: mdi:checkbox-marked-circle
+    - type: heading
+      heading: Actions rapides
+    - type: button
+      name: Reset Multiplier
+      icon: mdi:restore
+      tap_action:
+        action: call-service
+        service: number.set_value
+        service_data:
+          entity_id: number.sprinklers_sprinkler_multiplier
+          value: 1
+      card_mod:
+        style: "ha-card {\n  background: linear-gradient(135deg, #FF9800, #FFB74D);\n  color: white;\n  font-weight:\
+          \ bold;\n  border: none;\n}\n"
+    - type: button
+      name: Emergency Stop All
+      icon: mdi:stop-circle
+      tap_action:
+        action: call-service
+        service: switch.turn_off
+        service_data:
+          entity_id:
+          - switch.sprinklers_garden_sprinklers
+          - switch.sprinklers_zone_1
+          - switch.sprinklers_zone_2
+          - switch.sprinklers_zone_3
+          - switch.sprinklers_zone_4
+          - switch.sprinklers_zone_5
+      card_mod:
+        style: "ha-card {\n  background: linear-gradient(135deg, #f44336, #ef5350);\n  color: white;\n  font-weight:\
+          \ bold;\n  border: none;\n}\n"
+    - type: button
+      name: Enable All Zones
+      icon: mdi:check-all
+      tap_action:
+        action: call-service
+        service: switch.turn_on
+        service_data:
+          entity_id:
+          - switch.sprinklers_enable_zone_1
+          - switch.sprinklers_enable_zone_2
+          - switch.sprinklers_enable_zone_3
+          - switch.sprinklers_enable_zone_4
+          - switch.sprinklers_enable_zone_5
+      card_mod:
+        style: "ha-card {\n  background: linear-gradient(135deg, #4CAF50, #81C784);\n  color: white;\n  font-weight:\
+          \ bold;\n  border: none;\n}\n"
+  cards: []
+  type: sections
+  max_columns: 3
+  icon: mdi:sprinkler
+  subview: true
+- type: sections
+  max_columns: 1
+  title: Backyard
+  path: backyard
+  icon: mdi:palm-tree
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Backyard
+      heading_style: title
+      icon: mdi:palm-tree
+    - type: tile
+      entity: media_player.gazebo_speaker
+      show_entity_picture: true
+      state_content: media_channel
+      vertical: false
+      features:
+      - type: media-player-volume-slider
+      features_position: bottom
+    - type: tile
+      icon: mdi:string-lights
+      tap_action:
+        action: toggle
+      features_position: bottom
+      vertical: true
+      entity: switch.gazebo_lights
+      grid_options:
+        columns: 6
+        rows: 3
+    - type: custom:frigate-card
+      cameras:
+      - camera_entity: camera.backyard_low_resolution_channel
+        live_provider: webrtc-card
+        webrtc_card:
+          entity: camera.backyard_low_resolution_channel
+      view:
+        default: live
+      live:
+        lazy_load: true
+        draggable: false
+        zoomable: false
+        controls:
+          builtin: false
+      menu:
+        style: none
+      performance:
+        style:
+          border_radius: false
+          box_shadow: false
+        features:
+          animated_progress_indicator: false
+          card_loading_indicator: false
+  - type: grid
+    cards:
+    - type: heading
+      heading: Controls
+      heading_style: title
+    - type: tile
+      grid_options:
+        columns: full
+      entity: switch.sprinklers_garden_sprinklers
+      name: Irrigation
+      icon: mdi:sprinkler
+      vertical: true
+      tap_action:
+        action: navigate
+        navigation_path: /lovelace/16
+      icon_tap_action:
+        action: navigate
+        navigation_path: /lovelace/16
+      features_position: bottom
+  subview: true
+  cards: []
+  badges:
+  - type: custom:mushroom-template-badge
+    content: Home
+    icon: mdi:arrow-left-bold
+    color: blue
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/0
+    visibility:
+    - condition: user
+      users:
+      - 1bb3bddf2636432ea7ddf91225b37840
+  header:
+    card:
+      type: markdown
+      content: '# Backyard'
+      text_only: true

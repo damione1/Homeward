@@ -104,19 +104,27 @@ const (
 	LayoutKind_LAYOUT_KIND_HEADING          LayoutKind = 5
 	LayoutKind_LAYOUT_KIND_TILE             LayoutKind = 6
 	LayoutKind_LAYOUT_KIND_UNSUPPORTED      LayoutKind = 7
+	LayoutKind_LAYOUT_KIND_RECIPE           LayoutKind = 8
+	LayoutKind_LAYOUT_KIND_VERTICAL_STACK   LayoutKind = 9
+	LayoutKind_LAYOUT_KIND_POPUP            LayoutKind = 10
+	LayoutKind_LAYOUT_KIND_CHIP_GROUP       LayoutKind = 11
 )
 
 // Enum value maps for LayoutKind.
 var (
 	LayoutKind_name = map[int32]string{
-		0: "LAYOUT_KIND_UNSPECIFIED",
-		1: "LAYOUT_KIND_VIEW",
-		2: "LAYOUT_KIND_SECTION",
-		3: "LAYOUT_KIND_GRID",
-		4: "LAYOUT_KIND_HORIZONTAL_STACK",
-		5: "LAYOUT_KIND_HEADING",
-		6: "LAYOUT_KIND_TILE",
-		7: "LAYOUT_KIND_UNSUPPORTED",
+		0:  "LAYOUT_KIND_UNSPECIFIED",
+		1:  "LAYOUT_KIND_VIEW",
+		2:  "LAYOUT_KIND_SECTION",
+		3:  "LAYOUT_KIND_GRID",
+		4:  "LAYOUT_KIND_HORIZONTAL_STACK",
+		5:  "LAYOUT_KIND_HEADING",
+		6:  "LAYOUT_KIND_TILE",
+		7:  "LAYOUT_KIND_UNSUPPORTED",
+		8:  "LAYOUT_KIND_RECIPE",
+		9:  "LAYOUT_KIND_VERTICAL_STACK",
+		10: "LAYOUT_KIND_POPUP",
+		11: "LAYOUT_KIND_CHIP_GROUP",
 	}
 	LayoutKind_value = map[string]int32{
 		"LAYOUT_KIND_UNSPECIFIED":      0,
@@ -127,6 +135,10 @@ var (
 		"LAYOUT_KIND_HEADING":          5,
 		"LAYOUT_KIND_TILE":             6,
 		"LAYOUT_KIND_UNSUPPORTED":      7,
+		"LAYOUT_KIND_RECIPE":           8,
+		"LAYOUT_KIND_VERTICAL_STACK":   9,
+		"LAYOUT_KIND_POPUP":            10,
+		"LAYOUT_KIND_CHIP_GROUP":       11,
 	}
 )
 
@@ -261,6 +273,385 @@ func (NativeHeadingStyle) EnumDescriptor() ([]byte, []int) {
 	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{3}
 }
 
+type NativeRecipeKind int32
+
+const (
+	NativeRecipeKind_NATIVE_RECIPE_KIND_UNSPECIFIED   NativeRecipeKind = 0
+	NativeRecipeKind_NATIVE_RECIPE_KIND_TEMPLATE      NativeRecipeKind = 1
+	NativeRecipeKind_NATIVE_RECIPE_KIND_SELECT        NativeRecipeKind = 2
+	NativeRecipeKind_NATIVE_RECIPE_KIND_ALARM         NativeRecipeKind = 3
+	NativeRecipeKind_NATIVE_RECIPE_KIND_BUBBLE_BUTTON NativeRecipeKind = 4
+	NativeRecipeKind_NATIVE_RECIPE_KIND_BUBBLE_POPUP  NativeRecipeKind = 5
+	NativeRecipeKind_NATIVE_RECIPE_KIND_CHIPS         NativeRecipeKind = 6
+	NativeRecipeKind_NATIVE_RECIPE_KIND_TEMPLATE_CHIP NativeRecipeKind = 7
+	NativeRecipeKind_NATIVE_RECIPE_KIND_BUTTON        NativeRecipeKind = 8
+	NativeRecipeKind_NATIVE_RECIPE_KIND_ENTITY        NativeRecipeKind = 9
+	// Plain bounded text; no HTML, Markdown code, JS, or Jinja interpretation.
+	NativeRecipeKind_NATIVE_RECIPE_KIND_TEXT NativeRecipeKind = 10
+)
+
+// Enum value maps for NativeRecipeKind.
+var (
+	NativeRecipeKind_name = map[int32]string{
+		0:  "NATIVE_RECIPE_KIND_UNSPECIFIED",
+		1:  "NATIVE_RECIPE_KIND_TEMPLATE",
+		2:  "NATIVE_RECIPE_KIND_SELECT",
+		3:  "NATIVE_RECIPE_KIND_ALARM",
+		4:  "NATIVE_RECIPE_KIND_BUBBLE_BUTTON",
+		5:  "NATIVE_RECIPE_KIND_BUBBLE_POPUP",
+		6:  "NATIVE_RECIPE_KIND_CHIPS",
+		7:  "NATIVE_RECIPE_KIND_TEMPLATE_CHIP",
+		8:  "NATIVE_RECIPE_KIND_BUTTON",
+		9:  "NATIVE_RECIPE_KIND_ENTITY",
+		10: "NATIVE_RECIPE_KIND_TEXT",
+	}
+	NativeRecipeKind_value = map[string]int32{
+		"NATIVE_RECIPE_KIND_UNSPECIFIED":   0,
+		"NATIVE_RECIPE_KIND_TEMPLATE":      1,
+		"NATIVE_RECIPE_KIND_SELECT":        2,
+		"NATIVE_RECIPE_KIND_ALARM":         3,
+		"NATIVE_RECIPE_KIND_BUBBLE_BUTTON": 4,
+		"NATIVE_RECIPE_KIND_BUBBLE_POPUP":  5,
+		"NATIVE_RECIPE_KIND_CHIPS":         6,
+		"NATIVE_RECIPE_KIND_TEMPLATE_CHIP": 7,
+		"NATIVE_RECIPE_KIND_BUTTON":        8,
+		"NATIVE_RECIPE_KIND_ENTITY":        9,
+		"NATIVE_RECIPE_KIND_TEXT":          10,
+	}
+)
+
+func (x NativeRecipeKind) Enum() *NativeRecipeKind {
+	p := new(NativeRecipeKind)
+	*p = x
+	return p
+}
+
+func (x NativeRecipeKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NativeRecipeKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_dashboard_v1_dashboard_proto_enumTypes[4].Descriptor()
+}
+
+func (NativeRecipeKind) Type() protoreflect.EnumType {
+	return &file_home_dashboard_v1_dashboard_proto_enumTypes[4]
+}
+
+func (x NativeRecipeKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NativeRecipeKind.Descriptor instead.
+func (NativeRecipeKind) EnumDescriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{4}
+}
+
+type NativeFeatureKind int32
+
+const (
+	NativeFeatureKind_NATIVE_FEATURE_KIND_UNSPECIFIED        NativeFeatureKind = 0
+	NativeFeatureKind_NATIVE_FEATURE_KIND_TOGGLE             NativeFeatureKind = 1
+	NativeFeatureKind_NATIVE_FEATURE_KIND_BRIGHTNESS         NativeFeatureKind = 2
+	NativeFeatureKind_NATIVE_FEATURE_KIND_COLOR_TEMPERATURE  NativeFeatureKind = 3
+	NativeFeatureKind_NATIVE_FEATURE_KIND_TARGET_TEMPERATURE NativeFeatureKind = 4
+	NativeFeatureKind_NATIVE_FEATURE_KIND_CLIMATE_MODES      NativeFeatureKind = 5
+	NativeFeatureKind_NATIVE_FEATURE_KIND_FAN_SPEED          NativeFeatureKind = 6
+	NativeFeatureKind_NATIVE_FEATURE_KIND_NUMERIC_INPUT      NativeFeatureKind = 7
+	NativeFeatureKind_NATIVE_FEATURE_KIND_COVER_OPEN_CLOSE   NativeFeatureKind = 8
+	NativeFeatureKind_NATIVE_FEATURE_KIND_COVER_POSITION     NativeFeatureKind = 9
+	NativeFeatureKind_NATIVE_FEATURE_KIND_ALARM_MODES        NativeFeatureKind = 10
+)
+
+// Enum value maps for NativeFeatureKind.
+var (
+	NativeFeatureKind_name = map[int32]string{
+		0:  "NATIVE_FEATURE_KIND_UNSPECIFIED",
+		1:  "NATIVE_FEATURE_KIND_TOGGLE",
+		2:  "NATIVE_FEATURE_KIND_BRIGHTNESS",
+		3:  "NATIVE_FEATURE_KIND_COLOR_TEMPERATURE",
+		4:  "NATIVE_FEATURE_KIND_TARGET_TEMPERATURE",
+		5:  "NATIVE_FEATURE_KIND_CLIMATE_MODES",
+		6:  "NATIVE_FEATURE_KIND_FAN_SPEED",
+		7:  "NATIVE_FEATURE_KIND_NUMERIC_INPUT",
+		8:  "NATIVE_FEATURE_KIND_COVER_OPEN_CLOSE",
+		9:  "NATIVE_FEATURE_KIND_COVER_POSITION",
+		10: "NATIVE_FEATURE_KIND_ALARM_MODES",
+	}
+	NativeFeatureKind_value = map[string]int32{
+		"NATIVE_FEATURE_KIND_UNSPECIFIED":        0,
+		"NATIVE_FEATURE_KIND_TOGGLE":             1,
+		"NATIVE_FEATURE_KIND_BRIGHTNESS":         2,
+		"NATIVE_FEATURE_KIND_COLOR_TEMPERATURE":  3,
+		"NATIVE_FEATURE_KIND_TARGET_TEMPERATURE": 4,
+		"NATIVE_FEATURE_KIND_CLIMATE_MODES":      5,
+		"NATIVE_FEATURE_KIND_FAN_SPEED":          6,
+		"NATIVE_FEATURE_KIND_NUMERIC_INPUT":      7,
+		"NATIVE_FEATURE_KIND_COVER_OPEN_CLOSE":   8,
+		"NATIVE_FEATURE_KIND_COVER_POSITION":     9,
+		"NATIVE_FEATURE_KIND_ALARM_MODES":        10,
+	}
+)
+
+func (x NativeFeatureKind) Enum() *NativeFeatureKind {
+	p := new(NativeFeatureKind)
+	*p = x
+	return p
+}
+
+func (x NativeFeatureKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NativeFeatureKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_dashboard_v1_dashboard_proto_enumTypes[5].Descriptor()
+}
+
+func (NativeFeatureKind) Type() protoreflect.EnumType {
+	return &file_home_dashboard_v1_dashboard_proto_enumTypes[5]
+}
+
+func (x NativeFeatureKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NativeFeatureKind.Descriptor instead.
+func (NativeFeatureKind) EnumDescriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{5}
+}
+
+// These are data-only, server-resolved intentions. The client still checks its
+// current session/view/capabilities and submits through ActionService. Neither
+// a configured recipe nor a confirmation grants permission to an entity.
+type NativeGesture int32
+
+const (
+	NativeGesture_NATIVE_GESTURE_UNSPECIFIED NativeGesture = 0
+	NativeGesture_NATIVE_GESTURE_TAP         NativeGesture = 1
+	NativeGesture_NATIVE_GESTURE_HOLD        NativeGesture = 2
+	NativeGesture_NATIVE_GESTURE_DOUBLE_TAP  NativeGesture = 3
+)
+
+// Enum value maps for NativeGesture.
+var (
+	NativeGesture_name = map[int32]string{
+		0: "NATIVE_GESTURE_UNSPECIFIED",
+		1: "NATIVE_GESTURE_TAP",
+		2: "NATIVE_GESTURE_HOLD",
+		3: "NATIVE_GESTURE_DOUBLE_TAP",
+	}
+	NativeGesture_value = map[string]int32{
+		"NATIVE_GESTURE_UNSPECIFIED": 0,
+		"NATIVE_GESTURE_TAP":         1,
+		"NATIVE_GESTURE_HOLD":        2,
+		"NATIVE_GESTURE_DOUBLE_TAP":  3,
+	}
+)
+
+func (x NativeGesture) Enum() *NativeGesture {
+	p := new(NativeGesture)
+	*p = x
+	return p
+}
+
+func (x NativeGesture) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NativeGesture) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_dashboard_v1_dashboard_proto_enumTypes[6].Descriptor()
+}
+
+func (NativeGesture) Type() protoreflect.EnumType {
+	return &file_home_dashboard_v1_dashboard_proto_enumTypes[6]
+}
+
+func (x NativeGesture) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NativeGesture.Descriptor instead.
+func (NativeGesture) EnumDescriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{6}
+}
+
+type NativePresentation int32
+
+const (
+	NativePresentation_NATIVE_PRESENTATION_UNSPECIFIED NativePresentation = 0
+	NativePresentation_NATIVE_PRESENTATION_PAGE        NativePresentation = 1
+	NativePresentation_NATIVE_PRESENTATION_POPUP       NativePresentation = 2
+)
+
+// Enum value maps for NativePresentation.
+var (
+	NativePresentation_name = map[int32]string{
+		0: "NATIVE_PRESENTATION_UNSPECIFIED",
+		1: "NATIVE_PRESENTATION_PAGE",
+		2: "NATIVE_PRESENTATION_POPUP",
+	}
+	NativePresentation_value = map[string]int32{
+		"NATIVE_PRESENTATION_UNSPECIFIED": 0,
+		"NATIVE_PRESENTATION_PAGE":        1,
+		"NATIVE_PRESENTATION_POPUP":       2,
+	}
+)
+
+func (x NativePresentation) Enum() *NativePresentation {
+	p := new(NativePresentation)
+	*p = x
+	return p
+}
+
+func (x NativePresentation) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NativePresentation) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_dashboard_v1_dashboard_proto_enumTypes[7].Descriptor()
+}
+
+func (NativePresentation) Type() protoreflect.EnumType {
+	return &file_home_dashboard_v1_dashboard_proto_enumTypes[7]
+}
+
+func (x NativePresentation) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NativePresentation.Descriptor instead.
+func (NativePresentation) EnumDescriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{7}
+}
+
+type NativeCommandKind int32
+
+const (
+	NativeCommandKind_NATIVE_COMMAND_KIND_UNSPECIFIED    NativeCommandKind = 0
+	NativeCommandKind_NATIVE_COMMAND_KIND_TOGGLE         NativeCommandKind = 1
+	NativeCommandKind_NATIVE_COMMAND_KIND_TURN_ON        NativeCommandKind = 2
+	NativeCommandKind_NATIVE_COMMAND_KIND_TURN_OFF       NativeCommandKind = 3
+	NativeCommandKind_NATIVE_COMMAND_KIND_ACTIVATE       NativeCommandKind = 4
+	NativeCommandKind_NATIVE_COMMAND_KIND_COVER_OPEN     NativeCommandKind = 5
+	NativeCommandKind_NATIVE_COMMAND_KIND_COVER_CLOSE    NativeCommandKind = 6
+	NativeCommandKind_NATIVE_COMMAND_KIND_COVER_STOP     NativeCommandKind = 7
+	NativeCommandKind_NATIVE_COMMAND_KIND_LOCK           NativeCommandKind = 8
+	NativeCommandKind_NATIVE_COMMAND_KIND_UNLOCK         NativeCommandKind = 9
+	NativeCommandKind_NATIVE_COMMAND_KIND_ALARM_ARM_HOME NativeCommandKind = 10
+	NativeCommandKind_NATIVE_COMMAND_KIND_ALARM_ARM_AWAY NativeCommandKind = 11
+	NativeCommandKind_NATIVE_COMMAND_KIND_ALARM_DISARM   NativeCommandKind = 12
+)
+
+// Enum value maps for NativeCommandKind.
+var (
+	NativeCommandKind_name = map[int32]string{
+		0:  "NATIVE_COMMAND_KIND_UNSPECIFIED",
+		1:  "NATIVE_COMMAND_KIND_TOGGLE",
+		2:  "NATIVE_COMMAND_KIND_TURN_ON",
+		3:  "NATIVE_COMMAND_KIND_TURN_OFF",
+		4:  "NATIVE_COMMAND_KIND_ACTIVATE",
+		5:  "NATIVE_COMMAND_KIND_COVER_OPEN",
+		6:  "NATIVE_COMMAND_KIND_COVER_CLOSE",
+		7:  "NATIVE_COMMAND_KIND_COVER_STOP",
+		8:  "NATIVE_COMMAND_KIND_LOCK",
+		9:  "NATIVE_COMMAND_KIND_UNLOCK",
+		10: "NATIVE_COMMAND_KIND_ALARM_ARM_HOME",
+		11: "NATIVE_COMMAND_KIND_ALARM_ARM_AWAY",
+		12: "NATIVE_COMMAND_KIND_ALARM_DISARM",
+	}
+	NativeCommandKind_value = map[string]int32{
+		"NATIVE_COMMAND_KIND_UNSPECIFIED":    0,
+		"NATIVE_COMMAND_KIND_TOGGLE":         1,
+		"NATIVE_COMMAND_KIND_TURN_ON":        2,
+		"NATIVE_COMMAND_KIND_TURN_OFF":       3,
+		"NATIVE_COMMAND_KIND_ACTIVATE":       4,
+		"NATIVE_COMMAND_KIND_COVER_OPEN":     5,
+		"NATIVE_COMMAND_KIND_COVER_CLOSE":    6,
+		"NATIVE_COMMAND_KIND_COVER_STOP":     7,
+		"NATIVE_COMMAND_KIND_LOCK":           8,
+		"NATIVE_COMMAND_KIND_UNLOCK":         9,
+		"NATIVE_COMMAND_KIND_ALARM_ARM_HOME": 10,
+		"NATIVE_COMMAND_KIND_ALARM_ARM_AWAY": 11,
+		"NATIVE_COMMAND_KIND_ALARM_DISARM":   12,
+	}
+)
+
+func (x NativeCommandKind) Enum() *NativeCommandKind {
+	p := new(NativeCommandKind)
+	*p = x
+	return p
+}
+
+func (x NativeCommandKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NativeCommandKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_dashboard_v1_dashboard_proto_enumTypes[8].Descriptor()
+}
+
+func (NativeCommandKind) Type() protoreflect.EnumType {
+	return &file_home_dashboard_v1_dashboard_proto_enumTypes[8]
+}
+
+func (x NativeCommandKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NativeCommandKind.Descriptor instead.
+func (NativeCommandKind) EnumDescriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{8}
+}
+
+type NativeComparison int32
+
+const (
+	NativeComparison_NATIVE_COMPARISON_UNSPECIFIED NativeComparison = 0
+	NativeComparison_NATIVE_COMPARISON_EQUAL       NativeComparison = 1
+	NativeComparison_NATIVE_COMPARISON_NOT_EQUAL   NativeComparison = 2
+)
+
+// Enum value maps for NativeComparison.
+var (
+	NativeComparison_name = map[int32]string{
+		0: "NATIVE_COMPARISON_UNSPECIFIED",
+		1: "NATIVE_COMPARISON_EQUAL",
+		2: "NATIVE_COMPARISON_NOT_EQUAL",
+	}
+	NativeComparison_value = map[string]int32{
+		"NATIVE_COMPARISON_UNSPECIFIED": 0,
+		"NATIVE_COMPARISON_EQUAL":       1,
+		"NATIVE_COMPARISON_NOT_EQUAL":   2,
+	}
+)
+
+func (x NativeComparison) Enum() *NativeComparison {
+	p := new(NativeComparison)
+	*p = x
+	return p
+}
+
+func (x NativeComparison) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NativeComparison) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_dashboard_v1_dashboard_proto_enumTypes[9].Descriptor()
+}
+
+func (NativeComparison) Type() protoreflect.EnumType {
+	return &file_home_dashboard_v1_dashboard_proto_enumTypes[9]
+}
+
+func (x NativeComparison) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NativeComparison.Descriptor instead.
+func (NativeComparison) EnumDescriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{9}
+}
+
 type NativeIcon int32
 
 const (
@@ -300,11 +691,11 @@ func (x NativeIcon) String() string {
 }
 
 func (NativeIcon) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_dashboard_v1_dashboard_proto_enumTypes[4].Descriptor()
+	return file_home_dashboard_v1_dashboard_proto_enumTypes[10].Descriptor()
 }
 
 func (NativeIcon) Type() protoreflect.EnumType {
-	return &file_home_dashboard_v1_dashboard_proto_enumTypes[4]
+	return &file_home_dashboard_v1_dashboard_proto_enumTypes[10]
 }
 
 func (x NativeIcon) Number() protoreflect.EnumNumber {
@@ -313,7 +704,7 @@ func (x NativeIcon) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use NativeIcon.Descriptor instead.
 func (NativeIcon) EnumDescriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{4}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{10}
 }
 
 type ServingMode int32
@@ -349,11 +740,11 @@ func (x ServingMode) String() string {
 }
 
 func (ServingMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_dashboard_v1_dashboard_proto_enumTypes[5].Descriptor()
+	return file_home_dashboard_v1_dashboard_proto_enumTypes[11].Descriptor()
 }
 
 func (ServingMode) Type() protoreflect.EnumType {
-	return &file_home_dashboard_v1_dashboard_proto_enumTypes[5]
+	return &file_home_dashboard_v1_dashboard_proto_enumTypes[11]
 }
 
 func (x ServingMode) Number() protoreflect.EnumNumber {
@@ -362,7 +753,7 @@ func (x ServingMode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ServingMode.Descriptor instead.
 func (ServingMode) EnumDescriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{5}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{11}
 }
 
 type DashboardId struct {
@@ -930,7 +1321,13 @@ type LayoutNode struct {
 	HideState    *bool                  `protobuf:"varint,13,opt,name=hide_state,json=hideState,proto3,oneof" json:"hide_state,omitempty"`
 	HeadingStyle NativeHeadingStyle     `protobuf:"varint,14,opt,name=heading_style,json=headingStyle,proto3,enum=home.dashboard.v1.NativeHeadingStyle" json:"heading_style,omitempty"`
 	// Stable configured view path; independent of its source array position.
-	Route         string `protobuf:"bytes,15,opt,name=route,proto3" json:"route,omitempty"`
+	Route string `protobuf:"bytes,15,opt,name=route,proto3" json:"route,omitempty"`
+	// Requires native layout version 2 and explicit client negotiation. Version 1
+	// clients must receive an inert diagnostic for nodes requiring these recipes.
+	Recipes       *NativeRecipes      `protobuf:"bytes,16,opt,name=recipes,proto3" json:"recipes,omitempty"`
+	RecipeKind    NativeRecipeKind    `protobuf:"varint,17,opt,name=recipe_kind,json=recipeKind,proto3,enum=home.dashboard.v1.NativeRecipeKind" json:"recipe_kind,omitempty"`
+	Secondary     string              `protobuf:"bytes,18,opt,name=secondary,proto3" json:"secondary,omitempty"`
+	Features      []NativeFeatureKind `protobuf:"varint,19,rep,packed,name=features,proto3,enum=home.dashboard.v1.NativeFeatureKind" json:"features,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1070,6 +1467,700 @@ func (x *LayoutNode) GetRoute() string {
 	return ""
 }
 
+func (x *LayoutNode) GetRecipes() *NativeRecipes {
+	if x != nil {
+		return x.Recipes
+	}
+	return nil
+}
+
+func (x *LayoutNode) GetRecipeKind() NativeRecipeKind {
+	if x != nil {
+		return x.RecipeKind
+	}
+	return NativeRecipeKind_NATIVE_RECIPE_KIND_UNSPECIFIED
+}
+
+func (x *LayoutNode) GetSecondary() string {
+	if x != nil {
+		return x.Secondary
+	}
+	return ""
+}
+
+func (x *LayoutNode) GetFeatures() []NativeFeatureKind {
+	if x != nil {
+		return x.Features
+	}
+	return nil
+}
+
+type NativeDestination struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	DashboardId *DashboardId           `protobuf:"bytes,1,opt,name=dashboard_id,json=dashboardId,proto3" json:"dashboard_id,omitempty"`
+	// Stable source identity, not an array index, HA URL, or downloaded expression.
+	NodeId        string             `protobuf:"bytes,2,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Presentation  NativePresentation `protobuf:"varint,3,opt,name=presentation,proto3,enum=home.dashboard.v1.NativePresentation" json:"presentation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NativeDestination) Reset() {
+	*x = NativeDestination{}
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativeDestination) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativeDestination) ProtoMessage() {}
+
+func (x *NativeDestination) ProtoReflect() protoreflect.Message {
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativeDestination.ProtoReflect.Descriptor instead.
+func (*NativeDestination) Descriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *NativeDestination) GetDashboardId() *DashboardId {
+	if x != nil {
+		return x.DashboardId
+	}
+	return nil
+}
+
+func (x *NativeDestination) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *NativeDestination) GetPresentation() NativePresentation {
+	if x != nil {
+		return x.Presentation
+	}
+	return NativePresentation_NATIVE_PRESENTATION_UNSPECIFIED
+}
+
+type NativeEntityTarget struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EntityId      string                 `protobuf:"bytes,1,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NativeEntityTarget) Reset() {
+	*x = NativeEntityTarget{}
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativeEntityTarget) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativeEntityTarget) ProtoMessage() {}
+
+func (x *NativeEntityTarget) ProtoReflect() protoreflect.Message {
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativeEntityTarget.ProtoReflect.Descriptor instead.
+func (*NativeEntityTarget) Descriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *NativeEntityTarget) GetEntityId() string {
+	if x != nil {
+		return x.EntityId
+	}
+	return ""
+}
+
+type NativeCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EntityId      string                 `protobuf:"bytes,1,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	Kind          NativeCommandKind      `protobuf:"varint,2,opt,name=kind,proto3,enum=home.dashboard.v1.NativeCommandKind" json:"kind,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NativeCommand) Reset() {
+	*x = NativeCommand{}
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativeCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativeCommand) ProtoMessage() {}
+
+func (x *NativeCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativeCommand.ProtoReflect.Descriptor instead.
+func (*NativeCommand) Descriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *NativeCommand) GetEntityId() string {
+	if x != nil {
+		return x.EntityId
+	}
+	return ""
+}
+
+func (x *NativeCommand) GetKind() NativeCommandKind {
+	if x != nil {
+		return x.Kind
+	}
+	return NativeCommandKind_NATIVE_COMMAND_KIND_UNSPECIFIED
+}
+
+type NativeNoAction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NativeNoAction) Reset() {
+	*x = NativeNoAction{}
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativeNoAction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativeNoAction) ProtoMessage() {}
+
+func (x *NativeNoAction) ProtoReflect() protoreflect.Message {
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativeNoAction.ProtoReflect.Descriptor instead.
+func (*NativeNoAction) Descriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{12}
+}
+
+type NativeConfirmation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NativeConfirmation) Reset() {
+	*x = NativeConfirmation{}
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativeConfirmation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativeConfirmation) ProtoMessage() {}
+
+func (x *NativeConfirmation) ProtoReflect() protoreflect.Message {
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativeConfirmation.ProtoReflect.Descriptor instead.
+func (*NativeConfirmation) Descriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *NativeConfirmation) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+type NativeInteraction struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Gesture NativeGesture          `protobuf:"varint,1,opt,name=gesture,proto3,enum=home.dashboard.v1.NativeGesture" json:"gesture,omitempty"`
+	// Types that are valid to be assigned to Intention:
+	//
+	//	*NativeInteraction_None
+	//	*NativeInteraction_MoreInfo
+	//	*NativeInteraction_Navigate
+	//	*NativeInteraction_Command
+	Intention isNativeInteraction_Intention `protobuf_oneof:"intention"`
+	// Presence matters even if the configured text is empty (use native prompt).
+	Confirmation  *NativeConfirmation `protobuf:"bytes,6,opt,name=confirmation,proto3" json:"confirmation,omitempty"`
+	Source        *LayoutSource       `protobuf:"bytes,7,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NativeInteraction) Reset() {
+	*x = NativeInteraction{}
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativeInteraction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativeInteraction) ProtoMessage() {}
+
+func (x *NativeInteraction) ProtoReflect() protoreflect.Message {
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativeInteraction.ProtoReflect.Descriptor instead.
+func (*NativeInteraction) Descriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *NativeInteraction) GetGesture() NativeGesture {
+	if x != nil {
+		return x.Gesture
+	}
+	return NativeGesture_NATIVE_GESTURE_UNSPECIFIED
+}
+
+func (x *NativeInteraction) GetIntention() isNativeInteraction_Intention {
+	if x != nil {
+		return x.Intention
+	}
+	return nil
+}
+
+func (x *NativeInteraction) GetNone() *NativeNoAction {
+	if x != nil {
+		if x, ok := x.Intention.(*NativeInteraction_None); ok {
+			return x.None
+		}
+	}
+	return nil
+}
+
+func (x *NativeInteraction) GetMoreInfo() *NativeEntityTarget {
+	if x != nil {
+		if x, ok := x.Intention.(*NativeInteraction_MoreInfo); ok {
+			return x.MoreInfo
+		}
+	}
+	return nil
+}
+
+func (x *NativeInteraction) GetNavigate() *NativeDestination {
+	if x != nil {
+		if x, ok := x.Intention.(*NativeInteraction_Navigate); ok {
+			return x.Navigate
+		}
+	}
+	return nil
+}
+
+func (x *NativeInteraction) GetCommand() *NativeCommand {
+	if x != nil {
+		if x, ok := x.Intention.(*NativeInteraction_Command); ok {
+			return x.Command
+		}
+	}
+	return nil
+}
+
+func (x *NativeInteraction) GetConfirmation() *NativeConfirmation {
+	if x != nil {
+		return x.Confirmation
+	}
+	return nil
+}
+
+func (x *NativeInteraction) GetSource() *LayoutSource {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+type isNativeInteraction_Intention interface {
+	isNativeInteraction_Intention()
+}
+
+type NativeInteraction_None struct {
+	None *NativeNoAction `protobuf:"bytes,2,opt,name=none,proto3,oneof"`
+}
+
+type NativeInteraction_MoreInfo struct {
+	MoreInfo *NativeEntityTarget `protobuf:"bytes,3,opt,name=more_info,json=moreInfo,proto3,oneof"`
+}
+
+type NativeInteraction_Navigate struct {
+	Navigate *NativeDestination `protobuf:"bytes,4,opt,name=navigate,proto3,oneof"`
+}
+
+type NativeInteraction_Command struct {
+	Command *NativeCommand `protobuf:"bytes,5,opt,name=command,proto3,oneof"`
+}
+
+func (*NativeInteraction_None) isNativeInteraction_Intention() {}
+
+func (*NativeInteraction_MoreInfo) isNativeInteraction_Intention() {}
+
+func (*NativeInteraction_Navigate) isNativeInteraction_Intention() {}
+
+func (*NativeInteraction_Command) isNativeInteraction_Intention() {}
+
+type NativeStatePredicate struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	EntityId string                 `protobuf:"bytes,1,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	// An exact HA state literal, not code. Unavailable/missing is never a value
+	// and cannot satisfy even a not-equal test. Authorization is independent.
+	State         string           `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	Comparison    NativeComparison `protobuf:"varint,3,opt,name=comparison,proto3,enum=home.dashboard.v1.NativeComparison" json:"comparison,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NativeStatePredicate) Reset() {
+	*x = NativeStatePredicate{}
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativeStatePredicate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativeStatePredicate) ProtoMessage() {}
+
+func (x *NativeStatePredicate) ProtoReflect() protoreflect.Message {
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativeStatePredicate.ProtoReflect.Descriptor instead.
+func (*NativeStatePredicate) Descriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *NativeStatePredicate) GetEntityId() string {
+	if x != nil {
+		return x.EntityId
+	}
+	return ""
+}
+
+func (x *NativeStatePredicate) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *NativeStatePredicate) GetComparison() NativeComparison {
+	if x != nil {
+		return x.Comparison
+	}
+	return NativeComparison_NATIVE_COMPARISON_UNSPECIFIED
+}
+
+type NativePredicateList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Conditions    []*NativePredicate     `protobuf:"bytes,1,rep,name=conditions,proto3" json:"conditions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NativePredicateList) Reset() {
+	*x = NativePredicateList{}
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativePredicateList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativePredicateList) ProtoMessage() {}
+
+func (x *NativePredicateList) ProtoReflect() protoreflect.Message {
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativePredicateList.ProtoReflect.Descriptor instead.
+func (*NativePredicateList) Descriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *NativePredicateList) GetConditions() []*NativePredicate {
+	if x != nil {
+		return x.Conditions
+	}
+	return nil
+}
+
+type NativePredicate struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Condition:
+	//
+	//	*NativePredicate_Constant
+	//	*NativePredicate_State
+	//	*NativePredicate_All
+	//	*NativePredicate_Any
+	Condition     isNativePredicate_Condition `protobuf_oneof:"condition"`
+	Source        *LayoutSource               `protobuf:"bytes,5,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NativePredicate) Reset() {
+	*x = NativePredicate{}
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativePredicate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativePredicate) ProtoMessage() {}
+
+func (x *NativePredicate) ProtoReflect() protoreflect.Message {
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativePredicate.ProtoReflect.Descriptor instead.
+func (*NativePredicate) Descriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *NativePredicate) GetCondition() isNativePredicate_Condition {
+	if x != nil {
+		return x.Condition
+	}
+	return nil
+}
+
+func (x *NativePredicate) GetConstant() bool {
+	if x != nil {
+		if x, ok := x.Condition.(*NativePredicate_Constant); ok {
+			return x.Constant
+		}
+	}
+	return false
+}
+
+func (x *NativePredicate) GetState() *NativeStatePredicate {
+	if x != nil {
+		if x, ok := x.Condition.(*NativePredicate_State); ok {
+			return x.State
+		}
+	}
+	return nil
+}
+
+func (x *NativePredicate) GetAll() *NativePredicateList {
+	if x != nil {
+		if x, ok := x.Condition.(*NativePredicate_All); ok {
+			return x.All
+		}
+	}
+	return nil
+}
+
+func (x *NativePredicate) GetAny() *NativePredicateList {
+	if x != nil {
+		if x, ok := x.Condition.(*NativePredicate_Any); ok {
+			return x.Any
+		}
+	}
+	return nil
+}
+
+func (x *NativePredicate) GetSource() *LayoutSource {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+type isNativePredicate_Condition interface {
+	isNativePredicate_Condition()
+}
+
+type NativePredicate_Constant struct {
+	Constant bool `protobuf:"varint,1,opt,name=constant,proto3,oneof"`
+}
+
+type NativePredicate_State struct {
+	State *NativeStatePredicate `protobuf:"bytes,2,opt,name=state,proto3,oneof"`
+}
+
+type NativePredicate_All struct {
+	All *NativePredicateList `protobuf:"bytes,3,opt,name=all,proto3,oneof"`
+}
+
+type NativePredicate_Any struct {
+	Any *NativePredicateList `protobuf:"bytes,4,opt,name=any,proto3,oneof"`
+}
+
+func (*NativePredicate_Constant) isNativePredicate_Condition() {}
+
+func (*NativePredicate_State) isNativePredicate_Condition() {}
+
+func (*NativePredicate_All) isNativePredicate_Condition() {}
+
+func (*NativePredicate_Any) isNativePredicate_Condition() {}
+
+type NativeRecipes struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Version uint32                 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	// At most one recipe per gesture; no implicit tap when explicitly disabled.
+	Interactions []*NativeInteraction `protobuf:"bytes,2,rep,name=interactions,proto3" json:"interactions,omitempty"`
+	// Absent means no predicate. Unknown/invalid predicates make the node inert.
+	Visibility    *NativePredicate `protobuf:"bytes,3,opt,name=visibility,proto3" json:"visibility,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NativeRecipes) Reset() {
+	*x = NativeRecipes{}
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NativeRecipes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NativeRecipes) ProtoMessage() {}
+
+func (x *NativeRecipes) ProtoReflect() protoreflect.Message {
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NativeRecipes.ProtoReflect.Descriptor instead.
+func (*NativeRecipes) Descriptor() ([]byte, []int) {
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *NativeRecipes) GetVersion() uint32 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *NativeRecipes) GetInteractions() []*NativeInteraction {
+	if x != nil {
+		return x.Interactions
+	}
+	return nil
+}
+
+func (x *NativeRecipes) GetVisibility() *NativePredicate {
+	if x != nil {
+		return x.Visibility
+	}
+	return nil
+}
+
 type NativeLayout struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Version uint32                 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
@@ -1082,7 +2173,7 @@ type NativeLayout struct {
 
 func (x *NativeLayout) Reset() {
 	*x = NativeLayout{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[9]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1094,7 +2185,7 @@ func (x *NativeLayout) String() string {
 func (*NativeLayout) ProtoMessage() {}
 
 func (x *NativeLayout) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[9]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1107,7 +2198,7 @@ func (x *NativeLayout) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NativeLayout.ProtoReflect.Descriptor instead.
 func (*NativeLayout) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{9}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *NativeLayout) GetVersion() uint32 {
@@ -1142,7 +2233,7 @@ type ClientLayoutSupport struct {
 
 func (x *ClientLayoutSupport) Reset() {
 	*x = ClientLayoutSupport{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[10]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1154,7 +2245,7 @@ func (x *ClientLayoutSupport) String() string {
 func (*ClientLayoutSupport) ProtoMessage() {}
 
 func (x *ClientLayoutSupport) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[10]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1167,7 +2258,7 @@ func (x *ClientLayoutSupport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientLayoutSupport.ProtoReflect.Descriptor instead.
 func (*ClientLayoutSupport) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{10}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ClientLayoutSupport) GetProfile() string {
@@ -1202,7 +2293,7 @@ type OverviewRoom struct {
 
 func (x *OverviewRoom) Reset() {
 	*x = OverviewRoom{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[11]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1214,7 +2305,7 @@ func (x *OverviewRoom) String() string {
 func (*OverviewRoom) ProtoMessage() {}
 
 func (x *OverviewRoom) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[11]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1227,7 +2318,7 @@ func (x *OverviewRoom) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OverviewRoom.ProtoReflect.Descriptor instead.
 func (*OverviewRoom) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{11}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *OverviewRoom) GetId() string {
@@ -1263,7 +2354,7 @@ type OverviewObservation struct {
 
 func (x *OverviewObservation) Reset() {
 	*x = OverviewObservation{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[12]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1275,7 +2366,7 @@ func (x *OverviewObservation) String() string {
 func (*OverviewObservation) ProtoMessage() {}
 
 func (x *OverviewObservation) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[12]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1288,7 +2379,7 @@ func (x *OverviewObservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OverviewObservation.ProtoReflect.Descriptor instead.
 func (*OverviewObservation) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{12}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *OverviewObservation) GetId() string {
@@ -1336,7 +2427,7 @@ type NativeOverview struct {
 
 func (x *NativeOverview) Reset() {
 	*x = NativeOverview{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[13]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1348,7 +2439,7 @@ func (x *NativeOverview) String() string {
 func (*NativeOverview) ProtoMessage() {}
 
 func (x *NativeOverview) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[13]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1361,7 +2452,7 @@ func (x *NativeOverview) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NativeOverview.ProtoReflect.Descriptor instead.
 func (*NativeOverview) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{13}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *NativeOverview) GetVersion() uint32 {
@@ -1429,7 +2520,7 @@ type ListDashboardsRequest struct {
 
 func (x *ListDashboardsRequest) Reset() {
 	*x = ListDashboardsRequest{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[14]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1441,7 +2532,7 @@ func (x *ListDashboardsRequest) String() string {
 func (*ListDashboardsRequest) ProtoMessage() {}
 
 func (x *ListDashboardsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[14]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1454,7 +2545,7 @@ func (x *ListDashboardsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDashboardsRequest.ProtoReflect.Descriptor instead.
 func (*ListDashboardsRequest) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{14}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListDashboardsRequest) GetSupport() *ClientLayoutSupport {
@@ -1474,7 +2565,7 @@ type ListDashboardsResponse struct {
 
 func (x *ListDashboardsResponse) Reset() {
 	*x = ListDashboardsResponse{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[15]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1486,7 +2577,7 @@ func (x *ListDashboardsResponse) String() string {
 func (*ListDashboardsResponse) ProtoMessage() {}
 
 func (x *ListDashboardsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[15]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1499,7 +2590,7 @@ func (x *ListDashboardsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDashboardsResponse.ProtoReflect.Descriptor instead.
 func (*ListDashboardsResponse) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{15}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ListDashboardsResponse) GetDashboards() []*Metadata {
@@ -1526,7 +2617,7 @@ type GetDashboardRequest struct {
 
 func (x *GetDashboardRequest) Reset() {
 	*x = GetDashboardRequest{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[16]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1538,7 +2629,7 @@ func (x *GetDashboardRequest) String() string {
 func (*GetDashboardRequest) ProtoMessage() {}
 
 func (x *GetDashboardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[16]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1551,7 +2642,7 @@ func (x *GetDashboardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDashboardRequest.ProtoReflect.Descriptor instead.
 func (*GetDashboardRequest) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{16}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetDashboardRequest) GetId() *DashboardId {
@@ -1578,7 +2669,7 @@ type GetDashboardResponse struct {
 
 func (x *GetDashboardResponse) Reset() {
 	*x = GetDashboardResponse{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[17]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1590,7 +2681,7 @@ func (x *GetDashboardResponse) String() string {
 func (*GetDashboardResponse) ProtoMessage() {}
 
 func (x *GetDashboardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[17]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1603,7 +2694,7 @@ func (x *GetDashboardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDashboardResponse.ProtoReflect.Descriptor instead.
 func (*GetDashboardResponse) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{17}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GetDashboardResponse) GetDashboard() *Dashboard {
@@ -1629,7 +2720,7 @@ type CreateDashboardRequest struct {
 
 func (x *CreateDashboardRequest) Reset() {
 	*x = CreateDashboardRequest{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[18]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1641,7 +2732,7 @@ func (x *CreateDashboardRequest) String() string {
 func (*CreateDashboardRequest) ProtoMessage() {}
 
 func (x *CreateDashboardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[18]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1654,7 +2745,7 @@ func (x *CreateDashboardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDashboardRequest.ProtoReflect.Descriptor instead.
 func (*CreateDashboardRequest) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{18}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *CreateDashboardRequest) GetDefinition() *Definition {
@@ -1674,7 +2765,7 @@ type ReplaceDashboardRequest struct {
 
 func (x *ReplaceDashboardRequest) Reset() {
 	*x = ReplaceDashboardRequest{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[19]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1686,7 +2777,7 @@ func (x *ReplaceDashboardRequest) String() string {
 func (*ReplaceDashboardRequest) ProtoMessage() {}
 
 func (x *ReplaceDashboardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[19]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1699,7 +2790,7 @@ func (x *ReplaceDashboardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplaceDashboardRequest.ProtoReflect.Descriptor instead.
 func (*ReplaceDashboardRequest) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{19}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ReplaceDashboardRequest) GetDefinition() *Definition {
@@ -1726,7 +2817,7 @@ type DeleteDashboardRequest struct {
 
 func (x *DeleteDashboardRequest) Reset() {
 	*x = DeleteDashboardRequest{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[20]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1738,7 +2829,7 @@ func (x *DeleteDashboardRequest) String() string {
 func (*DeleteDashboardRequest) ProtoMessage() {}
 
 func (x *DeleteDashboardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[20]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1751,7 +2842,7 @@ func (x *DeleteDashboardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDashboardRequest.ProtoReflect.Descriptor instead.
 func (*DeleteDashboardRequest) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{20}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *DeleteDashboardRequest) GetId() *DashboardId {
@@ -1777,7 +2868,7 @@ type CreateDashboardResponse struct {
 
 func (x *CreateDashboardResponse) Reset() {
 	*x = CreateDashboardResponse{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[21]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1789,7 +2880,7 @@ func (x *CreateDashboardResponse) String() string {
 func (*CreateDashboardResponse) ProtoMessage() {}
 
 func (x *CreateDashboardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[21]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1802,7 +2893,7 @@ func (x *CreateDashboardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDashboardResponse.ProtoReflect.Descriptor instead.
 func (*CreateDashboardResponse) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{21}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *CreateDashboardResponse) GetActivation() *v11.ActivationResult {
@@ -1821,7 +2912,7 @@ type ReplaceDashboardResponse struct {
 
 func (x *ReplaceDashboardResponse) Reset() {
 	*x = ReplaceDashboardResponse{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[22]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1833,7 +2924,7 @@ func (x *ReplaceDashboardResponse) String() string {
 func (*ReplaceDashboardResponse) ProtoMessage() {}
 
 func (x *ReplaceDashboardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[22]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1846,7 +2937,7 @@ func (x *ReplaceDashboardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplaceDashboardResponse.ProtoReflect.Descriptor instead.
 func (*ReplaceDashboardResponse) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{22}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ReplaceDashboardResponse) GetActivation() *v11.ActivationResult {
@@ -1865,7 +2956,7 @@ type DeleteDashboardResponse struct {
 
 func (x *DeleteDashboardResponse) Reset() {
 	*x = DeleteDashboardResponse{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[23]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1877,7 +2968,7 @@ func (x *DeleteDashboardResponse) String() string {
 func (*DeleteDashboardResponse) ProtoMessage() {}
 
 func (x *DeleteDashboardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[23]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1890,7 +2981,7 @@ func (x *DeleteDashboardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDashboardResponse.ProtoReflect.Descriptor instead.
 func (*DeleteDashboardResponse) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{23}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *DeleteDashboardResponse) GetActivation() *v11.ActivationResult {
@@ -1909,7 +3000,7 @@ type WatchDashboardsRequest struct {
 
 func (x *WatchDashboardsRequest) Reset() {
 	*x = WatchDashboardsRequest{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[24]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1921,7 +3012,7 @@ func (x *WatchDashboardsRequest) String() string {
 func (*WatchDashboardsRequest) ProtoMessage() {}
 
 func (x *WatchDashboardsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[24]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1934,7 +3025,7 @@ func (x *WatchDashboardsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchDashboardsRequest.ProtoReflect.Descriptor instead.
 func (*WatchDashboardsRequest) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{24}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *WatchDashboardsRequest) GetResumeToken() string {
@@ -1957,7 +3048,7 @@ type WatchDashboardsResponse struct {
 
 func (x *WatchDashboardsResponse) Reset() {
 	*x = WatchDashboardsResponse{}
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[25]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1969,7 +3060,7 @@ func (x *WatchDashboardsResponse) String() string {
 func (*WatchDashboardsResponse) ProtoMessage() {}
 
 func (x *WatchDashboardsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[25]
+	mi := &file_home_dashboard_v1_dashboard_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1982,7 +3073,7 @@ func (x *WatchDashboardsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchDashboardsResponse.ProtoReflect.Descriptor instead.
 func (*WatchDashboardsResponse) Descriptor() ([]byte, []int) {
-	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{25}
+	return file_home_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *WatchDashboardsResponse) GetResult() isWatchDashboardsResponse_Result {
@@ -2076,7 +3167,7 @@ const file_home_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\x04line\x18\x02 \x01(\rR\x04line\x12\x16\n" +
 	"\x06column\x18\x03 \x01(\rR\x06column\x12\x12\n" +
 	"\x04path\x18\x04 \x01(\tR\x04path\x12\x18\n" +
-	"\avariant\x18\x05 \x01(\tR\avariant\"\x80\x05\n" +
+	"\avariant\x18\x05 \x01(\tR\avariant\"\xe2\x06\n" +
 	"\n" +
 	"LayoutNode\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x121\n" +
@@ -2098,10 +3189,59 @@ const file_home_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\n" +
 	"hide_state\x18\r \x01(\bH\x02R\thideState\x88\x01\x01\x12J\n" +
 	"\rheading_style\x18\x0e \x01(\x0e2%.home.dashboard.v1.NativeHeadingStyleR\fheadingStyle\x12\x14\n" +
-	"\x05route\x18\x0f \x01(\tR\x05routeB\t\n" +
+	"\x05route\x18\x0f \x01(\tR\x05route\x12:\n" +
+	"\arecipes\x18\x10 \x01(\v2 .home.dashboard.v1.NativeRecipesR\arecipes\x12D\n" +
+	"\vrecipe_kind\x18\x11 \x01(\x0e2#.home.dashboard.v1.NativeRecipeKindR\n" +
+	"recipeKind\x12\x1c\n" +
+	"\tsecondary\x18\x12 \x01(\tR\tsecondary\x12@\n" +
+	"\bfeatures\x18\x13 \x03(\x0e2$.home.dashboard.v1.NativeFeatureKindR\bfeaturesB\t\n" +
 	"\a_squareB\v\n" +
 	"\t_verticalB\r\n" +
-	"\v_hide_state\"s\n" +
+	"\v_hide_state\"\xba\x01\n" +
+	"\x11NativeDestination\x12A\n" +
+	"\fdashboard_id\x18\x01 \x01(\v2\x1e.home.dashboard.v1.DashboardIdR\vdashboardId\x12\x17\n" +
+	"\anode_id\x18\x02 \x01(\tR\x06nodeId\x12I\n" +
+	"\fpresentation\x18\x03 \x01(\x0e2%.home.dashboard.v1.NativePresentationR\fpresentation\"1\n" +
+	"\x12NativeEntityTarget\x12\x1b\n" +
+	"\tentity_id\x18\x01 \x01(\tR\bentityId\"f\n" +
+	"\rNativeCommand\x12\x1b\n" +
+	"\tentity_id\x18\x01 \x01(\tR\bentityId\x128\n" +
+	"\x04kind\x18\x02 \x01(\x0e2$.home.dashboard.v1.NativeCommandKindR\x04kind\"\x10\n" +
+	"\x0eNativeNoAction\"(\n" +
+	"\x12NativeConfirmation\x12\x12\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text\"\xe1\x03\n" +
+	"\x11NativeInteraction\x12:\n" +
+	"\agesture\x18\x01 \x01(\x0e2 .home.dashboard.v1.NativeGestureR\agesture\x127\n" +
+	"\x04none\x18\x02 \x01(\v2!.home.dashboard.v1.NativeNoActionH\x00R\x04none\x12D\n" +
+	"\tmore_info\x18\x03 \x01(\v2%.home.dashboard.v1.NativeEntityTargetH\x00R\bmoreInfo\x12B\n" +
+	"\bnavigate\x18\x04 \x01(\v2$.home.dashboard.v1.NativeDestinationH\x00R\bnavigate\x12<\n" +
+	"\acommand\x18\x05 \x01(\v2 .home.dashboard.v1.NativeCommandH\x00R\acommand\x12I\n" +
+	"\fconfirmation\x18\x06 \x01(\v2%.home.dashboard.v1.NativeConfirmationR\fconfirmation\x127\n" +
+	"\x06source\x18\a \x01(\v2\x1f.home.dashboard.v1.LayoutSourceR\x06sourceB\v\n" +
+	"\tintention\"\x8e\x01\n" +
+	"\x14NativeStatePredicate\x12\x1b\n" +
+	"\tentity_id\x18\x01 \x01(\tR\bentityId\x12\x14\n" +
+	"\x05state\x18\x02 \x01(\tR\x05state\x12C\n" +
+	"\n" +
+	"comparison\x18\x03 \x01(\x0e2#.home.dashboard.v1.NativeComparisonR\n" +
+	"comparison\"Y\n" +
+	"\x13NativePredicateList\x12B\n" +
+	"\n" +
+	"conditions\x18\x01 \x03(\v2\".home.dashboard.v1.NativePredicateR\n" +
+	"conditions\"\xae\x02\n" +
+	"\x0fNativePredicate\x12\x1c\n" +
+	"\bconstant\x18\x01 \x01(\bH\x00R\bconstant\x12?\n" +
+	"\x05state\x18\x02 \x01(\v2'.home.dashboard.v1.NativeStatePredicateH\x00R\x05state\x12:\n" +
+	"\x03all\x18\x03 \x01(\v2&.home.dashboard.v1.NativePredicateListH\x00R\x03all\x12:\n" +
+	"\x03any\x18\x04 \x01(\v2&.home.dashboard.v1.NativePredicateListH\x00R\x03any\x127\n" +
+	"\x06source\x18\x05 \x01(\v2\x1f.home.dashboard.v1.LayoutSourceR\x06sourceB\v\n" +
+	"\tcondition\"\xb7\x01\n" +
+	"\rNativeRecipes\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\rR\aversion\x12H\n" +
+	"\finteractions\x18\x02 \x03(\v2$.home.dashboard.v1.NativeInteractionR\finteractions\x12B\n" +
+	"\n" +
+	"visibility\x18\x03 \x01(\v2\".home.dashboard.v1.NativePredicateR\n" +
+	"visibility\"s\n" +
 	"\fNativeLayout\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x14\n" +
 	"\x05views\x18\x02 \x03(\tR\x05views\x123\n" +
@@ -2181,7 +3321,7 @@ const file_home_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"#DIAGNOSTIC_CODE_UNSUPPORTED_VARIANT\x10\x05\x12(\n" +
 	"$DIAGNOSTIC_CODE_UNSUPPORTED_PROPERTY\x10\x06\x12#\n" +
 	"\x1fDIAGNOSTIC_CODE_UNBOUND_HA_USER\x10\a\x12'\n" +
-	"#DIAGNOSTIC_CODE_BLOCKED_BY_ANCESTOR\x10\b*\xdc\x01\n" +
+	"#DIAGNOSTIC_CODE_BLOCKED_BY_ANCESTOR\x10\b*\xc7\x02\n" +
 	"\n" +
 	"LayoutKind\x12\x1b\n" +
 	"\x17LAYOUT_KIND_UNSPECIFIED\x10\x00\x12\x14\n" +
@@ -2191,7 +3331,12 @@ const file_home_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\x1cLAYOUT_KIND_HORIZONTAL_STACK\x10\x04\x12\x17\n" +
 	"\x13LAYOUT_KIND_HEADING\x10\x05\x12\x14\n" +
 	"\x10LAYOUT_KIND_TILE\x10\x06\x12\x1b\n" +
-	"\x17LAYOUT_KIND_UNSUPPORTED\x10\a*\x9d\x01\n" +
+	"\x17LAYOUT_KIND_UNSUPPORTED\x10\a\x12\x16\n" +
+	"\x12LAYOUT_KIND_RECIPE\x10\b\x12\x1e\n" +
+	"\x1aLAYOUT_KIND_VERTICAL_STACK\x10\t\x12\x15\n" +
+	"\x11LAYOUT_KIND_POPUP\x10\n" +
+	"\x12\x1a\n" +
+	"\x16LAYOUT_KIND_CHIP_GROUP\x10\v*\x9d\x01\n" +
 	"\x13LayoutDimensionKind\x12%\n" +
 	"!LAYOUT_DIMENSION_KIND_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bLAYOUT_DIMENSION_KIND_COUNT\x10\x01\x12\x1e\n" +
@@ -2201,7 +3346,61 @@ const file_home_dashboard_v1_dashboard_proto_rawDesc = "" +
 	" NATIVE_HEADING_STYLE_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cNATIVE_HEADING_STYLE_DEFAULT\x10\x01\x12\x1e\n" +
 	"\x1aNATIVE_HEADING_STYLE_TITLE\x10\x02\x12!\n" +
-	"\x1dNATIVE_HEADING_STYLE_SUBTITLE\x10\x03*\x89\x01\n" +
+	"\x1dNATIVE_HEADING_STYLE_SUBTITLE\x10\x03*\xfe\x02\n" +
+	"\x10NativeRecipeKind\x12\"\n" +
+	"\x1eNATIVE_RECIPE_KIND_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bNATIVE_RECIPE_KIND_TEMPLATE\x10\x01\x12\x1d\n" +
+	"\x19NATIVE_RECIPE_KIND_SELECT\x10\x02\x12\x1c\n" +
+	"\x18NATIVE_RECIPE_KIND_ALARM\x10\x03\x12$\n" +
+	" NATIVE_RECIPE_KIND_BUBBLE_BUTTON\x10\x04\x12#\n" +
+	"\x1fNATIVE_RECIPE_KIND_BUBBLE_POPUP\x10\x05\x12\x1c\n" +
+	"\x18NATIVE_RECIPE_KIND_CHIPS\x10\x06\x12$\n" +
+	" NATIVE_RECIPE_KIND_TEMPLATE_CHIP\x10\a\x12\x1d\n" +
+	"\x19NATIVE_RECIPE_KIND_BUTTON\x10\b\x12\x1d\n" +
+	"\x19NATIVE_RECIPE_KIND_ENTITY\x10\t\x12\x1b\n" +
+	"\x17NATIVE_RECIPE_KIND_TEXT\x10\n" +
+	"*\xbb\x03\n" +
+	"\x11NativeFeatureKind\x12#\n" +
+	"\x1fNATIVE_FEATURE_KIND_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aNATIVE_FEATURE_KIND_TOGGLE\x10\x01\x12\"\n" +
+	"\x1eNATIVE_FEATURE_KIND_BRIGHTNESS\x10\x02\x12)\n" +
+	"%NATIVE_FEATURE_KIND_COLOR_TEMPERATURE\x10\x03\x12*\n" +
+	"&NATIVE_FEATURE_KIND_TARGET_TEMPERATURE\x10\x04\x12%\n" +
+	"!NATIVE_FEATURE_KIND_CLIMATE_MODES\x10\x05\x12!\n" +
+	"\x1dNATIVE_FEATURE_KIND_FAN_SPEED\x10\x06\x12%\n" +
+	"!NATIVE_FEATURE_KIND_NUMERIC_INPUT\x10\a\x12(\n" +
+	"$NATIVE_FEATURE_KIND_COVER_OPEN_CLOSE\x10\b\x12&\n" +
+	"\"NATIVE_FEATURE_KIND_COVER_POSITION\x10\t\x12#\n" +
+	"\x1fNATIVE_FEATURE_KIND_ALARM_MODES\x10\n" +
+	"*\x7f\n" +
+	"\rNativeGesture\x12\x1e\n" +
+	"\x1aNATIVE_GESTURE_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12NATIVE_GESTURE_TAP\x10\x01\x12\x17\n" +
+	"\x13NATIVE_GESTURE_HOLD\x10\x02\x12\x1d\n" +
+	"\x19NATIVE_GESTURE_DOUBLE_TAP\x10\x03*v\n" +
+	"\x12NativePresentation\x12#\n" +
+	"\x1fNATIVE_PRESENTATION_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18NATIVE_PRESENTATION_PAGE\x10\x01\x12\x1d\n" +
+	"\x19NATIVE_PRESENTATION_POPUP\x10\x02*\xde\x03\n" +
+	"\x11NativeCommandKind\x12#\n" +
+	"\x1fNATIVE_COMMAND_KIND_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aNATIVE_COMMAND_KIND_TOGGLE\x10\x01\x12\x1f\n" +
+	"\x1bNATIVE_COMMAND_KIND_TURN_ON\x10\x02\x12 \n" +
+	"\x1cNATIVE_COMMAND_KIND_TURN_OFF\x10\x03\x12 \n" +
+	"\x1cNATIVE_COMMAND_KIND_ACTIVATE\x10\x04\x12\"\n" +
+	"\x1eNATIVE_COMMAND_KIND_COVER_OPEN\x10\x05\x12#\n" +
+	"\x1fNATIVE_COMMAND_KIND_COVER_CLOSE\x10\x06\x12\"\n" +
+	"\x1eNATIVE_COMMAND_KIND_COVER_STOP\x10\a\x12\x1c\n" +
+	"\x18NATIVE_COMMAND_KIND_LOCK\x10\b\x12\x1e\n" +
+	"\x1aNATIVE_COMMAND_KIND_UNLOCK\x10\t\x12&\n" +
+	"\"NATIVE_COMMAND_KIND_ALARM_ARM_HOME\x10\n" +
+	"\x12&\n" +
+	"\"NATIVE_COMMAND_KIND_ALARM_ARM_AWAY\x10\v\x12$\n" +
+	" NATIVE_COMMAND_KIND_ALARM_DISARM\x10\f*s\n" +
+	"\x10NativeComparison\x12!\n" +
+	"\x1dNATIVE_COMPARISON_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17NATIVE_COMPARISON_EQUAL\x10\x01\x12\x1f\n" +
+	"\x1bNATIVE_COMPARISON_NOT_EQUAL\x10\x02*\x89\x01\n" +
 	"\n" +
 	"NativeIcon\x12\x1b\n" +
 	"\x17NATIVE_ICON_UNSPECIFIED\x10\x00\x12\x14\n" +
@@ -2233,105 +3432,142 @@ func file_home_dashboard_v1_dashboard_proto_rawDescGZIP() []byte {
 	return file_home_dashboard_v1_dashboard_proto_rawDescData
 }
 
-var file_home_dashboard_v1_dashboard_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_home_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_home_dashboard_v1_dashboard_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
+var file_home_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
 var file_home_dashboard_v1_dashboard_proto_goTypes = []any{
 	(DiagnosticCode)(0),              // 0: home.dashboard.v1.DiagnosticCode
 	(LayoutKind)(0),                  // 1: home.dashboard.v1.LayoutKind
 	(LayoutDimensionKind)(0),         // 2: home.dashboard.v1.LayoutDimensionKind
 	(NativeHeadingStyle)(0),          // 3: home.dashboard.v1.NativeHeadingStyle
-	(NativeIcon)(0),                  // 4: home.dashboard.v1.NativeIcon
-	(ServingMode)(0),                 // 5: home.dashboard.v1.ServingMode
-	(*DashboardId)(nil),              // 6: home.dashboard.v1.DashboardId
-	(*SourceFile)(nil),               // 7: home.dashboard.v1.SourceFile
-	(*Definition)(nil),               // 8: home.dashboard.v1.Definition
-	(*Metadata)(nil),                 // 9: home.dashboard.v1.Metadata
-	(*Diagnostic)(nil),               // 10: home.dashboard.v1.Diagnostic
-	(*Dashboard)(nil),                // 11: home.dashboard.v1.Dashboard
-	(*LayoutDimension)(nil),          // 12: home.dashboard.v1.LayoutDimension
-	(*LayoutSource)(nil),             // 13: home.dashboard.v1.LayoutSource
-	(*LayoutNode)(nil),               // 14: home.dashboard.v1.LayoutNode
-	(*NativeLayout)(nil),             // 15: home.dashboard.v1.NativeLayout
-	(*ClientLayoutSupport)(nil),      // 16: home.dashboard.v1.ClientLayoutSupport
-	(*OverviewRoom)(nil),             // 17: home.dashboard.v1.OverviewRoom
-	(*OverviewObservation)(nil),      // 18: home.dashboard.v1.OverviewObservation
-	(*NativeOverview)(nil),           // 19: home.dashboard.v1.NativeOverview
-	(*ListDashboardsRequest)(nil),    // 20: home.dashboard.v1.ListDashboardsRequest
-	(*ListDashboardsResponse)(nil),   // 21: home.dashboard.v1.ListDashboardsResponse
-	(*GetDashboardRequest)(nil),      // 22: home.dashboard.v1.GetDashboardRequest
-	(*GetDashboardResponse)(nil),     // 23: home.dashboard.v1.GetDashboardResponse
-	(*CreateDashboardRequest)(nil),   // 24: home.dashboard.v1.CreateDashboardRequest
-	(*ReplaceDashboardRequest)(nil),  // 25: home.dashboard.v1.ReplaceDashboardRequest
-	(*DeleteDashboardRequest)(nil),   // 26: home.dashboard.v1.DeleteDashboardRequest
-	(*CreateDashboardResponse)(nil),  // 27: home.dashboard.v1.CreateDashboardResponse
-	(*ReplaceDashboardResponse)(nil), // 28: home.dashboard.v1.ReplaceDashboardResponse
-	(*DeleteDashboardResponse)(nil),  // 29: home.dashboard.v1.DeleteDashboardResponse
-	(*WatchDashboardsRequest)(nil),   // 30: home.dashboard.v1.WatchDashboardsRequest
-	(*WatchDashboardsResponse)(nil),  // 31: home.dashboard.v1.WatchDashboardsResponse
-	(*v1.AccountId)(nil),             // 32: home.auth.v1.AccountId
-	(*v11.DocumentVersion)(nil),      // 33: home.configuration.v1.DocumentVersion
-	(*timestamppb.Timestamp)(nil),    // 34: google.protobuf.Timestamp
-	(*v11.ActivationResult)(nil),     // 35: home.configuration.v1.ActivationResult
-	(*v11.ResyncRequired)(nil),       // 36: home.configuration.v1.ResyncRequired
+	(NativeRecipeKind)(0),            // 4: home.dashboard.v1.NativeRecipeKind
+	(NativeFeatureKind)(0),           // 5: home.dashboard.v1.NativeFeatureKind
+	(NativeGesture)(0),               // 6: home.dashboard.v1.NativeGesture
+	(NativePresentation)(0),          // 7: home.dashboard.v1.NativePresentation
+	(NativeCommandKind)(0),           // 8: home.dashboard.v1.NativeCommandKind
+	(NativeComparison)(0),            // 9: home.dashboard.v1.NativeComparison
+	(NativeIcon)(0),                  // 10: home.dashboard.v1.NativeIcon
+	(ServingMode)(0),                 // 11: home.dashboard.v1.ServingMode
+	(*DashboardId)(nil),              // 12: home.dashboard.v1.DashboardId
+	(*SourceFile)(nil),               // 13: home.dashboard.v1.SourceFile
+	(*Definition)(nil),               // 14: home.dashboard.v1.Definition
+	(*Metadata)(nil),                 // 15: home.dashboard.v1.Metadata
+	(*Diagnostic)(nil),               // 16: home.dashboard.v1.Diagnostic
+	(*Dashboard)(nil),                // 17: home.dashboard.v1.Dashboard
+	(*LayoutDimension)(nil),          // 18: home.dashboard.v1.LayoutDimension
+	(*LayoutSource)(nil),             // 19: home.dashboard.v1.LayoutSource
+	(*LayoutNode)(nil),               // 20: home.dashboard.v1.LayoutNode
+	(*NativeDestination)(nil),        // 21: home.dashboard.v1.NativeDestination
+	(*NativeEntityTarget)(nil),       // 22: home.dashboard.v1.NativeEntityTarget
+	(*NativeCommand)(nil),            // 23: home.dashboard.v1.NativeCommand
+	(*NativeNoAction)(nil),           // 24: home.dashboard.v1.NativeNoAction
+	(*NativeConfirmation)(nil),       // 25: home.dashboard.v1.NativeConfirmation
+	(*NativeInteraction)(nil),        // 26: home.dashboard.v1.NativeInteraction
+	(*NativeStatePredicate)(nil),     // 27: home.dashboard.v1.NativeStatePredicate
+	(*NativePredicateList)(nil),      // 28: home.dashboard.v1.NativePredicateList
+	(*NativePredicate)(nil),          // 29: home.dashboard.v1.NativePredicate
+	(*NativeRecipes)(nil),            // 30: home.dashboard.v1.NativeRecipes
+	(*NativeLayout)(nil),             // 31: home.dashboard.v1.NativeLayout
+	(*ClientLayoutSupport)(nil),      // 32: home.dashboard.v1.ClientLayoutSupport
+	(*OverviewRoom)(nil),             // 33: home.dashboard.v1.OverviewRoom
+	(*OverviewObservation)(nil),      // 34: home.dashboard.v1.OverviewObservation
+	(*NativeOverview)(nil),           // 35: home.dashboard.v1.NativeOverview
+	(*ListDashboardsRequest)(nil),    // 36: home.dashboard.v1.ListDashboardsRequest
+	(*ListDashboardsResponse)(nil),   // 37: home.dashboard.v1.ListDashboardsResponse
+	(*GetDashboardRequest)(nil),      // 38: home.dashboard.v1.GetDashboardRequest
+	(*GetDashboardResponse)(nil),     // 39: home.dashboard.v1.GetDashboardResponse
+	(*CreateDashboardRequest)(nil),   // 40: home.dashboard.v1.CreateDashboardRequest
+	(*ReplaceDashboardRequest)(nil),  // 41: home.dashboard.v1.ReplaceDashboardRequest
+	(*DeleteDashboardRequest)(nil),   // 42: home.dashboard.v1.DeleteDashboardRequest
+	(*CreateDashboardResponse)(nil),  // 43: home.dashboard.v1.CreateDashboardResponse
+	(*ReplaceDashboardResponse)(nil), // 44: home.dashboard.v1.ReplaceDashboardResponse
+	(*DeleteDashboardResponse)(nil),  // 45: home.dashboard.v1.DeleteDashboardResponse
+	(*WatchDashboardsRequest)(nil),   // 46: home.dashboard.v1.WatchDashboardsRequest
+	(*WatchDashboardsResponse)(nil),  // 47: home.dashboard.v1.WatchDashboardsResponse
+	(*v1.AccountId)(nil),             // 48: home.auth.v1.AccountId
+	(*v11.DocumentVersion)(nil),      // 49: home.configuration.v1.DocumentVersion
+	(*timestamppb.Timestamp)(nil),    // 50: google.protobuf.Timestamp
+	(*v11.ActivationResult)(nil),     // 51: home.configuration.v1.ActivationResult
+	(*v11.ResyncRequired)(nil),       // 52: home.configuration.v1.ResyncRequired
 }
 var file_home_dashboard_v1_dashboard_proto_depIdxs = []int32{
-	6,  // 0: home.dashboard.v1.Definition.id:type_name -> home.dashboard.v1.DashboardId
-	32, // 1: home.dashboard.v1.Definition.owner:type_name -> home.auth.v1.AccountId
-	7,  // 2: home.dashboard.v1.Definition.files:type_name -> home.dashboard.v1.SourceFile
-	6,  // 3: home.dashboard.v1.Metadata.id:type_name -> home.dashboard.v1.DashboardId
-	32, // 4: home.dashboard.v1.Metadata.owner:type_name -> home.auth.v1.AccountId
-	33, // 5: home.dashboard.v1.Metadata.version:type_name -> home.configuration.v1.DocumentVersion
-	34, // 6: home.dashboard.v1.Metadata.updated_at:type_name -> google.protobuf.Timestamp
+	12, // 0: home.dashboard.v1.Definition.id:type_name -> home.dashboard.v1.DashboardId
+	48, // 1: home.dashboard.v1.Definition.owner:type_name -> home.auth.v1.AccountId
+	13, // 2: home.dashboard.v1.Definition.files:type_name -> home.dashboard.v1.SourceFile
+	12, // 3: home.dashboard.v1.Metadata.id:type_name -> home.dashboard.v1.DashboardId
+	48, // 4: home.dashboard.v1.Metadata.owner:type_name -> home.auth.v1.AccountId
+	49, // 5: home.dashboard.v1.Metadata.version:type_name -> home.configuration.v1.DocumentVersion
+	50, // 6: home.dashboard.v1.Metadata.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 7: home.dashboard.v1.Diagnostic.code:type_name -> home.dashboard.v1.DiagnosticCode
-	9,  // 8: home.dashboard.v1.Dashboard.metadata:type_name -> home.dashboard.v1.Metadata
-	8,  // 9: home.dashboard.v1.Dashboard.definition:type_name -> home.dashboard.v1.Definition
-	10, // 10: home.dashboard.v1.Dashboard.diagnostics:type_name -> home.dashboard.v1.Diagnostic
-	19, // 11: home.dashboard.v1.Dashboard.native_overview:type_name -> home.dashboard.v1.NativeOverview
-	15, // 12: home.dashboard.v1.Dashboard.native_layout:type_name -> home.dashboard.v1.NativeLayout
+	15, // 8: home.dashboard.v1.Dashboard.metadata:type_name -> home.dashboard.v1.Metadata
+	14, // 9: home.dashboard.v1.Dashboard.definition:type_name -> home.dashboard.v1.Definition
+	16, // 10: home.dashboard.v1.Dashboard.diagnostics:type_name -> home.dashboard.v1.Diagnostic
+	35, // 11: home.dashboard.v1.Dashboard.native_overview:type_name -> home.dashboard.v1.NativeOverview
+	31, // 12: home.dashboard.v1.Dashboard.native_layout:type_name -> home.dashboard.v1.NativeLayout
 	2,  // 13: home.dashboard.v1.LayoutDimension.kind:type_name -> home.dashboard.v1.LayoutDimensionKind
 	1,  // 14: home.dashboard.v1.LayoutNode.kind:type_name -> home.dashboard.v1.LayoutKind
-	13, // 15: home.dashboard.v1.LayoutNode.source:type_name -> home.dashboard.v1.LayoutSource
-	12, // 16: home.dashboard.v1.LayoutNode.column_span:type_name -> home.dashboard.v1.LayoutDimension
-	12, // 17: home.dashboard.v1.LayoutNode.row_span:type_name -> home.dashboard.v1.LayoutDimension
+	19, // 15: home.dashboard.v1.LayoutNode.source:type_name -> home.dashboard.v1.LayoutSource
+	18, // 16: home.dashboard.v1.LayoutNode.column_span:type_name -> home.dashboard.v1.LayoutDimension
+	18, // 17: home.dashboard.v1.LayoutNode.row_span:type_name -> home.dashboard.v1.LayoutDimension
 	3,  // 18: home.dashboard.v1.LayoutNode.heading_style:type_name -> home.dashboard.v1.NativeHeadingStyle
-	14, // 19: home.dashboard.v1.NativeLayout.nodes:type_name -> home.dashboard.v1.LayoutNode
-	1,  // 20: home.dashboard.v1.ClientLayoutSupport.kinds:type_name -> home.dashboard.v1.LayoutKind
-	4,  // 21: home.dashboard.v1.OverviewObservation.icon:type_name -> home.dashboard.v1.NativeIcon
-	17, // 22: home.dashboard.v1.NativeOverview.rooms:type_name -> home.dashboard.v1.OverviewRoom
-	18, // 23: home.dashboard.v1.NativeOverview.observations:type_name -> home.dashboard.v1.OverviewObservation
-	5,  // 24: home.dashboard.v1.NativeOverview.mode:type_name -> home.dashboard.v1.ServingMode
-	16, // 25: home.dashboard.v1.ListDashboardsRequest.support:type_name -> home.dashboard.v1.ClientLayoutSupport
-	9,  // 26: home.dashboard.v1.ListDashboardsResponse.dashboards:type_name -> home.dashboard.v1.Metadata
-	6,  // 27: home.dashboard.v1.GetDashboardRequest.id:type_name -> home.dashboard.v1.DashboardId
-	16, // 28: home.dashboard.v1.GetDashboardRequest.support:type_name -> home.dashboard.v1.ClientLayoutSupport
-	11, // 29: home.dashboard.v1.GetDashboardResponse.dashboard:type_name -> home.dashboard.v1.Dashboard
-	8,  // 30: home.dashboard.v1.CreateDashboardRequest.definition:type_name -> home.dashboard.v1.Definition
-	8,  // 31: home.dashboard.v1.ReplaceDashboardRequest.definition:type_name -> home.dashboard.v1.Definition
-	33, // 32: home.dashboard.v1.ReplaceDashboardRequest.expected:type_name -> home.configuration.v1.DocumentVersion
-	6,  // 33: home.dashboard.v1.DeleteDashboardRequest.id:type_name -> home.dashboard.v1.DashboardId
-	33, // 34: home.dashboard.v1.DeleteDashboardRequest.expected:type_name -> home.configuration.v1.DocumentVersion
-	35, // 35: home.dashboard.v1.CreateDashboardResponse.activation:type_name -> home.configuration.v1.ActivationResult
-	35, // 36: home.dashboard.v1.ReplaceDashboardResponse.activation:type_name -> home.configuration.v1.ActivationResult
-	35, // 37: home.dashboard.v1.DeleteDashboardResponse.activation:type_name -> home.configuration.v1.ActivationResult
-	21, // 38: home.dashboard.v1.WatchDashboardsResponse.snapshot:type_name -> home.dashboard.v1.ListDashboardsResponse
-	36, // 39: home.dashboard.v1.WatchDashboardsResponse.resync_required:type_name -> home.configuration.v1.ResyncRequired
-	20, // 40: home.dashboard.v1.DashboardService.ListDashboards:input_type -> home.dashboard.v1.ListDashboardsRequest
-	22, // 41: home.dashboard.v1.DashboardService.GetDashboard:input_type -> home.dashboard.v1.GetDashboardRequest
-	24, // 42: home.dashboard.v1.DashboardService.CreateDashboard:input_type -> home.dashboard.v1.CreateDashboardRequest
-	25, // 43: home.dashboard.v1.DashboardService.ReplaceDashboard:input_type -> home.dashboard.v1.ReplaceDashboardRequest
-	26, // 44: home.dashboard.v1.DashboardService.DeleteDashboard:input_type -> home.dashboard.v1.DeleteDashboardRequest
-	30, // 45: home.dashboard.v1.DashboardService.WatchDashboards:input_type -> home.dashboard.v1.WatchDashboardsRequest
-	21, // 46: home.dashboard.v1.DashboardService.ListDashboards:output_type -> home.dashboard.v1.ListDashboardsResponse
-	23, // 47: home.dashboard.v1.DashboardService.GetDashboard:output_type -> home.dashboard.v1.GetDashboardResponse
-	27, // 48: home.dashboard.v1.DashboardService.CreateDashboard:output_type -> home.dashboard.v1.CreateDashboardResponse
-	28, // 49: home.dashboard.v1.DashboardService.ReplaceDashboard:output_type -> home.dashboard.v1.ReplaceDashboardResponse
-	29, // 50: home.dashboard.v1.DashboardService.DeleteDashboard:output_type -> home.dashboard.v1.DeleteDashboardResponse
-	31, // 51: home.dashboard.v1.DashboardService.WatchDashboards:output_type -> home.dashboard.v1.WatchDashboardsResponse
-	46, // [46:52] is the sub-list for method output_type
-	40, // [40:46] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	30, // 19: home.dashboard.v1.LayoutNode.recipes:type_name -> home.dashboard.v1.NativeRecipes
+	4,  // 20: home.dashboard.v1.LayoutNode.recipe_kind:type_name -> home.dashboard.v1.NativeRecipeKind
+	5,  // 21: home.dashboard.v1.LayoutNode.features:type_name -> home.dashboard.v1.NativeFeatureKind
+	12, // 22: home.dashboard.v1.NativeDestination.dashboard_id:type_name -> home.dashboard.v1.DashboardId
+	7,  // 23: home.dashboard.v1.NativeDestination.presentation:type_name -> home.dashboard.v1.NativePresentation
+	8,  // 24: home.dashboard.v1.NativeCommand.kind:type_name -> home.dashboard.v1.NativeCommandKind
+	6,  // 25: home.dashboard.v1.NativeInteraction.gesture:type_name -> home.dashboard.v1.NativeGesture
+	24, // 26: home.dashboard.v1.NativeInteraction.none:type_name -> home.dashboard.v1.NativeNoAction
+	22, // 27: home.dashboard.v1.NativeInteraction.more_info:type_name -> home.dashboard.v1.NativeEntityTarget
+	21, // 28: home.dashboard.v1.NativeInteraction.navigate:type_name -> home.dashboard.v1.NativeDestination
+	23, // 29: home.dashboard.v1.NativeInteraction.command:type_name -> home.dashboard.v1.NativeCommand
+	25, // 30: home.dashboard.v1.NativeInteraction.confirmation:type_name -> home.dashboard.v1.NativeConfirmation
+	19, // 31: home.dashboard.v1.NativeInteraction.source:type_name -> home.dashboard.v1.LayoutSource
+	9,  // 32: home.dashboard.v1.NativeStatePredicate.comparison:type_name -> home.dashboard.v1.NativeComparison
+	29, // 33: home.dashboard.v1.NativePredicateList.conditions:type_name -> home.dashboard.v1.NativePredicate
+	27, // 34: home.dashboard.v1.NativePredicate.state:type_name -> home.dashboard.v1.NativeStatePredicate
+	28, // 35: home.dashboard.v1.NativePredicate.all:type_name -> home.dashboard.v1.NativePredicateList
+	28, // 36: home.dashboard.v1.NativePredicate.any:type_name -> home.dashboard.v1.NativePredicateList
+	19, // 37: home.dashboard.v1.NativePredicate.source:type_name -> home.dashboard.v1.LayoutSource
+	26, // 38: home.dashboard.v1.NativeRecipes.interactions:type_name -> home.dashboard.v1.NativeInteraction
+	29, // 39: home.dashboard.v1.NativeRecipes.visibility:type_name -> home.dashboard.v1.NativePredicate
+	20, // 40: home.dashboard.v1.NativeLayout.nodes:type_name -> home.dashboard.v1.LayoutNode
+	1,  // 41: home.dashboard.v1.ClientLayoutSupport.kinds:type_name -> home.dashboard.v1.LayoutKind
+	10, // 42: home.dashboard.v1.OverviewObservation.icon:type_name -> home.dashboard.v1.NativeIcon
+	33, // 43: home.dashboard.v1.NativeOverview.rooms:type_name -> home.dashboard.v1.OverviewRoom
+	34, // 44: home.dashboard.v1.NativeOverview.observations:type_name -> home.dashboard.v1.OverviewObservation
+	11, // 45: home.dashboard.v1.NativeOverview.mode:type_name -> home.dashboard.v1.ServingMode
+	32, // 46: home.dashboard.v1.ListDashboardsRequest.support:type_name -> home.dashboard.v1.ClientLayoutSupport
+	15, // 47: home.dashboard.v1.ListDashboardsResponse.dashboards:type_name -> home.dashboard.v1.Metadata
+	12, // 48: home.dashboard.v1.GetDashboardRequest.id:type_name -> home.dashboard.v1.DashboardId
+	32, // 49: home.dashboard.v1.GetDashboardRequest.support:type_name -> home.dashboard.v1.ClientLayoutSupport
+	17, // 50: home.dashboard.v1.GetDashboardResponse.dashboard:type_name -> home.dashboard.v1.Dashboard
+	14, // 51: home.dashboard.v1.CreateDashboardRequest.definition:type_name -> home.dashboard.v1.Definition
+	14, // 52: home.dashboard.v1.ReplaceDashboardRequest.definition:type_name -> home.dashboard.v1.Definition
+	49, // 53: home.dashboard.v1.ReplaceDashboardRequest.expected:type_name -> home.configuration.v1.DocumentVersion
+	12, // 54: home.dashboard.v1.DeleteDashboardRequest.id:type_name -> home.dashboard.v1.DashboardId
+	49, // 55: home.dashboard.v1.DeleteDashboardRequest.expected:type_name -> home.configuration.v1.DocumentVersion
+	51, // 56: home.dashboard.v1.CreateDashboardResponse.activation:type_name -> home.configuration.v1.ActivationResult
+	51, // 57: home.dashboard.v1.ReplaceDashboardResponse.activation:type_name -> home.configuration.v1.ActivationResult
+	51, // 58: home.dashboard.v1.DeleteDashboardResponse.activation:type_name -> home.configuration.v1.ActivationResult
+	37, // 59: home.dashboard.v1.WatchDashboardsResponse.snapshot:type_name -> home.dashboard.v1.ListDashboardsResponse
+	52, // 60: home.dashboard.v1.WatchDashboardsResponse.resync_required:type_name -> home.configuration.v1.ResyncRequired
+	36, // 61: home.dashboard.v1.DashboardService.ListDashboards:input_type -> home.dashboard.v1.ListDashboardsRequest
+	38, // 62: home.dashboard.v1.DashboardService.GetDashboard:input_type -> home.dashboard.v1.GetDashboardRequest
+	40, // 63: home.dashboard.v1.DashboardService.CreateDashboard:input_type -> home.dashboard.v1.CreateDashboardRequest
+	41, // 64: home.dashboard.v1.DashboardService.ReplaceDashboard:input_type -> home.dashboard.v1.ReplaceDashboardRequest
+	42, // 65: home.dashboard.v1.DashboardService.DeleteDashboard:input_type -> home.dashboard.v1.DeleteDashboardRequest
+	46, // 66: home.dashboard.v1.DashboardService.WatchDashboards:input_type -> home.dashboard.v1.WatchDashboardsRequest
+	37, // 67: home.dashboard.v1.DashboardService.ListDashboards:output_type -> home.dashboard.v1.ListDashboardsResponse
+	39, // 68: home.dashboard.v1.DashboardService.GetDashboard:output_type -> home.dashboard.v1.GetDashboardResponse
+	43, // 69: home.dashboard.v1.DashboardService.CreateDashboard:output_type -> home.dashboard.v1.CreateDashboardResponse
+	44, // 70: home.dashboard.v1.DashboardService.ReplaceDashboard:output_type -> home.dashboard.v1.ReplaceDashboardResponse
+	45, // 71: home.dashboard.v1.DashboardService.DeleteDashboard:output_type -> home.dashboard.v1.DeleteDashboardResponse
+	47, // 72: home.dashboard.v1.DashboardService.WatchDashboards:output_type -> home.dashboard.v1.WatchDashboardsResponse
+	67, // [67:73] is the sub-list for method output_type
+	61, // [61:67] is the sub-list for method input_type
+	61, // [61:61] is the sub-list for extension type_name
+	61, // [61:61] is the sub-list for extension extendee
+	0,  // [0:61] is the sub-list for field type_name
 }
 
 func init() { file_home_dashboard_v1_dashboard_proto_init() }
@@ -2340,7 +3576,19 @@ func file_home_dashboard_v1_dashboard_proto_init() {
 		return
 	}
 	file_home_dashboard_v1_dashboard_proto_msgTypes[8].OneofWrappers = []any{}
-	file_home_dashboard_v1_dashboard_proto_msgTypes[25].OneofWrappers = []any{
+	file_home_dashboard_v1_dashboard_proto_msgTypes[14].OneofWrappers = []any{
+		(*NativeInteraction_None)(nil),
+		(*NativeInteraction_MoreInfo)(nil),
+		(*NativeInteraction_Navigate)(nil),
+		(*NativeInteraction_Command)(nil),
+	}
+	file_home_dashboard_v1_dashboard_proto_msgTypes[17].OneofWrappers = []any{
+		(*NativePredicate_Constant)(nil),
+		(*NativePredicate_State)(nil),
+		(*NativePredicate_All)(nil),
+		(*NativePredicate_Any)(nil),
+	}
+	file_home_dashboard_v1_dashboard_proto_msgTypes[35].OneofWrappers = []any{
 		(*WatchDashboardsResponse_Snapshot)(nil),
 		(*WatchDashboardsResponse_ResyncRequired)(nil),
 	}
@@ -2349,8 +3597,8 @@ func file_home_dashboard_v1_dashboard_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_dashboard_v1_dashboard_proto_rawDesc), len(file_home_dashboard_v1_dashboard_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   26,
+			NumEnums:      12,
+			NumMessages:   36,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

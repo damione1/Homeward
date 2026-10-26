@@ -179,6 +179,8 @@ func (h *nhf005Dashboard) captureCatalogue(ctx context.Context, support *dashboa
 	token := sha256.New()
 	token.Write(h.epoch[:])
 	token.Write(rightsHash[:])
+	var compiledDocuments []imported.Result
+	var projections []nhf007Projection
 	for _, entry := range config.Dashboards {
 		id, _ := authorization.ParseDashboardID(entry.ID)
 		permit, err := h.cataloguePermit(ctx, id, h.owner)
@@ -190,7 +192,7 @@ func (h *nhf005Dashboard) captureCatalogue(ctx context.Context, support *dashboa
 		}
 		result.permits = append(result.permits, permit)
 		source, _ := imported.NewSource(id, entry.URLPath, entry.File)
-		compiled, err := imported.Import(filepath.Dir(h.catalogue.file), source)
+		compiled, err := imported.ImportWithProfile(filepath.Dir(h.catalogue.file), source, h.compilationProfile())
 		definition, present := compiled.Definition()
 		if err != nil || !present || compiled.Status() == imported.StatusFatal {
 			return nhf007Capture{}, connect.NewError(connect.CodeFailedPrecondition, errors.New("invalid synthetic Lovelace source"))
@@ -207,10 +209,6 @@ func (h *nhf005Dashboard) captureCatalogue(ctx context.Context, support *dashboa
 		if err != nil {
 			return nhf007Capture{}, coreRPCError(ctx, err)
 		}
-		layout, err := projectDashboardLayout(compiled, support, resolve)
-		if err != nil {
-			return nhf007Capture{}, coreRPCError(ctx, err)
-		}
 		digest := definition.SHA256()
 		version := h.catalogue.versions[entry.ID]
 		if version.hash != digest || version.revision == 0 {
@@ -223,7 +221,7 @@ func (h *nhf005Dashboard) captureCatalogue(ctx context.Context, support *dashboa
 		switch entry.Projection {
 		case nhf007Normal:
 		case nhf007FutureVersion:
-			layout.Version = 99
+			// Injected after coherent catalogue projection below.
 		case nhf007FutureProfile:
 			metadata.Profile = "homeward-dashboard-99"
 		case nhf007WrongConfig:
@@ -232,7 +230,7 @@ func (h *nhf005Dashboard) captureCatalogue(ctx context.Context, support *dashboa
 			return nhf007Capture{}, errors.New("unparsed synthetic projection")
 		}
 		token.Write([]byte{byte(entry.Projection)})
-		doc := &dashboardv1.Dashboard{Metadata: metadata, NativeOverview: overview, NativeLayout: layout,
+		doc := &dashboardv1.Dashboard{Metadata: metadata, NativeOverview: overview,
 			Definition: &dashboardv1.Definition{Id: metadata.Id, Owner: metadata.Owner, UrlPath: entry.URLPath, Entry: entry.File}}
 		for _, file := range compiled.Sources() {
 			doc.Definition.Files = append(doc.Definition.Files, &dashboardv1.SourceFile{Path: file.Path(), ExactSource: file.Bytes()})
@@ -245,6 +243,8 @@ func (h *nhf005Dashboard) captureCatalogue(ctx context.Context, support *dashboa
 			return nhf007Capture{}, coreRPCError(ctx, authorization.ErrDenied)
 		}
 		result.documents = append(result.documents, doc)
+		compiledDocuments = append(compiledDocuments, compiled)
+		projections = append(projections, entry.Projection)
 		// Length-delimited serialization avoids ambiguous identity concatenation.
 		encoded, err := proto.MarshalOptions{Deterministic: true}.Marshal(metadata)
 		if err != nil {
@@ -253,6 +253,24 @@ func (h *nhf005Dashboard) captureCatalogue(ctx context.Context, support *dashboa
 		token.Write([]byte(strconv.Itoa(len(encoded)) + ":"))
 		token.Write(encoded)
 	}
+	layouts, err := projectCatalogueLayouts(compiledDocuments, support, func(alias domain.HAAlias) (domain.EntityID, bool) {
+		name, err := alias.Value()
+		if err != nil {
+			return domain.EntityID{}, false
+		}
+		entity, present := h.bindings[name]
+		return entity, present
+	})
+	if err != nil {
+		return nhf007Capture{}, coreRPCError(ctx, err)
+	}
+	for index, layout := range layouts {
+		if projections[index] == nhf007FutureVersion {
+			layout.Version = 99
+		}
+		result.documents[index].NativeLayout = layout
+	}
+
 	after, err := h.activation.CurrentConfig(ctx)
 	if err != nil || after != stamp {
 		return nhf007Capture{}, connect.NewError(connect.CodeUnavailable, errors.New("configuration changed during dashboard read"))

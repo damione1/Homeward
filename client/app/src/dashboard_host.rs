@@ -1,5 +1,6 @@
 //! Versioned read/watch task. It shares session access and never submits actions.
-use crate::dashboard::{DashboardId, Layout, LayoutFailure, LayoutState};
+use crate::dashboard::{DashboardId, LayoutState};
+use crate::dashboard_catalogue::{Capture, CaptureOutcome};
 use crate::dashboard_selection::{Catalogue, Choices};
 use home_client_session::{Generation, Phase, SessionCoordinator};
 use home_client_transport::{DashboardTransport, Failure, FailureKind, RpcCode};
@@ -11,6 +12,25 @@ enum ReadFailure {
     Transport(Failure),
     Contract,
     Empty,
+}
+
+type ReadReply = Result<Option<(DashboardId, wire::GetDashboardResponse)>, ReadFailure>;
+fn accept_batch(
+    capture: &mut Capture,
+    replies: [ReadReply; 4],
+) -> Result<CaptureOutcome, ReadFailure> {
+    for reply in replies {
+        if let Some((id, response)) = reply? {
+            match capture
+                .insert(&id, &response)
+                .map_err(|_| ReadFailure::Contract)?
+            {
+                CaptureOutcome::Accepted => {}
+                CaptureOutcome::Changed => return Ok(CaptureOutcome::Changed),
+            }
+        }
+    }
+    Ok(CaptureOutcome::Accepted)
 }
 
 fn changed(frame: wire::WatchDashboardsResponse) -> Result<(), ReadFailure> {
@@ -37,7 +57,6 @@ async fn follow(
         .await
         .map_err(|_| ReadFailure::Empty)?;
     let linked = lease.cancellation.child_token();
-    let mut preferred = choices.snapshot().1.selected;
     let read = async {
         loop {
             let list = transport
@@ -47,10 +66,10 @@ async fn follow(
             if list.resume_token.is_empty() || list.resume_token.len() > 4096 {
                 return Err(ReadFailure::Contract);
             }
-            let catalogue = Catalogue::from_wire(&list, preferred.as_ref())
+            let preferred = choices.snapshot().1.selected;
+            let mut catalogue = Catalogue::from_wire(&list, preferred.as_ref())
                 .map_err(|_| ReadFailure::Contract)?;
-            preferred = catalogue.selected.clone();
-            let Some(id) = catalogue.selected.as_ref() else {
+            if catalogue.selected.is_none() {
                 publish(
                     lease.generation,
                     revision,
@@ -74,22 +93,45 @@ async fn follow(
                 changed(frame)?;
                 continue;
             };
-            let response = transport
-                .get(
-                    id.as_str().to_owned(),
-                    lease.token(),
-                    Duration::from_secs(15),
-                    &linked,
-                )
-                .await
-                .map_err(ReadFailure::Transport)?;
-            if !response.__buffa_unknown_fields.is_empty()
-                || response.resume_token.is_empty()
-                || response.resume_token.len() > 4096
-            {
-                return Err(ReadFailure::Contract);
+            let mut capture = Capture::new(&list).map_err(|_| ReadFailure::Contract)?;
+            let deadline = std::time::Instant::now() + Duration::from_secs(30);
+            let mut changed_cohort = false;
+            for chunk in list.dashboards.chunks(4) {
+                let read = async |metadata: Option<&wire::Metadata>| {
+                    let Some(metadata) = metadata else {
+                        return Ok(None);
+                    };
+                    let id = metadata.id.as_option().ok_or(ReadFailure::Contract)?;
+                    let id = DashboardId::parse(&id.value).map_err(|_| ReadFailure::Contract)?;
+                    let remaining = deadline
+                        .checked_duration_since(std::time::Instant::now())
+                        .ok_or(ReadFailure::Empty)?;
+                    transport
+                        .get(
+                            id.as_str().to_owned(),
+                            lease.token(),
+                            remaining.min(Duration::from_secs(15)),
+                            &linked,
+                        )
+                        .await
+                        .map(|response| Some((id, response)))
+                        .map_err(ReadFailure::Transport)
+                };
+                let (a, b, c, d) = tokio::join!(
+                    read(chunk.first()),
+                    read(chunk.get(1)),
+                    read(chunk.get(2)),
+                    read(chunk.get(3))
+                );
+                match accept_batch(&mut capture, [a, b, c, d])? {
+                    CaptureOutcome::Accepted => {}
+                    CaptureOutcome::Changed => changed_cohort = true,
+                }
+                if changed_cohort {
+                    break;
+                }
             }
-            if response.resume_token != list.resume_token {
+            if changed_cohort {
                 publish(
                     lease.generation,
                     revision,
@@ -99,38 +141,19 @@ async fn follow(
                 tokio::select! { biased; () = linked.cancelled() => return Ok(()), () = tokio::time::sleep(Duration::from_millis(100)) => {} }
                 continue;
             }
-            let document = response
-                .dashboard
-                .as_option()
-                .ok_or(ReadFailure::Contract)?;
-            let returned = DashboardId::parse(
-                &document
-                    .metadata
-                    .as_option()
-                    .ok_or(ReadFailure::Contract)?
-                    .id
-                    .as_option()
-                    .ok_or(ReadFailure::Contract)?
-                    .value,
-            )
-            .map_err(|_| ReadFailure::Contract)?;
-            if returned != *id {
-                return Err(ReadFailure::Contract);
-            }
-            let layout = match Layout::try_from(document) {
-                Ok(layout) => LayoutState::Ready(Arc::new(layout)),
-                Err(LayoutFailure::Unsupported) => LayoutState::unsupported(document),
-                Err(LayoutFailure::Invalid | LayoutFailure::Budget) => {
-                    return Err(ReadFailure::Contract);
-                }
-            };
+            let snapshot = capture.finish().map_err(|_| ReadFailure::Contract)?;
+            let layout = catalogue
+                .selected
+                .as_ref()
+                .map_or(LayoutState::Unavailable, |id| snapshot.state(id));
+            catalogue.snapshot = Some(snapshot);
             if !session.is_current(lease.generation) || linked.is_cancelled() {
                 return Ok(());
             }
             publish(lease.generation, revision, catalogue, layout);
             let mut watch = transport
                 .watch(
-                    response.resume_token,
+                    list.resume_token,
                     lease.token(),
                     Duration::from_secs(300),
                     &linked,
@@ -234,6 +257,64 @@ pub(crate) async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_changed_response_at_any_batch_position_discards_the_rest_without_using_a_poisoned_capture()
+    {
+        let replies: [wire::GetDashboardResponse; 4] = std::array::from_fn(|index| {
+            let mut document = crate::dashboard::fixture_wire();
+            document
+                .metadata
+                .as_option_mut()
+                .unwrap()
+                .id
+                .as_option_mut()
+                .unwrap()
+                .value = format!("synthetic-{index}");
+            wire::GetDashboardResponse {
+                dashboard: document.into(),
+                resume_token: "synthetic-cohort-a".into(),
+                ..Default::default()
+            }
+        });
+        let list = wire::ListDashboardsResponse {
+            dashboards: replies
+                .iter()
+                .map(|response| {
+                    response
+                        .dashboard
+                        .as_option()
+                        .unwrap()
+                        .metadata
+                        .as_option()
+                        .unwrap()
+                        .clone()
+                })
+                .collect(),
+            resume_token: "synthetic-cohort-a".into(),
+            ..Default::default()
+        };
+        for changed in 0..replies.len() {
+            let mut capture = Capture::new(&list).unwrap();
+            let batch = std::array::from_fn(|index| {
+                let mut response = replies[index].clone();
+                if index == changed {
+                    response.resume_token = "synthetic-cohort-b".into();
+                }
+                Ok(Some((
+                    DashboardId::parse(&format!("synthetic-{index}")).unwrap(),
+                    response,
+                )))
+            });
+            assert!(
+                matches!(
+                    accept_batch(&mut capture, batch),
+                    Ok(CaptureOutcome::Changed)
+                ),
+                "position {changed}"
+            );
+            assert!(capture.finish().is_err());
+        }
+    }
     #[test]
     fn empty_and_populated_catalogues_use_the_same_strict_watch_frame_boundary() {
         assert!(changed(wire::WatchDashboardsResponse::default()).is_err());

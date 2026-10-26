@@ -1,0 +1,60 @@
+{
+  "inventory": "Projects/New Home Assistant/Dashboards et interface.md",
+  "inventory_sha256": "fe1ff52c0f5114cc6f1e47983b6e93b86ef83c4cbdd0ceedf6cfcdca14b7af76",
+  "inventory_date": "2026-10-16",
+  "capture_kind": "Exact YAML fences from the redacted Obsidian inventory; original Home Assistant storage bytes were not captured.",
+  "default_alias": "default is the exported lovelace/Overview alias; included once only",
+  "transform": "Copy YAML fence contents byte for byte; exclude Markdown fences",
+  "fixtures": [
+    {
+      "file": "map.inventory.yaml",
+      "ha_url_path": "map",
+      "inventory_lines_inclusive": [
+        79,
+        80
+      ],
+      "bytes": 22,
+      "sha256": "51cb4d6ba3a704a290fba70ca98c6006b356ea5a45fd4acdeba73880c80dcca1"
+    },
+    {
+      "file": "dashboard-alarm.inventory.yaml",
+      "ha_url_path": "dashboard-alarm",
+      "inventory_lines_inclusive": [
+        113,
+        272
+      ],
+      "bytes": 4309,
+      "sha256": "2c8198a5b91b6ef1646f0a54b3f09414a86969cf11db36a5d700bc0df5fc5fe6"
+    },
+    {
+      "file": "dashboard-home.inventory.yaml",
+      "ha_url_path": "dashboard-home",
+      "inventory_lines_inclusive": [
+        287,
+        288
+      ],
+      "bytes": 23,
+      "sha256": "89ed1e5b10b67d7d4f5ec947df4a28190f2f3f1e2a019fea0164b76ca88b5f10"
+    },
+    {
+      "file": "dashboard-tablet.inventory.yaml",
+      "ha_url_path": "dashboard-tablet",
+      "inventory_lines_inclusive": [
+        474,
+        1620
+      ],
+      "bytes": 30076,
+      "sha256": "a0d3ae6fb9aafe9efcdd9161972d047d6ee3d434362fab2568e5a11dc758113b"
+    },
+    {
+      "file": "default.inventory.yaml",
+      "ha_url_path": "lovelace",
+      "inventory_lines_inclusive": [
+        2012,
+        4701
+      ],
+      "bytes": 70848,
+      "sha256": "520f0cfe96f7e81bad619c36e69db0271563e7451d66df77221f537a68d87ae7"
+    }
+  ]
+}

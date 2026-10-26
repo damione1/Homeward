@@ -22,7 +22,10 @@ pub(super) fn observation(
         | Value::Fan(_)
         | Value::Climate(_)
         | Value::Solar(_)
-        | Value::SolarEvent(_) => None,
+        | Value::SolarEvent(_)
+        | Value::Cover(_)
+        | Value::Lock(_)
+        | Value::Alarm(_) => None,
     }
 }
 pub(super) fn draft_text(value: &wire::HelperValue, kind: &Kind) -> Option<String> {
@@ -156,6 +159,18 @@ impl Kind {
     }
 }
 impl Helper {
+    pub fn restricted_to(&self, operations: &[wire::HelperOperation]) -> Self {
+        Self {
+            kind: self.kind.clone(),
+            operations: self
+                .operations
+                .iter()
+                .copied()
+                .filter(|operation| operations.contains(operation))
+                .collect(),
+            unavailable: self.unavailable,
+        }
+    }
     pub fn kind(&self) -> &Kind {
         &self.kind
     }

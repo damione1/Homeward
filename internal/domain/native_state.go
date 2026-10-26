@@ -39,6 +39,20 @@ func NewSolarEventStateValue(value SolarEventValue) (StateValue, error) {
 
 func (v StateValue) nativeKind() (ValueKind, error) {
 	switch v.kind {
+	case ValueCover:
+		if p, ok := v.native.(*coverStatePayload); ok && p != nil {
+			if _, _, _, err := p.value.Components(); err == nil {
+				return ValueCover, nil
+			}
+		}
+	case ValueLock:
+		if p, ok := v.native.(*lockStatePayload); ok && p != nil && p.value.Valid() {
+			return ValueLock, nil
+		}
+	case ValueAlarm:
+		if p, ok := v.native.(*alarmStatePayload); ok && p != nil && p.value.Valid() {
+			return ValueAlarm, nil
+		}
 	case ValueHelper:
 		p, ok := v.native.(*helperStatePayload)
 		if ok && p != nil && p.revision > 0 && p.revision <= math.MaxInt64 {
@@ -93,6 +107,12 @@ func sameBusinessValue(a, b StateValue) bool {
 		return false
 	}
 	switch left {
+	case ValueCover:
+		return a.native.(*coverStatePayload).value == b.native.(*coverStatePayload).value
+	case ValueLock:
+		return a.native.(*lockStatePayload).value == b.native.(*lockStatePayload).value
+	case ValueAlarm:
+		return a.native.(*alarmStatePayload).value == b.native.(*alarmStatePayload).value
 	case ValueSwitch, ValueMeasurement, ValueLight, ValueFan, ValueClimate:
 		return a.switchOn == b.switchOn && a.measurement == b.measurement && a.light == b.light && a.fan == b.fan && a.climate == b.climate
 	case ValueHelper:

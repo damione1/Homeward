@@ -13,6 +13,30 @@ import (
 )
 
 const Profile = "homeward-dashboard-1"
+const RecipesProfile = "homeward-dashboard-2"
+
+// CompilationProfile is selected explicitly by the serving adapter. Existing
+// callers retain the original profile; a new parser is never negotiated by name
+// fragments or inferred from installed frontend resources.
+type CompilationProfile uint8
+
+const (
+	CompilationInvalid CompilationProfile = iota
+	CompilationBasic
+	CompilationRecipes
+)
+
+func (p CompilationProfile) Name() string {
+	switch p {
+	case CompilationBasic:
+		return Profile
+	case CompilationRecipes:
+		return RecipesProfile
+	case CompilationInvalid:
+		return ""
+	}
+	return ""
+}
 
 var ErrInvalidInput = errors.New("invalid Lovelace import input")
 
@@ -128,10 +152,69 @@ const (
 	ElementHeadingCard
 	ElementGridCard
 	ElementHorizontalStackCard
+	ElementVerticalStackCard
+	ElementRecipeCard
+	ElementChipGroup
+	ElementPopupCard
 )
 
 func validElement(k ElementKind) bool {
-	return k >= ElementSectionsView && k <= ElementHorizontalStackCard
+	return k >= ElementSectionsView && k <= ElementPopupCard
+}
+
+type RecipeKind uint8
+
+const (
+	RecipeInvalid RecipeKind = iota
+	RecipeTemplate
+	RecipeSelect
+	RecipeAlarm
+	RecipeBubbleButton
+	RecipeBubblePopup
+	RecipeChips
+	RecipeTemplateChip
+	RecipeButton
+	RecipeEntity
+	RecipeText
+)
+
+type FeatureKind uint8
+
+const (
+	FeatureInvalid FeatureKind = iota
+	FeatureToggle
+	FeatureBrightness
+	FeatureColorTemperature
+	FeatureTargetTemperature
+	FeatureClimateModes
+	FeatureFanSpeed
+	FeatureNumericInput
+	FeatureCoverOpenClose
+	FeatureCoverPosition
+	FeatureAlarmModes
+)
+
+type Feature struct {
+	kind     FeatureKind
+	location Location
+}
+
+func (f Feature) Kind() FeatureKind  { return f.kind }
+func (f Feature) Location() Location { return f.location.clone() }
+
+type PopupAnchor struct{ value string }
+
+func ParsePopupAnchor(value string) (PopupAnchor, error) {
+	if len(value) < 2 || value[0] != '#' || !validSegment(value[1:], 128) {
+		return PopupAnchor{}, ErrInvalidInput
+	}
+	return PopupAnchor{value: value}, nil
+}
+func (a PopupAnchor) Value() (string, error) {
+	if _, err := ParsePopupAnchor(a.value); err != nil {
+		return "", err
+	}
+	return a.value, nil
 }
 
 type DimensionKind uint8
@@ -232,9 +315,11 @@ const (
 	VisibilityFlag
 	VisibilityState
 	VisibilityHAUser
+	VisibilityAll
+	VisibilityAny
 )
 
-func validVisibility(k VisibilityKind) bool { return k >= VisibilityFlag && k <= VisibilityHAUser }
+func validVisibility(k VisibilityKind) bool { return k >= VisibilityFlag && k <= VisibilityAny }
 
 type Visibility struct {
 	kind     VisibilityKind
@@ -245,6 +330,7 @@ type Visibility struct {
 	state    string
 	stateNot bool
 	users    []string
+	children []Visibility
 }
 
 func (v Visibility) Kind() VisibilityKind { return v.kind }
@@ -258,13 +344,26 @@ func (v Visibility) State() (string, bool, bool) {
 	return v.state, v.stateNot, v.kind == VisibilityState && v.status == StatusSupported
 }
 func (v Visibility) HAUsers() []string { return append([]string(nil), v.users...) }
+func (v Visibility) Children() []Visibility {
+	result := make([]Visibility, len(v.children))
+	for i, child := range v.children {
+		result[i] = child.clone()
+	}
+	return result
+}
 func (v Visibility) clone() Visibility {
 	v.location = v.location.clone()
 	v.users = v.HAUsers()
+	v.children = v.Children()
 	return v
 }
 
 type Card struct {
+	recipe       RecipeKind
+	variant      string
+	secondary    string
+	anchor       PopupAnchor
+	features     []Feature
 	kind         ElementKind
 	status       Status
 	location     Location
@@ -291,6 +390,20 @@ type Card struct {
 }
 
 func (c Card) Kind() ElementKind  { return c.kind }
+func (c Card) Variant() string    { return c.variant }
+func (c Card) Recipe() RecipeKind { return c.recipe }
+func (c Card) Secondary() string  { return c.secondary }
+func (c Card) Anchor() (PopupAnchor, bool) {
+	_, err := c.anchor.Value()
+	return c.anchor, err == nil && c.status == StatusSupported
+}
+func (c Card) Features() []Feature {
+	result := append([]Feature(nil), c.features...)
+	for i := range result {
+		result[i].location = result[i].location.clone()
+	}
+	return result
+}
 func (c Card) Status() Status     { return c.status }
 func (c Card) Location() Location { return c.location.clone() }
 func (c Card) Entity() (domain.HAAlias, bool) {
@@ -332,6 +445,7 @@ func (c Card) clone() Card {
 	c.children = c.Children()
 	c.actions = c.Actions()
 	c.visibility = c.Visibility()
+	c.features = c.Features()
 	return c
 }
 
@@ -383,10 +497,20 @@ type View struct {
 	visibility []Visibility
 }
 
-func (v View) Kind() ElementKind         { return v.kind }
-func (v View) Status() Status            { return v.status }
-func (v View) Location() Location        { return v.location.clone() }
-func (v View) Path() string              { return v.path }
+func (v View) Kind() ElementKind  { return v.kind }
+func (v View) Status() Status     { return v.status }
+func (v View) Location() Location { return v.location.clone() }
+func (v View) Path() string       { return v.path }
+
+// NativeRoute identifies a view within this configuration snapshot. A pathless
+// HA view uses its source node identity, without inventing a new HA URL. The
+// client must retain the dashboard/configuration generation with this route.
+func (v View) NativeRoute() string {
+	if v.path != "" {
+		return v.path
+	}
+	return v.location.path
+}
 func (v View) Title() string             { return v.title }
 func (v View) Icon() string              { return v.icon }
 func (v View) MaxColumns() (uint8, bool) { return v.maxColumns, v.maxColumns != 0 }
@@ -434,11 +558,11 @@ func (r Requirements) clone() Requirements {
 type ClientSupport struct{ requirements Requirements }
 
 func NewClientSupport(version uint8, elements []ElementKind, actions []ActionKind, visibility []VisibilityKind) (ClientSupport, error) {
-	if version != 1 {
+	if version != 1 && version != 2 {
 		return ClientSupport{}, ErrInvalidInput
 	}
 	for _, kind := range elements {
-		if !validElement(kind) {
+		if !validElement(kind) || (version == 1 && kind > ElementHorizontalStackCard) {
 			return ClientSupport{}, ErrInvalidInput
 		}
 	}
@@ -448,7 +572,7 @@ func NewClientSupport(version uint8, elements []ElementKind, actions []ActionKin
 		}
 	}
 	for _, kind := range visibility {
-		if !validVisibility(kind) {
+		if !validVisibility(kind) || (version == 1 && kind > VisibilityHAUser) {
 			return ClientSupport{}, ErrInvalidInput
 		}
 	}
@@ -456,7 +580,7 @@ func NewClientSupport(version uint8, elements []ElementKind, actions []ActionKin
 }
 
 func (r Requirements) SupportedBy(client ClientSupport) bool {
-	if r.version != 1 || client.requirements.version != r.version {
+	if (r.version != 1 && r.version != 2) || client.requirements.version != r.version {
 		return false
 	}
 	for _, kind := range r.elements {

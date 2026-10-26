@@ -77,7 +77,7 @@ func nha055Prior25Artifact(t *testing.T) (nha036Artifact, nha036SchemaProfile) {
 	return a, manifest.Profile
 }
 
-// The parent reports its OWN compiled profile. The current26 profile must never
+// The parent reports its OWN compiled profile. The current profile must never
 // be substituted for an old25 child identity just to reuse a readiness helper.
 func nha055Prior25Fixture(t *testing.T, old nha036Artifact, profile nha036SchemaProfile) *nha029C5Fixture {
 	t.Helper()
@@ -138,7 +138,7 @@ func nha055MigrationSnapshot(t *testing.T, f *nha029C5Fixture) nha055MigrationFo
 	return s
 }
 
-func TestNHA055Migration25To26RejectsDamagedPriorBeforeDDL(t *testing.T) {
+func TestNHA055Migration25ToCurrentRejectsDamagedPriorBeforeDDL(t *testing.T) {
 	old, profile := nha055Prior25Artifact(t)
 	for _, tc := range []struct{ name, sql string }{
 		{"absent-table", `DROP TABLE public.homeward_schema_window`},
@@ -172,7 +172,7 @@ func TestNHA055Migration25To26RejectsDamagedPriorBeforeDDL(t *testing.T) {
 	}
 }
 
-func TestNHA055Migration25To26ChecksPriorAfterMigrationLock(t *testing.T) {
+func TestNHA055Migration25ToCurrentChecksPriorAfterMigrationLock(t *testing.T) {
 	old, profile := nha055Prior25Artifact(t)
 	f := nha055Prior25Fixture(t, old, profile)
 	lock, err := f.observer.Begin(f.ctx)
@@ -185,7 +185,7 @@ func TestNHA055Migration25To26ChecksPriorAfterMigrationLock(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() { _, err := f.store.Migrate(f.ctx); done <- err }()
-	nha042ServerWait(t, "real26 migrator waiting on the existing migration lock", func() bool {
+	nha042ServerWait(t, "current migrator waiting on the existing migration lock", func() bool {
 		var waiting bool
 		if err := lock.QueryRow(f.ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%pg_advisory_xact_lock(481316, 27)%')`).Scan(&waiting); err != nil {
 			t.Fatal(err)
@@ -206,18 +206,18 @@ func TestNHA055Migration25To26ChecksPriorAfterMigrationLock(t *testing.T) {
 			t.Fatalf("migration did not re-read the contract under its acquired lock: %v", err)
 		}
 	case <-f.ctx.Done():
-		t.Fatal("real26 migration did not join after the predecessor lock was released")
+		t.Fatal("current migration did not join after the predecessor lock was released")
 	}
 	if after := nha055MigrationSnapshot(t, f); after != before {
 		t.Fatal("locked predecessor refusal changed state")
 	}
 }
 
-func TestNHA055Migration25To26PreservesDataAndRefusesActualOldHomed(t *testing.T) {
+func TestNHA055Migration25ToCurrentPreservesDataAndRefusesActualOldHomed(t *testing.T) {
 	old, profile := nha055Prior25Artifact(t)
 	current := nha036LoadArtifacts(t).Artifacts["baseline"]
-	if current.Schema != 26 || current.Release != "homeward-window-26-27-baseline" || current.MinimumReader != current.Release || current.MinimumWriter != current.Release {
-		t.Fatal("real26 must be the current baseline with both minima26")
+	if current.Schema != storage.CurrentSchemaBuild().Version().Number() || current.Release != storage.CurrentSchemaBuild().Release() || current.MinimumReader != current.Release || current.MinimumWriter != current.Release {
+		t.Fatal("current baseline must match compiled release and require its own readers/writers")
 	}
 	f := nha055Prior25Fixture(t, old, profile)
 	nha036Homed(t, f, old, true)
@@ -225,23 +225,23 @@ func TestNHA055Migration25To26PreservesDataAndRefusesActualOldHomed(t *testing.T
 	history := nha029C5RestoreDigest(t, f.ctx, f.observer, nha036HistoryDigest, 25)
 	before := nha055MigrationSnapshot(t, f)
 	version, err := f.store.Migrate(f.ctx)
-	if err != nil || version.Number() != 26 {
-		t.Fatalf("actual delivered25 to native26 migration failed: %v", err)
+	if err != nil || version.Number() != current.Schema {
+		t.Fatalf("actual delivered25 to current baseline migration failed: %v", err)
 	}
-	nha055AssertNative26Window(t, f, current)
+	nha055AssertCurrentWindow(t, f, current)
 	nha036ObserveBusiness(t, f, false, 1, false)
 	after := nha055MigrationSnapshot(t, f)
 	if after.business != before.business || after.registry != before.registry || after.humans != before.humans ||
 		nha029C5RestoreDigest(t, f.ctx, f.observer, nha036HistoryDigest, 25) != history || len(f.effects) != 0 {
-		t.Fatal("native26 migration changed prior data or dispatched an action")
+		t.Fatal("current migration changed prior data or dispatched an action")
 	}
-	if version, err := f.store.Migrate(f.ctx); err != nil || version.Number() != 26 || nha055MigrationSnapshot(t, f) != after {
-		t.Fatal("second real26 migration changed committed DDL/history", err)
+	if version, err := f.store.Migrate(f.ctx); err != nil || version.Number() != current.Schema || nha055MigrationSnapshot(t, f) != after {
+		t.Fatal("second current migration changed committed DDL/history", err)
 	}
 	nha036Homed(t, f, current, true)
 	b := nha029C5RestoreMarkSQL(t, f.ctx, f.store)
 	if b.revision != a.revision || b.manifest != a.manifest || b.source != a.source || len(f.effects) != 0 {
-		t.Fatal("native26 cold start changed active authority or replayed an action")
+		t.Fatal("current cold start changed active authority or replayed an action")
 	}
 	for _, native := range []bool{false, true} {
 		if native {
@@ -250,13 +250,13 @@ func TestNHA055Migration25To26PreservesDataAndRefusesActualOldHomed(t *testing.T
 		beforeRefusal := nha055MigrationSnapshot(t, f)
 		nha036Homed(t, f, old, false)
 		if nha055MigrationSnapshot(t, f) != beforeRefusal || len(f.effects) != 0 {
-			t.Fatal("old25 refusal changed the real26 database")
+			t.Fatal("old25 refusal changed the current database")
 		}
 	}
-	t.Logf("NHA055 real25-to-native26 parent=%s old_homed=%s current_homed=%s current_plan=%s old25_refused_before_READY=true native_sources_retained=true effects=0", nha055Prior25Commit, old.HomedSHA256, current.HomedSHA256, current.PlanSHA256)
+	t.Logf("NHA055 real25-to-current schema=%d parent=%s old_homed=%s current_homed=%s current_plan=%s old25_refused_before_READY=true native_sources_retained=true effects=0", current.Schema, nha055Prior25Commit, old.HomedSHA256, current.HomedSHA256, current.PlanSHA256)
 }
 
-func nha055AssertNative26Window(t *testing.T, f *nha029C5Fixture, current nha036Artifact) {
+func nha055AssertCurrentWindow(t *testing.T, f *nha029C5Fixture, current nha036Artifact) {
 	t.Helper()
 	var schema, baseline, rows int
 	var release, reader, writer, maximum string
@@ -264,9 +264,9 @@ func nha055AssertNative26Window(t *testing.T, f *nha029C5Fixture, current nha036
 	if err := f.observer.QueryRow(f.ctx, `SELECT schema_version,baseline_schema,release_id,minimum_reader,minimum_writer,maximum_release,baseline_plan,migration_plan,(SELECT count(*) FROM public.homeward_schema_migrations) FROM public.homeward_schema_window WHERE singleton`).Scan(&schema, &baseline, &release, &reader, &writer, &maximum, &baselinePlan, &plan, &rows); err != nil {
 		t.Fatal(err)
 	}
-	if schema != 26 || baseline != 26 || rows != 26 || release != current.Release || reader != release || writer != release || maximum != release ||
+	if schema != int(current.Schema) || baseline != int(current.Schema) || rows != int(current.Schema) || release != current.Release || reader != release || writer != release || maximum != release ||
 		hex.EncodeToString(plan) != current.PlanSHA256 || !bytes.Equal(plan, baselinePlan) {
-		t.Fatal("real26 window does not match the native compiled plan and reader/writer minima")
+		t.Fatal("current window does not match the native compiled plan and reader/writer minima")
 	}
 }
 
@@ -371,7 +371,7 @@ func nha055RetainNative26Sources(t *testing.T, f *nha029C5Fixture) {
 
 // Keep this assertion local to the real bridge: malformed predecessor storage
 // cannot turn a canceled operation into an integrity classification or a write.
-func TestNHA055Migration25To26CanceledContextHasNoWrites(t *testing.T) {
+func TestNHA055Migration25ToCurrentCanceledContextHasNoWrites(t *testing.T) {
 	old, profile := nha055Prior25Artifact(t)
 	f := nha055Prior25Fixture(t, old, profile)
 	before := nha055MigrationSnapshot(t, f)

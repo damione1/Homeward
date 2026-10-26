@@ -5,6 +5,7 @@ use crate::{
     cache_view::CacheRows,
     dashboard::{self, ProjectionRequest, Route, SharedRequest},
 };
+use home_client_model::dashboard::{Destination, Presentation};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 use slint_kit::{
     DismissReason, FocusDirection, FocusHandle, FocusId, FocusRegistry, FocusScopeId, OverlayId,
@@ -48,6 +49,7 @@ enum Target {
 struct Entry {
     route: Route,
     opener: Target,
+    view: crate::dashboard_focus::SavedView,
 }
 struct State {
     route: Route,
@@ -58,8 +60,199 @@ struct State {
     current: Option<FocusHandle>,
     overlays: OverlayStack,
     compact: bool,
+    choices: Option<crate::dashboard_selection::Choices>,
+}
+#[derive(Clone)]
+pub(crate) struct NativeNavigation {
+    state: Rc<RefCell<State>>,
+    window: slint::Weak<HomewardWindow>,
+    refresh: Rc<dyn Fn()>,
+    selection: SelectBinding<Section>,
+    focus: crate::dashboard_focus::Host,
+}
+impl NativeNavigation {
+    pub fn attach_catalogue(&self, choices: crate::dashboard_selection::Choices) {
+        self.state.borrow_mut().choices = Some(choices);
+    }
+    pub fn restore_origin(&self, prepared: &crate::device_view::NativePrepared) {
+        self.focus.restore_origin(prepared);
+    }
+    pub fn more_info(
+        &self,
+        id: home_client_model::EntityId,
+        origin: Option<crate::dashboard_focus::Origin>,
+    ) -> Result<(), crate::device_view::Refusal> {
+        let Some(window) = self.window.upgrade() else {
+            return Err(crate::device_view::Refusal::Stale);
+        };
+        if origin.as_ref().is_some_and(|origin| {
+            self.state
+                .borrow()
+                .request
+                .lock()
+                .expect("presentation request mutex poisoned")
+                .dashboard
+                .layout()
+                != Some(origin.layout.as_ref())
+        }) {
+            return Err(crate::device_view::Refusal::Stale);
+        }
+        let opener = self.state.borrow().fallback_opener();
+        self.state
+            .borrow_mut()
+            .open_from(&window, Route::Detail(id), opener, origin);
+        changed(&window, &self.state, &*self.refresh, false);
+        take_focus(&window, &self.state, Target::Body(BodyFocus::Back));
+        Ok(())
+    }
+    pub fn navigate(
+        &self,
+        destination: Destination,
+        expected: &dashboard::Layout,
+        origin: Option<crate::dashboard_focus::Origin>,
+    ) -> Result<(), crate::device_view::Refusal> {
+        use crate::device_view::Refusal;
+        let Some(window) = self.window.upgrade() else {
+            return Err(Refusal::Stale);
+        };
+        if origin
+            .as_ref()
+            .is_some_and(|origin| origin.layout.as_ref() != expected)
+        {
+            return Err(Refusal::Stale);
+        }
+        let target = {
+            let state = self.state.borrow();
+            let request = state
+                .request
+                .lock()
+                .expect("presentation request mutex poisoned");
+            let layout = request
+                .dashboard
+                .layout()
+                .filter(|layout| *layout == expected)
+                .ok_or(Refusal::Stale)?;
+            let target = if destination.dashboard.as_str() == layout.id.as_str() {
+                request.dashboard.shared_layout().ok_or(Refusal::Stale)?
+            } else {
+                if !window.get_view_loaded() {
+                    return Err(Refusal::Unavailable);
+                }
+                let snapshot = request
+                    .catalogue
+                    .as_ref()
+                    .filter(|snapshot| snapshot.contains(layout))
+                    .ok_or(Refusal::Stale)?;
+                snapshot
+                    .layout(
+                        &dashboard::DashboardId::parse(destination.dashboard.as_str())
+                            .map_err(|_| Refusal::Unsupported)?,
+                    )
+                    .ok_or(Refusal::Unavailable)?
+            };
+            let node = target
+                .native
+                .as_ref()
+                .and_then(|native| native.nodes.get(&destination.node))
+                .ok_or(Refusal::Unavailable)?;
+            let kind = match destination.presentation {
+                Presentation::Page => crate::dashboard_layout::Kind::View,
+                Presentation::Popup => crate::dashboard_layout::Kind::Popup,
+            };
+            if node.kind != kind {
+                return Err(Refusal::Unsupported);
+            }
+            target
+        };
+        if self.state.borrow().route == Route::Native(destination.clone()) {
+            return Ok(());
+        }
+        let presentation = destination.presentation;
+        let opener = self.state.borrow().fallback_opener();
+        {
+            let mut state = self.state.borrow_mut();
+            let crossing = target.id != expected.id;
+            if crossing {
+                let request = state
+                    .request
+                    .lock()
+                    .expect("presentation request mutex poisoned");
+                let snapshot = request.catalogue.as_ref().ok_or(Refusal::Stale)?;
+                if !state
+                    .choices
+                    .as_ref()
+                    .is_some_and(|choices| choices.select_authorized(snapshot, &target.id))
+                {
+                    return Err(Refusal::Stale);
+                }
+            }
+            // Capture the source view before changing the active dashboard.
+            state.open_from(&window, Route::Native(destination), opener, origin);
+            if crossing {
+                let mut request = state
+                    .request
+                    .lock()
+                    .expect("presentation request mutex poisoned");
+                request.dashboard = dashboard::LayoutState::Ready(target);
+                request.query.clear();
+                window.set_search_query("".into());
+            }
+        }
+        window.invoke_dashboard_catalogue_changed();
+        crate::cache_view::clear_native_target(&window, presentation);
+        if presentation == Presentation::Page {
+            select_section(&self.selection, Section::Rooms);
+        }
+        changed(&window, &self.state, &*self.refresh, false);
+        take_focus(
+            &window,
+            &self.state,
+            Target::Body(match presentation {
+                Presentation::Page => BodyFocus::Back,
+                Presentation::Popup => BodyFocus::Popup,
+            }),
+        );
+        Ok(())
+    }
 }
 impl State {
+    fn restore_dashboard(
+        &self,
+        window: &HomewardWindow,
+        view: &crate::dashboard_focus::SavedView,
+    ) -> bool {
+        let mut request = self
+            .request
+            .lock()
+            .expect("presentation request mutex poisoned");
+        if request.catalogue.as_ref().map(|snapshot| snapshot.token()) != view.catalogue() {
+            return false;
+        }
+        if request.dashboard.layout() == view.layout().map(AsRef::as_ref) {
+            return true;
+        }
+        let Some(layout) = view.layout() else {
+            return false;
+        };
+        let Some(snapshot) = request
+            .catalogue
+            .as_ref()
+            .filter(|snapshot| snapshot.contains(layout))
+        else {
+            return false;
+        };
+        if !self
+            .choices
+            .as_ref()
+            .is_some_and(|choices| choices.select_authorized(snapshot, &layout.id))
+        {
+            return false;
+        }
+        request.dashboard = dashboard::LayoutState::Ready(layout.clone());
+        request.query = view.query().to_owned();
+        window.set_search_query(view.query().into());
+        true
+    }
     fn new(request: SharedRequest) -> Self {
         let mut focus = FocusRegistry::new();
         focus
@@ -79,6 +272,7 @@ impl State {
             (5, Target::Body(BodyFocus::Inventory), FocusScopeId(0), 2),
             (6, Target::Body(BodyFocus::Back), FocusScopeId(0), 3),
             (7, Target::Body(BodyFocus::Settings), FocusScopeId(0), 4),
+            (10, Target::Body(BodyFocus::Popup), FocusScopeId(0), 8),
             (
                 8,
                 Target::Shell(ProShellFocus::Workspace),
@@ -116,6 +310,7 @@ impl State {
             current: None,
             overlays: OverlayStack::new(),
             compact: false,
+            choices: None,
         }
     }
     fn handle(&self, target: Target) -> Option<FocusHandle> {
@@ -130,13 +325,30 @@ impl State {
             .map(|(target, _)| *target)
             .expect("registered focus handle")
     }
-    fn open(&mut self, route: Route, opener: Target) {
+    fn open(&mut self, window: &HomewardWindow, route: Route, opener: Target) {
+        self.open_from(window, route, opener, None);
+    }
+    fn open_from(
+        &mut self,
+        window: &HomewardWindow,
+        route: Route,
+        opener: Target,
+        origin: Option<crate::dashboard_focus::Origin>,
+    ) {
         if self.history.len() == 16 {
             self.history.remove(0);
         }
         self.history.push(Entry {
             route: self.route.clone(),
             opener,
+            view: crate::dashboard_focus::SavedView::capture(
+                window,
+                &self
+                    .request
+                    .lock()
+                    .expect("presentation request mutex poisoned"),
+                origin,
+            ),
         });
         self.route = route;
     }
@@ -149,25 +361,59 @@ impl State {
             .revision
             .checked_add(1)
             .expect("presentation revision exhausted");
-        request.room = match &self.route {
+        let context = match &self.route {
+            Route::Detail(_) => self
+                .history
+                .last()
+                .map(|entry| &entry.route)
+                .unwrap_or(&self.route),
+            Route::Home
+            | Route::Rooms
+            | Route::Inventory
+            | Route::Room(_)
+            | Route::Native(_)
+            | Route::Settings => &self.route,
+        };
+        request.room = match context {
             Route::Room(id) => Some(id.clone()),
-            Route::Detail(_) => self.history.last().and_then(|entry| match &entry.route {
-                Route::Room(id) => Some(id.clone()),
-                Route::Home
-                | Route::Rooms
-                | Route::Inventory
-                | Route::Detail(_)
-                | Route::Settings => None,
-            }),
-            Route::Home | Route::Rooms | Route::Inventory | Route::Settings => None,
+            Route::Home
+            | Route::Rooms
+            | Route::Inventory
+            | Route::Native(_)
+            | Route::Detail(_)
+            | Route::Settings => None,
+        };
+        request.native = match context {
+            Route::Native(destination) => Some(destination.clone()),
+            Route::Home
+            | Route::Rooms
+            | Route::Inventory
+            | Route::Room(_)
+            | Route::Detail(_)
+            | Route::Settings => None,
         };
         request.detail = match &self.route {
             Route::Detail(id) => Some(id.clone()),
-            Route::Home | Route::Rooms | Route::Inventory | Route::Room(_) | Route::Settings => {
-                None
-            }
+            Route::Home
+            | Route::Rooms
+            | Route::Inventory
+            | Route::Room(_)
+            | Route::Native(_)
+            | Route::Settings => None,
         };
         request.revision
+    }
+    fn fallback_opener(&self) -> Target {
+        match &self.route {
+            Route::Home | Route::Rooms => Target::Shell(ProShellFocus::Workspace),
+            Route::Room(_) | Route::Detail(_) => Target::Body(BodyFocus::Back),
+            Route::Inventory => Target::Body(BodyFocus::Inventory),
+            Route::Settings => Target::Body(BodyFocus::Settings),
+            Route::Native(destination) => Target::Body(match destination.presentation {
+                Presentation::Page => BodyFocus::Back,
+                Presentation::Popup => BodyFocus::Popup,
+            }),
+        }
     }
     fn close(&mut self, reason: DismissReason) -> bool {
         self.overlays.close(DRAWER, reason);
@@ -193,7 +439,25 @@ fn render(window: &HomewardWindow, state: &State) {
         .request
         .lock()
         .expect("presentation request mutex poisoned");
-    let (page, title) = match &state.route {
+    let popup = match &state.route {
+        Route::Native(destination) => destination.presentation == Presentation::Popup,
+        Route::Home
+        | Route::Rooms
+        | Route::Inventory
+        | Route::Room(_)
+        | Route::Detail(_)
+        | Route::Settings => false,
+    };
+    let home = Route::Home;
+    let displayed = if popup {
+        state.history.iter().rev().find(|entry|
+            entry.view.layout().map(AsRef::as_ref) == request.dashboard.layout()
+            && !matches!(&entry.route, Route::Native(destination) if destination.presentation == Presentation::Popup)
+        ).map_or(&home, |entry| &entry.route)
+    } else {
+        &state.route
+    };
+    let (page, title) = match displayed {
         Route::Home => (ViewPage::Home, "Accueil"),
         Route::Rooms => (ViewPage::Rooms, "Mes pièces"),
         Route::Inventory => (ViewPage::Inventory, "Inventaire"),
@@ -206,10 +470,42 @@ fn render(window: &HomewardWindow, state: &State) {
                 .map_or("Pièce indisponible", |room| room.label.as_str()),
         ),
         Route::Detail(_) => (ViewPage::Detail, "Détail"),
+        Route::Native(destination) => (
+            ViewPage::Room,
+            request
+                .dashboard
+                .layout()
+                .and_then(|layout| layout.native.as_ref())
+                .and_then(|native| native.nodes.get(&destination.node))
+                .map_or("Vue indisponible", |node| node.title.as_str()),
+        ),
         Route::Settings => (ViewPage::Settings, "Préférences"),
     };
     window.set_page(page);
     window.set_page_title(title.into());
+    window.set_native_page(matches!(displayed, Route::Native(destination) if destination.presentation == Presentation::Page));
+    window.set_native_popup_title(match &state.route {
+        Route::Native(destination) if popup => request
+            .dashboard
+            .layout()
+            .and_then(|layout| layout.native.as_ref())
+            .and_then(|native| native.nodes.get(&destination.node))
+            .map_or("Pièce indisponible", |node| node.title.as_str())
+            .into(),
+        Route::Home
+        | Route::Rooms
+        | Route::Inventory
+        | Route::Room(_)
+        | Route::Native(_)
+        | Route::Detail(_)
+        | Route::Settings => "".into(),
+    });
+    window.set_native_popup_generation(request.revision);
+    window.set_native_popup(DialogState {
+        open: popup,
+        topmost: true,
+        busy: false,
+    });
     window.set_projection_version(request.revision);
     window.set_navigation_drawer(DialogState {
         open: state.overlays.contains(DRAWER),
@@ -254,6 +550,7 @@ fn reason(reason: CloseReason) -> DismissReason {
     }
 }
 fn changed(window: &HomewardWindow, shared: &Rc<RefCell<State>>, refresh: &dyn Fn(), reset: bool) {
+    window.invoke_native_route_changed();
     {
         let mut state = shared.borrow_mut();
         state.request_changed();
@@ -275,16 +572,18 @@ fn select_section(binding: &SelectBinding<Section>, section: Section) {
 
 #[cfg(test)]
 pub(crate) fn bind(window: &HomewardWindow, request: SharedRequest, refresh: impl Fn() + 'static) {
-    bind_devices(window, request, refresh, |_, _, _| None);
+    bind_devices(window, request, refresh, || None);
 }
 pub(crate) fn bind_devices(
     window: &HomewardWindow,
     request: SharedRequest,
     refresh: impl Fn() + 'static,
-    resolve_device: impl Fn(i32, i32, i32) -> Option<home_client_model::EntityId> + 'static,
-) {
+    resolve_devices: impl Fn() -> Option<crate::device_view::DeviceStore> + 'static,
+) -> NativeNavigation {
     #[cfg(target_os = "android")]
     bind_native_back(window);
+    let devices: crate::dashboard_focus::Devices = Rc::new(resolve_devices);
+    let focus = crate::dashboard_focus::Host::bind(window, request.clone(), devices.clone());
     let shared = Rc::new(RefCell::new(State::new(request)));
     let refresh: Rc<dyn Fn()> = Rc::new(refresh);
     let weak = window.as_weak();
@@ -399,6 +698,10 @@ pub(crate) fn bind_devices(
                     crate::RoomView::List => Target::Body(BodyFocus::Inventory),
                 },
                 Route::Detail(_) => Target::Body(BodyFocus::Back),
+                Route::Native(destination) => Target::Body(match destination.presentation {
+                    Presentation::Page => BodyFocus::Back,
+                    Presentation::Popup => BodyFocus::Popup,
+                }),
                 Route::Settings => Target::Body(BodyFocus::Settings),
             };
             take_focus(&window, &state, target);
@@ -464,6 +767,7 @@ pub(crate) fn bind_devices(
         }
         if focused && let Some(window) = weak.upgrade() {
             window.set_home_focus(FocusRequest::default());
+            window.invoke_native_focus_cancelled();
         }
     });
     let (state, weak) = (shared.clone(), window.as_weak());
@@ -556,7 +860,7 @@ pub(crate) fn bind_devices(
             };
             state
                 .borrow_mut()
-                .open(Route::Room(id), Target::Home(token));
+                .open(&window, Route::Room(id), Target::Home(token));
             select_section(&selected, Section::Rooms);
             changed(&window, &state, &*run, true);
             take_focus(&window, &state, Target::Body(BodyFocus::Back));
@@ -573,9 +877,11 @@ pub(crate) fn bind_devices(
                     model.resolve(token, generation, window.get_projection_version())
                 });
             if let Some(id) = id {
-                state
-                    .borrow_mut()
-                    .open(Route::Detail(id), Target::Body(BodyFocus::Inventory));
+                state.borrow_mut().open(
+                    &window,
+                    Route::Detail(id),
+                    Target::Body(BodyFocus::Inventory),
+                );
                 changed(&window, &state, &*run, false);
                 take_focus(&window, &state, Target::Body(BodyFocus::Back));
             }
@@ -594,7 +900,7 @@ pub(crate) fn bind_devices(
             if let Some(id) = id {
                 state
                     .borrow_mut()
-                    .open(Route::Detail(id), Target::Home(token));
+                    .open(&window, Route::Detail(id), Target::Home(token));
                 changed(&window, &state, &*run, false);
                 take_focus(&window, &state, Target::Body(BodyFocus::Back));
             }
@@ -603,14 +909,15 @@ pub(crate) fn bind_devices(
     let (state, weak, run) = (shared.clone(), window.as_weak(), refresh.clone());
     window.on_device_details(move |token, generation| {
         if let Some(window) = weak.upgrade()
-            && let Some(id) = resolve_device(token, generation, window.get_projection_version())
+            && let Some(id) = devices()
+                .and_then(|store| store.entity(token, generation, window.get_projection_version()))
         {
             if state.borrow().route == Route::Detail(id.clone()) {
                 return;
             }
             state
                 .borrow_mut()
-                .open(Route::Detail(id), Target::Body(BodyFocus::Back));
+                .open(&window, Route::Detail(id), Target::Body(BodyFocus::Back));
             changed(&window, &state, &*run, false);
             take_focus(&window, &state, Target::Body(BodyFocus::Back));
         }
@@ -621,9 +928,10 @@ pub(crate) fn bind_devices(
         refresh.clone(),
         selection.clone(),
     );
+    let restore = focus.clone();
     window.on_go_back(move || {
         if let Some(window) = weak.upgrade() {
-            let opener = {
+            let (opener, saved_view) = {
                 let mut state = state.borrow_mut();
                 let previous_detail = match &state.route {
                     Route::Detail(id) => Some(id.clone()),
@@ -631,12 +939,14 @@ pub(crate) fn bind_devices(
                     | Route::Rooms
                     | Route::Inventory
                     | Route::Room(_)
+                    | Route::Native(_)
                     | Route::Settings => None,
                 };
                 match state.history.pop() {
                     Some(entry) => {
+                        if state.restore_dashboard(&window, &entry.view) {
                         state.route = entry.route;
-                        match entry.opener {
+                        let opener = match entry.opener {
                             Target::Home(token)
                                 if (dashboard::OBSERVATION_TOKEN_BASE
                                     ..dashboard::OBSERVATION_TOKEN_BASE
@@ -662,25 +972,39 @@ pub(crate) fn bind_devices(
                                 }
                             }
                             Target::Shell(_) | Target::Body(_) | Target::Home(_) => entry.opener,
+                        };
+                        (opener, Some(entry.view))
+                        } else {
+                            state.history.clear();
+                            state.route = Route::Home;
+                            window.set_action_feedback("Le dashboard d’origine n’est plus disponible dans le catalogue courant.".into());
+                            (Target::Body(BodyFocus::Read), None)
                         }
                     }
                     None => {
                         state.route = Route::Home;
-                        Target::Body(BodyFocus::Read)
+                        (Target::Body(BodyFocus::Read), None)
                     }
                 }
             };
+            window.invoke_dashboard_catalogue_changed();
+            if let Route::Native(destination) = &state.borrow().route { crate::cache_view::clear_native_target(&window, destination.presentation); }
+            changed(&window, &state, &*run, false);
             select_section(
                 &selected,
-                match &state.borrow().route {
-                    Route::Home => Section::Home,
-                    Route::Rooms | Route::Room(_) => Section::Rooms,
-                    Route::Inventory | Route::Detail(_) => Section::Inventory,
-                    Route::Settings => Section::Settings,
+                match window.get_page() {
+                    ViewPage::Home => Section::Home,
+                    ViewPage::Rooms | ViewPage::Room => Section::Rooms,
+                    ViewPage::Inventory | ViewPage::Detail => Section::Inventory,
+                    ViewPage::Settings => Section::Settings,
                 },
             );
-            changed(&window, &state, &*run, false);
+            let opener = if matches!(&state.borrow().route, Route::Native(destination) if destination.presentation == Presentation::Popup) { Target::Body(BodyFocus::Popup) } else { opener };
             take_focus(&window, &state, opener);
+            if let Some(view) = saved_view {
+                let revision = state.borrow().request.lock().expect("presentation request mutex poisoned").revision;
+                restore.restore(view, revision);
+            }
         }
     });
     let (state, weak, run, selected) = (
@@ -693,7 +1017,7 @@ pub(crate) fn bind_devices(
         if let Some(window) = weak.upgrade() {
             state
                 .borrow_mut()
-                .open(Route::Inventory, Target::Body(BodyFocus::Read));
+                .open(&window, Route::Inventory, Target::Body(BodyFocus::Read));
             select_section(&selected, Section::Inventory);
             changed(&window, &state, &*run, true);
             take_focus(&window, &state, Target::Body(BodyFocus::Inventory));
@@ -707,9 +1031,11 @@ pub(crate) fn bind_devices(
     );
     window.on_choose_room(move || {
         if let Some(window) = weak.upgrade() {
-            state
-                .borrow_mut()
-                .open(Route::Rooms, Target::Shell(ProShellFocus::Workspace));
+            state.borrow_mut().open(
+                &window,
+                Route::Rooms,
+                Target::Shell(ProShellFocus::Workspace),
+            );
             select_section(&selected, Section::Rooms);
             changed(&window, &state, &*run, false);
         }
@@ -728,6 +1054,13 @@ pub(crate) fn bind_devices(
             window.invoke_navigation_dismiss(CloseReason::SystemBack);
             return true;
         }
+        if window.get_recipe_confirmation().open {
+            window.invoke_recipe_dismiss(
+                window.get_recipe_confirmation_id(),
+                CloseReason::SystemBack,
+            );
+            return true;
+        }
         if window.get_page() == ViewPage::Room && window.get_room_view() == crate::RoomView::List {
             window.set_room_view(crate::RoomView::Cards);
             take_focus(&window, &state, Target::Body(BodyFocus::Back));
@@ -738,6 +1071,17 @@ pub(crate) fn bind_devices(
         }
         window.invoke_go_back();
         true
+    });
+    let (state, weak) = (shared.clone(), window.as_weak());
+    window.on_native_popup_dismiss(move |generation, _reason| {
+        let Some(window) = weak.upgrade() else { return; };
+        let valid = {
+            let state = state.borrow();
+            let revision = state.request.lock().expect("presentation request mutex poisoned").revision;
+            revision == generation
+                && matches!(&state.route, Route::Native(destination) if destination.presentation == Presentation::Popup)
+        };
+        if valid { window.invoke_go_back(); }
     });
     let (layout_state, layout_window, layout_refresh, layout_selection) = (
         shared.clone(),
@@ -766,7 +1110,8 @@ pub(crate) fn bind_devices(
             changed(&window, &layout_state, &*layout_refresh, true);
         }
     });
-    let (state, weak) = (shared, window.as_weak());
+    let selection_for_native = selection.clone();
+    let (state, weak) = (shared.clone(), window.as_weak());
     window.on_private_view_cleared(move |forget_dashboard| {
         if let Some(window) = weak.upgrade() {
             {
@@ -791,9 +1136,15 @@ pub(crate) fn bind_devices(
                 } else {
                     request.dashboard.clone()
                 };
+                let catalogue = if forget_dashboard {
+                    None
+                } else {
+                    request.catalogue.clone()
+                };
                 *request = ProjectionRequest {
                     revision,
                     dashboard,
+                    catalogue,
                     ..Default::default()
                 };
             }
@@ -802,6 +1153,13 @@ pub(crate) fn bind_devices(
             render(&window, &state.borrow());
         }
     });
+    NativeNavigation {
+        state: shared,
+        window: window.as_weak(),
+        refresh,
+        selection: selection_for_native,
+        focus,
+    }
 }
 
 // Android's Back fallback must reach the route owner even with no focused

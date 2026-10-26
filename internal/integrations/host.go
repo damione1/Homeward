@@ -1282,6 +1282,30 @@ func (s *Session) Publish(ctx context.Context, binding Binding, observation Stat
 				}
 				matched = true
 			}
+		case domain.ValueCover:
+			if description.SchemaId == contracts.CoverSchema {
+				value, ok := observation.value.Cover()
+				if !ok || h.catalog.AdmitDomainCover(binding.entity, observation.endpoint, value) != nil {
+					return ErrInvalidInput
+				}
+				matched = true
+			}
+		case domain.ValueLock:
+			if description.SchemaId == contracts.LockSchema {
+				value, ok := observation.value.Lock()
+				if !ok || h.catalog.AdmitDomainLock(binding.entity, observation.endpoint, value) != nil {
+					return ErrInvalidInput
+				}
+				matched = true
+			}
+		case domain.ValueAlarm:
+			if description.SchemaId == contracts.AlarmSchema {
+				value, ok := observation.value.Alarm()
+				if !ok || h.catalog.AdmitDomainAlarm(binding.entity, observation.endpoint, value) != nil {
+					return ErrInvalidInput
+				}
+				matched = true
+			}
 		case domain.ValueUnspecified:
 			return ErrInvalidInput
 		default:

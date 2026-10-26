@@ -2,6 +2,7 @@
 """Local native-client setup and serialized builds; machine paths stay untracked."""
 import argparse
 import contextlib
+from enum import Enum
 import fcntl
 import getpass
 import hashlib
@@ -16,7 +17,7 @@ import time
 
 REPO = Path(__file__).resolve().parents[1]
 LOCAL = REPO / 'frontend.local.json'
-LIMIT = 40_000_000_000
+LIMIT = 60_000_000_000
 # The shared host's latest reserve supersedes the original 40 GiB floor.
 MIN_FREE = 50_000_000_000
 PACKAGES = ['home-client-model', 'home-wire-contract', 'homeward-app', 'home-client-transport', 'home-client-cache',
@@ -269,6 +270,61 @@ def execute(config, argv, reserve, uses_cargo=False):
         return code if after['within_policy'] else 1
 
 
+class EvaluationPackages(Enum):
+    APP = 'app'
+    FREE = 'free'
+    PRO = 'pro'
+
+    def __str__(self):
+        return self.value
+
+
+def retire_evaluations(config, selection):
+    """Recover storage without admitting an arbitrary command over budget."""
+    match selection:
+        case EvaluationPackages.APP:
+            repository, packages = REPO, ['homeward-app']
+        case EvaluationPackages.FREE:
+            repository, packages = Path(config['free_kit']), ['kit-tests', 'kit-showcase']
+        case EvaluationPackages.PRO:
+            repository, packages = Path(config['pro_kit']), ['slint-kit-pro-tests', 'slint-kit-pro-examples']
+    proof = Path(config['frontend_cache']) / 'rounds' / str(time.time_ns())
+    proof.mkdir(parents=True)
+    with leases(config):
+        before = measure(config)
+        write(proof / 'before.json', before)
+        baseline = json.loads(Path(config['baseline']).read_text())
+        markers = [marker for package in packages for marker in (package, package.replace('-', '_'))]
+        if any(marker in path for path in baseline for marker in markers):
+            raise SystemExit('evaluation package has baseline artifacts; refusing retirement')
+        processes = subprocess.check_output(['ps', '-axo', 'comm'], text=True).splitlines()[1:]
+        if any(Path(process.strip()).name in {'cargo', 'rustc', 'go'} for process in processes):
+            raise SystemExit('a builder is active; refusing retirement')
+        env = environment(config)
+        target = Path(env['CARGO_TARGET_DIR'])
+        opened = subprocess.run(['lsof', '-t', '+D', str(target / 'debug/deps')],
+                                capture_output=True, timeout=45)
+        if opened.returncode != 1 or opened.stdout:
+            raise SystemExit('target quiescence is unproven; refusing retirement')
+        fingerprint = sources(config, proof)
+        command = ['cargo', 'clean']
+        for package in packages:
+            command.extend(['-p', package])
+        write(proof / 'command.json', {'argv': command, 'cwd': str(repository),
+              'source_manifest': fingerprint, 'evaluation_packages': selection.value,
+              'recovery_only': True, 'baseline_had_no_matching_artifacts': True})
+        started = time.monotonic()
+        with (proof / 'output.log').open('wb') as log:
+            result = subprocess.run(command, cwd=repository, env=env,
+                                    stdout=log, stderr=subprocess.STDOUT)
+        after = measure(config)
+        write(proof / 'result.json', {'returncode': result.returncode,
+              'elapsed_seconds': time.monotonic() - started, 'after': after,
+              'only_owned_evaluation_packages': True, 'all_four_leases_held': True})
+        print(proof, flush=True)
+        return result.returncode if after['within_policy'] else 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -280,6 +336,8 @@ def main():
     run = commands.add_parser('run')
     run.add_argument('--reserve-gb', type=float, default=2)
     run.add_argument('--cargo', action='store_true', help='command invokes Cargo indirectly')
+    run.add_argument('--retire-evaluations', type=EvaluationPackages, choices=list(EvaluationPackages),
+                     help='retire only non-baseline app/free/pro evaluation packages, including over-budget recovery')
     run.add_argument('argv', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.command == 'configure':
@@ -288,8 +346,12 @@ def main():
     config = json.loads(LOCAL.read_text())
     if args.command == 'storage':
         return 0 if measure(config)['within_policy'] else 1
-    if not 0 <= args.reserve_gb <= 40:
-        parser.error('--reserve-gb must be between 0 and 40')
+    if not 0 <= args.reserve_gb <= LIMIT / 1_000_000_000:
+        parser.error(f'--reserve-gb must be between 0 and {LIMIT / 1_000_000_000:g}')
+    if args.retire_evaluations is not None:
+        if args.argv or args.cargo:
+            parser.error('--retire-evaluations cannot run another command')
+        return retire_evaluations(config, args.retire_evaluations)
     return execute(config, args.argv, int(args.reserve_gb * 1_000_000_000), args.cargo)
 
 

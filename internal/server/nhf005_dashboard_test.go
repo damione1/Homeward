@@ -33,6 +33,7 @@ import (
 type nhf005Dashboard struct {
 	dashboardv1connect.UnimplementedDashboardServiceHandler
 	file                 string
+	compilation          imported.CompilationProfile
 	catalogue            *nhf007Catalogue
 	authority            *authorization.Authority
 	activation           view.Configuration
@@ -47,6 +48,16 @@ type nhf005Dashboard struct {
 
 const nhf005DashboardID = "synthetic-dashboard"
 
+func (h *nhf005Dashboard) compilationProfile() imported.CompilationProfile {
+	switch h.compilation {
+	case imported.CompilationInvalid:
+		return imported.CompilationBasic
+	case imported.CompilationBasic, imported.CompilationRecipes:
+		return h.compilation
+	default:
+		panic("unparsed synthetic compilation profile")
+	}
+}
 func (h *nhf005Dashboard) install(owner string, bindings map[string]domain.EntityID) error {
 	id, err := contracts.ParseAccountID(owner)
 	if err != nil {

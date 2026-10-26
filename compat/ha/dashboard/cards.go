@@ -41,6 +41,12 @@ func (c *compiler) card(node parser.Node, depth int) Card {
 		return card
 	}
 	card.kind = parseCardKind(typeText)
+	card.variant = typeText
+	if c.profile == CompilationRecipes {
+		if card.kind == ElementInvalid {
+			return c.recipeCard(node, typeText, depth)
+		}
+	}
 	if card.kind == ElementInvalid {
 		c.unsupported(CodeUnsupportedVariant, node, "card type outside native profile")
 		card.status = StatusUnsupported
@@ -247,6 +253,12 @@ func (c *compiler) card(node parser.Node, depth int) Card {
 			}
 			double, hasDouble = entry.Value, true
 		default:
+			if c.profile == CompilationRecipes {
+				if handled, invalid := c.cardExtension(&card, entry); handled {
+					blocked = blocked || invalid
+					continue
+				}
+			}
 			c.unknown(entry, "card property outside profile")
 			blocked = true
 		}

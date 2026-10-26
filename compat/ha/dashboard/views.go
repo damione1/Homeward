@@ -106,15 +106,25 @@ func (c *compiler) view(node parser.Node) View {
 				v.visibility = append(v.visibility, Visibility{kind: VisibilityFlag, status: StatusSupported, location: locate(entry.Value), flag: flag})
 			}
 		default:
+			if c.profile == CompilationRecipes {
+				if handled, invalid := c.viewExtension(&v, entry); handled {
+					blocked = blocked || invalid
+					continue
+				}
+			}
 			c.unknown(entry, "view property outside profile")
 			blocked = true
 		}
+	}
+	if !hasType && c.profile == CompilationRecipes && hasSections {
+		v.kind = ElementSectionsView
+		hasType = true
 	}
 	if !hasType {
 		c.unsupported(CodeMissingField, node, "explicit sections view type is required")
 		blocked = true
 	}
-	if !hasPath {
+	if !hasPath && c.profile != CompilationRecipes {
 		c.unsupported(CodeMissingField, node, "stable view path is required")
 		blocked = true
 	}

@@ -60,7 +60,7 @@ func TestNHA032ZeroAbsentAndQuality(t *testing.T) {
 		i.Availability = domain.AvailabilityUnavailable
 		i.Kind = domain.ValueUnspecified
 		i.Numeric = nil
-	}, func(i *PointInput) { i.Freshness = domain.FreshnessStale }, func(i *PointInput) { i.Provenance = domain.ProvenanceRestored }, func(i *PointInput) { i.Kind = domain.ValueHelper; i.Numeric = nil }, func(i *PointInput) { i.Kind = domain.ValueSolar; i.Numeric = nil }, func(i *PointInput) { i.Kind = domain.ValueSolarEvent; i.Numeric = nil }} {
+	}, func(i *PointInput) { i.Freshness = domain.FreshnessStale }, func(i *PointInput) { i.Provenance = domain.ProvenanceRestored }, func(i *PointInput) { i.Kind = domain.ValueHelper; i.Numeric = nil }, func(i *PointInput) { i.Kind = domain.ValueSolar; i.Numeric = nil }, func(i *PointInput) { i.Kind = domain.ValueSolarEvent; i.Numeric = nil }, func(i *PointInput) { i.Kind = domain.ValueCover; i.Numeric = nil }, func(i *PointInput) { i.Kind = domain.ValueLock; i.Numeric = nil }, func(i *PointInput) { i.Kind = domain.ValueAlarm; i.Numeric = nil }} {
 		in := b.Input()
 		change(&in)
 		p, err := NewPoint(in)

@@ -102,7 +102,8 @@ func validArguments(args *actions.ActionArgs) bool {
 		return value != nil && value.SetSwitch != nil
 	case *actions.ActionArgs_Extension:
 		return false
-	case *actions.ActionArgs_SetLight, *actions.ActionArgs_SetFan, *actions.ActionArgs_SetClimate:
+	case *actions.ActionArgs_SetLight, *actions.ActionArgs_SetFan, *actions.ActionArgs_SetClimate,
+		*actions.ActionArgs_Helper, *actions.ActionArgs_Cover, *actions.ActionArgs_Lock, *actions.ActionArgs_Alarm:
 		return false
 	default:
 		return false

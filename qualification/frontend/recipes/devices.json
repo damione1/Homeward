@@ -1,0 +1,6 @@
+[
+ {"kind":"cover","alias":"cover.konnected_52362c_garage_door","title":"Volet simulé","endpoint":"window"},
+ {"kind":"garage","alias":"light.konnected_52362c_garage_light","title":"Garage simulé","endpoint":"garage"},
+ {"kind":"lock","alias":"lock.konnected_52362c_lock","title":"Serrure simulée","endpoint":"entry"},
+ {"kind":"alarm","alias":"alarm_control_panel.alarm","title":"Alarme simulée","endpoint":"alarm"}
+]
