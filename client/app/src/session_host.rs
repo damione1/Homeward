@@ -135,6 +135,7 @@ pub(crate) struct LifecycleBridge {
     foreground_admission: Arc<Mutex<Option<ForegroundAdmission>>>,
     read_intent: Arc<Mutex<ReadIntent>>,
     lists: Arc<Mutex<Option<crate::list_host::Lists>>>,
+    history: Arc<Mutex<Option<crate::history_host::History>>>,
 }
 impl LifecycleBridge {
     pub(crate) fn new() -> Self {
@@ -147,6 +148,7 @@ impl LifecycleBridge {
             foreground_admission: Arc::new(Mutex::new(None)),
             read_intent: Arc::new(Mutex::new(ReadIntent::NotRequested)),
             lists: Arc::new(Mutex::new(None)),
+            history: Arc::new(Mutex::new(None)),
         }
     }
     // Called by native event listeners on the UI thread. Cancel publication and
@@ -158,6 +160,14 @@ impl LifecycleBridge {
         }
         if let Some(lists) = self.lists.lock().expect("lifecycle lists mutex").as_ref() {
             lists.foreground(state == Lifecycle::Foreground);
+        }
+        if let Some(history) = self
+            .history
+            .lock()
+            .expect("lifecycle history mutex")
+            .as_ref()
+        {
+            history.foreground(state == Lifecycle::Foreground);
         }
         // Capture admission at the native event, before its worker handling can
         // be delayed. A later suspend/logout invalidates this exact permit.
@@ -240,14 +250,20 @@ struct ProjectionTarget {
     window: slint::Weak<HomewardWindow>,
     epoch: Arc<AtomicU64>,
     profile: ProfileEpoch,
+    history: crate::history_host::History,
 }
 impl ProjectionTarget {
     fn post(&self, ticket: DeliveryTicket<CacheProjection>) {
         let (epoch, profile) = (self.epoch.clone(), self.profile);
+        let history = self.history.clone();
         let _ = self.window.upgrade_in_event_loop(move |window| {
             if epoch.load(Ordering::SeqCst) == profile.0 {
                 ticket.deliver(|generation, projection| {
-                    cache_view::render(&window, generation, projection)
+                    let target = projection.history_target(window.get_projection_version());
+                    cache_view::render(&window, generation, projection);
+                    if let Some(target) = target {
+                        history.choose(target);
+                    }
                 });
             }
         });
@@ -265,6 +281,7 @@ struct Ui {
     dashboard_choices: crate::dashboard_selection::Choices,
     devices: Arc<Mutex<Option<DeviceBinding>>>,
     lists: crate::list_host::Lists,
+    history: crate::history_host::History,
 }
 impl Ui {
     fn current_devices(&self) -> Result<(DeviceBinding, i32), Refusal> {
@@ -296,6 +313,7 @@ impl Ui {
         }
     }
     fn invalidate_cache(&self) {
+        self.history.clear();
         self.lists.clear();
         if let Some(binding) = self.devices.lock().expect("device binding mutex").clone() {
             binding.store.clear_private();
@@ -458,6 +476,7 @@ impl Ui {
             window: self.window.clone(),
             epoch: self.epoch.clone(),
             profile,
+            history: self.history.clone(),
         }
     }
     async fn cache_event(
@@ -614,6 +633,7 @@ struct Profile {
     devices: DeviceStore,
 }
 async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, ui: &Ui) {
+    ui.history.clear();
     ui.lists.clear();
     if let Some(previous) = profile.take() {
         {
@@ -656,6 +676,18 @@ async fn install_profile(
         ActionController::start(owner.clone(), connection.actions());
     let mut action_updates = actions.subscribe_updates();
     let cancel = CancellationToken::new();
+    ui.history.clear();
+    let (history, history_session, history_transport, history_cancel) = (
+        ui.history.clone(),
+        owner.clone(),
+        connection.history(),
+        cancel.clone(),
+    );
+    tasks.spawn(async move {
+        history
+            .run(history_session, history_transport, history_cancel)
+            .await;
+    });
     ui.lists.clear();
     let (lists, list_session, list_transport, list_cancel) = (
         ui.lists.clone(),
@@ -1111,6 +1143,8 @@ pub(crate) fn run_with_lifecycle(
     }
     cache_view::bind(&window);
     let lists = crate::list_host::Lists::bind(&window);
+    let history = crate::history_host::History::bind(&window);
+    *lifecycle.history.lock().expect("lifecycle history mutex") = Some(history.clone());
     *lifecycle.lists.lock().expect("lifecycle lists mutex") = Some(lists.clone());
     let (viewport_tx, viewport) = watch::channel(Viewport::default());
     let ui = Ui {
@@ -1124,6 +1158,7 @@ pub(crate) fn run_with_lifecycle(
         dashboard_choices: crate::dashboard_selection::Choices::default(),
         devices: Arc::new(Mutex::new(None)),
         lists,
+        history,
     };
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
@@ -1520,6 +1555,7 @@ mod tests {
             dashboard_choices: crate::dashboard_selection::Choices::default(),
             devices: Arc::new(Mutex::new(None)),
             lists: crate::list_host::Lists::detached(),
+            history: crate::history_host::History::detached(),
         };
         ui.request_view(epoch);
 
@@ -1609,6 +1645,7 @@ mod tests {
             dashboard_choices: crate::dashboard_selection::Choices::default(),
             devices: Arc::new(Mutex::new(None)),
             lists: crate::list_host::Lists::detached(),
+            history: crate::history_host::History::detached(),
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));
