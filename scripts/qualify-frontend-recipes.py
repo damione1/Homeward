@@ -86,11 +86,11 @@ def stop(process):
         raise RuntimeError('Owned fixture required forced termination')
 
 
-def build(proof):
+def build(proof, fixture_pattern='^TestNHF009Fixture'):
     server = proof / 'server.test'
     subprocess.run(['go', 'test', '-c', '-race', '-o', str(server), './internal/server'],
                    cwd=ROOT, check=True)
-    subprocess.run([str(server), '-test.run=^TestNHF009Fixture', '-test.v', '-test.timeout=60s'],
+    subprocess.run([str(server), '-test.run=' + fixture_pattern, '-test.v', '-test.timeout=60s'],
                    cwd=ROOT / 'internal/server', check=True)
     command = ['cargo', 'test', '--locked', '-p', 'homeward-app', '--lib', '--no-run',
                '--message-format=json']

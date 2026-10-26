@@ -14,6 +14,8 @@ mod dashboard_presentation;
 mod dashboard_selection;
 mod dashboard_visibility;
 mod device_view;
+#[cfg(test)]
+mod environment_probe;
 mod environment_text;
 mod environment_view;
 mod navigation;

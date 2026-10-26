@@ -15,6 +15,7 @@ import (
 	"time"
 
 	imported "github.com/damione1/Homeward/compat/ha/dashboard"
+	"github.com/damione1/Homeward/contracts"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
@@ -215,6 +216,17 @@ func TestNHF010EnvironmentServer(t *testing.T) {
 		return reader{id, actor, name, password, tokens.AccessToken}
 	}
 	member, guest := create("NHF010 Member"), create("NHF010 Guest")
+	dashboard.mu.Lock()
+	dashboard.owners = make(map[contracts.AccountID]contracts.AccountID)
+	for _, user := range []reader{member, guest} {
+		account, err := contracts.ParseAccountID(user.id.Value)
+		if err != nil {
+			dashboard.mu.Unlock()
+			t.Fatal(err)
+		}
+		dashboard.owners[account] = account
+	}
+	dashboard.mu.Unlock()
 	setPolicy := func(user reader, private bool) {
 		t.Helper()
 		current, err := policies.GetPolicy(ctx, nha141BearerRequest(&auth.GetPolicyRequest{AccountId: user.id}, admin.AccessToken))
@@ -342,7 +354,7 @@ func TestNHF010EnvironmentServer(t *testing.T) {
 				t.Fatal("unparsed environment control")
 			}
 			sequence = command.sequence
-			nhf003WritePrivate(t, out, "control.json", map[string]any{"sequence": sequence, "action": command.action})
+			nhf003WritePrivate(t, out, fmt.Sprintf("ack-%02d.json", sequence), map[string]any{"sequence": sequence, "action": command.action})
 		}
 	}
 }
