@@ -144,6 +144,7 @@ impl Model for Catalog {
 }
 pub(super) fn render(window: &HomewardWindow, projection: Projection) {
     let view = Arc::new(projection);
+    let same_list = window.get_lists_list_token() == view.list_token;
     if window.get_lists_privacy_generation() != view.privacy_generation {
         window.set_lists_create_draft("".into());
         window.set_lists_rename_draft("".into());
@@ -157,6 +158,7 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
     }
     let old_focus = window.get_lists_editor_focused();
     let old_token = window.get_lists_task_selection().token;
+    let old_index = window.get_lists_active_index();
     let old_scroll = window.get_lists_scroll_y();
     let selected = view.selected.as_ref().and_then(|key| {
         view.rows().iter().position(|row| {
@@ -245,7 +247,14 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
         .map(|draft| draft.text.clone())
         .unwrap_or_else(|| selection.title.to_string());
     window.set_lists_draft(draft.into());
-    window.invoke_lists_scroll_to(old_scroll);
+    // A newly selected or moved row must be revealed by the task component.
+    // Preserve the viewport only when the presentation target stayed put.
+    if same_list
+        && selection.token == old_token
+        && selected.map_or(-1, |index| index as i32) == old_index
+    {
+        window.invoke_lists_scroll_to(old_scroll);
+    }
     if old_focus && selection.token == old_token && selected.is_some() {
         window.invoke_lists_focus_editor();
     }
