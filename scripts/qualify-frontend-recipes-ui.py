@@ -108,21 +108,21 @@ def source_files(roots):
         result[key] = {p: sha(root / p) for p in paths if p and (root / p).is_file()}
     return result
 
-def build(proof, config):
+def build(proof, config, bundle_label='Homeward Recipes'):
     server = proof / 'server.test'
     subprocess.run(['go', 'test', '-c', '-race', '-o', str(server), './internal/server'], cwd=ROOT, check=True)
     helper = proof / 'native-ui'
     modules = Path(config['frontend_cache']) / 'session-spike/swift-modules'
     subprocess.run(['xcrun', 'swiftc', '-module-cache-path', str(modules), str(ROOT / 'qualification/frontend/native-ui.swift'), '-o', str(helper)], check=True)
     subprocess.run(['cargo', 'build', '--locked', '-p', 'homeward-app', '--bin', 'homeward-desktop'], cwd=ROOT, check=True)
-    bundle = proof / 'Homeward Recipes.app/Contents'
+    bundle = proof / (bundle_label + '.app/Contents')
     (bundle / 'MacOS').mkdir(parents=True)
     binary = bundle / 'MacOS/homeward-desktop'
     os.link(Path(os.environ['CARGO_TARGET_DIR']) / 'debug/homeward-desktop', binary)
     with (bundle / 'Info.plist').open('wb') as output:
-        plistlib.dump(dict(CFBundleExecutable=binary.name, CFBundleIdentifier='ca.homeward.frontend.dev', CFBundleName='Homeward Recipes', CFBundlePackageType='APPL', NSHighResolutionCapable=True), output)
+        plistlib.dump(dict(CFBundleExecutable=binary.name, CFBundleIdentifier='ca.homeward.frontend.dev', CFBundleName=bundle_label, CFBundlePackageType='APPL', NSHighResolutionCapable=True), output)
     record = dict(binary=str(binary), server=str(server), helper=str(helper), binaries={str(p.relative_to(proof)): sha(p) for p in [binary, server, helper]})
-    write(proof / 'build.json', record)
+    (proof / 'build.json').write_text(json.dumps(record, indent=2) + '\n')
     return record
 
 def run_case(proof, build, scenario, case):
