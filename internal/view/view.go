@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	environmentwire "github.com/damione1/Homeward/gen/home/environment/v1"
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
 	statewire "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/internal/authorization"
@@ -69,13 +70,15 @@ func (c ConfigStamp) Components() (uint64, [32]byte, error) {
 }
 
 type Grant struct {
-	actor    ActorID
-	revision uint64
-	allowed  map[domain.EntityID]struct{}
-	digest   [32]byte
-	slots    map[domain.EntityID]map[authorization.CapabilitySlot]struct{}
-	complete map[domain.EntityID]bool
-	actions  map[domain.EntityID]map[authorization.CapabilitySlot]statewire.ActionAccess
+	actor             ActorID
+	revision          uint64
+	allowed           map[domain.EntityID]struct{}
+	digest            [32]byte
+	slots             map[domain.EntityID]map[authorization.CapabilitySlot]struct{}
+	complete          map[domain.EntityID]bool
+	actions           map[domain.EntityID]map[authorization.CapabilitySlot]statewire.ActionAccess
+	displayTimeZone   string
+	profileBaseDigest [32]byte
 }
 
 func NewGrant(actor ActorID, revision uint64, allowed []domain.EntityID) (Grant, error) {
@@ -227,26 +230,28 @@ func (i Item) ActionAccess() []*statewire.CapabilityActionAccess {
 }
 
 type Page struct {
-	SnapshotToken string
-	Cursor        Cursor
-	Items         []Item
-	NextPageToken string
-	ExpiresAt     time.Time
+	SnapshotToken  string
+	Cursor         Cursor
+	Items          []Item
+	NextPageToken  string
+	ExpiresAt      time.Time
+	DisplayProfile *environmentwire.DisplayProfile
 }
 
 type capture struct {
-	actor         ActorID
-	grantRevision uint64
-	grantDigest   [32]byte
-	config        ConfigStamp
-	cursor        Cursor
-	items         []Item
-	pageSize      int
-	position      int
-	expected      string
-	served        map[string]pageSpan
-	expires       time.Time
-	bytes         int
+	actor           ActorID
+	grantRevision   uint64
+	grantDigest     [32]byte
+	config          ConfigStamp
+	cursor          Cursor
+	items           []Item
+	pageSize        int
+	position        int
+	expected        string
+	served          map[string]pageSpan
+	expires         time.Time
+	bytes           int
+	displayTimeZone string
 }
 type pageSpan struct {
 	start, end int
@@ -423,7 +428,7 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 		items = append(items, Item{record: record, state: state, hasState: hasState, capabilities: descriptions, actions: actions})
 	}
 	pageCount := (len(items) + pageSize - 1) / pageSize
-	bytes += pageCount*160 + 1024
+	bytes += pageCount*(160+4*len(lastGrant.displayTimeZone)) + 1024
 	if bytes > MaxSnapshotBytes {
 		return Page{}, ErrResourceExhausted
 	}
@@ -440,6 +445,7 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 		return Page{}, err
 	}
 	c := &capture{actor: actor, grantRevision: lastGrant.revision, grantDigest: lastGrant.digest, config: lastConfig, cursor: cursor, items: items, pageSize: pageSize, served: make(map[string]pageSpan), expires: now.Add(SnapshotTTL), bytes: bytes}
+	c.displayTimeZone = lastGrant.displayTimeZone
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.expire(now)
@@ -456,7 +462,11 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 }
 
 func renderPage(token string, c *capture, span pageSpan) Page {
-	return Page{SnapshotToken: token, Cursor: c.cursor, Items: append([]Item(nil), c.items[span.start:span.end]...), NextPageToken: span.next, ExpiresAt: c.expires}
+	page := Page{SnapshotToken: token, Cursor: c.cursor, Items: append([]Item(nil), c.items[span.start:span.end]...), NextPageToken: span.next, ExpiresAt: c.expires}
+	if c.displayTimeZone != "" {
+		page.DisplayProfile = &environmentwire.DisplayProfile{TimeZone: c.displayTimeZone}
+	}
+	return page
 }
 
 func (s *Service) nextPage(token string, c *capture, requestToken string) (Page, error) {
