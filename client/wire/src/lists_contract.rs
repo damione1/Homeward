@@ -4,6 +4,7 @@
 use crate::home::lists::v1 as lists;
 use buffa::EnumValue;
 use buffa_types::google::protobuf::Timestamp;
+use home_client_model::lists::{ItemUid, ListId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdmissionError {
@@ -19,16 +20,11 @@ impl<T> Admitted<T> {
     }
 }
 
-fn identity(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 255
-        && !value.bytes().any(|b| matches!(b, b'\0' | b'\r' | b'\n'))
-}
 fn list_id(value: &lists::ListId) -> bool {
-    identity(&value.value) && value.__buffa_unknown_fields.is_empty()
+    value.value.parse::<ListId>().is_ok() && value.__buffa_unknown_fields.is_empty()
 }
 fn item_uid(value: &lists::ItemUid) -> bool {
-    identity(&value.value) && value.__buffa_unknown_fields.is_empty()
+    value.value.parse::<ItemUid>().is_ok() && value.__buffa_unknown_fields.is_empty()
 }
 fn ha_alias(value: &str) -> bool {
     let Some((domain, name)) = value.split_once('.') else {

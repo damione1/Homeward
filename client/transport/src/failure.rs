@@ -7,7 +7,7 @@ use base64::{
 use buffa::{Message, MessageName};
 use connectrpc::{ConnectError, ErrorCode};
 use home_wire_contract::home::{
-    actions::v1::ActionOperationFailure, auth::v1::AuthorizationTermination,
+    actions::v1::ActionOperationFailure, auth::v1::AuthorizationTermination, lists::v1::ListError,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,6 +69,12 @@ impl Failure {
     pub fn action_operation_failure(
         &self,
     ) -> Result<Option<ActionOperationFailure>, DetailFailure> {
+        self.typed_detail()
+    }
+
+    /// A list conflict or uncertain commit is a typed outcome, never a reason
+    /// to replay the mutation or expose the server's free-form error message.
+    pub fn list_error(&self) -> Result<Option<ListError>, DetailFailure> {
         self.typed_detail()
     }
 
