@@ -1,0 +1,6 @@
+[
+  {"kind":"weather","alias":"weather.maison","title":"Météo simulée","endpoint":"weather"},
+  {"kind":"presence","alias":"person.damien","title":"Présence simulée","endpoint":"aggregate"},
+  {"kind":"details","alias":"person.irina","title":"Détails privés simulés","endpoint":"private"},
+  {"kind":"solar","alias":"person.katarina","title":"Soleil simulé","endpoint":"ephemeris"}
+]

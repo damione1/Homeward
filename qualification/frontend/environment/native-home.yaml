@@ -1,0 +1,25 @@
+# Explicit isolated mock. These retained aliases only satisfy the immutable
+# registry manifest; every reading is synthetic and its family is the capability.
+# Solar deliberately uses a person alias, independently of the native sun owner.
+views:
+- title: Environnement simulé
+  path: home
+  sections:
+  - type: grid
+    cards:
+    - type: tile
+      name: Météo simulée
+      entity: weather.maison
+      tap_action: {action: more-info}
+    - type: tile
+      name: Soleil simulé
+      entity: person.katarina
+      tap_action: {action: more-info}
+    - type: tile
+      name: Présence simulée
+      entity: person.damien
+      tap_action: {action: more-info}
+    - type: tile
+      name: Détails privés simulés
+      entity: person.irina
+      tap_action: {action: more-info}
