@@ -2023,6 +2023,7 @@ dependencies = [
  "buffa",
  "buffa-types",
  "chrono",
+ "connectrpc",
  "home-client-actions",
  "home-client-cache",
  "home-client-model",
