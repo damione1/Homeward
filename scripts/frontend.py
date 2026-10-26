@@ -17,7 +17,7 @@ import time
 
 REPO = Path(__file__).resolve().parents[1]
 LOCAL = REPO / 'frontend.local.json'
-LIMIT = 40_000_000_000
+LIMIT = 60_000_000_000
 # The shared host's latest reserve supersedes the original 40 GiB floor.
 MIN_FREE = 50_000_000_000
 PACKAGES = ['home-client-model', 'home-wire-contract', 'homeward-app', 'home-client-transport', 'home-client-cache',
@@ -346,8 +346,8 @@ def main():
     config = json.loads(LOCAL.read_text())
     if args.command == 'storage':
         return 0 if measure(config)['within_policy'] else 1
-    if not 0 <= args.reserve_gb <= 40:
-        parser.error('--reserve-gb must be between 0 and 40')
+    if not 0 <= args.reserve_gb <= LIMIT / 1_000_000_000:
+        parser.error(f'--reserve-gb must be between 0 and {LIMIT / 1_000_000_000:g}')
     if args.retire_evaluations is not None:
         if args.argv or args.cargo:
             parser.error('--retire-evaluations cannot run another command')
