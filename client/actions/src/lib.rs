@@ -4,6 +4,7 @@
 
 mod access;
 mod controller;
+pub mod lists;
 pub use controller::{
     ActionClient, ActionController, ActionHandle, ActionNotice, ActionSnapshot, AdmissionCheck,
     ControllerError, NoticeKind, TrackingIssue,

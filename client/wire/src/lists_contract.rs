@@ -49,6 +49,13 @@ fn name(value: &str) -> bool {
         && value.len() <= 512
         && !value.bytes().any(|b| matches!(b, b'\0' | b'\r' | b'\n'))
 }
+pub fn admit_list_name(value: &str) -> Result<(), AdmissionError> {
+    if name(value) {
+        Ok(())
+    } else {
+        Err(AdmissionError::Invalid)
+    }
+}
 fn civil_date(value: &str) -> bool {
     let raw = value.as_bytes();
     if raw.len() != 10 || raw[4] != b'-' || raw[7] != b'-' {
