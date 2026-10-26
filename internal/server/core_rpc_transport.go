@@ -15,13 +15,23 @@ import (
 )
 
 func prepareCoreRPC(ctx context.Context, sessions *sessionCoordinator, sequence *sequencer.Sequencer,
-	identity integrations.IdentityAuthority, configuration view.Configuration, commands *integrations.DurableCommandService) (*coreRPCHandler, error) {
+	identity integrations.IdentityAuthority, configuration view.Configuration, commands *integrations.DurableCommandService, profiles ...view.DisplayProfileSource) (*coreRPCHandler, error) {
 	if nilReactiveInterface(configuration) || commands == nil {
 		return nil, ErrInvalidPublicPlan
 	}
 	composition, err := authorizationComposition(ctx, sessions, sequence, identity, configuration)
 	if err != nil {
 		return nil, err
+	}
+	if len(profiles) > 1 {
+		return nil, ErrInvalidPublicPlan
+	}
+	if len(profiles) == 1 && !nilReactiveInterface(profiles[0]) {
+		authorizer, ok := composition.ViewAuthorizer().(*policyViewAuthorizer)
+		if !ok {
+			return nil, ErrInvalidPublicPlan
+		}
+		authorizer.profiles = profiles[0]
 	}
 	views, err := composition.NewViewService(configuration, sequencer.RealClock{})
 	if err != nil {

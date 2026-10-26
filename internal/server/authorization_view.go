@@ -12,6 +12,7 @@ import (
 )
 
 type policyViewAuthorizer struct {
+	profiles   view.DisplayProfileSource
 	authority  *authorization.Authority
 	source     *sequencer.Sequencer
 	grantMu    sync.Mutex
@@ -87,7 +88,7 @@ func (a *policyViewAuthorizer) CurrentGrant(ctx context.Context, actor view.Acto
 	cached, present := a.grantCache[key]
 	a.grantMu.Unlock()
 	if present {
-		return cached.grant, nil
+		return a.currentDisplayProfile(ctx, actor, cached.grant)
 	}
 	snapshot, err := a.source.CaptureBounded(view.MaxSnapshotBytes)
 	if err != nil {
@@ -164,7 +165,7 @@ func (a *policyViewAuthorizer) CurrentGrant(ctx context.Context, actor view.Acto
 		}
 		a.grantMu.Unlock()
 	}
-	return grant, nil
+	return a.currentDisplayProfile(ctx, actor, grant)
 }
 func (a *policyViewAuthorizer) SubscribeGrantChanges(ctx context.Context, actor view.ActorID) (<-chan struct{}, func(), error) {
 	principal, err := a.principal(ctx, actor)
@@ -175,5 +176,61 @@ func (a *policyViewAuthorizer) SubscribeGrantChanges(ctx context.Context, actor 
 	if err != nil {
 		return nil, nil, err
 	}
-	return sub.Changes(), sub.Close, nil
+	if nilReactiveInterface(a.profiles) {
+		return sub.Changes(), sub.Close, nil
+	}
+	profileChanges, release, err := a.profiles.SubscribeDisplayProfileChanges(ctx, actor)
+	if err != nil || profileChanges == nil || release == nil {
+		sub.Close()
+		if release != nil {
+			release()
+		}
+		return nil, nil, authorization.ErrUnavailable
+	}
+	mergeCtx, cancel := context.WithCancel(ctx)
+	changes, done := make(chan struct{}, 1), make(chan struct{})
+	go func() {
+		defer close(done)
+		defer close(changes)
+		defer sub.Close()
+		defer release()
+		for {
+			select {
+			case <-mergeCtx.Done():
+				return
+			case _, ok := <-sub.Changes():
+				if !ok {
+					return
+				}
+			case _, ok := <-profileChanges:
+				if !ok {
+					return
+				}
+			}
+			select {
+			case changes <- struct{}{}:
+			default:
+			}
+		}
+	}()
+	stop := sync.OnceFunc(func() { cancel(); <-done })
+	return changes, stop, nil
+}
+
+func (a *policyViewAuthorizer) currentDisplayProfile(ctx context.Context, actor view.ActorID, grant view.Grant) (view.Grant, error) {
+	if nilReactiveInterface(a.profiles) {
+		return grant, nil
+	}
+	zone, err := a.profiles.DisplayTimeZone(ctx, actor)
+	if err != nil {
+		return view.Grant{}, authorization.ErrUnavailable
+	}
+	if zone == "" {
+		return grant, nil
+	}
+	profiled, err := grant.WithDisplayTimeZone(zone)
+	if err != nil {
+		return view.Grant{}, authorization.ErrUnavailable
+	}
+	return profiled, nil
 }

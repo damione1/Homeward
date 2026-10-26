@@ -1,9 +1,19 @@
 package view
 
 import (
+	"context"
 	"crypto/sha256"
 	"time"
 )
+
+// DisplayProfileSource is an optional trusted server-side profile authority.
+// An empty name means no configured profile. Failures must not serve cached
+// metadata; subscribers are notified on updates or closure. The client never
+// supplies an actor or profile through this port.
+type DisplayProfileSource interface {
+	DisplayTimeZone(context.Context, ActorID) (string, error)
+	SubscribeDisplayProfileChanges(context.Context, ActorID) (<-chan struct{}, func(), error)
+}
 
 func validDisplayTimeZone(name string) bool {
 	// Go's special Local name would silently use the server machine's zone.
