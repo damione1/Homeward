@@ -1,0 +1,26 @@
+export { KitThemes } from "@kit/kit.slint";
+import { KitTheme, KitThemes, NavigationStep } from "@kit/kit.slint";
+import { ProChart, ProChartSeries, ProChartPhase } from "@kit-pro/kit-pro.slint";
+export component ExternalCharts inherits Window {
+    width: 900px; height: max(700px,chart.min-height);
+    in property <KitTheme> theme: KitThemes.light;
+    in property <[ProChartSeries]> series;
+    in property <image> pixels;
+    in property <int> generation;
+    in property <string> heading;
+    in property <string> unit;
+    in-out property <string> inspection;
+    in property <int> source-width;
+    in property <int> source-height;
+    callback navigate(int,NavigationStep,bool);
+    public function focus-plot() { chart.take-plot-focus(); }
+    chart := ProChart {
+        theme: root.theme; title: root.heading; unit: root.unit;
+        generation: root.generation; phase: ProChartPhase.ready; series: root.series;
+        plot-image: root.pixels; source-width: root.source-width; source-height: root.source-height;
+        x-start: "00:00"; x-middle: "03:00"; x-end: "06:00";
+        y-top: "100"; y-middle: "50"; y-bottom: "0";
+        inspection: root.inspection;
+        navigate(g,step,extend) => { root.navigate(g,step,extend); }
+    }
+}
