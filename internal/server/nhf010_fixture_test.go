@@ -133,3 +133,33 @@ func TestNHF010EnvironmentalFixtureRejectsUnknownProvidersAndClosedFamilies(t *t
 		}
 	}
 }
+
+func TestNHF010FixtureControlsRejectUnknownActionsProvidersAndSequenceGaps(t *testing.T) {
+	directory := t.TempDir()
+	file := filepath.Join(directory, "command.json")
+	for _, input := range []string{
+		`{"sequence":1,"action":"unlock"}`,
+		`{"sequence":1,"action":"stale","provider":"https://forbidden.invalid"}`,
+		`{"sequence":1,"action":"revoke-details","account_id":"foreign"}`,
+		`{"sequence":0,"action":"nominal"}`,
+		`{"sequence":2,"action":"nominal"}`,
+		`{"sequence":1,"action":"nominal"} {}`,
+	} {
+		if err := os.WriteFile(file, []byte(input), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := nhf010ReadControl(directory, 0); err == nil {
+			t.Fatal("unsupported or unbound control accepted")
+		}
+	}
+	if err := os.WriteFile(file, []byte(`{"sequence":1,"action":"revoke-details"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	command, err := nhf010ReadControl(directory, 0)
+	if err != nil || command == nil || command.action != nhf010ControlRevoke {
+		t.Fatal("typed control refused", err)
+	}
+	if replay, err := nhf010ReadControl(directory, 1); err != nil || replay != nil {
+		t.Fatal("replayed filesystem control", err)
+	}
+}
