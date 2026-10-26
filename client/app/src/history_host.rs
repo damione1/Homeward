@@ -2,6 +2,8 @@
 //! only alter bounded state; TLS, sorting, raster work and joins stay off UI.
 mod render;
 mod state;
+#[cfg(test)]
+mod tls_probe;
 use crate::{
     HistoryStatistic, HomewardWindow, NavigationStep, ProChartRangeGesture,
     history::{Data, Statistic},
