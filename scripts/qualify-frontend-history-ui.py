@@ -96,6 +96,11 @@ def run_case(proof, build, case, costs_mock=False):
             bounds = native(Command.INFO)['bounds']
             rows = [row for row in tree() if any(label in value for value in (row['title'], row['description'], row['text']))
                     and (not button or row['role'] == 'AXButton') and row['width'] > 5 and row['height'] > 5]
+            # The canvas AX label also includes the inspected value. Prefer
+            # the actual text row when framing that value for a screenshot.
+            text_rows = [row for row in rows if row['role'] == 'AXStaticText']
+            if text_rows:
+                rows = text_rows
             if rows:
                 center = rows[0]['y'] + rows[0]['height'] / 2 - bounds['Y']
                 if 35 < center < bounds['Height'] - 35:
