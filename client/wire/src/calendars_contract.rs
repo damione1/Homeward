@@ -318,11 +318,160 @@ fn event(v: &wire::Event, allow_point: bool) -> bool {
     let Some(kind) = v.span.as_option().and_then(|s| span(s, allow_point)) else {
         return false;
     };
-    v.additions
-        .iter()
-        .chain(&v.exclusions)
-        .all(|p| point(p) == Some(kind))
+    let unique = |values: &[String]| values.iter().collect::<BTreeSet<_>>().len() == values.len();
+    unique(&v.additions)
+        && unique(&v.exclusions)
+        && v.exceptions
+            .iter()
+            .map(|e| &e.original)
+            .collect::<BTreeSet<_>>()
+            .len()
+            == v.exceptions.len()
+        && v.additions
+            .iter()
+            .chain(&v.exclusions)
+            .all(|p| point(p) == Some(kind))
         && v.exceptions.iter().all(|e| exception(e, kind))
+}
+fn mutation_accepts(mutation: EnumValue<wire::Mutation>, previous: RevisionState) -> bool {
+    match mutation {
+        EnumValue::Known(wire::Mutation::Create) => previous == RevisionState::Absent,
+        EnumValue::Known(wire::Mutation::Update | wire::Mutation::Delete) => {
+            matches!(previous, RevisionState::Present(_))
+        }
+        EnumValue::Known(wire::Mutation::Unspecified) | EnumValue::Unknown(_) => false,
+    }
+}
+/// The admitted resource remains the authority for UI eligibility. The server
+/// must independently recheck permissions and CAS at commit time.
+pub fn admit_calendar_mutation(
+    v: &wire::MutateCalendarRequest,
+    current: &Admitted<wire::Calendar>,
+) -> Result<Admitted<wire::MutateCalendarRequest>, AdmissionError> {
+    let id = calendar_id(&current.wire.id).ok_or(AdmissionError::Invalid)?;
+    if v.id.as_option().and_then(calendar_id).as_ref() != Some(&id) {
+        return Err(AdmissionError::ForeignResource);
+    }
+    let previous = calendar_revision(&current.wire.revision, &id).ok_or(AdmissionError::Invalid)?;
+    if v.expected_revision
+        .as_option()
+        .and_then(|r| calendar_revision(r, &id))
+        .as_ref()
+        != Some(&previous)
+    {
+        return Err(AdmissionError::StaleRevision);
+    }
+    let name = match v.mutation {
+        EnumValue::Known(wire::Mutation::Delete) => v.name.is_empty(),
+        EnumValue::Known(wire::Mutation::Create | wire::Mutation::Update) => {
+            text(&v.name, 512, true)
+        }
+        EnumValue::Known(wire::Mutation::Unspecified) | EnumValue::Unknown(_) => false,
+    };
+    admit(
+        v,
+        v.__buffa_unknown_fields.is_empty()
+            && calendar_editable(current)
+            && name
+            && mutation_accepts(v.mutation, previous.state()),
+    )
+}
+pub fn admit_event_mutation(
+    v: &wire::MutateEventRequest,
+    calendar: &Admitted<wire::Calendar>,
+    previous: &EventRevision,
+) -> Result<Admitted<wire::MutateEventRequest>, AdmissionError> {
+    let id = calendar_id(&calendar.wire.id).ok_or(AdmissionError::Invalid)?;
+    if v.key.as_option().and_then(event_key).as_ref() != Some(previous.key())
+        || previous.key().calendar() != &id
+    {
+        return Err(AdmissionError::ForeignResource);
+    }
+    if v.expected_revision
+        .as_option()
+        .and_then(|r| event_revision(r, previous.key()))
+        .as_ref()
+        != Some(previous)
+    {
+        return Err(AdmissionError::StaleRevision);
+    }
+    let value = match v.mutation {
+        EnumValue::Known(wire::Mutation::Delete) => v.value.as_option().is_none(),
+        EnumValue::Known(wire::Mutation::Create | wire::Mutation::Update) => v
+            .value
+            .as_option()
+            .is_some_and(|e| text(&e.summary, 512, true) && event(e, false)),
+        EnumValue::Known(wire::Mutation::Unspecified) | EnumValue::Unknown(_) => false,
+    };
+    let present = calendar_revision(&calendar.wire.revision, &id)
+        .is_some_and(|r| matches!(r.state(), RevisionState::Present(_)));
+    admit(
+        v,
+        v.__buffa_unknown_fields.is_empty()
+            && calendar_editable(calendar)
+            && present
+            && value
+            && mutation_accepts(v.mutation, previous.state()),
+    )
+}
+fn revision_number(state: RevisionState) -> u64 {
+    match state {
+        RevisionState::Absent => 0,
+        RevisionState::Present(n) | RevisionState::Removed(n) => n.get(),
+    }
+}
+fn receipt_state(
+    mutation: EnumValue<wire::Mutation>,
+    before: RevisionState,
+    after: RevisionState,
+) -> bool {
+    let presence = match mutation {
+        EnumValue::Known(wire::Mutation::Create | wire::Mutation::Update) => {
+            matches!(after, RevisionState::Present(_))
+        }
+        EnumValue::Known(wire::Mutation::Delete) => matches!(after, RevisionState::Removed(_)),
+        EnumValue::Known(wire::Mutation::Unspecified) | EnumValue::Unknown(_) => false,
+    };
+    presence && revision_number(after) == revision_number(before).saturating_add(1)
+}
+pub fn admit_calendar_receipt(
+    v: &wire::MutationReceipt,
+    request: &Admitted<wire::MutateCalendarRequest>,
+) -> Result<Admitted<wire::MutationReceipt>, AdmissionError> {
+    let id = calendar_id(&request.wire.id).ok_or(AdmissionError::Invalid)?;
+    let before =
+        calendar_revision(&request.wire.expected_revision, &id).ok_or(AdmissionError::Invalid)?;
+    let after = calendar_revision(&v.revision, &id).ok_or(AdmissionError::ForeignResource)?;
+    let calendar =
+        calendar_revision(&v.calendar_revision, &id).ok_or(AdmissionError::ForeignResource)?;
+    admit(
+        v,
+        v.__buffa_unknown_fields.is_empty()
+            && after == calendar
+            && receipt_state(request.wire.mutation, before.state(), after.state()),
+    )
+}
+pub fn admit_event_receipt(
+    v: &wire::MutationReceipt,
+    request: &Admitted<wire::MutateEventRequest>,
+    previous_calendar: &CalendarRevision,
+) -> Result<Admitted<wire::MutationReceipt>, AdmissionError> {
+    let key = event_key(&request.wire.key).ok_or(AdmissionError::Invalid)?;
+    if previous_calendar.calendar() != key.calendar() {
+        return Err(AdmissionError::ForeignResource);
+    }
+    let before =
+        event_revision(&request.wire.expected_revision, &key).ok_or(AdmissionError::Invalid)?;
+    let after = event_revision(&v.revision, &key).ok_or(AdmissionError::ForeignResource)?;
+    let calendar = calendar_revision(&v.calendar_revision, key.calendar())
+        .ok_or(AdmissionError::ForeignResource)?;
+    admit(
+        v,
+        v.__buffa_unknown_fields.is_empty()
+            && receipt_state(request.wire.mutation, before.state(), after.state())
+            && matches!(calendar.state(), RevisionState::Present(_))
+            && revision_number(calendar.state()) > revision_number(previous_calendar.state()),
+    )
 }
 pub fn admit_event(
     v: &wire::EventSnapshot,

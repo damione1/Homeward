@@ -43,6 +43,160 @@ fn dates(start: &str, end: &str) -> wire::DateSpan {
         ..Default::default()
     }
 }
+fn event_request() -> wire::MutateEventRequest {
+    wire::MutateEventRequest {
+        key: wire::EventKey {
+            calendar: id("one").into(),
+            uid: "event".into(),
+            ..Default::default()
+        }
+        .into(),
+        mutation: wire::Mutation::Update.into(),
+        expected_revision: revision("one", "event", 8).into(),
+        value: wire::Event {
+            summary: "Draft".into(),
+            span: wire::Span {
+                value: Some(wire::span::Value::Dates(Box::new(dates(
+                    "2026-11-01",
+                    "2026-11-02",
+                )))),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    }
+}
+#[test]
+fn mutation_admission_requires_current_exact_resource_and_explicit_local_access() {
+    let local = admit::admit_calendar(&calendar("one"), &domain("one")).unwrap();
+    let key = EventKey::new(domain("one"), "event".parse().unwrap());
+    let previous = admit::event_revision(&revision("one", "event", 8), &key).unwrap();
+    let request = event_request();
+    assert!(admit::admit_event_mutation(&request, &local, &previous).is_ok());
+    let mut stale = request.clone();
+    stale.expected_revision = revision("one", "event", 7).into();
+    assert!(matches!(
+        admit::admit_event_mutation(&stale, &local, &previous),
+        Err(admit::AdmissionError::StaleRevision)
+    ));
+    let mut foreign = request.clone();
+    foreign.key.as_option_mut().unwrap().calendar = id("other").into();
+    assert!(matches!(
+        admit::admit_event_mutation(&foreign, &local, &previous),
+        Err(admit::AdmissionError::ForeignResource)
+    ));
+    for origin in [wire::Origin::RemoteIcs, wire::Origin::Calculated] {
+        let mut read_only = calendar("one");
+        read_only.origin = origin.into();
+        let read_only = admit::admit_calendar(&read_only, &domain("one")).unwrap();
+        assert!(admit::admit_event_mutation(&request, &read_only, &previous).is_err());
+    }
+    let mut invalid = request.clone();
+    invalid.value.as_option_mut().unwrap().summary.clear();
+    assert!(admit::admit_event_mutation(&invalid, &local, &previous).is_err());
+    let mut duplicate = request.clone();
+    duplicate.value.as_option_mut().unwrap().exclusions =
+        vec!["2026-11-01".into(), "2026-11-01".into()];
+    assert!(admit::admit_event_mutation(&duplicate, &local, &previous).is_err());
+    let mut delete = request;
+    delete.mutation = wire::Mutation::Delete.into();
+    assert!(admit::admit_event_mutation(&delete, &local, &previous).is_err());
+    delete.value = Default::default();
+    assert!(admit::admit_event_mutation(&delete, &local, &previous).is_ok());
+}
+#[test]
+fn receipts_cannot_acknowledge_a_different_event_operation_or_old_revision() {
+    let local = admit::admit_calendar(&calendar("one"), &domain("one")).unwrap();
+    let key = EventKey::new(domain("one"), "event".parse().unwrap());
+    let previous = admit::event_revision(&revision("one", "event", 8), &key).unwrap();
+    let previous_calendar =
+        admit::calendar_revision(&revision("one", "", 3), &domain("one")).unwrap();
+    let request = admit::admit_event_mutation(&event_request(), &local, &previous).unwrap();
+    let receipt = wire::MutationReceipt {
+        revision: revision("one", "event", 9).into(),
+        calendar_revision: revision("one", "", 4).into(),
+        ..Default::default()
+    };
+    assert!(admit::admit_event_receipt(&receipt, &request, &previous_calendar).is_ok());
+    let mut bad = receipt.clone();
+    bad.revision = revision("other", "event", 9).into();
+    assert!(admit::admit_event_receipt(&bad, &request, &previous_calendar).is_err());
+    let mut bad = receipt.clone();
+    bad.revision = revision("one", "event", 8).into();
+    assert!(admit::admit_event_receipt(&bad, &request, &previous_calendar).is_err());
+    let mut bad = receipt.clone();
+    bad.revision.as_option_mut().unwrap().presence = wire::Presence::Removed.into();
+    assert!(admit::admit_event_receipt(&bad, &request, &previous_calendar).is_err());
+    let mut bad = receipt;
+    bad.calendar_revision = revision("one", "", 3).into();
+    assert!(admit::admit_event_receipt(&bad, &request, &previous_calendar).is_err());
+}
+#[test]
+fn calendar_crud_preserves_cas_presence_and_tombstones() {
+    let local = admit::admit_calendar(&calendar("one"), &domain("one")).unwrap();
+    let request = wire::MutateCalendarRequest {
+        id: id("one").into(),
+        mutation: wire::Mutation::Update.into(),
+        expected_revision: revision("one", "", 3).into(),
+        name: "Renamed".into(),
+        ..Default::default()
+    };
+    let admitted = admit::admit_calendar_mutation(&request, &local).unwrap();
+    let receipt = wire::MutationReceipt {
+        revision: revision("one", "", 4).into(),
+        calendar_revision: revision("one", "", 4).into(),
+        ..Default::default()
+    };
+    assert!(admit::admit_calendar_receipt(&receipt, &admitted).is_ok());
+    let mut bad = receipt.clone();
+    bad.calendar_revision = revision("other", "", 4).into();
+    assert!(admit::admit_calendar_receipt(&bad, &admitted).is_err());
+    let mut create = request.clone();
+    create.mutation = wire::Mutation::Create.into();
+    assert!(admit::admit_calendar_mutation(&create, &local).is_err());
+    let mut absent = calendar("one");
+    absent.name = None;
+    absent.revision = wire::Revision {
+        presence: wire::Presence::Absent.into(),
+        number: 0,
+        ..revision("one", "", 0)
+    }
+    .into();
+    create.expected_revision = absent.revision.clone();
+    assert!(
+        admit::admit_calendar_mutation(
+            &create,
+            &admit::admit_calendar(&absent, &domain("one")).unwrap()
+        )
+        .is_ok()
+    );
+    let mut removed = absent;
+    removed.revision = wire::Revision {
+        presence: wire::Presence::Removed.into(),
+        ..revision("one", "", 5)
+    }
+    .into();
+    create.expected_revision = removed.revision.clone();
+    assert!(
+        admit::admit_calendar_mutation(
+            &create,
+            &admit::admit_calendar(&removed, &domain("one")).unwrap()
+        )
+        .is_err()
+    );
+    let mut delete = request;
+    delete.mutation = wire::Mutation::Delete.into();
+    delete.name.clear();
+    let delete = admit::admit_calendar_mutation(&delete, &local).unwrap();
+    assert!(admit::admit_calendar_receipt(&receipt, &delete).is_err());
+    let mut removed_receipt = receipt;
+    removed_receipt.revision.as_option_mut().unwrap().presence = wire::Presence::Removed.into();
+    removed_receipt.calendar_revision = removed_receipt.revision.clone();
+    assert!(admit::admit_calendar_receipt(&removed_receipt, &delete).is_ok());
+}
 fn request() -> wire::QueryOccurrencesRequest {
     wire::QueryOccurrencesRequest {
         id: id("synthetic-a").into(),
