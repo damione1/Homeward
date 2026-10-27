@@ -22,6 +22,7 @@ enum Section {
     Inventory,
     Lists,
     Calendars,
+    Cameras,
     Settings,
 }
 impl Section {
@@ -32,6 +33,7 @@ impl Section {
             Self::Inventory => "Inventaire",
             Self::Lists => "Listes",
             Self::Calendars => "Agenda",
+            Self::Cameras => "Caméras",
             Self::Settings => "Préférences",
         }
     }
@@ -42,6 +44,7 @@ impl Section {
             Self::Inventory => Route::Inventory,
             Self::Lists => Route::Lists,
             Self::Calendars => Route::Calendars,
+            Self::Cameras => Route::Cameras,
             Self::Settings => Route::Settings,
         }
     }
@@ -280,6 +283,7 @@ impl State {
             (7, Target::Body(BodyFocus::Settings), FocusScopeId(0), 4),
             (10, Target::Body(BodyFocus::Popup), FocusScopeId(0), 8),
             (11, Target::Body(BodyFocus::Calendars), FocusScopeId(0), 9),
+            (12, Target::Body(BodyFocus::Cameras), FocusScopeId(0), 10),
             (
                 8,
                 Target::Shell(ProShellFocus::Workspace),
@@ -381,6 +385,7 @@ impl State {
             | Route::Native(_)
             | Route::Lists
             | Route::Calendars
+            | Route::Cameras
             | Route::Settings => &self.route,
         };
         request.room = match context {
@@ -392,6 +397,7 @@ impl State {
             | Route::Detail(_)
             | Route::Lists
             | Route::Calendars
+            | Route::Cameras
             | Route::Settings => None,
         };
         request.native = match context {
@@ -403,6 +409,7 @@ impl State {
             | Route::Detail(_)
             | Route::Lists
             | Route::Calendars
+            | Route::Cameras
             | Route::Settings => None,
         };
         request.detail = match &self.route {
@@ -414,6 +421,7 @@ impl State {
             | Route::Native(_)
             | Route::Lists
             | Route::Calendars
+            | Route::Cameras
             | Route::Settings => None,
         };
         request.revision
@@ -425,6 +433,7 @@ impl State {
             Route::Inventory => Target::Body(BodyFocus::Inventory),
             Route::Lists => Target::Body(BodyFocus::Lists),
             Route::Calendars => Target::Body(BodyFocus::Calendars),
+            Route::Cameras => Target::Body(BodyFocus::Cameras),
             Route::Settings => Target::Body(BodyFocus::Settings),
             Route::Native(destination) => Target::Body(match destination.presentation {
                 Presentation::Page => BodyFocus::Back,
@@ -465,6 +474,7 @@ fn render(window: &HomewardWindow, state: &State) {
         | Route::Detail(_)
         | Route::Lists
         | Route::Calendars
+        | Route::Cameras
         | Route::Settings => false,
     };
     let home = Route::Home;
@@ -500,6 +510,7 @@ fn render(window: &HomewardWindow, state: &State) {
         ),
         Route::Lists => (ViewPage::Lists, "Listes"),
         Route::Calendars => (ViewPage::Calendars, "Agenda"),
+        Route::Cameras => (ViewPage::Cameras, "Caméras"),
         Route::Settings => (ViewPage::Settings, "Préférences"),
     };
     window.set_page(page);
@@ -521,6 +532,7 @@ fn render(window: &HomewardWindow, state: &State) {
         | Route::Detail(_)
         | Route::Lists
         | Route::Calendars
+        | Route::Cameras
         | Route::Settings => "".into(),
     });
     window.set_native_popup_generation(request.revision);
@@ -620,6 +632,7 @@ pub(crate) fn bind_devices(
             Section::Inventory,
             Section::Lists,
             Section::Calendars,
+            Section::Cameras,
             Section::Settings,
         ]
         .into_iter()
@@ -731,6 +744,7 @@ pub(crate) fn bind_devices(
                 }),
                 Route::Lists => Target::Body(BodyFocus::Lists),
                 Route::Calendars => Target::Body(BodyFocus::Calendars),
+                Route::Cameras => Target::Body(BodyFocus::Cameras),
                 Route::Settings => Target::Body(BodyFocus::Settings),
             };
             take_focus(&window, &state, target);
@@ -971,6 +985,7 @@ pub(crate) fn bind_devices(
                     | Route::Native(_)
                     | Route::Lists
             | Route::Calendars
+            | Route::Cameras
             | Route::Settings => None,
                 };
                 match state.history.pop() {
@@ -1029,6 +1044,7 @@ pub(crate) fn bind_devices(
                     ViewPage::Inventory | ViewPage::Detail => Section::Inventory,
                     ViewPage::Lists => Section::Lists,
                     ViewPage::Calendars => Section::Calendars,
+                    ViewPage::Cameras => Section::Cameras,
                     ViewPage::Settings => Section::Settings,
                 },
             );

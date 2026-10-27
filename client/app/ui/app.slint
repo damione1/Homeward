@@ -5,6 +5,8 @@ import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitU
 import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction } from "@kit-pro/kit-pro.slint";
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
+import { HomewardCameras, CameraPresentation } from "cameras.slint";
+import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-pro/kit-pro.slint";
 import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro/kit-pro.slint";
 import { CivilDateView, LocalDateTimeView, LocalTimeView, ZonedTimePresentation, ZonedDateTimeDraft, AmbiguousTimeChoice, CalendarDay, CalendarNavigation } from "@kit/kit.slint";
 import { HomewardHistory, HistoryPresentation, HistoryStatistic } from "history.slint";
@@ -17,9 +19,9 @@ import { HomewardDashboard } from "native-dashboard.slint";
 import { HomewardConfirmation } from "native-confirmation.slint";
 import { HomewardPopup } from "native-popup.slint";
 
-export enum ViewPage { home, rooms, inventory, room, detail, lists, calendars, settings }
+export enum ViewPage { home, rooms, inventory, room, detail, lists, calendars, cameras, settings }
 export enum RoomView { cards, list }
-export enum BodyFocus { read, inventory, back, settings, lists, calendars, popup }
+export enum BodyFocus { read, inventory, back, settings, lists, calendars, cameras, popup }
 
 export component HomewardWindow inherits Window {
     title: "Homeward · Développement";
@@ -62,6 +64,22 @@ export component HomewardWindow inherits Window {
     callback cache-navigate(NavigationStep);
 
 
+    in property <CameraPresentation> cameras;
+    in-out property <bool> cameras-publishing;
+    callback cameras-choose(int,int);
+    callback cameras-event(int,int);
+    callback cameras-snapshot(int,int);
+    callback cameras-reload(int,int);
+    callback cameras-reload-catalog(int);
+    callback cameras-catalog-navigate(NavigationStep);
+    callback cameras-interactive(bool);
+    callback cameras-viewport(bool);
+    callback cameras-navigate(NavigationStep);
+    callback cameras-expire(int);
+    private property <bool> camera-interactive:root.background-interactive && root.page == ViewPage.cameras;
+    changed camera-interactive=>{root.cameras-interactive(root.camera-interactive);}
+    public function cameras-scroll-to(y:length) {cameras-pane.scroll-to(y);}
+    out property <length> cameras-scroll-y:cameras-pane.scroll-y;
     in property <CalendarPresentation> calendars;
     in-out property <bool> calendars-publishing;
     in-out property <string> calendars-edit-summary;
@@ -283,6 +301,7 @@ export component HomewardWindow inherits Window {
         else if (target == BodyFocus.back) { if (root.page == ViewPage.detail) { detail-back.take-focus(); } else if (root.page == ViewPage.room && root.room-view == RoomView.cards) { room-back.take-focus(); } else { back-button.take-focus(); } }
         else if (target == BodyFocus.lists) { lists-pane.take-focus(); }
         else if (target == BodyFocus.calendars) { calendars-pane.focus-catalog(); }
+        else if (target == BodyFocus.cameras) { cameras-pane.focus-catalog(); }
         else if (target == BodyFocus.settings) { theme-button.take-focus(); }
         else if (target == BodyFocus.popup) { popup-dialog.take-focus(); }
     }
@@ -393,6 +412,19 @@ export component HomewardWindow inherits Window {
         viewport := Rectangle {
             min-width: 0px; min-height: 0px; max-width: 100000px; max-height: 100000px;
             horizontal-stretch: 1; vertical-stretch: 1;
+            cameras-pane:=HomewardCameras {
+                width:viewport.width;height:viewport.height;visible:root.page == ViewPage.cameras;
+                theme:root.theme;data:root.cameras;interactive:root.camera-interactive;
+                choose(t,g)=>{if(!root.cameras-publishing){root.cameras-choose(t,g);}}
+                event(t,g)=>{if(!root.cameras-publishing){root.cameras-event(t,g);}}
+                snapshot(t,g)=>{if(!root.cameras-publishing){root.cameras-snapshot(t,g);}}
+                reload(t,g)=>{if(!root.cameras-publishing){root.cameras-reload(t,g);}}
+                reload-catalog(g)=>{if(!root.cameras-publishing){root.cameras-reload-catalog(g);}}
+                catalog-navigate(step)=>{root.cameras-catalog-navigate(step);}
+                viewport(visible)=>{root.cameras-viewport(visible);}
+                navigate(step)=>{root.cameras-navigate(step);}
+                expire(g)=>{root.cameras-expire(g);}
+            }
             calendars-pane := HomewardCalendars {
                 width: viewport.width; height: viewport.height; visible: root.page == ViewPage.calendars;
                 theme: root.theme; data: root.calendars; interactive: root.calendar-interactive;

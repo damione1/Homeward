@@ -138,6 +138,7 @@ pub(crate) struct LifecycleBridge {
     history: Arc<Mutex<Option<crate::history_host::History>>>,
     media: Arc<Mutex<Option<crate::media_host::Media>>>,
     calendars: Arc<Mutex<Option<crate::calendar_host::Calendars>>>,
+    cameras: Arc<Mutex<Option<crate::camera_host::Cameras>>>,
 }
 impl LifecycleBridge {
     pub(crate) fn new() -> Self {
@@ -153,6 +154,7 @@ impl LifecycleBridge {
             history: Arc::new(Mutex::new(None)),
             media: Arc::new(Mutex::new(None)),
             calendars: Arc::new(Mutex::new(None)),
+            cameras: Arc::new(Mutex::new(None)),
         }
     }
     // Called by native event listeners on the UI thread. Cancel publication and
@@ -180,6 +182,14 @@ impl LifecycleBridge {
             .as_ref()
         {
             calendars.foreground(state == Lifecycle::Foreground);
+        }
+        if let Some(cameras) = self
+            .cameras
+            .lock()
+            .expect("lifecycle cameras mutex")
+            .as_ref()
+        {
+            cameras.foreground(state == Lifecycle::Foreground);
         }
         if let Some(media) = self.media.lock().expect("lifecycle media mutex").as_ref() {
             media.foreground(state == Lifecycle::Foreground);
@@ -302,6 +312,7 @@ struct Ui {
     history: crate::history_host::History,
     media: crate::media_host::Media,
     calendars: crate::calendar_host::Calendars,
+    cameras: crate::camera_host::Cameras,
 }
 impl Ui {
     fn current_devices(&self) -> Result<(DeviceBinding, i32), Refusal> {
@@ -336,6 +347,7 @@ impl Ui {
         self.history.clear();
         self.media.clear();
         self.calendars.clear();
+        self.cameras.clear();
         self.lists.clear();
         if let Some(binding) = self.devices.lock().expect("device binding mutex").clone() {
             binding.store.clear_private();
@@ -659,6 +671,7 @@ async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, u
     ui.history.clear();
     ui.media.clear();
     ui.calendars.clear();
+    ui.cameras.clear();
     ui.lists.clear();
     if let Some(previous) = profile.take() {
         {
@@ -704,6 +717,18 @@ async fn install_profile(
     ui.history.clear();
     ui.media.clear();
     ui.calendars.clear();
+    ui.cameras.clear();
+    let (cameras, camera_session, camera_transport, camera_cancel) = (
+        ui.cameras.clone(),
+        owner.clone(),
+        connection.cameras(),
+        cancel.clone(),
+    );
+    tasks.spawn(async move {
+        cameras
+            .run(camera_session, camera_transport, camera_cancel)
+            .await;
+    });
     let (calendars, calendar_session, calendar_transport, calendar_cancel) = (
         ui.calendars.clone(),
         owner.clone(),
@@ -1196,6 +1221,8 @@ pub(crate) fn run_with_lifecycle(
     let history = crate::history_host::History::bind(&window);
     let media = crate::media_host::Media::bind(&window);
     let calendars = crate::calendar_host::Calendars::bind(&window);
+    let cameras = crate::camera_host::Cameras::bind(&window);
+    *lifecycle.cameras.lock().expect("lifecycle cameras mutex") = Some(cameras.clone());
     *lifecycle
         .calendars
         .lock()
@@ -1218,6 +1245,7 @@ pub(crate) fn run_with_lifecycle(
         history,
         media,
         calendars,
+        cameras,
     };
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
@@ -1617,6 +1645,7 @@ mod tests {
             history: crate::history_host::History::detached(),
             media: crate::media_host::Media::detached(),
             calendars: crate::calendar_host::Calendars::detached(),
+            cameras: crate::camera_host::Cameras::detached(),
         };
         ui.request_view(epoch);
 
@@ -1709,6 +1738,7 @@ mod tests {
             history: crate::history_host::History::detached(),
             media: crate::media_host::Media::detached(),
             calendars: crate::calendar_host::Calendars::detached(),
+            cameras: crate::camera_host::Cameras::detached(),
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));

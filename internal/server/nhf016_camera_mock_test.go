@@ -579,8 +579,25 @@ func (m *nhf016CameraMock) WatchSession(ctx context.Context, request *connect.Re
 		return err
 	}
 	defer permit.Release()
+	principal, _, err := nhf016CameraPrincipal(ctx)
+	if err != nil {
+		return err
+	}
+	subscription, err := m.authority.Subscribe(ctx, principal)
+	if err != nil {
+		return nhf016CameraRPCError(err)
+	}
+	defer subscription.Close()
 	m.activeStreams.Add(1)
 	defer m.activeStreams.Add(-1)
+	var ownedLease *nhf016CameraLease
+	defer func() {
+		if ownedLease != nil {
+			m.mu.Lock()
+			nhf016EndCameraLease(ownedLease, nhf016LeaseClosed)
+			m.mu.Unlock()
+		}
+	}()
 	var sequence, lastRevision uint64
 	for {
 		var lease *cv.Lease
@@ -592,6 +609,9 @@ func (m *nhf016CameraMock) WatchSession(ctx context.Context, request *connect.Re
 				return err
 			}
 			status = readStatus
+			if readStatus == nhf016SessionValid && ownedLease == nil {
+				ownedLease = currentLease
+			}
 			if currentLease != nil {
 				lease = proto.Clone(currentLease.wire).(*cv.Lease)
 				lease.EventRevision = record.revision
@@ -640,6 +660,8 @@ func (m *nhf016CameraMock) WatchSession(ctx context.Context, request *connect.Re
 			timer.Stop()
 			return nhf016CameraRPCError(context.Cause(permit.Context()))
 		case <-done:
+			timer.Stop()
+		case <-subscription.Changes():
 			timer.Stop()
 		case <-changed:
 			timer.Stop()

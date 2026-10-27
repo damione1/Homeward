@@ -5,6 +5,8 @@ slint::include_modules!();
 mod cache_view;
 mod calendar;
 mod calendar_host;
+mod camera;
+mod camera_host;
 mod control_text;
 mod dashboard;
 mod dashboard_catalogue;
@@ -29,6 +31,7 @@ mod media_host;
 mod navigation;
 mod preferences;
 mod profile;
+mod raster;
 mod session_host;
 
 // Keep the two existing domain/codec crates at the shared application boundary.

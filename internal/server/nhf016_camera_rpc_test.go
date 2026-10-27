@@ -402,3 +402,32 @@ func TestNHF016CameraTLSWatchJoinsAfterCloseAndObjectRevocation(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 }
+
+func TestNHF016CameraTLSWatchRetiresOnReadableRightsEpochChange(t *testing.T) {
+	r := nhf016NewCameraRig(t, 60*time.Second)
+	lease := r.open(t, r.catalog(t)[0].EntityId)
+	ctx, cancel := context.WithTimeout(r.ctx, 10*time.Second)
+	defer cancel()
+	stream, err := r.api.WatchSession(ctx, nha162Bearer(&cv.WatchSessionRequest{Session: lease.Session}, r.adminToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	if !stream.Receive() || stream.Msg().GetReady() == nil {
+		t.Fatal("camera Ready missing", stream.Err())
+	}
+	nha162SetPolicy(t, r.nha162RPCRig, r.admin, nhf016AllCameras+`  - scope: {family: history, operation: read}
+    objects: {entities: {all: {capabilities: {all: {}}}}}
+`)
+	if !stream.Receive() || stream.Msg().GetRevoked() == nil {
+		t.Fatal("rights epoch failed to retire old camera lease", stream.Err())
+	}
+	if stream.Receive() {
+		t.Fatal("retired lease stream stayed open")
+	}
+	fresh := r.open(t, lease.Session.EntityId)
+	response, err := r.api.ReadImage(r.ctx, nha162Bearer(nhf016Snapshot(fresh), r.adminToken))
+	if err != nil || response.Msg.GetImage() == nil {
+		t.Fatal("camera still readable with fresh exact lease", err)
+	}
+}
