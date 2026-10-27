@@ -17,6 +17,43 @@ spec.loader.exec_module(prune)
 
 
 class RetentionTests(unittest.TestCase):
+    def test_unversioned_active_stage_and_last_delivery_survive_actual_pruning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = root / 'cache'
+            payload = b'\x7fELF' + b'x' * 1_000_000
+            stages = {}
+            for name in ('migrations-race-nhf013-v3', 'migrations-race-nhf016', 'migrations-race-nhf017'):
+                stage = cache / name
+                artifacts = {}
+                for role in ('baseline', 'additive', 'destructive', 'unknown-kind'):
+                    (stage / role).mkdir(parents=True)
+                    test, homed = stage / role / 'server.test', stage / role / 'homed'
+                    test.write_bytes(payload)
+                    homed.write_bytes(payload)
+                    artifacts[role] = dict(test=str(test), homed=str(homed))
+                (stage / 'manifest.json').write_text(json.dumps(dict(artifacts=artifacts)))
+                stages[name] = stage
+            delivery = cache / 'nhf016' / 'delivery.json'
+            delivery.parent.mkdir()
+            delivery.write_text(json.dumps(dict(status='DELIVERED',
+                fresh_sql_manifest=str(stages['migrations-race-nhf016'] / 'manifest.json'))))
+            baseline = cache / 'storage-baseline.json'
+            baseline.write_text('{}')
+            (root / 'frontend.local.json').write_text(json.dumps(dict(
+                frontend_cache=str(cache), baseline=str(baseline))))
+            with patch.object(prune, 'ROOT', root), patch.dict(os.environ, GOCACHE=str(root)), \
+                    patch.object(prune.subprocess, 'check_output', return_value=''), \
+                    patch.object(prune.subprocess, 'run', return_value=Mock(returncode=1, stdout=b'', stderr=b'')):
+                prune.main(['--apply', '--keep-recent-hours', '0'])
+            for name in ('migrations-race-nhf016', 'migrations-race-nhf017'):
+                for role in ('baseline', 'additive', 'destructive', 'unknown-kind'):
+                    for binary in ('server.test', 'homed'):
+                        self.assertEqual((stages[name] / role / binary).read_bytes(), payload)
+            # An obsolete successor can be rebuilt; baseline and delivery source
+            # evidence remain. The test must exercise both preservation and trim.
+            self.assertFalse((stages['migrations-race-nhf013-v3'] / 'additive/homed').exists())
+
     def test_hardlink_pruning_preserves_source_active_and_baseline_aliases(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
