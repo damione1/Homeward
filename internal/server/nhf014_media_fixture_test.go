@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -150,7 +151,7 @@ func nhf014NewMock(players []nhf014PlayerSource, resolved map[string]domain.Enti
 	if cursor == nil || cursor.Epoch == "" || cursor.ConfigRevision == 0 {
 		return nil, errors.New("actual view cursor required")
 	}
-	m := &nhf014MediaMock{snapshots: make(map[domain.EntityID]*media.Snapshot), records: make(map[domain.CommandID]*nhf014MediaRecord), unavailable: make(map[domain.EntityID]bool), now: time.Now, artworkMode: nhf014ArtworkAllowed}
+	m := &nhf014MediaMock{snapshots: make(map[domain.EntityID]*media.Snapshot), records: make(map[domain.CommandID]*nhf014MediaRecord), unavailable: make(map[domain.EntityID]bool), now: time.Now, artworkMode: nhf014ArtworkAllowed, groups: make(map[domain.EntityID]map[nhf014GroupID]nhf014GroupRoute)}
 	ids := make(map[nhf014PlayerKind]string)
 	for _, player := range players {
 		entity, ok := resolved[player.Alias]
@@ -181,6 +182,14 @@ func nhf014NewMock(players []nhf014PlayerSource, resolved map[string]domain.Enti
 			value.PositionMillis = proto.Uint64(0)
 			value.DurationMillis = proto.Uint64(240_000)
 			value.Members = []*media.Member{{EntityId: ids[nhf014Minimal], Label: "Lecteur minimal"}, {EntityId: name, Label: "Lecteur de groupe"}}
+			coordinator, err := domain.ParseEntityID(ids[nhf014Minimal])
+			if err != nil {
+				return nil, err
+			}
+			m.groups[entity] = map[nhf014GroupID]nhf014GroupRoute{
+				"synthetic-duet": {coordinator: coordinator, members: []*media.Member{proto.Clone(value.Members[0]).(*media.Member), proto.Clone(value.Members[1]).(*media.Member)}},
+				"synthetic-solo": {coordinator: entity, members: []*media.Member{proto.Clone(value.Members[1]).(*media.Member)}},
+			}
 			ref := make([]byte, 32)
 			if _, err = rand.Read(ref); err != nil {
 				return nil, err
@@ -215,6 +224,7 @@ const (
 	nhf014RestoreCapabilities  nhf014ControlAction = "restore-capabilities"
 	nhf014LoseReply            nhf014ControlAction = "lose-next-reply"
 	nhf014Confirm              nhf014ControlAction = "confirm"
+	nhf014InspectActions       nhf014ControlAction = "inspect-actions"
 	nhf014DenyArtwork          nhf014ControlAction = "deny-artwork"
 	nhf014ExpireArtwork        nhf014ControlAction = "expire-artwork"
 	nhf014AbsentArtwork        nhf014ControlAction = "absent-artwork"
@@ -233,7 +243,7 @@ func (a *nhf014ControlAction) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 	switch action := nhf014ControlAction(value); action {
-	case nhf014SwitchCoordinator, nhf014RemoveCoordinator, nhf014RestoreCoordinator, nhf014WithdrawCapabilities, nhf014RestoreCapabilities, nhf014LoseReply, nhf014Confirm, nhf014DenyArtwork, nhf014ExpireArtwork, nhf014AbsentArtwork, nhf014RestoreArtwork, nhf014RevokeWrite, nhf014AllowWrite, nhf014RevokeRead, nhf014AllowRead, nhf014Outage, nhf014RestoreNetwork:
+	case nhf014InspectActions, nhf014SwitchCoordinator, nhf014RemoveCoordinator, nhf014RestoreCoordinator, nhf014WithdrawCapabilities, nhf014RestoreCapabilities, nhf014LoseReply, nhf014Confirm, nhf014DenyArtwork, nhf014ExpireArtwork, nhf014AbsentArtwork, nhf014RestoreArtwork, nhf014RevokeWrite, nhf014AllowWrite, nhf014RevokeRead, nhf014AllowRead, nhf014Outage, nhf014RestoreNetwork:
 		*a = action
 		return nil
 	default:
@@ -587,6 +597,17 @@ func TestNHF014MediaServer(t *testing.T) {
 				continue
 			}
 			switch control.Action {
+			case nhf014InspectActions:
+				mock.mu.Lock()
+				records := make([]map[string]string, 0, len(mock.records))
+				for id, record := range mock.records {
+					commandID, _ := id.Value()
+					entityID, _ := record.entity.Value()
+					records = append(records, map[string]string{"command_id": commandID, "entity_id": entityID})
+				}
+				stats := map[string]any{"records": records, "synthetic_submit_calls": mock.submitCalls, "synthetic_mutations": mock.mutations}
+				mock.mu.Unlock()
+				nhf003WritePrivate(t, out, fmt.Sprintf("stats-%02d.json", control.Sequence), stats)
 			case nhf014RevokeRead:
 				readAllowed = false
 				setPolicy()
@@ -661,7 +682,7 @@ func TestNHF014MediaServer(t *testing.T) {
 					mock.offline = true
 				case nhf014RestoreNetwork:
 					mock.offline = false
-				case nhf014RevokeRead, nhf014AllowRead, nhf014RevokeWrite, nhf014AllowWrite:
+				case nhf014InspectActions, nhf014RevokeRead, nhf014AllowRead, nhf014RevokeWrite, nhf014AllowWrite:
 					mock.mu.Unlock()
 					t.Fatal("policy control reached mock mutation")
 				default:
@@ -671,7 +692,7 @@ func TestNHF014MediaServer(t *testing.T) {
 				mock.mu.Unlock()
 			}
 			sequence = control.Sequence
-			nhf003WritePrivate(t, out, "control.json", control)
+			nhf003WritePrivate(t, out, fmt.Sprintf("ack-%02d.json", sequence), control)
 		}
 	}
 }

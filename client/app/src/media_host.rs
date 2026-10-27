@@ -5,6 +5,8 @@ mod render;
 mod state;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tls_probe;
 use crate::{
     HomewardWindow, NavigationStep, ProMediaOperation, ProMediaOptionKind, ProValueEvent,
     ProValueIntent, RangeThumb, StepDirection,
@@ -58,7 +60,18 @@ impl Media {
         let this = owner.clone();
         window.on_media_option(move |t, g, k, id| this.option(t, g, k, id));
         let this = owner.clone();
-        window.on_media_edit(move |t, g, f, intent| this.edit(t, g, f, intent));
+        let edit_window = window.as_weak();
+        window.on_media_edit(move |t, g, f, intent| {
+            // Property publication can synchronously cancel a native gesture.
+            // State already invalidated it; do not reenter from its mailbox.
+            if edit_window
+                .upgrade()
+                .is_some_and(|window| window.get_media_publishing())
+            {
+                return;
+            }
+            this.edit(t, g, f, intent);
+        });
         let this = owner.clone();
         window.on_media_reload(move |g| this.reload(g));
         let this = owner.clone();
@@ -237,6 +250,11 @@ impl Media {
     ) {
         match result {
             Ok(request) => {
+                for field in [Field::Volume, Field::Position] {
+                    let draft = state.draft_mut(field);
+                    draft.gesture = false;
+                    draft.editing = false;
+                }
                 state.notice.clear();
                 state.pending = Some(Pending {
                     generation: state.generation,

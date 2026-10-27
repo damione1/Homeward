@@ -199,6 +199,7 @@ export component HomewardWindow inherits Window {
     in property <string> media-notice;
     in property <int> media-artwork-remaining-ms;
     in-out property <int> media-artwork-id;
+    in-out property <bool> media-publishing;
     callback media-operation(int,int,ProMediaOperation);
     callback media-option(int,int,ProMediaOptionKind,int);
     callback media-edit(int,int,int,ProValueIntent);

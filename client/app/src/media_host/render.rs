@@ -119,6 +119,7 @@ fn field(data: &Data, field: Field, draft: &Draft) -> Option<ProDeviceValue> {
     })
 }
 pub(super) fn clear(window: &HomewardWindow) {
+    window.set_media_publishing(true);
     window.set_media_visible(false);
     window.set_media_has_data(false);
     window.set_media_editable(false);
@@ -133,6 +134,7 @@ pub(super) fn clear(window: &HomewardWindow) {
     window.set_media_group_title("".into());
     window.set_media_coordinator("".into());
     window.set_media_notice("".into());
+    window.set_media_publishing(false);
 }
 pub(super) fn render(window: &HomewardWindow, value: Projection) {
     if value.guard.as_ref().is_some_and(|(s, g)| !s.is_current(*g))
@@ -151,6 +153,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         clear(window);
         return;
     }
+    window.set_media_publishing(true);
     let status = match value.status {
         Status::Hidden | Status::Unsupported | Status::Ready => "",
         Status::Loading => "Lecture des informations média…",
@@ -181,6 +184,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         window.set_media_group_title("".into());
         window.set_media_coordinator("".into());
         window.set_media_artwork_id(0);
+        window.set_media_publishing(false);
         return;
     };
     let snapshot = data.snapshot();
@@ -335,4 +339,5 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             .map(|m| SharedString::from(m.label.as_str()))
             .collect::<Vec<_>>(),
     ));
+    window.set_media_publishing(false);
 }

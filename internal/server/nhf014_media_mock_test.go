@@ -44,6 +44,11 @@ type nhf014MediaRecord struct {
 	progress    *actions.ActionProgress
 	changed     chan struct{}
 }
+type nhf014GroupID string
+type nhf014GroupRoute struct {
+	coordinator domain.EntityID
+	members     []*media.Member
+}
 
 type nhf014MediaMock struct {
 	mu          sync.Mutex
@@ -58,6 +63,7 @@ type nhf014MediaMock struct {
 	now         func() time.Time
 	unavailable map[domain.EntityID]bool
 	offline     bool
+	groups      map[domain.EntityID]map[nhf014GroupID]nhf014GroupRoute
 }
 
 func nhf014MediaError(code connect.Code) error {
@@ -316,7 +322,21 @@ func (m *nhf014MediaMock) SubmitAction(ctx context.Context, request *connect.Req
 		case *media.MediaAction_SourceId:
 			snapshot.SourceId = proto.String(action.SourceId)
 		case *media.MediaAction_GroupId:
+			preset, ok := m.groups[entity][nhf014GroupID(action.GroupId)]
+			if !ok || snapshot.Route.TopologyRevision == ^uint64(0) {
+				return nhf014MediaError(connect.CodeFailedPrecondition)
+			}
+			coordinator, err := preset.coordinator.Value()
+			if err != nil {
+				return err
+			}
 			snapshot.GroupId = proto.String(action.GroupId)
+			snapshot.Route.CoordinatorEntityId = coordinator
+			snapshot.Route.TopologyRevision++
+			snapshot.Members = make([]*media.Member, 0, len(preset.members))
+			for _, member := range preset.members {
+				snapshot.Members = append(snapshot.Members, proto.Clone(member).(*media.Member))
+			}
 		case nil:
 			return nhf014MediaError(connect.CodeInvalidArgument)
 		default:
@@ -330,6 +350,9 @@ func (m *nhf014MediaMock) SubmitAction(ctx context.Context, request *connect.Req
 		return nil
 	})
 	if err != nil {
+		if connect.CodeOf(err) == connect.CodeFailedPrecondition {
+			return connect.NewResponse(&actions.SubmitActionResponse{Result: &actions.CommandResponse{CommandId: command.CommandId, Status: actions.ActionStatus_ACTION_STATUS_FAILED, Error: &actions.ContractError{Code: actions.ErrorCode_ERROR_CODE_STALE_CONFIGURATION, FieldPath: "arguments.media.route", Message: "synthetic media precondition changed"}}}), nil
+		}
 		return nil, err
 	}
 	if lost {

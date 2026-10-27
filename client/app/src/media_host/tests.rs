@@ -22,6 +22,38 @@ fn session() -> SessionCoordinator {
     .unwrap();
     SessionCoordinator::new(connection.auth(), Arc::new(EmptyStore))
 }
+#[test]
+fn model_publication_does_not_reenter_state_from_gesture_cancellation() {
+    i_slint_backend_testing::init_no_event_loop();
+    let window = HomewardWindow::new().unwrap();
+    let owner = Media::bind(&window);
+    let (locked, wait_locked) = std::sync::mpsc::channel();
+    let (release, wait_release) = std::sync::mpsc::channel();
+    let held = owner.clone();
+    let blocker = std::thread::spawn(move || {
+        let _state = held.0.state.lock().unwrap();
+        locked.send(()).unwrap();
+        wait_release.recv_timeout(Duration::from_secs(2)).is_ok()
+    });
+    wait_locked.recv_timeout(Duration::from_secs(2)).unwrap();
+    window.set_media_publishing(true);
+    window.invoke_media_edit(
+        1,
+        1,
+        Field::Volume.token(),
+        ProValueIntent {
+            event: ProValueEvent::Cancel,
+            thumb: RangeThumb::Lower,
+            ..Default::default()
+        },
+    );
+    let _ = release.send(());
+    assert!(
+        blocker.join().unwrap(),
+        "programmatic cancellation waited for the state lock"
+    );
+    window.set_media_publishing(false);
+}
 fn ready(owner: &Media, session: &SessionCoordinator) {
     let data = Data::new(crate::media::tests::snapshot(), &"reader".parse().unwrap()).unwrap();
     let mut state = owner.0.state.lock().unwrap();
