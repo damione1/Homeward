@@ -18,6 +18,8 @@ mod device_view;
 mod environment_probe;
 mod environment_text;
 mod environment_view;
+pub mod history;
+mod history_host;
 mod list_host;
 mod list_state;
 mod navigation;

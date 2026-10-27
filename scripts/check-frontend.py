@@ -38,3 +38,5 @@ subprocess.run(['python3', 'scripts/qualify-frontend-actions.py', '--platform', 
 subprocess.run(['python3', 'scripts/qualify-frontend-recipes.py'], cwd=root, check=True)
 subprocess.run(['python3', 'scripts/qualify-frontend-environment.py'], cwd=root, check=True)
 subprocess.run(['python3', 'scripts/qualify-frontend-lists.py'], cwd=root, check=True)
+subprocess.run(['python3', 'scripts/qualify-frontend-history.py'], cwd=root, check=True)
+subprocess.run(['python3', 'scripts/qualify-frontend-history.py', '--costs-mock'], cwd=root, check=True)

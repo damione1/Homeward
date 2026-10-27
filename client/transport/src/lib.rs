@@ -7,6 +7,7 @@ mod client;
 mod connection;
 mod dashboard;
 mod failure;
+mod history;
 mod lists;
 mod reconnect;
 pub use actions::{ActionTransport, ActionWatch};
@@ -16,6 +17,7 @@ pub use connection::Connection;
 pub use connectrpc::ErrorCode as RpcCode;
 pub use dashboard::{DashboardTransport, DashboardWatch};
 pub use failure::{DetailFailure, Failure, FailureKind};
+pub use history::HistoryTransport;
 pub use lists::{ListTransport, ListWatch};
 pub use reconnect::ReconnectPolicy;
 
@@ -34,6 +36,9 @@ pub mod services {
         }
         pub mod dashboard {
             pub mod v1 { include!("generated/home.dashboard.v1.rs"); }
+        }
+        pub mod history {
+            pub mod v1 { include!("generated/home.history.v1.rs"); }
         }
         pub mod lists {
             pub mod v1 { include!("generated/home.lists.v1.rs"); }

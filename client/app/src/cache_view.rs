@@ -23,6 +23,7 @@ struct Row {
 }
 
 pub(crate) struct CacheProjection {
+    history_entity: Option<EntityId>,
     revision: i32,
     phase: CachePhase,
     total: usize,
@@ -31,6 +32,14 @@ pub(crate) struct CacheProjection {
     devices: crate::device_view::DeviceProjection,
     board: crate::dashboard_presentation::Board,
     profile_zone: crate::environment_view::ProfileZone,
+}
+impl CacheProjection {
+    pub(crate) fn history_target(&self, revision: i32) -> Option<Option<EntityId>> {
+        if !self.home.captured {
+            return Some(None);
+        }
+        (self.revision == revision).then(|| self.history_entity.clone())
+    }
 }
 
 struct Observation {
@@ -213,6 +222,11 @@ pub(crate) fn project_devices(
     let devices = devices.project(phase, view, request);
     let board = crate::dashboard_presentation::Board::project(layout, request, &devices);
     CacheProjection {
+        history_entity: if phase == CachePhase::Live && detail.is_some() {
+            request.detail.clone()
+        } else {
+            None
+        },
         devices,
         board,
         profile_zone,
@@ -707,6 +721,7 @@ pub(crate) fn clear_for_layout(window: &HomewardWindow) {
     clear_state(window, false);
 }
 fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
+    window.invoke_history_private_cleared();
     window.set_view_loaded(false);
     window.set_commands_ready(false);
     window.set_action_feedback("".into());

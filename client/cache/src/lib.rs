@@ -3,6 +3,7 @@
 
 mod capture;
 mod filter;
+pub mod history;
 pub mod lists;
 mod owner;
 mod projection;

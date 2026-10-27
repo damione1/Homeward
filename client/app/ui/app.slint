@@ -4,6 +4,8 @@ import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitU
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest, IconKind } from "@kit/kit.slint";
 import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction } from "@kit-pro/kit-pro.slint";
 import { HomewardLists } from "lists.slint";
+import { HomewardHistory, HistoryPresentation, HistoryStatistic } from "history.slint";
+import { ProChartPhase, ProChartSeries, ProChartRangeGesture } from "@kit-pro/kit-pro.slint";
 import { HomewardSkin } from "skin.slint";
 import { HomewardDevices } from "device-cards.slint";
 import { HomewardDashboard } from "native-dashboard.slint";
@@ -167,6 +169,20 @@ export component HomewardWindow inherits Window {
     in property <string> detail-value;
     in property <string> detail-quality;
     in property <string> detail-date;
+    in property <HistoryPresentation> history-presentation;
+    in-out property <int> history-frame-id;
+    in-out property <string> history-start;
+    in-out property <string> history-end;
+    in-out property <HistoryStatistic> history-statistic;
+    callback history-apply(string,string,HistoryStatistic);
+    callback history-draft-changed();
+    callback history-choose-statistic(HistoryStatistic);
+    callback history-group(NavigationStep);
+    callback history-inspect(int,float);
+    callback history-navigate(int,NavigationStep,bool);
+    callback history-interval(int,ProChartRangeGesture,float);
+    callback history-viewport(length,length,color,color);
+    callback history-private-cleared();
     in property <string> preferences-status;
     private property <bool> connected: root.access-stage == ProAccessStage.connected;
     private property <bool> background-interactive: root.connected && !root.native-popup.open && !root.recipe-confirmation.open;
@@ -494,6 +510,19 @@ export component HomewardWindow inherits Window {
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
                     stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
+                }
+                HomewardHistory {
+                    theme: root.theme; interactive: root.background-interactive && root.view-loaded && root.page == ViewPage.detail;
+                    presentation: root.history-presentation;
+                    start <=> root.history-start; end <=> root.history-end; statistic <=> root.history-statistic;
+                    apply(start,end,stat) => { root.history-apply(start,end,stat); }
+                    draft-changed => { root.history-draft-changed(); }
+                    choose-statistic(stat) => { root.history-choose-statistic(stat); }
+                    group(step) => { root.history-group(step); }
+                    inspect(g,x) => { root.history-inspect(g,x); }
+                    navigate(g,step,extend) => { root.history-navigate(g,step,extend); }
+                    interval(g,gesture,x) => { root.history-interval(g,gesture,x); }
+                    viewport(w,h,bg,accent) => { root.history-viewport(w,h,bg,accent); }
                 }
             }
             KitScrollArea {
