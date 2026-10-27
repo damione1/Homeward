@@ -766,7 +766,7 @@ export component HomewardWindow inherits Window {
                     viewport(w,h,bg,accent) => { root.history-viewport(w,h,bg,accent); }
                 }
             }
-            KitScrollArea {
+            settings-pane := KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
                 visible: root.page == ViewPage.settings;
                 KitCard { theme: root.theme;

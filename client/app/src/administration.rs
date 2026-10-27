@@ -33,9 +33,10 @@ pub enum Section {
     Metrics,
     Logs,
     Audits,
+    SecretAudits,
 }
 impl Section {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Account,
         Self::Sessions,
         Self::Factors,
@@ -49,6 +50,7 @@ impl Section {
         Self::Metrics,
         Self::Logs,
         Self::Audits,
+        Self::SecretAudits,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -64,7 +66,27 @@ impl Section {
             Self::Health => "Santé",
             Self::Metrics => "Métriques",
             Self::Logs => "Journaux",
-            Self::Audits => "Audits",
+            Self::Audits => "Audits des accès",
+            Self::SecretAudits => "Audits des secrets",
+        }
+    }
+    pub fn audit_source(self) -> Option<home_wire_contract::home::observability::v1::AuditSource> {
+        use home_wire_contract::home::observability::v1::AuditSource;
+        match self {
+            Self::Audits => Some(AuditSource::Authentication),
+            Self::SecretAudits => Some(AuditSource::SecretAccess),
+            Self::Account
+            | Self::Sessions
+            | Self::Factors
+            | Self::MfaPolicy
+            | Self::McpKeys
+            | Self::Accounts
+            | Self::Invitations
+            | Self::Policies
+            | Self::Integrations
+            | Self::Health
+            | Self::Metrics
+            | Self::Logs => None,
         }
     }
     pub fn administrative(self) -> bool {
@@ -78,7 +100,8 @@ impl Section {
             | Self::Health
             | Self::Metrics
             | Self::Logs
-            | Self::Audits => true,
+            | Self::Audits
+            | Self::SecretAudits => true,
         }
     }
 }

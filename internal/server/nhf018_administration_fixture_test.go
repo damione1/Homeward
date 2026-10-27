@@ -13,6 +13,7 @@ import (
 	cfg "github.com/damione1/Homeward/gen/home/configuration/v1"
 	integration "github.com/damione1/Homeward/gen/home/integrationadmin/v1"
 	"github.com/damione1/Homeward/internal/testpg"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // An opt-in actual Run, with its own PostgreSQL cluster, TLS identity and source
@@ -98,12 +99,19 @@ func TestNHF018AdministrationServer(t *testing.T) {
 	}
 	factorCodes, _ := enroll("NHF018 factors", "NHF018 synthetic factors password", auth.AccountRole_ACCOUNT_ROLE_USER)
 	witnessCodes, witness := enroll("NHF018 MFA witness", "NHF018 synthetic witness password", auth.AccountRole_ACCOUNT_ROLE_ADMIN)
+	faultOrigin := nhf018ObservationFixture(t, f, out)
+	nativeInvitation, err := f.accounts.CreateInvitation(ctx, nha056SessionRequest(&auth.CreateInvitationRequest{LoginName: "NHF018 native invited", Role: auth.AccountRole_ACCOUNT_ROLE_USER, ExpiresAt: timestamppb.New(time.Now().Add(time.Hour))}, f.token))
+	if err != nil {
+		t.Fatal("native synthetic invitation", err)
+	}
 	certificate, err := os.ReadFile(filepath.Join(data, nha181CertificateName))
 	if err != nil {
 		t.Fatal(err)
 	}
 	nhf003WritePrivate(t, out, "ready.json", map[string]any{
 		"mode": "synthetic-only", "origin": "https://" + f.run.address.String(), "ca_pem": string(certificate),
+		"fault_origin":             faultOrigin,
+		"native_invitation":        map[string]string{"login_name": "NHF018 native invited", "token": nativeInvitation.Msg.InvitationToken},
 		"admin":                    map[string]string{"login_name": "NHA148 admin", "password": "NHA148 synthetic isolated password"},
 		"ordinary":                 map[string]string{"login_name": "NHF018 ordinary", "password": "NHF018 synthetic ordinary password"},
 		"keeper":                   map[string]string{"login_name": "NHF018 keeper", "password": "NHF018 synthetic keeper password"},
@@ -113,11 +121,19 @@ func TestNHF018AdministrationServer(t *testing.T) {
 	})
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
+	evicted := false
 	for {
 		select {
 		case <-ctx.Done():
 			t.Fatal("administration fixture deadline", ctx.Err())
 		case <-ticker.C:
+			if _, err := os.Stat(filepath.Join(out, "evict-logs")); err == nil && !evicted {
+				nhf018SeedLogs(t, f, 1200)
+				evicted = true
+				if err := os.WriteFile(filepath.Join(out, "logs-evicted"), nil, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if _, err := os.Stat(filepath.Join(out, "stop")); err != nil {
 				continue
 			}

@@ -6,6 +6,7 @@ use serde::Deserialize;
 use std::{path::PathBuf, time::Duration};
 use zeroize::Zeroizing;
 mod advanced;
+mod observation;
 mod security;
 
 #[derive(Default)]
@@ -39,6 +40,8 @@ struct Credentials {
 struct Fixture {
     mode: Mode,
     origin: String,
+    fault_origin: String,
+    native_invitation: InvitationFixture,
     ca_pem: String,
     admin: Credentials,
     ordinary: Credentials,
@@ -53,6 +56,12 @@ struct MfaCredentials {
     login_name: String,
     password: String,
     recovery_codes: Vec<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InvitationFixture {
+    login_name: String,
+    token: String,
 }
 async fn login(session: &SessionCoordinator, credentials: &Credentials) {
     session
@@ -420,6 +429,11 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
         Mode::SyntheticOnly => {}
     }
     assert!(!fixture.production_configuration);
+    assert_eq!(
+        fixture.native_invitation.login_name,
+        "NHF018 native invited"
+    );
+    assert!(!fixture.native_invitation.token.is_empty());
     let origin = url::Url::parse(&fixture.origin).unwrap();
     assert_eq!(origin.scheme(), "https");
     assert_eq!(origin.host_str(), Some("127.0.0.1"));
@@ -462,6 +476,7 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
     mcp_forms(&owner, &connection, &session).await;
     security::qualify(&owner, &connection, &session, &fixture).await;
     advanced::qualify(&owner, &connection, &session).await;
+    observation::qualify(&owner, &connection, &session, &fixture, &root).await;
     section(&owner, Section::Integrations).await;
     let token = {
         let state = owner.0.state.lock().unwrap();

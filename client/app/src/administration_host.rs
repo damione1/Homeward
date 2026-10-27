@@ -292,7 +292,8 @@ impl Administration {
                 | Section::Health
                 | Section::Metrics
                 | Section::Logs
-                | Section::Audits,
+                | Section::Audits
+                | Section::SecretAudits,
             ) => state.selected = Some(target),
             (
                 render::Target::Fact(_),
@@ -308,7 +309,8 @@ impl Administration {
                 | Section::Health
                 | Section::Metrics
                 | Section::Logs
-                | Section::Audits,
+                | Section::Audits
+                | Section::SecretAudits,
             )
             | (
                 render::Target::Integration(_),
@@ -323,7 +325,8 @@ impl Administration {
                 | Section::Health
                 | Section::Metrics
                 | Section::Logs
-                | Section::Audits,
+                | Section::Audits
+                | Section::SecretAudits,
             ) => return,
         }
         self.publish(&state);
@@ -350,7 +353,10 @@ impl Administration {
             return;
         }
         match action {
-            ProAdminAction::Refresh => state.request(),
+            ProAdminAction::Refresh => {
+                state.page = None;
+                state.request();
+            }
             ProAdminAction::More => {
                 let Some(next) = state.next.clone() else {
                     return;

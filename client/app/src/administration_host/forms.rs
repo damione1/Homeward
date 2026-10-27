@@ -348,8 +348,12 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                 | None => (),
             }
         }
-        Section::Account | Section::Health | Section::Metrics | Section::Logs | Section::Audits => {
-        }
+        Section::Account
+        | Section::Health
+        | Section::Metrics
+        | Section::Logs
+        | Section::Audits
+        | Section::SecretAudits => {}
     }
     result
 }

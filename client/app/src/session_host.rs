@@ -568,11 +568,27 @@ fn profile_message(error: ProfileFailure) -> &'static str {
         }
     }
 }
+fn invitation_allowed(phase: Phase) -> bool {
+    match phase {
+        Phase::SignedOut
+        | Phase::NeedsLogin
+        | Phase::CredentialRejected
+        | Phase::RateLimited
+        | Phase::NetworkUnavailable => true,
+        Phase::Busy
+        | Phase::Challenge { .. }
+        | Phase::EnrollmentRequired
+        | Phase::Ready
+        | Phase::Refreshing
+        | Phase::AuthorityUnavailable
+        | Phase::RightsChanged
+        | Phase::StorageUnavailable
+        | Phase::UnsupportedResponse
+        | Phase::Closed => false,
+    }
+}
 fn render_view(window: &HomewardWindow, view: SessionView) {
-    if !matches!(
-        view.phase,
-        Phase::SignedOut | Phase::NeedsLogin | Phase::CredentialRejected
-    ) {
+    if !invitation_allowed(view.phase) {
         window.invoke_clear_invitation();
     }
     window.set_busy(matches!(view.phase, Phase::Busy | Phase::Refreshing));
@@ -1068,10 +1084,7 @@ async fn accept_invitation(
     epoch: ProfileEpoch,
 ) {
     let generation = source.generation();
-    let allowed = matches!(
-        source.subscribe().borrow().phase,
-        Phase::SignedOut | Phase::NeedsLogin | Phase::CredentialRejected
-    );
+    let allowed = invitation_allowed(source.subscribe().borrow().phase);
     let outcome = if allowed {
         tokio::select! {biased;
             ()=profile_cancel.cancelled()=>return,

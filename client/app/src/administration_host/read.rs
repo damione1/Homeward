@@ -572,7 +572,7 @@ async fn read_section(
                 .map_err(|_| ReadError::Invalid)?;
             Ok(Payload::Logs(Box::new(response)))
         }
-        Section::Audits => {
+        Section::Audits | Section::SecretAudits => {
             let response = call!(
                 session,
                 lease,
@@ -580,7 +580,7 @@ async fn read_section(
                 connection.observability(),
                 query_audits,
                 observation::QueryAuditsRequest {
-                    source: observation::AuditSource::Authentication.into(),
+                    source: section.audit_source().expect("audit section").into(),
                     page_size: Some(100),
                     page_token: page.map(|value| value.0),
                     ..Default::default()
