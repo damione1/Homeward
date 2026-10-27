@@ -515,6 +515,12 @@ impl SessionCoordinator {
                         cancellation: self.token_for(generation)?,
                         token: AccessToken::parse(&record.tokens.access_token)
                             .map_err(|_| SessionFailure::InvalidResponse)?,
+                        account: auth_contract::AccountId::try_from(
+                            &*record.tokens.session.account_id,
+                        )
+                        .map_err(|_| SessionFailure::InvalidResponse)?,
+                        session: auth_contract::SessionId::try_from(&*record.tokens.session.id)
+                            .map_err(|_| SessionFailure::InvalidResponse)?,
                     });
                 }
                 let generation = self.advance();

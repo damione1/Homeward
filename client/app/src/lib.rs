@@ -2,6 +2,7 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 slint::include_modules!();
 
+pub mod administration;
 mod cache_view;
 mod calendar;
 mod calendar_host;
