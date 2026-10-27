@@ -30,6 +30,13 @@ pub(super) struct Row {
     pub title: String,
     pub detail: String,
 }
+fn integration_type(value: &str) -> &str {
+    if value.is_empty() {
+        "Configuration opaque · type non déclaré"
+    } else {
+        value
+    }
+}
 fn fact(key: impl Into<String>) -> Target {
     Target::Fact(FactKey(key.into()))
 }
@@ -268,7 +275,11 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
                             .expect("admitted integration"),
                     ),
                     row.integration_instance_id.clone(),
-                    format!("{} · {}", row.type_id, name(row.desired_state)),
+                    format!(
+                        "{} · {}",
+                        integration_type(&row.type_id),
+                        name(row.desired_state)
+                    ),
                 );
             }
             if value.response.instances.is_empty() {
@@ -289,7 +300,7 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             push(
                 fact("integration/type"),
                 "Type d'intégration".into(),
-                row.type_id.clone(),
+                integration_type(&row.type_id).into(),
             );
             push(
                 fact("integration/state"),

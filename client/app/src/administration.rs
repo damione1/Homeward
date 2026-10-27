@@ -344,7 +344,14 @@ fn references(values: &[integration::SecretReference], id: &IntegrationId) -> bo
 }
 
 pub fn admit_integration_instance(value: &integration::IntegrationInstance) -> Result<(), Refusal> {
-    if !value.__buffa_unknown_fields.is_empty() || !bounded_text(&value.type_id, 256) {
+    if !value.__buffa_unknown_fields.is_empty()
+        || !(bounded_text(&value.type_id, 256)
+            || value.type_id.is_empty()
+                && matches!(
+                    value.configuration,
+                    Some(integration::integration_instance::Configuration::Opaque(_))
+                ))
+    {
         return Err(Refusal::Invalid);
     }
     let id = IntegrationId::parse(&value.integration_instance_id)?;
@@ -394,7 +401,7 @@ pub struct IntegrationDraft {
     expected: integration::MutationPrecondition,
     state: MutationState,
 }
-fn mutation_precondition(
+pub(crate) fn mutation_precondition(
     document: &config::ReadDocumentResponse,
 ) -> Result<integration::MutationPrecondition, Refusal> {
     configuration_contract::admit_configuration_read(document).map_err(|_| Refusal::Invalid)?;
@@ -547,9 +554,7 @@ pub fn prepare_enabled(
     document: &config::ReadDocumentResponse,
     state: integration::DesiredState,
 ) -> Result<integration::SetInstanceEnabledRequest, Refusal> {
-    if !instance.__buffa_unknown_fields.is_empty() || !bounded_text(&instance.type_id, 256) {
-        return Err(Refusal::Invalid);
-    }
+    admit_integration_instance(instance)?;
     match instance.desired_state {
         EnumValue::Known(
             integration::DesiredState::Enabled | integration::DesiredState::Disabled,

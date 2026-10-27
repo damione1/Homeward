@@ -411,6 +411,9 @@ impl Administration {
             }
             ProAdminAction::Cancel => {
                 self.0.receipts.clear();
+                if state.private.draft().is_none() {
+                    state.selection = None;
+                }
                 state.request();
             }
             ProAdminAction::CloseSecret => state.request(),
@@ -439,6 +442,9 @@ impl Administration {
                     draft.complete(crate::administration::MutationState::Uncertain);
                 }
             } else {
+                if state.section == Section::Integrations {
+                    state.selection = None;
+                }
                 state.request();
             }
         } else if let Some(draft) = state.private.draft_mut() {

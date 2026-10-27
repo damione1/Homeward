@@ -5,6 +5,7 @@ use home_wire_contract::home::auth::v1 as auth;
 use serde::Deserialize;
 use std::{path::PathBuf, time::Duration};
 use zeroize::Zeroizing;
+mod advanced;
 mod security;
 
 #[derive(Default)]
@@ -460,6 +461,7 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
     invitation_forms(&owner, &connection).await;
     mcp_forms(&owner, &connection, &session).await;
     security::qualify(&owner, &connection, &session, &fixture).await;
+    advanced::qualify(&owner, &connection, &session).await;
     section(&owner, Section::Integrations).await;
     let token = {
         let state = owner.0.state.lock().unwrap();

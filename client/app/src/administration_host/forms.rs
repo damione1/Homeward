@@ -1,5 +1,6 @@
 //! Session-owned bounded forms. Protocol identifiers are captured from admitted
 //! data, every mutation is attempted once, and one-time secrets stay private.
+pub(super) mod advanced;
 pub(super) mod scopes;
 use super::{Payload, ProAdminAction, State, render};
 use crate::{
@@ -111,6 +112,7 @@ pub(super) enum Command {
     RemoveFactor(FactorCredentialId),
     RecoveryCodes(AccountId),
     MfaPolicy(auth::SecondFactorPolicy),
+    Advanced(Box<advanced::Command>),
 }
 impl Command {
     pub fn section(&self) -> Section {
@@ -121,10 +123,12 @@ impl Command {
             Self::RevokeSession(_) => Section::Sessions,
             Self::RemoveFactor(_) | Self::RecoveryCodes(_) => Section::Factors,
             Self::MfaPolicy(_) => Section::MfaPolicy,
+            Self::Advanced(value) => value.section(),
         }
     }
     pub fn action(&self) -> ProAdminAction {
         match self {
+            Self::Advanced(value) => value.action(),
             Self::Create | Self::Invite | Self::CreateMcp | Self::RecoveryCodes(_) => {
                 ProAdminAction::Create
             }
@@ -138,6 +142,7 @@ impl Command {
     }
     pub fn label(&self) -> &'static str {
         match self {
+            Self::Advanced(value) => value.label(),
             Self::Create => "Créer un compte",
             Self::Update(_) => "Modifier le compte",
             Self::Delete(_) => "Supprimer le compte",
@@ -152,6 +157,9 @@ impl Command {
         }
     }
     pub fn destructive(&self) -> bool {
+        if let Self::Advanced(value) = self {
+            return value.destructive();
+        }
         matches!(
             self,
             Self::Delete(_)
@@ -164,6 +172,7 @@ impl Command {
     }
     fn input_fields(&self) -> &'static [Field] {
         match self {
+            Self::Advanced(_) => &[],
             Self::Create => &[Field::Login, Field::Name, Field::Password],
             Self::Update(_) => &[Field::Name],
             Self::Invite => &[Field::Login, Field::Days],
@@ -279,13 +288,68 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                 result.push(Command::MfaPolicy(value.clone()));
             }
         }
-        Section::Account
-        | Section::Policies
-        | Section::Integrations
-        | Section::Health
-        | Section::Metrics
-        | Section::Logs
-        | Section::Audits => (),
+        Section::Policies => {
+            if let Some(Payload::Policy { account, response }) = state
+                .private
+                .pane(Section::Policies)
+                .and_then(|pane| pane.content.as_ref())
+            {
+                result.push(Command::Advanced(Box::new(advanced::Command::Policy(
+                    advanced::policy::PolicyCommand {
+                        account: account.clone(),
+                        response: response.clone(),
+                    },
+                ))));
+            }
+        }
+        Section::Integrations => {
+            use advanced::integrations::{DesiredState, IntegrationCommand};
+            match state
+                .private
+                .pane(Section::Integrations)
+                .and_then(|pane| pane.content.as_ref())
+            {
+                Some(Payload::Integrations(value)) => result.push(Command::Advanced(Box::new(
+                    advanced::Command::Integration(IntegrationCommand::Create(value.clone())),
+                ))),
+                Some(Payload::Integration(value)) => {
+                    if matches!(value.response.instance.configuration,Some(home_wire_contract::home::integrationadmin::v1::integration_instance::Configuration::Editable(_))){result.push(Command::Advanced(Box::new(advanced::Command::Integration(IntegrationCommand::Update(value.clone())))));}
+                    result.push(Command::Advanced(Box::new(advanced::Command::Integration(
+                        IntegrationCommand::Delete(value.clone()),
+                    ))));
+                    let desired = if value.response.instance.desired_state
+                        == home_wire_contract::home::integrationadmin::v1::DesiredState::Enabled
+                    {
+                        DesiredState::Disabled
+                    } else {
+                        DesiredState::Enabled
+                    };
+                    result.push(Command::Advanced(Box::new(advanced::Command::Integration(
+                        IntegrationCommand::SetEnabled {
+                            detail: value.clone(),
+                            state: desired,
+                        },
+                    ))));
+                }
+                Some(
+                    Payload::Personal { .. }
+                    | Payload::Sessions(_)
+                    | Payload::Factors(_)
+                    | Payload::MfaPolicy(_)
+                    | Payload::Keys(_)
+                    | Payload::Accounts(_)
+                    | Payload::Invitations(_)
+                    | Payload::Policy { .. }
+                    | Payload::Health(_)
+                    | Payload::Metrics(_)
+                    | Payload::Logs(_)
+                    | Payload::Audits(_),
+                )
+                | None => (),
+            }
+        }
+        Section::Account | Section::Health | Section::Metrics | Section::Logs | Section::Audits => {
+        }
     }
     result
 }
@@ -300,6 +364,7 @@ pub(super) struct Draft {
     status: auth::AccountStatus,
     scopes: Vec<ScopeChoice>,
     require_admin_factor: bool,
+    advanced: Option<Box<advanced::Draft>>,
     pub state: MutationState,
     pub notice: &'static str,
 }
@@ -316,6 +381,7 @@ impl Draft {
             status: auth::AccountStatus::Active,
             scopes: Vec::new(),
             require_admin_factor: false,
+            advanced: None,
             state: MutationState::Draft,
             notice: "Rien n’est envoyé avant votre confirmation. Les droits sont appliqués par le serveur.",
         };
@@ -341,6 +407,18 @@ impl Draft {
         }
         if matches!(value.command, Command::RecoveryCodes(_)) {
             value.notice = "Les anciens codes seront invalidés et vos sessions révoquées. Les nouveaux codes seront affichés une seule fois après confirmation.";
+        }
+        if let Command::Advanced(command) = &value.command {
+            match advanced::Draft::open(command) {
+                Ok(draft) => {
+                    value.advanced = Some(Box::new(draft));
+                    value.notice = "Les préconditions exactes du serveur sont conservées. Les choix rapides de droits remplacent toutes les règles du brouillon ; rien n’est enregistré sans confirmation.";
+                }
+                Err(message) => {
+                    value.state = MutationState::Rejected;
+                    value.notice = message;
+                }
+            }
         }
         value
     }
@@ -370,6 +448,13 @@ impl Draft {
         if !self.editable() {
             return;
         }
+        if let Some(draft) = &mut self.advanced {
+            match draft.edit(token, value) {
+                Ok(()) => self.modified(),
+                Err(message) => self.notice = message,
+            };
+            return;
+        }
         let Some(field) = Field::parse(token) else {
             return;
         };
@@ -392,6 +477,13 @@ impl Draft {
     }
     pub fn choose(&mut self, field: i32, option: i32) {
         if !self.editable() {
+            return;
+        }
+        if let Some(draft) = &mut self.advanced {
+            match draft.choose(field, option) {
+                Ok(()) => self.modified(),
+                Err(message) => self.notice = message,
+            };
             return;
         }
         let Some(field) = ChoiceField::parse(field) else {
@@ -462,6 +554,9 @@ impl Draft {
         self.modified();
     }
     pub fn fields(&self) -> Vec<ProAdminField> {
+        if let Some(draft) = &self.advanced {
+            return draft.fields();
+        }
         self.command
             .input_fields()
             .iter()
@@ -491,6 +586,9 @@ impl Draft {
             .collect()
     }
     pub fn choices(&self) -> Vec<ProAdminChoice> {
+        if let Some(draft) = &self.advanced {
+            return draft.choices();
+        }
         let mut result = Vec::new();
         if self.command.role_choices() {
             result.extend(
@@ -576,6 +674,19 @@ impl Draft {
         if self.state != MutationState::Draft {
             return None;
         }
+        if let Some(draft) = &self.advanced {
+            return match draft.submit() {
+                Ok(operation) => {
+                    self.state = MutationState::InFlight;
+                    self.notice = "Enregistrement en cours…";
+                    Some(Operation::Advanced(Box::new(operation)))
+                }
+                Err(message) => {
+                    self.notice = message;
+                    None
+                }
+            };
+        }
         if self.command.input_fields().iter().any(|&field| {
             self.value(field).contains('\0') || self.value(field).len() > field.limit()
         }) {
@@ -607,6 +718,7 @@ impl Draft {
             0
         };
         let operation = match &self.command {
+            Command::Advanced(_) => return None,
             Command::Create => {
                 if self.login.trim().is_empty() || self.password.is_empty() {
                     self.notice = "Renseignez l’identifiant et le mot de passe initial.";
@@ -749,10 +861,15 @@ impl Draft {
             MutationState::Uncertain => {
                 "Résultat inconnu : aucune nouvelle tentative automatique. Rechargez la liste pour vérifier le résultat."
             }
-            MutationState::Draft
-            | MutationState::InFlight
-            | MutationState::Reconciling
-            | MutationState::RestartRequired => "Rechargez les données avant de poursuivre.",
+            MutationState::Reconciling => {
+                "Modification enregistrée. Le rapprochement du runtime est en cours ; rechargez l’état sans renvoyer l’écriture."
+            }
+            MutationState::RestartRequired => {
+                "Modification enregistrée. Un redémarrage du serveur est nécessaire pour l’appliquer ; ne renvoyez pas l’écriture."
+            }
+            MutationState::Draft | MutationState::InFlight => {
+                "Rechargez les données avant de poursuivre."
+            }
         };
     }
 }
@@ -768,6 +885,7 @@ pub(super) enum Operation {
     RemoveFactor(auth::RemoveFactorRequest),
     RecoveryCodes(auth::ReplaceRecoveryCodesRequest),
     MfaPolicy(auth::SetSecondFactorPolicyRequest),
+    Advanced(Box<advanced::Operation>),
 }
 pub(super) struct Completion {
     pub state: MutationState,
@@ -823,6 +941,9 @@ pub(super) async fn execute(
         }}
     }
     match operation {
+        Operation::Advanced(value) => {
+            advanced::execute(session, connection, &lease, *value, &receipt.cancel).await
+        }
         Operation::Create(request) => {
             let login = request.login_name.clone();
             let response = call!(connection.accounts(), create_account, request);

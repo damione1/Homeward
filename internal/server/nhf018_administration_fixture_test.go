@@ -10,12 +10,13 @@ import (
 	"time"
 
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
+	cfg "github.com/damione1/Homeward/gen/home/configuration/v1"
 	integration "github.com/damione1/Homeward/gen/home/integrationadmin/v1"
 	"github.com/damione1/Homeward/internal/testpg"
 )
 
 // An opt-in actual Run, with its own PostgreSQL cluster, TLS identity and source
-// file. Only a disabled, local workday instance is configured. No installation
+// file. A local workday and a disabled opaque worker are configured. No installation
 // configuration, physical provider, production account or device is accepted.
 func TestNHF018AdministrationServer(t *testing.T) {
 	out := os.Getenv("HOMEWARD_NHF018_FIXTURE")
@@ -57,7 +58,20 @@ func TestNHF018AdministrationServer(t *testing.T) {
 	}
 	create("NHF018 keeper", "NHF018 synthetic keeper password", auth.AccountRole_ACCOUNT_ROLE_ADMIN)
 	create("NHF018 ordinary", "NHF018 synthetic ordinary password", auth.AccountRole_ACCOUNT_ROLE_USER)
+	before := f.read(t)
+	raw, err := os.ReadFile(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = append(raw, []byte("external_workers:\n  - instance: nha148-opaque\n    executable: /usr/bin/true\n    args: [NHA148_PRIVATE_OPAQUE_ARGUMENT]\n    secret_names: [opaque-ref]\ndisabled_integrations: [nha148-opaque]\n")...)
+	_, err = f.documents.WriteDocument(ctx, nha056SessionRequest(&cfg.WriteDocumentRequest{Id: before.Document.Id, Expected: before.Document.Version, ExpectedWorkspaceSha256: before.Document.GetWorkspace().SourceSha256, ExactYamlSource: raw}, f.token))
+	if err != nil {
+		t.Fatal("synthetic disabled opaque source", err)
+	}
 	f.createWorkday(t)
+	// Managed synthetic values exercise reference preservation without a broker.
+	f.seed(t, "user-ref", "NHF018_PRIVATE_SYNTHETIC_USER")
+	f.seed(t, "password-ref", "NHF018_PRIVATE_SYNTHETIC_PASSWORD")
 	// These two local cryptographic authenticators never use hardware or a device.
 	enroll := func(name, password string, role auth.AccountRole) ([]string, *auth.SessionTokens) {
 		t.Helper()

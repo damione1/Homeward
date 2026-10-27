@@ -434,6 +434,9 @@ async fn read_section(
                 )
                 .map_err(|_| ReadError::Invalid)?;
                 let kind = (async {
+                    if response.instance.type_id.is_empty() {
+                        return Err(ReadError::Unsupported);
+                    }
                     let kind_response = call!(
                         session,
                         lease,
