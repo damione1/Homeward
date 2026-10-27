@@ -34,6 +34,7 @@ const (
 	sourceUTC
 	sourceTZID
 	sourceFloating
+	sourceExplicit
 )
 
 type Span struct {
@@ -155,6 +156,26 @@ func TimedSpan(ctx context.Context, anchor LocalDateTime, end Instant, zone Zone
 	}
 	return Span{kind: Timed, mode: spanExact, source: sourceZoned, anchor: anchor, start: start, end: end, zone: zone}, nil
 }
+
+// SelectedTimedSpan preserves an explicit fold choice. It rejects a gap or
+// mismatched anchor instead of applying RFC5545's implicit DTSTART resolution.
+func SelectedTimedSpan(ctx context.Context, anchor LocalDateTime, start, end Instant, zone Zone) (Span, error) {
+	if err := contextValid(ctx); err != nil {
+		return Span{}, err
+	}
+	if !anchor.Valid() || !start.Valid() || !end.Valid() || !zone.Valid() || zone.embedded != nil || !end.value.After(start.value) || end.value.Sub(start.value) > 366*24*time.Hour {
+		return Span{}, failure(InvalidDate)
+	}
+	projected, err := zone.localAt(ctx, start.value)
+	if err != nil {
+		return Span{}, err
+	}
+	if projected != anchor {
+		return Span{}, failure(InvalidDate)
+	}
+	return Span{kind: Timed, mode: spanExact, source: sourceExplicit, anchor: anchor, start: start, end: end, zone: zone}, nil
+}
+
 func TimedInstants(ctx context.Context, start, end Instant, zone Zone) (Span, error) {
 	if !start.Valid() || !zone.Valid() {
 		return Span{}, failure(InvalidDate)
@@ -185,6 +206,10 @@ func (s Span) Valid() bool {
 		}
 		switch s.source {
 		case sourceZoned, sourceUTC, sourceTZID, sourceFloating:
+		case sourceExplicit:
+			if s.mode != spanExact || s.zone.embedded != nil || s.endZone != (Zone{}) {
+				return false
+			}
 		case sourceInvalid:
 			return false
 		default:
