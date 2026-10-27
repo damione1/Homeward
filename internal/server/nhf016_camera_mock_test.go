@@ -52,13 +52,21 @@ const (
 	nhf016SessionWrongCamera
 )
 
+type nhf016CameraImageState uint8
+
+const (
+	nhf016ImageAvailable nhf016CameraImageState = iota
+	nhf016ImageMissing
+	nhf016ImageWrongCamera
+)
+
 type nhf016CameraRecord struct {
-	metadata *cv.Camera
-	events   []*cv.Event
-	png      []byte
-	missing  bool
-	revision uint64
-	changed  chan struct{}
+	metadata   *cv.Camera
+	events     []*cv.Event
+	png        []byte
+	imageState nhf016CameraImageState
+	revision   uint64
+	changed    chan struct{}
 }
 type nhf016CameraLease struct {
 	wire    *cv.Lease
@@ -483,9 +491,16 @@ func (m *nhf016CameraMock) ReadImage(ctx context.Context, request *connect.Reque
 		default:
 			return nhf016CameraError(connect.CodeInvalidArgument)
 		}
-		if record.missing {
+		switch record.imageState {
+		case nhf016ImageAvailable:
+		case nhf016ImageMissing:
 			response.Result = &cv.ReadImageResponse_Missing{Missing: &emptypb.Empty{}}
 			return nil
+		case nhf016ImageWrongCamera:
+			response.Result = &cv.ReadImageResponse_WrongCamera{WrongCamera: &emptypb.Empty{}}
+			return nil
+		default:
+			return nhf016CameraError(connect.CodeInternal)
 		}
 		response.Result = &cv.ReadImageResponse_Image{Image: &cv.Image{Key: proto.Clone(request.Msg.Key).(*cv.ImageKey), CapturedAt: timestamppb.New(captured), ExpiresAt: proto.Clone(lease.wire.ExpiresAt).(*timestamppb.Timestamp), Png: bytes.Clone(record.png)}}
 		return nil

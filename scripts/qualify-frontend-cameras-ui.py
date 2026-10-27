@@ -33,6 +33,9 @@ class Control(Enum):
     ALLOW = 'allow-read'
     MISSING = 'missing-image'
     RESTORE_IMAGES = 'restore-images'
+    WRONG_CAMERA = 'wrong-camera'
+    OUTAGE = 'outage'
+    RESTORE_NETWORK = 'restore-network'
 
 
 class Key(Enum):
@@ -268,7 +271,6 @@ def run_case(proof, binary, server_binary, helper, case):
                 raise RuntimeError('Camera event delegates are not bounded')
             client.tool(Tool.CLICK, elementHandle=reveal('event-00000')['handle'])
             client.tool(Tool.KEY, windowHandle=window, text=Key.END.value, eventType='PressAndRelease')
-            wait('event-09999', 'Button')
             reveal('event-09999')
             capture('last-event')
             # Navigate to the second camera by its exact source, despite equal titles.
@@ -291,6 +293,19 @@ def run_case(proof, binary, server_binary, helper, case):
             control(Control.RESTORE_IMAGES, '_driveway')
             tap('Recharger l’aperçu')
             wait('Image autorisée de la caméra', 'Image', timeout=30)
+            control(Control.WRONG_CAMERA, '_driveway')
+            tap('Recharger l’aperçu')
+            reveal('Identité de caméra incorrecte', None)
+            capture('wrong-camera')
+            control(Control.RESTORE_IMAGES, '_driveway')
+            tap('Relire les caméras')
+            wait('Image autorisée de la caméra', 'Image', timeout=30)
+            control(Control.OUTAGE)
+            reveal('Connexion interrompue', None)
+            capture('offline')
+            control(Control.RESTORE_NETWORK)
+            tap('Recharger l’aperçu')
+            wait('Image autorisée de la caméra', 'Image', timeout=30)
             control(Control.REVOKE)
             wait('Accès retiré', timeout=30)
             if rows('Source synthétique A') or rows('event-00000'):
@@ -309,7 +324,7 @@ def run_case(proof, binary, server_binary, helper, case):
             result = dict(status='AUTOMATED_PASS_REQUIRES_VISUAL_INSPECTION', case=case.value,
                 native_rendering=True, actual_rust_go_tls=True, mcp_input=True,
                 production_cameras=False, real_devices=False, children_joined=True,
-                camera_revocation=True, expiry=True, missing=True)
+                camera_revocation=True, expiry=True, missing=True, wrong_camera=True, offline=True)
             SESSION['write'](directory / 'result.json', result)
             return result
         except BaseException:

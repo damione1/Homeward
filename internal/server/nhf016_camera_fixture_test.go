@@ -26,6 +26,7 @@ const (
 	nhf016CameraRestore       nhf016CameraControl = "restore-network"
 	nhf016CameraSnapshot      nhf016CameraControl = "snapshot"
 	nhf016CameraMissingImage  nhf016CameraControl = "missing-image"
+	nhf016CameraWrongCamera   nhf016CameraControl = "wrong-camera"
 	nhf016CameraRestoreImages nhf016CameraControl = "restore-images"
 	nhf016CameraChangeEvents  nhf016CameraControl = "change-events"
 )
@@ -36,7 +37,7 @@ func (a *nhf016CameraControl) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 	switch nhf016CameraControl(value) {
-	case nhf016CameraPauseImages, nhf016CameraResumeImages, nhf016CameraExpire, nhf016CameraRevoke, nhf016CameraAllow, nhf016CameraOutage, nhf016CameraRestore, nhf016CameraSnapshot, nhf016CameraMissingImage, nhf016CameraRestoreImages, nhf016CameraChangeEvents:
+	case nhf016CameraPauseImages, nhf016CameraResumeImages, nhf016CameraExpire, nhf016CameraRevoke, nhf016CameraAllow, nhf016CameraOutage, nhf016CameraRestore, nhf016CameraSnapshot, nhf016CameraMissingImage, nhf016CameraWrongCamera, nhf016CameraRestoreImages, nhf016CameraChangeEvents:
 		*a = nhf016CameraControl(value)
 		return nil
 	default:
@@ -100,7 +101,7 @@ func TestNHF016CameraServer(t *testing.T) {
 			}
 			targeted := false
 			switch command.Action {
-			case nhf016CameraMissingImage, nhf016CameraRestoreImages, nhf016CameraChangeEvents:
+			case nhf016CameraMissingImage, nhf016CameraWrongCamera, nhf016CameraRestoreImages, nhf016CameraChangeEvents:
 				targeted = true
 			case nhf016CameraPauseImages, nhf016CameraResumeImages, nhf016CameraExpire, nhf016CameraRevoke, nhf016CameraAllow, nhf016CameraOutage, nhf016CameraRestore, nhf016CameraSnapshot:
 			default:
@@ -137,7 +138,7 @@ func TestNHF016CameraServer(t *testing.T) {
 					nhf016EndCameraLease(lease, nhf016LeaseExpired)
 				}
 				r.handler.mu.Unlock()
-			case nhf016CameraMissingImage, nhf016CameraRestoreImages, nhf016CameraChangeEvents:
+			case nhf016CameraMissingImage, nhf016CameraWrongCamera, nhf016CameraRestoreImages, nhf016CameraChangeEvents:
 				entity, err := nhf016CameraID(command.Entity)
 				if err != nil {
 					t.Fatal(err)
@@ -150,9 +151,11 @@ func TestNHF016CameraServer(t *testing.T) {
 				}
 				switch command.Action {
 				case nhf016CameraMissingImage:
-					record.missing = true
+					record.imageState = nhf016ImageMissing
+				case nhf016CameraWrongCamera:
+					record.imageState = nhf016ImageWrongCamera
 				case nhf016CameraRestoreImages:
-					record.missing = false
+					record.imageState = nhf016ImageAvailable
 				case nhf016CameraChangeEvents:
 					record.revision++
 					close(record.changed)

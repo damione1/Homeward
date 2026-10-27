@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/damione1/Homeward/contracts"
+	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	cv "github.com/damione1/Homeward/gen/home/cameras/v1"
 	"github.com/damione1/Homeward/gen/home/cameras/v1/camerasv1connect"
 	"github.com/damione1/Homeward/internal/config"
@@ -220,6 +222,41 @@ func TestNHF016CameraTLSExactSourcesAndSessionBinding(t *testing.T) {
 	response, err = r.api.ReadImage(r.ctx, nha162Bearer(nhf016Snapshot(first), r.adminToken))
 	if err != nil || response.Msg.GetRevoked() == nil {
 		t.Fatal("closed reference still exposes pixels", err)
+	}
+}
+
+func TestNHF016CameraTLSAuthorizedAccountCannotReuseOrCloseAnotherAccountsReference(t *testing.T) {
+	r := nhf016NewCameraRig(t, 60*time.Second)
+	const login, password = "NHF016 Other Account", "NHF016 synthetic account password"
+	created, err := r.accounts.CreateAccount(r.ctx, nha162Bearer(&authv1.CreateAccountRequest{LoginName: login, DisplayName: login, InitialPassword: password, Role: authv1.AccountRole_ACCOUNT_ROLE_USER}, r.adminToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	account, err := contracts.ParseAccountID(created.Msg.Account.Id.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nha162SetPolicy(t, r.nha162RPCRig, account, nhf016AllCameras)
+	other := r.login(t, login, password)
+	lease := r.open(t, "driveway")
+	denied, err := r.api.ReadImage(r.ctx, nha162Bearer(nhf016Snapshot(lease), other))
+	if err != nil || denied.Msg.GetRevoked() == nil {
+		t.Fatal("another authorized account reused a private reference", err)
+	}
+	if _, err = r.api.CloseSession(r.ctx, nha162Bearer(&cv.CloseSessionRequest{Session: lease.Session}, other)); err != nil {
+		t.Fatal(err)
+	}
+	image, err := r.api.ReadImage(r.ctx, nha162Bearer(nhf016Snapshot(lease), r.adminToken))
+	if err != nil || image.Msg.GetImage() == nil {
+		t.Fatal("foreign account closed the original reference", err)
+	}
+	owned, err := r.api.OpenSession(r.ctx, nha162Bearer(&cv.OpenSessionRequest{EntityId: "driveway"}, other))
+	if err != nil || owned.Msg.GetLease() == nil {
+		t.Fatal("second account must be able to open its own authorized reference", err)
+	}
+	image, err = r.api.ReadImage(r.ctx, nha162Bearer(nhf016Snapshot(owned.Msg.GetLease()), other))
+	if err != nil || image.Msg.GetImage() == nil {
+		t.Fatal("second account's own reference failed", err)
 	}
 }
 

@@ -53,6 +53,7 @@ enum Control {
     Outage,
     RestoreNetwork,
     MissingImage,
+    WrongCamera,
     RestoreImages,
     ChangeEvents,
 }
@@ -265,6 +266,44 @@ async fn qualify(owner: &Cameras, root: &Path, session: &SessionCoordinator) {
     .await;
     owner.foreground(true);
     until(owner, "native resume", ready).await;
+    let entity = owner
+        .0
+        .state
+        .lock()
+        .unwrap()
+        .selected
+        .as_ref()
+        .unwrap()
+        .entity()
+        .as_str()
+        .to_owned();
+    control(
+        root,
+        &mut sequence,
+        Control::WrongCamera,
+        Some(entity.clone()),
+    )
+    .await;
+    owner.reload(generation(owner));
+    until(
+        owner,
+        "wrong camera is distinct and purges private data",
+        |s| {
+            s.status == Status::WrongCamera
+                && s.picture.is_none()
+                && s.events.rows.is_empty()
+                && s.catalog.is_empty()
+        },
+    )
+    .await;
+    control(root, &mut sequence, Control::RestoreImages, Some(entity)).await;
+    owner.reload_catalog(generation(owner));
+    until(
+        owner,
+        "new authority-bound catalog after identity refusal",
+        ready,
+    )
+    .await;
     session.logout().await.unwrap();
     until(owner, "session logout", |s| {
         s.picture.is_none() && s.events.rows.is_empty() && s.catalog.is_empty() && !s.active

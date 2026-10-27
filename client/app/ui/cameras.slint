@@ -43,7 +43,7 @@ export component HomewardCameras inherits Rectangle {
             KitButton {theme:root.theme;text:"Relire les caméras";disabled:!root.interactive;control-size:ControlSize.comfortable;activated=>{root.reload-catalog(root.data.generation);}}
             catalog:=KitContentList {
                 theme:root.theme;items:root.data.catalog;generation:root.data.generation;
-                label:"Caméras autorisées";preferred-height:180px;min-height:120px;
+                label:"Caméras autorisées";empty-label:"Aucune caméra à afficher";preferred-height:180px;min-height:120px;
                 active-index:root.data.selected ? root.data.camera.token - 1 : -1;
                 activate(t,g)=>{root.choose(t,g);}
                 navigate(step)=>{root.catalog-navigate(step);}
