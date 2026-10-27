@@ -1,0 +1,7 @@
+{
+  "synthetic_only": true,
+  "players": [
+    {"kind": "minimal", "alias": "media_player.bathroom_speaker", "title": "Northern Lights", "artist": "Synthetic Quartet", "collection": "Studio sessions"},
+    {"kind": "group", "alias": "media_player.kitchen", "title": "Atelier audio", "artist": "Bibliothèque synthétique", "collection": "Groupe de démonstration"}
+  ]
+}

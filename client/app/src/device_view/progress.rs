@@ -23,7 +23,7 @@ fn contract_error(error: &wire::ContractError) -> &'static str {
         }
     }
 }
-pub(super) fn presentation(snapshot: Option<&ActionSnapshot>) -> Presentation {
+pub(crate) fn presentation(snapshot: Option<&ActionSnapshot>) -> Presentation {
     let Some(action) = snapshot else {
         return (Phase::Idle, "", "");
     };

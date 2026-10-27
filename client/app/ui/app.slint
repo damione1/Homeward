@@ -5,6 +5,8 @@ import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitU
 import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction } from "@kit-pro/kit-pro.slint";
 import { HomewardLists } from "lists.slint";
 import { HomewardHistory, HistoryPresentation, HistoryStatistic } from "history.slint";
+import { HomewardMedia } from "media.slint";
+import { ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue } from "@kit-pro/kit-pro.slint";
 import { ProChartPhase, ProChartSeries, ProChartRangeGesture } from "@kit-pro/kit-pro.slint";
 import { HomewardSkin } from "skin.slint";
 import { HomewardDevices } from "device-cards.slint";
@@ -183,6 +185,30 @@ export component HomewardWindow inherits Window {
     callback history-interval(int,ProChartRangeGesture,float);
     callback history-viewport(length,length,color,color);
     callback history-private-cleared();
+    in property <bool> media-visible;
+    in property <bool> media-has-data;
+    in property <bool> media-editable;
+    in property <int> media-generation;
+    in property <ProMediaPresentation> media-data;
+    in property <[ProMediaAction]> media-actions;
+    in property <[ProMediaOption]> media-options;
+    in property <[ProDeviceValue]> media-values;
+    in property <string> media-group-title;
+    in property <string> media-coordinator;
+    in property <[string]> media-members;
+    in property <string> media-notice;
+    in property <int> media-artwork-remaining-ms;
+    in-out property <int> media-artwork-id;
+    in-out property <bool> media-publishing;
+    callback media-operation(int,int,ProMediaOperation);
+    callback media-option(int,int,ProMediaOptionKind,int);
+    callback media-edit(int,int,int,ProValueIntent);
+    callback media-reload(int);
+    callback media-expire-artwork(int);
+    callback media-set-interactive(bool);
+    callback media-private-cleared();
+    private property <bool> media-interactive: root.background-interactive && root.view-loaded && root.page == ViewPage.detail;
+    changed media-interactive => { root.media-set-interactive(root.media-interactive); }
     in property <string> preferences-status;
     private property <bool> connected: root.access-stage == ProAccessStage.connected;
     private property <bool> background-interactive: root.connected && !root.native-popup.open && !root.recipe-confirmation.open;
@@ -510,6 +536,18 @@ export component HomewardWindow inherits Window {
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
                     stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
+                }
+                if root.media-visible: HomewardMedia {
+                    theme: root.theme; generation: root.media-generation;
+                    interactive: root.media-interactive; editable: root.media-editable; has-data: root.media-has-data;
+                    media: root.media-data; actions: root.media-actions; options: root.media-options; values: root.media-values;
+                    group-title: root.media-group-title; coordinator: root.media-coordinator; members: root.media-members;
+                    notice: root.media-notice; artwork-remaining-ms: root.media-artwork-remaining-ms;
+                    operation(token,generation,operation) => { root.media-operation(token,generation,operation); }
+                    option(token,generation,kind,option) => { root.media-option(token,generation,kind,option); }
+                    edit(token,generation,field,intent) => { root.media-edit(token,generation,field,intent); }
+                    reload(generation) => { root.media-reload(generation); }
+                    expire-artwork(generation) => { root.media-expire-artwork(generation); }
                 }
                 HomewardHistory {
                     theme: root.theme; interactive: root.background-interactive && root.view-loaded && root.page == ViewPage.detail;

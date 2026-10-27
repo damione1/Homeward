@@ -562,6 +562,7 @@ fn reason(reason: CloseReason) -> DismissReason {
 }
 fn changed(window: &HomewardWindow, shared: &Rc<RefCell<State>>, refresh: &dyn Fn(), reset: bool) {
     window.invoke_history_private_cleared();
+    window.invoke_media_private_cleared();
     window.invoke_native_route_changed();
     {
         let mut state = shared.borrow_mut();

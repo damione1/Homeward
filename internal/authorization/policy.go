@@ -187,7 +187,7 @@ func (g grant) permits(account contracts.AccountID, object Object) bool {
 
 func configurable(permission Permission) objectKind {
 	switch permission.family {
-	case authv1.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY, authv1.ScopeFamily_SCOPE_FAMILY_HISTORY:
+	case authv1.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY, authv1.ScopeFamily_SCOPE_FAMILY_HISTORY, authv1.ScopeFamily_SCOPE_FAMILY_MEDIA:
 		if permission.operation == authv1.ScopeOperation_SCOPE_OPERATION_READ {
 			return objectEntity
 		}
@@ -204,7 +204,6 @@ func configurable(permission Permission) objectKind {
 			return objectList
 		}
 	case authv1.ScopeFamily_SCOPE_FAMILY_UNSPECIFIED,
-		authv1.ScopeFamily_SCOPE_FAMILY_MEDIA,
 		authv1.ScopeFamily_SCOPE_FAMILY_LOCATION, authv1.ScopeFamily_SCOPE_FAMILY_CALENDARS,
 		authv1.ScopeFamily_SCOPE_FAMILY_LOGIC,
 		authv1.ScopeFamily_SCOPE_FAMILY_INTEGRATIONS, authv1.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION,

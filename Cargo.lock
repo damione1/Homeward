@@ -2032,6 +2032,7 @@ dependencies = [
  "home-client-transport",
  "home-wire-contract",
  "i-slint-backend-testing",
+ "png",
  "rustls-pemfile",
  "serde",
  "serde_json",

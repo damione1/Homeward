@@ -1,0 +1,50 @@
+import { KitTheme, KitButton } from "@kit/kit.slint";
+import { ProMediaPlayer, ProMediaGroup, ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue, ProValueIntent, ProArtworkState } from "@kit-pro/kit-pro.slint";
+
+// Product composition only. Content, capabilities, privacy and exact action
+// targets are supplied by the native owner; the Pro owns reusable controls.
+export component HomewardMedia inherits VerticalLayout {
+    in property <KitTheme> theme;
+    in property <int> generation;
+    in property <bool> interactive;
+    in property <bool> editable;
+    in property <bool> has-data;
+    in property <ProMediaPresentation> media;
+    in property <[ProMediaAction]> actions;
+    in property <[ProMediaOption]> options;
+    in property <[ProDeviceValue]> values;
+    in property <string> group-title;
+    in property <string> coordinator;
+    in property <[string]> members;
+    in property <string> notice;
+    in property <int> artwork-remaining-ms;
+    callback operation(int,int,ProMediaOperation);
+    callback option(int,int,ProMediaOptionKind,int);
+    callback edit(int,int,int,ProValueIntent);
+    callback reload(int);
+    callback expire-artwork(int);
+    min-width: 0px;
+    spacing: 12px;
+    if root.has-data: ProMediaPlayer {
+        theme: root.theme; media: root.media; actions: root.actions; options: root.options; values: root.values;
+        editable: root.editable && root.interactive;
+        apply-label: "Appliquer"; increment-label: "Augmenter"; decrement-label: "Diminuer";
+        operation-requested(token,generation,operation) => { root.operation(token,generation,operation); }
+        option-requested(token,generation,kind,option) => { root.option(token,generation,kind,option); }
+        value-edited(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
+    }
+    if root.has-data && root.group-title != "": ProMediaGroup {
+        theme: root.theme; title: root.group-title; coordinator: root.coordinator; members: root.members;
+    }
+    if root.notice != "": Text { text: root.notice; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: char-wrap; }
+    KitButton {
+        theme: root.theme; text: "Relire le média"; disabled: !root.interactive;
+        activated => { root.reload(root.generation); }
+    }
+    // Expiry does not wait for an in-flight network read or a polling interval.
+    Timer {
+        running: root.has-data && root.media.artwork-state == ProArtworkState.ready;
+        interval: max(1,root.artwork-remaining-ms) * 1ms;
+        triggered => { root.expire-artwork(root.generation); }
+    }
+}

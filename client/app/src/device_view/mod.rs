@@ -9,7 +9,7 @@ mod native;
 mod number;
 mod panel;
 pub(crate) mod presentation;
-mod progress;
+pub(crate) mod progress;
 mod recipes;
 mod selection;
 use crate::{
