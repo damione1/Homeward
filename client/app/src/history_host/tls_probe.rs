@@ -104,7 +104,7 @@ async fn until(owner: &History, label: &str, predicate: impl Fn(&State) -> bool)
     }
     Ok(())
 }
-async fn run(fixture: Fixture) -> Result<()> {
+async fn run(mut fixture: Fixture) -> Result<()> {
     let Mode::SyntheticOnly = fixture.mode;
     let url = url::Url::parse(&fixture.origin)?;
     if url.scheme() != "https"
@@ -118,7 +118,6 @@ async fn run(fixture: Fixture) -> Result<()> {
     {
         return Err("explicit loopback TLS fixture required".into());
     }
-    assert!(!fixture.costs_mock);
     assert_eq!(fixture.point_count, 20_000);
     let entity: EntityId = admit(fixture.entity_id.parse())?;
     let connection = Connection::new(&fixture.origin, fixture.ca_pem.as_bytes())?;
@@ -126,11 +125,14 @@ async fn run(fixture: Fixture) -> Result<()> {
     admit(
         session
             .login(
-                fixture.reader.login_name,
-                Zeroizing::new(fixture.reader.password),
+                std::mem::take(&mut fixture.reader.login_name),
+                Zeroizing::new(std::mem::take(&mut fixture.reader.password)),
             )
             .await,
     )?;
+    if fixture.costs_mock {
+        return run_costs(&fixture, entity, connection, session).await;
+    }
     let cancel = CancellationToken::new();
     let lease = admit(session.access(&cancel).await)?;
     let (initial_query, _) = admit(parse_query(
@@ -336,6 +338,86 @@ async fn run(fixture: Fixture) -> Result<()> {
     println!(
         "NHF013_REPORT {}",
         serde_json::json!({"pass":true,"points":20000,"restored_points":20001,"actual_history_tls":true,"ordinary_run_recorder":true,"server_aggregates":true,"stale_bound_cursor":true,"invalid_hour_rejected":true,"foreign_entity_denied":true,"revocation_purge":true,"owners_joined":true,"costs_mock":false,"native_rendering":false})
+    );
+    Ok(())
+}
+async fn run_costs(
+    fixture: &Fixture,
+    entity: EntityId,
+    connection: Connection,
+    session: SessionCoordinator,
+) -> Result<()> {
+    let owner = History::detached();
+    let cancel = CancellationToken::new();
+    let (running, credential, transport, stop) = (
+        owner.clone(),
+        session.clone(),
+        connection.history(),
+        cancel.clone(),
+    );
+    let task = tokio::spawn(async move { running.run(credential, transport, stop).await });
+    until(&owner, "cost mock active session", |state| state.active).await?;
+    owner.choose(Some(entity));
+    owner.apply(&fixture.start, &fixture.end, HistoryStatistic::Observation);
+    until(&owner, "exact cost mock values", |state| {
+        state.status == Status::Ready
+    })
+    .await?;
+    {
+        let state = owner.0.state.lock().unwrap();
+        let data = state.data.as_ref().ok_or("cost mock absent")?;
+        assert_eq!(data.snapshot.points, 2);
+        assert!(data.incomplete_coverage);
+        assert_eq!(data.groups.len(), 1);
+        let group = &data.groups[0];
+        assert_eq!(group.descriptor.unit, "CAD");
+        assert_eq!(group.descriptor.canonical_unit, "CAD");
+        assert_eq!(group.value(0).unwrap().text(), "0.00");
+        assert_eq!(
+            group.value(1).unwrap().text(),
+            "123456789012345678901234567890.123456789"
+        );
+        assert_eq!(group.quality.provenance, state_wire::Provenance::Estimated);
+        let Content::Retained(history::Pages::Observations(pages)) = &data.snapshot.content else {
+            return Err("cost pages missing".into());
+        };
+        assert!(pages.len() >= 200);
+        assert!(pages.iter().any(|page| page.points.is_empty()));
+        assert!(pages.iter().flat_map(|page| &page.points).all(|point| {
+            point
+                .state
+                .source_session
+                .starts_with("MOCK coûts synthétiques")
+        }));
+        assert_eq!(
+            state
+                .frame
+                .as_ref()
+                .ok_or("cost raster missing")?
+                .stats()
+                .source_samples,
+            2
+        );
+    }
+    // The mock must preserve actual authorization rather than grant a separate
+    // test-only bypass around the ordinary server policy.
+    control(1, Control::RevokeHistory).await?;
+    owner.apply(&fixture.start, &fixture.end, HistoryStatistic::Observation);
+    until(&owner, "cost mock revocation", |state| {
+        state.data.is_none()
+            && state.frame.is_none()
+            && matches!(
+                state.status,
+                Status::Failed(Failure::Denied) | Status::Draft
+            )
+    })
+    .await?;
+    cancel.cancel();
+    task.await?;
+    session.close().await;
+    println!(
+        "NHF013_REPORT {}",
+        serde_json::json!({"pass":true,"points":2,"costs_mock":true,"currency":"CAD","exact_zero":"0.00","exact_last":"123456789012345678901234567890.123456789","empty_progress_pages":true,"revocation_purge":true,"owners_joined":true,"production_costs":false,"native_rendering":false})
     );
     Ok(())
 }

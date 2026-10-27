@@ -54,6 +54,7 @@ func TestNHF013HistoryServer(t *testing.T) {
 	var fixtureSource struct {
 		SyntheticOnly bool   `json:"synthetic_only"`
 		Alias         string `json:"alias"`
+		CostsMock     bool   `json:"costs_mock"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(input))
 	decoder.DisallowUnknownFields()
@@ -270,7 +271,12 @@ func TestNHF013HistoryServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": base, "ca_pem": string(certificate), "entity_id": name, "point_count": pointCount, "start": at.Format(time.RFC3339Nano), "end": at.Add(2 * time.Hour).Format(time.RFC3339Nano), "reader": map[string]string{"login_name": readerName, "password": readerPassword}, "costs_mock": false})
+	if fixtureSource.CostsMock {
+		// Only this opt-in fixture substitutes monetary wire values, after
+		// ordinary History authorization. Production costs remain unqualified.
+		base = nhf013CostMock(t, base, client, data, at, at.Add((pointCount-1)*350*time.Millisecond))
+	}
+	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": base, "ca_pem": string(certificate), "entity_id": name, "point_count": pointCount, "start": at.Format(time.RFC3339Nano), "end": at.Add(2 * time.Hour).Format(time.RFC3339Nano), "reader": map[string]string{"login_name": readerName, "password": readerPassword}, "costs_mock": fixtureSource.CostsMock})
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	var controlSequence uint64

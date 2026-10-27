@@ -1,4 +1,4 @@
-import { KitTheme, KitThemes, KitButton, KitTextField, KitWrap, FieldAccess, NavigationStep } from "@kit/kit.slint";
+import { KitTheme, KitThemes, KitButton, KitTextField, KitWrap, FieldAccess, NavigationStep, ButtonIntent } from "@kit/kit.slint";
 import { ProChart, ProChartPhase, ProChartSeries, ProChartRangeGesture } from "@kit-pro/kit-pro.slint";
 export enum HistoryStatistic { observation, minimum, maximum, mean, contribution }
 export struct HistoryPresentation {
@@ -31,11 +31,11 @@ export component HomewardHistory inherits Rectangle {
         KitTextField { theme: root.theme; label: "Début UTC (RFC3339)"; text <=> root.start; access: root.interactive ? FieldAccess.editable : FieldAccess.disabled; edited(text) => { root.draft-changed(); } }
         KitTextField { theme: root.theme; label: "Fin UTC exclusive (RFC3339)"; text <=> root.end; access: root.interactive ? FieldAccess.editable : FieldAccess.disabled; edited(text) => { root.draft-changed(); } }
         KitWrap {
-            KitButton { theme: root.theme; text: "Observations"; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.observation); } }
-            KitButton { theme: root.theme; text: "Moyenne horaire"; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.mean); } }
-            KitButton { theme: root.theme; text: "Minimum"; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.minimum); } }
-            KitButton { theme: root.theme; text: "Maximum"; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.maximum); } }
-            KitButton { theme: root.theme; text: "Contribution"; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.contribution); } }
+            KitButton { theme: root.theme; text: "Observations"; intent: root.statistic == HistoryStatistic.observation ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.observation); } }
+            KitButton { theme: root.theme; text: "Moyenne horaire"; intent: root.statistic == HistoryStatistic.mean ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.mean); } }
+            KitButton { theme: root.theme; text: "Minimum"; intent: root.statistic == HistoryStatistic.minimum ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.minimum); } }
+            KitButton { theme: root.theme; text: "Maximum"; intent: root.statistic == HistoryStatistic.maximum ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.maximum); } }
+            KitButton { theme: root.theme; text: "Contribution"; intent: root.statistic == HistoryStatistic.contribution ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.contribution); } }
             KitButton { theme: root.theme; text: "Afficher / relire"; disabled: !root.interactive; activated => { root.apply(root.start,root.end,root.statistic); } }
         }
         Text { text: root.presentation.group-label; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }

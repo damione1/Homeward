@@ -93,11 +93,11 @@ impl Projection {
                     quality(&group.quality)
                 );
                 value.unit = format!(
-                    "Unité source {} · canonique {} · agrégation {:?} · sémantique {:?} · précision {} · échelle {} · décalage {}. Tracé approximatif ; inspection = valeur source exacte.",
+                    "Unité source {} · canonique {} · {} · {} · précision {} · échelle {} · décalage {}. Tracé approximatif ; inspection = valeur source exacte.",
                     group.descriptor.unit,
                     group.descriptor.canonical_unit,
-                    group.descriptor.aggregation,
-                    group.descriptor.semantic,
+                    aggregation(group.descriptor.aggregation),
+                    semantic(group.descriptor.semantic),
                     group.descriptor.precision,
                     group.descriptor.scale,
                     group.descriptor.offset
@@ -219,10 +219,11 @@ fn inspection(data: &Data, group_index: usize, index: usize) -> String {
                 .map(|v| format!("{v:02x}"))
                 .collect::<String>();
             format!(
-                "{text} {} · {} · reçu {} · capture source {source} · position {epoch}/{} · observation {} / {}",
+                "{text} {} · {} · reçu {} · capture source {source} · session source {} · position {epoch}/{} · observation {} / {}",
                 group.descriptor.unit,
                 quality(&group.quality),
                 utc(&point.state.received_at),
+                point.state.source_session,
                 point.position.sequence,
                 index + 1,
                 group.series.samples().len()
@@ -267,6 +268,40 @@ fn quality(value: &state::Quality) -> String {
         Known(state::Provenance::Unspecified) | Unknown(_) => "provenance non précisée",
     };
     format!("{availability} · {freshness} · {provenance}")
+}
+fn aggregation(
+    value: buffa::EnumValue<home_wire_contract::home::registry::v1::MeasurementAggregation>,
+) -> &'static str {
+    use buffa::EnumValue::{Known, Unknown};
+    use home_wire_contract::home::registry::v1::MeasurementAggregation as A;
+    match value {
+        Known(A::Current) => "valeur courante",
+        Known(A::Sum) => "somme serveur",
+        Known(A::Mean) => "moyenne serveur",
+        Known(A::Unspecified) | Unknown(_) => "agrégation non précisée",
+    }
+}
+fn semantic(
+    value: buffa::EnumValue<home_wire_contract::home::registry::v1::MeasurementSemantic>,
+) -> &'static str {
+    use buffa::EnumValue::{Known, Unknown};
+    use home_wire_contract::home::registry::v1::MeasurementSemantic as S;
+    match value {
+        Known(S::Measurement) => "mesure",
+        Known(S::Total) => "compteur cumulatif",
+        Known(S::TotalIncreasing) => "compteur croissant",
+        Known(S::Unspecified) | Unknown(_) => "interprétation non précisée",
+    }
+}
+fn axis(value: f64) -> String {
+    // Only approximate pixel coordinates are formatted here. Exact monetary
+    // source strings remain intact in the inspection readout.
+    if value.abs() >= 1000. || (value != 0. && value.abs() < 0.001) {
+        format!("≈ {value:.2e}")
+    } else {
+        let rounded = format!("{value:.3}");
+        format!("≈ {}", rounded.trim_end_matches('0').trim_end_matches('.'))
+    }
 }
 pub(super) fn render(window: &HomewardWindow, value: Projection) {
     // Delivery happens under the mailbox invalidation barrier. Check session
@@ -377,8 +412,8 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         window.set_history_frame_id(frame.id().generation());
         presentation.source_width = i32::from(bitmap.width());
         presentation.source_height = i32::from(bitmap.height());
-        presentation.y_top = format!("≈ {}", frame.request().values.max()).into();
-        presentation.y_bottom = format!("≈ {}", frame.request().values.min()).into();
+        presentation.y_top = axis(frame.request().values.max()).into();
+        presentation.y_bottom = axis(frame.request().values.min()).into();
     } else {
         window.set_history_frame_id(0);
     }
