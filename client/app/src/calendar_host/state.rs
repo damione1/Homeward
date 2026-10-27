@@ -14,6 +14,7 @@ pub(super) enum Status {
     Denied,
     Unsupported,
     Invalid,
+    TooLarge,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Open {
@@ -197,6 +198,19 @@ impl State {
         self.job = Some(job);
         self.busy = true;
         true
+    }
+    /// A Watch publication may supersede the visual generation while this read
+    /// is in flight. Drop its value, but release its own busy slot. Another
+    /// resource context owns a different slot and must remain untouched.
+    pub fn finish_read_job(&mut self, context: u64, generation: i32) -> bool {
+        if self.context != context {
+            return false;
+        }
+        self.busy = false;
+        self.generation == generation
+    }
+    pub fn owns_write(&self, context: u64) -> bool {
+        self.context == context && self.active && self.interactive && self.busy
     }
     pub fn snapshot(&mut self, snapshot: Arc<CalendarReadSnapshot>, source: Generation) {
         if self.selected.as_ref() != admit::calendar_id(&snapshot.calendar().id).as_ref() {

@@ -416,6 +416,7 @@ impl Calendars {
                     state.end = end.expect("checked civil end");
                     state.zone = c.into();
                     if state.query().is_some() {
+                        state.status = Status::Loading;
                         state.draft = None;
                         state.snapshot = None;
                         state.day = None;

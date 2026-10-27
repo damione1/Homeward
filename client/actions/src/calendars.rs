@@ -77,12 +77,16 @@ impl PreparedCalendarMutation {
             ),
         })
     }
+    /// `admission` checks eligibility until dispatch. `receipt_current` checks
+    /// the same operation's session/resource ownership after dispatch; it must
+    /// survive a Watch update caused by the mutation itself.
     pub async fn submit(
         self,
         api: &CalendarTransport,
         session: &SessionCoordinator,
         cancel: &CancellationToken,
         admission: AdmissionCheck,
+        receipt_current: AdmissionCheck,
     ) -> CalendarWriteOutcome {
         if cancel.is_cancelled() {
             return CalendarWriteOutcome::NotSent(NotSentReason::Cancelled);
@@ -100,6 +104,7 @@ impl PreparedCalendarMutation {
             cancel,
             &lease.cancellation,
             || session.is_current(lease.generation) && admission(),
+            || session.is_current(lease.generation) && receipt_current(),
         )
         .await;
         if let Some(failure) = result.failure {
@@ -162,6 +167,7 @@ async fn execute(
     cancel: &CancellationToken,
     access: &CancellationToken,
     admission: impl Fn() -> bool,
+    receipt_current: impl Fn() -> bool,
 ) -> Submission {
     let outcome = if cancel.is_cancelled() || access.is_cancelled() {
         CalendarWriteOutcome::NotSent(NotSentReason::Cancelled)
@@ -173,7 +179,10 @@ async fn execute(
          ()=access.cancelled()=>return Submission{outcome:CalendarWriteOutcome::CommitUnknown(UnknownReason::Superseded),failure:None},
          response=api.submit(&prepared.request)=>response,
         };
-        if cancel.is_cancelled() || access.is_cancelled() || !admission() {
+        // Watch may already contain this mutation's new revision. Its freshness
+        // and visual generation admit a new dispatch, not a receipt belonging
+        // to an operation that has already been dispatched.
+        if cancel.is_cancelled() || access.is_cancelled() || !receipt_current() {
             let failure = match response {
                 Err(SubmitFailure::Transport(failure)) => Some(failure),
                 Ok(_) | Err(SubmitFailure::Protocol) => None,

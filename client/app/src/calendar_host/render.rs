@@ -461,6 +461,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             Status::Denied => "Accès retiré",
             Status::Unsupported => "Interface calendrier indisponible",
             Status::Invalid => "Données calendrier non admises",
+            Status::TooLarge => "Réduisez la plage calendrier.",
         }
     } else {
         &value.notice

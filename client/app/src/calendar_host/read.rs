@@ -65,6 +65,13 @@ impl Calendars {
                 state.ready = false;
                 state.bump();
             }
+            Status::TooLarge => {
+                state.snapshot = None;
+                state.ready = false;
+                state.draft = None;
+                state.busy = false;
+                state.bump();
+            }
             Status::Loading | Status::Ready => return,
         }
         state.status = status;
@@ -72,6 +79,9 @@ impl Calendars {
             Status::Denied => "Accès retiré : calendriers et brouillons effacés.",
             Status::Unsupported => "Le serveur ne propose pas encore cette interface calendrier.",
             Status::Invalid => "Réponse calendrier non admise ; données retirées.",
+            Status::TooLarge => {
+                "Cette plage dépasse la limite de présentation. Réduisez les dates pour la relire."
+            }
             Status::Offline => "Hors ligne · copie datée conservée · aucune écriture rejouée.",
             Status::Loading | Status::Ready => "",
         }
@@ -199,7 +209,15 @@ impl Calendars {
                 let _ = session.observe_failure(lease.generation, &error).await;
                 self.failed(context, status);
             }
-            CalendarReadExit::Contract(_) => self.failed(context, Status::Invalid),
+            CalendarReadExit::Contract(admit::AdmissionError::Capacity) => {
+                self.failed(context, Status::TooLarge)
+            }
+            CalendarReadExit::Contract(
+                admit::AdmissionError::Invalid
+                | admit::AdmissionError::ForeignResource
+                | admit::AdmissionError::StaleRevision
+                | admit::AdmissionError::Sequence,
+            ) => self.failed(context, Status::Invalid),
             CalendarReadExit::Cancelled => {}
             CalendarReadExit::Ended | CalendarReadExit::Resync | CalendarReadExit::TimedOut => {
                 self.failed(context, Status::Offline)
@@ -220,9 +238,20 @@ impl Calendars {
                 let owner = self.clone();
                 let guard: home_client_actions::AdmissionCheck = Arc::new(move || {
                     let state = owner.0.state.lock().expect("calendar state");
-                    state.context == context && state.generation == generation && state.editable()
+                    state.owns_write(context) && state.generation == generation && state.editable()
                 });
-                let outcome = prepared.submit(&api, &session, &cancel, guard).await;
+                let owner = self.clone();
+                let receipt_current: home_client_actions::AdmissionCheck = Arc::new(move || {
+                    owner
+                        .0
+                        .state
+                        .lock()
+                        .expect("calendar state")
+                        .owns_write(context)
+                });
+                let outcome = prepared
+                    .submit(&api, &session, &cancel, guard, receipt_current)
+                    .await;
                 let mut state = self.0.state.lock().expect("calendar state");
                 if state.context != context {
                     return;
@@ -323,10 +352,10 @@ impl Calendars {
                     }
                 };
                 let mut state = self.0.state.lock().expect("calendar state");
-                if state.context != context || state.generation != generation {
+                if !state.finish_read_job(context, generation) {
+                    self.publish(&state);
                     return;
                 }
-                state.busy = false;
                 if state
                     .calendar()
                     .is_none_or(|calendar| calendar.revision != value.wire().calendar_revision)
@@ -380,10 +409,10 @@ impl Calendars {
                 match response {
                     Ok(response) => {
                         let mut state = self.0.state.lock().expect("calendar state");
-                        if state.context != context || state.generation != generation {
+                        if !state.finish_read_job(context, generation) {
+                            self.publish(&state);
                             return;
                         }
-                        state.busy = false;
                         if state.draft.as_mut().is_none_or(|draft| {
                             draft.resolve(boundary, &request, &response).is_err()
                         }) {
@@ -429,7 +458,9 @@ impl Calendars {
                     let _ = self.0.mailbox.invalidate();
                 }
                 let permitted = match state.status {
-                    Status::Denied | Status::Unsupported | Status::Invalid => false,
+                    Status::Denied | Status::Unsupported | Status::Invalid | Status::TooLarge => {
+                        false
+                    }
                     Status::Loading | Status::Ready | Status::Offline => true,
                 };
                 let active = matches!(view.phase, Phase::Ready | Phase::Refreshing)

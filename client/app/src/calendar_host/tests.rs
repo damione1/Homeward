@@ -5,6 +5,22 @@ use home_client_cache::calendars::CalendarCapture;
 use home_client_session::{SecureStore, StoreFailure};
 use slint::Model;
 
+#[test]
+fn a_superseded_read_releases_its_own_busy_slot_without_unlocking_another_context() {
+    let mut state = State {
+        busy: true,
+        ..Default::default()
+    };
+    let (context, generation) = (state.context, state.generation);
+    state.bump();
+    assert!(!state.finish_read_job(context, generation));
+    assert!(!state.busy);
+    state.busy = true;
+    state.reset_reads();
+    assert!(!state.finish_read_job(context, generation));
+    assert!(state.busy);
+}
+
 struct EmptyStore;
 impl SecureStore for EmptyStore {
     fn load(&self) -> Result<Option<zeroize::Zeroizing<Vec<u8>>>, StoreFailure> {
@@ -169,4 +185,18 @@ fn missing_authority_proof_clears_scalar_editor_fields_as_well_as_the_projection
     assert!(window.get_calendars_edit_summary().is_empty());
     assert!(window.get_calendars_edit_zone().is_empty());
     assert_eq!(window.get_calendars().rows.row_count(), 0);
+}
+
+#[test]
+fn an_inflight_write_owns_its_receipt_across_watch_updates_but_not_context_changes() {
+    let mut state = State::default();
+    ready(&mut state, &session());
+    state.busy = true;
+    let context = state.context;
+    assert!(state.owns_write(context));
+    state.ready = false;
+    state.bump();
+    assert!(state.owns_write(context));
+    state.reset_reads();
+    assert!(!state.owns_write(context));
 }

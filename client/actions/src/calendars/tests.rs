@@ -115,14 +115,14 @@ async fn cancellation_or_changed_admission_before_polling_never_dispatches() {
     let api = Fake::new(Reply::Committed);
     let cancel = CancellationToken::new();
     let access = CancellationToken::new();
-    let result = execute(&api, prepared(), &cancel, &access, || false).await;
+    let result = execute(&api, prepared(), &cancel, &access, || false, || true).await;
     assert!(matches!(
         result.outcome,
         CalendarWriteOutcome::NotSent(NotSentReason::AdmissionChanged)
     ));
     assert_eq!(api.calls.load(Ordering::SeqCst), 0);
     cancel.cancel();
-    let result = execute(&api, prepared(), &cancel, &access, || true).await;
+    let result = execute(&api, prepared(), &cancel, &access, || true, || true).await;
     assert!(matches!(
         result.outcome,
         CalendarWriteOutcome::NotSent(NotSentReason::Cancelled)
@@ -134,7 +134,7 @@ async fn an_uncertain_dispatched_write_is_consumed_once_and_never_replayed() {
     let api = Fake::new(Reply::Unknown);
     let cancel = CancellationToken::new();
     let access = CancellationToken::new();
-    let result = execute(&api, prepared(), &cancel, &access, || true).await;
+    let result = execute(&api, prepared(), &cancel, &access, || true, || true).await;
     assert!(matches!(
         result.outcome,
         CalendarWriteOutcome::CommitUnknown(_)
@@ -147,7 +147,7 @@ async fn an_uncertain_dispatched_write_is_consumed_once_and_never_replayed() {
         cancel.cancel()
     };
     let (result, ()) = tokio::join!(
-        execute(&api, prepared(), &cancel, &access, || true),
+        execute(&api, prepared(), &cancel, &access, || true, || true),
         canceler
     );
     assert!(matches!(
@@ -161,7 +161,7 @@ async fn a_receipt_from_another_resource_or_superseded_context_cannot_commit_the
     let cancel = CancellationToken::new();
     let access = CancellationToken::new();
     let api = Fake::new(Reply::ForeignReceipt);
-    let result = execute(&api, prepared(), &cancel, &access, || true).await;
+    let result = execute(&api, prepared(), &cancel, &access, || true, || true).await;
     assert!(matches!(
         result.outcome,
         CalendarWriteOutcome::CommitUnknown(UnknownReason::InvalidReceipt)
@@ -170,9 +170,14 @@ async fn a_receipt_from_another_resource_or_superseded_context_cannot_commit_the
     let guard = Arc::new(AtomicBool::new(true));
     let mut api = Fake::new(Reply::Committed);
     api.invalidate = Some(guard.clone());
-    let result = execute(&api, prepared(), &cancel, &access, || {
-        guard.load(Ordering::SeqCst)
-    })
+    let result = execute(
+        &api,
+        prepared(),
+        &cancel,
+        &access,
+        || true,
+        || guard.load(Ordering::SeqCst),
+    )
     .await;
     assert!(matches!(
         result.outcome,
@@ -180,7 +185,7 @@ async fn a_receipt_from_another_resource_or_superseded_context_cannot_commit_the
     ));
     assert_eq!(api.calls.load(Ordering::SeqCst), 1);
     let api = Fake::new(Reply::Committed);
-    let result = execute(&api, prepared(), &cancel, &access, || true).await;
+    let result = execute(&api, prepared(), &cancel, &access, || true, || true).await;
     assert!(matches!(result.outcome, CalendarWriteOutcome::Committed(_)));
 }
 #[test]
@@ -207,4 +212,23 @@ fn typed_conflict_and_uncertainty_require_the_corresponding_rpc_status() {
         classify(&failure(RpcCode::Aborted, EnumValue::Unknown(999))),
         CalendarWriteOutcome::CommitUnknown(UnknownReason::Protocol)
     ));
+}
+
+#[tokio::test]
+async fn watch_invalidating_new_dispatches_does_not_discard_an_owned_commit_receipt() {
+    let dispatch = Arc::new(AtomicBool::new(true));
+    let mut api = Fake::new(Reply::Committed);
+    api.invalidate = Some(dispatch.clone());
+    let result = execute(
+        &api,
+        prepared(),
+        &CancellationToken::new(),
+        &CancellationToken::new(),
+        || dispatch.load(Ordering::SeqCst),
+        || true,
+    )
+    .await;
+    assert!(!dispatch.load(Ordering::SeqCst));
+    assert!(matches!(result.outcome, CalendarWriteOutcome::Committed(_)));
+    assert_eq!(api.calls.load(Ordering::SeqCst), 1);
 }
