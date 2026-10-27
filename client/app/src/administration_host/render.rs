@@ -793,6 +793,10 @@ pub(super) struct Projection {
     fields: Vec<(String, String, bool)>,
     commands: Vec<forms::Command>,
     editor: Option<Editor>,
+    secret: Option<(
+        crate::administration::SecretKind,
+        zeroize::Zeroizing<String>,
+    )>,
 }
 struct Editor {
     title: &'static str,
@@ -851,6 +855,12 @@ impl Projection {
                 fields: draft.fields(),
                 choices: draft.choices(),
             }),
+            secret: state.private.secret_kind().zip(
+                state
+                    .private
+                    .secret()
+                    .map(|value| zeroize::Zeroizing::new(value.into())),
+            ),
         }
     }
 }
@@ -1021,6 +1031,33 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                 destructive: false,
             },
         ])));
+    }
+    if let Some((kind, secret)) = value.secret {
+        let label = match kind {
+            crate::administration::SecretKind::Invitation => "Jeton d’invitation",
+            crate::administration::SecretKind::McpKey => "Secret de la clé MCP",
+            crate::administration::SecretKind::RecoveryCodes => "Codes de secours",
+        };
+        window.set_admin_selected_token(1);
+        window.set_admin_editor_visible(true);
+        window.set_admin_editable(false);
+        window.set_admin_choices(ModelRc::default());
+        window.set_admin_editor_title(label.into());
+        window.set_admin_editor_notice("Conservez ce secret maintenant. Après fermeture, il ne sera plus affiché et ne pourra pas être relu depuis le serveur.".into());
+        window.set_admin_fields(ModelRc::new(VecModel::from(vec![ProAdminField {
+            token: 1,
+            label: label.into(),
+            description: "Affichage ponctuel lié à cette session".into(),
+            value: secret.as_str().into(),
+            kind: ProAdminFieldKind::Password,
+            editable: false,
+        }])));
+        window.set_admin_editor_actions(ModelRc::new(VecModel::from(vec![ProAdminActionRow {
+            action: ProAdminAction::CloseSecret,
+            label: "J’ai conservé le secret · fermer".into(),
+            enabled: true,
+            destructive: false,
+        }])));
     }
 }
 

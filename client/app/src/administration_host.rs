@@ -79,6 +79,7 @@ impl State {
     }
     fn request(&mut self) {
         self.private.dismiss_draft();
+        self.private.dismiss_secret();
         self.pending = None;
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
@@ -324,9 +325,10 @@ impl Administration {
             .find(|command| command.action() == action)
         {
             let context = state.private.context();
+            let section = command.section();
             if state
                 .private
-                .edit(context, Section::Accounts, forms::Draft::new(command))
+                .edit(context, section, forms::Draft::new(command))
                 .is_ok()
             {
                 state.bump();
@@ -395,26 +397,36 @@ impl Administration {
                 }
             }
             ProAdminAction::Cancel => state.request(),
+            ProAdminAction::CloseSecret => state.request(),
             ProAdminAction::Refresh
             | ProAdminAction::Create
             | ProAdminAction::Remove
             | ProAdminAction::More
             | ProAdminAction::Enable
             | ProAdminAction::Disable
-            | ProAdminAction::Revoke
-            | ProAdminAction::CloseSecret => return,
+            | ProAdminAction::Revoke => return,
         }
         self.retired(&state);
     }
-    fn written(&self, generation: i32, result: crate::administration::MutationState) {
+    fn written(&self, generation: i32, result: forms::Completion) {
         let mut state = self.0.state.lock().expect("admin state");
         if !self.current(&state, generation) || state.cancel.is_cancelled() {
             return;
         }
-        if result == crate::administration::MutationState::Published {
-            state.request();
+        if result.state == crate::administration::MutationState::Published {
+            if let Some((kind, value)) = result.secret {
+                let context = state.private.context();
+                if state.private.show_secret(context, kind, value).is_ok() {
+                    state.private.dismiss_draft();
+                    state.bump();
+                } else if let Some(draft) = state.private.draft_mut() {
+                    draft.complete(crate::administration::MutationState::Uncertain);
+                }
+            } else {
+                state.request();
+            }
         } else if let Some(draft) = state.private.draft_mut() {
-            draft.complete(result);
+            draft.complete(result.state);
         }
         self.retired(&state);
     }

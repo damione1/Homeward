@@ -26,6 +26,7 @@ mod environment_text;
 mod environment_view;
 pub mod history;
 mod history_host;
+mod invitation;
 mod list_host;
 mod list_state;
 pub mod media;

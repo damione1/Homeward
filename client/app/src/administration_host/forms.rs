@@ -1,16 +1,18 @@
-//! Account forms capture admitted identities. No row index, transport, or secret
-//! survives an editor/session replacement. Other settings forms extend this owner.
+//! Session-owned bounded forms. Protocol identifiers are captured from admitted
+//! data, every mutation is attempted once, and one-time secrets stay private.
+pub(super) mod scopes;
 use super::{Payload, ProAdminAction, State, render};
 use crate::{
     ProAdminChoice, ProAdminField, ProAdminFieldKind,
-    administration::{MutationState, Section},
+    administration::{MutationState, SecretKind, Section, Stage},
 };
 use home_client_session::{Generation, SessionCoordinator};
 use home_client_transport::{Connection, FailureKind, RpcCode};
 use home_wire_contract::{
-    auth_contract::{self, AccountId},
+    auth_contract::{self, AccountId, InvitationId, McpKeyId},
     home::auth::v1 as auth,
 };
+use scopes::ScopeChoice;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
@@ -21,8 +23,54 @@ pub(super) enum Field {
     Login = 1,
     Name = 2,
     Password = 3,
+    ClientName = 4,
+    Days = 5,
+}
+impl Field {
+    fn parse(value: i32) -> Option<Self> {
+        match value {
+            1 => Some(Self::Login),
+            2 => Some(Self::Name),
+            3 => Some(Self::Password),
+            4 => Some(Self::ClientName),
+            5 => Some(Self::Days),
+            _ => None,
+        }
+    }
+    fn label(self) -> &'static str {
+        match self {
+            Self::Login => "Identifiant de connexion",
+            Self::Name => "Nom affiché",
+            Self::Password => "Mot de passe initial",
+            Self::ClientName => "Nom du client MCP",
+            Self::Days => "Validité en jours",
+        }
+    }
+    fn limit(self) -> usize {
+        match self {
+            Self::Login | Self::Name => 256,
+            Self::ClientName => 128,
+            Self::Password => 4096,
+            Self::Days => 3,
+        }
+    }
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(i32)]
+pub(super) enum ChoiceField {
     Role = 10,
     Status = 11,
+    Scope = 12,
+}
+impl ChoiceField {
+    fn parse(value: i32) -> Option<Self> {
+        match value {
+            10 => Some(Self::Role),
+            11 => Some(Self::Status),
+            12 => Some(Self::Scope),
+            _ => None,
+        }
+    }
 }
 #[derive(Clone, Copy)]
 #[repr(i32)]
@@ -43,45 +91,31 @@ impl Choice {
         }
     }
 }
-impl Field {
-    fn parse(value: i32) -> Option<Self> {
-        match value {
-            1 => Some(Self::Login),
-            2 => Some(Self::Name),
-            3 => Some(Self::Password),
-            10 => Some(Self::Role),
-            11 => Some(Self::Status),
-            _ => None,
-        }
-    }
-    fn label(self) -> &'static str {
-        match self {
-            Self::Login => "Identifiant de connexion",
-            Self::Name => "Nom affiché",
-            Self::Password => "Mot de passe initial",
-            Self::Role => "Rôle",
-            Self::Status => "État du compte",
-        }
-    }
-    fn limit(self) -> usize {
-        match self {
-            Self::Login | Self::Name | Self::Role | Self::Status => 256,
-            Self::Password => 4096,
-        }
-    }
-}
+
 #[derive(Clone)]
 pub(super) enum Command {
     Create,
     Update(auth::Account),
     Delete(AccountId),
+    Invite,
+    RevokeInvitation(InvitationId),
+    CreateMcp,
+    RevokeMcp(McpKeyId),
 }
 impl Command {
+    pub fn section(&self) -> Section {
+        match self {
+            Self::Create | Self::Update(_) | Self::Delete(_) => Section::Accounts,
+            Self::Invite | Self::RevokeInvitation(_) => Section::Invitations,
+            Self::CreateMcp | Self::RevokeMcp(_) => Section::McpKeys,
+        }
+    }
     pub fn action(&self) -> ProAdminAction {
         match self {
-            Self::Create => ProAdminAction::Create,
+            Self::Create | Self::Invite | Self::CreateMcp => ProAdminAction::Create,
             Self::Update(_) => ProAdminAction::Save,
             Self::Delete(_) => ProAdminAction::Remove,
+            Self::RevokeInvitation(_) | Self::RevokeMcp(_) => ProAdminAction::Revoke,
         }
     }
     pub fn label(&self) -> &'static str {
@@ -89,36 +123,100 @@ impl Command {
             Self::Create => "Créer un compte",
             Self::Update(_) => "Modifier le compte",
             Self::Delete(_) => "Supprimer le compte",
+            Self::Invite => "Créer une invitation",
+            Self::RevokeInvitation(_) => "Révoquer l’invitation",
+            Self::CreateMcp => "Créer une clé MCP",
+            Self::RevokeMcp(_) => "Révoquer la clé MCP",
         }
     }
     pub fn destructive(&self) -> bool {
-        matches!(self, Self::Delete(_))
+        matches!(
+            self,
+            Self::Delete(_) | Self::RevokeInvitation(_) | Self::RevokeMcp(_)
+        )
+    }
+    fn input_fields(&self) -> &'static [Field] {
+        match self {
+            Self::Create => &[Field::Login, Field::Name, Field::Password],
+            Self::Update(_) => &[Field::Name],
+            Self::Invite => &[Field::Login, Field::Days],
+            Self::CreateMcp => &[Field::ClientName, Field::Days],
+            Self::Delete(_) | Self::RevokeInvitation(_) | Self::RevokeMcp(_) => &[],
+        }
+    }
+    fn role_choices(&self) -> bool {
+        matches!(self, Self::Create | Self::Update(_) | Self::Invite)
     }
 }
 pub(super) fn available(state: &State) -> Vec<Command> {
-    if state.section != Section::Accounts
-        || state.stage != crate::administration::Stage::Ready
-            && state.stage != crate::administration::Stage::Empty
-        || !state
-            .private
-            .authority()
-            .is_some_and(|value| value.administrator())
+    if !matches!(state.stage, Stage::Ready | Stage::Empty)
         || state.private.draft().is_some()
+        || state.private.secret().is_some()
     {
         return Vec::new();
     }
-    let mut result = vec![Command::Create];
-    if let Some(render::Target::Account(id)) = &state.selected
-        && let Some(Payload::Accounts(accounts)) = state
-            .private
-            .pane(Section::Accounts)
-            .and_then(|pane| pane.content.as_ref())
-        && let Some(account) = accounts
-            .iter()
-            .find(|account| account.id.value == id.as_str())
-    {
-        result.push(Command::Update(account.clone()));
-        result.push(Command::Delete(id.clone()));
+    let Some(authority) = state.private.authority() else {
+        return Vec::new();
+    };
+    if state.section.administrative() && !authority.administrator() {
+        return Vec::new();
+    }
+    let mut result = Vec::new();
+    match state.section {
+        Section::Accounts => {
+            result.push(Command::Create);
+            if let Some(render::Target::Account(id)) = &state.selected
+                && let Some(Payload::Accounts(accounts)) = state
+                    .private
+                    .pane(Section::Accounts)
+                    .and_then(|pane| pane.content.as_ref())
+                && let Some(account) = accounts
+                    .iter()
+                    .find(|account| account.id.value == id.as_str())
+            {
+                result.push(Command::Update(account.clone()));
+                result.push(Command::Delete(id.clone()));
+            }
+        }
+        Section::Invitations => {
+            result.push(Command::Invite);
+            if let Some(render::Target::Invitation(id)) = &state.selected
+                && let Some(Payload::Invitations(rows)) = state
+                    .private
+                    .pane(Section::Invitations)
+                    .and_then(|pane| pane.content.as_ref())
+                && rows.iter().any(|row| {
+                    row.id.value == id.as_str()
+                        && !row.revoked_at.is_set()
+                        && !row.accepted_at.is_set()
+                })
+            {
+                result.push(Command::RevokeInvitation(id.clone()));
+            }
+        }
+        Section::McpKeys => {
+            result.push(Command::CreateMcp);
+            if let Some(render::Target::Key(id)) = &state.selected
+                && let Some(Payload::Keys(rows)) = state
+                    .private
+                    .pane(Section::McpKeys)
+                    .and_then(|pane| pane.content.as_ref())
+                && rows
+                    .iter()
+                    .any(|row| row.id.value == id.as_str() && !row.revoked_at.is_set())
+            {
+                result.push(Command::RevokeMcp(id.clone()));
+            }
+        }
+        Section::Account
+        | Section::Sessions
+        | Section::Factors
+        | Section::Policies
+        | Section::Integrations
+        | Section::Health
+        | Section::Metrics
+        | Section::Logs
+        | Section::Audits => (),
     }
     result
 }
@@ -127,37 +225,46 @@ pub(super) struct Draft {
     login: Zeroizing<String>,
     name: Zeroizing<String>,
     password: Zeroizing<String>,
+    client_name: Zeroizing<String>,
+    days: Zeroizing<String>,
     role: auth::AccountRole,
     status: auth::AccountStatus,
+    scopes: Vec<ScopeChoice>,
     pub state: MutationState,
     pub notice: &'static str,
 }
 impl Draft {
     pub fn new(command: Command) -> Self {
-        let mut draft = Self {
+        let mut value = Self {
             command,
             login: Zeroizing::new(String::new()),
             name: Zeroizing::new(String::new()),
             password: Zeroizing::new(String::new()),
+            client_name: Zeroizing::new(String::new()),
+            days: Zeroizing::new("7".into()),
             role: auth::AccountRole::User,
             status: auth::AccountStatus::Active,
+            scopes: Vec::new(),
             state: MutationState::Draft,
-            notice: "Les droits sont appliqués par le serveur. Confirmez explicitement l’enregistrement.",
+            notice: "Rien n’est envoyé avant votre confirmation. Les droits sont appliqués par le serveur.",
         };
-        if let Command::Update(account) = &draft.command {
-            draft.login = Zeroizing::new(account.login_name.clone());
-            draft.name = Zeroizing::new(account.display_name.clone());
-            draft.role = auth_contract::admit_role(account.role).expect("admitted role");
-            draft.status = match account.status {
+        if let Command::Update(account) = &value.command {
+            value.login = Zeroizing::new(account.login_name.clone());
+            value.name = Zeroizing::new(account.display_name.clone());
+            value.role = auth_contract::admit_role(account.role).expect("admitted role");
+            value.status = match account.status {
                 buffa::EnumValue::Known(value) => value,
                 buffa::EnumValue::Unknown(_) => unreachable!("admitted status"),
             };
         }
-        if matches!(draft.command, Command::Delete(_)) {
-            draft.notice =
-                "Cette suppression est définitive. Le serveur protège le dernier administrateur.";
+        if value.command.destructive() {
+            value.notice = "Cette révocation ou suppression doit être confirmée. Le serveur protège les invariants d’accès.";
         }
-        draft
+        if matches!(value.command, Command::CreateMcp) {
+            value.days = Zeroizing::new("30".into());
+            value.notice = "Sélectionnez les permissions maximales de cette clé. Elles n’ajoutent aucun droit à votre compte. Le secret sera affiché une seule fois.";
+        }
+        value
     }
     pub fn title(&self) -> &'static str {
         self.command.label()
@@ -168,6 +275,19 @@ impl Draft {
     pub fn editable(&self) -> bool {
         matches!(self.state, MutationState::Draft | MutationState::Rejected)
     }
+    fn value(&self, field: Field) -> &str {
+        match field {
+            Field::Login => &self.login,
+            Field::Name => &self.name,
+            Field::Password => &self.password,
+            Field::ClientName => &self.client_name,
+            Field::Days => &self.days,
+        }
+    }
+    fn modified(&mut self) {
+        self.state = MutationState::Draft;
+        self.notice = "Brouillon modifié ; rien n’est envoyé avant confirmation.";
+    }
     pub fn edit(&mut self, token: i32, value: String) {
         if !self.editable() {
             return;
@@ -175,85 +295,103 @@ impl Draft {
         let Some(field) = Field::parse(token) else {
             return;
         };
+        if !self.command.input_fields().contains(&field) {
+            return;
+        }
         if value.len() > field.limit() || value.contains('\0') {
             self.notice = "La valeur dépasse la limite autorisée.";
             return;
         }
-        match (&self.command, field) {
-            (Command::Create, Field::Login) => self.login = Zeroizing::new(value),
-            (Command::Create | Command::Update(_), Field::Name) => {
-                self.name = Zeroizing::new(value)
-            }
-            (Command::Create, Field::Password) => self.password = Zeroizing::new(value),
-            (Command::Update(_), Field::Login | Field::Password)
-            | (Command::Delete(_), Field::Login | Field::Name | Field::Password)
-            | (
-                Command::Create | Command::Update(_) | Command::Delete(_),
-                Field::Role | Field::Status,
-            ) => return,
+        let value = Zeroizing::new(value);
+        match field {
+            Field::Login => self.login = value,
+            Field::Name => self.name = value,
+            Field::Password => self.password = value,
+            Field::ClientName => self.client_name = value,
+            Field::Days => self.days = value,
         }
-        self.state = MutationState::Draft;
-        self.notice = "Brouillon modifié ; rien n’est envoyé avant confirmation.";
+        self.modified();
     }
     pub fn choose(&mut self, field: i32, option: i32) {
-        if !self.editable() || matches!(self.command, Command::Delete(_)) {
+        if !self.editable() {
             return;
         }
-        let (Some(field), Some(option)) = (Field::parse(field), Choice::parse(option)) else {
+        let Some(field) = ChoiceField::parse(field) else {
             return;
         };
-        match option {
-            Choice::User => {
-                if field != Field::Role {
+        match field {
+            ChoiceField::Scope => {
+                if !matches!(self.command, Command::CreateMcp) {
                     return;
                 }
-                self.role = auth::AccountRole::User;
+                let Some(value) = ScopeChoice::parse(option) else {
+                    return;
+                };
+                if let Some(index) = self.scopes.iter().position(|scope| *scope == value) {
+                    self.scopes.remove(index);
+                } else {
+                    self.scopes.push(value);
+                }
             }
-            Choice::Admin => {
-                if field != Field::Role {
+            ChoiceField::Role | ChoiceField::Status => {
+                let Some(option) = Choice::parse(option) else {
                     return;
+                };
+                match option {
+                    Choice::User => {
+                        if field != ChoiceField::Role || !self.command.role_choices() {
+                            return;
+                        }
+                        self.role = auth::AccountRole::User;
+                    }
+                    Choice::Admin => {
+                        if field != ChoiceField::Role || !self.command.role_choices() {
+                            return;
+                        }
+                        self.role = auth::AccountRole::Admin;
+                    }
+                    Choice::Active => {
+                        if field != ChoiceField::Status
+                            || !matches!(self.command, Command::Update(_))
+                        {
+                            return;
+                        }
+                        self.status = auth::AccountStatus::Active;
+                    }
+                    Choice::Disabled => {
+                        if field != ChoiceField::Status
+                            || !matches!(self.command, Command::Update(_))
+                        {
+                            return;
+                        }
+                        self.status = auth::AccountStatus::Disabled;
+                    }
                 }
-                self.role = auth::AccountRole::Admin;
-            }
-            Choice::Active => {
-                if field != Field::Status || !matches!(self.command, Command::Update(_)) {
-                    return;
-                }
-                self.status = auth::AccountStatus::Active;
-            }
-            Choice::Disabled => {
-                if field != Field::Status || !matches!(self.command, Command::Update(_)) {
-                    return;
-                }
-                self.status = auth::AccountStatus::Disabled;
             }
         }
-        self.state = MutationState::Draft;
-        self.notice = "Brouillon modifié ; rien n’est envoyé avant confirmation.";
+        self.modified();
     }
     pub fn fields(&self) -> Vec<ProAdminField> {
-        let fields = match &self.command {
-            Command::Create => vec![
-                (Field::Login, &self.login),
-                (Field::Name, &self.name),
-                (Field::Password, &self.password),
-            ],
-            Command::Update(_) => vec![(Field::Name, &self.name)],
-            Command::Delete(_) => Vec::new(),
-        };
-        fields
-            .into_iter()
-            .map(|(field, value)| ProAdminField {
+        self.command
+            .input_fields()
+            .iter()
+            .map(|&field| ProAdminField {
                 token: field as i32,
                 label: field.label().into(),
-                description: if matches!(field, Field::Password) {
-                    "Le mot de passe n’est jamais relu depuis le serveur."
-                } else {
-                    ""
+                description: match field {
+                    Field::Password => "Le mot de passe n’est jamais relu depuis le serveur.",
+                    Field::Days => {
+                        if matches!(self.command, Command::CreateMcp) {
+                            "De 1 à 365 jours."
+                        } else {
+                            "De 1 à 30 jours."
+                        }
+                    }
+                    Field::Login | Field::Name | Field::ClientName => "",
                 }
                 .into(),
-                value: value.as_str().into(),
-                kind: if matches!(field, Field::Password) {
+                value: self.value(field).into(),
+                kind: if field == Field::Password {
                     ProAdminFieldKind::Password
                 } else {
                     ProAdminFieldKind::Plain
@@ -263,42 +401,61 @@ impl Draft {
             .collect()
     }
     pub fn choices(&self) -> Vec<ProAdminChoice> {
-        if matches!(self.command, Command::Delete(_)) {
-            return Vec::new();
+        let mut result = Vec::new();
+        if self.command.role_choices() {
+            result.extend(
+                [
+                    (
+                        Choice::User,
+                        "Utilisateur",
+                        self.role == auth::AccountRole::User,
+                    ),
+                    (
+                        Choice::Admin,
+                        "Administrateur",
+                        self.role == auth::AccountRole::Admin,
+                    ),
+                ]
+                .map(|(choice, label, selected)| ProAdminChoice {
+                    token: choice as i32,
+                    field_token: ChoiceField::Role as i32,
+                    label: label.into(),
+                    selected,
+                    enabled: self.editable(),
+                }),
+            );
         }
-        let mut result = vec![
-            ProAdminChoice {
-                token: Choice::User as i32,
-                field_token: Field::Role as i32,
-                label: "Utilisateur".into(),
-                selected: self.role == auth::AccountRole::User,
-                enabled: self.editable(),
-            },
-            ProAdminChoice {
-                token: Choice::Admin as i32,
-                field_token: Field::Role as i32,
-                label: "Administrateur".into(),
-                selected: self.role == auth::AccountRole::Admin,
-                enabled: self.editable(),
-            },
-        ];
         if matches!(self.command, Command::Update(_)) {
-            result.extend([
-                ProAdminChoice {
-                    token: Choice::Active as i32,
-                    field_token: Field::Status as i32,
-                    label: "Compte actif".into(),
-                    selected: self.status == auth::AccountStatus::Active,
+            result.extend(
+                [
+                    (
+                        Choice::Active,
+                        "Compte actif",
+                        self.status == auth::AccountStatus::Active,
+                    ),
+                    (
+                        Choice::Disabled,
+                        "Compte désactivé",
+                        self.status == auth::AccountStatus::Disabled,
+                    ),
+                ]
+                .map(|(choice, label, selected)| ProAdminChoice {
+                    token: choice as i32,
+                    field_token: ChoiceField::Status as i32,
+                    label: label.into(),
+                    selected,
                     enabled: self.editable(),
-                },
-                ProAdminChoice {
-                    token: Choice::Disabled as i32,
-                    field_token: Field::Status as i32,
-                    label: "Compte désactivé".into(),
-                    selected: self.status == auth::AccountStatus::Disabled,
-                    enabled: self.editable(),
-                },
-            ]);
+                }),
+            );
+        }
+        if matches!(self.command, Command::CreateMcp) {
+            result.extend(ScopeChoice::all().map(|(token, scope)| ProAdminChoice {
+                token,
+                field_token: ChoiceField::Scope as i32,
+                label: scope.label().into(),
+                selected: self.scopes.contains(&scope),
+                enabled: self.editable(),
+            }));
         }
         result
     }
@@ -306,18 +463,39 @@ impl Draft {
         if self.state != MutationState::Draft {
             return None;
         }
-        if !matches!(self.command, Command::Delete(_))
-            && (self.name.len() > 256 || self.name.contains(['\r', '\n']))
-        {
-            self.notice = "Le nom affiché est invalide.";
+        if self.command.input_fields().iter().any(|&field| {
+            self.value(field).contains('\0') || self.value(field).len() > field.limit()
+        }) {
             return None;
         }
+        if self.name.contains(['\r', '\n'])
+            || self.login.contains(['\r', '\n'])
+            || self.client_name.contains(['\r', '\n'])
+        {
+            self.notice = "La valeur contient un retour à la ligne interdit.";
+            return None;
+        }
+        let days = if matches!(self.command, Command::Invite | Command::CreateMcp) {
+            let maximum = if matches!(self.command, Command::Invite) {
+                30
+            } else {
+                365
+            };
+            let Ok(days) = self.days.parse::<i64>() else {
+                self.notice = "Saisissez une validité en jours entiers.";
+                return None;
+            };
+            if !(1..=maximum).contains(&days) {
+                self.notice = "La validité est hors de la plage autorisée.";
+                return None;
+            }
+            days
+        } else {
+            0
+        };
         let operation = match &self.command {
             Command::Create => {
-                if self.login.trim().is_empty()
-                    || self.login.contains(['\r', '\n'])
-                    || self.password.is_empty()
-                {
+                if self.login.trim().is_empty() || self.password.is_empty() {
                     self.notice = "Renseignez l’identifiant et le mot de passe initial.";
                     return None;
                 }
@@ -344,6 +522,64 @@ impl Draft {
                 .into(),
                 ..Default::default()
             }),
+            Command::Invite => {
+                if self.login.trim().is_empty() {
+                    self.notice = "Renseignez l’identifiant du compte invité.";
+                    return None;
+                }
+                Operation::Invite(auth::CreateInvitationRequest {
+                    login_name: self.login.to_string(),
+                    role: self.role.into(),
+                    expires_at: buffa_types::google::protobuf::Timestamp {
+                        seconds: chrono::Utc::now().timestamp() + days * 86400,
+                        nanos: 0,
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                })
+            }
+            Command::RevokeInvitation(id) => {
+                Operation::RevokeInvitation(auth::RevokeInvitationRequest {
+                    invitation_id: auth::InvitationId {
+                        value: id.as_str().into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                })
+            }
+            Command::CreateMcp => {
+                if self.client_name.trim().is_empty() || self.scopes.is_empty() {
+                    self.notice =
+                        "Renseignez le client et sélectionnez au moins une permission maximale.";
+                    return None;
+                }
+                let request = auth::CreateMcpKeyRequest {
+                    client_name: self.client_name.to_string(),
+                    scopes: self.scopes.iter().copied().map(ScopeChoice::wire).collect(),
+                    lifetime: buffa_types::google::protobuf::Duration {
+                        seconds: days * 86400,
+                        nanos: 0,
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                };
+                if auth_contract::admit_mcp_create_request(&request).is_err() {
+                    self.notice = "Le plafond de permissions ou la validité est invalide.";
+                    return None;
+                }
+                Operation::CreateMcp(request)
+            }
+            Command::RevokeMcp(id) => Operation::RevokeMcp(auth::RevokeMcpKeyRequest {
+                key_id: auth::McpKeyId {
+                    value: id.as_str().into(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }),
         };
         self.state = MutationState::InFlight;
         self.notice = "Enregistrement en cours…";
@@ -358,7 +594,7 @@ impl Draft {
                 "Le serveur a refusé la modification. Corrigez le brouillon avant de confirmer à nouveau."
             }
             MutationState::Conflict => {
-                "Le compte a changé. Rechargez les données avant de préparer une nouvelle modification."
+                "Les données ont changé. Rechargez-les avant de préparer une nouvelle modification."
             }
             MutationState::Uncertain => {
                 "Résultat inconnu : aucune nouvelle tentative automatique. Rechargez la liste pour vérifier le résultat."
@@ -374,6 +610,38 @@ pub(super) enum Operation {
     Create(auth::CreateAccountRequest),
     Update(auth::UpdateAccountRequest),
     Delete(auth::DeleteAccountRequest),
+    Invite(auth::CreateInvitationRequest),
+    RevokeInvitation(auth::RevokeInvitationRequest),
+    CreateMcp(auth::CreateMcpKeyRequest),
+    RevokeMcp(auth::RevokeMcpKeyRequest),
+}
+pub(super) struct Completion {
+    pub state: MutationState,
+    pub secret: Option<(SecretKind, Zeroizing<String>)>,
+}
+impl Completion {
+    fn state(state: MutationState) -> Self {
+        Self {
+            state,
+            secret: None,
+        }
+    }
+    fn published(valid: bool) -> Self {
+        Self::state(if valid {
+            MutationState::Published
+        } else {
+            MutationState::Uncertain
+        })
+    }
+    fn secret(kind: SecretKind, value: Zeroizing<String>) -> Self {
+        if value.is_empty() || value.len() > 4096 || value.contains(['\0', '\r', '\n']) {
+            return Self::state(MutationState::Uncertain);
+        }
+        Self {
+            state: MutationState::Published,
+            secret: Some((kind, value)),
+        }
+    }
 }
 pub(super) async fn execute(
     session: &SessionCoordinator,
@@ -381,44 +649,101 @@ pub(super) async fn execute(
     expected: Generation,
     operation: Operation,
     cancel: &CancellationToken,
-) -> MutationState {
+) -> Completion {
     let Ok(lease) = super::read::admitted_lease(session, expected, cancel).await else {
-        return MutationState::Uncertain;
+        return Completion::state(MutationState::Uncertain);
     };
-    let client = connection.accounts();
-    macro_rules! call {($method:ident,$request:expr)=>{{
-        let response=tokio::select!{biased;()=lease.cancellation.cancelled()=>return MutationState::Uncertain,result=client.$method($request,lease.token(),Duration::from_secs(4),cancel)=>result};
-        match response{Ok(value)=>value,Err(error)=>{let _=session.observe_failure(lease.generation,&error).await;return match error.kind(){
-            // Connect's ErrorCode is explicitly open/non-exhaustive. Unknown
-            // future codes are uncertain, never permission to replay a write.
+    macro_rules! call {($client:expr,$method:ident,$request:expr)=>{{
+        let client=$client;
+        let response=tokio::select!{biased;()=lease.cancellation.cancelled()=>return Completion::state(MutationState::Uncertain),result=client.$method($request,lease.token(),Duration::from_secs(4),cancel)=>result};
+        match response{Ok(value)=>value,Err(error)=>{let _=session.observe_failure(lease.generation,&error).await;return Completion::state(match error.kind(){
+            // Connect ErrorCode is open. Future codes are uncertain, never retryable.
             FailureKind::Rpc(code)=>if matches!(code,RpcCode::InvalidArgument|RpcCode::PermissionDenied|RpcCode::FailedPrecondition){MutationState::Rejected}else if matches!(code,RpcCode::AlreadyExists|RpcCode::Aborted){MutationState::Conflict}else{MutationState::Uncertain},
             FailureKind::InvalidConfiguration|FailureKind::UntrustedCertificate|FailureKind::WrongServerName|FailureKind::TlsRejected|FailureKind::NetworkInterrupted|FailureKind::Deadline|FailureKind::Cancelled=>MutationState::Uncertain,
-        };}}
+        });}}
     }}}
-    let valid = match operation {
+    match operation {
         Operation::Create(request) => {
-            let response = call!(create_account, request);
-            response.__buffa_unknown_fields.is_empty()
-                && response
-                    .account
-                    .as_option()
-                    .is_some_and(|account| auth_contract::admit_account(account).is_ok())
+            let login = request.login_name.clone();
+            let response = call!(connection.accounts(), create_account, request);
+            Completion::published(
+                response.__buffa_unknown_fields.is_empty()
+                    && response.account.as_option().is_some_and(|account| {
+                        auth_contract::admit_account(account).is_ok() && account.login_name == login
+                    }),
+            )
         }
         Operation::Update(request) => {
             let id = request.account_id.value.clone();
-            let response = call!(update_account, request);
-            response.__buffa_unknown_fields.is_empty()
-                && response.account.as_option().is_some_and(|account| {
-                    auth_contract::admit_account(account).is_ok() && account.id.value == id
-                })
+            let response = call!(connection.accounts(), update_account, request);
+            Completion::published(
+                response.__buffa_unknown_fields.is_empty()
+                    && response.account.as_option().is_some_and(|account| {
+                        auth_contract::admit_account(account).is_ok() && account.id.value == id
+                    }),
+            )
         }
-        Operation::Delete(request) => call!(delete_account, request)
-            .__buffa_unknown_fields
-            .is_empty(),
-    };
-    if valid {
-        MutationState::Published
-    } else {
-        MutationState::Uncertain
+        Operation::Delete(request) => Completion::published(
+            call!(connection.accounts(), delete_account, request)
+                .__buffa_unknown_fields
+                .is_empty(),
+        ),
+        Operation::Invite(request) => {
+            let login = request.login_name.clone();
+            let role = request.role;
+            let response = call!(connection.accounts(), create_invitation, request);
+            let secret = Zeroizing::new(response.invitation_token);
+            if !response.__buffa_unknown_fields.is_empty()
+                || !response.invitation.as_option().is_some_and(|invitation| {
+                    auth_contract::admit_invitation_metadata(invitation).is_ok()
+                        && invitation.login_name == login
+                        && invitation.role == role
+                        && !invitation.accepted_at.is_set()
+                        && !invitation.revoked_at.is_set()
+                })
+            {
+                return Completion::state(MutationState::Uncertain);
+            }
+            Completion::secret(SecretKind::Invitation, secret)
+        }
+        Operation::RevokeInvitation(request) => Completion::published(
+            call!(connection.accounts(), revoke_invitation, request)
+                .__buffa_unknown_fields
+                .is_empty(),
+        ),
+        Operation::CreateMcp(request) => {
+            let name = request.client_name.clone();
+            let scopes = request.scopes.clone();
+            let response = call!(connection.mcp_keys(), create_mcp_key, request);
+            let secret = Zeroizing::new(response.secret);
+            let now = chrono::Utc::now();
+            let now = buffa_types::google::protobuf::Timestamp {
+                seconds: now.timestamp(),
+                nanos: now.timestamp_subsec_nanos() as i32,
+                ..Default::default()
+            };
+            if !response.__buffa_unknown_fields.is_empty()
+                || !response.key.as_option().is_some_and(|key| {
+                    auth_contract::admit_mcp_key(key, &now).is_ok()
+                        && auth_contract::admit_mcp_key_metadata(key).is_ok()
+                        && key.account_id.value == lease.account_id().as_str()
+                        && key.client_name == name
+                        && key.scopes.len() == scopes.len()
+                        && scopes.iter().all(|scope| {
+                            key.scopes.iter().any(|value| {
+                                value.family == scope.family && value.operation == scope.operation
+                            })
+                        })
+                })
+            {
+                return Completion::state(MutationState::Uncertain);
+            }
+            Completion::secret(SecretKind::McpKey, secret)
+        }
+        Operation::RevokeMcp(request) => Completion::published(
+            call!(connection.mcp_keys(), revoke_mcp_key, request)
+                .__buffa_unknown_fields
+                .is_empty(),
+        ),
     }
 }

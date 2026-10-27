@@ -65,11 +65,13 @@ async fn until(owner: &Administration, label: &str, predicate: impl Fn(&State) -
     .unwrap_or_else(|_| {
         let state = owner.0.state.lock().unwrap();
         panic!(
-            "administration {label}: section={:?} stage={:?} active={} rows={}",
+            "administration {label}: section={:?} stage={:?} active={} rows={} mutation={:?} secret_present={}",
             state.section,
             state.stage,
             state.active,
-            state.rows.len()
+            state.rows.len(),
+            state.private.draft().map(|draft|draft.state),
+            state.private.secret().is_some(),
         );
     });
 }
@@ -163,6 +165,226 @@ async fn account_forms(owner: &Administration) {
     )
     .await;
 }
+async fn create_invitation(owner: &Administration, login: &str) -> Zeroizing<String> {
+    section(owner, Section::Invitations).await;
+    owner.action(0, generation(owner), ProAdminAction::Create);
+    owner.edit(
+        1,
+        generation(owner),
+        forms::Field::Login as i32,
+        login.into(),
+    );
+    owner.editor_action(1, generation(owner), ProAdminAction::Save);
+    until(owner, "one-time invitation secret", |state| {
+        state.private.secret_kind() == Some(crate::administration::SecretKind::Invitation)
+            && state.private.secret().is_some()
+    })
+    .await;
+    let secret = Zeroizing::new(
+        owner
+            .0
+            .state
+            .lock()
+            .unwrap()
+            .private
+            .secret()
+            .unwrap()
+            .to_owned(),
+    );
+    owner.editor_action(1, generation(owner), ProAdminAction::CloseSecret);
+    assert!(owner.0.state.lock().unwrap().private.secret().is_none());
+    until(owner, "invitation metadata after secret closure", ready).await;
+    secret
+}
+async fn invitation_forms(owner: &Administration, connection: &Connection) {
+    let cancel = CancellationToken::new();
+    let token = create_invitation(owner, "NHF018 invited").await;
+    let outcome = crate::invitation::accept(
+        &connection.accounts(),
+        crate::invitation::Request {
+            token,
+            password: Zeroizing::new("NHF018 invited synthetic password".into()),
+            display_name: "Invited person".into(),
+        },
+        &cancel,
+    )
+    .await;
+    match outcome {
+        crate::invitation::Outcome::Accepted { login } => assert_eq!(login, "NHF018 invited"),
+        crate::invitation::Outcome::Rejected
+        | crate::invitation::Outcome::Uncertain
+        | crate::invitation::Outcome::Cancelled => panic!("anonymous invitation acceptance failed"),
+    }
+    let invited = SessionCoordinator::new(connection.auth(), Arc::new(MemoryStore::default()));
+    login(
+        &invited,
+        &Credentials {
+            login_name: "NHF018 invited".into(),
+            password: "NHF018 invited synthetic password".into(),
+        },
+    )
+    .await;
+    invited.logout().await.unwrap();
+    let token = create_invitation(owner, "NHF018 revoked invitation").await;
+    let row_token = {
+        let state = owner.0.state.lock().unwrap();
+        let Some(Payload::Invitations(rows)) = state
+            .private
+            .pane(Section::Invitations)
+            .unwrap()
+            .content
+            .as_ref()
+        else {
+            unreachable!()
+        };
+        let id = &rows
+            .iter()
+            .find(|row| row.login_name == "NHF018 revoked invitation")
+            .unwrap()
+            .id
+            .value;
+        state
+            .rows
+            .iter()
+            .find(
+                |row| matches!(&row.target,render::Target::Invitation(value) if value.as_str()==id),
+            )
+            .unwrap()
+            .token
+    };
+    owner.select(row_token, generation(owner));
+    owner.action(0, generation(owner), ProAdminAction::Revoke);
+    owner.editor_action(1, generation(owner), ProAdminAction::Save);
+    until(owner,"invitation revoked after confirmation",|state|ready(state)&&state.private.draft().is_none()&&state.private.pane(Section::Invitations).and_then(|pane|pane.content.as_ref()).is_some_and(|payload|matches!(payload,Payload::Invitations(rows) if rows.iter().any(|row|row.login_name=="NHF018 revoked invitation"&&row.revoked_at.is_set())))).await;
+    assert!(
+        connection
+            .accounts()
+            .accept_invitation(
+                auth::AcceptInvitationRequest {
+                    invitation_token: token.to_string(),
+                    password: "NHF018 revoked synthetic password".into(),
+                    display_name: "Revoked person".into(),
+                    ..Default::default()
+                },
+                Duration::from_secs(4),
+                &cancel
+            )
+            .await
+            .is_err()
+    );
+}
+async fn mcp_forms(owner: &Administration, connection: &Connection, session: &SessionCoordinator) {
+    section(owner, Section::McpKeys).await;
+    let cancel = CancellationToken::new();
+    let native = session.access(&cancel).await.unwrap();
+    owner.action(0, generation(owner), ProAdminAction::Create);
+    owner.edit(
+        1,
+        generation(owner),
+        forms::Field::ClientName as i32,
+        "NHF018 synthetic MCP client".into(),
+    );
+    owner.choose(1, generation(owner), forms::ChoiceField::Scope as i32, 1);
+    owner.editor_action(1, generation(owner), ProAdminAction::Save);
+    until(
+        owner,
+        "equipment scope refused without an object grant",
+        |state| {
+            state
+                .private
+                .draft()
+                .is_some_and(|draft| draft.state == crate::administration::MutationState::Rejected)
+                && state.private.secret().is_none()
+        },
+    )
+    .await;
+    owner.choose(1, generation(owner), forms::ChoiceField::Scope as i32, 1);
+    let permitted = forms::scopes::ScopeChoice::all()
+        .find(|(_, scope)| {
+            scope.family == auth::ScopeFamily::Integrations
+                && scope.operation == auth::ScopeOperation::Read
+        })
+        .unwrap()
+        .0;
+    owner.choose(
+        1,
+        generation(owner),
+        forms::ChoiceField::Scope as i32,
+        permitted,
+    );
+    owner.editor_action(1, generation(owner), ProAdminAction::Save);
+    until(owner, "one-time MCP secret", |state| {
+        state.private.secret_kind() == Some(crate::administration::SecretKind::McpKey)
+            && state.private.secret().is_some()
+    })
+    .await;
+    let secret = Zeroizing::new(
+        owner
+            .0
+            .state
+            .lock()
+            .unwrap()
+            .private
+            .secret()
+            .unwrap()
+            .to_owned(),
+    );
+    // A bearer for MCP is never a native interactive session.
+    let bearer = home_client_transport::AccessToken::parse(&secret).unwrap();
+    assert!(
+        connection
+            .auth()
+            .list_sessions(
+                auth::ListSessionsRequest {
+                    account_id: auth::AccountId {
+                        value: native.account_id().as_str().into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                },
+                &bearer,
+                Duration::from_secs(4),
+                &cancel
+            )
+            .await
+            .is_err()
+    );
+    owner.editor_action(1, generation(owner), ProAdminAction::CloseSecret);
+    assert!(owner.0.state.lock().unwrap().private.secret().is_none());
+    until(owner, "MCP metadata never rereads its secret", ready).await;
+    let row_token = {
+        let state = owner.0.state.lock().unwrap();
+        let Some(Payload::Keys(rows)) = state
+            .private
+            .pane(Section::McpKeys)
+            .unwrap()
+            .content
+            .as_ref()
+        else {
+            unreachable!()
+        };
+        let key = rows
+            .iter()
+            .find(|key| key.client_name == "NHF018 synthetic MCP client")
+            .unwrap();
+        assert_eq!(key.audience, auth::CredentialAudience::Mcp);
+        assert_eq!(key.scopes.len(), 1);
+        state
+            .rows
+            .iter()
+            .find(|row| matches!(&row.target,render::Target::Key(id) if id.as_str()==key.id.value))
+            .unwrap()
+            .token
+    };
+    owner.select(row_token, generation(owner));
+    owner.action(0, generation(owner), ProAdminAction::Revoke);
+    owner.editor_action(1, generation(owner), ProAdminAction::Save);
+    until(owner,"MCP key revoked without revoking native session",|state|ready(state)&&state.private.draft().is_none()&&state.private.pane(Section::McpKeys).and_then(|pane|pane.content.as_ref()).is_some_and(|payload|matches!(payload,Payload::Keys(rows) if rows.iter().any(|key|key.client_name=="NHF018 synthetic MCP client"&&key.revoked_at.is_set())))).await;
+    section(owner, Section::Sessions).await;
+    let current = session.access(&cancel).await.unwrap();
+    assert_eq!(current.session_id(), native.session_id());
+}
 async fn section(owner: &Administration, section: Section) {
     let token = Section::ALL
         .iter()
@@ -225,6 +447,8 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
         section(&owner, value).await;
     }
     account_forms(&owner).await;
+    invitation_forms(&owner, &connection).await;
+    mcp_forms(&owner, &connection, &session).await;
     section(&owner, Section::Integrations).await;
     let token = {
         let state = owner.0.state.lock().unwrap();
@@ -328,11 +552,19 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
         before,
         "ordinary user cannot enqueue an admin view"
     );
+    assert!(
+        forms::available(&owner.0.state.lock().unwrap())
+            .iter()
+            .all(|command| !command.section().administrative()),
+        "ordinary account has no administrative mutation available"
+    );
     owner.action(0, generation(&owner), ProAdminAction::Create);
     assert!(
-        owner.0.state.lock().unwrap().private.draft().is_none(),
-        "ordinary account cannot open an administrative mutation"
+        owner.0.state.lock().unwrap().private.draft().is_some(),
+        "personal MCP creation remains available to an ordinary native session"
     );
+    owner.editor_action(1, generation(&owner), ProAdminAction::Cancel);
+    until(&owner, "ordinary personal form cancellation", ready).await;
     session.logout().await.unwrap();
     login(&session, &fixture.admin).await;
     until(&owner, "administrator session replacement", |state| {
@@ -344,6 +576,33 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
     })
     .await;
     section(&owner, Section::Accounts).await;
+    // Retiring authority must also discard an open protected draft.
+    owner.action(0, generation(&owner), ProAdminAction::Create);
+    owner.edit(
+        1,
+        generation(&owner),
+        forms::Field::Login as i32,
+        "NHF018 draft to discard".into(),
+    );
+    owner.foreground(false);
+    assert!(owner.0.state.lock().unwrap().private.draft().is_none());
+    owner.foreground(true);
+    until(&owner, "foreground after retiring account draft", ready).await;
+    section(&owner, Section::Invitations).await;
+    owner.action(0, generation(&owner), ProAdminAction::Create);
+    owner.edit(
+        1,
+        generation(&owner),
+        forms::Field::Login as i32,
+        "NHF018 secret to discard".into(),
+    );
+    owner.editor_action(1, generation(&owner), ProAdminAction::Save);
+    until(
+        &owner,
+        "protected one-time secret before role withdrawal",
+        |state| state.private.secret().is_some(),
+    )
+    .await;
     let stale = generation(&owner);
     let keeper = SessionCoordinator::new(connection.auth(), Arc::new(MemoryStore::default()));
     login(&keeper, &fixture.keeper).await;
@@ -375,6 +634,9 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
                 .authority()
                 .is_some_and(|value| value.administrator())
                 && state.private.pane(Section::Accounts).is_none()
+                && state.private.pane(Section::Invitations).is_none()
+                && state.private.draft().is_none()
+                && state.private.secret().is_none()
         },
     )
     .await;

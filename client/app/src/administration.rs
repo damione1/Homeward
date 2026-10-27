@@ -174,6 +174,7 @@ pub struct PrivateState<T, D> {
     panes: BTreeMap<Section, Pane<T>>,
     draft: Option<D>,
     one_time_secret: Option<Zeroizing<String>>,
+    secret_kind: Option<SecretKind>,
 }
 impl<T, D> Default for PrivateState<T, D> {
     fn default() -> Self {
@@ -183,6 +184,7 @@ impl<T, D> Default for PrivateState<T, D> {
             panes: BTreeMap::new(),
             draft: None,
             one_time_secret: None,
+            secret_kind: None,
         }
     }
 }
@@ -210,6 +212,7 @@ impl<T, D> PrivateState<T, D> {
         self.panes.clear();
         self.draft = None;
         self.one_time_secret = None;
+        self.secret_kind = None;
         self.context = Context(self.context.0.checked_add(1).ok_or(Refusal::Exhausted)?);
         Ok(())
     }
@@ -254,13 +257,18 @@ impl<T, D> PrivateState<T, D> {
             return Err(Refusal::Invalid);
         }
         self.one_time_secret = Some(value);
+        self.secret_kind = Some(kind);
         Ok(())
     }
     pub fn secret(&self) -> Option<&str> {
         self.one_time_secret.as_ref().map(|value| value.as_str())
     }
+    pub fn secret_kind(&self) -> Option<SecretKind> {
+        self.secret_kind
+    }
     pub fn dismiss_secret(&mut self) {
         self.one_time_secret = None;
+        self.secret_kind = None;
     }
 }
 
