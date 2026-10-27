@@ -186,6 +186,23 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
                 );
             }
         }
+        Payload::MfaPolicy(value) => {
+            push(
+                fact("mfa/required"),
+                "Second facteur administrateur".into(),
+                if value.require_admin_factor {
+                    "Obligatoire"
+                } else {
+                    "Facultatif"
+                }
+                .into(),
+            );
+            push(
+                fact("mfa/version"),
+                "Révision de la politique".into(),
+                value.version.revision.to_string(),
+            );
+        }
         Payload::Keys(values) => {
             for value in values {
                 push(
@@ -828,7 +845,7 @@ impl Projection {
             match payload{
                 Payload::Policy{response,..}=>if let Some(auth::get_policy_response::Result::Present(value))=&response.result{fields.push(("Source de la politique".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted policy UTF-8"),true));},
                 Payload::Integration(value)=>if let Some(home_wire_contract::home::integrationadmin::v1::integration_instance::Configuration::Editable(value))=&value.response.instance.configuration{fields.push(("Paramètres publics".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted integration UTF-8"),true));for reference in &value.secrets{fields.push((format!("Référence · {}",reference.field),reference.name.clone(),false));}},
-                Payload::Personal{..}|Payload::Sessions(_)|Payload::Factors(_)|Payload::Keys(_)|Payload::Accounts(_)|Payload::Invitations(_)|Payload::Integrations(_)|Payload::Health(_)|Payload::Metrics(_)|Payload::Logs(_)|Payload::Audits(_)=>(),
+                Payload::Personal{..}|Payload::Sessions(_)|Payload::Factors(_)|Payload::MfaPolicy(_)|Payload::Keys(_)|Payload::Accounts(_)|Payload::Invitations(_)|Payload::Integrations(_)|Payload::Health(_)|Payload::Metrics(_)|Payload::Logs(_)|Payload::Audits(_)=>(),
             }
         }
         Self {

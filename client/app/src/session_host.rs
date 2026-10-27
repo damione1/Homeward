@@ -259,6 +259,7 @@ impl LifecycleBridge {
                 .clone();
             if let Some(window) = window.upgrade() {
                 window.invoke_clear_invitation();
+                window.set_recovery_receipt("".into());
                 cache_view::clear(&window);
             }
         }

@@ -5,6 +5,7 @@ use home_wire_contract::home::auth::v1 as auth;
 use serde::Deserialize;
 use std::{path::PathBuf, time::Duration};
 use zeroize::Zeroizing;
+mod security;
 
 #[derive(Default)]
 struct MemoryStore(Mutex<Option<Zeroizing<Vec<u8>>>>);
@@ -41,7 +42,16 @@ struct Fixture {
     admin: Credentials,
     ordinary: Credentials,
     keeper: Credentials,
+    factor: MfaCredentials,
+    witness: MfaCredentials,
     production_configuration: bool,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MfaCredentials {
+    login_name: String,
+    password: String,
+    recovery_codes: Vec<String>,
 }
 async fn login(session: &SessionCoordinator, credentials: &Credentials) {
     session
@@ -449,6 +459,7 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
     account_forms(&owner).await;
     invitation_forms(&owner, &connection).await;
     mcp_forms(&owner, &connection, &session).await;
+    security::qualify(&owner, &connection, &session, &fixture).await;
     section(&owner, Section::Integrations).await;
     let token = {
         let state = owner.0.state.lock().unwrap();

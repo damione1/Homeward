@@ -59,6 +59,8 @@ export component HomewardWindow inherits Window {
     in-out property <string> user-draft;
     in-out property <string> password-draft;
     in-out property <string> recovery-draft;
+    in property <string> recovery-receipt;
+    callback close-recovery-receipt();
     in-out property <bool> invitation-visible;
     in-out property <bool> invitation-busy;
     in-out property <bool> invitation-uncertain;
@@ -409,7 +411,16 @@ export component HomewardWindow inherits Window {
                 font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
             Text { text: "Confiance SHA-256 : " + root.trust-fingerprint; color: root.theme.text-secondary;
                 font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
-            if !root.invitation-visible: ProAccessPanel {
+            if root.recovery-receipt != "": KitCard {
+                theme: root.theme;
+                KitCardHeader { theme: root.theme; title: "Nouveaux codes de secours";
+                    description: "Conservez ces codes maintenant. Les anciens codes sont invalidés et une nouvelle connexion est nécessaire."; }
+                KitTextArea { theme: root.theme; control-size: comfortable; label: "Codes à conserver"; access: FieldAccess.read-only;
+                    text: root.recovery-receipt; min-lines: 5; max-lines: 10; }
+                KitButton { theme: root.theme; control-size: comfortable; text: "J’ai conservé les codes · fermer";
+                    activated => { root.close-recovery-receipt(); } }
+            }
+            if !root.invitation-visible && root.recovery-receipt == "": ProAccessPanel {
                 theme: root.theme; control-size: ControlSize.comfortable; stage: root.access-stage; title: "Bienvenue chez vous";
                 description: "Connectez-vous à votre installation.";
                 user-label: "Identifiant"; password-label: "Mot de passe"; submit-label: "Se connecter";
@@ -436,7 +447,7 @@ export component HomewardWindow inherits Window {
                 cancel => { root.cancel-access(); }
                 sign-out => { root.sign-out(); }
             }
-            if root.access-stage == ProAccessStage.identity && !root.invitation-visible: KitButton {
+            if root.access-stage == ProAccessStage.identity && !root.invitation-visible && root.recovery-receipt == "": KitButton {
                 theme: root.theme; control-size: comfortable; text: "J’ai une invitation";
                 disabled: root.busy || root.invitation-generation >= 2147483647;
                 activated => { root.clear-invitation(); root.password-draft = ""; root.recovery-draft = ""; root.invitation-visible = true; }

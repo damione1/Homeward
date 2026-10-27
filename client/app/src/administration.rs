@@ -23,6 +23,7 @@ pub enum Section {
     Account,
     Sessions,
     Factors,
+    MfaPolicy,
     McpKeys,
     Accounts,
     Invitations,
@@ -34,10 +35,11 @@ pub enum Section {
     Audits,
 }
 impl Section {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Account,
         Self::Sessions,
         Self::Factors,
+        Self::MfaPolicy,
         Self::McpKeys,
         Self::Accounts,
         Self::Invitations,
@@ -53,6 +55,7 @@ impl Section {
             Self::Account => "Mon compte",
             Self::Sessions => "Sessions",
             Self::Factors => "Sécurité",
+            Self::MfaPolicy => "Politique MFA",
             Self::McpKeys => "Clés MCP",
             Self::Accounts => "Comptes",
             Self::Invitations => "Invitations",
@@ -68,6 +71,7 @@ impl Section {
         match self {
             Self::Account | Self::Sessions | Self::Factors | Self::McpKeys => false,
             Self::Accounts
+            | Self::MfaPolicy
             | Self::Invitations
             | Self::Policies
             | Self::Integrations

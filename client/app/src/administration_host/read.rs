@@ -35,6 +35,7 @@ pub(super) enum Payload {
     },
     Sessions(Vec<auth::Session>),
     Factors(Vec<auth::FactorCredential>),
+    MfaPolicy(auth::SecondFactorPolicy),
     Keys(Vec<auth::McpKey>),
     Accounts(Vec<auth::Account>),
     Invitations(Vec<auth::Invitation>),
@@ -250,6 +251,21 @@ async fn read_section(
         ..Default::default()
     };
     match section {
+        Section::MfaPolicy => {
+            let response = call!(
+                session,
+                lease,
+                cancel,
+                connection.accounts(),
+                get_second_factor_policy,
+                auth::GetSecondFactorPolicyRequest::default()
+            );
+            auth_contract::admit_get_second_factor_policy_response(&response)
+                .map_err(|_| ReadError::Invalid)?;
+            Ok(Payload::MfaPolicy(
+                response.policy.into_option().ok_or(ReadError::Invalid)?,
+            ))
+        }
         Section::Account => Ok(Payload::Personal { profile: None }),
         Section::Sessions => {
             let response = call!(

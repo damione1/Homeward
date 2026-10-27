@@ -9,7 +9,7 @@ use crate::{
 use home_client_session::{Generation, SessionCoordinator};
 use home_client_transport::{Connection, FailureKind, RpcCode};
 use home_wire_contract::{
-    auth_contract::{self, AccountId, InvitationId, McpKeyId},
+    auth_contract::{self, AccountId, FactorCredentialId, InvitationId, McpKeyId, SessionId},
     home::auth::v1 as auth,
 };
 use scopes::ScopeChoice;
@@ -61,6 +61,7 @@ pub(super) enum ChoiceField {
     Role = 10,
     Status = 11,
     Scope = 12,
+    RequireMfa = 13,
 }
 impl ChoiceField {
     fn parse(value: i32) -> Option<Self> {
@@ -68,17 +69,20 @@ impl ChoiceField {
             10 => Some(Self::Role),
             11 => Some(Self::Status),
             12 => Some(Self::Scope),
+            13 => Some(Self::RequireMfa),
             _ => None,
         }
     }
 }
 #[derive(Clone, Copy)]
 #[repr(i32)]
-enum Choice {
+pub(super) enum Choice {
     User = 1,
     Admin = 2,
     Active = 3,
     Disabled = 4,
+    RequireMfa = 5,
+    OptionalMfa = 6,
 }
 impl Choice {
     fn parse(value: i32) -> Option<Self> {
@@ -87,6 +91,8 @@ impl Choice {
             2 => Some(Self::Admin),
             3 => Some(Self::Active),
             4 => Some(Self::Disabled),
+            5 => Some(Self::RequireMfa),
+            6 => Some(Self::OptionalMfa),
             _ => None,
         }
     }
@@ -101,6 +107,10 @@ pub(super) enum Command {
     RevokeInvitation(InvitationId),
     CreateMcp,
     RevokeMcp(McpKeyId),
+    RevokeSession(SessionId),
+    RemoveFactor(FactorCredentialId),
+    RecoveryCodes(AccountId),
+    MfaPolicy(auth::SecondFactorPolicy),
 }
 impl Command {
     pub fn section(&self) -> Section {
@@ -108,14 +118,22 @@ impl Command {
             Self::Create | Self::Update(_) | Self::Delete(_) => Section::Accounts,
             Self::Invite | Self::RevokeInvitation(_) => Section::Invitations,
             Self::CreateMcp | Self::RevokeMcp(_) => Section::McpKeys,
+            Self::RevokeSession(_) => Section::Sessions,
+            Self::RemoveFactor(_) | Self::RecoveryCodes(_) => Section::Factors,
+            Self::MfaPolicy(_) => Section::MfaPolicy,
         }
     }
     pub fn action(&self) -> ProAdminAction {
         match self {
-            Self::Create | Self::Invite | Self::CreateMcp => ProAdminAction::Create,
-            Self::Update(_) => ProAdminAction::Save,
+            Self::Create | Self::Invite | Self::CreateMcp | Self::RecoveryCodes(_) => {
+                ProAdminAction::Create
+            }
+            Self::Update(_) | Self::MfaPolicy(_) => ProAdminAction::Save,
             Self::Delete(_) => ProAdminAction::Remove,
-            Self::RevokeInvitation(_) | Self::RevokeMcp(_) => ProAdminAction::Revoke,
+            Self::RevokeInvitation(_)
+            | Self::RevokeMcp(_)
+            | Self::RevokeSession(_)
+            | Self::RemoveFactor(_) => ProAdminAction::Revoke,
         }
     }
     pub fn label(&self) -> &'static str {
@@ -127,12 +145,21 @@ impl Command {
             Self::RevokeInvitation(_) => "Révoquer l’invitation",
             Self::CreateMcp => "Créer une clé MCP",
             Self::RevokeMcp(_) => "Révoquer la clé MCP",
+            Self::RevokeSession(_) => "Révoquer cette session",
+            Self::RemoveFactor(_) => "Retirer ce facteur",
+            Self::RecoveryCodes(_) => "Remplacer les codes de secours",
+            Self::MfaPolicy(_) => "Modifier la politique MFA",
         }
     }
     pub fn destructive(&self) -> bool {
         matches!(
             self,
-            Self::Delete(_) | Self::RevokeInvitation(_) | Self::RevokeMcp(_)
+            Self::Delete(_)
+                | Self::RevokeInvitation(_)
+                | Self::RevokeMcp(_)
+                | Self::RevokeSession(_)
+                | Self::RemoveFactor(_)
+                | Self::RecoveryCodes(_)
         )
     }
     fn input_fields(&self) -> &'static [Field] {
@@ -141,7 +168,13 @@ impl Command {
             Self::Update(_) => &[Field::Name],
             Self::Invite => &[Field::Login, Field::Days],
             Self::CreateMcp => &[Field::ClientName, Field::Days],
-            Self::Delete(_) | Self::RevokeInvitation(_) | Self::RevokeMcp(_) => &[],
+            Self::Delete(_)
+            | Self::RevokeInvitation(_)
+            | Self::RevokeMcp(_)
+            | Self::RevokeSession(_)
+            | Self::RemoveFactor(_)
+            | Self::RecoveryCodes(_)
+            | Self::MfaPolicy(_) => &[],
         }
     }
     fn role_choices(&self) -> bool {
@@ -208,9 +241,45 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                 result.push(Command::RevokeMcp(id.clone()));
             }
         }
+        Section::Sessions => {
+            if let Some(render::Target::Session(id)) = &state.selected
+                && let Some(Payload::Sessions(rows)) = state
+                    .private
+                    .pane(Section::Sessions)
+                    .and_then(|pane| pane.content.as_ref())
+                && rows
+                    .iter()
+                    .any(|row| row.id.value == id.as_str() && !row.revoked_at.is_set())
+            {
+                result.push(Command::RevokeSession(id.clone()));
+            }
+        }
+        Section::Factors => {
+            if let Some(Payload::Factors(rows)) = state
+                .private
+                .pane(Section::Factors)
+                .and_then(|pane| pane.content.as_ref())
+            {
+                if !rows.is_empty() {
+                    result.push(Command::RecoveryCodes(authority.identity.account.clone()));
+                }
+                if let Some(render::Target::Factor(id)) = &state.selected
+                    && rows.iter().any(|row| row.id.value == id.as_str())
+                {
+                    result.push(Command::RemoveFactor(id.clone()));
+                }
+            }
+        }
+        Section::MfaPolicy => {
+            if let Some(Payload::MfaPolicy(value)) = state
+                .private
+                .pane(Section::MfaPolicy)
+                .and_then(|pane| pane.content.as_ref())
+            {
+                result.push(Command::MfaPolicy(value.clone()));
+            }
+        }
         Section::Account
-        | Section::Sessions
-        | Section::Factors
         | Section::Policies
         | Section::Integrations
         | Section::Health
@@ -230,6 +299,7 @@ pub(super) struct Draft {
     role: auth::AccountRole,
     status: auth::AccountStatus,
     scopes: Vec<ScopeChoice>,
+    require_admin_factor: bool,
     pub state: MutationState,
     pub notice: &'static str,
 }
@@ -245,6 +315,7 @@ impl Draft {
             role: auth::AccountRole::User,
             status: auth::AccountStatus::Active,
             scopes: Vec::new(),
+            require_admin_factor: false,
             state: MutationState::Draft,
             notice: "Rien n’est envoyé avant votre confirmation. Les droits sont appliqués par le serveur.",
         };
@@ -263,6 +334,13 @@ impl Draft {
         if matches!(value.command, Command::CreateMcp) {
             value.days = Zeroizing::new("30".into());
             value.notice = "Sélectionnez les permissions maximales de cette clé. Elles n’ajoutent aucun droit à votre compte. Le secret sera affiché une seule fois.";
+        }
+        if let Command::MfaPolicy(policy) = &value.command {
+            value.require_admin_factor = policy.require_admin_factor;
+            value.notice = "La politique utilise la version exacte du serveur. Un changement peut révoquer les sessions et demander une nouvelle authentification.";
+        }
+        if matches!(value.command, Command::RecoveryCodes(_)) {
+            value.notice = "Les anciens codes seront invalidés et vos sessions révoquées. Les nouveaux codes seront affichés une seule fois après confirmation.";
         }
         value
     }
@@ -333,6 +411,17 @@ impl Draft {
                     self.scopes.push(value);
                 }
             }
+            ChoiceField::RequireMfa => {
+                if !matches!(self.command, Command::MfaPolicy(_)) {
+                    return;
+                }
+                match Choice::parse(option) {
+                    Some(Choice::RequireMfa) => self.require_admin_factor = true,
+                    Some(Choice::OptionalMfa) => self.require_admin_factor = false,
+                    Some(Choice::User | Choice::Admin | Choice::Active | Choice::Disabled)
+                    | None => return,
+                }
+            }
             ChoiceField::Role | ChoiceField::Status => {
                 let Some(option) = Choice::parse(option) else {
                     return;
@@ -366,6 +455,7 @@ impl Draft {
                         }
                         self.status = auth::AccountStatus::Disabled;
                     }
+                    Choice::RequireMfa | Choice::OptionalMfa => return,
                 }
             }
         }
@@ -456,6 +546,29 @@ impl Draft {
                 selected: self.scopes.contains(&scope),
                 enabled: self.editable(),
             }));
+        }
+        if matches!(self.command, Command::MfaPolicy(_)) {
+            result.extend(
+                [
+                    (
+                        Choice::RequireMfa,
+                        "Facteur obligatoire pour les administrateurs",
+                        self.require_admin_factor,
+                    ),
+                    (
+                        Choice::OptionalMfa,
+                        "Facteur administrateur facultatif",
+                        !self.require_admin_factor,
+                    ),
+                ]
+                .map(|(choice, label, selected)| ProAdminChoice {
+                    token: choice as i32,
+                    field_token: ChoiceField::RequireMfa as i32,
+                    label: label.into(),
+                    selected,
+                    enabled: self.editable(),
+                }),
+            );
         }
         result
     }
@@ -580,6 +693,43 @@ impl Draft {
                 .into(),
                 ..Default::default()
             }),
+            Command::RevokeSession(id) => Operation::RevokeSession(auth::RevokeSessionRequest {
+                session_id: auth::SessionId {
+                    value: id.as_str().into(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }),
+            Command::RemoveFactor(id) => Operation::RemoveFactor(auth::RemoveFactorRequest {
+                factor_id: auth::FactorCredentialId {
+                    value: id.as_str().into(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }),
+            Command::RecoveryCodes(id) => {
+                Operation::RecoveryCodes(auth::ReplaceRecoveryCodesRequest {
+                    account_id: auth::AccountId {
+                        value: id.as_str().into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                })
+            }
+            Command::MfaPolicy(policy) => {
+                let request = auth::SetSecondFactorPolicyRequest {
+                    require_admin_factor: self.require_admin_factor,
+                    expected: policy.version.clone(),
+                    ..Default::default()
+                };
+                if auth_contract::admit_set_second_factor_policy(&request).is_err() {
+                    return None;
+                }
+                Operation::MfaPolicy(request)
+            }
         };
         self.state = MutationState::InFlight;
         self.notice = "Enregistrement en cours…";
@@ -614,16 +764,22 @@ pub(super) enum Operation {
     RevokeInvitation(auth::RevokeInvitationRequest),
     CreateMcp(auth::CreateMcpKeyRequest),
     RevokeMcp(auth::RevokeMcpKeyRequest),
+    RevokeSession(auth::RevokeSessionRequest),
+    RemoveFactor(auth::RemoveFactorRequest),
+    RecoveryCodes(auth::ReplaceRecoveryCodesRequest),
+    MfaPolicy(auth::SetSecondFactorPolicyRequest),
 }
 pub(super) struct Completion {
     pub state: MutationState,
     pub secret: Option<(SecretKind, Zeroizing<String>)>,
+    pub recovery_generation: Option<Generation>,
 }
 impl Completion {
     fn state(state: MutationState) -> Self {
         Self {
             state,
             secret: None,
+            recovery_generation: None,
         }
     }
     fn published(valid: bool) -> Self {
@@ -640,6 +796,7 @@ impl Completion {
         Self {
             state: MutationState::Published,
             secret: Some((kind, value)),
+            recovery_generation: None,
         }
     }
 }
@@ -649,19 +806,22 @@ pub(super) async fn execute(
     expected: Generation,
     operation: Operation,
     cancel: &CancellationToken,
+    receipt: &super::receipt::Permit,
 ) -> Completion {
     let Ok(lease) = super::read::admitted_lease(session, expected, cancel).await else {
         return Completion::state(MutationState::Uncertain);
     };
-    macro_rules! call {($client:expr,$method:ident,$request:expr)=>{{
-        let client=$client;
-        let response=tokio::select!{biased;()=lease.cancellation.cancelled()=>return Completion::state(MutationState::Uncertain),result=client.$method($request,lease.token(),Duration::from_secs(4),cancel)=>result};
-        match response{Ok(value)=>value,Err(error)=>{let _=session.observe_failure(lease.generation,&error).await;return Completion::state(match error.kind(){
-            // Connect ErrorCode is open. Future codes are uncertain, never retryable.
-            FailureKind::Rpc(code)=>if matches!(code,RpcCode::InvalidArgument|RpcCode::PermissionDenied|RpcCode::FailedPrecondition){MutationState::Rejected}else if matches!(code,RpcCode::AlreadyExists|RpcCode::Aborted){MutationState::Conflict}else{MutationState::Uncertain},
-            FailureKind::InvalidConfiguration|FailureKind::UntrustedCertificate|FailureKind::WrongServerName|FailureKind::TlsRejected|FailureKind::NetworkInterrupted|FailureKind::Deadline|FailureKind::Cancelled=>MutationState::Uncertain,
-        });}}
-    }}}
+    macro_rules! call {
+        ($client:expr,$method:ident,$request:expr)=>{call!($client,$method,$request,cancel,true)};
+        ($client:expr,$method:ident,$request:expr,$token:expr,$observe:expr)=>{{
+            let client=$client;
+            let response=tokio::select!{biased;()=lease.cancellation.cancelled(),if $observe=>return Completion::state(MutationState::Uncertain),result=client.$method($request,lease.token(),Duration::from_secs(4),$token)=>result};
+            match response{Ok(value)=>value,Err(error)=>{let _=session.observe_failure(lease.generation,&error).await;return Completion::state(match error.kind(){
+                FailureKind::Rpc(code)=>if matches!(code,RpcCode::InvalidArgument|RpcCode::PermissionDenied|RpcCode::FailedPrecondition){MutationState::Rejected}else if matches!(code,RpcCode::AlreadyExists|RpcCode::Aborted){MutationState::Conflict}else{MutationState::Uncertain},
+                FailureKind::InvalidConfiguration|FailureKind::UntrustedCertificate|FailureKind::WrongServerName|FailureKind::TlsRejected|FailureKind::NetworkInterrupted|FailureKind::Deadline|FailureKind::Cancelled=>MutationState::Uncertain,
+            });}}
+        }}
+    }
     match operation {
         Operation::Create(request) => {
             let login = request.login_name.clone();
@@ -745,5 +905,130 @@ pub(super) async fn execute(
                 .__buffa_unknown_fields
                 .is_empty(),
         ),
+        Operation::RevokeSession(request) => {
+            let current = request.session_id.value == lease.session_id().as_str();
+            let () = call!(
+                connection.auth(),
+                revoke_session,
+                request,
+                &receipt.cancel,
+                false
+            );
+            let valid = true;
+            if valid && current && !receipt.cancel.is_cancelled() {
+                let _ = retire(session, lease.generation).await;
+            }
+            Completion::published(valid)
+        }
+        Operation::RemoveFactor(request) => {
+            let response = call!(
+                connection.auth(),
+                remove_factor,
+                request,
+                &receipt.cancel,
+                false
+            );
+            let valid = response.__buffa_unknown_fields.is_empty();
+            if valid && !receipt.cancel.is_cancelled() {
+                let _ = retire(session, lease.generation).await;
+            }
+            Completion::published(valid)
+        }
+        Operation::MfaPolicy(request) => {
+            let requested = request.require_admin_factor;
+            let response = call!(
+                connection.accounts(),
+                set_second_factor_policy,
+                request,
+                &receipt.cancel,
+                false
+            );
+            if auth_contract::admit_set_second_factor_policy_response(&response).is_err()
+                || response.policy.require_admin_factor != requested
+            {
+                return Completion::state(MutationState::Uncertain);
+            }
+            match response.continuation {
+                buffa::EnumValue::Known(auth::SecondFactorSessionContinuation::Continues) => (),
+                buffa::EnumValue::Known(
+                    auth::SecondFactorSessionContinuation::ReauthenticationRequired,
+                ) => {
+                    if !receipt.cancel.is_cancelled() {
+                        let _ = retire(session, lease.generation).await;
+                    }
+                }
+                buffa::EnumValue::Known(auth::SecondFactorSessionContinuation::Unspecified)
+                | buffa::EnumValue::Unknown(_) => {
+                    return Completion::state(MutationState::Uncertain);
+                }
+            }
+            Completion::published(true)
+        }
+        Operation::RecoveryCodes(request) => {
+            if request.account_id.value != lease.account_id().as_str() {
+                return Completion::state(MutationState::Rejected);
+            }
+            let response = call!(
+                connection.auth(),
+                replace_recovery_codes,
+                request,
+                &receipt.cancel,
+                false
+            );
+            let codes = Zeroizing::new(response.recovery_codes);
+            let mut unique = std::collections::BTreeSet::new();
+            if !response.__buffa_unknown_fields.is_empty()
+                || codes.len() != 10
+                || codes
+                    .iter()
+                    .any(|code| !recovery_code(code) || !unique.insert(code.as_str()))
+            {
+                return Completion::state(MutationState::Uncertain);
+            }
+            let value = Zeroizing::new(codes.join("\n"));
+            if receipt.cancel.is_cancelled() {
+                return Completion::state(MutationState::Uncertain);
+            }
+            let Some(generation) = retire(session, lease.generation).await else {
+                return Completion::state(MutationState::Uncertain);
+            };
+            Completion {
+                state: MutationState::Published,
+                secret: Some((SecretKind::RecoveryCodes, value)),
+                recovery_generation: Some(generation),
+            }
+        }
     }
+}
+
+async fn retire(session: &SessionCoordinator, expected: Generation) -> Option<Generation> {
+    let view = *session.subscribe().borrow();
+    if view.generation != expected
+        && matches!(
+            view.phase,
+            home_client_session::Phase::Ready
+                | home_client_session::Phase::Refreshing
+                | home_client_session::Phase::Busy
+                | home_client_session::Phase::Challenge { .. }
+                | home_client_session::Phase::EnrollmentRequired
+        )
+    {
+        return None;
+    }
+    match session.logout_local_if_current(view.generation).await {
+        Ok(true) => Some(session.generation()),
+        Ok(false) => None,
+        Err(_) => None,
+    }
+}
+fn recovery_code(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 30
+        && bytes.iter().enumerate().all(|(index, &value)| {
+            if matches!(index, 5 | 11 | 17 | 23) {
+                value == b'-'
+            } else {
+                value.is_ascii_uppercase() || (b'2'..=b'7').contains(&value)
+            }
+        })
 }

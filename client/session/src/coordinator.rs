@@ -591,9 +591,25 @@ impl SessionCoordinator {
     }
 
     pub async fn logout_local(&self) -> Result<(), SessionFailure> {
+        self.logout_local_for(None).await.map(|_| ())
+    }
+
+    /// A completed mutation may retire its own credential. It must not clear a
+    /// replacement login that started while its response was being delivered.
+    pub async fn logout_local_if_current(
+        &self,
+        expected: Generation,
+    ) -> Result<bool, SessionFailure> {
+        self.logout_local_for(Some(expected)).await
+    }
+
+    async fn logout_local_for(&self, expected: Option<Generation>) -> Result<bool, SessionFailure> {
         let _operation = self.operation().await?;
         let generation = {
             let mut state = self.inner.state.lock().await;
+            if expected.is_some_and(|expected| !self.is_current(expected)) {
+                return Ok(false);
+            }
             let generation = self.advance();
             self.inner.identity_epoch.fetch_add(1, Ordering::SeqCst);
             state.record = None;
@@ -606,7 +622,7 @@ impl SessionCoordinator {
         if let Err(error) = self.persist(generation, None).await {
             return Err(self.fail(generation, error).await);
         }
-        Ok(())
+        Ok(true)
     }
 
     /// Local deletion is mandatory; server revocation is a single attempt and

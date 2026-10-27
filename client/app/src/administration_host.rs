@@ -2,6 +2,7 @@
 //! auth, admission and joins stay on the runtime, outside the Slint event loop.
 mod forms;
 mod read;
+mod receipt;
 mod render;
 #[cfg(test)]
 mod tls_probe;
@@ -26,6 +27,7 @@ struct Inner {
     window: Option<slint::Weak<HomewardWindow>>,
     mailbox: ProjectionMailbox<render::Projection>,
     source: Mutex<Option<(SessionCoordinator, Generation)>>,
+    receipts: receipt::Receipts,
 }
 struct State {
     private: PrivateState<Payload, forms::Draft>,
@@ -128,12 +130,14 @@ impl Administration {
                 })
     }
     fn new(window: Option<slint::Weak<HomewardWindow>>) -> Self {
+        let receipts = receipt::Receipts::new(window.clone());
         Self(Arc::new(Inner {
             state: Mutex::new(State::default()),
             changed: Notify::new(),
             window,
             mailbox: ProjectionMailbox::new(),
             source: Mutex::new(None),
+            receipts,
         }))
     }
     #[cfg(test)]
@@ -142,6 +146,7 @@ impl Administration {
     }
     pub fn bind(window: &HomewardWindow) -> Self {
         let this = Self::new(Some(window.as_weak()));
+        this.0.receipts.bind(window);
         let owner = this.clone();
         window.on_admin_visible(move |visible| owner.visible(visible));
         let owner = this.clone();
@@ -189,12 +194,16 @@ impl Administration {
         self.publish(state);
     }
     pub fn clear(&self) {
+        self.0.receipts.clear();
         let mut state = self.0.state.lock().expect("admin state");
         state.clear();
         *self.0.source.lock().expect("admin source") = None;
         self.retired(&state);
     }
     pub fn foreground(&self, foreground: bool) {
+        if !foreground {
+            self.0.receipts.clear();
+        }
         let mut state = self.0.state.lock().expect("admin state");
         if state.foreground == foreground {
             return;
@@ -233,6 +242,7 @@ impl Administration {
         {
             return;
         }
+        self.0.receipts.clear();
         state.section = section;
         state.selection = None;
         state.page = None;
@@ -273,6 +283,7 @@ impl Administration {
                 Section::Account
                 | Section::Sessions
                 | Section::Factors
+                | Section::MfaPolicy
                 | Section::McpKeys
                 | Section::Accounts
                 | Section::Invitations
@@ -288,6 +299,7 @@ impl Administration {
                 Section::Account
                 | Section::Sessions
                 | Section::Factors
+                | Section::MfaPolicy
                 | Section::McpKeys
                 | Section::Accounts
                 | Section::Invitations
@@ -303,6 +315,7 @@ impl Administration {
                 Section::Account
                 | Section::Sessions
                 | Section::Factors
+                | Section::MfaPolicy
                 | Section::McpKeys
                 | Section::Accounts
                 | Section::Invitations
@@ -396,7 +409,10 @@ impl Administration {
                     state.bump();
                 }
             }
-            ProAdminAction::Cancel => state.request(),
+            ProAdminAction::Cancel => {
+                self.0.receipts.clear();
+                state.request();
+            }
             ProAdminAction::CloseSecret => state.request(),
             ProAdminAction::Refresh
             | ProAdminAction::Create
@@ -566,6 +582,7 @@ impl Administration {
         monitor.tick().await;
         let mut probe_requested = false;
         loop {
+            self.0.receipts.revalidate();
             let changed = self.0.changed.notified();
             tokio::pin!(changed);
             changed.as_mut().enable();
@@ -585,10 +602,29 @@ impl Administration {
                 let owner = self.clone();
                 let session = session.clone();
                 let connection = connection.clone();
+                let permit = owner.0.receipts.permit();
                 jobs.spawn(async move {
-                    let result =
-                        forms::execute(&session, &connection, generation, operation, &token).await;
-                    owner.written(ui_generation, result);
+                    let mut result = forms::execute(
+                        &session,
+                        &connection,
+                        generation,
+                        operation,
+                        &token,
+                        &permit,
+                    )
+                    .await;
+                    if let Some(generation) = result.recovery_generation {
+                        if let Some((crate::administration::SecretKind::RecoveryCodes, value)) =
+                            result.secret.take()
+                        {
+                            owner
+                                .0
+                                .receipts
+                                .deliver(&permit, session, generation, value);
+                        }
+                    } else {
+                        owner.written(ui_generation, result);
+                    }
                 });
             }
             let next = {
