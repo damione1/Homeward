@@ -2,6 +2,7 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 #[cfg(any(target_os = "macos", target_os = "android"))]
 mod lease;
+pub mod video;
 
 #[cfg(target_os = "macos")]
 mod macos;

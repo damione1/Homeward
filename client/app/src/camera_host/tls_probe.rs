@@ -56,6 +56,9 @@ enum Control {
     WrongCamera,
     RestoreImages,
     ChangeEvents,
+    VideoUnsupported,
+    VideoUnavailable,
+    VideoAvailable,
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -357,4 +360,260 @@ async fn actual_camera_owner_private_pixels_viewport_and_revocation() {
         .unwrap()
         .unwrap();
     println!("NHF016_CAMERA_OWNER_TLS_PASS");
+}
+
+#[cfg(target_os = "macos")]
+async fn until_video(
+    owner: &Cameras,
+    label: &str,
+    predicate: impl Fn(&crate::video_host::ProbeSnapshot) -> bool,
+) {
+    tokio::time::timeout(Duration::from_secs(12), async {
+        loop {
+            if predicate(&owner.0.videos.probe_snapshot()) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        let s = owner.0.videos.probe_snapshot();
+        panic!(
+            "video owner {label}: {:?}, pixels={}, workers={}, started={}, joined={}",
+            s.phase,
+            s.fingerprint.is_some(),
+            s.workers_live,
+            s.workers_started,
+            s.workers_joined
+        )
+    });
+}
+#[cfg(target_os = "macos")]
+async fn video_joined(owner: &Cameras) {
+    until_video(owner, "owned native worker joined", |s| {
+        s.workers_live == 0 && s.workers_started == s.workers_joined && s.fingerprint.is_none()
+    })
+    .await;
+}
+#[cfg(target_os = "macos")]
+async fn play_video(owner: &Cameras) {
+    owner.0.videos.probe_viewport(true);
+    let (token, generation) = {
+        let state = owner.0.state.lock().unwrap();
+        let token = i32::try_from(
+            state
+                .catalog
+                .iter()
+                .position(|c| Some(&c.id) == state.selected.as_ref())
+                .unwrap()
+                + 1,
+        )
+        .unwrap();
+        (token, state.generation)
+    };
+    owner.open_video(token, generation);
+    until_video(owner, "actual native video is playing", |s| {
+        s.phase == crate::ProVideoState::Playing && s.fingerprint.is_some()
+    })
+    .await;
+}
+#[cfg(target_os = "macos")]
+async fn qualify_native_video(owner: &Cameras, root: &Path, session: &SessionCoordinator) {
+    use crate::{ProVideoAction as Action, ProVideoState as Video};
+    let mut sequence = 0;
+    owner.interactive(true);
+    until(owner, "camera before live video", ready).await;
+    play_video(owner).await;
+    let first = owner.0.videos.probe_snapshot();
+    let hash = first.fingerprint;
+    until_video(owner, "actual moving decoded pixels", |s| {
+        s.fingerprint != hash && s.phase == Video::Playing
+    })
+    .await;
+    owner
+        .0
+        .videos
+        .probe_action(first.token, first.generation - 1, Action::Pause);
+    assert_eq!(owner.0.videos.probe_snapshot().phase, Video::Playing);
+    let current = owner.0.videos.probe_snapshot();
+    owner
+        .0
+        .videos
+        .probe_action(current.token, current.generation, Action::Pause);
+    until_video(owner, "pause removes private pixels", |s| {
+        s.phase == Video::Paused && s.fingerprint.is_none()
+    })
+    .await;
+    video_joined(owner).await;
+    assert_eq!(stats(root, &mut sequence).await["video_streams"], 0);
+    let current = owner.0.videos.probe_snapshot();
+    owner
+        .0
+        .videos
+        .probe_action(current.token, current.generation, Action::Play);
+    until_video(owner, "resume needs fresh native lease", |s| {
+        s.phase == Video::Playing
+    })
+    .await;
+    owner.0.videos.probe_viewport(false);
+    video_joined(owner).await;
+    let before = owner.0.videos.probe_snapshot().frames_decoded;
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert_eq!(owner.0.videos.probe_snapshot().frames_decoded, before);
+    owner.0.videos.probe_viewport(true);
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert_eq!(
+        owner.0.videos.probe_snapshot().phase,
+        Video::Paused,
+        "visibility cannot silently restart native reads"
+    );
+    play_video(owner).await;
+    control(root, &mut sequence, Control::ExpireLeases, None).await;
+    until_video(owner, "video expiry removes private image", |s| {
+        s.phase == Video::Expired && s.fingerprint.is_none()
+    })
+    .await;
+    video_joined(owner).await;
+    until(owner, "photo lease expired separately", |s| {
+        s.status == Status::Expired && s.picture.is_none()
+    })
+    .await;
+    play_video(owner).await;
+    control(root, &mut sequence, Control::VideoUnsupported, None).await;
+    until_video(owner, "unsupported codec explains fallback", |s| {
+        s.phase == Video::Unsupported && s.fingerprint.is_none()
+    })
+    .await;
+    video_joined(owner).await;
+    let current = owner.0.videos.probe_snapshot();
+    let (token, camera_generation) = owner
+        .0
+        .videos
+        .probe_action(current.token, current.generation, Action::Snapshot)
+        .expect("explicit snapshot intention");
+    owner.snapshot(token, camera_generation);
+    until(
+        owner,
+        "snapshot after expired photo and failed video",
+        ready,
+    )
+    .await;
+    control(root, &mut sequence, Control::VideoAvailable, None).await;
+    play_video(owner).await;
+    control(root, &mut sequence, Control::VideoUnavailable, None).await;
+    until_video(owner, "negotiation failure is distinct", |s| {
+        s.phase == Video::Unavailable && s.fingerprint.is_none()
+    })
+    .await;
+    video_joined(owner).await;
+    control(root, &mut sequence, Control::VideoAvailable, None).await;
+    play_video(owner).await;
+    control(root, &mut sequence, Control::Outage, None).await;
+    until_video(owner, "network outage removes video", |s| {
+        s.phase == Video::Offline && s.fingerprint.is_none()
+    })
+    .await;
+    video_joined(owner).await;
+    control(root, &mut sequence, Control::RestoreNetwork, None).await;
+    owner.reload(generation(owner));
+    until(owner, "explicit network recovery", ready).await;
+    play_video(owner).await;
+    owner.foreground(false);
+    video_joined(owner).await;
+    owner.foreground(true);
+    until(owner, "foreground restores camera only", ready).await;
+    assert_eq!(owner.0.videos.probe_snapshot().phase, Video::Idle);
+    play_video(owner).await;
+    owner.interactive(false);
+    video_joined(owner).await;
+    owner.interactive(true);
+    until(owner, "camera page returns without automatic video", ready).await;
+    assert_eq!(owner.0.videos.probe_snapshot().phase, Video::Idle);
+    play_video(owner).await;
+    // The old photo watcher is now terminal. A later video rights refusal must
+    // still purge the catalog; it cannot rely on that old watcher to do so.
+    control(root, &mut sequence, Control::ExpireLeases, None).await;
+    until_video(owner, "second expiry", |s| s.phase == Video::Expired).await;
+    video_joined(owner).await;
+    until(owner, "expired photo watcher", |s| {
+        s.status == Status::Expired
+    })
+    .await;
+    play_video(owner).await;
+    control(root, &mut sequence, Control::RevokeRead, None).await;
+    until(
+        owner,
+        "video refusal independently purges private camera metadata",
+        |s| s.catalog.is_empty() && s.selected.is_none() && s.picture.is_none(),
+    )
+    .await;
+    video_joined(owner).await;
+    control(root, &mut sequence, Control::AllowRead, None).await;
+    owner.reload_catalog(generation(owner));
+    until(owner, "fresh catalog after rights restoration", ready).await;
+    play_video(owner).await;
+    session.logout().await.unwrap();
+    video_joined(owner).await;
+    until(owner, "logout removes all camera data", |s| {
+        !s.active && s.catalog.is_empty() && s.selected.is_none()
+    })
+    .await;
+    let after = owner.0.videos.probe_snapshot();
+    assert_eq!(after.max_live_workers, 1);
+    assert!(after.frames_decoded > 10);
+    assert!(after.decode_nanos > 0 && after.max_decode_nanos > 0);
+    assert_eq!(stats(root, &mut sequence).await["video_streams"], 0);
+    println!(
+        "{}",
+        serde_json::json!({"native_owner":true,"frames_decoded":after.frames_decoded,"workers_started":after.workers_started,"workers_joined":after.workers_joined,"max_live_workers":after.max_live_workers,"decode_total_nanos":after.decode_nanos,"max_decode_nanos":after.max_decode_nanos,"controls":sequence,"native_slint_rendering":false,"resource_growth_measured":false})
+    );
+}
+#[cfg(target_os = "macos")]
+#[tokio::test]
+#[ignore = "explicit synthetic native video TLS fixture"]
+async fn actual_camera_native_video_owner_lifecycle_and_private_frames() {
+    let root = PathBuf::from(std::env::var("HOMEWARD_NHF016_TLS_FIXTURE").unwrap());
+    let fixture: Fixture =
+        serde_json::from_slice(&std::fs::read(root.join("ready.json")).unwrap()).unwrap();
+    match fixture.mode {
+        Mode::SyntheticOnly => {}
+    };
+    assert!(!fixture.production_cameras);
+    let uri = url::Url::parse(&fixture.origin).unwrap();
+    assert_eq!(uri.scheme(), "https");
+    assert!(
+        uri.host_str()
+            .unwrap()
+            .parse::<std::net::IpAddr>()
+            .unwrap()
+            .is_loopback()
+    );
+    let connection = Connection::new(&fixture.origin, fixture.ca_pem.as_bytes()).unwrap();
+    let session = SessionCoordinator::new(connection.auth(), Arc::new(MemoryStore::default()));
+    session
+        .login(
+            fixture.reader.login_name,
+            Zeroizing::new(fixture.reader.password),
+        )
+        .await
+        .unwrap();
+    let owner = Cameras::detached();
+    let cancel = CancellationToken::new();
+    let (run, source, api, token) = (
+        owner.clone(),
+        session.clone(),
+        connection.cameras(),
+        cancel.clone(),
+    );
+    let task = tokio::spawn(async move {
+        run.run(source, api, token).await;
+    });
+    qualify_native_video(&owner, &root, &session).await;
+    cancel.cancel();
+    tokio::time::timeout(Duration::from_secs(5), task)
+        .await
+        .unwrap()
+        .unwrap();
+    println!("NHF017_NATIVE_VIDEO_OWNER_TLS_PASS");
 }

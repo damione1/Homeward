@@ -143,8 +143,8 @@ def prune_archive(path, apply):
 def automatic_keeps(cache):
     """One active SQL stage, the last delivery, and two useful native builds."""
     result, stages, deliveries, native = [], [], [], []
-    for stage in cache.glob('migrations-race-nhf*-v*'):
-        match = re.fullmatch(r'migrations-race-nhf(\d+)-v(\d+)', stage.name)
+    for stage in cache.glob('migrations-race-nhf*'):
+        match = re.fullmatch(r'migrations-race-nhf(\d+)(?:-v(\d+))?', stage.name)
         path = stage / 'manifest.json'
         if not match or not path.is_file():
             continue
@@ -157,7 +157,7 @@ def automatic_keeps(cache):
         artifacts = data.get('artifacts', {})
         if (len(artifacts) == 4 and all(Path(row[field]).is_file()
                                       for row in artifacts.values() for field in ('test', 'homed'))):
-            stages.append(((int(match[1]), int(match[2])), stage))
+            stages.append(((int(match[1]), int(match[2] or 0)), stage))
     if stages:
         result.append(max(stages)[1])
     for path in cache.glob('nhf*/delivery.json'):

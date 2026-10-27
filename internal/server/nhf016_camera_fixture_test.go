@@ -17,18 +17,21 @@ import (
 type nhf016CameraControl string
 
 const (
-	nhf016CameraPauseImages   nhf016CameraControl = "pause-images"
-	nhf016CameraResumeImages  nhf016CameraControl = "resume-images"
-	nhf016CameraExpire        nhf016CameraControl = "expire-leases"
-	nhf016CameraRevoke        nhf016CameraControl = "revoke-read"
-	nhf016CameraAllow         nhf016CameraControl = "allow-read"
-	nhf016CameraOutage        nhf016CameraControl = "outage"
-	nhf016CameraRestore       nhf016CameraControl = "restore-network"
-	nhf016CameraSnapshot      nhf016CameraControl = "snapshot"
-	nhf016CameraMissingImage  nhf016CameraControl = "missing-image"
-	nhf016CameraWrongCamera   nhf016CameraControl = "wrong-camera"
-	nhf016CameraRestoreImages nhf016CameraControl = "restore-images"
-	nhf016CameraChangeEvents  nhf016CameraControl = "change-events"
+	nhf016CameraPauseImages      nhf016CameraControl = "pause-images"
+	nhf016CameraResumeImages     nhf016CameraControl = "resume-images"
+	nhf016CameraExpire           nhf016CameraControl = "expire-leases"
+	nhf016CameraRevoke           nhf016CameraControl = "revoke-read"
+	nhf016CameraAllow            nhf016CameraControl = "allow-read"
+	nhf016CameraOutage           nhf016CameraControl = "outage"
+	nhf016CameraRestore          nhf016CameraControl = "restore-network"
+	nhf016CameraSnapshot         nhf016CameraControl = "snapshot"
+	nhf016CameraMissingImage     nhf016CameraControl = "missing-image"
+	nhf016CameraWrongCamera      nhf016CameraControl = "wrong-camera"
+	nhf016CameraRestoreImages    nhf016CameraControl = "restore-images"
+	nhf016CameraChangeEvents     nhf016CameraControl = "change-events"
+	nhf017CameraVideoUnsupported nhf016CameraControl = "video-unsupported"
+	nhf017CameraVideoUnavailable nhf016CameraControl = "video-unavailable"
+	nhf017CameraVideoAvailable   nhf016CameraControl = "video-available"
 )
 
 func (a *nhf016CameraControl) UnmarshalJSON(raw []byte) error {
@@ -37,7 +40,7 @@ func (a *nhf016CameraControl) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 	switch nhf016CameraControl(value) {
-	case nhf016CameraPauseImages, nhf016CameraResumeImages, nhf016CameraExpire, nhf016CameraRevoke, nhf016CameraAllow, nhf016CameraOutage, nhf016CameraRestore, nhf016CameraSnapshot, nhf016CameraMissingImage, nhf016CameraWrongCamera, nhf016CameraRestoreImages, nhf016CameraChangeEvents:
+	case nhf016CameraPauseImages, nhf016CameraResumeImages, nhf016CameraExpire, nhf016CameraRevoke, nhf016CameraAllow, nhf016CameraOutage, nhf016CameraRestore, nhf016CameraSnapshot, nhf016CameraMissingImage, nhf016CameraWrongCamera, nhf016CameraRestoreImages, nhf016CameraChangeEvents, nhf017CameraVideoUnsupported, nhf017CameraVideoUnavailable, nhf017CameraVideoAvailable:
 		*a = nhf016CameraControl(value)
 		return nil
 	default:
@@ -58,6 +61,18 @@ func TestNHF016CameraServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := nhf016NewCameraRig(t, 10*time.Minute)
+	if videoRoot := os.Getenv("HOMEWARD_NHF017_VIDEO"); videoRoot != "" {
+		if os.Getenv("HOMEWARD_NHF017_SYNTHETIC_ONLY") != "1" || !filepath.IsAbs(videoRoot) || filepath.Clean(videoRoot) != videoRoot {
+			t.Fatal("explicit absolute synthetic-only video fixture required")
+		}
+		source, err := nhf017LoadVideoSource(videoRoot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.handler.mu.Lock()
+		r.handler.videoSource = source
+		r.handler.mu.Unlock()
+	}
 	certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: r.cameraServer.Certificate().Raw})
 	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": r.cameraServer.URL, "ca_pem": string(certificate), "reader": map[string]string{"login_name": "NHA162 Admin", "password": "NHA162 synthetic admin password canary"}, "production_cameras": false})
 	defer nhf003WritePrivate(t, out, "result.json", map[string]any{"synthetic_only": true, "real_device_driver_instantiated": false, "real_device_writes": 0})
@@ -103,7 +118,7 @@ func TestNHF016CameraServer(t *testing.T) {
 			switch command.Action {
 			case nhf016CameraMissingImage, nhf016CameraWrongCamera, nhf016CameraRestoreImages, nhf016CameraChangeEvents:
 				targeted = true
-			case nhf016CameraPauseImages, nhf016CameraResumeImages, nhf016CameraExpire, nhf016CameraRevoke, nhf016CameraAllow, nhf016CameraOutage, nhf016CameraRestore, nhf016CameraSnapshot:
+			case nhf016CameraPauseImages, nhf016CameraResumeImages, nhf016CameraExpire, nhf016CameraRevoke, nhf016CameraAllow, nhf016CameraOutage, nhf016CameraRestore, nhf016CameraSnapshot, nhf017CameraVideoUnsupported, nhf017CameraVideoUnavailable, nhf017CameraVideoAvailable:
 			default:
 				t.Fatal("unparsed camera control")
 			}
@@ -111,6 +126,20 @@ func TestNHF016CameraServer(t *testing.T) {
 				t.Fatal("unexpected camera control identity")
 			}
 			switch command.Action {
+			case nhf017CameraVideoUnsupported, nhf017CameraVideoUnavailable, nhf017CameraVideoAvailable:
+				r.handler.mu.Lock()
+				switch command.Action {
+				case nhf017CameraVideoUnsupported:
+					r.handler.videoMode = nhf017VideoUnsupported
+				case nhf017CameraVideoUnavailable:
+					r.handler.videoMode = nhf017VideoNegotiationFailure
+				case nhf017CameraVideoAvailable:
+					r.handler.videoMode = nhf017VideoAvailable
+				default:
+					r.handler.mu.Unlock()
+					t.Fatal("invalid video fixture control")
+				}
+				r.handler.mu.Unlock()
 			case nhf016CameraRevoke:
 				nha162SetPolicy(t, r.nha162RPCRig, r.admin, "  []\n")
 			case nhf016CameraAllow:
@@ -178,7 +207,7 @@ func TestNHF016CameraServer(t *testing.T) {
 				r.handler.mu.Lock()
 				leases := len(r.handler.leases)
 				r.handler.mu.Unlock()
-				nhf003WritePrivate(t, out, fmt.Sprintf("stats-%02d.json", command.Sequence), map[string]any{"image_requests": r.handler.imageRequests.Load(), "active_reads": r.handler.activeReads.Load(), "active_streams": r.handler.activeStreams.Load(), "retained_leases": leases})
+				nhf003WritePrivate(t, out, fmt.Sprintf("stats-%02d.json", command.Sequence), map[string]any{"image_requests": r.handler.imageRequests.Load(), "active_reads": r.handler.activeReads.Load(), "active_streams": r.handler.activeStreams.Load(), "retained_leases": leases, "video_streams": r.handler.videoStreams.Load(), "video_samples": r.handler.videoSamples.Load()})
 			default:
 				t.Fatal("unparsed camera control")
 			}

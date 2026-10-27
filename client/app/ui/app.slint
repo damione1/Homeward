@@ -5,7 +5,8 @@ import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitU
 import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction } from "@kit-pro/kit-pro.slint";
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
-import { HomewardCameras, CameraPresentation } from "cameras.slint";
+import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
+import { ProVideoAction } from "@kit-pro/kit-pro.slint";
 import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-pro/kit-pro.slint";
 import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro/kit-pro.slint";
 import { CivilDateView, LocalDateTimeView, LocalTimeView, ZonedTimePresentation, ZonedDateTimeDraft, AmbiguousTimeChoice, CalendarDay, CalendarNavigation } from "@kit/kit.slint";
@@ -65,6 +66,11 @@ export component HomewardWindow inherits Window {
 
 
     in property <CameraPresentation> cameras;
+    in property <VideoPresentation> video;
+    callback video-action(int,int,ProVideoAction);
+    callback video-viewport(bool);
+    callback video-expire(int);
+    callback cameras-open-video(int,int);
     in-out property <bool> cameras-publishing;
     callback cameras-choose(int,int);
     callback cameras-event(int,int);
@@ -415,6 +421,11 @@ export component HomewardWindow inherits Window {
             cameras-pane:=HomewardCameras {
                 width:viewport.width;height:viewport.height;visible:root.page == ViewPage.cameras;
                 theme:root.theme;data:root.cameras;interactive:root.camera-interactive;
+                video:root.video;
+                open-video(t,g)=>{if(!root.cameras-publishing){root.cameras-open-video(t,g);}}
+                video-action(t,g,a)=>{root.video-action(t,g,a);}
+                video-viewport(visible)=>{root.video-viewport(visible);}
+                video-expire(g)=>{root.video-expire(g);}
                 choose(t,g)=>{if(!root.cameras-publishing){root.cameras-choose(t,g);}}
                 event(t,g)=>{if(!root.cameras-publishing){root.cameras-event(t,g);}}
                 snapshot(t,g)=>{if(!root.cameras-publishing){root.cameras-snapshot(t,g);}}

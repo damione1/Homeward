@@ -1951,6 +1951,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-tz",
+ "zeroize",
 ]
 
 [[package]]
@@ -1959,6 +1960,8 @@ version = "0.1.0"
 dependencies = [
  "android-activity 0.6.1",
  "base64 0.22.1",
+ "core-foundation-sys",
+ "home-client-model",
  "home-client-session",
  "home-client-transport",
  "home-wire-contract",

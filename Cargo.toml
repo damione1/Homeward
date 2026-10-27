@@ -6,3 +6,14 @@ resolver = "2"
 [patch.crates-io]
 i-slint-backend-android-activity = { path = "client/platform/vendor/slint-android-activity" }
 connectrpc = { path = "client/transport/vendor/connectrpc" }
+
+# Keep native drawing responsive during development. Application code retains
+# its normal debug settings; these rendering dependencies run the pixel loops.
+[profile.dev.package.i-slint-core]
+opt-level = 2
+
+[profile.dev.package.i-slint-renderer-software]
+opt-level = 2
+
+[profile.dev.package.i-slint-backend-winit]
+opt-level = 2

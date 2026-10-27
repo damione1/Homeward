@@ -145,6 +145,62 @@ impl ::buffa::Enumeration for DataProvenance {
         ]
     }
 }
+/// Provisional NHF017 native video. No audio, external/provider URLs, codec
+/// downloads or server transcoding. Baseline H.264 only in this contract version.
+/// A stream reuses an exact camera lease, checked against current native rights
+/// on admission and on every output. Closing/retiring the lease stops its video.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum VideoCodec {
+    VIDEO_CODEC_UNSPECIFIED = 0i32,
+    VIDEO_CODEC_H264_BASELINE = 1i32,
+}
+impl VideoCodec {
+    ///Idiomatic alias for [`Self::VIDEO_CODEC_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::VIDEO_CODEC_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::VIDEO_CODEC_H264_BASELINE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const H264Baseline: Self = Self::VIDEO_CODEC_H264_BASELINE;
+}
+impl ::core::default::Default for VideoCodec {
+    fn default() -> Self {
+        Self::VIDEO_CODEC_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for VideoCodec {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::VIDEO_CODEC_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::VIDEO_CODEC_H264_BASELINE),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::VIDEO_CODEC_UNSPECIFIED => "VIDEO_CODEC_UNSPECIFIED",
+            Self::VIDEO_CODEC_H264_BASELINE => "VIDEO_CODEC_H264_BASELINE",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "VIDEO_CODEC_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::VIDEO_CODEC_UNSPECIFIED)
+            }
+            "VIDEO_CODEC_H264_BASELINE" => {
+                ::core::option::Option::Some(Self::VIDEO_CODEC_H264_BASELINE)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[Self::VIDEO_CODEC_UNSPECIFIED, Self::VIDEO_CODEC_H264_BASELINE]
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct Camera {
     /// Field 1: `entity_id`
@@ -3531,6 +3587,875 @@ pub mod watch_session_response {
     pub use super::__buffa::oneof::watch_session_response::Frame;
     #[doc(inline)]
     pub use super::__buffa::view::oneof::watch_session_response::Frame as FrameView;
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct VideoHeader {
+    /// Field 1: `lease`
+    pub lease: ::buffa::MessageField<Lease, ::buffa::Inline<Lease>>,
+    /// Field 2: `codec`
+    pub codec: ::buffa::EnumValue<VideoCodec>,
+    /// Raw SPS/PPS NALs, each at most1024bytes; AVCC uses four-byte NAL lengths.
+    ///
+    /// Field 3: `sps`
+    pub sps: ::buffa::alloc::vec::Vec<u8>,
+    /// Field 4: `pps`
+    pub pps: ::buffa::alloc::vec::Vec<u8>,
+    /// Dimensions are bounded1920x1080 and must match the native format/output.
+    ///
+    /// Field 5: `width`
+    pub width: u32,
+    /// Field 6: `height`
+    pub height: u32,
+    /// 1..30, supplied by the server.
+    ///
+    /// Field 7: `frames_per_second`
+    pub frames_per_second: u32,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for VideoHeader {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("VideoHeader")
+            .field("lease", &self.lease)
+            .field("codec", &self.codec)
+            .field("sps", &self.sps)
+            .field("pps", &self.pps)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("frames_per_second", &self.frames_per_second)
+            .finish()
+    }
+}
+impl VideoHeader {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.VideoHeader";
+}
+::buffa::impl_default_instance!(VideoHeader);
+impl ::buffa::MessageName for VideoHeader {
+    const PACKAGE: &'static str = "home.cameras.v1";
+    const NAME: &'static str = "VideoHeader";
+    const FULL_NAME: &'static str = "home.cameras.v1.VideoHeader";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.VideoHeader";
+}
+impl ::buffa::Message for VideoHeader {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.lease.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.lease.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.codec.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if !self.sps.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.sps) as u64;
+        }
+        if !self.pps.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.pps) as u64;
+        }
+        if self.width != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.width) as u64;
+        }
+        if self.height != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.height) as u64;
+        }
+        if self.frames_per_second != 0u32 {
+            size
+                += 1u64
+                    + ::buffa::types::uint32_encoded_len(self.frames_per_second) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.lease.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.lease.write_to(__cache, buf);
+        }
+        {
+            let val = self.codec.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
+            }
+        }
+        if !self.sps.is_empty() {
+            ::buffa::types::put_shared_bytes_field(3u32, &self.sps, buf);
+        }
+        if !self.pps.is_empty() {
+            ::buffa::types::put_shared_bytes_field(4u32, &self.pps, buf);
+        }
+        if self.width != 0u32 {
+            ::buffa::types::put_uint32_field(5u32, self.width, buf);
+        }
+        if self.height != 0u32 {
+            ::buffa::types::put_uint32_field(6u32, self.height, buf);
+        }
+        if self.frames_per_second != 0u32 {
+            ::buffa::types::put_uint32_field(7u32, self.frames_per_second, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.lease.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.codec = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.sps, buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.pps, buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.width = ::buffa::types::decode_uint32(buf)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.height = ::buffa::types::decode_uint32(buf)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.frames_per_second = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.lease = ::buffa::MessageField::none();
+        self.codec = ::buffa::EnumValue::from(0);
+        self.sps.clear();
+        self.pps.clear();
+        self.width = 0u32;
+        self.height = 0u32;
+        self.frames_per_second = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for VideoHeader {
+    const PROTO_FQN: &'static str = "home.cameras.v1.VideoHeader";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct VideoSample {
+    /// Field 1: `session`
+    pub session: ::buffa::MessageField<SessionRef, ::buffa::Inline<SessionRef>>,
+    /// Strictly increasing from the stream origin.
+    ///
+    /// Field 2: `presentation_micros`
+    pub presentation_micros: u64,
+    /// One AVCC access unit, at most512KiB and64NALs; first VCL is a keyframe.
+    /// No SPS/PPS or dimension change in-band: negotiate a new stream instead.
+    ///
+    /// Field 3: `avcc`
+    pub avcc: ::buffa::alloc::vec::Vec<u8>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for VideoSample {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("VideoSample")
+            .field("session", &self.session)
+            .field("presentation_micros", &self.presentation_micros)
+            .field("avcc", &self.avcc)
+            .finish()
+    }
+}
+impl VideoSample {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.VideoSample";
+}
+::buffa::impl_default_instance!(VideoSample);
+impl ::buffa::MessageName for VideoSample {
+    const PACKAGE: &'static str = "home.cameras.v1";
+    const NAME: &'static str = "VideoSample";
+    const FULL_NAME: &'static str = "home.cameras.v1.VideoSample";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.VideoSample";
+}
+impl ::buffa::Message for VideoSample {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.session.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.session.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.presentation_micros != 0u64 {
+            size
+                += 1u64
+                    + ::buffa::types::uint64_encoded_len(self.presentation_micros)
+                        as u64;
+        }
+        if !self.avcc.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.avcc) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.session.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.session.write_to(__cache, buf);
+        }
+        if self.presentation_micros != 0u64 {
+            ::buffa::types::put_uint64_field(2u32, self.presentation_micros, buf);
+        }
+        if !self.avcc.is_empty() {
+            ::buffa::types::put_shared_bytes_field(3u32, &self.avcc, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.session.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.presentation_micros = ::buffa::types::decode_uint64(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.avcc, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.session = ::buffa::MessageField::none();
+        self.presentation_micros = 0u64;
+        self.avcc.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for VideoSample {
+    const PROTO_FQN: &'static str = "home.cameras.v1.VideoSample";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct ReadVideoRequest {
+    /// Field 1: `session`
+    pub session: ::buffa::MessageField<SessionRef, ::buffa::Inline<SessionRef>>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ReadVideoRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ReadVideoRequest").field("session", &self.session).finish()
+    }
+}
+impl ReadVideoRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.ReadVideoRequest";
+}
+::buffa::impl_default_instance!(ReadVideoRequest);
+impl ::buffa::MessageName for ReadVideoRequest {
+    const PACKAGE: &'static str = "home.cameras.v1";
+    const NAME: &'static str = "ReadVideoRequest";
+    const FULL_NAME: &'static str = "home.cameras.v1.ReadVideoRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.ReadVideoRequest";
+}
+impl ::buffa::Message for ReadVideoRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.session.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.session.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.session.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.session.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.session.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.session = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ReadVideoRequest {
+    const PROTO_FQN: &'static str = "home.cameras.v1.ReadVideoRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct ReadVideoResponse {
+    /// Field 1: `sequence`
+    pub sequence: u64,
+    pub frame: ::core::option::Option<__buffa::oneof::read_video_response::Frame>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ReadVideoResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ReadVideoResponse")
+            .field("sequence", &self.sequence)
+            .field("frame", &self.frame)
+            .finish()
+    }
+}
+impl ReadVideoResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.ReadVideoResponse";
+}
+::buffa::impl_default_instance!(ReadVideoResponse);
+impl ::buffa::MessageName for ReadVideoResponse {
+    const PACKAGE: &'static str = "home.cameras.v1";
+    const NAME: &'static str = "ReadVideoResponse";
+    const FULL_NAME: &'static str = "home.cameras.v1.ReadVideoResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.ReadVideoResponse";
+}
+impl ::buffa::Message for ReadVideoResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.sequence != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.sequence) as u64;
+        }
+        if let ::core::option::Option::Some(ref v) = self.frame {
+            match v {
+                __buffa::oneof::read_video_response::Frame::Header(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::read_video_response::Frame::Sample(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::read_video_response::Frame::Expired(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::read_video_response::Frame::Revoked(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::read_video_response::Frame::Unavailable(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::read_video_response::Frame::Unsupported(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::read_video_response::Frame::ResyncRequired(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.sequence != 0u64 {
+            ::buffa::types::put_uint64_field(1u32, self.sequence, buf);
+        }
+        if let ::core::option::Option::Some(ref v) = self.frame {
+            match v {
+                __buffa::oneof::read_video_response::Frame::Header(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::read_video_response::Frame::Sample(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        3u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::read_video_response::Frame::Expired(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::read_video_response::Frame::Revoked(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::read_video_response::Frame::Unavailable(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::read_video_response::Frame::Unsupported(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::read_video_response::Frame::ResyncRequired(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        8u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.sequence = ::buffa::types::decode_uint64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::read_video_response::Frame::Header(ref mut existing),
+                ) = self.frame
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.frame = ::core::option::Option::Some(
+                        __buffa::oneof::read_video_response::Frame::Header(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::read_video_response::Frame::Sample(ref mut existing),
+                ) = self.frame
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.frame = ::core::option::Option::Some(
+                        __buffa::oneof::read_video_response::Frame::Sample(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::read_video_response::Frame::Expired(ref mut existing),
+                ) = self.frame
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.frame = ::core::option::Option::Some(
+                        __buffa::oneof::read_video_response::Frame::Expired(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::read_video_response::Frame::Revoked(ref mut existing),
+                ) = self.frame
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.frame = ::core::option::Option::Some(
+                        __buffa::oneof::read_video_response::Frame::Revoked(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::read_video_response::Frame::Unavailable(
+                        ref mut existing,
+                    ),
+                ) = self.frame
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.frame = ::core::option::Option::Some(
+                        __buffa::oneof::read_video_response::Frame::Unavailable(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::read_video_response::Frame::Unsupported(
+                        ref mut existing,
+                    ),
+                ) = self.frame
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.frame = ::core::option::Option::Some(
+                        __buffa::oneof::read_video_response::Frame::Unsupported(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::read_video_response::Frame::ResyncRequired(
+                        ref mut existing,
+                    ),
+                ) = self.frame
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.frame = ::core::option::Option::Some(
+                        __buffa::oneof::read_video_response::Frame::ResyncRequired(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.sequence = 0u64;
+        self.frame = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ReadVideoResponse {
+    const PROTO_FQN: &'static str = "home.cameras.v1.ReadVideoResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+pub mod read_video_response {
+    #[allow(unused_imports)]
+    use super::*;
+    #[doc(inline)]
+    pub use super::__buffa::oneof::read_video_response::Frame;
+    #[doc(inline)]
+    pub use super::__buffa::view::oneof::read_video_response::Frame as FrameView;
 }
 #[allow(
     non_camel_case_types,
@@ -10642,6 +11567,1723 @@ pub mod __buffa {
             type View<'a> = WatchSessionResponseView<'a>;
             type ViewHandle = WatchSessionResponseOwnedView;
         }
+        #[derive(Clone, Debug, Default)]
+        pub struct VideoHeaderView<'a> {
+            /// Field 1: `lease`
+            pub lease: ::buffa::MessageFieldView<
+                super::super::__buffa::view::LeaseView<'a>,
+            >,
+            /// Field 2: `codec`
+            pub codec: ::buffa::EnumValue<super::super::VideoCodec>,
+            /// Raw SPS/PPS NALs, each at most1024bytes; AVCC uses four-byte NAL lengths.
+            ///
+            /// Field 3: `sps`
+            pub sps: &'a [u8],
+            /// Field 4: `pps`
+            pub pps: &'a [u8],
+            /// Dimensions are bounded1920x1080 and must match the native format/output.
+            ///
+            /// Field 5: `width`
+            pub width: u32,
+            /// Field 6: `height`
+            pub height: u32,
+            /// 1..30, supplied by the server.
+            ///
+            /// Field 7: `frames_per_second`
+            pub frames_per_second: u32,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for VideoHeaderView<'a> {
+            type Owned = super::super::VideoHeader;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.lease.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.lease = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::LeaseView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.codec = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.sps = ::buffa::types::borrow_bytes(&mut cur)?;
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.pps = ::buffa::types::borrow_bytes(&mut cur)?;
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.width = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.height = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.frames_per_second = ::buffa::types::decode_uint32(
+                            &mut cur,
+                        )?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::VideoHeader,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::VideoHeader,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::VideoHeader {
+                    lease: match self.lease.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::Lease,
+                                ::buffa::Inline<super::super::Lease>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    codec: self.codec,
+                    sps: (self.sps).to_vec(),
+                    pps: (self.pps).to_vec(),
+                    width: self.width,
+                    height: self.height,
+                    frames_per_second: self.frames_per_second,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for VideoHeaderView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.lease.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.lease.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                {
+                    let val = self.codec.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                if !self.sps.is_empty() {
+                    size += 1u64 + ::buffa::types::bytes_encoded_len(&self.sps) as u64;
+                }
+                if !self.pps.is_empty() {
+                    size += 1u64 + ::buffa::types::bytes_encoded_len(&self.pps) as u64;
+                }
+                if self.width != 0u32 {
+                    size += 1u64 + ::buffa::types::uint32_encoded_len(self.width) as u64;
+                }
+                if self.height != 0u32 {
+                    size
+                        += 1u64 + ::buffa::types::uint32_encoded_len(self.height) as u64;
+                }
+                if self.frames_per_second != 0u32 {
+                    size
+                        += 1u64
+                            + ::buffa::types::uint32_encoded_len(self.frames_per_second)
+                                as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.lease.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.lease.write_to(__cache, buf);
+                }
+                {
+                    let val = self.codec.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(2u32, val, buf);
+                    }
+                }
+                if !self.sps.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(3u32, &self.sps, buf);
+                }
+                if !self.pps.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(4u32, &self.pps, buf);
+                }
+                if self.width != 0u32 {
+                    ::buffa::types::put_uint32_field(5u32, self.width, buf);
+                }
+                if self.height != 0u32 {
+                    ::buffa::types::put_uint32_field(6u32, self.height, buf);
+                }
+                if self.frames_per_second != 0u32 {
+                    ::buffa::types::put_uint32_field(7u32, self.frames_per_second, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for VideoHeaderView<'a> {
+            const PACKAGE: &'static str = "home.cameras.v1";
+            const NAME: &'static str = "VideoHeader";
+            const FULL_NAME: &'static str = "home.cameras.v1.VideoHeader";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.VideoHeader";
+        }
+        ::buffa::impl_default_view_instance!(VideoHeaderView);
+        ::buffa::impl_view_reborrow!(VideoHeaderView);
+        /** Self-contained, `'static` owned view of a `VideoHeader` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`VideoHeaderView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`VideoHeaderView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct VideoHeaderOwnedView(::buffa::OwnedView<VideoHeaderView<'static>>);
+        impl VideoHeaderOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    VideoHeaderOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    VideoHeaderOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::VideoHeader,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    VideoHeaderOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`VideoHeaderView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &VideoHeaderView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::VideoHeader {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `lease`
+            #[must_use]
+            pub fn lease(
+                &self,
+            ) -> &::buffa::MessageFieldView<super::super::__buffa::view::LeaseView<'_>> {
+                &self.0.reborrow().lease
+            }
+            /// Field 2: `codec`
+            #[must_use]
+            pub fn codec(&self) -> ::buffa::EnumValue<super::super::VideoCodec> {
+                self.0.reborrow().codec
+            }
+            /// Raw SPS/PPS NALs, each at most1024bytes; AVCC uses four-byte NAL lengths.
+            ///
+            /// Field 3: `sps`
+            #[must_use]
+            pub fn sps(&self) -> &'_ [u8] {
+                self.0.reborrow().sps
+            }
+            /// Field 4: `pps`
+            #[must_use]
+            pub fn pps(&self) -> &'_ [u8] {
+                self.0.reborrow().pps
+            }
+            /// Dimensions are bounded1920x1080 and must match the native format/output.
+            ///
+            /// Field 5: `width`
+            #[must_use]
+            pub fn width(&self) -> u32 {
+                self.0.reborrow().width
+            }
+            /// Field 6: `height`
+            #[must_use]
+            pub fn height(&self) -> u32 {
+                self.0.reborrow().height
+            }
+            /// 1..30, supplied by the server.
+            ///
+            /// Field 7: `frames_per_second`
+            #[must_use]
+            pub fn frames_per_second(&self) -> u32 {
+                self.0.reborrow().frames_per_second
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<VideoHeaderView<'static>>>
+        for VideoHeaderOwnedView {
+            fn from(inner: ::buffa::OwnedView<VideoHeaderView<'static>>) -> Self {
+                VideoHeaderOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<VideoHeaderOwnedView>
+        for ::buffa::OwnedView<VideoHeaderView<'static>> {
+            fn from(wrapper: VideoHeaderOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<VideoHeaderView<'static>>>
+        for VideoHeaderOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<VideoHeaderView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::VideoHeader {
+            type View<'a> = VideoHeaderView<'a>;
+            type ViewHandle = VideoHeaderOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct VideoSampleView<'a> {
+            /// Field 1: `session`
+            pub session: ::buffa::MessageFieldView<
+                super::super::__buffa::view::SessionRefView<'a>,
+            >,
+            /// Strictly increasing from the stream origin.
+            ///
+            /// Field 2: `presentation_micros`
+            pub presentation_micros: u64,
+            /// One AVCC access unit, at most512KiB and64NALs; first VCL is a keyframe.
+            /// No SPS/PPS or dimension change in-band: negotiate a new stream instead.
+            ///
+            /// Field 3: `avcc`
+            pub avcc: &'a [u8],
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for VideoSampleView<'a> {
+            type Owned = super::super::VideoSample;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.session.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.session = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::SessionRefView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.presentation_micros = ::buffa::types::decode_uint64(
+                            &mut cur,
+                        )?;
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.avcc = ::buffa::types::borrow_bytes(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::VideoSample,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::VideoSample,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::VideoSample {
+                    session: match self.session.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::SessionRef,
+                                ::buffa::Inline<super::super::SessionRef>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    presentation_micros: self.presentation_micros,
+                    avcc: (self.avcc).to_vec(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for VideoSampleView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.session.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.session.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.presentation_micros != 0u64 {
+                    size
+                        += 1u64
+                            + ::buffa::types::uint64_encoded_len(
+                                self.presentation_micros,
+                            ) as u64;
+                }
+                if !self.avcc.is_empty() {
+                    size += 1u64 + ::buffa::types::bytes_encoded_len(&self.avcc) as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.session.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.session.write_to(__cache, buf);
+                }
+                if self.presentation_micros != 0u64 {
+                    ::buffa::types::put_uint64_field(
+                        2u32,
+                        self.presentation_micros,
+                        buf,
+                    );
+                }
+                if !self.avcc.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(3u32, &self.avcc, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for VideoSampleView<'a> {
+            const PACKAGE: &'static str = "home.cameras.v1";
+            const NAME: &'static str = "VideoSample";
+            const FULL_NAME: &'static str = "home.cameras.v1.VideoSample";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.VideoSample";
+        }
+        ::buffa::impl_default_view_instance!(VideoSampleView);
+        ::buffa::impl_view_reborrow!(VideoSampleView);
+        /** Self-contained, `'static` owned view of a `VideoSample` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`VideoSampleView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`VideoSampleView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct VideoSampleOwnedView(::buffa::OwnedView<VideoSampleView<'static>>);
+        impl VideoSampleOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    VideoSampleOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    VideoSampleOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::VideoSample,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    VideoSampleOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`VideoSampleView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &VideoSampleView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::VideoSample {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `session`
+            #[must_use]
+            pub fn session(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::SessionRefView<'_>,
+            > {
+                &self.0.reborrow().session
+            }
+            /// Strictly increasing from the stream origin.
+            ///
+            /// Field 2: `presentation_micros`
+            #[must_use]
+            pub fn presentation_micros(&self) -> u64 {
+                self.0.reborrow().presentation_micros
+            }
+            /// One AVCC access unit, at most512KiB and64NALs; first VCL is a keyframe.
+            /// No SPS/PPS or dimension change in-band: negotiate a new stream instead.
+            ///
+            /// Field 3: `avcc`
+            #[must_use]
+            pub fn avcc(&self) -> &'_ [u8] {
+                self.0.reborrow().avcc
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<VideoSampleView<'static>>>
+        for VideoSampleOwnedView {
+            fn from(inner: ::buffa::OwnedView<VideoSampleView<'static>>) -> Self {
+                VideoSampleOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<VideoSampleOwnedView>
+        for ::buffa::OwnedView<VideoSampleView<'static>> {
+            fn from(wrapper: VideoSampleOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<VideoSampleView<'static>>>
+        for VideoSampleOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<VideoSampleView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::VideoSample {
+            type View<'a> = VideoSampleView<'a>;
+            type ViewHandle = VideoSampleOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct ReadVideoRequestView<'a> {
+            /// Field 1: `session`
+            pub session: ::buffa::MessageFieldView<
+                super::super::__buffa::view::SessionRefView<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ReadVideoRequestView<'a> {
+            type Owned = super::super::ReadVideoRequest;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.session.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.session = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::SessionRefView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ReadVideoRequest,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ReadVideoRequest,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ReadVideoRequest {
+                    session: match self.session.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::SessionRef,
+                                ::buffa::Inline<super::super::SessionRef>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ReadVideoRequestView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.session.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.session.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.session.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.session.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ReadVideoRequestView<'a> {
+            const PACKAGE: &'static str = "home.cameras.v1";
+            const NAME: &'static str = "ReadVideoRequest";
+            const FULL_NAME: &'static str = "home.cameras.v1.ReadVideoRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.ReadVideoRequest";
+        }
+        ::buffa::impl_default_view_instance!(ReadVideoRequestView);
+        ::buffa::impl_view_reborrow!(ReadVideoRequestView);
+        /** Self-contained, `'static` owned view of a `ReadVideoRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ReadVideoRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ReadVideoRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ReadVideoRequestOwnedView(
+            ::buffa::OwnedView<ReadVideoRequestView<'static>>,
+        );
+        impl ReadVideoRequestOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReadVideoRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReadVideoRequestOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ReadVideoRequest,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReadVideoRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ReadVideoRequestView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ReadVideoRequestView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ReadVideoRequest {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `session`
+            #[must_use]
+            pub fn session(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::SessionRefView<'_>,
+            > {
+                &self.0.reborrow().session
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<ReadVideoRequestView<'static>>>
+        for ReadVideoRequestOwnedView {
+            fn from(inner: ::buffa::OwnedView<ReadVideoRequestView<'static>>) -> Self {
+                ReadVideoRequestOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ReadVideoRequestOwnedView>
+        for ::buffa::OwnedView<ReadVideoRequestView<'static>> {
+            fn from(wrapper: ReadVideoRequestOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<ReadVideoRequestView<'static>>>
+        for ReadVideoRequestOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ReadVideoRequestView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ReadVideoRequest {
+            type View<'a> = ReadVideoRequestView<'a>;
+            type ViewHandle = ReadVideoRequestOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct ReadVideoResponseView<'a> {
+            /// Field 1: `sequence`
+            pub sequence: u64,
+            pub frame: ::core::option::Option<
+                super::super::__buffa::view::oneof::read_video_response::Frame<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ReadVideoResponseView<'a> {
+            type Owned = super::super::ReadVideoResponse;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.sequence = ::buffa::types::decode_uint64(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::read_video_response::Frame::Header(
+                                ref mut existing,
+                            ),
+                        ) = view.frame
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.frame = Some(
+                                super::super::__buffa::view::oneof::read_video_response::Frame::Header(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::VideoHeaderView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::read_video_response::Frame::Sample(
+                                ref mut existing,
+                            ),
+                        ) = view.frame
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.frame = Some(
+                                super::super::__buffa::view::oneof::read_video_response::Frame::Sample(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::VideoSampleView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::read_video_response::Frame::Expired(
+                                ref mut existing,
+                            ),
+                        ) = view.frame
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.frame = Some(
+                                super::super::__buffa::view::oneof::read_video_response::Frame::Expired(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <::buffa_types::google::protobuf::__buffa::view::EmptyView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::read_video_response::Frame::Revoked(
+                                ref mut existing,
+                            ),
+                        ) = view.frame
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.frame = Some(
+                                super::super::__buffa::view::oneof::read_video_response::Frame::Revoked(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <::buffa_types::google::protobuf::__buffa::view::EmptyView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::read_video_response::Frame::Unavailable(
+                                ref mut existing,
+                            ),
+                        ) = view.frame
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.frame = Some(
+                                super::super::__buffa::view::oneof::read_video_response::Frame::Unavailable(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <::buffa_types::google::protobuf::__buffa::view::EmptyView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::read_video_response::Frame::Unsupported(
+                                ref mut existing,
+                            ),
+                        ) = view.frame
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.frame = Some(
+                                super::super::__buffa::view::oneof::read_video_response::Frame::Unsupported(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <::buffa_types::google::protobuf::__buffa::view::EmptyView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::read_video_response::Frame::ResyncRequired(
+                                ref mut existing,
+                            ),
+                        ) = view.frame
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.frame = Some(
+                                super::super::__buffa::view::oneof::read_video_response::Frame::ResyncRequired(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <::buffa_types::google::protobuf::__buffa::view::EmptyView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ReadVideoResponse,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ReadVideoResponse,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ReadVideoResponse {
+                    sequence: self.sequence,
+                    frame: match self.frame.as_ref() {
+                        ::core::option::Option::Some(v) => {
+                            ::core::option::Option::Some(
+                                match v {
+                                    super::super::__buffa::view::oneof::read_video_response::Frame::Header(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::read_video_response::Frame::Header(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::read_video_response::Frame::Sample(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::read_video_response::Frame::Sample(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::read_video_response::Frame::Expired(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::read_video_response::Frame::Expired(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::read_video_response::Frame::Revoked(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::read_video_response::Frame::Revoked(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::read_video_response::Frame::Unavailable(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::read_video_response::Frame::Unavailable(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::read_video_response::Frame::Unsupported(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::read_video_response::Frame::Unsupported(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::read_video_response::Frame::ResyncRequired(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::read_video_response::Frame::ResyncRequired(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                        ::core::option::Option::None => ::core::option::Option::None,
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ReadVideoResponseView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.sequence != 0u64 {
+                    size
+                        += 1u64
+                            + ::buffa::types::uint64_encoded_len(self.sequence) as u64;
+                }
+                if let ::core::option::Option::Some(ref v) = self.frame {
+                    match v {
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Header(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Sample(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Expired(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Revoked(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Unavailable(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Unsupported(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::ResyncRequired(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.sequence != 0u64 {
+                    ::buffa::types::put_uint64_field(1u32, self.sequence, buf);
+                }
+                if let ::core::option::Option::Some(ref v) = self.frame {
+                    match v {
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Header(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                2u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Sample(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                3u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Expired(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                4u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Revoked(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                5u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Unavailable(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                6u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::Unsupported(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                7u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::read_video_response::Frame::ResyncRequired(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                8u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ReadVideoResponseView<'a> {
+            const PACKAGE: &'static str = "home.cameras.v1";
+            const NAME: &'static str = "ReadVideoResponse";
+            const FULL_NAME: &'static str = "home.cameras.v1.ReadVideoResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.cameras.v1.ReadVideoResponse";
+        }
+        ::buffa::impl_default_view_instance!(ReadVideoResponseView);
+        ::buffa::impl_view_reborrow!(ReadVideoResponseView);
+        /** Self-contained, `'static` owned view of a `ReadVideoResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ReadVideoResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ReadVideoResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ReadVideoResponseOwnedView(
+            ::buffa::OwnedView<ReadVideoResponseView<'static>>,
+        );
+        impl ReadVideoResponseOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReadVideoResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReadVideoResponseOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ReadVideoResponse,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReadVideoResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ReadVideoResponseView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ReadVideoResponseView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ReadVideoResponse {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `sequence`
+            #[must_use]
+            pub fn sequence(&self) -> u64 {
+                self.0.reborrow().sequence
+            }
+            /// Oneof `frame`.
+            #[must_use]
+            pub fn frame(
+                &self,
+            ) -> ::core::option::Option<
+                &super::super::__buffa::view::oneof::read_video_response::Frame<'_>,
+            > {
+                self.0.reborrow().frame.as_ref()
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<ReadVideoResponseView<'static>>>
+        for ReadVideoResponseOwnedView {
+            fn from(inner: ::buffa::OwnedView<ReadVideoResponseView<'static>>) -> Self {
+                ReadVideoResponseOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ReadVideoResponseOwnedView>
+        for ::buffa::OwnedView<ReadVideoResponseView<'static>> {
+            fn from(wrapper: ReadVideoResponseOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<ReadVideoResponseView<'static>>>
+        for ReadVideoResponseOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ReadVideoResponseView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ReadVideoResponse {
+            type View<'a> = ReadVideoResponseView<'a>;
+            type ViewHandle = ReadVideoResponseOwnedView;
+        }
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -10772,6 +13414,52 @@ pub mod __buffa {
                         >,
                     ),
                     Revoked(
+                        ::buffa::alloc::boxed::Box<
+                            ::buffa_types::google::protobuf::__buffa::view::EmptyView<'a>,
+                        >,
+                    ),
+                    ResyncRequired(
+                        ::buffa::alloc::boxed::Box<
+                            ::buffa_types::google::protobuf::__buffa::view::EmptyView<'a>,
+                        >,
+                    ),
+                }
+            }
+            pub mod read_video_response {
+                #[allow(unused_imports)]
+                use super::*;
+                #[derive(Clone, Debug)]
+                pub enum Frame<'a> {
+                    Header(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::VideoHeaderView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Sample(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::VideoSampleView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Expired(
+                        ::buffa::alloc::boxed::Box<
+                            ::buffa_types::google::protobuf::__buffa::view::EmptyView<'a>,
+                        >,
+                    ),
+                    Revoked(
+                        ::buffa::alloc::boxed::Box<
+                            ::buffa_types::google::protobuf::__buffa::view::EmptyView<'a>,
+                        >,
+                    ),
+                    Unavailable(
+                        ::buffa::alloc::boxed::Box<
+                            ::buffa_types::google::protobuf::__buffa::view::EmptyView<'a>,
+                        >,
+                    ),
+                    Unsupported(
                         ::buffa::alloc::boxed::Box<
                             ::buffa_types::google::protobuf::__buffa::view::EmptyView<'a>,
                         >,
@@ -10946,6 +13634,56 @@ pub mod __buffa {
                 }
             }
         }
+        pub mod read_video_response {
+            #[allow(unused_imports)]
+            use super::*;
+            /// Header must be first(sequence1), then samples, then at most one terminal
+            /// reason. Header expiry cannot extend the original camera lease/deadline.
+            /// No replay or hidden retries. EOF, gaps or unknown frames retire the stream.
+            #[derive(Clone, PartialEq, Debug)]
+            pub enum Frame {
+                Header(::buffa::alloc::boxed::Box<super::super::super::VideoHeader>),
+                Sample(::buffa::alloc::boxed::Box<super::super::super::VideoSample>),
+                Expired(
+                    ::buffa::alloc::boxed::Box<::buffa_types::google::protobuf::Empty>,
+                ),
+                Revoked(
+                    ::buffa::alloc::boxed::Box<::buffa_types::google::protobuf::Empty>,
+                ),
+                Unavailable(
+                    ::buffa::alloc::boxed::Box<::buffa_types::google::protobuf::Empty>,
+                ),
+                Unsupported(
+                    ::buffa::alloc::boxed::Box<::buffa_types::google::protobuf::Empty>,
+                ),
+                ResyncRequired(
+                    ::buffa::alloc::boxed::Box<::buffa_types::google::protobuf::Empty>,
+                ),
+            }
+            impl ::buffa::Oneof for Frame {}
+            impl From<super::super::super::VideoHeader> for Frame {
+                fn from(v: super::super::super::VideoHeader) -> Self {
+                    Self::Header(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::VideoHeader>
+            for ::core::option::Option<Frame> {
+                fn from(v: super::super::super::VideoHeader) -> Self {
+                    Self::Some(Frame::from(v))
+                }
+            }
+            impl From<super::super::super::VideoSample> for Frame {
+                fn from(v: super::super::super::VideoSample) -> Self {
+                    Self::Sample(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::VideoSample>
+            for ::core::option::Option<Frame> {
+                fn from(v: super::super::super::VideoSample) -> Self {
+                    Self::Some(Frame::from(v))
+                }
+            }
+        }
     }
 }
 #[doc(inline)]
@@ -11028,3 +13766,19 @@ pub use self::__buffa::view::EventsChangedOwnedView;
 pub use self::__buffa::view::WatchSessionResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::WatchSessionResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::VideoHeaderView;
+#[doc(inline)]
+pub use self::__buffa::view::VideoHeaderOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::VideoSampleView;
+#[doc(inline)]
+pub use self::__buffa::view::VideoSampleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReadVideoRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReadVideoRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReadVideoResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReadVideoResponseOwnedView;
