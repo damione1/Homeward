@@ -377,3 +377,42 @@ fn received_accounts_are_atomic_bounded_and_bound_to_the_current_identity() {
         .is_err()
     );
 }
+
+#[test]
+fn personal_settings_do_not_require_the_admin_only_account_service() {
+    let identity = Identity {
+        account: AccountId::parse("ordinary-account").unwrap(),
+        session: SessionId::parse("native-session").unwrap(),
+    };
+    let mut state = PrivateState::<(), ()>::default();
+    let context = state.install(Authority::session_only(identity)).unwrap();
+    assert!(state.authority().unwrap().account().is_none());
+    for section in [
+        Section::Account,
+        Section::Sessions,
+        Section::Factors,
+        Section::McpKeys,
+    ] {
+        state
+            .publish(
+                context,
+                section,
+                Pane {
+                    stage: Stage::Ready,
+                    content: Some(()),
+                },
+            )
+            .unwrap();
+    }
+    assert_eq!(
+        state.publish(
+            context,
+            Section::Integrations,
+            Pane {
+                stage: Stage::Ready,
+                content: Some(())
+            }
+        ),
+        Err(Refusal::Denied)
+    );
+}

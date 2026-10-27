@@ -97,7 +97,7 @@ pub struct Identity {
 
 pub struct Authority {
     pub identity: Identity,
-    account: auth::Account,
+    account: Option<auth::Account>,
 }
 impl Authority {
     pub fn admit(identity: Identity, account: auth::Account) -> Result<Self, Refusal> {
@@ -106,13 +106,26 @@ impl Authority {
         if received != identity.account || account.status != auth::AccountStatus::Active {
             return Err(Refusal::Denied);
         }
-        Ok(Self { identity, account })
+        Ok(Self {
+            identity,
+            account: Some(account),
+        })
     }
-    pub fn account(&self) -> &auth::Account {
-        &self.account
+    /// Personal session/factor/MCP routes remain available when the server
+    /// refuses AccountService, whose public transport is admin-only.
+    pub fn session_only(identity: Identity) -> Self {
+        Self {
+            identity,
+            account: None,
+        }
+    }
+    pub fn account(&self) -> Option<&auth::Account> {
+        self.account.as_ref()
     }
     pub fn administrator(&self) -> bool {
-        self.account.role == auth::AccountRole::Admin
+        self.account
+            .as_ref()
+            .is_some_and(|account| account.role == auth::AccountRole::Admin)
     }
 }
 
