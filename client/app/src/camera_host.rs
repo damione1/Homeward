@@ -25,6 +25,7 @@ use tokio_util::sync::CancellationToken;
 #[derive(Clone)]
 pub(crate) struct Cameras(Arc<Inner>);
 struct Inner {
+    videos: crate::video_host::Videos,
     state: Mutex<State>,
     source: Mutex<Option<(SessionCoordinator, Generation)>>,
     window: Option<slint::Weak<HomewardWindow>>,
@@ -38,7 +39,12 @@ enum Job {
 }
 impl Cameras {
     fn new(window: Option<slint::Weak<HomewardWindow>>) -> Self {
+        let videos = match window.as_ref().and_then(slint::Weak::upgrade) {
+            Some(window) => crate::video_host::Videos::bind(&window),
+            None => crate::video_host::Videos::detached(),
+        };
         Self(Arc::new(Inner {
+            videos,
             state: Mutex::new(State::default()),
             source: Mutex::new(None),
             window,
@@ -59,6 +65,8 @@ impl Cameras {
         let this = owner.clone();
         window.on_cameras_snapshot(move |t, g| this.snapshot(t, g));
         let this = owner.clone();
+        window.on_cameras_open_video(move |t, g| this.open_video(t, g));
+        let this = owner.clone();
         window.on_cameras_reload(move |t, g| this.reload_preview(t, g));
         let this = owner.clone();
         window.on_cameras_reload_catalog(move |g| this.reload_catalog(g));
@@ -76,8 +84,28 @@ impl Cameras {
         owner
     }
     fn publish(&self, state: &State) {
-        let projection =
-            render::Projection::new(state, self.0.source.lock().expect("camera source").clone());
+        let source = self.0.source.lock().expect("camera source").clone();
+        let selection = if state.active && state.foreground && state.interactive {
+            state.selected.as_ref().and_then(|id| {
+                let (index, camera) = state
+                    .catalog
+                    .iter()
+                    .enumerate()
+                    .find(|(_, c)| &c.id == id)?;
+                let (_, authority) = source.as_ref()?;
+                Some(crate::video_host::Selection {
+                    camera: camera.clone(),
+                    camera_context: state.context,
+                    token: i32::try_from(index + 1).ok()?,
+                    camera_generation: state.generation,
+                    authority: *authority,
+                })
+            })
+        } else {
+            None
+        };
+        self.0.videos.select(selection);
+        let projection = render::Projection::new(state, source);
         if let Publication::Schedule(ticket) = self
             .0
             .mailbox
@@ -193,6 +221,7 @@ impl Cameras {
         if state.selected.as_ref() != Some(key.camera()) {
             return;
         };
+        self.0.videos.stop();
         state.set_target(ImageKey::EventThumbnail(key));
         self.retired(&state);
     }
@@ -213,8 +242,34 @@ impl Cameras {
         {
             return;
         }
-        state.set_target(ImageKey::Snapshot(id));
+        match state.status {
+            Status::Expired
+            | Status::Revoked
+            | Status::WrongCamera
+            | Status::Offline
+            | Status::Unavailable
+            | Status::Invalid
+            | Status::Unsupported => state.select(id),
+            Status::Hidden | Status::Loading | Status::Ready | Status::Missing => {
+                state.set_target(ImageKey::Snapshot(id));
+            }
+        }
+        self.0.videos.stop();
         self.retired(&state);
+    }
+    fn open_video(&self, token: i32, generation: i32) {
+        let state = self.0.state.lock().expect("camera state");
+        if !self.admits(&state, generation) {
+            return;
+        }
+        let expected = state
+            .selected
+            .as_ref()
+            .and_then(|id| state.catalog.iter().position(|c| &c.id == id))
+            .and_then(|index| i32::try_from(index + 1).ok());
+        if expected == Some(token) {
+            self.0.videos.open();
+        }
     }
     fn reload(&self, generation: i32) {
         let mut state = self.0.state.lock().expect("camera state");
@@ -283,6 +338,7 @@ impl Cameras {
         if !self.admits(&state, state.generation) || state.events.rows.is_empty() {
             return;
         }
+        self.0.videos.stop();
         let current = state
             .target
             .as_ref()
@@ -346,7 +402,29 @@ impl Cameras {
         api: CameraTransport,
         cancel: CancellationToken,
     ) {
+        let sibling = cancel.child_token();
+        let camera = async {
+            self.run_cameras(session.clone(), api.clone(), sibling.clone())
+                .await;
+            sibling.cancel();
+        };
+        let video = async {
+            self.0
+                .videos
+                .run(session.clone(), api.clone(), sibling.clone())
+                .await;
+            sibling.cancel();
+        };
+        tokio::join!(camera, video);
+    }
+    async fn run_cameras(
+        &self,
+        session: SessionCoordinator,
+        api: CameraTransport,
+        cancel: CancellationToken,
+    ) {
         let mut phases = session.subscribe();
+        let mut video_retirements = self.0.videos.subscribe_retirements();
         let mut generation = phases.borrow().generation;
         let mut jobs = JoinSet::new();
         let (mut catalog_busy, mut camera_busy) = (false, false);
@@ -412,6 +490,16 @@ impl Cameras {
             }
             tokio::select! {biased;
                 ()=cancel.cancelled()=>break,
+                result=video_retirements.changed()=>{
+                    if result.is_err(){break}
+                    let retirement=video_retirements.borrow().clone();
+                    if let Some(retirement)=retirement {
+                        let current={let state=self.0.state.lock().expect("camera state");
+                            state.context==retirement.context&&state.selected.as_ref()==Some(&retirement.camera)
+                                &&self.0.source.lock().expect("camera source").as_ref().is_some_and(|(_,generation)|*generation==retirement.authority)};
+                        if current {self.failed(retirement.context,match retirement.reason {crate::video_host::RetirementReason::Revoked=>Status::Revoked,crate::video_host::RetirementReason::Invalid=>Status::Invalid});}
+                    }
+                },
                 result=phases.changed()=>{if result.is_err(){break}},
                 ()=&mut changed=>{},
                 result=jobs.join_next(),if !jobs.is_empty()=>{

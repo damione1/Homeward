@@ -1,5 +1,8 @@
 import { KitTheme, KitScrollArea, KitContentList, ContentItem, KitButton, ControlSize, NavigationStep } from "@kit/kit.slint";
-import { ProCameraCard, ProCameraEvents, ProCameraPresentation, ProCameraEventRow } from "@kit-pro/kit-pro.slint";
+import { ProCameraCard, ProCameraEvents, ProCameraPresentation, ProCameraEventRow, ProVideoCard, ProVideoPresentation, ProVideoAction } from "@kit-pro/kit-pro.slint";
+export struct VideoPresentation {
+    visible:bool, video:ProVideoPresentation, play-enabled:bool, pause-enabled:bool, remaining-ms:int,
+}
 export struct CameraPresentation {
     generation:int, catalog:[ContentItem], notice:string, selected:bool,
     camera:ProCameraPresentation, events:[ProCameraEventRow], event-index:int,
@@ -8,10 +11,15 @@ export struct CameraPresentation {
 export component HomewardCameras inherits Rectangle {
     in property <KitTheme> theme;
     in property <CameraPresentation> data;
+    in property <VideoPresentation> video;
     in property <bool> interactive;
     callback choose(int,int);
     callback event(int,int);
     callback snapshot(int,int);
+    callback open-video(int,int);
+    callback video-action(int,int,ProVideoAction);
+    callback video-viewport(bool);
+    callback video-expire(int);
     callback reload(int,int);
     callback reload-catalog(int);
     callback viewport(bool);
@@ -23,9 +31,29 @@ export component HomewardCameras inherits Rectangle {
     out property <length> scroll-y: page.content-y;
     min-width:0px;min-height:0px;clip:true;
     private property <bool> last-visible;
+    private property <bool> last-video-visible;
+    private property <bool> reveal-video;
     private property <bool> has-preview: root.data.selected;
     changed has-preview => { if (!root.has-preview) { page.content-y = 0px; } }
-    private property <bool> preview-visible: root.interactive && root.data.selected && preview.absolute-position.y + preview.height > page.absolute-position.y && preview.absolute-position.y < page.absolute-position.y + page.height;
+    private property <bool> preview-visible: root.interactive && root.data.selected && !root.video.visible && preview.absolute-position.y + preview.height > page.absolute-position.y && preview.absolute-position.y < page.absolute-position.y + page.height;
+    private property <length> video-picture-top: video-preview.absolute-position.y + video-preview.picture-top;
+    private property <bool> video-visible: root.interactive && root.data.selected && root.video.visible && root.video-picture-top + video-preview.picture-height > page.absolute-position.y && root.video-picture-top < page.absolute-position.y + page.height;
+    Timer {
+        interval:16ms;running:root.reveal-video && root.video.visible;
+        triggered=>{
+            root.reveal-video=false;
+            page.content-y=page.content-y + page.absolute-position.y + 12px - root.video-picture-top;
+        }
+    }
+    Timer {
+        interval:16ms;running:root.last-video-visible != root.video-visible;
+        triggered=>{if(root.last-video-visible != root.video-visible){root.last-video-visible=root.video-visible;root.video-viewport(root.video-visible);}}
+    }
+    Timer {
+        interval:max(1,root.video.remaining-ms)*1ms;
+        running:root.interactive && root.video.remaining-ms>0;
+        triggered=>{root.video-expire(root.video.video.generation);}
+    }
     Timer {
         interval:16ms;running:root.last-visible != root.preview-visible;
         triggered=>{if (root.last-visible != root.preview-visible) {root.last-visible=root.preview-visible;root.viewport(root.preview-visible);}}
@@ -49,11 +77,20 @@ export component HomewardCameras inherits Rectangle {
                 navigate(step)=>{root.catalog-navigate(step);}
             }
             preview:=ProCameraCard {
-                visible:root.data.selected;theme:root.theme;camera:root.data.camera;
+                visible:root.data.selected && !root.video.visible;theme:root.theme;camera:root.data.camera;
                 interactive:root.interactive;picture-visible:root.preview-visible;
                 snapshot-selected:root.data.snapshot-selected;
                 refresh-label:"Recharger l’aperçu";snapshot-label:"Afficher l’instantané";
+                video-enabled:true;video-label:"Ouvrir la vidéo";
                 reload(t,g)=>{root.reload(t,g);}snapshot(t,g)=>{root.snapshot(t,g);}
+                video(t,g)=>{root.reveal-video=true;root.open-video(t,g);}
+            }
+            video-preview:=ProVideoCard {
+                visible:root.data.selected && root.video.visible;theme:root.theme;video:root.video.video;
+                interactive:root.interactive;picture-visible:root.video-visible;
+                play-enabled:root.video.play-enabled;pause-enabled:root.video.pause-enabled;
+                play-label:"Relancer la vidéo";pause-label:"Mettre en pause";snapshot-label:"Revenir à l’instantané";
+                action(t,g,a)=>{root.video-action(t,g,a);if(a==ProVideoAction.play){root.reveal-video=true;}if(a==ProVideoAction.snapshot){page.content-y=0px;catalog.take-focus();}}
             }
             ProCameraEvents {
                 visible:root.data.selected;theme:root.theme;rows:root.data.events;

@@ -4,6 +4,7 @@
 Invoke through frontend.py run --cargo. No Slint/Android/resource-budget claim.
 """
 import contextlib
+from enum import Enum
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,25 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SHARED = runpy.run_path(str(ROOT / 'scripts/qualify-frontend-environment.py'))
+CAMERAS = runpy.run_path(str(ROOT / 'scripts/qualify-frontend-cameras.py'))
+
+class Probe(Enum):
+    OWNER = ('owner', 'camera_host::tls_probe::actual_camera_native_video_owner_lifecycle_and_private_frames',
+             'NHF017_NATIVE_VIDEO_OWNER_TLS_PASS', ('--ignored',))
+
+def owner_binary(proof):
+    build = subprocess.run(['cargo', 'test', '--locked', '-p', 'homeward-app', '--lib',
+                            '--no-run', '--message-format=json'], cwd=ROOT,
+                           text=True, stdout=subprocess.PIPE, check=False)
+    (proof / 'owner-build.jsonl').write_text(build.stdout)
+    build.check_returncode()
+    binaries = [json.loads(line)['executable'] for line in build.stdout.splitlines()
+                if line.startswith('{') and json.loads(line).get('reason') == 'compiler-artifact'
+                and json.loads(line).get('target', {}).get('name') == 'homeward_app'
+                and json.loads(line).get('executable')]
+    if len(binaries) != 1:
+        raise RuntimeError('One exact native-video owner artifact required')
+    return binaries[0]
 
 
 def main():
@@ -83,9 +103,12 @@ def main():
             if not (isolation['synthetic_only'] and isolation['real_device_writes'] == 0
                     and isolation['real_device_driver_instantiated'] is False):
                 raise RuntimeError('Video isolation incomplete')
+        owner = owner_binary(proof)
+        owner_result = CAMERAS['qualify'](proof / 'owner', server, owner, Probe.OWNER,
+                                          ROOT / 'qualification/frontend/video')
         if SHARED['source_inventory'](config) != before:
             raise RuntimeError('Sources changed during native video qualification')
-        (proof / 'result.json').write_text(json.dumps(dict(status='PASS', native_codec=report,
+        (proof / 'result.json').write_text(json.dumps(dict(status='PASS', native_codec=report, owner=owner_result,
             actual_rust_go_tls=True, children_joined=True, isolation=isolation,
             native_slint_rendering=False, resource_growth_measured=False,
             android_qualified=False, production_video=False), indent=2) + '\n')

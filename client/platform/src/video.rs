@@ -8,6 +8,28 @@ mod macos;
 #[cfg(target_os = "macos")]
 pub use macos::H264Decoder;
 
+// Desktop-first qualification currently supplies VideoToolbox. Other targets
+// compile the SAME reader and explicitly refuse native decoding; no software
+// decoder or fabricated picture is substituted. Android MediaCodec is still
+// part of the final023–024 adaptation/physical qualification.
+#[cfg(not(target_os = "macos"))]
+pub struct H264Decoder(std::convert::Infallible);
+#[cfg(not(target_os = "macos"))]
+impl H264Decoder {
+    pub fn new(_format: &H264Format) -> Result<Self, DecodeFailure> {
+        Err(DecodeFailure::HardwareUnavailable)
+    }
+    pub fn backend(&self) -> DecoderBackend {
+        match self.0 {}
+    }
+    pub fn dimensions(&self) -> (u32, u32) {
+        match self.0 {}
+    }
+    pub fn decode(&mut self, _frame: &EncodedFrame) -> Result<DecodedFrame, DecodeFailure> {
+        match self.0 {}
+    }
+}
+
 pub use home_client_model::video::{
     EncodedFrame, FrameKind, H264Format, InputFailure, MAX_HEIGHT, MAX_WIDTH,
 };
@@ -18,6 +40,7 @@ pub enum DecodeFailure {
     DimensionLimit,
     KeyframeRequired,
     HardwareUnavailable,
+    Format(i32),
     Native(i32),
     MissingOutput,
     InvalidOutput,

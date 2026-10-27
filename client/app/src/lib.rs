@@ -33,6 +33,7 @@ mod preferences;
 mod profile;
 mod raster;
 mod session_host;
+mod video_host;
 
 // Keep the two existing domain/codec crates at the shared application boundary.
 pub use home_client_model as model;

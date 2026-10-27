@@ -40,15 +40,18 @@ def transport_binary(proof):
     return binaries[0]
 
 
-def qualify(proof, server, binary, probe):
+def qualify(proof, server, binary, probe, video_source=None):
     proof.mkdir(mode=0o700)
     fixture = proof / 'fixture'
     process = client = None
     try:
         with (proof / 'server.log').open('wb') as server_log, (proof / 'client.log').open('wb') as client_log:
+            environment = dict(os.environ, HOMEWARD_NHF016_SYNTHETIC_ONLY='1',
+                HOMEWARD_NHF016_FIXTURE=str(fixture), HOMEWARD_NHF016_SOURCES=str(ROOT / 'qualification/frontend/cameras'))
+            if video_source is not None:
+                environment.update(HOMEWARD_NHF017_SYNTHETIC_ONLY='1', HOMEWARD_NHF017_VIDEO=str(video_source))
             process = subprocess.Popen([str(server), '-test.run=^TestNHF016CameraServer$', '-test.v', '-test.timeout=6m'],
-                cwd=ROOT / 'internal/server', env=dict(os.environ, HOMEWARD_NHF016_SYNTHETIC_ONLY='1',
-                    HOMEWARD_NHF016_FIXTURE=str(fixture), HOMEWARD_NHF016_SOURCES=str(ROOT / 'qualification/frontend/cameras')),
+                cwd=ROOT / 'internal/server', env=environment,
                 stdout=server_log, stderr=subprocess.STDOUT)
             ready = SHARED['wait_file'](fixture / 'ready.json', process, timeout=120)
             origin = urlsplit(ready['origin'])

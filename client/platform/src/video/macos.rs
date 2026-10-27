@@ -101,19 +101,21 @@ impl H264Decoder {
         let sizes = [format.sps().len(), format.pps().len()];
         let mut raw = null();
         // SAFETY: two bounded live parameter NALs and valid out pointer. CM copies them.
-        let native_format = OwnedCf::created(
-            unsafe {
-                ffi::CMVideoFormatDescriptionCreateFromH264ParameterSets(
-                    null(),
-                    2,
-                    pointers.as_ptr(),
-                    sizes.as_ptr(),
-                    4,
-                    &mut raw,
-                )
-            },
-            raw,
-        )?;
+        let native_status = unsafe {
+            ffi::CMVideoFormatDescriptionCreateFromH264ParameterSets(
+                null(),
+                2,
+                pointers.as_ptr(),
+                sizes.as_ptr(),
+                4,
+                &mut raw,
+            )
+        };
+        let native_format = OwnedCf::created(native_status, raw);
+        if native_status != 0 {
+            return Err(DecodeFailure::Format(native_status));
+        }
+        let native_format = native_format?;
         // SAFETY: format was created successfully as a video format description.
         let dimensions = unsafe { ffi::CMVideoFormatDescriptionGetDimensions(native_format.raw()) };
         let width = u32::try_from(dimensions.width).map_err(|_| DecodeFailure::DimensionLimit)?;
@@ -306,6 +308,19 @@ impl H264Decoder {
             .into_inner()
             .map_err(|_| DecodeFailure::InvalidOutput)?
             .ok_or(DecodeFailure::MissingOutput)?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn malformed_native_parameter_sets_are_distinct_from_unavailable_hardware() {
+        let format = H264Format::new(vec![0x67, 66, 0, 31], vec![0x68, 0]).unwrap();
+        assert!(matches!(
+            H264Decoder::new(&format),
+            Err(DecodeFailure::Format(_))
+        ));
     }
 }
 impl Drop for H264Decoder {
