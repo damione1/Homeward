@@ -3,6 +3,8 @@
 slint::include_modules!();
 
 mod cache_view;
+mod calendar;
+mod calendar_host;
 mod control_text;
 mod dashboard;
 mod dashboard_catalogue;

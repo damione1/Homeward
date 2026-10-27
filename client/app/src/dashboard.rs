@@ -324,6 +324,7 @@ pub(crate) enum Route {
     Rooms,
     Inventory,
     Lists,
+    Calendars,
     Room(RoomId),
     Native(Destination),
     Detail(EntityId),

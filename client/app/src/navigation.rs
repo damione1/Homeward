@@ -21,6 +21,7 @@ enum Section {
     Rooms,
     Inventory,
     Lists,
+    Calendars,
     Settings,
 }
 impl Section {
@@ -30,6 +31,7 @@ impl Section {
             Self::Rooms => "Pièces",
             Self::Inventory => "Inventaire",
             Self::Lists => "Listes",
+            Self::Calendars => "Agenda",
             Self::Settings => "Préférences",
         }
     }
@@ -39,6 +41,7 @@ impl Section {
             Self::Rooms => Route::Rooms,
             Self::Inventory => Route::Inventory,
             Self::Lists => Route::Lists,
+            Self::Calendars => Route::Calendars,
             Self::Settings => Route::Settings,
         }
     }
@@ -276,6 +279,7 @@ impl State {
             (6, Target::Body(BodyFocus::Back), FocusScopeId(0), 3),
             (7, Target::Body(BodyFocus::Settings), FocusScopeId(0), 4),
             (10, Target::Body(BodyFocus::Popup), FocusScopeId(0), 8),
+            (11, Target::Body(BodyFocus::Calendars), FocusScopeId(0), 9),
             (
                 8,
                 Target::Shell(ProShellFocus::Workspace),
@@ -376,6 +380,7 @@ impl State {
             | Route::Room(_)
             | Route::Native(_)
             | Route::Lists
+            | Route::Calendars
             | Route::Settings => &self.route,
         };
         request.room = match context {
@@ -386,6 +391,7 @@ impl State {
             | Route::Native(_)
             | Route::Detail(_)
             | Route::Lists
+            | Route::Calendars
             | Route::Settings => None,
         };
         request.native = match context {
@@ -396,6 +402,7 @@ impl State {
             | Route::Room(_)
             | Route::Detail(_)
             | Route::Lists
+            | Route::Calendars
             | Route::Settings => None,
         };
         request.detail = match &self.route {
@@ -406,6 +413,7 @@ impl State {
             | Route::Room(_)
             | Route::Native(_)
             | Route::Lists
+            | Route::Calendars
             | Route::Settings => None,
         };
         request.revision
@@ -416,6 +424,7 @@ impl State {
             Route::Room(_) | Route::Detail(_) => Target::Body(BodyFocus::Back),
             Route::Inventory => Target::Body(BodyFocus::Inventory),
             Route::Lists => Target::Body(BodyFocus::Lists),
+            Route::Calendars => Target::Body(BodyFocus::Calendars),
             Route::Settings => Target::Body(BodyFocus::Settings),
             Route::Native(destination) => Target::Body(match destination.presentation {
                 Presentation::Page => BodyFocus::Back,
@@ -455,6 +464,7 @@ fn render(window: &HomewardWindow, state: &State) {
         | Route::Room(_)
         | Route::Detail(_)
         | Route::Lists
+        | Route::Calendars
         | Route::Settings => false,
     };
     let home = Route::Home;
@@ -489,6 +499,7 @@ fn render(window: &HomewardWindow, state: &State) {
                 .map_or("Vue indisponible", |node| node.title.as_str()),
         ),
         Route::Lists => (ViewPage::Lists, "Listes"),
+        Route::Calendars => (ViewPage::Calendars, "Agenda"),
         Route::Settings => (ViewPage::Settings, "Préférences"),
     };
     window.set_page(page);
@@ -509,6 +520,7 @@ fn render(window: &HomewardWindow, state: &State) {
         | Route::Native(_)
         | Route::Detail(_)
         | Route::Lists
+        | Route::Calendars
         | Route::Settings => "".into(),
     });
     window.set_native_popup_generation(request.revision);
@@ -607,6 +619,7 @@ pub(crate) fn bind_devices(
             Section::Rooms,
             Section::Inventory,
             Section::Lists,
+            Section::Calendars,
             Section::Settings,
         ]
         .into_iter()
@@ -717,6 +730,7 @@ pub(crate) fn bind_devices(
                     Presentation::Popup => BodyFocus::Popup,
                 }),
                 Route::Lists => Target::Body(BodyFocus::Lists),
+                Route::Calendars => Target::Body(BodyFocus::Calendars),
                 Route::Settings => Target::Body(BodyFocus::Settings),
             };
             take_focus(&window, &state, target);
@@ -956,6 +970,7 @@ pub(crate) fn bind_devices(
                     | Route::Room(_)
                     | Route::Native(_)
                     | Route::Lists
+            | Route::Calendars
             | Route::Settings => None,
                 };
                 match state.history.pop() {
@@ -1013,6 +1028,7 @@ pub(crate) fn bind_devices(
                     ViewPage::Rooms | ViewPage::Room => Section::Rooms,
                     ViewPage::Inventory | ViewPage::Detail => Section::Inventory,
                     ViewPage::Lists => Section::Lists,
+                    ViewPage::Calendars => Section::Calendars,
                     ViewPage::Settings => Section::Settings,
                 },
             );

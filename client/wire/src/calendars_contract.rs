@@ -7,6 +7,10 @@ use home_client_model::calendars::{
     CalendarId, CalendarRevision, CivilDate, EventKey, EventRevision, EventUid, RevisionState,
 };
 use std::collections::BTreeSet;
+pub const MAX_EVENT_SUMMARY_BYTES: usize = 512;
+pub const MAX_EVENT_DESCRIPTION_BYTES: usize = 4096;
+pub const MAX_EVENT_LOCATION_BYTES: usize = 512;
+pub const MAX_ZONE_BYTES: usize = 512;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AdmissionError {
@@ -37,7 +41,7 @@ fn text(value: &str, limit: usize, required: bool) -> bool {
     (!required || !value.is_empty()) && value.len() <= limit && !value.contains('\0')
 }
 fn zone(value: &str) -> bool {
-    text(value, 512, true) && !value.chars().any(char::is_control)
+    text(value, MAX_ZONE_BYTES, true) && !value.chars().any(char::is_control)
 }
 pub fn calendar_id(value: &wire::CalendarId) -> Option<CalendarId> {
     if !value.__buffa_unknown_fields.is_empty()
@@ -310,9 +314,9 @@ fn exception(v: &wire::Exception, kind: TemporalKind) -> bool {
 }
 fn event(v: &wire::Event, allow_point: bool) -> bool {
     if !v.__buffa_unknown_fields.is_empty()
-        || !text(&v.summary, 512, false)
-        || !text(&v.description, 4096, false)
-        || !text(&v.location, 512, false)
+        || !text(&v.summary, MAX_EVENT_SUMMARY_BYTES, false)
+        || !text(&v.description, MAX_EVENT_DESCRIPTION_BYTES, false)
+        || !text(&v.location, MAX_EVENT_LOCATION_BYTES, false)
         || v.additions.len() > 256
         || v.exclusions.len() > 256
         || v.exceptions.len() > 256
@@ -607,10 +611,23 @@ pub fn admit_page(
                 .is_none_or(|s| stamp(s, false).is_some()),
     )
 }
+/// Incomplete editor drafts are local values, never malformed network requests.
+pub fn admit_resolution_request(
+    v: &wire::ResolveLocalTimeRequest,
+) -> Result<Admitted<wire::ResolveLocalTimeRequest>, AdmissionError> {
+    admit(
+        v,
+        v.__buffa_unknown_fields.is_empty()
+            && v.id.as_option().and_then(calendar_id).is_some()
+            && local(&v.local).is_some()
+            && zone(&v.zone),
+    )
+}
 pub fn admit_resolution(
     v: &wire::ResolveLocalTimeResponse,
     request: &wire::ResolveLocalTimeRequest,
 ) -> Result<Admitted<wire::ResolveLocalTimeResponse>, AdmissionError> {
+    admit_resolution_request(request)?;
     let id = request
         .id
         .as_option()

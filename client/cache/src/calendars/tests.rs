@@ -1,4 +1,36 @@
 use super::*;
+
+#[test]
+fn page_freshness_and_expiry_cannot_be_upgraded_by_fresh_calendar_metadata() {
+    let mut capture = CalendarCapture::new(&calendar(), &query()).unwrap();
+    let mut stale = page("stale", "");
+    stale.quality = wire::Quality::Stale.into();
+    stale.fresh_until = Some("2026-01-01T00:00:00Z".into());
+    capture.push(&stale).unwrap();
+    let snapshot = capture.finish(&calendar()).unwrap();
+    assert_eq!(snapshot.freshness(), CalendarFreshness::Stale);
+    assert_eq!(
+        snapshot.expiry_bounds().collect::<Vec<_>>(),
+        ["2026-01-01T00:00:00Z"]
+    );
+    let mut capture = CalendarCapture::new(&calendar(), &query()).unwrap();
+    let mut unavailable = page("unavailable", "");
+    unavailable.quality = wire::Quality::Unavailable.into();
+    capture.push(&unavailable).unwrap();
+    assert_eq!(
+        capture.finish(&calendar()).unwrap().freshness(),
+        CalendarFreshness::Unavailable
+    );
+}
+
+#[test]
+fn pages_cannot_mix_synthetic_and_observed_provenance_under_one_range() {
+    let mut capture = CalendarCapture::new(&calendar(), &query()).unwrap();
+    let mut synthetic = page("synthetic", "");
+    synthetic.provenance = wire::DataProvenance::Synthetic.into();
+    assert!(capture.push(&synthetic).is_err());
+    assert!(capture.finish(&calendar()).is_err());
+}
 fn id() -> wire::CalendarId {
     wire::CalendarId {
         entity_id: "synthetic-only".into(),

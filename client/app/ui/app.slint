@@ -4,6 +4,9 @@ import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitU
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest, IconKind } from "@kit/kit.slint";
 import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction } from "@kit-pro/kit-pro.slint";
 import { HomewardLists } from "lists.slint";
+import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
+import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro/kit-pro.slint";
+import { CivilDateView, LocalDateTimeView, LocalTimeView, ZonedTimePresentation, ZonedDateTimeDraft, AmbiguousTimeChoice, CalendarDay, CalendarNavigation } from "@kit/kit.slint";
 import { HomewardHistory, HistoryPresentation, HistoryStatistic } from "history.slint";
 import { HomewardMedia } from "media.slint";
 import { ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue } from "@kit-pro/kit-pro.slint";
@@ -14,9 +17,9 @@ import { HomewardDashboard } from "native-dashboard.slint";
 import { HomewardConfirmation } from "native-confirmation.slint";
 import { HomewardPopup } from "native-popup.slint";
 
-export enum ViewPage { home, rooms, inventory, room, detail, lists, settings }
+export enum ViewPage { home, rooms, inventory, room, detail, lists, calendars, settings }
 export enum RoomView { cards, list }
-export enum BodyFocus { read, inventory, back, settings, lists, popup }
+export enum BodyFocus { read, inventory, back, settings, lists, calendars, popup }
 
 export component HomewardWindow inherits Window {
     title: "Homeward · Développement";
@@ -58,6 +61,43 @@ export component HomewardWindow inherits Window {
     callback cache-viewport(int,int);
     callback cache-navigate(NavigationStep);
 
+
+    in property <CalendarPresentation> calendars;
+    in-out property <bool> calendars-publishing;
+    in-out property <string> calendars-edit-summary;
+    in-out property <string> calendars-edit-description;
+    in-out property <string> calendars-edit-location;
+    in-out property <string> calendars-edit-start-date;
+    in-out property <string> calendars-edit-end-date;
+    in-out property <string> calendars-edit-start-time;
+    in-out property <string> calendars-edit-end-time;
+    in-out property <string> calendars-edit-zone;
+
+    in-out property <string> calendars-name;
+    in-out property <string> calendars-start;
+    in-out property <string> calendars-end;
+    in-out property <string> calendars-zone;
+    callback calendars-interactive(bool);
+    callback calendars-choose(int,int);
+    callback calendars-select(int,int);
+    callback calendars-command(int,CalendarCommand,string,string,string);
+    callback calendars-edit(int,int,ProAgendaField,string);
+    callback calendars-date(int,int,ProAgendaBoundary,string);
+    callback calendars-time(int,int,ProAgendaBoundary,ZonedDateTimeDraft);
+    callback calendars-resolve(int,int,ProAgendaBoundary,ZonedDateTimeDraft);
+    callback calendars-ambiguity(int,int,ProAgendaBoundary,AmbiguousTimeChoice);
+    callback calendars-kind(int,int,ProAgendaTemporalKind);
+    callback calendars-action(int,int,ProAgendaAction);
+    callback calendars-mode(ProAgendaMode);
+    callback calendars-navigate(NavigationStep);
+    callback calendars-day(int,int);
+    callback calendars-date-chosen(CalendarDay);
+    callback calendars-month(CalendarNavigation);
+    public function calendars-focus-editor() { calendars-pane.focus-editor(); }
+    public function calendars-scroll-to(y: length) { calendars-pane.scroll-to(y); }
+    out property <length> calendars-scroll-y: calendars-pane.scroll-y;
+    private property <bool> calendar-interactive: root.background-interactive && root.page == ViewPage.calendars;
+    changed calendar-interactive => { root.calendars-interactive(root.calendar-interactive); }
 
     in-out property <bool> opaque-surfaces: true;
     in-out property <bool> large-text;
@@ -242,6 +282,7 @@ export component HomewardWindow inherits Window {
         else if (target == BodyFocus.inventory) { table.take-focus(); }
         else if (target == BodyFocus.back) { if (root.page == ViewPage.detail) { detail-back.take-focus(); } else if (root.page == ViewPage.room && root.room-view == RoomView.cards) { room-back.take-focus(); } else { back-button.take-focus(); } }
         else if (target == BodyFocus.lists) { lists-pane.take-focus(); }
+        else if (target == BodyFocus.calendars) { calendars-pane.focus-catalog(); }
         else if (target == BodyFocus.settings) { theme-button.take-focus(); }
         else if (target == BodyFocus.popup) { popup-dialog.take-focus(); }
     }
@@ -352,6 +393,35 @@ export component HomewardWindow inherits Window {
         viewport := Rectangle {
             min-width: 0px; min-height: 0px; max-width: 100000px; max-height: 100000px;
             horizontal-stretch: 1; vertical-stretch: 1;
+            calendars-pane := HomewardCalendars {
+                width: viewport.width; height: viewport.height; visible: root.page == ViewPage.calendars;
+                theme: root.theme; data: root.calendars; interactive: root.calendar-interactive;
+                edit-summary <=> root.calendars-edit-summary;
+                edit-description <=> root.calendars-edit-description;
+                edit-location <=> root.calendars-edit-location;
+                edit-start-date <=> root.calendars-edit-start-date;
+                edit-end-date <=> root.calendars-edit-end-date;
+                edit-start-time <=> root.calendars-edit-start-time;
+                edit-end-time <=> root.calendars-edit-end-time;
+                edit-zone <=> root.calendars-edit-zone;
+
+                name-draft <=> root.calendars-name; range-start <=> root.calendars-start; range-end <=> root.calendars-end; range-zone <=> root.calendars-zone;
+                choose(t,g) => { root.calendars-choose(t,g); }
+                select(t,g) => { root.calendars-select(t,g); }
+                command(g,a,x,y,z) => { root.calendars-command(g,a,x,y,z); }
+                edited(t,g,f,v) => { if (!root.calendars-publishing) { root.calendars-edit(t,g,f,v); } }
+                date-edited(t,g,b,v) => { if (!root.calendars-publishing) { root.calendars-date(t,g,b,v); } }
+                time-edited(t,g,b,v) => { if (!root.calendars-publishing) { root.calendars-time(t,g,b,v); } }
+                resolve(t,g,b,v) => { if (!root.calendars-publishing) { root.calendars-resolve(t,g,b,v); } }
+                ambiguity-chosen(t,g,b,c) => { if (!root.calendars-publishing) { root.calendars-ambiguity(t,g,b,c); } }
+                kind-requested(t,g,k) => { if (!root.calendars-publishing) { root.calendars-kind(t,g,k); } }
+                action(t,g,a) => { if (!root.calendars-publishing) { root.calendars-action(t,g,a); } }
+                mode-requested(mode) => { root.calendars-mode(mode); }
+                navigate(step) => { root.calendars-navigate(step); }
+                day-requested(t,g) => { root.calendars-day(t,g); }
+                date-chosen(day) => { root.calendars-date-chosen(day); }
+                month-requested(direction) => { root.calendars-month(direction); }
+            }
             lists-pane := HomewardLists {
                 width: viewport.width; height: viewport.height; visible: root.page == ViewPage.lists;
                 create-draft <=> root.lists-create-draft; rename-draft <=> root.lists-rename-draft; add-draft <=> root.lists-add-draft;
