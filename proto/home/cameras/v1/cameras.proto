@@ -1,0 +1,139 @@
+syntax = "proto3";
+package home.cameras.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/cameras/v1;camerasv1";
+
+// Provisional NHF016 camera facade, exercised by an opt-in synthetic-only Go
+// implementation. This does not declare production NHA131 or a camera driver
+// delivered. All calls use the native session's verified TLS transport and
+// MEDIA.READ permission on the exact camera object. No external URL, provider
+// credential, filesystem path or image data crosses StateStore/Recorder.
+enum Availability {
+  AVAILABILITY_UNSPECIFIED = 0;
+  AVAILABILITY_AVAILABLE = 1;
+  AVAILABILITY_UNAVAILABLE = 2;
+  AVAILABILITY_UNKNOWN = 3;
+}
+enum DataProvenance {
+  DATA_PROVENANCE_UNSPECIFIED = 0;
+  DATA_PROVENANCE_OBSERVED = 1;
+  DATA_PROVENANCE_SYNTHETIC = 2;
+}
+message Camera {
+  string entity_id = 1;
+  string title = 2;
+  string source = 3;
+  Availability availability = 4;
+  DataProvenance provenance = 5;
+}
+message ListCamerasRequest {}
+// At most128 authorized cameras /64KiB; no installation catalogue in the app.
+message ListCamerasResponse { repeated Camera cameras = 1; }
+
+// Opaque32-byte reference bound to native session, camera and current rights.
+// A reference is not a bearer credential: every call rechecks native admission
+// and object authorization. It must never appear in logs, public URLs or disk
+// caches. Renewing a lease creates a new reference; old results stay obsolete.
+message SessionRef { string entity_id = 1; bytes reference = 2; }
+message Lease {
+  SessionRef session = 1;
+  google.protobuf.Timestamp issued_at = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  uint64 event_revision = 4;
+}
+message OpenSessionRequest { string entity_id = 1; }
+// Lease lifetime is at most60seconds. Native credential expiry/revocation may
+// end it sooner. Each account has at most8 live leases; the test facade also
+// has a global64-lease cap. No camera/device mutation is performed.
+message OpenSessionResponse {
+  oneof result { Lease lease = 1; google.protobuf.Empty unavailable = 2; }
+}
+message CloseSessionRequest { SessionRef session = 1; }
+message CloseSessionResponse {}
+
+message ImageKey {
+  SessionRef session = 1;
+  oneof target {
+    google.protobuf.Empty snapshot = 2;
+    string event_id = 3;
+  }
+}
+message Image {
+  ImageKey key = 1;
+  google.protobuf.Timestamp captured_at = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  // PNG only, at most512KiB and1024x1024pixels. Admit dimensions/allocation
+  // before decoding off the UI thread. Expiry never exceeds the lease.
+  bytes png = 4;
+}
+message ReadImageRequest { ImageKey key = 1; }
+message ReadImageResponse {
+  oneof result {
+    Image image = 1;
+    google.protobuf.Empty missing = 2;
+    google.protobuf.Empty expired = 3;
+    google.protobuf.Empty revoked = 4;
+    google.protobuf.Empty wrong_camera = 5;
+    google.protobuf.Empty unavailable = 6;
+  }
+}
+message Event {
+  string entity_id = 1;
+  string event_id = 2;
+  string title = 3;
+  string source = 4;
+  google.protobuf.Timestamp captured_at = 5;
+  bool has_image = 6;
+}
+message ListEventsRequest {
+  SessionRef session = 1;
+  uint32 page_size = 2;
+  bytes cursor = 3;
+}
+message EventsPage {
+  SessionRef session = 1;
+  uint64 revision = 2;
+  // At most64 events /64KiB per page, descending capture time then exact ID.
+  // At most10000 events in a complete capture. All pages retain the same
+  // session, revision and total. A changed revision requires a fresh capture.
+  repeated Event events = 3;
+  bytes next_cursor = 4;
+  uint32 total = 5;
+}
+message ListEventsResponse {
+  oneof result {
+    EventsPage page = 1;
+    google.protobuf.Empty expired = 2;
+    google.protobuf.Empty revoked = 3;
+    google.protobuf.Empty wrong_camera = 4;
+    google.protobuf.Empty unavailable = 5;
+    google.protobuf.Empty resync_required = 6;
+  }
+}
+message WatchSessionRequest { SessionRef session = 1; }
+message EventsChanged { SessionRef session = 1; uint64 revision = 2; }
+message WatchSessionResponse {
+  uint64 sequence = 1;
+  // First frame is Ready(sequence1), retaining the original lease/deadline.
+  // No replay journal or automatic renewal. EOF, sequence gaps and unknown
+  // frames invalidate the protected projection. The host cancels downloads and
+  // removes private pixels on expiration, revocation or authority uncertainty.
+  oneof frame {
+    Lease ready = 2;
+    EventsChanged changed = 3;
+    google.protobuf.Empty expired = 4;
+    google.protobuf.Empty revoked = 5;
+    google.protobuf.Empty resync_required = 6;
+  }
+}
+service CameraService {
+  rpc ListCameras(ListCamerasRequest) returns (ListCamerasResponse);
+  rpc OpenSession(OpenSessionRequest) returns (OpenSessionResponse);
+  rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
+  rpc ReadImage(ReadImageRequest) returns (ReadImageResponse);
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+  rpc WatchSession(WatchSessionRequest) returns (stream WatchSessionResponse);
+}

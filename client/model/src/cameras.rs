@@ -7,6 +7,18 @@ pub const MAX_ID_BYTES: usize = 256;
 pub const SESSION_REFERENCE_BYTES: usize = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Availability {
+    Available,
+    Unavailable,
+    Unknown,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Provenance {
+    Observed,
+    Synthetic,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IdentityError {
     Empty,
     TooLong,
