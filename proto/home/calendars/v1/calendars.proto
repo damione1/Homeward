@@ -1,0 +1,79 @@
+syntax = "proto3";
+package home.calendars.v1;
+import "google/protobuf/empty.proto";
+option go_package = "github.com/damione1/Homeward/gen/home/calendars/v1;calendarsv1";
+
+message CalendarId { string entity_id = 1; }
+message EventKey { CalendarId calendar = 1; string uid = 2; }
+enum Presence { PRESENCE_UNSPECIFIED = 0; PRESENCE_ABSENT = 1; PRESENCE_PRESENT = 2; PRESENCE_REMOVED = 3; }
+// Empty uid denotes a calendar revision; otherwise the revision belongs to that exact event.
+message Revision { EventKey resource = 1; Presence presence = 2; uint64 number = 3; }
+enum Origin { ORIGIN_UNSPECIFIED = 0; ORIGIN_LOCAL = 1; ORIGIN_REMOTE_ICS = 2; ORIGIN_CALCULATED = 3; }
+enum Quality { QUALITY_UNSPECIFIED = 0; QUALITY_FRESH = 1; QUALITY_STALE = 2; QUALITY_UNAVAILABLE = 3; }
+message DateSpan { string start = 1; string end_exclusive = 2; }
+message TimeSpan { string anchor_local = 1; string end_instant = 2; string zone = 3; string start_instant = 4; }
+message Span { oneof value { DateSpan dates = 1; TimeSpan times = 2; } }
+message Exception { string original = 1; oneof change { google.protobuf.Empty cancel = 2; Span replacement = 3; } optional string replacement_summary = 4; optional string replacement_description = 5; optional string replacement_location = 6; }
+message Event { string summary = 1; string description = 2; string location = 3; Span span = 4; optional string recurrence_rule = 5; repeated string additions = 6; repeated string exclusions = 7; repeated Exception exceptions = 8; }
+// Additive frontend editing metadata. Missing access never grants a mutation.
+enum MutationAccess { MUTATION_ACCESS_UNSPECIFIED = 0; MUTATION_ACCESS_DENIED = 1; MUTATION_ACCESS_ALLOWED = 2; }
+enum DataProvenance { DATA_PROVENANCE_UNSPECIFIED = 0; DATA_PROVENANCE_OBSERVED = 1; DATA_PROVENANCE_SYNTHETIC = 2; }
+message Calendar { CalendarId id = 1; Origin origin = 2; optional string name = 3; Revision revision = 4; Quality quality = 5; optional string fresh_until = 6; DataProvenance provenance = 7; MutationAccess mutation_access = 8; }
+message EventSnapshot { EventKey key = 1; Event value = 2; Revision revision = 3; Revision calendar_revision = 4; }
+message Occurrence { EventKey key = 1; string recurrence_id = 2; Span span = 3; string zone = 4; string summary = 5; string description = 6; string location = 7; }
+// Query bounds are exclusive at the end and limited to 366 days. All-day projection always has an explicit zone.
+message Window { string zone = 1; oneof bounds { DateSpan dates = 2; TimeSpan times = 3; } }
+enum Mutation { MUTATION_UNSPECIFIED = 0; MUTATION_CREATE = 1; MUTATION_UPDATE = 2; MUTATION_DELETE = 3; }
+enum ErrorCode { ERROR_CODE_UNSPECIFIED = 0; ERROR_CODE_INVALID = 1; ERROR_CODE_DENIED = 2; ERROR_CODE_NOT_FOUND = 3; ERROR_CODE_CONFLICT = 4; ERROR_CODE_READ_ONLY = 5; ERROR_CODE_STALE_CURSOR = 6; ERROR_CODE_CAPACITY = 7; ERROR_CODE_UNAVAILABLE = 8; ERROR_CODE_COMMIT_UNKNOWN = 9; ERROR_CODE_COMMITTED_RESPONSE_WITHHELD = 10; }
+message CalendarError { ErrorCode code = 1; }
+message ListCalendarsRequest {}
+message ListCalendarsResponse { repeated Calendar calendars = 1; }
+message GetCalendarRequest { CalendarId id = 1; }
+message GetCalendarResponse { Calendar calendar = 1; }
+message MutateCalendarRequest { CalendarId id = 1; Mutation mutation = 2; Revision expected_revision = 3; string name = 4; }
+// Mutation receipts contain identities/revisions only. No committed content is disclosed after revocation.
+message MutationReceipt { Revision revision = 1; Revision calendar_revision = 2; }
+message MutateCalendarResponse { MutationReceipt receipt = 1; }
+message GetEventRequest { EventKey key = 1; }
+message GetEventResponse { EventSnapshot event = 1; }
+message MutateEventRequest { EventKey key = 1; Mutation mutation = 2; Revision expected_revision = 3; Event value = 4; }
+message MutateEventResponse { MutationReceipt receipt = 1; }
+message QueryOccurrencesRequest { CalendarId id = 1; Window window = 2; uint32 page_size = 3; string page_token = 4; }
+message SeriesExceptions { EventKey key = 1; repeated Exception exceptions = 2; repeated string exclusions = 3; }
+message QueryOccurrencesResponse { repeated Occurrence occurrences = 1; Revision revision = 2; Quality quality = 3; string next_page_token = 4; repeated SeriesExceptions series_exceptions = 5; optional string fresh_until = 6; DataProvenance provenance = 7; }
+message WatchCalendarRequest { CalendarId id = 1; }
+message CalendarChanged { Revision revision = 1; }
+message WatchCalendarResponse { uint64 stream_sequence = 1; oneof frame { google.protobuf.Empty ready = 2; CalendarChanged changed = 3; google.protobuf.Empty resync_required = 4; } }
+// Editing never resolves a wall time in the client or silently chooses a fold.
+// UNIQUE has one candidate, AMBIGUOUS two ordered candidates, other outcomes none.
+// A mutation carries the explicitly selected canonical start_instant and the
+// unchanged anchor_local/zone; the server checks their exact correspondence.
+enum LocalTimeResolution {
+  LOCAL_TIME_RESOLUTION_UNSPECIFIED = 0;
+  LOCAL_TIME_RESOLUTION_UNIQUE = 1;
+  LOCAL_TIME_RESOLUTION_AMBIGUOUS = 2;
+  LOCAL_TIME_RESOLUTION_NONEXISTENT = 3;
+  LOCAL_TIME_RESOLUTION_INVALID_ZONE = 4;
+}
+message LocalTimeCandidate { string instant = 1; sint32 offset_seconds = 2; }
+message ResolveLocalTimeRequest { CalendarId id = 1; string local = 2; string zone = 3; }
+message ResolveLocalTimeResponse {
+  CalendarId id = 1;
+  string local = 2;
+  string zone = 3;
+  LocalTimeResolution resolution = 4;
+  repeated LocalTimeCandidate candidates = 5;
+}
+// Every reconnect begins with explicit resynchronization. Streams retain no replay journal.
+// Retained NHA161 wire surface, with additive NHF015 editing admission.
+// Its synthetic test-only implementation does not deliver the production service.
+service CalendarService {
+  rpc ResolveLocalTime(ResolveLocalTimeRequest) returns (ResolveLocalTimeResponse);
+  rpc ListCalendars(ListCalendarsRequest) returns (ListCalendarsResponse);
+  rpc GetCalendar(GetCalendarRequest) returns (GetCalendarResponse);
+  rpc MutateCalendar(MutateCalendarRequest) returns (MutateCalendarResponse);
+  rpc GetEvent(GetEventRequest) returns (GetEventResponse);
+  rpc MutateEvent(MutateEventRequest) returns (MutateEventResponse);
+  rpc QueryOccurrences(QueryOccurrencesRequest) returns (QueryOccurrencesResponse);
+  rpc WatchCalendar(WatchCalendarRequest) returns (stream WatchCalendarResponse);
+}

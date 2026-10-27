@@ -3,6 +3,7 @@
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod home {
+    pub mod calendars { pub mod v1 { include!("generated/home.calendars.v1.rs"); } }
     pub mod media { pub mod v1 { include!("generated/home.media.v1.rs"); } }
     pub mod environment { pub mod v1 { include!("generated/home.environment.v1.rs"); } }
     pub mod controls { pub mod v1 { include!("generated/home.controls.v1.rs"); } }

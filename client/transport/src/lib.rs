@@ -3,6 +3,7 @@
 
 mod actions;
 mod auth;
+mod calendars;
 mod client;
 mod connection;
 mod dashboard;
@@ -13,6 +14,7 @@ mod media;
 mod reconnect;
 pub use actions::{ActionTransport, ActionWatch};
 pub use auth::AuthTransport;
+pub use calendars::{CalendarTransport, CalendarWatch};
 pub use client::{AccessToken, StateTransport, StateWatch};
 pub use connection::Connection;
 pub use connectrpc::ErrorCode as RpcCode;
@@ -27,6 +29,9 @@ pub use reconnect::ReconnectPolicy;
 #[rustfmt::skip]
 pub mod services {
     pub mod home {
+        pub mod calendars {
+            pub mod v1 { include!("generated/home.calendars.v1.rs"); }
+        }
         pub mod media {
             pub mod v1 { include!("generated/home.media.v1.rs"); }
         }
