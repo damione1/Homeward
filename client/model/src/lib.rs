@@ -4,6 +4,7 @@
 use std::{error::Error, fmt, str::FromStr};
 
 pub mod calendars;
+pub mod cameras;
 pub mod dashboard;
 pub mod lists;
 pub mod local_time;
