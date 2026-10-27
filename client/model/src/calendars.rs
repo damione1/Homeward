@@ -1,7 +1,7 @@
 //! Calendar identities and civil dates. No recurrence or local-time resolver.
 use crate::EntityId;
 use chrono::{Datelike, NaiveDate};
-use std::{error::Error, fmt, str::FromStr};
+use std::{error::Error, fmt, num::NonZeroU64, str::FromStr};
 
 /// Calendar objects are registry entities, distinct from arbitrary state targets.
 /// Construction proves representation only; the server grants access and origin.
@@ -120,9 +120,104 @@ impl fmt::Display for CivilDate {
     }
 }
 
+/// A persisted revision fits the server's positive signed SQL integer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RevisionNumber(NonZeroU64);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InvalidRevision;
+impl fmt::Display for InvalidRevision {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("expected a positive signed 64-bit calendar revision")
+    }
+}
+impl Error for InvalidRevision {}
+impl TryFrom<u64> for RevisionNumber {
+    type Error = InvalidRevision;
+    fn try_from(number: u64) -> Result<Self, Self::Error> {
+        NonZeroU64::new(number)
+            .filter(|n| n.get() <= i64::MAX as u64)
+            .map(Self)
+            .ok_or(InvalidRevision)
+    }
+}
+impl RevisionNumber {
+    pub fn get(self) -> u64 {
+        self.0.get()
+    }
+}
+
+// Absence has no persisted revision; removed resources keep their tombstone CAS.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RevisionState {
+    Absent,
+    Present(RevisionNumber),
+    Removed(RevisionNumber),
+}
+impl RevisionState {
+    pub fn number(self) -> u64 {
+        match self {
+            Self::Absent => 0,
+            Self::Present(number) | Self::Removed(number) => number.get(),
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CalendarRevision {
+    calendar: CalendarId,
+    state: RevisionState,
+}
+impl CalendarRevision {
+    pub fn new(calendar: CalendarId, state: RevisionState) -> Self {
+        Self { calendar, state }
+    }
+    pub fn calendar(&self) -> &CalendarId {
+        &self.calendar
+    }
+    pub fn state(&self) -> RevisionState {
+        self.state
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EventRevision {
+    key: EventKey,
+    state: RevisionState,
+}
+impl EventRevision {
+    pub fn new(key: EventKey, state: RevisionState) -> Self {
+        Self { key, state }
+    }
+    pub fn key(&self) -> &EventKey {
+        &self.key
+    }
+    pub fn state(&self) -> RevisionState {
+        self.state
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn persisted_revisions_cannot_alias_absence_or_another_resource() {
+        assert_eq!(RevisionNumber::try_from(0), Err(InvalidRevision));
+        assert_eq!(
+            RevisionNumber::try_from(i64::MAX as u64 + 1),
+            Err(InvalidRevision)
+        );
+        let first = CalendarId::new("calendar-a".parse().unwrap());
+        let second = CalendarId::new("calendar-b".parse().unwrap());
+        let state = RevisionState::Present(17.try_into().unwrap());
+        let a = CalendarRevision::new(first.clone(), state);
+        let b = CalendarRevision::new(second.clone(), state);
+        assert_ne!(a, b);
+        let uid: EventUid = "same UID".parse().unwrap();
+        let one = EventRevision::new(EventKey::new(first, uid.clone()), state);
+        let two = EventRevision::new(EventKey::new(second, uid), state);
+        assert_ne!(one, two);
+        assert_eq!(RevisionState::Absent.number(), 0);
+        assert_ne!(state, RevisionState::Removed(17.try_into().unwrap()));
+    }
 
     #[test]
     fn civil_dates_admit_leap_days_and_reject_normalization_or_zone_inference() {
