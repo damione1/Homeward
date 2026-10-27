@@ -8,7 +8,6 @@ use home_wire_contract::{
     media_contract as admit,
 };
 use std::{
-    io::Cursor,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -354,61 +353,24 @@ pub fn decode_artwork(
     if expires <= now {
         return Err(ArtworkFailure::Expired);
     }
-    if bytes.len() > admit::MAX_ARTWORK_BYTES {
-        return Err(ArtworkFailure::Capacity);
-    }
-    let mut decoder = png::Decoder::new(Cursor::new(bytes));
-    decoder.set_limits(png::Limits {
-        bytes: 4 * 1024 * 1024,
-    });
-    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
-    let mut reader = decoder.read_info().map_err(|_| ArtworkFailure::Invalid)?;
-    let info = reader.info();
-    if info.width == 0
-        || info.height == 0
-        || info.width > 512
-        || info.height > 512
-        || info.animation_control.is_some()
-    {
-        return Err(ArtworkFailure::Capacity);
-    }
-    let size = reader
-        .output_buffer_size()
-        .filter(|n| *n <= 512 * 512 * 4)
-        .ok_or(ArtworkFailure::Capacity)?;
-    let mut buffer = vec![0; size];
-    let output = reader
-        .next_frame(&mut buffer)
-        .map_err(|_| ArtworkFailure::Invalid)?;
-    let mut rgba = Vec::with_capacity(output.width as usize * output.height as usize * 4);
-    let data = &buffer[..output.buffer_size()];
-    match output.color_type {
-        png::ColorType::Rgba => rgba.extend_from_slice(data),
-        png::ColorType::Rgb => {
-            for p in data.as_chunks::<3>().0 {
-                rgba.extend_from_slice(&[p[0], p[1], p[2], 255]);
-            }
-        }
-        png::ColorType::Grayscale => {
-            for p in data {
-                rgba.extend_from_slice(&[*p, *p, *p, 255]);
-            }
-        }
-        png::ColorType::GrayscaleAlpha => {
-            for p in data.as_chunks::<2>().0 {
-                rgba.extend_from_slice(&[p[0], p[0], p[0], p[1]]);
-            }
-        }
-        png::ColorType::Indexed => return Err(ArtworkFailure::Invalid),
-    }
-    reader.finish().map_err(|_| ArtworkFailure::Invalid)?;
-    if rgba.len() != output.width as usize * output.height as usize * 4 {
-        return Err(ArtworkFailure::Invalid);
-    }
+    let pixels = crate::raster::decode_png(
+        bytes,
+        crate::raster::Limits {
+            encoded: admit::MAX_ARTWORK_BYTES,
+            side: 512,
+            decoded: 512 * 512 * 4,
+            decoder: 4 * 1024 * 1024,
+        },
+    )
+    .map_err(|error| match error {
+        crate::raster::Failure::Invalid => ArtworkFailure::Invalid,
+        crate::raster::Failure::Capacity => ArtworkFailure::Capacity,
+    })?;
+
     Ok(Artwork {
-        width: output.width,
-        height: output.height,
-        rgba: rgba.into(),
+        width: pixels.width,
+        height: pixels.height,
+        rgba: pixels.rgba,
         expires,
     })
 }

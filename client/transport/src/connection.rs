@@ -4,8 +4,8 @@ use connectrpc::client::{ClientConfig, HttpClient};
 use http::Uri;
 
 use crate::{
-    ActionTransport, AuthTransport, CalendarTransport, DashboardTransport, Failure,
-    HistoryTransport, ListTransport, MediaTransport, StateTransport, services::home,
+    ActionTransport, AuthTransport, CalendarTransport, CameraTransport, DashboardTransport,
+    Failure, HistoryTransport, ListTransport, MediaTransport, StateTransport, services::home,
 };
 
 /// A shared verified TLS connection configuration. Service facades reuse the
@@ -105,6 +105,14 @@ impl Connection {
     pub fn calendars(&self) -> CalendarTransport {
         CalendarTransport {
             client: home::calendars::v1::CalendarServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
+        }
+    }
+    pub fn cameras(&self) -> CameraTransport {
+        CameraTransport {
+            client: home::cameras::v1::CameraServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),

@@ -1,0 +1,67 @@
+import { KitTheme, KitScrollArea, KitContentList, ContentItem, KitButton, ControlSize, NavigationStep } from "@kit/kit.slint";
+import { ProCameraCard, ProCameraEvents, ProCameraPresentation, ProCameraEventRow } from "@kit-pro/kit-pro.slint";
+export struct CameraPresentation {
+    generation:int, catalog:[ContentItem], notice:string, selected:bool,
+    camera:ProCameraPresentation, events:[ProCameraEventRow], event-index:int,
+    snapshot-selected:bool, remaining-ms:int,
+}
+export component HomewardCameras inherits Rectangle {
+    in property <KitTheme> theme;
+    in property <CameraPresentation> data;
+    in property <bool> interactive;
+    callback choose(int,int);
+    callback event(int,int);
+    callback snapshot(int,int);
+    callback reload(int,int);
+    callback reload-catalog(int);
+    callback viewport(bool);
+    callback navigate(NavigationStep);
+    callback catalog-navigate(NavigationStep);
+    callback expire(int);
+    public function focus-catalog() { catalog.take-focus(); }
+    public function scroll-to(y:length) { page.content-y=y; }
+    out property <length> scroll-y: page.content-y;
+    min-width:0px;min-height:0px;clip:true;
+    private property <bool> last-visible;
+    private property <bool> has-preview: root.data.selected;
+    changed has-preview => { if (!root.has-preview) { page.content-y = 0px; } }
+    private property <bool> preview-visible: root.interactive && root.data.selected && preview.absolute-position.y + preview.height > page.absolute-position.y && preview.absolute-position.y < page.absolute-position.y + page.height;
+    Timer {
+        interval:16ms;running:root.last-visible != root.preview-visible;
+        triggered=>{if (root.last-visible != root.preview-visible) {root.last-visible=root.preview-visible;root.viewport(root.preview-visible);}}
+    }
+    Timer {
+        interval:max(1,root.data.remaining-ms)*1ms;
+        running:root.interactive && root.data.remaining-ms>0;
+        triggered=>{root.expire(root.data.generation);}
+    }
+    page:=KitScrollArea {
+        width:parent.width;height:parent.height;content-width:self.visible-width;
+        VerticalLayout {
+            width:page.visible-width;padding:16px;spacing:16px;
+            Text {text:root.data.notice;color:root.theme.text-secondary;font-size:14px*root.theme.text-scale;wrap:word-wrap;}
+            KitButton {theme:root.theme;text:"Relire les caméras";disabled:!root.interactive;control-size:ControlSize.comfortable;activated=>{root.reload-catalog(root.data.generation);}}
+            catalog:=KitContentList {
+                theme:root.theme;items:root.data.catalog;generation:root.data.generation;
+                label:"Caméras autorisées";empty-label:"Aucune caméra à afficher";preferred-height:180px;min-height:120px;
+                active-index:root.data.selected ? root.data.camera.token - 1 : -1;
+                activate(t,g)=>{root.choose(t,g);}
+                navigate(step)=>{root.catalog-navigate(step);}
+            }
+            preview:=ProCameraCard {
+                visible:root.data.selected;theme:root.theme;camera:root.data.camera;
+                interactive:root.interactive;picture-visible:root.preview-visible;
+                snapshot-selected:root.data.snapshot-selected;
+                refresh-label:"Recharger l’aperçu";snapshot-label:"Afficher l’instantané";
+                reload(t,g)=>{root.reload(t,g);}snapshot(t,g)=>{root.snapshot(t,g);}
+            }
+            ProCameraEvents {
+                visible:root.data.selected;theme:root.theme;rows:root.data.events;
+                interactive:root.interactive;title:"Événements de la caméra";empty-label:"Aucun événement dans la capture";
+                min-height:320px;preferred-height:560px*root.theme.text-scale;
+                active-index:root.data.event-index;
+                select(t,g)=>{root.event(t,g);}navigate(step)=>{root.navigate(step);}
+            }
+        }
+    }
+}

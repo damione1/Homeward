@@ -1,0 +1,7 @@
+{
+  "synthetic_only": true,
+  "cameras": [
+    {"entity_id": "driveway", "title": "Entrée synthétique", "source": "Source synthétique A", "rgb": [36, 125, 190], "events": 3},
+    {"entity_id": "_driveway", "title": "Entrée synthétique", "source": "Source synthétique B", "rgb": [185, 76, 42], "events": 3}
+  ]
+}
