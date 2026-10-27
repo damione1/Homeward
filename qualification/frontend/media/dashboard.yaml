@@ -1,0 +1,10 @@
+title: Démonstration média
+views:
+  - title: Média
+    path: media
+    cards:
+      - type: entities
+        title: Lecteurs synthétiques
+        entities:
+          - media_player.bathroom_speaker
+          - media_player.kitchen

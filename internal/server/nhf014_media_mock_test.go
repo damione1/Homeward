@@ -56,6 +56,8 @@ type nhf014MediaMock struct {
 	submitCalls uint64
 	mutations   uint64
 	now         func() time.Time
+	unavailable map[domain.EntityID]bool
+	offline     bool
 }
 
 func nhf014MediaError(code connect.Code) error {
@@ -109,6 +111,9 @@ func (m *nhf014MediaMock) withEntity(ctx context.Context, name string, family au
 		}
 		if err := current.Authorize(read, object); err != nil {
 			return err
+		}
+		if m.offline || m.unavailable[entity] {
+			return nhf014MediaError(connect.CodeUnavailable)
 		}
 		return fn(current, actor, entity, snapshot)
 	})
