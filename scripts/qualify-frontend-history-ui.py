@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import platform
 import runpy
+import signal
 import subprocess
 import time
 from urllib.parse import urlsplit
@@ -245,6 +246,11 @@ def main():
     args = parser.parse_args()
     if platform.system() != 'Darwin' or not os.environ.get('CARGO_TARGET_DIR'):
         raise SystemExit('Run on macOS through frontend.py run --cargo.')
+    # The storage guard terminates our process group. Unwind run_case so only
+    # this fixture's credential and temporary settings are removed as usual.
+    def interrupted(_signum, _frame):
+        raise KeyboardInterrupt('Owned native history qualification interrupted')
+    signal.signal(signal.SIGTERM, interrupted)
     config = json.loads((ROOT / 'frontend.local.json').read_text())
     proof = Path(config['frontend_cache']) / ('history-costs-ui' if args.costs_mock else 'history-ui') / str(time.time_ns())
     proof.mkdir(parents=True, mode=0o700)
