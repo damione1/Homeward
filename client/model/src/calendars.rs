@@ -114,6 +114,12 @@ impl FromStr for CivilDate {
             .ok_or(InvalidDate)
     }
 }
+impl CivilDate {
+    /// Civil-day arithmetic only; no timezone or midnight instant is inferred.
+    pub fn days_until(self, end: Self) -> i64 {
+        (end.0 - self.0).num_days()
+    }
+}
 impl fmt::Display for CivilDate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.format("%Y-%m-%d").fmt(f)

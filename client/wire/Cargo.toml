@@ -8,3 +8,4 @@ publish = false
 home-client-model = { path = "../model" }
 buffa = "=0.9.2"
 buffa-types = "=0.9.2"
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
