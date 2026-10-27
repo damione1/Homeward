@@ -5,7 +5,7 @@ use http::Uri;
 
 use crate::{
     ActionTransport, AuthTransport, DashboardTransport, Failure, HistoryTransport, ListTransport,
-    StateTransport, services::home,
+    MediaTransport, StateTransport, services::home,
 };
 
 /// A shared verified TLS connection configuration. Service facades reuse the
@@ -89,6 +89,14 @@ impl Connection {
     pub fn history(&self) -> HistoryTransport {
         HistoryTransport {
             client: home::history::v1::HistoryServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
+        }
+    }
+    pub fn media(&self) -> MediaTransport {
+        MediaTransport {
+            client: home::media::v1::MediaServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),

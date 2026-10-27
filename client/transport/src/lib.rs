@@ -9,6 +9,7 @@ mod dashboard;
 mod failure;
 mod history;
 mod lists;
+mod media;
 mod reconnect;
 pub use actions::{ActionTransport, ActionWatch};
 pub use auth::AuthTransport;
@@ -19,12 +20,16 @@ pub use dashboard::{DashboardTransport, DashboardWatch};
 pub use failure::{DetailFailure, Failure, FailureKind};
 pub use history::HistoryTransport;
 pub use lists::{ListTransport, ListWatch};
+pub use media::MediaTransport;
 pub use reconnect::ReconnectPolicy;
 
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod services {
     pub mod home {
+        pub mod media {
+            pub mod v1 { include!("generated/home.media.v1.rs"); }
+        }
         pub mod actions {
             pub mod v1 { include!("generated/home.actions.v1.rs"); }
         }

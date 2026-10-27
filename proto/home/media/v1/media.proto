@@ -1,0 +1,122 @@
+syntax = "proto3";
+package home.media.v1;
+
+import "google/protobuf/timestamp.proto";
+import "home/state/v1/state.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/media/v1;mediav1";
+
+// Provisional native media facade. NHF014 exercises this contract on an opt-in
+// isolated Go mock. It does not declare a production Sonos/TV service delivered.
+// Reads and artwork use the same verified session transport as other services.
+// Commands cross ActionService and its shared single-attempt action controller;
+// MediaAction is the versioned extension payload, never a vendor command blob.
+enum PlaybackState {
+  PLAYBACK_STATE_UNSPECIFIED = 0;
+  PLAYBACK_STATE_STOPPED = 1;
+  PLAYBACK_STATE_PAUSED = 2;
+  PLAYBACK_STATE_PLAYING = 3;
+  PLAYBACK_STATE_BUFFERING = 4;
+}
+enum Operation {
+  OPERATION_UNSPECIFIED = 0;
+  OPERATION_PLAY = 1;
+  OPERATION_PAUSE = 2;
+  OPERATION_STOP = 3;
+  OPERATION_PREVIOUS = 4;
+  OPERATION_NEXT = 5;
+}
+message QuantityBounds {
+  uint64 minimum = 1;
+  uint64 maximum = 2;
+  uint64 step = 3;
+}
+message Option {
+  string id = 1;
+  string label = 2;
+}
+message Member {
+  string entity_id = 1;
+  string label = 2;
+}
+// Exact server-owned route. Changing any field invalidates every unsent intent.
+// The server must revalidate it at Submit; the client never picks another member
+// or retries at a new coordinator when this precondition is stale.
+message Route {
+  string entity_id = 1;
+  string endpoint = 2;
+  string coordinator_entity_id = 3;
+  uint64 topology_revision = 4;
+  string admission_epoch = 5;
+  uint64 config_revision = 6;
+}
+message Capabilities {
+  repeated Operation operations = 1;
+  // Canonical volume basis points in0..10000; explicit step, not a float gain.
+  QuantityBounds volume_basis_points = 2;
+  // Canonical position milliseconds, bounded by the current media duration.
+  QuantityBounds position_millis = 3;
+  repeated Option sources = 4;
+  repeated Option groups = 5;
+}
+message ArtworkReference {
+  // Session/entity-bound opaque short-lived reference. Never an external URL,
+  // bearer credential, durable token or filesystem path.
+  bytes reference = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+message Snapshot {
+  Route route = 1;
+  Capabilities capabilities = 2;
+  home.state.v1.ActionAccess action_access = 3;
+  PlaybackState playback = 4;
+  optional string title = 5;
+  optional string artist = 6;
+  optional string collection = 7;
+  optional uint32 volume_basis_points = 8;
+  optional uint64 position_millis = 9;
+  optional uint64 duration_millis = 10;
+  optional string source_id = 11;
+  optional string group_id = 12;
+  repeated Member members = 13;
+  ArtworkReference artwork = 14;
+  home.state.v1.Quality quality = 15;
+  google.protobuf.Timestamp received_at = 16;
+  string provenance = 17;
+  // Hash of the server-registered MediaAction extension descriptor. Preserve
+  // this exact capability reference at Submit; no downloaded code is executed.
+  bytes descriptor_sha256 = 18;
+}
+message ReadSnapshotRequest { string entity_id = 1; }
+message Unsupported {}
+message ReadSnapshotResponse {
+  oneof result {
+    Snapshot snapshot = 1;
+    Unsupported unsupported = 2;
+  }
+}
+message ReadArtworkRequest {
+  string entity_id = 1;
+  bytes reference = 2;
+}
+message ReadArtworkResponse {
+  // PNG only, at most128KiB and512x512pixels. Decode and validate off the UI
+  // thread. Authorization and reference expiry are checked again per read.
+  bytes png = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+message MediaAction {
+  Route route = 1;
+  oneof command {
+    Operation operation = 2;
+    uint32 volume_basis_points = 3;
+    uint64 position_millis = 4;
+    string source_id = 5;
+    string group_id = 6;
+  }
+}
+service MediaService {
+  // At most64KiB, five operations, sixteen sources/groups/members each.
+  rpc ReadSnapshot(ReadSnapshotRequest) returns (ReadSnapshotResponse);
+  rpc ReadArtwork(ReadArtworkRequest) returns (ReadArtworkResponse);
+}
