@@ -70,11 +70,19 @@ func (r *Repository) transaction(ctx context.Context, fn func(context.Context, p
 	}
 	bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	outcome, err := r.store.InTransactionOutcome(bounded, func(tx pgx.Tx) error { return fn(bounded, tx) })
+	outcome, err := r.store.InTransactionOutcome(bounded, func(tx pgx.Tx) error {
+		if err := fenceNetwork(bounded, tx); err != nil {
+			return err
+		}
+		return fn(bounded, tx)
+	})
 	if outcome == storage.TransactionIndeterminate {
 		return failure(CommitUnknown)
 	}
 	if err != nil {
+		if networkDenied(err) {
+			return err
+		}
 		var expected *Error
 		if errors.As(err, &expected) {
 			return expected

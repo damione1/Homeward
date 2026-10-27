@@ -8,6 +8,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// The suffix versions explicit editing semantics without changing the pinned
+// timezone data or the legacy RFC5545 codec. Older readers reject this variant.
+const selectedTimezoneDataID = TimezoneDataID + ";selected-v1"
+
 type storedSpan struct {
 	kind               int16
 	startDate, endDate pgtype.Date
@@ -26,7 +30,11 @@ func encodeSpan(span Span) storedSpan {
 	if span.kind == AllDay {
 		return storedSpan{kind: 1, startDate: pgtype.Date{Time: LocalDateTime{date: span.startDate}.wallUTC(), Valid: true}, endDate: pgtype.Date{Time: LocalDateTime{date: span.endDate}.wallUTC(), Valid: true}}
 	}
-	return storedSpan{kind: 2, anchor: pgtype.Timestamp{Time: span.anchor.wallUTC(), Valid: true}, start: pgtype.Timestamptz{Time: span.start.value, Valid: true}, end: pgtype.Timestamptz{Time: span.end.value, Valid: true}, zone: pgtype.Text{String: span.zone.name, Valid: true}, data: pgtype.Text{String: TimezoneDataID, Valid: true}}
+	dataID := TimezoneDataID
+	if span.source == sourceExplicit {
+		dataID = selectedTimezoneDataID
+	}
+	return storedSpan{kind: 2, anchor: pgtype.Timestamp{Time: span.anchor.wallUTC(), Valid: true}, start: pgtype.Timestamptz{Time: span.start.value, Valid: true}, end: pgtype.Timestamptz{Time: span.end.value, Valid: true}, zone: pgtype.Text{String: span.zone.name, Valid: true}, data: pgtype.Text{String: dataID, Valid: true}}
 }
 func dateFromSQL(value pgtype.Date) (CivilDate, error) {
 	if !value.Valid || value.InfinityModifier != pgtype.Finite || value.Time.Year() < 1 || value.Time.Year() > 9999 {
@@ -81,7 +89,7 @@ func decodeSpan(ctx context.Context, raw storedSpan) (Span, error) {
 		if raw.startDate.Valid || raw.endDate.Valid || !raw.zone.Valid || !raw.data.Valid {
 			return Span{}, failure(Corrupt)
 		}
-		if raw.data.String != TimezoneDataID {
+		if raw.data.String != TimezoneDataID && raw.data.String != selectedTimezoneDataID {
 			return Span{}, failure(Incompatible)
 		}
 		anchor, err := localFromSQL(raw.anchor)
@@ -99,6 +107,13 @@ func decodeSpan(ctx context.Context, raw storedSpan) (Span, error) {
 		zone, err := ParseZone(raw.zone.String)
 		if err != nil {
 			return Span{}, decodeFailure(err)
+		}
+		if raw.data.String == selectedTimezoneDataID {
+			span, err := SelectedTimedSpan(ctx, anchor, start, end, zone)
+			if err != nil {
+				return Span{}, decodeFailure(err)
+			}
+			return span, nil
 		}
 		span, err := TimedSpan(ctx, anchor, end, zone)
 		if err != nil {

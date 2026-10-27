@@ -298,7 +298,15 @@ func validateEvent(ctx context.Context, event Event, budget *calculationBudget) 
 
 // Window carries an explicit interpretation for mixed instant/date queries.
 // Its all-day projection is only for overlap/order; stored dates stay civil.
+type windowMode uint8
+
+const (
+	legacyWindow windowMode = iota
+	agendaWindow
+)
+
 type Window struct {
+	mode             windowMode
 	kind             TemporalKind
 	fromDate, toDate CivilDate
 	from, to         Instant
@@ -311,6 +319,59 @@ func DateWindow(from, to CivilDate) (Window, error) {
 	}
 	return Window{kind: AllDay, fromDate: from, toDate: to}, nil
 }
+
+// AgendaWindow selects dates civilly and timed events in the explicit zone.
+// A skipped civil day remains visible for all-day events without inventing an
+// instant for the event itself. Legacy DateWindow/TimeWindow keep their meaning.
+func AgendaWindow(ctx context.Context, from, to CivilDate, zone Zone) (Window, error) {
+	if _, err := DateWindow(from, to); err != nil {
+		return Window{}, err
+	}
+	if !zone.Valid() {
+		return Window{}, failure(InvalidZone)
+	}
+	a, ok, err := resolveWallTime(ctx, LocalDateTime{date: from}, zone, true)
+	if err != nil {
+		return Window{}, err
+	}
+	if !ok {
+		return Window{}, failure(InvalidDate)
+	}
+	b, ok, err := resolveWallTime(ctx, LocalDateTime{date: to}, zone, true)
+	if err != nil {
+		return Window{}, err
+	}
+	if !ok {
+		return Window{}, failure(InvalidDate)
+	}
+	start, err := NewInstant(a)
+	if err != nil {
+		return Window{}, err
+	}
+	end, err := NewInstant(b)
+	if err != nil {
+		return Window{}, err
+	}
+	w := Window{mode: agendaWindow, kind: Timed, fromDate: from, toDate: to, from: start, to: end, zone: zone}
+	if !w.Valid() {
+		return Window{}, failure(InvalidDate)
+	}
+	return w, nil
+}
+func (w Window) CivilBounds() (CivilDate, CivilDate, error) {
+	if !w.Valid() {
+		return CivilDate{}, CivilDate{}, failure(InvalidInput)
+	}
+	return w.fromDate, w.toDate, nil
+}
+func (w Window) ContainsSpan(ctx context.Context, span Span) (bool, error) {
+	if !w.Valid() || !span.Valid() {
+		return false, failure(InvalidInput)
+	}
+	_, selected, err := w.selection(ctx, span, newBudget(ctx))
+	return selected, err
+}
+
 func TimeWindow(from, to Instant, zone Zone) (Window, error) {
 	if !from.Valid() || !to.Valid() || !zone.Valid() || !to.value.After(from.value) || to.value.Sub(from.value) > 366*24*time.Hour {
 		return Window{}, failure(InvalidInput)
@@ -331,6 +392,13 @@ func TimeWindow(from, to Instant, zone Zone) (Window, error) {
 
 func (w Window) Valid() bool {
 	if !w.fromDate.Valid() || !w.toDate.Valid() {
+		return false
+	}
+	switch w.mode {
+	case agendaWindow:
+		return w.kind == Timed && w.zone.Valid() && w.from.Valid() && w.to.Valid() && !w.to.value.Before(w.from.value) && w.to.value.Sub(w.from.value) <= 366*24*time.Hour+52*time.Hour && w.toDate.ordinal() > w.fromDate.ordinal() && w.toDate.ordinal()-w.fromDate.ordinal() <= 366
+	case legacyWindow:
+	default:
 		return false
 	}
 	switch w.kind {
@@ -360,5 +428,8 @@ func (w Window) ceiling(kind TemporalKind) Point {
 	return Point{kind: Timed, local: localFromTime(value)}
 }
 func (w Window) identity() string {
+	if w.mode == agendaWindow {
+		return "agenda/1|" + fmt.Sprintf("%s|%s|%s|%s|%s|%s", w.fromDate.String(), w.toDate.String(), w.from.String(), w.to.String(), w.zone.Name(), w.zone.DataID())
+	}
 	return fmt.Sprintf("%d|%s|%s|%s|%s|%s|%s", w.kind, w.fromDate.String(), w.toDate.String(), w.from.String(), w.to.String(), w.zone.Name(), w.zone.DataID())
 }

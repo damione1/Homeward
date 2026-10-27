@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -206,11 +207,54 @@ func resolveWall(ctx context.Context, value LocalDateTime, zone Zone, initial bo
 // Projection of civil DATE boundaries may use the raw year-zero edge without
 // admitting that value as a timed business Instant. Presence is never a zero.
 func resolveWallTime(ctx context.Context, value LocalDateTime, zone Zone, initial bool) (time.Time, bool, error) {
-	if err := contextValid(ctx); err != nil {
+	candidates, gap, gapFound, err := wallTimeCandidates(ctx, value, zone)
+	if err != nil {
 		return time.Time{}, false, err
 	}
+	if len(candidates) > 0 {
+		return candidates[0], true, nil
+	}
+	if initial && gapFound {
+		return gap, true, nil
+	}
+	return time.Time{}, false, nil
+}
+
+// LocalTimeCandidate is an exact server-side projection using the pinned data.
+// An empty set is a gap; callers must explicitly select among multiple values.
+type LocalTimeCandidate struct {
+	instant Instant
+	offset  int
+}
+
+func (c LocalTimeCandidate) Instant() Instant   { return c.instant }
+func (c LocalTimeCandidate) OffsetSeconds() int { return c.offset }
+func ResolveLocalTime(ctx context.Context, value LocalDateTime, zone Zone) ([]LocalTimeCandidate, error) {
+	raw, _, _, err := wallTimeCandidates(ctx, value, zone)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > 2 {
+		return nil, failure(InvalidZone)
+	}
+	candidates := make([]LocalTimeCandidate, 0, len(raw))
+	for _, at := range raw {
+		instant, err := NewInstant(at)
+		if err != nil {
+			return nil, err
+		}
+		offset := int(value.wallUTC().Sub(at) / time.Second)
+		candidates = append(candidates, LocalTimeCandidate{instant: instant, offset: offset})
+	}
+	return candidates, nil
+}
+
+func wallTimeCandidates(ctx context.Context, value LocalDateTime, zone Zone) ([]time.Time, time.Time, bool, error) {
+	if err := contextValid(ctx); err != nil {
+		return nil, time.Time{}, false, err
+	}
 	if !value.Valid() || !zone.Valid() {
-		return time.Time{}, false, failure(InvalidDate)
+		return nil, time.Time{}, false, failure(InvalidDate)
 	}
 	wall := value.wallUTC()
 	low, high := wall.Add(-26*time.Hour), wall.Add(26*time.Hour)
@@ -221,17 +265,17 @@ func resolveWallTime(ctx context.Context, value LocalDateTime, zone Zone, initia
 	gapFound := false
 	for transitions := 0; ; transitions++ {
 		if err := canceled(ctx); err != nil {
-			return time.Time{}, false, err
+			return nil, time.Time{}, false, err
 		}
 		if transitions >= 16 {
-			return time.Time{}, false, failure(BudgetExceeded)
+			return nil, time.Time{}, false, failure(BudgetExceeded)
 		}
 		offset, err := zone.offsetAt(ctx, current)
 		if err != nil {
-			return time.Time{}, false, err
+			return nil, time.Time{}, false, err
 		}
 		if offset < -26*3600 || offset > 26*3600 {
-			return time.Time{}, false, failure(InvalidZone)
+			return nil, time.Time{}, false, failure(InvalidZone)
 		}
 		seen := false
 		for _, existing := range offsets[:offsetCount] {
@@ -246,18 +290,18 @@ func resolveWallTime(ctx context.Context, value LocalDateTime, zone Zone, initia
 		}
 		boundary, err := zone.boundsAt(ctx, current)
 		if err != nil {
-			return time.Time{}, false, err
+			return nil, time.Time{}, false, err
 		}
 		end := boundary.at
 		if !boundary.present || end.After(high) {
 			break
 		}
 		if !end.After(current) {
-			return time.Time{}, false, failure(InvalidZone)
+			return nil, time.Time{}, false, failure(InvalidZone)
 		}
 		after, err := zone.offsetAt(ctx, end)
 		if err != nil {
-			return time.Time{}, false, err
+			return nil, time.Time{}, false, err
 		}
 		if after > offset && !wall.Before(end.Add(time.Duration(offset)*time.Second)) && wall.Before(end.Add(time.Duration(after)*time.Second)) {
 			gap = wall.Add(-time.Duration(offset) * time.Second)
@@ -265,24 +309,17 @@ func resolveWallTime(ctx context.Context, value LocalDateTime, zone Zone, initia
 		}
 		current = end
 	}
-	var first time.Time
-	found := false
+	var candidates []time.Time
 	for _, offset := range offsets[:offsetCount] {
 		instant := wall.Add(-time.Duration(offset) * time.Second)
 		local, err := zone.localAt(ctx, instant)
 		if err != nil {
-			return time.Time{}, false, err
+			return nil, time.Time{}, false, err
 		}
-		if local == value && (!found || instant.Before(first)) {
-			first = instant
-			found = true
+		if local == value {
+			candidates = append(candidates, instant)
 		}
 	}
-	if found {
-		return first, true, nil
-	}
-	if initial && gapFound {
-		return gap, true, nil
-	}
-	return time.Time{}, false, nil
+	slices.SortFunc(candidates, func(a, b time.Time) int { return a.Compare(b) })
+	return candidates, gap, gapFound, nil
 }

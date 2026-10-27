@@ -144,7 +144,7 @@ func localSpanSerializable(s Span) bool {
 	if s.mode == spanAllDay {
 		return s.Valid()
 	}
-	return s.Valid() && s.mode == spanExact && s.source == sourceZoned && s.zone.embedded == nil && s.endZone == (Zone{})
+	return s.Valid() && s.mode == spanExact && (s.source == sourceZoned || s.source == sourceExplicit) && s.zone.embedded == nil && s.endZone == (Zone{})
 }
 func admitEventContent(input EventInput, kind eventContentKind, content EventContent) (Event, error) {
 	if !input.Span.Valid() || !input.Rule.validFor(input.Span) {
@@ -153,8 +153,8 @@ func admitEventContent(input EventInput, kind eventContentKind, content EventCon
 	summary, description, location := input.Summary, input.Description, input.Location
 	switch kind {
 	case contentLocal:
-		// Existing SQL codec owns only legacy local variants. Never permit an
-		// imported Point/span/content to lose fields through that codec.
+		// Only the local variants admitted by the versioned SQL codec may
+		// be written. Imported Point/span/content must retain every field.
 		if !localSpanSerializable(input.Span) {
 			return Event{}, failure(Incompatible)
 		}
@@ -174,6 +174,9 @@ func admitEventContent(input EventInput, kind eventContentKind, content EventCon
 			return Event{}, failure(InvalidInput)
 		}
 	case contentImported:
+		if input.Span.source == sourceExplicit {
+			return Event{}, failure(Incompatible)
+		}
 		if !content.Valid() || summary != "" || description != "" || location != "" {
 			return Event{}, failure(InvalidInput)
 		}

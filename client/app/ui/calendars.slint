@@ -1,0 +1,145 @@
+import { KitTheme, KitScrollArea, KitWrap, KitTextField, KitButton, KitContentList, ContentItem, ControlSize, FieldAccess, CivilDateView, LocalDateTimeView, ZonedTimePresentation, ZonedDateTimeDraft, AmbiguousTimeChoice, CalendarDay, CalendarNavigation, NavigationStep } from "@kit/kit.slint";
+import { ProAgenda, ProAgendaEditor, ProAgendaRow, ProAgendaDay, ProAgendaMode, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction, ProIdentityButton } from "@kit-pro/kit-pro.slint";
+
+export enum CalendarCommand { create, rename, remove, reload, new-event, apply-range }
+export struct CalendarDraftView {
+    selected: bool, token: int, generation: int, access: ProAgendaAccess,
+    phase: ProAgendaPhase, kind: ProAgendaTemporalKind, valid: bool, existing: bool,
+    summary: string, description: string, location: string,
+    start-date: string, end-date: string, start-time: string, end-time: string, zone: string,
+    accepted-start: LocalDateTimeView, accepted-end: LocalDateTimeView,
+    start-resolution: ZonedTimePresentation, end-resolution: ZonedTimePresentation,
+    start-message: string, end-message: string, exceptions: string,
+}
+export struct CalendarPresentation {
+    generation: int, privacy-generation: int, catalog: [ContentItem], rows: [ProAgendaRow], days: [ProAgendaDay],
+    selected: bool, calendar-token: int, present: bool, ready: bool, editable: bool, busy: bool, title: string,
+    notice: string, source: string, revision: string, cached-at: string,
+    start: string, end: string, zone: string, mode: ProAgendaMode,
+    active-index: int, editor: CalendarDraftView, calendar-days: [CalendarDay], calendar-title: string, calendar-index: int, accepted-date: CivilDateView,
+}
+
+// The server supplies the catalog and occurrence projections. This composition
+// owns no installation list, timezone resolver, recurrence engine or RPC client.
+export component HomewardCalendars inherits Rectangle {
+    in property <KitTheme> theme;
+    in property <CalendarPresentation> data;
+    in property <bool> interactive;
+    in-out property <string> name-draft;
+    in-out property <string> range-start;
+    in-out property <string> range-end;
+    in-out property <string> range-zone;
+    in-out property <string> edit-summary;
+    in-out property <string> edit-description;
+    in-out property <string> edit-location;
+    in-out property <string> edit-start-date;
+    in-out property <string> edit-end-date;
+    in-out property <string> edit-start-time;
+    in-out property <string> edit-end-time;
+    in-out property <string> edit-zone;
+    callback choose(int,int);
+    callback select(int,int);
+    callback command(int,CalendarCommand,string,string,string);
+    callback edited(int,int,ProAgendaField,string);
+    callback date-edited(int,int,ProAgendaBoundary,string);
+    callback time-edited(int,int,ProAgendaBoundary,ZonedDateTimeDraft);
+    callback resolve(int,int,ProAgendaBoundary,ZonedDateTimeDraft);
+    callback ambiguity-chosen(int,int,ProAgendaBoundary,AmbiguousTimeChoice);
+    callback kind-requested(int,int,ProAgendaTemporalKind);
+    callback action(int,int,ProAgendaAction);
+    callback mode-requested(ProAgendaMode);
+    callback navigate(NavigationStep);
+    callback day-requested(int,int);
+    callback date-chosen(CalendarDay);
+    callback month-requested(CalendarNavigation);
+    min-width: 0px; min-height: 0px; clip: true;
+    out property <length> scroll-y: page.content-y;
+    public function focus-catalog() { catalog.take-focus(); }
+    public function focus-editor() { editor.focus-summary(); }
+    public function scroll-to(y: length) { page.content-y = y; }
+    page := KitScrollArea {
+        width: parent.width; height: parent.height;
+        content-width: self.visible-width;
+        VerticalLayout {
+            width: page.visible-width; padding: 16px; spacing: 16px;
+            Text { text: "Calendriers"; color: root.theme.text-primary; font-size: 24px * root.theme.text-scale; font-weight: 600; }
+            Text { text: root.data.notice; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+            catalog := KitContentList {
+                theme: root.theme; items: root.data.catalog; generation: root.data.generation;
+                label: "Calendriers autorisés"; preferred-height: 180px; min-height: 120px;
+                activate(t,g) => { root.choose(t,g); }
+            }
+            KitWrap {
+                KitTextField { theme: root.theme; label: "Nom du calendrier"; text <=> root.name-draft; access: root.data.editable && root.interactive ? FieldAccess.editable : FieldAccess.disabled; control-size: ControlSize.comfortable; }
+                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Créer"; disabled: !root.interactive || !root.data.editable || root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.create,root.name-draft,"",""); } }
+                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Renommer"; disabled: !root.interactive || !root.data.editable || !root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.rename,root.name-draft,"",""); } }
+                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Supprimer le calendrier"; disabled: !root.interactive || !root.data.editable || !root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.remove,"","",""); } }
+                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Relire"; disabled: !root.interactive || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.reload,"","",""); } }
+            }
+            VerticalLayout {
+                visible: root.data.selected;
+                spacing: 12px;
+                Text { text: root.data.source + " · " + root.data.revision + " · " + root.data.cached-at; color: root.theme.text-secondary; font-size: 13px * root.theme.text-scale; wrap: word-wrap; }
+                KitWrap {
+                    KitTextField { theme: root.theme; label: "Début inclus (AAAA-MM-JJ)"; text <=> root.range-start; control-size: ControlSize.comfortable; }
+                    KitTextField { theme: root.theme; label: "Fin exclue (AAAA-MM-JJ)"; text <=> root.range-end; control-size: ControlSize.comfortable; }
+                    KitTextField { theme: root.theme; label: "Fuseau IANA"; text <=> root.range-zone; control-size: ControlSize.comfortable; }
+                    ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Afficher la plage"; disabled: !root.interactive || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.apply-range,root.range-start,root.range-end,root.range-zone); } }
+                    ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Nouvel événement"; disabled: !root.interactive || !root.data.ready || !root.data.editable || !root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.new-event,"","",""); } }
+                }
+                agenda := ProAgenda {
+                    theme: root.theme; rows: root.data.rows; days: root.data.days;
+                    title: root.data.title; period-label: root.data.start + " – " + root.data.end; zone-label: root.data.zone;
+                    generation: root.data.generation; mode: root.data.mode; active-index: root.data.active-index;
+                    selected: root.data.editor.selected; selected-token: root.data.editor.token; selected-generation: root.data.editor.generation;
+                    interactive: root.interactive && root.data.ready && !root.data.busy;
+                    preferred-height: max(400px,560px * root.theme.text-scale); min-height: 320px;
+                    empty-label: "Aucun événement dans cette plage"; all-day-label: "Toute la journée"; list-label: "Liste"; week-label: "Semaine"; date-label: "Choisir une date";
+                    date-text <=> root.range-start;
+                    date-placeholder: "AAAA-MM-JJ"; date-description: "Date civile ; sans fuseau horaire";
+                    calendar-button-label: "Calendrier"; calendar-accessible-name: "Ouvrir le calendrier";
+                    previous-month-label: "Mois précédent"; next-month-label: "Mois suivant";
+                    select(t,g) => { root.select(t,g); }
+                    navigate(step) => { root.navigate(step); }
+                    mode-requested(mode) => { root.mode-requested(mode); }
+                    day-requested(t,g) => { root.day-requested(t,g); }
+                    date-committed(value) => { root.command(root.data.generation,CalendarCommand.apply-range,value,"",root.range-zone); }
+                    date-chosen(day) => { root.date-chosen(day); }
+                    month-requested(direction) => { root.month-requested(direction); }
+                    accepted-date: root.data.accepted-date; calendar-days: root.data.calendar-days; calendar-title: root.data.calendar-title; calendar-index: root.data.calendar-index;
+                    weekdays: ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+                }
+                Rectangle {
+                    visible: root.data.editor.selected;
+                    min-width: 0px;
+                    min-height: root.data.editor.selected ? editor.min-height : 0px;
+                    preferred-height: root.data.editor.selected ? editor.preferred-height : 0px;
+                    max-height: root.data.editor.selected ? 100000px : 0px;
+                    editor := ProAgendaEditor {
+                        width: parent.width; height: parent.height;
+                    theme: root.theme; selected: root.data.editor.selected; token: root.data.editor.token; generation: root.data.editor.generation;
+                    access: root.interactive ? root.data.editor.access : ProAgendaAccess.offline;
+                    phase: root.data.editor.phase; temporal-kind: root.data.editor.kind; valid: root.data.editor.valid; removable: root.data.editor.existing;
+                    title: "Événement"; source-label: root.data.source; exceptions-label: root.data.editor.exceptions;
+                    summary <=> root.edit-summary; description <=> root.edit-description; location <=> root.edit-location;
+                    start-date <=> root.edit-start-date; end-date <=> root.edit-end-date; start-time <=> root.edit-start-time; end-time <=> root.edit-end-time; zone <=> root.edit-zone;
+                    accepted-start: root.data.editor.accepted-start; accepted-end: root.data.editor.accepted-end;
+                    start-resolution: root.data.editor.start-resolution; end-resolution: root.data.editor.end-resolution; start-message: root.data.editor.start-message; end-message: root.data.editor.end-message;
+                    date-placeholder: "AAAA-MM-JJ"; date-description: "Date civile ; sans fuseau horaire"; time-description: "Heure locale au format 24 h";
+                    summary-label: "Titre"; description-label: "Description"; location-label: "Lieu"; all-day-label: "Toute la journée"; timed-label: "Événement horaire";
+                    start-label: "Début"; end-label: "Fin"; start-date-label: "Date de début"; end-date-label: "Date de fin (exclue)"; start-time-label: "Heure de début"; end-time-label: "Heure de fin";
+                    zone-label: "Fuseau horaire"; zone-description: "Fuseau IANA explicite"; earlier-label: "Choisir la première occurrence"; later-label: "Choisir la seconde occurrence";
+                    save-label: "Enregistrer"; remove-label: "Supprimer l’événement"; reload-label: "Relire l’événement"; rebase-label: "Résoudre avec la révision actuelle"; cancel-label: "Fermer l’éditeur";
+                    edited(t,g,f,v) => { root.edited(t,g,f,v); }
+                    date-edited(t,g,b,v) => { root.date-edited(t,g,b,v); }
+                    time-edited(t,g,b,v) => { root.time-edited(t,g,b,v); }
+                    resolve(t,g,b,v) => { root.resolve(t,g,b,v); }
+                    ambiguity-chosen(t,g,b,c) => { root.ambiguity-chosen(t,g,b,c); }
+                    temporal-kind-requested(t,g,k) => { root.kind-requested(t,g,k); }
+                    action(t,g,a) => { root.action(t,g,a); }
+                    }
+                }
+            }
+        }
+    }
+}

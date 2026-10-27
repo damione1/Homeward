@@ -137,6 +137,7 @@ pub(crate) struct LifecycleBridge {
     lists: Arc<Mutex<Option<crate::list_host::Lists>>>,
     history: Arc<Mutex<Option<crate::history_host::History>>>,
     media: Arc<Mutex<Option<crate::media_host::Media>>>,
+    calendars: Arc<Mutex<Option<crate::calendar_host::Calendars>>>,
 }
 impl LifecycleBridge {
     pub(crate) fn new() -> Self {
@@ -151,6 +152,7 @@ impl LifecycleBridge {
             lists: Arc::new(Mutex::new(None)),
             history: Arc::new(Mutex::new(None)),
             media: Arc::new(Mutex::new(None)),
+            calendars: Arc::new(Mutex::new(None)),
         }
     }
     // Called by native event listeners on the UI thread. Cancel publication and
@@ -170,6 +172,14 @@ impl LifecycleBridge {
             .as_ref()
         {
             history.foreground(state == Lifecycle::Foreground);
+        }
+        if let Some(calendars) = self
+            .calendars
+            .lock()
+            .expect("lifecycle calendar mutex")
+            .as_ref()
+        {
+            calendars.foreground(state == Lifecycle::Foreground);
         }
         if let Some(media) = self.media.lock().expect("lifecycle media mutex").as_ref() {
             media.foreground(state == Lifecycle::Foreground);
@@ -291,6 +301,7 @@ struct Ui {
     lists: crate::list_host::Lists,
     history: crate::history_host::History,
     media: crate::media_host::Media,
+    calendars: crate::calendar_host::Calendars,
 }
 impl Ui {
     fn current_devices(&self) -> Result<(DeviceBinding, i32), Refusal> {
@@ -324,6 +335,7 @@ impl Ui {
     fn invalidate_cache(&self) {
         self.history.clear();
         self.media.clear();
+        self.calendars.clear();
         self.lists.clear();
         if let Some(binding) = self.devices.lock().expect("device binding mutex").clone() {
             binding.store.clear_private();
@@ -646,6 +658,7 @@ struct Profile {
 async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, ui: &Ui) {
     ui.history.clear();
     ui.media.clear();
+    ui.calendars.clear();
     ui.lists.clear();
     if let Some(previous) = profile.take() {
         {
@@ -690,6 +703,18 @@ async fn install_profile(
     let cancel = CancellationToken::new();
     ui.history.clear();
     ui.media.clear();
+    ui.calendars.clear();
+    let (calendars, calendar_session, calendar_transport, calendar_cancel) = (
+        ui.calendars.clone(),
+        owner.clone(),
+        connection.calendars(),
+        cancel.clone(),
+    );
+    tasks.spawn(async move {
+        calendars
+            .run(calendar_session, calendar_transport, calendar_cancel)
+            .await;
+    });
     let (media, media_session, media_transport, media_actions, media_cancel) = (
         ui.media.clone(),
         owner.clone(),
@@ -1170,6 +1195,11 @@ pub(crate) fn run_with_lifecycle(
     let lists = crate::list_host::Lists::bind(&window);
     let history = crate::history_host::History::bind(&window);
     let media = crate::media_host::Media::bind(&window);
+    let calendars = crate::calendar_host::Calendars::bind(&window);
+    *lifecycle
+        .calendars
+        .lock()
+        .expect("lifecycle calendar mutex") = Some(calendars.clone());
     *lifecycle.media.lock().expect("lifecycle media mutex") = Some(media.clone());
     *lifecycle.history.lock().expect("lifecycle history mutex") = Some(history.clone());
     *lifecycle.lists.lock().expect("lifecycle lists mutex") = Some(lists.clone());
@@ -1187,6 +1217,7 @@ pub(crate) fn run_with_lifecycle(
         lists,
         history,
         media,
+        calendars,
     };
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
@@ -1585,6 +1616,7 @@ mod tests {
             lists: crate::list_host::Lists::detached(),
             history: crate::history_host::History::detached(),
             media: crate::media_host::Media::detached(),
+            calendars: crate::calendar_host::Calendars::detached(),
         };
         ui.request_view(epoch);
 
@@ -1676,6 +1708,7 @@ mod tests {
             lists: crate::list_host::Lists::detached(),
             history: crate::history_host::History::detached(),
             media: crate::media_host::Media::detached(),
+            calendars: crate::calendar_host::Calendars::detached(),
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));

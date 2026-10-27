@@ -1,6 +1,7 @@
 //! Private in-memory views. No UI, disk persistence, command dispatch or credentials.
 #![deny(clippy::wildcard_enum_match_arm)]
 
+pub mod calendars;
 mod capture;
 mod filter;
 pub mod history;

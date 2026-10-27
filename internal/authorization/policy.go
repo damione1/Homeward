@@ -191,7 +191,7 @@ func configurable(permission Permission) objectKind {
 		if permission.operation == authv1.ScopeOperation_SCOPE_OPERATION_READ {
 			return objectEntity
 		}
-	case authv1.ScopeFamily_SCOPE_FAMILY_ACTIONS:
+	case authv1.ScopeFamily_SCOPE_FAMILY_ACTIONS, authv1.ScopeFamily_SCOPE_FAMILY_CALENDARS:
 		if permission.operation == authv1.ScopeOperation_SCOPE_OPERATION_READ || permission.operation == authv1.ScopeOperation_SCOPE_OPERATION_WRITE {
 			return objectEntity
 		}
@@ -204,7 +204,7 @@ func configurable(permission Permission) objectKind {
 			return objectList
 		}
 	case authv1.ScopeFamily_SCOPE_FAMILY_UNSPECIFIED,
-		authv1.ScopeFamily_SCOPE_FAMILY_LOCATION, authv1.ScopeFamily_SCOPE_FAMILY_CALENDARS,
+		authv1.ScopeFamily_SCOPE_FAMILY_LOCATION,
 		authv1.ScopeFamily_SCOPE_FAMILY_LOGIC,
 		authv1.ScopeFamily_SCOPE_FAMILY_INTEGRATIONS, authv1.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION,
 		authv1.ScopeFamily_SCOPE_FAMILY_ACCOUNTS, authv1.ScopeFamily_SCOPE_FAMILY_BACKUPS:
