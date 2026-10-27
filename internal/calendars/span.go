@@ -240,6 +240,15 @@ func (s Span) Dates() (CivilDate, CivilDate, bool) {
 func (s Span) Instants() (Instant, Instant, Zone, bool) {
 	return s.start, s.end, s.zone, s.Valid() && s.kind == Timed
 }
+
+// EndLocal projects an instant for presentation with the same pinned server
+// zone as the start. Clients need no inverse or forward timezone engine.
+func (s Span) EndLocal(ctx context.Context) (LocalDateTime, error) {
+	if !s.Valid() || s.kind != Timed {
+		return LocalDateTime{}, failure(InvalidDate)
+	}
+	return s.zone.localAt(ctx, s.end.value)
+}
 func (s Span) Anchor() (LocalDateTime, bool)  { return s.anchor, s.Valid() && s.kind == Timed }
 func (s Span) IsPoint() bool                  { return s.Valid() && s.kind == Timed && s.mode == spanPoint }
 func (s Span) Nominal() (NominalLength, bool) { return s.nominal, s.Valid() && s.nominal.Valid() }

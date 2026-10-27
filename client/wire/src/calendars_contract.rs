@@ -252,6 +252,14 @@ fn times(v: &wire::TimeSpan, allow_point: bool, anchor_required: bool) -> bool {
     if duration < 0 || duration == 0 && !allow_point || duration > 366 * 86400 {
         return false;
     }
+    if !v.end_local.is_empty() {
+        let Some(wall) = local(&v.end_local) else {
+            return false;
+        };
+        if (wall.and_utc().timestamp() - end.timestamp()).abs() > 26 * 3600 {
+            return false;
+        }
+    }
     if anchor_required || !v.anchor_local.is_empty() {
         let Some(anchor) = local(&v.anchor_local) else {
             return false;

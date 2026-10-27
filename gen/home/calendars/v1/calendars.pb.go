@@ -676,6 +676,7 @@ type TimeSpan struct {
 	EndInstant    string                 `protobuf:"bytes,2,opt,name=end_instant,json=endInstant,proto3" json:"end_instant,omitempty"`
 	Zone          string                 `protobuf:"bytes,3,opt,name=zone,proto3" json:"zone,omitempty"`
 	StartInstant  string                 `protobuf:"bytes,4,opt,name=start_instant,json=startInstant,proto3" json:"start_instant,omitempty"`
+	EndLocal      string                 `protobuf:"bytes,5,opt,name=end_local,json=endLocal,proto3" json:"end_local,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -734,6 +735,13 @@ func (x *TimeSpan) GetZone() string {
 func (x *TimeSpan) GetStartInstant() string {
 	if x != nil {
 		return x.StartInstant
+	}
+	return ""
+}
+
+func (x *TimeSpan) GetEndLocal() string {
+	if x != nil {
+		return x.EndLocal
 	}
 	return ""
 }
@@ -2581,13 +2589,14 @@ const file_home_calendars_v1_calendars_proto_rawDesc = "" +
 	"\x06number\x18\x03 \x01(\x04R\x06number\"E\n" +
 	"\bDateSpan\x12\x14\n" +
 	"\x05start\x18\x01 \x01(\tR\x05start\x12#\n" +
-	"\rend_exclusive\x18\x02 \x01(\tR\fendExclusive\"\x87\x01\n" +
+	"\rend_exclusive\x18\x02 \x01(\tR\fendExclusive\"\xa4\x01\n" +
 	"\bTimeSpan\x12!\n" +
 	"\fanchor_local\x18\x01 \x01(\tR\vanchorLocal\x12\x1f\n" +
 	"\vend_instant\x18\x02 \x01(\tR\n" +
 	"endInstant\x12\x12\n" +
 	"\x04zone\x18\x03 \x01(\tR\x04zone\x12#\n" +
-	"\rstart_instant\x18\x04 \x01(\tR\fstartInstant\"y\n" +
+	"\rstart_instant\x18\x04 \x01(\tR\fstartInstant\x12\x1b\n" +
+	"\tend_local\x18\x05 \x01(\tR\bendLocal\"y\n" +
 	"\x04Span\x123\n" +
 	"\x05dates\x18\x01 \x01(\v2\x1b.home.calendars.v1.DateSpanH\x00R\x05dates\x123\n" +
 	"\x05times\x18\x02 \x01(\v2\x1b.home.calendars.v1.TimeSpanH\x00R\x05timesB\a\n" +

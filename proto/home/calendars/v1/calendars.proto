@@ -11,7 +11,7 @@ message Revision { EventKey resource = 1; Presence presence = 2; uint64 number =
 enum Origin { ORIGIN_UNSPECIFIED = 0; ORIGIN_LOCAL = 1; ORIGIN_REMOTE_ICS = 2; ORIGIN_CALCULATED = 3; }
 enum Quality { QUALITY_UNSPECIFIED = 0; QUALITY_FRESH = 1; QUALITY_STALE = 2; QUALITY_UNAVAILABLE = 3; }
 message DateSpan { string start = 1; string end_exclusive = 2; }
-message TimeSpan { string anchor_local = 1; string end_instant = 2; string zone = 3; string start_instant = 4; }
+message TimeSpan { string anchor_local = 1; string end_instant = 2; string zone = 3; string start_instant = 4; string end_local = 5; }
 message Span { oneof value { DateSpan dates = 1; TimeSpan times = 2; } }
 message Exception { string original = 1; oneof change { google.protobuf.Empty cancel = 2; Span replacement = 3; } optional string replacement_summary = 4; optional string replacement_description = 5; optional string replacement_location = 6; }
 message Event { string summary = 1; string description = 2; string location = 3; Span span = 4; optional string recurrence_rule = 5; repeated string additions = 6; repeated string exclusions = 7; repeated Exception exceptions = 8; }

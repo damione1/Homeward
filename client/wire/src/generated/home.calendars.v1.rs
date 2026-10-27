@@ -1163,6 +1163,8 @@ pub struct TimeSpan {
     pub zone: ::buffa::alloc::string::String,
     /// Field 4: `start_instant`
     pub start_instant: ::buffa::alloc::string::String,
+    /// Field 5: `end_local`
+    pub end_local: ::buffa::alloc::string::String,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -1173,6 +1175,7 @@ impl ::core::fmt::Debug for TimeSpan {
             .field("end_instant", &self.end_instant)
             .field("zone", &self.zone)
             .field("start_instant", &self.start_instant)
+            .field("end_local", &self.end_local)
             .finish()
     }
 }
@@ -1216,6 +1219,9 @@ impl ::buffa::Message for TimeSpan {
             size
                 += 1u64 + ::buffa::types::string_encoded_len(&self.start_instant) as u64;
         }
+        if !self.end_local.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.end_local) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1237,6 +1243,9 @@ impl ::buffa::Message for TimeSpan {
         }
         if !self.start_instant.is_empty() {
             ::buffa::types::put_string_field(4u32, &self.start_instant, buf);
+        }
+        if !self.end_local.is_empty() {
+            ::buffa::types::put_string_field(5u32, &self.end_local, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1279,6 +1288,13 @@ impl ::buffa::Message for TimeSpan {
                 )?;
                 ::buffa::types::merge_string(&mut self.start_instant, buf)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.end_local, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1291,6 +1307,7 @@ impl ::buffa::Message for TimeSpan {
         self.end_instant.clear();
         self.zone.clear();
         self.start_instant.clear();
+        self.end_local.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7101,6 +7118,8 @@ pub mod __buffa {
             pub zone: &'a str,
             /// Field 4: `start_instant`
             pub start_instant: &'a str,
+            /// Field 5: `end_local`
+            pub end_local: &'a str,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for TimeSpanView<'a> {
@@ -7167,6 +7186,13 @@ pub mod __buffa {
                         )?;
                         view.start_instant = ::buffa::types::borrow_str(&mut cur)?;
                     }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.end_local = ::buffa::types::borrow_str(&mut cur)?;
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -7194,6 +7220,7 @@ pub mod __buffa {
                     end_instant: self.end_instant.to_string(),
                     zone: self.zone.to_string(),
                     start_instant: self.start_instant.to_string(),
+                    end_local: self.end_local.to_string(),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -7229,6 +7256,11 @@ pub mod __buffa {
                             + ::buffa::types::string_encoded_len(&self.start_instant)
                                 as u64;
                 }
+                if !self.end_local.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.end_local) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -7251,6 +7283,9 @@ pub mod __buffa {
                 }
                 if !self.start_instant.is_empty() {
                     ::buffa::types::put_string_field(4u32, &self.start_instant, buf);
+                }
+                if !self.end_local.is_empty() {
+                    ::buffa::types::put_string_field(5u32, &self.end_local, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -7364,6 +7399,11 @@ pub mod __buffa {
             #[must_use]
             pub fn start_instant(&self) -> &'_ str {
                 self.0.reborrow().start_instant
+            }
+            /// Field 5: `end_local`
+            #[must_use]
+            pub fn end_local(&self) -> &'_ str {
+                self.0.reborrow().end_local
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<TimeSpanView<'static>>>

@@ -249,6 +249,7 @@ async fn actual_calendar_tls_mutations_fold_resync_and_uncertainty() {
         panic!("timed span changed kind")
     };
     assert_eq!(span.start_instant, second);
+    assert_eq!(span.end_local, "2026-11-01T02:30:00");
     let stale = api
         .mutate_event(request.clone(), &token, timeout, &cancel)
         .await

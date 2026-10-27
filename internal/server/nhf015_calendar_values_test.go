@@ -179,7 +179,17 @@ func nhf015CalendarSpan(ctx context.Context, raw *cv.Span) (calendars.Span, erro
 		if e != nil {
 			return calendars.Span{}, e
 		}
-		return calendars.SelectedTimedSpan(ctx, a, start, b, z)
+		span, e := calendars.SelectedTimedSpan(ctx, a, start, b, z)
+		if e != nil {
+			return calendars.Span{}, e
+		}
+		if v.Times.EndLocal != "" {
+			end, e := span.EndLocal(ctx)
+			if e != nil || end.String() != v.Times.EndLocal {
+				return calendars.Span{}, nhf015CalendarFailure(cv.ErrorCode_ERROR_CODE_INVALID)
+			}
+		}
+		return span, nil
 	}
 	return calendars.Span{}, nhf015CalendarFailure(cv.ErrorCode_ERROR_CODE_INVALID)
 }
@@ -192,7 +202,11 @@ func nhf015WireCalendarSpan(span calendars.Span) *cv.Span {
 		return nil
 	}
 	anchor, _ := span.Anchor()
-	return &cv.Span{Value: &cv.Span_Times{Times: &cv.TimeSpan{StartInstant: a.String(), EndInstant: b.String(), AnchorLocal: anchor.String(), Zone: z.Name()}}}
+	localEnd, err := span.EndLocal(context.Background())
+	if err != nil {
+		return nil
+	}
+	return &cv.Span{Value: &cv.Span_Times{Times: &cv.TimeSpan{StartInstant: a.String(), EndInstant: b.String(), EndLocal: localEnd.String(), AnchorLocal: anchor.String(), Zone: z.Name()}}}
 }
 func nhf015CalendarEvent(ctx context.Context, raw *cv.Event) (calendars.Event, error) {
 	if raw == nil || !nhf015CalendarKnown(raw) || len(raw.Additions) > calendars.MaxDates || len(raw.Exclusions) > calendars.MaxDates || len(raw.Exceptions) > calendars.MaxExceptions {

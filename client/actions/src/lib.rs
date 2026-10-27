@@ -3,6 +3,7 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 
 mod access;
+pub mod calendars;
 mod controller;
 pub mod lists;
 pub use controller::{
