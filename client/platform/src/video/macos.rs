@@ -5,8 +5,8 @@
 //! https://developer.apple.com/documentation/videotoolbox/vtdecompressionsessiondecodeframe(_:samplebuffer:flags:framerefcon:infoflagsout:)
 mod ffi;
 use super::{
-    DecodeFailure, DecodedFrame, DecoderBackend, EncodedFrame, FrameKind, H264Format, MAX_HEIGHT,
-    MAX_WIDTH,
+    DecodeFailure, DecodedFrame, DecoderBackend, EncodedFrame, FrameKind, H264Format, InputFailure,
+    MAX_HEIGHT, MAX_WIDTH,
 };
 use core_foundation_sys::{
     base::{CFGetTypeID, CFRelease, CFTypeRef},
@@ -211,7 +211,7 @@ impl H264Decoder {
             .last_timestamp
             .is_some_and(|last| frame.presentation_micros() <= last)
         {
-            return Err(DecodeFailure::InvalidSample);
+            return Err(DecodeFailure::Input(InputFailure::InvalidSample));
         }
         let result = self.decode_sample(frame);
         match &result {

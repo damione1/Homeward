@@ -129,6 +129,56 @@ func (DataProvenance) EnumDescriptor() ([]byte, []int) {
 	return file_home_cameras_v1_cameras_proto_rawDescGZIP(), []int{1}
 }
 
+// Provisional NHF017 native video. No audio, external/provider URLs, codec
+// downloads or server transcoding. Baseline H.264 only in this contract version.
+// A stream reuses an exact camera lease, checked against current native rights
+// on admission and on every output. Closing/retiring the lease stops its video.
+type VideoCodec int32
+
+const (
+	VideoCodec_VIDEO_CODEC_UNSPECIFIED   VideoCodec = 0
+	VideoCodec_VIDEO_CODEC_H264_BASELINE VideoCodec = 1
+)
+
+// Enum value maps for VideoCodec.
+var (
+	VideoCodec_name = map[int32]string{
+		0: "VIDEO_CODEC_UNSPECIFIED",
+		1: "VIDEO_CODEC_H264_BASELINE",
+	}
+	VideoCodec_value = map[string]int32{
+		"VIDEO_CODEC_UNSPECIFIED":   0,
+		"VIDEO_CODEC_H264_BASELINE": 1,
+	}
+)
+
+func (x VideoCodec) Enum() *VideoCodec {
+	p := new(VideoCodec)
+	*p = x
+	return p
+}
+
+func (x VideoCodec) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (VideoCodec) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_cameras_v1_cameras_proto_enumTypes[2].Descriptor()
+}
+
+func (VideoCodec) Type() protoreflect.EnumType {
+	return &file_home_cameras_v1_cameras_proto_enumTypes[2]
+}
+
+func (x VideoCodec) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use VideoCodec.Descriptor instead.
+func (VideoCodec) EnumDescriptor() ([]byte, []int) {
+	return file_home_cameras_v1_cameras_proto_rawDescGZIP(), []int{2}
+}
+
 type Camera struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	EntityId      string                 `protobuf:"bytes,1,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
@@ -1578,6 +1628,380 @@ func (*WatchSessionResponse_Revoked) isWatchSessionResponse_Frame() {}
 
 func (*WatchSessionResponse_ResyncRequired) isWatchSessionResponse_Frame() {}
 
+type VideoHeader struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Lease *Lease                 `protobuf:"bytes,1,opt,name=lease,proto3" json:"lease,omitempty"`
+	Codec VideoCodec             `protobuf:"varint,2,opt,name=codec,proto3,enum=home.cameras.v1.VideoCodec" json:"codec,omitempty"`
+	// Raw SPS/PPS NALs, each at most1024bytes; AVCC uses four-byte NAL lengths.
+	Sps []byte `protobuf:"bytes,3,opt,name=sps,proto3" json:"sps,omitempty"`
+	Pps []byte `protobuf:"bytes,4,opt,name=pps,proto3" json:"pps,omitempty"`
+	// Dimensions are bounded1920x1080 and must match the native format/output.
+	Width           uint32 `protobuf:"varint,5,opt,name=width,proto3" json:"width,omitempty"`
+	Height          uint32 `protobuf:"varint,6,opt,name=height,proto3" json:"height,omitempty"`
+	FramesPerSecond uint32 `protobuf:"varint,7,opt,name=frames_per_second,json=framesPerSecond,proto3" json:"frames_per_second,omitempty"` // 1..30, supplied by the server.
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *VideoHeader) Reset() {
+	*x = VideoHeader{}
+	mi := &file_home_cameras_v1_cameras_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VideoHeader) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VideoHeader) ProtoMessage() {}
+
+func (x *VideoHeader) ProtoReflect() protoreflect.Message {
+	mi := &file_home_cameras_v1_cameras_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VideoHeader.ProtoReflect.Descriptor instead.
+func (*VideoHeader) Descriptor() ([]byte, []int) {
+	return file_home_cameras_v1_cameras_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *VideoHeader) GetLease() *Lease {
+	if x != nil {
+		return x.Lease
+	}
+	return nil
+}
+
+func (x *VideoHeader) GetCodec() VideoCodec {
+	if x != nil {
+		return x.Codec
+	}
+	return VideoCodec_VIDEO_CODEC_UNSPECIFIED
+}
+
+func (x *VideoHeader) GetSps() []byte {
+	if x != nil {
+		return x.Sps
+	}
+	return nil
+}
+
+func (x *VideoHeader) GetPps() []byte {
+	if x != nil {
+		return x.Pps
+	}
+	return nil
+}
+
+func (x *VideoHeader) GetWidth() uint32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *VideoHeader) GetHeight() uint32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *VideoHeader) GetFramesPerSecond() uint32 {
+	if x != nil {
+		return x.FramesPerSecond
+	}
+	return 0
+}
+
+type VideoSample struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Session            *SessionRef            `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	PresentationMicros uint64                 `protobuf:"varint,2,opt,name=presentation_micros,json=presentationMicros,proto3" json:"presentation_micros,omitempty"` // Strictly increasing from the stream origin.
+	// One AVCC access unit, at most512KiB and64NALs; first VCL is a keyframe.
+	// No SPS/PPS or dimension change in-band: negotiate a new stream instead.
+	Avcc          []byte `protobuf:"bytes,3,opt,name=avcc,proto3" json:"avcc,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VideoSample) Reset() {
+	*x = VideoSample{}
+	mi := &file_home_cameras_v1_cameras_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VideoSample) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VideoSample) ProtoMessage() {}
+
+func (x *VideoSample) ProtoReflect() protoreflect.Message {
+	mi := &file_home_cameras_v1_cameras_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VideoSample.ProtoReflect.Descriptor instead.
+func (*VideoSample) Descriptor() ([]byte, []int) {
+	return file_home_cameras_v1_cameras_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *VideoSample) GetSession() *SessionRef {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+func (x *VideoSample) GetPresentationMicros() uint64 {
+	if x != nil {
+		return x.PresentationMicros
+	}
+	return 0
+}
+
+func (x *VideoSample) GetAvcc() []byte {
+	if x != nil {
+		return x.Avcc
+	}
+	return nil
+}
+
+type ReadVideoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Session       *SessionRef            `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadVideoRequest) Reset() {
+	*x = ReadVideoRequest{}
+	mi := &file_home_cameras_v1_cameras_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadVideoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadVideoRequest) ProtoMessage() {}
+
+func (x *ReadVideoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_cameras_v1_cameras_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadVideoRequest.ProtoReflect.Descriptor instead.
+func (*ReadVideoRequest) Descriptor() ([]byte, []int) {
+	return file_home_cameras_v1_cameras_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ReadVideoRequest) GetSession() *SessionRef {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type ReadVideoResponse struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Sequence uint64                 `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	// Header must be first(sequence1), then samples, then at most one terminal
+	// reason. Header expiry cannot extend the original camera lease/deadline.
+	// No replay or hidden retries. EOF, gaps or unknown frames retire the stream.
+	//
+	// Types that are valid to be assigned to Frame:
+	//
+	//	*ReadVideoResponse_Header
+	//	*ReadVideoResponse_Sample
+	//	*ReadVideoResponse_Expired
+	//	*ReadVideoResponse_Revoked
+	//	*ReadVideoResponse_Unavailable
+	//	*ReadVideoResponse_Unsupported
+	//	*ReadVideoResponse_ResyncRequired
+	Frame         isReadVideoResponse_Frame `protobuf_oneof:"frame"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadVideoResponse) Reset() {
+	*x = ReadVideoResponse{}
+	mi := &file_home_cameras_v1_cameras_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadVideoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadVideoResponse) ProtoMessage() {}
+
+func (x *ReadVideoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_cameras_v1_cameras_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadVideoResponse.ProtoReflect.Descriptor instead.
+func (*ReadVideoResponse) Descriptor() ([]byte, []int) {
+	return file_home_cameras_v1_cameras_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ReadVideoResponse) GetSequence() uint64 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
+func (x *ReadVideoResponse) GetFrame() isReadVideoResponse_Frame {
+	if x != nil {
+		return x.Frame
+	}
+	return nil
+}
+
+func (x *ReadVideoResponse) GetHeader() *VideoHeader {
+	if x != nil {
+		if x, ok := x.Frame.(*ReadVideoResponse_Header); ok {
+			return x.Header
+		}
+	}
+	return nil
+}
+
+func (x *ReadVideoResponse) GetSample() *VideoSample {
+	if x != nil {
+		if x, ok := x.Frame.(*ReadVideoResponse_Sample); ok {
+			return x.Sample
+		}
+	}
+	return nil
+}
+
+func (x *ReadVideoResponse) GetExpired() *emptypb.Empty {
+	if x != nil {
+		if x, ok := x.Frame.(*ReadVideoResponse_Expired); ok {
+			return x.Expired
+		}
+	}
+	return nil
+}
+
+func (x *ReadVideoResponse) GetRevoked() *emptypb.Empty {
+	if x != nil {
+		if x, ok := x.Frame.(*ReadVideoResponse_Revoked); ok {
+			return x.Revoked
+		}
+	}
+	return nil
+}
+
+func (x *ReadVideoResponse) GetUnavailable() *emptypb.Empty {
+	if x != nil {
+		if x, ok := x.Frame.(*ReadVideoResponse_Unavailable); ok {
+			return x.Unavailable
+		}
+	}
+	return nil
+}
+
+func (x *ReadVideoResponse) GetUnsupported() *emptypb.Empty {
+	if x != nil {
+		if x, ok := x.Frame.(*ReadVideoResponse_Unsupported); ok {
+			return x.Unsupported
+		}
+	}
+	return nil
+}
+
+func (x *ReadVideoResponse) GetResyncRequired() *emptypb.Empty {
+	if x != nil {
+		if x, ok := x.Frame.(*ReadVideoResponse_ResyncRequired); ok {
+			return x.ResyncRequired
+		}
+	}
+	return nil
+}
+
+type isReadVideoResponse_Frame interface {
+	isReadVideoResponse_Frame()
+}
+
+type ReadVideoResponse_Header struct {
+	Header *VideoHeader `protobuf:"bytes,2,opt,name=header,proto3,oneof"`
+}
+
+type ReadVideoResponse_Sample struct {
+	Sample *VideoSample `protobuf:"bytes,3,opt,name=sample,proto3,oneof"`
+}
+
+type ReadVideoResponse_Expired struct {
+	Expired *emptypb.Empty `protobuf:"bytes,4,opt,name=expired,proto3,oneof"`
+}
+
+type ReadVideoResponse_Revoked struct {
+	Revoked *emptypb.Empty `protobuf:"bytes,5,opt,name=revoked,proto3,oneof"`
+}
+
+type ReadVideoResponse_Unavailable struct {
+	Unavailable *emptypb.Empty `protobuf:"bytes,6,opt,name=unavailable,proto3,oneof"`
+}
+
+type ReadVideoResponse_Unsupported struct {
+	Unsupported *emptypb.Empty `protobuf:"bytes,7,opt,name=unsupported,proto3,oneof"`
+}
+
+type ReadVideoResponse_ResyncRequired struct {
+	ResyncRequired *emptypb.Empty `protobuf:"bytes,8,opt,name=resync_required,json=resyncRequired,proto3,oneof"`
+}
+
+func (*ReadVideoResponse_Header) isReadVideoResponse_Frame() {}
+
+func (*ReadVideoResponse_Sample) isReadVideoResponse_Frame() {}
+
+func (*ReadVideoResponse_Expired) isReadVideoResponse_Frame() {}
+
+func (*ReadVideoResponse_Revoked) isReadVideoResponse_Frame() {}
+
+func (*ReadVideoResponse_Unavailable) isReadVideoResponse_Frame() {}
+
+func (*ReadVideoResponse_Unsupported) isReadVideoResponse_Frame() {}
+
+func (*ReadVideoResponse_ResyncRequired) isReadVideoResponse_Frame() {}
+
 var File_home_cameras_v1_cameras_proto protoreflect.FileDescriptor
 
 const file_home_cameras_v1_cameras_proto_rawDesc = "" +
@@ -1675,6 +2099,30 @@ const file_home_cameras_v1_cameras_proto_rawDesc = "" +
 	"\aexpired\x18\x04 \x01(\v2\x16.google.protobuf.EmptyH\x00R\aexpired\x122\n" +
 	"\arevoked\x18\x05 \x01(\v2\x16.google.protobuf.EmptyH\x00R\arevoked\x12A\n" +
 	"\x0fresync_required\x18\x06 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x0eresyncRequiredB\a\n" +
+	"\x05frame\"\xec\x01\n" +
+	"\vVideoHeader\x12,\n" +
+	"\x05lease\x18\x01 \x01(\v2\x16.home.cameras.v1.LeaseR\x05lease\x121\n" +
+	"\x05codec\x18\x02 \x01(\x0e2\x1b.home.cameras.v1.VideoCodecR\x05codec\x12\x10\n" +
+	"\x03sps\x18\x03 \x01(\fR\x03sps\x12\x10\n" +
+	"\x03pps\x18\x04 \x01(\fR\x03pps\x12\x14\n" +
+	"\x05width\x18\x05 \x01(\rR\x05width\x12\x16\n" +
+	"\x06height\x18\x06 \x01(\rR\x06height\x12*\n" +
+	"\x11frames_per_second\x18\a \x01(\rR\x0fframesPerSecond\"\x89\x01\n" +
+	"\vVideoSample\x125\n" +
+	"\asession\x18\x01 \x01(\v2\x1b.home.cameras.v1.SessionRefR\asession\x12/\n" +
+	"\x13presentation_micros\x18\x02 \x01(\x04R\x12presentationMicros\x12\x12\n" +
+	"\x04avcc\x18\x03 \x01(\fR\x04avcc\"I\n" +
+	"\x10ReadVideoRequest\x125\n" +
+	"\asession\x18\x01 \x01(\v2\x1b.home.cameras.v1.SessionRefR\asession\"\xcb\x03\n" +
+	"\x11ReadVideoResponse\x12\x1a\n" +
+	"\bsequence\x18\x01 \x01(\x04R\bsequence\x126\n" +
+	"\x06header\x18\x02 \x01(\v2\x1c.home.cameras.v1.VideoHeaderH\x00R\x06header\x126\n" +
+	"\x06sample\x18\x03 \x01(\v2\x1c.home.cameras.v1.VideoSampleH\x00R\x06sample\x122\n" +
+	"\aexpired\x18\x04 \x01(\v2\x16.google.protobuf.EmptyH\x00R\aexpired\x122\n" +
+	"\arevoked\x18\x05 \x01(\v2\x16.google.protobuf.EmptyH\x00R\arevoked\x12:\n" +
+	"\vunavailable\x18\x06 \x01(\v2\x16.google.protobuf.EmptyH\x00R\vunavailable\x12:\n" +
+	"\vunsupported\x18\a \x01(\v2\x16.google.protobuf.EmptyH\x00R\vunsupported\x12A\n" +
+	"\x0fresync_required\x18\b \x01(\v2\x16.google.protobuf.EmptyH\x00R\x0eresyncRequiredB\a\n" +
 	"\x05frame*\x80\x01\n" +
 	"\fAvailability\x12\x1c\n" +
 	"\x18AVAILABILITY_UNSPECIFIED\x10\x00\x12\x1a\n" +
@@ -1684,7 +2132,11 @@ const file_home_cameras_v1_cameras_proto_rawDesc = "" +
 	"\x0eDataProvenance\x12\x1f\n" +
 	"\x1bDATA_PROVENANCE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18DATA_PROVENANCE_OBSERVED\x10\x01\x12\x1d\n" +
-	"\x19DATA_PROVENANCE_SYNTHETIC\x10\x022\xaa\x04\n" +
+	"\x19DATA_PROVENANCE_SYNTHETIC\x10\x02*H\n" +
+	"\n" +
+	"VideoCodec\x12\x1b\n" +
+	"\x17VIDEO_CODEC_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19VIDEO_CODEC_H264_BASELINE\x10\x012\x80\x05\n" +
 	"\rCameraService\x12X\n" +
 	"\vListCameras\x12#.home.cameras.v1.ListCamerasRequest\x1a$.home.cameras.v1.ListCamerasResponse\x12X\n" +
 	"\vOpenSession\x12#.home.cameras.v1.OpenSessionRequest\x1a$.home.cameras.v1.OpenSessionResponse\x12[\n" +
@@ -1692,7 +2144,8 @@ const file_home_cameras_v1_cameras_proto_rawDesc = "" +
 	"\tReadImage\x12!.home.cameras.v1.ReadImageRequest\x1a\".home.cameras.v1.ReadImageResponse\x12U\n" +
 	"\n" +
 	"ListEvents\x12\".home.cameras.v1.ListEventsRequest\x1a#.home.cameras.v1.ListEventsResponse\x12]\n" +
-	"\fWatchSession\x12$.home.cameras.v1.WatchSessionRequest\x1a%.home.cameras.v1.WatchSessionResponse0\x01B<Z:github.com/damione1/Homeward/gen/home/cameras/v1;camerasv1b\x06proto3"
+	"\fWatchSession\x12$.home.cameras.v1.WatchSessionRequest\x1a%.home.cameras.v1.WatchSessionResponse0\x01\x12T\n" +
+	"\tReadVideo\x12!.home.cameras.v1.ReadVideoRequest\x1a\".home.cameras.v1.ReadVideoResponse0\x01B<Z:github.com/damione1/Homeward/gen/home/cameras/v1;camerasv1b\x06proto3"
 
 var (
 	file_home_cameras_v1_cameras_proto_rawDescOnce sync.Once
@@ -1706,90 +2159,108 @@ func file_home_cameras_v1_cameras_proto_rawDescGZIP() []byte {
 	return file_home_cameras_v1_cameras_proto_rawDescData
 }
 
-var file_home_cameras_v1_cameras_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_home_cameras_v1_cameras_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_home_cameras_v1_cameras_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_home_cameras_v1_cameras_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_home_cameras_v1_cameras_proto_goTypes = []any{
 	(Availability)(0),             // 0: home.cameras.v1.Availability
 	(DataProvenance)(0),           // 1: home.cameras.v1.DataProvenance
-	(*Camera)(nil),                // 2: home.cameras.v1.Camera
-	(*ListCamerasRequest)(nil),    // 3: home.cameras.v1.ListCamerasRequest
-	(*ListCamerasResponse)(nil),   // 4: home.cameras.v1.ListCamerasResponse
-	(*SessionRef)(nil),            // 5: home.cameras.v1.SessionRef
-	(*Lease)(nil),                 // 6: home.cameras.v1.Lease
-	(*OpenSessionRequest)(nil),    // 7: home.cameras.v1.OpenSessionRequest
-	(*OpenSessionResponse)(nil),   // 8: home.cameras.v1.OpenSessionResponse
-	(*CloseSessionRequest)(nil),   // 9: home.cameras.v1.CloseSessionRequest
-	(*CloseSessionResponse)(nil),  // 10: home.cameras.v1.CloseSessionResponse
-	(*ImageKey)(nil),              // 11: home.cameras.v1.ImageKey
-	(*Image)(nil),                 // 12: home.cameras.v1.Image
-	(*ReadImageRequest)(nil),      // 13: home.cameras.v1.ReadImageRequest
-	(*ReadImageResponse)(nil),     // 14: home.cameras.v1.ReadImageResponse
-	(*Event)(nil),                 // 15: home.cameras.v1.Event
-	(*ListEventsRequest)(nil),     // 16: home.cameras.v1.ListEventsRequest
-	(*EventsPage)(nil),            // 17: home.cameras.v1.EventsPage
-	(*ListEventsResponse)(nil),    // 18: home.cameras.v1.ListEventsResponse
-	(*WatchSessionRequest)(nil),   // 19: home.cameras.v1.WatchSessionRequest
-	(*EventsChanged)(nil),         // 20: home.cameras.v1.EventsChanged
-	(*WatchSessionResponse)(nil),  // 21: home.cameras.v1.WatchSessionResponse
-	(*timestamppb.Timestamp)(nil), // 22: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 23: google.protobuf.Empty
+	(VideoCodec)(0),               // 2: home.cameras.v1.VideoCodec
+	(*Camera)(nil),                // 3: home.cameras.v1.Camera
+	(*ListCamerasRequest)(nil),    // 4: home.cameras.v1.ListCamerasRequest
+	(*ListCamerasResponse)(nil),   // 5: home.cameras.v1.ListCamerasResponse
+	(*SessionRef)(nil),            // 6: home.cameras.v1.SessionRef
+	(*Lease)(nil),                 // 7: home.cameras.v1.Lease
+	(*OpenSessionRequest)(nil),    // 8: home.cameras.v1.OpenSessionRequest
+	(*OpenSessionResponse)(nil),   // 9: home.cameras.v1.OpenSessionResponse
+	(*CloseSessionRequest)(nil),   // 10: home.cameras.v1.CloseSessionRequest
+	(*CloseSessionResponse)(nil),  // 11: home.cameras.v1.CloseSessionResponse
+	(*ImageKey)(nil),              // 12: home.cameras.v1.ImageKey
+	(*Image)(nil),                 // 13: home.cameras.v1.Image
+	(*ReadImageRequest)(nil),      // 14: home.cameras.v1.ReadImageRequest
+	(*ReadImageResponse)(nil),     // 15: home.cameras.v1.ReadImageResponse
+	(*Event)(nil),                 // 16: home.cameras.v1.Event
+	(*ListEventsRequest)(nil),     // 17: home.cameras.v1.ListEventsRequest
+	(*EventsPage)(nil),            // 18: home.cameras.v1.EventsPage
+	(*ListEventsResponse)(nil),    // 19: home.cameras.v1.ListEventsResponse
+	(*WatchSessionRequest)(nil),   // 20: home.cameras.v1.WatchSessionRequest
+	(*EventsChanged)(nil),         // 21: home.cameras.v1.EventsChanged
+	(*WatchSessionResponse)(nil),  // 22: home.cameras.v1.WatchSessionResponse
+	(*VideoHeader)(nil),           // 23: home.cameras.v1.VideoHeader
+	(*VideoSample)(nil),           // 24: home.cameras.v1.VideoSample
+	(*ReadVideoRequest)(nil),      // 25: home.cameras.v1.ReadVideoRequest
+	(*ReadVideoResponse)(nil),     // 26: home.cameras.v1.ReadVideoResponse
+	(*timestamppb.Timestamp)(nil), // 27: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),         // 28: google.protobuf.Empty
 }
 var file_home_cameras_v1_cameras_proto_depIdxs = []int32{
 	0,  // 0: home.cameras.v1.Camera.availability:type_name -> home.cameras.v1.Availability
 	1,  // 1: home.cameras.v1.Camera.provenance:type_name -> home.cameras.v1.DataProvenance
-	2,  // 2: home.cameras.v1.ListCamerasResponse.cameras:type_name -> home.cameras.v1.Camera
-	5,  // 3: home.cameras.v1.Lease.session:type_name -> home.cameras.v1.SessionRef
-	22, // 4: home.cameras.v1.Lease.issued_at:type_name -> google.protobuf.Timestamp
-	22, // 5: home.cameras.v1.Lease.expires_at:type_name -> google.protobuf.Timestamp
-	6,  // 6: home.cameras.v1.OpenSessionResponse.lease:type_name -> home.cameras.v1.Lease
-	23, // 7: home.cameras.v1.OpenSessionResponse.unavailable:type_name -> google.protobuf.Empty
-	5,  // 8: home.cameras.v1.CloseSessionRequest.session:type_name -> home.cameras.v1.SessionRef
-	5,  // 9: home.cameras.v1.ImageKey.session:type_name -> home.cameras.v1.SessionRef
-	23, // 10: home.cameras.v1.ImageKey.snapshot:type_name -> google.protobuf.Empty
-	11, // 11: home.cameras.v1.Image.key:type_name -> home.cameras.v1.ImageKey
-	22, // 12: home.cameras.v1.Image.captured_at:type_name -> google.protobuf.Timestamp
-	22, // 13: home.cameras.v1.Image.expires_at:type_name -> google.protobuf.Timestamp
-	11, // 14: home.cameras.v1.ReadImageRequest.key:type_name -> home.cameras.v1.ImageKey
-	12, // 15: home.cameras.v1.ReadImageResponse.image:type_name -> home.cameras.v1.Image
-	23, // 16: home.cameras.v1.ReadImageResponse.missing:type_name -> google.protobuf.Empty
-	23, // 17: home.cameras.v1.ReadImageResponse.expired:type_name -> google.protobuf.Empty
-	23, // 18: home.cameras.v1.ReadImageResponse.revoked:type_name -> google.protobuf.Empty
-	23, // 19: home.cameras.v1.ReadImageResponse.wrong_camera:type_name -> google.protobuf.Empty
-	23, // 20: home.cameras.v1.ReadImageResponse.unavailable:type_name -> google.protobuf.Empty
-	22, // 21: home.cameras.v1.Event.captured_at:type_name -> google.protobuf.Timestamp
-	5,  // 22: home.cameras.v1.ListEventsRequest.session:type_name -> home.cameras.v1.SessionRef
-	5,  // 23: home.cameras.v1.EventsPage.session:type_name -> home.cameras.v1.SessionRef
-	15, // 24: home.cameras.v1.EventsPage.events:type_name -> home.cameras.v1.Event
-	17, // 25: home.cameras.v1.ListEventsResponse.page:type_name -> home.cameras.v1.EventsPage
-	23, // 26: home.cameras.v1.ListEventsResponse.expired:type_name -> google.protobuf.Empty
-	23, // 27: home.cameras.v1.ListEventsResponse.revoked:type_name -> google.protobuf.Empty
-	23, // 28: home.cameras.v1.ListEventsResponse.wrong_camera:type_name -> google.protobuf.Empty
-	23, // 29: home.cameras.v1.ListEventsResponse.unavailable:type_name -> google.protobuf.Empty
-	23, // 30: home.cameras.v1.ListEventsResponse.resync_required:type_name -> google.protobuf.Empty
-	5,  // 31: home.cameras.v1.WatchSessionRequest.session:type_name -> home.cameras.v1.SessionRef
-	5,  // 32: home.cameras.v1.EventsChanged.session:type_name -> home.cameras.v1.SessionRef
-	6,  // 33: home.cameras.v1.WatchSessionResponse.ready:type_name -> home.cameras.v1.Lease
-	20, // 34: home.cameras.v1.WatchSessionResponse.changed:type_name -> home.cameras.v1.EventsChanged
-	23, // 35: home.cameras.v1.WatchSessionResponse.expired:type_name -> google.protobuf.Empty
-	23, // 36: home.cameras.v1.WatchSessionResponse.revoked:type_name -> google.protobuf.Empty
-	23, // 37: home.cameras.v1.WatchSessionResponse.resync_required:type_name -> google.protobuf.Empty
-	3,  // 38: home.cameras.v1.CameraService.ListCameras:input_type -> home.cameras.v1.ListCamerasRequest
-	7,  // 39: home.cameras.v1.CameraService.OpenSession:input_type -> home.cameras.v1.OpenSessionRequest
-	9,  // 40: home.cameras.v1.CameraService.CloseSession:input_type -> home.cameras.v1.CloseSessionRequest
-	13, // 41: home.cameras.v1.CameraService.ReadImage:input_type -> home.cameras.v1.ReadImageRequest
-	16, // 42: home.cameras.v1.CameraService.ListEvents:input_type -> home.cameras.v1.ListEventsRequest
-	19, // 43: home.cameras.v1.CameraService.WatchSession:input_type -> home.cameras.v1.WatchSessionRequest
-	4,  // 44: home.cameras.v1.CameraService.ListCameras:output_type -> home.cameras.v1.ListCamerasResponse
-	8,  // 45: home.cameras.v1.CameraService.OpenSession:output_type -> home.cameras.v1.OpenSessionResponse
-	10, // 46: home.cameras.v1.CameraService.CloseSession:output_type -> home.cameras.v1.CloseSessionResponse
-	14, // 47: home.cameras.v1.CameraService.ReadImage:output_type -> home.cameras.v1.ReadImageResponse
-	18, // 48: home.cameras.v1.CameraService.ListEvents:output_type -> home.cameras.v1.ListEventsResponse
-	21, // 49: home.cameras.v1.CameraService.WatchSession:output_type -> home.cameras.v1.WatchSessionResponse
-	44, // [44:50] is the sub-list for method output_type
-	38, // [38:44] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	3,  // 2: home.cameras.v1.ListCamerasResponse.cameras:type_name -> home.cameras.v1.Camera
+	6,  // 3: home.cameras.v1.Lease.session:type_name -> home.cameras.v1.SessionRef
+	27, // 4: home.cameras.v1.Lease.issued_at:type_name -> google.protobuf.Timestamp
+	27, // 5: home.cameras.v1.Lease.expires_at:type_name -> google.protobuf.Timestamp
+	7,  // 6: home.cameras.v1.OpenSessionResponse.lease:type_name -> home.cameras.v1.Lease
+	28, // 7: home.cameras.v1.OpenSessionResponse.unavailable:type_name -> google.protobuf.Empty
+	6,  // 8: home.cameras.v1.CloseSessionRequest.session:type_name -> home.cameras.v1.SessionRef
+	6,  // 9: home.cameras.v1.ImageKey.session:type_name -> home.cameras.v1.SessionRef
+	28, // 10: home.cameras.v1.ImageKey.snapshot:type_name -> google.protobuf.Empty
+	12, // 11: home.cameras.v1.Image.key:type_name -> home.cameras.v1.ImageKey
+	27, // 12: home.cameras.v1.Image.captured_at:type_name -> google.protobuf.Timestamp
+	27, // 13: home.cameras.v1.Image.expires_at:type_name -> google.protobuf.Timestamp
+	12, // 14: home.cameras.v1.ReadImageRequest.key:type_name -> home.cameras.v1.ImageKey
+	13, // 15: home.cameras.v1.ReadImageResponse.image:type_name -> home.cameras.v1.Image
+	28, // 16: home.cameras.v1.ReadImageResponse.missing:type_name -> google.protobuf.Empty
+	28, // 17: home.cameras.v1.ReadImageResponse.expired:type_name -> google.protobuf.Empty
+	28, // 18: home.cameras.v1.ReadImageResponse.revoked:type_name -> google.protobuf.Empty
+	28, // 19: home.cameras.v1.ReadImageResponse.wrong_camera:type_name -> google.protobuf.Empty
+	28, // 20: home.cameras.v1.ReadImageResponse.unavailable:type_name -> google.protobuf.Empty
+	27, // 21: home.cameras.v1.Event.captured_at:type_name -> google.protobuf.Timestamp
+	6,  // 22: home.cameras.v1.ListEventsRequest.session:type_name -> home.cameras.v1.SessionRef
+	6,  // 23: home.cameras.v1.EventsPage.session:type_name -> home.cameras.v1.SessionRef
+	16, // 24: home.cameras.v1.EventsPage.events:type_name -> home.cameras.v1.Event
+	18, // 25: home.cameras.v1.ListEventsResponse.page:type_name -> home.cameras.v1.EventsPage
+	28, // 26: home.cameras.v1.ListEventsResponse.expired:type_name -> google.protobuf.Empty
+	28, // 27: home.cameras.v1.ListEventsResponse.revoked:type_name -> google.protobuf.Empty
+	28, // 28: home.cameras.v1.ListEventsResponse.wrong_camera:type_name -> google.protobuf.Empty
+	28, // 29: home.cameras.v1.ListEventsResponse.unavailable:type_name -> google.protobuf.Empty
+	28, // 30: home.cameras.v1.ListEventsResponse.resync_required:type_name -> google.protobuf.Empty
+	6,  // 31: home.cameras.v1.WatchSessionRequest.session:type_name -> home.cameras.v1.SessionRef
+	6,  // 32: home.cameras.v1.EventsChanged.session:type_name -> home.cameras.v1.SessionRef
+	7,  // 33: home.cameras.v1.WatchSessionResponse.ready:type_name -> home.cameras.v1.Lease
+	21, // 34: home.cameras.v1.WatchSessionResponse.changed:type_name -> home.cameras.v1.EventsChanged
+	28, // 35: home.cameras.v1.WatchSessionResponse.expired:type_name -> google.protobuf.Empty
+	28, // 36: home.cameras.v1.WatchSessionResponse.revoked:type_name -> google.protobuf.Empty
+	28, // 37: home.cameras.v1.WatchSessionResponse.resync_required:type_name -> google.protobuf.Empty
+	7,  // 38: home.cameras.v1.VideoHeader.lease:type_name -> home.cameras.v1.Lease
+	2,  // 39: home.cameras.v1.VideoHeader.codec:type_name -> home.cameras.v1.VideoCodec
+	6,  // 40: home.cameras.v1.VideoSample.session:type_name -> home.cameras.v1.SessionRef
+	6,  // 41: home.cameras.v1.ReadVideoRequest.session:type_name -> home.cameras.v1.SessionRef
+	23, // 42: home.cameras.v1.ReadVideoResponse.header:type_name -> home.cameras.v1.VideoHeader
+	24, // 43: home.cameras.v1.ReadVideoResponse.sample:type_name -> home.cameras.v1.VideoSample
+	28, // 44: home.cameras.v1.ReadVideoResponse.expired:type_name -> google.protobuf.Empty
+	28, // 45: home.cameras.v1.ReadVideoResponse.revoked:type_name -> google.protobuf.Empty
+	28, // 46: home.cameras.v1.ReadVideoResponse.unavailable:type_name -> google.protobuf.Empty
+	28, // 47: home.cameras.v1.ReadVideoResponse.unsupported:type_name -> google.protobuf.Empty
+	28, // 48: home.cameras.v1.ReadVideoResponse.resync_required:type_name -> google.protobuf.Empty
+	4,  // 49: home.cameras.v1.CameraService.ListCameras:input_type -> home.cameras.v1.ListCamerasRequest
+	8,  // 50: home.cameras.v1.CameraService.OpenSession:input_type -> home.cameras.v1.OpenSessionRequest
+	10, // 51: home.cameras.v1.CameraService.CloseSession:input_type -> home.cameras.v1.CloseSessionRequest
+	14, // 52: home.cameras.v1.CameraService.ReadImage:input_type -> home.cameras.v1.ReadImageRequest
+	17, // 53: home.cameras.v1.CameraService.ListEvents:input_type -> home.cameras.v1.ListEventsRequest
+	20, // 54: home.cameras.v1.CameraService.WatchSession:input_type -> home.cameras.v1.WatchSessionRequest
+	25, // 55: home.cameras.v1.CameraService.ReadVideo:input_type -> home.cameras.v1.ReadVideoRequest
+	5,  // 56: home.cameras.v1.CameraService.ListCameras:output_type -> home.cameras.v1.ListCamerasResponse
+	9,  // 57: home.cameras.v1.CameraService.OpenSession:output_type -> home.cameras.v1.OpenSessionResponse
+	11, // 58: home.cameras.v1.CameraService.CloseSession:output_type -> home.cameras.v1.CloseSessionResponse
+	15, // 59: home.cameras.v1.CameraService.ReadImage:output_type -> home.cameras.v1.ReadImageResponse
+	19, // 60: home.cameras.v1.CameraService.ListEvents:output_type -> home.cameras.v1.ListEventsResponse
+	22, // 61: home.cameras.v1.CameraService.WatchSession:output_type -> home.cameras.v1.WatchSessionResponse
+	26, // 62: home.cameras.v1.CameraService.ReadVideo:output_type -> home.cameras.v1.ReadVideoResponse
+	56, // [56:63] is the sub-list for method output_type
+	49, // [49:56] is the sub-list for method input_type
+	49, // [49:49] is the sub-list for extension type_name
+	49, // [49:49] is the sub-list for extension extendee
+	0,  // [0:49] is the sub-list for field type_name
 }
 
 func init() { file_home_cameras_v1_cameras_proto_init() }
@@ -1828,13 +2299,22 @@ func file_home_cameras_v1_cameras_proto_init() {
 		(*WatchSessionResponse_Revoked)(nil),
 		(*WatchSessionResponse_ResyncRequired)(nil),
 	}
+	file_home_cameras_v1_cameras_proto_msgTypes[23].OneofWrappers = []any{
+		(*ReadVideoResponse_Header)(nil),
+		(*ReadVideoResponse_Sample)(nil),
+		(*ReadVideoResponse_Expired)(nil),
+		(*ReadVideoResponse_Revoked)(nil),
+		(*ReadVideoResponse_Unavailable)(nil),
+		(*ReadVideoResponse_Unsupported)(nil),
+		(*ReadVideoResponse_ResyncRequired)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_cameras_v1_cameras_proto_rawDesc), len(file_home_cameras_v1_cameras_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   20,
+			NumEnums:      3,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

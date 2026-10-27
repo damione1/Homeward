@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+home-client-model = { path = "../model" }
 home-client-session = { path = "../session" }
 zeroize = "1"
 
@@ -23,5 +24,5 @@ home-client-transport = { path = "../transport" }
 home-wire-contract = { path = "../wire" }
 serde_json = "1"
 sha2 = "0.10"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
 tokio-util = { version = "0.7", features = ["rt"] }

@@ -88,6 +88,11 @@ type nhf016CameraMock struct {
 	imageRequests atomic.Uint64
 	activeReads   atomic.Int64
 	activeStreams atomic.Int64
+	videoSource   *nhf017VideoSource
+	videoMode     nhf017VideoMode
+	videoOwners   map[domain.ActorID]*nhf016CameraLease
+	videoStreams  atomic.Int64
+	videoSamples  atomic.Uint64
 }
 
 var _ camerasv1connect.CameraServiceHandler = (*nhf016CameraMock)(nil)
@@ -695,6 +700,7 @@ func (m *nhf016CameraMock) register(plan *PublicPlan) error {
 		{camerasv1connect.CameraServiceReadImageProcedure, RouteFlowUnary},
 		{camerasv1connect.CameraServiceListEventsProcedure, RouteFlowUnary},
 		{camerasv1connect.CameraServiceWatchSessionProcedure, RouteFlowServerStream},
+		{camerasv1connect.CameraServiceReadVideoProcedure, RouteFlowServerStream},
 	}
 	procedures := make([]ConnectProcedure, 0, len(routes))
 	for _, route := range routes {

@@ -70,6 +70,16 @@ pub type OwnedWatchSessionResponseView = ::buffa::view::OwnedView<
         'static,
     >,
 >;
+///Shorthand for `OwnedView<ReadVideoRequestView<'static>>`.
+pub type OwnedReadVideoRequestView = ::buffa::view::OwnedView<
+    ::home_wire_contract::home::cameras::v1::__buffa::view::ReadVideoRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ReadVideoResponseView<'static>>`.
+pub type OwnedReadVideoResponseView = ::buffa::view::OwnedView<
+    ::home_wire_contract::home::cameras::v1::__buffa::view::ReadVideoResponseView<
+        'static,
+    >,
+>;
 /// Full service name for this service.
 pub const CAMERA_SERVICE_SERVICE_NAME: &str = "home.cameras.v1.CameraService";
 /// Static [`Spec`](::connectrpc::Spec) for the `ListCameras` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -105,6 +115,12 @@ pub const CAMERA_SERVICE_LIST_EVENTS_SPEC: ::connectrpc::Spec = ::connectrpc::Sp
 /// Static [`Spec`](::connectrpc::Spec) for the `WatchSession` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const CAMERA_SERVICE_WATCH_SESSION_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/home.cameras.v1.CameraService/WatchSession",
+        ::connectrpc::StreamType::ServerStream,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ReadVideo` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const CAMERA_SERVICE_READ_VIDEO_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/home.cameras.v1.CameraService/ReadVideo",
         ::connectrpc::StreamType::ServerStream,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
@@ -293,6 +309,31 @@ pub trait CameraService: Send + Sync + 'static {
             ::connectrpc::ServiceStream<
                 impl ::connectrpc::Encodable<
                     ::home_wire_contract::home::cameras::v1::WatchSessionResponse,
+                > + Send + use<Self>,
+            >,
+        >,
+    > + Send;
+    /// A native account has at most one active video stream; explicit cancellation
+    /// releases its slot. Development facade is opt-in, synthetic, disabled by
+    /// default and never contacts a camera/provider/device driver.
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call (until the response stream is returned);
+    /// message fields are read directly on it (zero-copy). Data the
+    /// returned stream needs must be copied out or converted via
+    /// `.to_owned_message()`.
+    fn read_video(
+        &self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            ::home_wire_contract::home::cameras::v1::ReadVideoRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            ::connectrpc::ServiceStream<
+                impl ::connectrpc::Encodable<
+                    ::home_wire_contract::home::cameras::v1::ReadVideoResponse,
                 > + Send + use<Self>,
             >,
         >,
@@ -502,6 +543,34 @@ impl<S: CameraService> CameraServiceExt for S {
                 }),
             )
             .with_spec(CAMERA_SERVICE_WATCH_SESSION_SPEC)
+            .route_view_server_stream::<
+                _,
+                _,
+                ::home_wire_contract::home::cameras::v1::ReadVideoResponse,
+            >(
+                CAMERA_SERVICE_SERVICE_NAME,
+                "ReadVideo",
+                ::connectrpc::view_streaming_handler_fn({
+                    let svc = ::std::sync::Arc::clone(&self);
+                    move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            ::home_wire_contract::home::cameras::v1::__buffa::view::ReadVideoRequestView<
+                                'static,
+                            >,
+                        >|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                ::home_wire_contract::home::cameras::v1::ReadVideoRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.read_video(ctx, sreq).await
+                        }
+                    }
+                }),
+            )
+            .with_spec(CAMERA_SERVICE_READ_VIDEO_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -590,6 +659,12 @@ impl<T: CameraService> ::connectrpc::Dispatcher for CameraServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::server_streaming()
                         .with_spec(CAMERA_SERVICE_WATCH_SESSION_SPEC),
+                )
+            }
+            "ReadVideo" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::server_streaming()
+                        .with_spec(CAMERA_SERVICE_READ_VIDEO_SPEC),
                 )
             }
             _ => None,
@@ -752,6 +827,32 @@ impl<T: CameraService> ::connectrpc::Dispatcher for CameraServiceServer<T> {
                         resp
                             .map_body(|s| ::connectrpc::dispatcher::codegen::encode_response_stream::<
                                 ::home_wire_contract::home::cameras::v1::WatchSessionResponse,
+                                _,
+                                _,
+                            >(s, format)),
+                    )
+                })
+            }
+            "ReadVideo" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        ::home_wire_contract::home::cameras::v1::ReadVideoRequest,
+                    >(request, format)?;
+                    let req: ::home_wire_contract::home::cameras::v1::__buffa::view::ReadVideoRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        ::home_wire_contract::home::cameras::v1::ReadVideoRequest,
+                    >::from_parts(&req, &body);
+                    let resp = svc.read_video(ctx, req).await?;
+                    Ok(
+                        resp
+                            .map_body(|s| ::connectrpc::dispatcher::codegen::encode_response_stream::<
+                                ::home_wire_contract::home::cameras::v1::ReadVideoResponse,
                                 _,
                                 _,
                             >(s, format)),
@@ -1133,6 +1234,49 @@ where
                 &self.transport,
                 &self.config,
                 CAMERA_SERVICE_WATCH_SESSION_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ReadVideo RPC. Sends a request to /home.cameras.v1.CameraService/ReadVideo.
+    pub async fn read_video(
+        &self,
+        request: ::home_wire_contract::home::cameras::v1::ReadVideoRequest,
+    ) -> Result<
+        ::connectrpc::client::ServerStream<
+            T::ResponseBody,
+            ::home_wire_contract::home::cameras::v1::__buffa::view::ReadVideoResponseView<
+                'static,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.read_video_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ReadVideo RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn read_video_with_options(
+        &self,
+        request: ::home_wire_contract::home::cameras::v1::ReadVideoRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::ServerStream<
+            T::ResponseBody,
+            ::home_wire_contract::home::cameras::v1::__buffa::view::ReadVideoResponseView<
+                'static,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_server_stream(
+                &self.transport,
+                &self.config,
+                CAMERA_SERVICE_READ_VIDEO_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

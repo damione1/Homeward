@@ -130,6 +130,49 @@ message WatchSessionResponse {
     google.protobuf.Empty resync_required = 6;
   }
 }
+
+// Provisional NHF017 native video. No audio, external/provider URLs, codec
+// downloads or server transcoding. Baseline H.264 only in this contract version.
+// A stream reuses an exact camera lease, checked against current native rights
+// on admission and on every output. Closing/retiring the lease stops its video.
+enum VideoCodec {
+  VIDEO_CODEC_UNSPECIFIED = 0;
+  VIDEO_CODEC_H264_BASELINE = 1;
+}
+message VideoHeader {
+  Lease lease = 1;
+  VideoCodec codec = 2;
+  // Raw SPS/PPS NALs, each at most1024bytes; AVCC uses four-byte NAL lengths.
+  bytes sps = 3;
+  bytes pps = 4;
+  // Dimensions are bounded1920x1080 and must match the native format/output.
+  uint32 width = 5;
+  uint32 height = 6;
+  uint32 frames_per_second = 7; // 1..30, supplied by the server.
+}
+message VideoSample {
+  SessionRef session = 1;
+  uint64 presentation_micros = 2; // Strictly increasing from the stream origin.
+  // One AVCC access unit, at most512KiB and64NALs; first VCL is a keyframe.
+  // No SPS/PPS or dimension change in-band: negotiate a new stream instead.
+  bytes avcc = 3;
+}
+message ReadVideoRequest { SessionRef session = 1; }
+message ReadVideoResponse {
+  uint64 sequence = 1;
+  // Header must be first(sequence1), then samples, then at most one terminal
+  // reason. Header expiry cannot extend the original camera lease/deadline.
+  // No replay or hidden retries. EOF, gaps or unknown frames retire the stream.
+  oneof frame {
+    VideoHeader header = 2;
+    VideoSample sample = 3;
+    google.protobuf.Empty expired = 4;
+    google.protobuf.Empty revoked = 5;
+    google.protobuf.Empty unavailable = 6;
+    google.protobuf.Empty unsupported = 7;
+    google.protobuf.Empty resync_required = 8;
+  }
+}
 service CameraService {
   rpc ListCameras(ListCamerasRequest) returns (ListCamerasResponse);
   rpc OpenSession(OpenSessionRequest) returns (OpenSessionResponse);
@@ -137,4 +180,8 @@ service CameraService {
   rpc ReadImage(ReadImageRequest) returns (ReadImageResponse);
   rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
   rpc WatchSession(WatchSessionRequest) returns (stream WatchSessionResponse);
+  // A native account has at most one active video stream; explicit cancellation
+  // releases its slot. Development facade is opt-in, synthetic, disabled by
+  // default and never contacts a camera/provider/device driver.
+  rpc ReadVideo(ReadVideoRequest) returns (stream ReadVideoResponse);
 }

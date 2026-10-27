@@ -50,6 +50,8 @@ const (
 	// CameraServiceWatchSessionProcedure is the fully-qualified name of the CameraService's
 	// WatchSession RPC.
 	CameraServiceWatchSessionProcedure = "/home.cameras.v1.CameraService/WatchSession"
+	// CameraServiceReadVideoProcedure is the fully-qualified name of the CameraService's ReadVideo RPC.
+	CameraServiceReadVideoProcedure = "/home.cameras.v1.CameraService/ReadVideo"
 )
 
 // CameraServiceClient is a client for the home.cameras.v1.CameraService service.
@@ -60,6 +62,10 @@ type CameraServiceClient interface {
 	ReadImage(context.Context, *connect.Request[v1.ReadImageRequest]) (*connect.Response[v1.ReadImageResponse], error)
 	ListEvents(context.Context, *connect.Request[v1.ListEventsRequest]) (*connect.Response[v1.ListEventsResponse], error)
 	WatchSession(context.Context, *connect.Request[v1.WatchSessionRequest]) (*connect.ServerStreamForClient[v1.WatchSessionResponse], error)
+	// A native account has at most one active video stream; explicit cancellation
+	// releases its slot. Development facade is opt-in, synthetic, disabled by
+	// default and never contacts a camera/provider/device driver.
+	ReadVideo(context.Context, *connect.Request[v1.ReadVideoRequest]) (*connect.ServerStreamForClient[v1.ReadVideoResponse], error)
 }
 
 // NewCameraServiceClient constructs a client for the home.cameras.v1.CameraService service. By
@@ -109,6 +115,12 @@ func NewCameraServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(cameraServiceMethods.ByName("WatchSession")),
 			connect.WithClientOptions(opts...),
 		),
+		readVideo: connect.NewClient[v1.ReadVideoRequest, v1.ReadVideoResponse](
+			httpClient,
+			baseURL+CameraServiceReadVideoProcedure,
+			connect.WithSchema(cameraServiceMethods.ByName("ReadVideo")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -120,6 +132,7 @@ type cameraServiceClient struct {
 	readImage    *connect.Client[v1.ReadImageRequest, v1.ReadImageResponse]
 	listEvents   *connect.Client[v1.ListEventsRequest, v1.ListEventsResponse]
 	watchSession *connect.Client[v1.WatchSessionRequest, v1.WatchSessionResponse]
+	readVideo    *connect.Client[v1.ReadVideoRequest, v1.ReadVideoResponse]
 }
 
 // ListCameras calls home.cameras.v1.CameraService.ListCameras.
@@ -152,6 +165,11 @@ func (c *cameraServiceClient) WatchSession(ctx context.Context, req *connect.Req
 	return c.watchSession.CallServerStream(ctx, req)
 }
 
+// ReadVideo calls home.cameras.v1.CameraService.ReadVideo.
+func (c *cameraServiceClient) ReadVideo(ctx context.Context, req *connect.Request[v1.ReadVideoRequest]) (*connect.ServerStreamForClient[v1.ReadVideoResponse], error) {
+	return c.readVideo.CallServerStream(ctx, req)
+}
+
 // CameraServiceHandler is an implementation of the home.cameras.v1.CameraService service.
 type CameraServiceHandler interface {
 	ListCameras(context.Context, *connect.Request[v1.ListCamerasRequest]) (*connect.Response[v1.ListCamerasResponse], error)
@@ -160,6 +178,10 @@ type CameraServiceHandler interface {
 	ReadImage(context.Context, *connect.Request[v1.ReadImageRequest]) (*connect.Response[v1.ReadImageResponse], error)
 	ListEvents(context.Context, *connect.Request[v1.ListEventsRequest]) (*connect.Response[v1.ListEventsResponse], error)
 	WatchSession(context.Context, *connect.Request[v1.WatchSessionRequest], *connect.ServerStream[v1.WatchSessionResponse]) error
+	// A native account has at most one active video stream; explicit cancellation
+	// releases its slot. Development facade is opt-in, synthetic, disabled by
+	// default and never contacts a camera/provider/device driver.
+	ReadVideo(context.Context, *connect.Request[v1.ReadVideoRequest], *connect.ServerStream[v1.ReadVideoResponse]) error
 }
 
 // NewCameraServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -205,6 +227,12 @@ func NewCameraServiceHandler(svc CameraServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(cameraServiceMethods.ByName("WatchSession")),
 		connect.WithHandlerOptions(opts...),
 	)
+	cameraServiceReadVideoHandler := connect.NewServerStreamHandler(
+		CameraServiceReadVideoProcedure,
+		svc.ReadVideo,
+		connect.WithSchema(cameraServiceMethods.ByName("ReadVideo")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/home.cameras.v1.CameraService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case CameraServiceListCamerasProcedure:
@@ -219,6 +247,8 @@ func NewCameraServiceHandler(svc CameraServiceHandler, opts ...connect.HandlerOp
 			cameraServiceListEventsHandler.ServeHTTP(w, r)
 		case CameraServiceWatchSessionProcedure:
 			cameraServiceWatchSessionHandler.ServeHTTP(w, r)
+		case CameraServiceReadVideoProcedure:
+			cameraServiceReadVideoHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -250,4 +280,8 @@ func (UnimplementedCameraServiceHandler) ListEvents(context.Context, *connect.Re
 
 func (UnimplementedCameraServiceHandler) WatchSession(context.Context, *connect.Request[v1.WatchSessionRequest], *connect.ServerStream[v1.WatchSessionResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("home.cameras.v1.CameraService.WatchSession is not implemented"))
+}
+
+func (UnimplementedCameraServiceHandler) ReadVideo(context.Context, *connect.Request[v1.ReadVideoRequest], *connect.ServerStream[v1.ReadVideoResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("home.cameras.v1.CameraService.ReadVideo is not implemented"))
 }
