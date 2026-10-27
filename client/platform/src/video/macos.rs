@@ -311,18 +311,6 @@ impl H264Decoder {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn malformed_native_parameter_sets_are_distinct_from_unavailable_hardware() {
-        let format = H264Format::new(vec![0x67, 66, 0, 31], vec![0x68, 0]).unwrap();
-        assert!(matches!(
-            H264Decoder::new(&format),
-            Err(DecodeFailure::Format(_))
-        ));
-    }
-}
 impl Drop for H264Decoder {
     fn drop(&mut self) {
         // SAFETY: live owned session; no outstanding callbacks (synchronous only).
@@ -414,5 +402,18 @@ fn copy_pixels(image: CFTypeRef, width: u32, height: u32) -> Result<DecodedFrame
             height,
             pixels,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn malformed_native_parameter_sets_are_distinct_from_unavailable_hardware() {
+        let format = H264Format::new(vec![0x67, 66, 0, 31], vec![0x68, 0]).unwrap();
+        assert!(matches!(
+            H264Decoder::new(&format),
+            Err(DecodeFailure::Format(_))
+        ));
     }
 }
