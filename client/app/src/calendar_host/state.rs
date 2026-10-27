@@ -1,7 +1,7 @@
 use crate::calendar::{Draft, EditPhase};
 use home_client_actions::calendars::PreparedCalendarMutation;
 use home_client_cache::calendars::CalendarReadSnapshot;
-use home_client_model::calendars::{CalendarId, CivilDate, EventKey};
+use home_client_model::calendars::{CalendarId, CalendarRevision, CivilDate, EventKey};
 use home_client_session::Generation;
 use home_wire_contract::{calendars_contract as admit, home::calendars::v1 as wire};
 use std::{sync::Arc, time::SystemTime};
@@ -40,6 +40,7 @@ pub(super) struct State {
     pub selected: Option<CalendarId>,
     pub snapshot: Option<Arc<CalendarReadSnapshot>>,
     pub ready: bool,
+    pub minimum_revision: Option<CalendarRevision>,
     pub start: String,
     pub end: String,
     pub zone: String,
@@ -70,6 +71,7 @@ impl Default for State {
             selected: None,
             snapshot: None,
             ready: false,
+            minimum_revision: None,
             start: today.to_string(),
             end: today
                 .checked_add_days(chrono::Days::new(7))
@@ -102,6 +104,7 @@ impl State {
         }
     }
     pub fn reset_reads(&mut self) {
+        self.minimum_revision = None;
         self.context = self.context.checked_add(1).unwrap_or(0);
         self.ready = false;
         self.bump();
@@ -148,13 +151,34 @@ impl State {
                     })
             })
             && self.current().is_some_and(|calendar| {
-                admit::calendar_editable(&calendar)
+                self.selected
+                    .as_ref()
+                    .and_then(|id| admit::calendar_revision(&calendar.wire().revision, id))
+                    .is_some_and(|revision| match revision.state() {
+                        home_client_model::calendars::RevisionState::Absent
+                        | home_client_model::calendars::RevisionState::Present(_) => true,
+                        home_client_model::calendars::RevisionState::Removed(_) => false,
+                    })
+                    && admit::calendar_editable(&calendar)
                     && calendar.wire().quality == wire::Quality::Fresh
                     && calendar.wire().fresh_until.as_deref().is_none_or(|until| {
                         chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
                             SystemTime::from(until.with_timezone(&chrono::Utc)) > SystemTime::now()
                         })
                     })
+            })
+    }
+    pub fn present(&self) -> bool {
+        self.calendar()
+            .and_then(|calendar| {
+                self.selected
+                    .as_ref()
+                    .and_then(|id| admit::calendar_revision(&calendar.revision, id))
+            })
+            .is_some_and(|revision| match revision.state() {
+                home_client_model::calendars::RevisionState::Present(_) => true,
+                home_client_model::calendars::RevisionState::Absent
+                | home_client_model::calendars::RevisionState::Removed(_) => false,
             })
     }
     pub fn query(&self) -> Option<wire::QueryOccurrencesRequest> {
@@ -216,6 +240,13 @@ impl State {
         if self.selected.as_ref() != admit::calendar_id(&snapshot.calendar().id).as_ref() {
             return;
         }
+        if self.minimum_revision.as_ref().is_some_and(|minimum| {
+            admit::calendar_revision(&snapshot.calendar().revision, minimum.calendar())
+                .is_none_or(|revision| revision.state().number() < minimum.state().number())
+        }) {
+            return;
+        }
+        self.minimum_revision = None;
         if let Some(old) = &self.snapshot
             && old.calendar().revision != snapshot.calendar().revision
         {
@@ -224,6 +255,11 @@ impl State {
                 && draft.phase == EditPhase::Ready
             {
                 draft.phase = EditPhase::Conflict;
+            }
+        }
+        for calendar in &mut self.catalog {
+            if calendar.id == snapshot.calendar().id {
+                *calendar = snapshot.calendar().clone();
             }
         }
         self.snapshot = Some(snapshot);

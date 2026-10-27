@@ -141,6 +141,7 @@ pub async fn read_calendar_once(
     };
     publish(CalendarReadEvent::Invalidated);
     let mut work = Some(pending(api, lease, query.wire()));
+    let mut dirty = false;
     loop {
         tokio::select! {biased;
          ()=cancel.cancelled()=>return CalendarReadExit::Cancelled,
@@ -154,7 +155,11 @@ pub async fn read_calendar_once(
            match frame.frame {
             Some(wire::watch_calendar_response::Frame::Ready(_))|None=>return CalendarReadExit::Contract(admit::AdmissionError::Sequence),
             Some(wire::watch_calendar_response::Frame::Changed(_)|wire::watch_calendar_response::Frame::ResyncRequired(_))=>{
-             publish(CalendarReadEvent::Invalidated);work=Some(pending(api,lease,query.wire()));
+             publish(CalendarReadEvent::Invalidated);
+             // Finish the in-flight unary read, discard its image, then read
+             // again. Dropping it here can cancel server authority admission
+             // and unnecessarily suspend every consumer of this session.
+             if work.is_some() {dirty=true;} else {work=Some(pending(api,lease,query.wire()));}
             }
            }
           }
@@ -163,8 +168,13 @@ pub async fn read_calendar_once(
           work=None;
           if cancel.is_cancelled() || lease.cancellation.is_cancelled() {return CalendarReadExit::Cancelled}
           match result {
-           Ok(snapshot)=>publish(CalendarReadEvent::Published(snapshot)),
-           Err(CalendarReadExit::Contract(admit::AdmissionError::StaleRevision))=>return CalendarReadExit::Resync,
+           Ok(snapshot)=>{
+            if dirty {dirty=false;work=Some(pending(api,lease,query.wire()));}
+            else {publish(CalendarReadEvent::Published(snapshot));}
+           },
+           Err(CalendarReadExit::Contract(admit::AdmissionError::StaleRevision))=>{
+            dirty=false;work=Some(pending(api,lease,query.wire()));
+           },
            Err(exit)=>return exit,
           }
          }

@@ -5,6 +5,8 @@ mod render;
 mod state;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tls_probe;
 use crate::{
     AmbiguousTimeChoice, CalendarCommand, HomewardWindow, NavigationStep, ProAgendaAction,
     ProAgendaBoundary, ProAgendaField, ProAgendaMode, ProAgendaTemporalKind,
@@ -152,17 +154,7 @@ impl Calendars {
         let owner = this.clone();
         window.on_calendars_action(move |t, g, a| owner.action(t, g, a));
         let owner = this.clone();
-        window.on_calendars_mode(move |mode| {
-            let mut state = owner.0.state.lock().expect("calendar state");
-            state.week = match mode {
-                ProAgendaMode::List => false,
-                ProAgendaMode::Week => true,
-            };
-            state.day = None;
-            state.active_index = None;
-            state.bump();
-            owner.publish(&state);
-        });
+        window.on_calendars_mode(move |mode| owner.mode(mode));
         let owner = this.clone();
         window.on_calendars_navigate(move |step| owner.navigate(step));
         let owner = this.clone();
@@ -365,6 +357,36 @@ impl Calendars {
         };
         self.select(selection.0, selection.1);
     }
+    fn mode(&self, mode: ProAgendaMode) {
+        let mut state = self.0.state.lock().expect("calendar state");
+        if !state.active || !state.interactive || !state.ready || state.busy {
+            return;
+        }
+        state.week = match mode {
+            ProAgendaMode::List => false,
+            ProAgendaMode::Week => true,
+        };
+        if state.week {
+            let Some(end) = chrono::NaiveDate::parse_from_str(&state.start, "%Y-%m-%d")
+                .ok()
+                .and_then(|date| date.checked_add_days(chrono::Days::new(7)))
+            else {
+                return;
+            };
+            if state.end != end.to_string() {
+                state.end = end.to_string();
+                state.snapshot = None;
+                state.status = Status::Loading;
+                state.reset_reads();
+            }
+        }
+        state.day = None;
+        state.active_index = None;
+        state.draft = None;
+        state.bump();
+        self.publish(&state);
+        self.0.changed.notify_one();
+    }
     fn edit(&self, t: i32, g: i32, change: impl FnOnce(&mut Draft)) {
         let mut state = self.0.state.lock().expect("calendar state");
         if state.can_edit_draft(t, g) {
@@ -416,6 +438,13 @@ impl Calendars {
                     state.end = end.expect("checked civil end");
                     state.zone = c.into();
                     if state.query().is_some() {
+                        if chrono::NaiveDate::parse_from_str(&state.start, "%Y-%m-%d")
+                            .ok()
+                            .and_then(|date| date.checked_add_days(chrono::Days::new(7)))
+                            .is_none_or(|end| end.to_string() != state.end)
+                        {
+                            state.week = false;
+                        }
                         state.status = Status::Loading;
                         state.draft = None;
                         state.snapshot = None;
@@ -431,7 +460,7 @@ impl Calendars {
                 }
             }
             CalendarCommand::NewEvent => {
-                if !state.editable() {
+                if !state.editable() || !state.present() {
                     return;
                 }
                 let Some(id) = state.selected.clone() else {

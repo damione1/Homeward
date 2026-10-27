@@ -453,7 +453,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                 .position(|candidate| *candidate == index)
         })
         .map_or(-1, |index| index as i32);
-    let notice = if value.notice.is_empty() {
+    let notice = if value.status == Status::Offline || value.notice.is_empty() {
         match value.status {
             Status::Loading => "Lecture des calendriers…",
             Status::Ready => "",

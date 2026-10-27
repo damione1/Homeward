@@ -75,17 +75,19 @@ impl Calendars {
             Status::Loading | Status::Ready => return,
         }
         state.status = status;
-        state.notice = match status {
+        let notice = match status {
             Status::Denied => "Accès retiré : calendriers et brouillons effacés.",
             Status::Unsupported => "Le serveur ne propose pas encore cette interface calendrier.",
             Status::Invalid => "Réponse calendrier non admise ; données retirées.",
             Status::TooLarge => {
                 "Cette plage dépasse la limite de présentation. Réduisez les dates pour la relire."
             }
-            Status::Offline => "Hors ligne · copie datée conservée · aucune écriture rejouée.",
+            // Read availability is projected from Status. Keep any independent
+            // mutation warning so recovery cannot erase a conflict/unknown commit.
+            Status::Offline => &state.notice,
             Status::Loading | Status::Ready => "",
-        }
-        .into();
+        };
+        state.notice = notice.into();
         self.publish(&state);
         self.0.changed.notify_one();
     }
@@ -258,10 +260,24 @@ impl Calendars {
                 }
                 state.busy = false;
                 let phase = match outcome {
-                    CalendarWriteOutcome::Committed(_) => {
+                    CalendarWriteOutcome::Committed(receipt) => {
                         state.draft = None;
-                        state.catalog_needed = true;
-                        state.reset_reads();
+                        let revision = state
+                            .selected
+                            .as_ref()
+                            .and_then(|id| {
+                                admit::calendar_revision(&receipt.wire().calendar_revision, id)
+                            })
+                            .expect("admitted commit calendar revision");
+                        state.ready = state.snapshot.as_ref().is_some_and(|snapshot| {
+                            admit::calendar_revision(
+                                &snapshot.calendar().revision,
+                                revision.calendar(),
+                            )
+                            .is_some_and(|read| read.state().number() >= revision.state().number())
+                        });
+                        state.minimum_revision = Some(revision);
+                        state.bump();
                         state.notice = "Modification enregistrée ; relecture du serveur.".into();
                         None
                     }

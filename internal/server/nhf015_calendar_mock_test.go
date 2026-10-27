@@ -25,13 +25,17 @@ import (
 )
 
 type nhf015CalendarHandler struct {
-	service         *calendars.Service
-	entities        []domain.EntityID
-	dropNextReply   atomic.Bool
-	authority       *authorization.Authority
-	cursors         *calendars.CursorCodec
-	workday         workday.CalendarReader
-	afterWatchReady func()
+	service          *calendars.Service
+	entities         []domain.EntityID
+	dropNextReply    atomic.Bool
+	unavailable      atomic.Bool
+	pauseWatch       atomic.Bool
+	mutationRequests atomic.Uint64
+	activeStreams    atomic.Int64
+	authority        *authorization.Authority
+	cursors          *calendars.CursorCodec
+	workday          workday.CalendarReader
+	afterWatchReady  func()
 }
 
 var _ calendarsv1connect.CalendarServiceHandler = (*nhf015CalendarHandler)(nil)
@@ -64,6 +68,9 @@ func nhf015CalendarNetworkPermit(permit *authorization.Permit) (*nhf015CalendarP
 }
 
 func (h *nhf015CalendarHandler) permit(ctx context.Context, raw *cv.CalendarId, op av.ScopeOperation) (domain.EntityID, *nhf015CalendarPermit, error) {
+	if h != nil && h.unavailable.Load() {
+		return domain.EntityID{}, nil, nhf015CalendarFailure(cv.ErrorCode_ERROR_CODE_UNAVAILABLE)
+	}
 	if h == nil || h.service == nil || len(h.entities) == 0 || h.authority == nil || raw == nil || !nhf015CalendarKnown(raw) {
 		return domain.EntityID{}, nil, nhf015CalendarFailure(cv.ErrorCode_ERROR_CODE_INVALID)
 	}
@@ -171,6 +178,9 @@ func (h *nhf015CalendarHandler) calendar(ctx context.Context, id calendars.Calen
 	return &cv.Calendar{Id: &cv.CalendarId{EntityId: text}, Origin: cv.Origin_ORIGIN_CALCULATED, Name: &name, Revision: nhf015CalendarRevision(r, id, ""), Quality: cv.Quality_QUALITY_FRESH}, nil
 }
 func (h *nhf015CalendarHandler) ListCalendars(ctx context.Context, req *connect.Request[cv.ListCalendarsRequest]) (*connect.Response[cv.ListCalendarsResponse], error) {
+	if h.unavailable.Load() {
+		return nil, nhf015CalendarFailure(cv.ErrorCode_ERROR_CODE_UNAVAILABLE)
+	}
 	if req == nil || !nhf015CalendarKnown(req.Msg) {
 		return nil, nhf015CalendarFailure(cv.ErrorCode_ERROR_CODE_INVALID)
 	}
@@ -266,6 +276,7 @@ func (h *nhf015CalendarHandler) GetCalendar(ctx context.Context, req *connect.Re
 	return connect.NewResponse(&cv.GetCalendarResponse{Calendar: v}), nil
 }
 func (h *nhf015CalendarHandler) MutateCalendar(ctx context.Context, req *connect.Request[cv.MutateCalendarRequest]) (*connect.Response[cv.MutateCalendarResponse], error) {
+	h.mutationRequests.Add(1)
 	if req == nil || !nhf015CalendarKnown(req.Msg) {
 		return nil, nhf015CalendarFailure(cv.ErrorCode_ERROR_CODE_INVALID)
 	}
@@ -342,6 +353,7 @@ func (h *nhf015CalendarHandler) GetEvent(ctx context.Context, req *connect.Reque
 	return connect.NewResponse(&cv.GetEventResponse{Event: result}), nil
 }
 func (h *nhf015CalendarHandler) MutateEvent(ctx context.Context, req *connect.Request[cv.MutateEventRequest]) (*connect.Response[cv.MutateEventResponse], error) {
+	h.mutationRequests.Add(1)
 	if req == nil || !nhf015CalendarKnown(req.Msg) || req.Msg.Key == nil {
 		return nil, nhf015CalendarFailure(cv.ErrorCode_ERROR_CODE_INVALID)
 	}
@@ -627,6 +639,8 @@ func (h *nhf015CalendarHandler) queryCalculated(ctx context.Context, id calendar
 	return result, nil
 }
 func (h *nhf015CalendarHandler) WatchCalendar(ctx context.Context, req *connect.Request[cv.WatchCalendarRequest], stream *connect.ServerStream[cv.WatchCalendarResponse]) error {
+	h.activeStreams.Add(1)
+	defer h.activeStreams.Add(-1)
 	if req == nil || !nhf015CalendarKnown(req.Msg) {
 		return nhf015CalendarFailure(cv.ErrorCode_ERROR_CODE_INVALID)
 	}
@@ -699,6 +713,15 @@ func (h *nhf015CalendarHandler) WatchCalendar(ctx context.Context, req *connect.
 		}
 		if change.Calendar() != id {
 			continue
+		}
+		for h.pauseWatch.Load() {
+			timer := time.NewTimer(10 * time.Millisecond)
+			select {
+			case <-permit.Context().Done():
+				timer.Stop()
+				return nhf015CalendarFailure(cv.ErrorCode_ERROR_CODE_DENIED)
+			case <-timer.C:
+			}
 		}
 		if e := send(&cv.WatchCalendarResponse{Frame: &cv.WatchCalendarResponse_Changed{Changed: &cv.CalendarChanged{Revision: nhf015CalendarRevision(change.Revision(), id, "")}}}); e != nil {
 			return e

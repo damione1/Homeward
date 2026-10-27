@@ -18,8 +18,15 @@ import (
 
 type nhf015CalendarControl string
 
+const nhf015SeedCalendar nhf015CalendarControl = "seed"
+
 const (
 	nhf015LoseCalendarReply   nhf015CalendarControl = "lose-next-reply"
+	nhf015CalendarSnapshot    nhf015CalendarControl = "snapshot"
+	nhf015CalendarOutage      nhf015CalendarControl = "outage"
+	nhf015CalendarRestore     nhf015CalendarControl = "restore-network"
+	nhf015CalendarPauseWatch  nhf015CalendarControl = "pause-watch"
+	nhf015CalendarResumeWatch nhf015CalendarControl = "resume-watch"
 	nhf015RevokeCalendarRead  nhf015CalendarControl = "revoke-read"
 	nhf015AllowCalendarRead   nhf015CalendarControl = "allow-read"
 	nhf015RevokeCalendarWrite nhf015CalendarControl = "revoke-write"
@@ -32,7 +39,7 @@ func (a *nhf015CalendarControl) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 	switch nhf015CalendarControl(value) {
-	case nhf015LoseCalendarReply, nhf015RevokeCalendarRead, nhf015AllowCalendarRead, nhf015RevokeCalendarWrite, nhf015AllowCalendarWrite:
+	case nhf015SeedCalendar, nhf015LoseCalendarReply, nhf015RevokeCalendarRead, nhf015AllowCalendarRead, nhf015RevokeCalendarWrite, nhf015AllowCalendarWrite, nhf015CalendarSnapshot, nhf015CalendarOutage, nhf015CalendarRestore, nhf015CalendarPauseWatch, nhf015CalendarResumeWatch:
 		*a = nhf015CalendarControl(value)
 		return nil
 	default:
@@ -91,14 +98,27 @@ func TestNHF015CalendarServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := nhf015NewCalendarRig(t, 10*time.Minute)
-	id := r.create(t)
-	for _, seed := range seeds.Events {
-		event := new(cv.Event)
-		if err = protojson.Unmarshal(seed.Event, event); err != nil {
-			t.Fatal(err)
-		}
-		r.add(t, id, seed.UID, event)
+	empty := os.Getenv("HOMEWARD_NHF015_EMPTY_LOCAL")
+	if empty != "" && empty != "1" {
+		t.Fatal("invalid empty-calendar fixture selection")
 	}
+	seeded := empty != "1"
+	id := r.ids[calendars.Local]
+	seedEvents := func() {
+		for _, seed := range seeds.Events {
+			event := new(cv.Event)
+			if err = protojson.Unmarshal(seed.Event, event); err != nil {
+				t.Fatal(err)
+			}
+			r.add(t, id, seed.UID, event)
+		}
+	}
+	if seeded {
+		r.create(t)
+		seedEvents()
+	}
+	// Runtime counters exclude bootstrap; explicitly controlled later seeds count.
+	r.handler.mutationRequests.Store(0)
 	certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: r.calendarServer.Certificate().Raw})
 	ids := make(map[string]string)
 	for origin, name := range map[calendars.Origin]string{calendars.Local: "local", calendars.RemoteICS: "remote", calendars.Calculated: "calculated"} {
@@ -161,6 +181,24 @@ func TestNHF015CalendarServer(t *testing.T) {
 				t.Fatal("unbound calendar control sequence")
 			}
 			switch command.Action {
+			case nhf015SeedCalendar:
+				if seeded {
+					t.Fatal("fixture events already seeded")
+				}
+				seedEvents()
+				seeded = true
+
+			case nhf015CalendarSnapshot:
+				nhf003WritePrivate(t, out, fmt.Sprintf("stats-%02d.json", command.Sequence), map[string]any{"mutation_requests": r.handler.mutationRequests.Load(), "active_streams": r.handler.activeStreams.Load()})
+			case nhf015CalendarOutage:
+				r.handler.unavailable.Store(true)
+				r.calendarServer.CloseClientConnections()
+			case nhf015CalendarRestore:
+				r.handler.unavailable.Store(false)
+			case nhf015CalendarPauseWatch:
+				r.handler.pauseWatch.Store(true)
+			case nhf015CalendarResumeWatch:
+				r.handler.pauseWatch.Store(false)
 			case nhf015LoseCalendarReply:
 				r.handler.dropNextReply.Store(true)
 			case nhf015RevokeCalendarRead:

@@ -85,7 +85,7 @@ export component HomewardCalendars inherits Rectangle {
                     KitTextField { theme: root.theme; label: "Fin exclue (AAAA-MM-JJ)"; text <=> root.range-end; control-size: ControlSize.comfortable; }
                     KitTextField { theme: root.theme; label: "Fuseau IANA"; text <=> root.range-zone; control-size: ControlSize.comfortable; }
                     ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Afficher la plage"; disabled: !root.interactive || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.apply-range,root.range-start,root.range-end,root.range-zone); } }
-                    ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Nouvel événement"; disabled: !root.interactive || !root.data.ready || !root.data.editable || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.new-event,"","",""); } }
+                    ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Nouvel événement"; disabled: !root.interactive || !root.data.ready || !root.data.editable || !root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.new-event,"","",""); } }
                 }
                 agenda := ProAgenda {
                     theme: root.theme; rows: root.data.rows; days: root.data.days;
@@ -95,6 +95,10 @@ export component HomewardCalendars inherits Rectangle {
                     interactive: root.interactive && root.data.ready && !root.data.busy;
                     preferred-height: max(400px,560px * root.theme.text-scale); min-height: 320px;
                     empty-label: "Aucun événement dans cette plage"; all-day-label: "Toute la journée"; list-label: "Liste"; week-label: "Semaine"; date-label: "Choisir une date";
+                    date-text <=> root.range-start;
+                    date-placeholder: "AAAA-MM-JJ"; date-description: "Date civile ; sans fuseau horaire";
+                    calendar-button-label: "Calendrier"; calendar-accessible-name: "Ouvrir le calendrier";
+                    previous-month-label: "Mois précédent"; next-month-label: "Mois suivant";
                     select(t,g) => { root.select(t,g); }
                     navigate(step) => { root.navigate(step); }
                     mode-requested(mode) => { root.mode-requested(mode); }
@@ -121,6 +125,7 @@ export component HomewardCalendars inherits Rectangle {
                     start-date <=> root.edit-start-date; end-date <=> root.edit-end-date; start-time <=> root.edit-start-time; end-time <=> root.edit-end-time; zone <=> root.edit-zone;
                     accepted-start: root.data.editor.accepted-start; accepted-end: root.data.editor.accepted-end;
                     start-resolution: root.data.editor.start-resolution; end-resolution: root.data.editor.end-resolution; start-message: root.data.editor.start-message; end-message: root.data.editor.end-message;
+                    date-placeholder: "AAAA-MM-JJ"; date-description: "Date civile ; sans fuseau horaire"; time-description: "Heure locale au format 24 h";
                     summary-label: "Titre"; description-label: "Description"; location-label: "Lieu"; all-day-label: "Toute la journée"; timed-label: "Événement horaire";
                     start-label: "Début"; end-label: "Fin"; start-date-label: "Date de début"; end-date-label: "Date de fin (exclue)"; start-time-label: "Heure de début"; end-time-label: "Heure de fin";
                     zone-label: "Fuseau horaire"; zone-description: "Fuseau IANA explicite"; earlier-label: "Choisir la première occurrence"; later-label: "Choisir la seconde occurrence";

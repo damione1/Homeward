@@ -200,3 +200,68 @@ fn an_inflight_write_owns_its_receipt_across_watch_updates_but_not_context_chang
     state.reset_reads();
     assert!(!state.owns_write(context));
 }
+
+#[test]
+fn week_mode_reads_exactly_seven_civil_days_and_custom_ranges_return_to_list() {
+    let owner = Calendars::detached();
+    {
+        let mut state = owner.0.state.lock().unwrap();
+        ready(&mut state, &session());
+        state.end = "2026-12-01".into();
+    }
+    owner.mode(ProAgendaMode::Week);
+    {
+        let state = owner.0.state.lock().unwrap();
+        assert!(state.week && !state.ready);
+        assert_eq!(state.start, "2026-11-01");
+        assert_eq!(state.end, "2026-11-08");
+    }
+    let generation = owner.0.state.lock().unwrap().generation;
+    owner.command(
+        generation,
+        CalendarCommand::ApplyRange,
+        "2026-11-01",
+        "2026-12-01",
+        "America/Toronto",
+    );
+    let state = owner.0.state.lock().unwrap();
+    assert!(!state.week);
+    assert_eq!(state.end, "2026-12-01");
+}
+
+#[test]
+fn a_confirmed_receipt_blocks_older_captures_and_refreshes_catalog_metadata() {
+    let session = session();
+    let mut state = State::default();
+    ready(&mut state, &session);
+    let old = state.snapshot.as_ref().unwrap().clone();
+    let mut calendar = old.calendar().clone();
+    let mut revision = calendar.revision.as_option().unwrap().clone();
+    revision.number = 2;
+    calendar.revision = revision.into();
+    calendar.name = Some("Authoritative renamed calendar".into());
+    state.minimum_revision =
+        admit::calendar_revision(&calendar.revision, state.selected.as_ref().unwrap());
+    state.ready = false;
+    state.snapshot(old, session.generation());
+    assert!(!state.ready);
+    assert_eq!(state.catalog[0].revision.number, 1);
+    let mut capture = CalendarCapture::new(&calendar, &state.query().unwrap()).unwrap();
+    capture
+        .push(&wire::QueryOccurrencesResponse {
+            revision: calendar.revision.clone(),
+            quality: wire::Quality::Fresh.into(),
+            provenance: wire::DataProvenance::Synthetic.into(),
+            ..Default::default()
+        })
+        .unwrap();
+    state.snapshot(
+        Arc::new(capture.finish(&calendar).unwrap()),
+        session.generation(),
+    );
+    assert!(state.ready && state.minimum_revision.is_none());
+    assert_eq!(
+        state.catalog[0].name.as_deref(),
+        Some("Authoritative renamed calendar")
+    );
+}
