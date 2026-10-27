@@ -2,6 +2,8 @@
 //! auth, admission and joins stay on the runtime, outside the Slint event loop.
 mod read;
 mod render;
+#[cfg(test)]
+mod tls_probe;
 use crate::{
     HomewardWindow, NavigationStep, ProAdminAction,
     administration::{Identity, Pane, PrivateState, Section, Stage},
