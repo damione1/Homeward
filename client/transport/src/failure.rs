@@ -7,7 +7,8 @@ use base64::{
 use buffa::{Message, MessageName};
 use connectrpc::{ConnectError, ErrorCode};
 use home_wire_contract::home::{
-    actions::v1::ActionOperationFailure, auth::v1::AuthorizationTermination, lists::v1::ListError,
+    actions::v1::ActionOperationFailure, auth::v1::AuthorizationTermination,
+    calendars::v1::CalendarError, lists::v1::ListError,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,6 +76,12 @@ impl Failure {
     /// A list conflict or uncertain commit is a typed outcome, never a reason
     /// to replay the mutation or expose the server's free-form error message.
     pub fn list_error(&self) -> Result<Option<ListError>, DetailFailure> {
+        self.typed_detail()
+    }
+
+    /// Calendar conflict/uncertainty is an explicit domain outcome; an Aborted
+    /// RPC status alone cannot distinguish them and never permits a replay.
+    pub fn calendar_error(&self) -> Result<Option<CalendarError>, DetailFailure> {
         self.typed_detail()
     }
 

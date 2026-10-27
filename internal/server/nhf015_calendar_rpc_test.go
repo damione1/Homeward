@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -156,7 +157,13 @@ func nhf015NewCalendarRig(t *testing.T, lifetime time.Duration) *nhf015CalendarR
 		t.Fatal(err)
 	}
 	server := httptest.NewUnstartedServer(compiled.handler(settings, newPublicAdmissions()))
-	server.TLS = &tls.Config{MinVersion: tls.VersionTLS13}
+	data := shortPrivateDataDir(t)
+	nha181CertificateFixture(t, data)
+	pair, err := tls.LoadX509KeyPair(filepath.Join(data, nha181CertificateName), filepath.Join(data, nha181PrivateKeyName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{pair}}
 	server.EnableHTTP2 = true
 	server.StartTLS()
 	t.Cleanup(func() { service.Close(); server.CloseClientConnections(); server.Close() })
