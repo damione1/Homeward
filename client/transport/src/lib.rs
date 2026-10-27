@@ -2,6 +2,7 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 
 mod actions;
+mod administration;
 mod auth;
 mod calendars;
 mod cameras;
@@ -14,6 +15,10 @@ mod lists;
 mod media;
 mod reconnect;
 pub use actions::{ActionTransport, ActionWatch};
+pub use administration::{
+    AccountTransport, IntegrationTransport, McpKeyTransport, ObservabilityTransport,
+    PolicyTransport,
+};
 pub use auth::AuthTransport;
 pub use calendars::{CalendarTransport, CalendarWatch};
 pub use cameras::{CameraTransport, CameraWatch};
@@ -45,6 +50,12 @@ pub mod services {
         }
         pub mod auth {
             pub mod v1 { include!("generated/home.auth.v1.rs"); }
+        }
+        pub mod integrationadmin {
+            pub mod v1 { include!("generated/home.integrationadmin.v1.rs"); }
+        }
+        pub mod observability {
+            pub mod v1 { include!("generated/home.observability.v1.rs"); }
         }
         pub mod state {
             pub mod v1 { include!("generated/home.state.v1.rs"); }
