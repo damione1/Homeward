@@ -18,6 +18,15 @@ pub enum Field {
     Volume,
     Position,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Motion {
+    Previous,
+    Next,
+    First,
+    Last,
+    PagePrevious,
+    PageNext,
+}
 impl Field {
     pub fn token(self) -> i32 {
         match self {
@@ -108,6 +117,21 @@ pub struct Data {
     coordinator: EntityId,
 }
 impl Data {
+    pub fn moved(&self, value: Quantity, motion: Motion) -> Result<Quantity, Refusal> {
+        let limits = self.limits(value.field()).ok_or(Refusal::Unsupported)?;
+        let count = (limits.maximum - limits.minimum) / limits.step;
+        let current = (value.canonical().clamp(limits.minimum, limits.maximum) - limits.minimum)
+            / limits.step;
+        let next = match motion {
+            Motion::Previous => current.saturating_sub(1),
+            Motion::Next => current.saturating_add(1).min(count),
+            Motion::First => 0,
+            Motion::Last => count,
+            Motion::PagePrevious => current.saturating_sub(10),
+            Motion::PageNext => current.saturating_add(10).min(count),
+        };
+        Quantity::new(value.field(), limits.minimum + next * limits.step)
+    }
     pub fn new(snapshot: wire::Snapshot, expected: &EntityId) -> Result<Self, Refusal> {
         if !admit::snapshot(&snapshot, expected.as_str()) {
             return Err(Refusal::Contract);
@@ -390,4 +414,4 @@ pub fn decode_artwork(
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

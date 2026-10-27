@@ -2,7 +2,7 @@ use super::*;
 use buffa_types::google::protobuf::Timestamp;
 use home_wire_contract::home::state::v1 as state;
 
-fn snapshot() -> wire::Snapshot {
+pub(crate) fn snapshot() -> wire::Snapshot {
     wire::Snapshot {
         route: wire::Route {
             entity_id: "reader".into(),
