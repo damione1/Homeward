@@ -1437,7 +1437,8 @@ func (x *EventsChanged) GetRevision() uint64 {
 type WatchSessionResponse struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Sequence uint64                 `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
-	// First frame is Ready(sequence1), retaining the original lease/deadline.
+	// First live frame is Ready(sequence1), retaining the original lease/deadline.
+	// A lease already expired/revoked may terminate with that explicit first frame.
 	// No replay journal or automatic renewal. EOF, sequence gaps and unknown
 	// frames invalidate the protected projection. The host cancels downloads and
 	// removes private pixels on expiration, revocation or authority uncertainty.

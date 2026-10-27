@@ -117,7 +117,8 @@ message WatchSessionRequest { SessionRef session = 1; }
 message EventsChanged { SessionRef session = 1; uint64 revision = 2; }
 message WatchSessionResponse {
   uint64 sequence = 1;
-  // First frame is Ready(sequence1), retaining the original lease/deadline.
+  // First live frame is Ready(sequence1), retaining the original lease/deadline.
+  // A lease already expired/revoked may terminate with that explicit first frame.
   // No replay journal or automatic renewal. EOF, sequence gaps and unknown
   // frames invalidate the protected projection. The host cancels downloads and
   // removes private pixels on expiration, revocation or authority uncertainty.

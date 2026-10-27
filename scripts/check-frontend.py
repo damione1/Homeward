@@ -42,3 +42,4 @@ subprocess.run(['python3', 'scripts/qualify-frontend-history.py'], cwd=root, che
 subprocess.run(['python3', 'scripts/qualify-frontend-history.py', '--costs-mock'], cwd=root, check=True)
 subprocess.run(['python3', 'scripts/qualify-frontend-media.py'], cwd=root, check=True)
 subprocess.run(['python3', 'scripts/qualify-frontend-calendars.py'], cwd=root, check=True)
+subprocess.run(['python3', 'scripts/qualify-frontend-cameras.py'], cwd=root, check=True)

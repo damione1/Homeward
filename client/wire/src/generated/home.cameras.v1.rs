@@ -10904,7 +10904,8 @@ pub mod __buffa {
         pub mod watch_session_response {
             #[allow(unused_imports)]
             use super::*;
-            /// First frame is Ready(sequence1), retaining the original lease/deadline.
+            /// First live frame is Ready(sequence1), retaining the original lease/deadline.
+            /// A lease already expired/revoked may terminate with that explicit first frame.
             /// No replay journal or automatic renewal. EOF, sequence gaps and unknown
             /// frames invalidate the protected projection. The host cancels downloads and
             /// removes private pixels on expiration, revocation or authority uncertainty.
