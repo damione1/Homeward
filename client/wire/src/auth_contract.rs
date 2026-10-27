@@ -183,6 +183,126 @@ pub fn admit_account(value: &auth::Account) -> Result<Admitted<auth::Account>, A
     })
 }
 
+/// Settings list historical metadata too. Expired/revoked rows are not usable
+/// credentials, but remain valid rows; their timestamps and ownership are exact.
+pub fn admit_session_metadata(
+    value: &auth::Session,
+) -> Result<Admitted<auth::Session>, AdmissionError> {
+    let (Some(created), Some(expires)) =
+        (timestamp(&value.created_at), timestamp(&value.expires_at))
+    else {
+        return Err(AdmissionError::Invalid);
+    };
+    if !value.__buffa_unknown_fields.is_empty()
+        || !session_id(&value.id)
+        || !account_id(&value.account_id)
+        || (expires.seconds, expires.nanos) <= (created.seconds, created.nanos)
+        || !session_authentication(value, expires)
+        || value.revoked_at.as_option().is_some_and(|at| {
+            !valid_timestamp(at) || (at.seconds, at.nanos) < (created.seconds, created.nanos)
+        })
+        || value.last_used_at.as_option().is_some_and(|at| {
+            !valid_timestamp(at) || (at.seconds, at.nanos) < (created.seconds, created.nanos)
+        })
+    {
+        return Err(AdmissionError::Invalid);
+    }
+    Ok(Admitted {
+        wire: value.clone(),
+    })
+}
+
+pub fn admit_factor_metadata(
+    value: &auth::FactorCredential,
+) -> Result<Admitted<auth::FactorCredential>, AdmissionError> {
+    let Some(created) = timestamp(&value.created_at) else {
+        return Err(AdmissionError::Invalid);
+    };
+    if !value.__buffa_unknown_fields.is_empty()
+        || !account_id(&value.account_id)
+        || FactorCredentialId::try_from(&*value.id).is_err()
+        || !value.id.is_set()
+        || value.kind != auth::FactorKind::Fido2
+        || value.last_used_at.as_option().is_some_and(|at| {
+            !valid_timestamp(at) || (at.seconds, at.nanos) < (created.seconds, created.nanos)
+        })
+    {
+        return Err(AdmissionError::Invalid);
+    }
+    Ok(Admitted {
+        wire: value.clone(),
+    })
+}
+
+pub fn admit_invitation_metadata(
+    value: &auth::Invitation,
+) -> Result<Admitted<auth::Invitation>, AdmissionError> {
+    let (Some(created), Some(expires)) =
+        (timestamp(&value.created_at), timestamp(&value.expires_at))
+    else {
+        return Err(AdmissionError::Invalid);
+    };
+    if !value.__buffa_unknown_fields.is_empty()
+        || !value.id.is_set()
+        || InvitationId::try_from(&*value.id).is_err()
+        || !text(&value.login_name)
+        || value.login_name.len() > 256
+        || admit_role(value.role).is_err()
+        || (expires.seconds, expires.nanos) <= (created.seconds, created.nanos)
+        || value.accepted_at.as_option().is_some_and(|at| {
+            !valid_timestamp(at) || (at.seconds, at.nanos) < (created.seconds, created.nanos)
+        })
+        || value.revoked_at.as_option().is_some_and(|at| {
+            !valid_timestamp(at) || (at.seconds, at.nanos) < (created.seconds, created.nanos)
+        })
+    {
+        return Err(AdmissionError::Invalid);
+    }
+    Ok(Admitted {
+        wire: value.clone(),
+    })
+}
+
+pub fn admit_mcp_key_metadata(
+    value: &auth::McpKey,
+) -> Result<Admitted<auth::McpKey>, AdmissionError> {
+    let (Some(created), Some(expires)) =
+        (timestamp(&value.created_at), timestamp(&value.expires_at))
+    else {
+        return Err(AdmissionError::Invalid);
+    };
+    if !value.__buffa_unknown_fields.is_empty()
+        || !mcp_key_id(&value.id)
+        || !account_id(&value.account_id)
+        || !text(&value.client_name)
+        || value.client_name.len() > 256
+        || value.audience != auth::CredentialAudience::Mcp
+        || (expires.seconds, expires.nanos) <= (created.seconds, created.nanos)
+        || (expires.seconds, expires.nanos) > (created.seconds + 365 * 86_400, created.nanos)
+        || value.revoked_at.as_option().is_some_and(|at| {
+            !valid_timestamp(at) || (at.seconds, at.nanos) < (created.seconds, created.nanos)
+        })
+        || value.last_used_at.as_option().is_some_and(|at| {
+            !valid_timestamp(at) || (at.seconds, at.nanos) < (created.seconds, created.nanos)
+        })
+        || value.scopes.len() > 39
+        || value.scopes.iter().any(|scope| admit_scope(scope).is_err())
+    {
+        return Err(AdmissionError::Invalid);
+    }
+    for (index, scope) in value.scopes.iter().enumerate() {
+        if value.scopes[..index]
+            .iter()
+            .any(|prior| prior.family == scope.family && prior.operation == scope.operation)
+        {
+            return Err(AdmissionError::Invalid);
+        }
+    }
+    Ok(Admitted {
+        wire: value.clone(),
+    })
+}
+
 // Local and server wall clocks need not be identical. Raw contract admission
 // remains exact; the interactive client admits a bounded 30-second uncertainty
 // and uses its upper bound for every credential expiration decision.

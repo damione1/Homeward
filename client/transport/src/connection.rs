@@ -85,7 +85,11 @@ impl Connection {
         PolicyTransport {
             client: home::auth::v1::AuthorizationPolicyServiceClient::new(
                 self.http.clone(),
-                self.config.clone(),
+                // A valid policy source alone may occupy 1 MiB; leave bounded
+                // space for its protobuf metadata without widening other APIs.
+                self.config
+                    .clone()
+                    .with_default_max_message_size(2 * 1024 * 1024),
             ),
         }
     }

@@ -1,11 +1,15 @@
 import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitUrlField,
     KitTextArea, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth,
-    KitDataTable, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
+    KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest, IconKind } from "@kit/kit.slint";
 import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction } from "@kit-pro/kit-pro.slint";
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
 import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
+import { HomewardAdministration } from "administration.slint";
+import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField } from "@kit-pro/kit-pro.slint";
+export { ProAdminFieldKind } from "@kit-pro/kit-pro.slint";
+export { TableColumn } from "@kit/kit.slint";
 import { ProVideoAction } from "@kit-pro/kit-pro.slint";
 import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-pro/kit-pro.slint";
 import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro/kit-pro.slint";
@@ -274,6 +278,26 @@ export component HomewardWindow inherits Window {
     private property <bool> media-interactive: root.background-interactive && root.view-loaded && root.page == ViewPage.detail;
     changed media-interactive => { root.media-set-interactive(root.media-interactive); }
     in property <string> preferences-status;
+    in property <string> admin-title: "Réglages du serveur";
+    in property <string> admin-status;
+    in property <string> admin-notice;
+    in property <ProAdminStage> admin-stage: ProAdminStage.loading;
+    in property <int> admin-generation;
+    in property <int> admin-active-index: -1;
+    in property <int> admin-selected-token;
+    in property <[ProAdminSection]> admin-sections;
+    in property <[TableColumn]> admin-columns;
+    in property <[TableRow]> admin-rows;
+    in property <[ProAdminField]> admin-fields;
+    in property <[ProAdminActionRow]> admin-actions;
+    in property <[ProAdminActionRow]> admin-editor-actions;
+    private property <bool> admin-panel-visible: root.page == ViewPage.settings && root.access-stage == ProAccessStage.connected && root.background-interactive;
+    changed admin-panel-visible => { root.admin-visible(root.admin-panel-visible); }
+    callback admin-visible(bool);
+    callback admin-choose-section(int,int);
+    callback admin-select(int,int);
+    callback admin-action(int,int,ProAdminAction);
+    callback admin-navigate(NavigationStep);
     private property <bool> connected: root.access-stage == ProAccessStage.connected;
     private property <bool> background-interactive: root.connected && !root.native-popup.open && !root.recipe-confirmation.open;
     callback private-view-cleared(bool);
@@ -688,6 +712,16 @@ export component HomewardWindow inherits Window {
                         KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.reduced-motion ? "Autoriser les animations" : "Réduire les animations"; activated => { root.reduced-motion = !root.reduced-motion; root.preferences-edited(); } }
                     }
                     Text { text: root.preferences-status; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+                }
+                HomewardAdministration {
+                    theme: root.theme; title: root.admin-title; status: root.admin-status; notice: root.admin-notice;
+                    stage: root.admin-stage; generation: root.admin-generation; active-index: root.admin-active-index;
+                    selected-token: root.admin-selected-token; sections: root.admin-sections; columns: root.admin-columns;
+                    rows: root.admin-rows; fields: root.admin-fields; actions: root.admin-actions; editor-actions: root.admin-editor-actions;
+                    choose-section(t,g) => { root.admin-choose-section(t,g); }
+                    select(t,g) => { root.admin-select(t,g); }
+                    action(t,g,a) => { root.admin-action(t,g,a); }
+                    navigate(step) => { root.admin-navigate(step); }
                 }
                 KitCard { theme: root.theme;
                     KitCardHeader { theme: root.theme; title: root.session-title; description: root.session-description; }

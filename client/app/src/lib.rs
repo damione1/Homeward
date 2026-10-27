@@ -3,6 +3,7 @@
 slint::include_modules!();
 
 pub mod administration;
+mod administration_host;
 mod cache_view;
 mod calendar;
 mod calendar_host;

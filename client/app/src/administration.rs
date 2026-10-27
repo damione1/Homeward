@@ -325,6 +325,48 @@ fn references(values: &[integration::SecretReference], id: &IntegrationId) -> bo
         })
 }
 
+pub fn admit_integration_instance(value: &integration::IntegrationInstance) -> Result<(), Refusal> {
+    if !value.__buffa_unknown_fields.is_empty() || !bounded_text(&value.type_id, 256) {
+        return Err(Refusal::Invalid);
+    }
+    let id = IntegrationId::parse(&value.integration_instance_id)?;
+    match value.desired_state {
+        EnumValue::Known(
+            integration::DesiredState::Enabled | integration::DesiredState::Disabled,
+        ) => (),
+        EnumValue::Known(integration::DesiredState::Unspecified) | EnumValue::Unknown(_) => {
+            return Err(Refusal::Unsupported);
+        }
+    }
+    match value.configuration.as_ref() {
+        Some(integration::integration_instance::Configuration::Editable(source)) => {
+            if !source.__buffa_unknown_fields.is_empty()
+                || !bounded_text(&source.schema_version, 256)
+                || source.yaml_source.is_empty()
+                || source.yaml_source.len() > MAX_FRAGMENT_BYTES
+                || std::str::from_utf8(&source.yaml_source).is_err()
+                || source.yaml_source.contains(&0)
+                || !references(&source.secrets, &id)
+            {
+                return Err(Refusal::Invalid);
+            }
+        }
+        Some(integration::integration_instance::Configuration::Opaque(source)) => {
+            if !source.__buffa_unknown_fields.is_empty() || !references(&source.secrets, &id) {
+                return Err(Refusal::Invalid);
+            }
+        }
+        None => return Err(Refusal::Invalid),
+    }
+    admit_integration_health(
+        &home_wire_contract::home::observability::v1::GetIntegrationHealthResponse {
+            report: value.report.clone(),
+            supervision: value.supervision.clone(),
+            ..Default::default()
+        },
+    )
+}
+
 /// The editor retains the exact server secret references outside the editable YAML.
 /// Opaque configurations remain read-only. No global redacted document is rebuilt.
 pub struct IntegrationDraft {
@@ -521,6 +563,7 @@ pub fn admit_accounts(response: auth::ListAccountsResponse) -> Result<Vec<auth::
     for account in &response.accounts {
         auth_contract::admit_account(account).map_err(|_| Refusal::Invalid)?;
         if !bounded_text(&account.login_name, 256)
+            || !bounded_text(&account.id.value, 128)
             || account.display_name.len() > 256
             || !identities.insert(account.id.value.as_str())
         {
