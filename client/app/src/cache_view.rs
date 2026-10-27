@@ -722,6 +722,18 @@ pub(crate) fn clear_for_layout(window: &HomewardWindow) {
 }
 fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.invoke_history_private_cleared();
+    window.invoke_media_private_cleared();
+    window.set_media_visible(false);
+    window.set_media_has_data(false);
+    window.set_media_editable(false);
+    window.set_media_data(Default::default());
+    window.set_media_actions(Default::default());
+    window.set_media_options(Default::default());
+    window.set_media_values(Default::default());
+    window.set_media_members(Default::default());
+    window.set_media_group_title("".into());
+    window.set_media_coordinator("".into());
+    window.set_media_notice("".into());
     window.set_view_loaded(false);
     window.set_commands_ready(false);
     window.set_action_feedback("".into());

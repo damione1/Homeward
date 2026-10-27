@@ -22,6 +22,7 @@ pub mod history;
 mod history_host;
 mod list_host;
 mod list_state;
+pub mod media;
 mod navigation;
 mod preferences;
 mod profile;
