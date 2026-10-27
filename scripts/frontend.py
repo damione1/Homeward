@@ -20,6 +20,8 @@ LOCAL = REPO / 'frontend.local.json'
 LIMIT = 60_000_000_000
 # The shared host's latest reserve supersedes the original 40 GiB floor.
 MIN_FREE = 50_000_000_000
+MONITOR_INTERVAL_SECONDS = 2
+RUNNING_RESERVE_BYTES = 1_500_000_000
 PACKAGES = ['home-client-model', 'home-wire-contract', 'homeward-app', 'home-client-transport', 'home-client-cache',
             'home-client-session', 'home-client-platform', 'home-client-actions', 'i-slint-backend-android-activity',
             'slint-kit', 'slint-kit-core', 'slint-kit-slint', 'slint-kit-build',
@@ -249,10 +251,13 @@ def execute(config, argv, reserve, uses_cargo=False):
             try:
                 while True:
                     try:
-                        code = process.wait(timeout=20)
+                        code = process.wait(timeout=MONITOR_INTERVAL_SECONDS)
                         break
                     except subprocess.TimeoutExpired:
-                        sample = measure(config, 512 * 1024**2)
+                        # A linker can allocate over a gigabyte between slow
+                        # full-tree samples. Keep headroom throughout a build;
+                        # reserve=0 remains available for quiescent maintenance.
+                        sample = measure(config, min(reserve, RUNNING_RESERVE_BYTES))
                         with (proof / 'storage.jsonl').open('a') as output:
                             output.write(json.dumps(sample) + '\n')
                         if not sample['within_policy']:
@@ -261,10 +266,20 @@ def execute(config, argv, reserve, uses_cargo=False):
                 failure = str(error)
                 stop_owned_process(process)
                 code = 1
+            retention = None
+            if code == 0 and reserve > 0:
+                # Builders have joined; the four leases still exclude another
+                # build. Retain current/last SQL and recent native candidates,
+                # rather than accumulating another copy after every round.
+                cleanup = subprocess.run(
+                    [sys.executable, str(REPO / 'scripts/prune-frontend-cache.py'), '--apply'],
+                    cwd=REPO, env=env, stdout=log, stderr=subprocess.STDOUT)
+                retention = cleanup.returncode
             after = measure(config)
             if uses_cargo and code == 0:
                 write(owner_path, {'owner': str(REPO), 'key': fingerprint, 'status': 'valid'})
             write(proof / 'result.json', {'returncode': code, 'failure': failure,
+                  'retention_returncode': retention,
                   'elapsed_seconds': time.monotonic() - started, 'after': after})
         print((proof / 'output.log').read_text(errors='replace')[-6000:])
         return code if after['within_policy'] else 1

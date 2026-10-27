@@ -32,6 +32,12 @@ class StorageGuardTests(unittest.TestCase):
         self.assertFalse(frontend.policy(0, frontend.MIN_FREE + 99, 100))
         self.assertFalse(frontend.policy(0, frontend.MIN_FREE, -1))
 
+    def test_linker_growth_is_refused_before_the_hard_limit(self):
+        used = frontend.LIMIT - 1_000_000_000
+        free = frontend.MIN_FREE + 5_000_000_000
+        self.assertTrue(frontend.policy(used, free, 512 * 1024**2))
+        self.assertFalse(frontend.policy(used, free, frontend.RUNNING_RESERVE_BYTES))
+
     def test_unreadable_subtree_refuses_measurement(self):
         def denied(_root, **options):
             options['onerror'](PermissionError('unreadable cache subtree'))
@@ -71,6 +77,15 @@ class StorageGuardTests(unittest.TestCase):
             rows = frontend.inventory([shared, shared])
             self.assertEqual(len(rows), 1)
             self.assertEqual(sum(row[-1] for row in rows.values()), payload.stat().st_blocks * 512)
+
+
+def load_tests(loader, tests, _pattern):
+    spec = importlib.util.spec_from_file_location(
+        'test_prune_frontend_cache', Path(__file__).with_name('test-prune-frontend-cache.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    tests.addTests(loader.loadTestsFromModule(module))
+    return tests
 
 
 if __name__ == '__main__':
