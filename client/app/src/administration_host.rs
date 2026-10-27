@@ -1,5 +1,6 @@
 //! One session-owned settings reader. Callbacks only enqueue bounded intentions;
 //! auth, admission and joins stay on the runtime, outside the Slint event loop.
+mod forms;
 mod read;
 mod render;
 #[cfg(test)]
@@ -27,7 +28,8 @@ struct Inner {
     source: Mutex<Option<(SessionCoordinator, Generation)>>,
 }
 struct State {
-    private: PrivateState<Payload, ()>,
+    private: PrivateState<Payload, forms::Draft>,
+    pending: Option<forms::Operation>,
     section: Section,
     generation: i32,
     visible: bool,
@@ -47,6 +49,7 @@ impl Default for State {
     fn default() -> Self {
         Self {
             private: PrivateState::default(),
+            pending: None,
             section: Section::Account,
             generation: 1,
             visible: false,
@@ -75,6 +78,8 @@ impl State {
         true
     }
     fn request(&mut self) {
+        self.private.dismiss_draft();
+        self.pending = None;
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
         self.selected = None;
@@ -85,6 +90,7 @@ impl State {
         self.probing = true;
     }
     fn clear(&mut self) {
+        self.pending = None;
         self.cancel.cancel();
         let _ = self.private.retire();
         self.selection = None;
@@ -147,6 +153,18 @@ impl Administration {
         });
         let owner = this.clone();
         window.on_admin_navigate(move |step| owner.navigate(step));
+        let owner = this.clone();
+        window.on_admin_edit(move |token, generation, field, value| {
+            owner.edit(token, generation, field, value.to_string())
+        });
+        let owner = this.clone();
+        window.on_admin_choose(move |token, generation, field, option| {
+            owner.choose(token, generation, field, option)
+        });
+        let owner = this.clone();
+        window.on_admin_editor_action(move |token, generation, action| {
+            owner.editor_action(token, generation, action)
+        });
         render::clear(window);
         this
     }
@@ -222,7 +240,10 @@ impl Administration {
     }
     fn select(&self, token: i32, generation: i32) {
         let mut state = self.0.state.lock().expect("admin state");
-        if !self.current(&state, generation) || state.stage != Stage::Ready {
+        if !self.current(&state, generation)
+            || state.stage != Stage::Ready
+            || state.private.draft().is_some()
+        {
             return;
         }
         let Some(target) = state
@@ -298,6 +319,21 @@ impl Administration {
         if !self.current(&state, generation) {
             return;
         }
+        if let Some(command) = forms::available(&state)
+            .into_iter()
+            .find(|command| command.action() == action)
+        {
+            let context = state.private.context();
+            if state
+                .private
+                .edit(context, Section::Accounts, forms::Draft::new(command))
+                .is_ok()
+            {
+                state.bump();
+                self.retired(&state);
+            }
+            return;
+        }
         match action {
             ProAdminAction::Refresh => state.request(),
             ProAdminAction::More => {
@@ -324,9 +360,70 @@ impl Administration {
         }
         self.retired(&state);
     }
+    fn edit(&self, token: i32, generation: i32, field: i32, value: String) {
+        let mut state = self.0.state.lock().expect("admin state");
+        if token != 1 || !self.current(&state, generation) {
+            return;
+        }
+        if let Some(draft) = state.private.draft_mut() {
+            draft.edit(field, value);
+            self.publish(&state);
+        }
+    }
+    fn choose(&self, token: i32, generation: i32, field: i32, option: i32) {
+        let mut state = self.0.state.lock().expect("admin state");
+        if token != 1 || !self.current(&state, generation) {
+            return;
+        }
+        if let Some(draft) = state.private.draft_mut() {
+            draft.choose(field, option);
+            self.publish(&state);
+        }
+    }
+    fn editor_action(&self, token: i32, generation: i32, action: ProAdminAction) {
+        let mut state = self.0.state.lock().expect("admin state");
+        if token != 1 || !self.current(&state, generation) {
+            return;
+        }
+        match action {
+            ProAdminAction::Save => {
+                if let Some(draft) = state.private.draft_mut()
+                    && let Some(operation) = draft.submit()
+                {
+                    state.pending = Some(operation);
+                    state.bump();
+                }
+            }
+            ProAdminAction::Cancel => state.request(),
+            ProAdminAction::Refresh
+            | ProAdminAction::Create
+            | ProAdminAction::Remove
+            | ProAdminAction::More
+            | ProAdminAction::Enable
+            | ProAdminAction::Disable
+            | ProAdminAction::Revoke
+            | ProAdminAction::CloseSecret => return,
+        }
+        self.retired(&state);
+    }
+    fn written(&self, generation: i32, result: crate::administration::MutationState) {
+        let mut state = self.0.state.lock().expect("admin state");
+        if !self.current(&state, generation) || state.cancel.is_cancelled() {
+            return;
+        }
+        if result == crate::administration::MutationState::Published {
+            state.request();
+        } else if let Some(draft) = state.private.draft_mut() {
+            draft.complete(result);
+        }
+        self.retired(&state);
+    }
     fn navigate(&self, step: NavigationStep) {
         let mut state = self.0.state.lock().expect("admin state");
-        if !self.current(&state, state.generation) || state.rows.is_empty() {
+        if !self.current(&state, state.generation)
+            || state.rows.is_empty()
+            || state.private.draft().is_some()
+        {
             return;
         }
         let current = state
@@ -460,6 +557,28 @@ impl Administration {
             let changed = self.0.changed.notified();
             tokio::pin!(changed);
             changed.as_mut().enable();
+            let operation = {
+                let mut state = self.0.state.lock().expect("admin state");
+                if !busy && self.current(&state, state.generation) {
+                    state
+                        .pending
+                        .take()
+                        .map(|operation| (state.generation, operation, state.cancel.clone()))
+                } else {
+                    None
+                }
+            };
+            if let Some((ui_generation, operation, token)) = operation {
+                busy = true;
+                let owner = self.clone();
+                let session = session.clone();
+                let connection = connection.clone();
+                jobs.spawn(async move {
+                    let result =
+                        forms::execute(&session, &connection, generation, operation, &token).await;
+                    owner.written(ui_generation, result);
+                });
+            }
             let next = {
                 let mut state = self.0.state.lock().expect("admin state");
                 let phase = *phases.borrow();

@@ -7,7 +7,7 @@ import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
 import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
 import { HomewardAdministration } from "administration.slint";
-import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField } from "@kit-pro/kit-pro.slint";
+import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField, ProAdminChoice } from "@kit-pro/kit-pro.slint";
 export { ProAdminFieldKind } from "@kit-pro/kit-pro.slint";
 export { TableColumn } from "@kit/kit.slint";
 import { ProVideoAction } from "@kit-pro/kit-pro.slint";
@@ -289,6 +289,11 @@ export component HomewardWindow inherits Window {
     in property <[TableColumn]> admin-columns;
     in property <[TableRow]> admin-rows;
     in property <[ProAdminField]> admin-fields;
+    in property <[ProAdminChoice]> admin-choices;
+    in property <bool> admin-editor-visible;
+    in property <bool> admin-editable;
+    in property <string> admin-editor-title;
+    in property <string> admin-editor-notice;
     in property <[ProAdminActionRow]> admin-actions;
     in property <[ProAdminActionRow]> admin-editor-actions;
     private property <bool> admin-panel-visible: root.page == ViewPage.settings && root.access-stage == ProAccessStage.connected && root.background-interactive;
@@ -298,6 +303,9 @@ export component HomewardWindow inherits Window {
     callback admin-select(int,int);
     callback admin-action(int,int,ProAdminAction);
     callback admin-navigate(NavigationStep);
+    callback admin-edit(int,int,int,string);
+    callback admin-choose(int,int,int,int);
+    callback admin-editor-action(int,int,ProAdminAction);
     private property <bool> connected: root.access-stage == ProAccessStage.connected;
     private property <bool> background-interactive: root.connected && !root.native-popup.open && !root.recipe-confirmation.open;
     callback private-view-cleared(bool);
@@ -718,10 +726,15 @@ export component HomewardWindow inherits Window {
                     stage: root.admin-stage; generation: root.admin-generation; active-index: root.admin-active-index;
                     selected-token: root.admin-selected-token; sections: root.admin-sections; columns: root.admin-columns;
                     rows: root.admin-rows; fields: root.admin-fields; actions: root.admin-actions; editor-actions: root.admin-editor-actions;
+                    choices: root.admin-choices; editor-visible: root.admin-editor-visible; editable: root.admin-editable;
+                    editor-title: root.admin-editor-title; editor-notice: root.admin-editor-notice;
                     choose-section(t,g) => { root.admin-choose-section(t,g); }
                     select(t,g) => { root.admin-select(t,g); }
                     action(t,g,a) => { root.admin-action(t,g,a); }
                     navigate(step) => { root.admin-navigate(step); }
+                    edit(t,g,f,value) => { root.admin-edit(t,g,f,value); }
+                    choose(t,g,f,option) => { root.admin-choose(t,g,f,option); }
+                    editor-action(t,g,a) => { root.admin-editor-action(t,g,a); }
                 }
                 KitCard { theme: root.theme;
                     KitCardHeader { theme: root.theme; title: root.session-title; description: root.session-description; }

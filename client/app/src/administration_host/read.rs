@@ -94,7 +94,7 @@ macro_rules! call {
     }};
 }
 
-async fn admitted_lease(
+pub(super) async fn admitted_lease(
     session: &SessionCoordinator,
     expected: home_client_session::Generation,
     cancel: &CancellationToken,

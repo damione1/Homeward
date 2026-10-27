@@ -1,8 +1,8 @@
 use super::*;
 use crate::administration::IntegrationId;
 use crate::{
-    ProAdminActionRow, ProAdminField, ProAdminFieldKind, ProAdminSection, ProAdminStage,
-    TableColumn, TableRow,
+    ProAdminActionRow, ProAdminChoice, ProAdminField, ProAdminFieldKind, ProAdminSection,
+    ProAdminStage, TableColumn, TableRow,
 };
 use buffa::{EnumValue, Enumeration};
 use home_wire_contract::{
@@ -791,6 +791,17 @@ pub(super) struct Projection {
     selected: Option<Target>,
     next: bool,
     fields: Vec<(String, String, bool)>,
+    commands: Vec<forms::Command>,
+    editor: Option<Editor>,
+}
+struct Editor {
+    title: &'static str,
+    notice: &'static str,
+    editable: bool,
+    submittable: bool,
+    destructive: bool,
+    fields: Vec<ProAdminField>,
+    choices: Vec<ProAdminChoice>,
 }
 impl Projection {
     pub fn new(state: &State, source: Option<(SessionCoordinator, Generation)>) -> Self {
@@ -830,6 +841,16 @@ impl Projection {
             selected: state.selected.clone(),
             next: state.next.is_some(),
             fields,
+            commands: forms::available(state),
+            editor: state.private.draft().map(|draft| Editor {
+                title: draft.title(),
+                notice: draft.notice,
+                editable: draft.editable(),
+                submittable: draft.state == crate::administration::MutationState::Draft,
+                destructive: draft.destructive(),
+                fields: draft.fields(),
+                choices: draft.choices(),
+            }),
         }
     }
 }
@@ -839,6 +860,11 @@ pub(super) fn clear(window: &HomewardWindow) {
     window.set_admin_sections(ModelRc::default());
     window.set_admin_actions(ModelRc::default());
     window.set_admin_editor_actions(ModelRc::default());
+    window.set_admin_choices(ModelRc::default());
+    window.set_admin_editor_visible(false);
+    window.set_admin_editable(false);
+    window.set_admin_editor_notice("".into());
+    window.set_admin_editor_title("".into());
     window.set_admin_stage(ProAdminStage::Loading);
     window.set_admin_active_index(-1);
     window.set_admin_selected_token(0);
@@ -929,6 +955,12 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         enabled: true,
         destructive: false,
     }];
+    actions.extend(value.commands.into_iter().map(|command| ProAdminActionRow {
+        action: command.action(),
+        label: command.label().into(),
+        enabled: true,
+        destructive: command.destructive(),
+    }));
     if value.next {
         actions.push(ProAdminActionRow {
             action: ProAdminAction::More,
@@ -963,6 +995,33 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         enabled: true,
         destructive: false,
     }])));
+    window.set_admin_editor_visible(value.editor.is_some());
+    window.set_admin_editable(false);
+    window.set_admin_choices(ModelRc::default());
+    window.set_admin_editor_title(format!("Détails · {}", value.section.label()).into());
+    window.set_admin_editor_notice("".into());
+    if let Some(editor) = value.editor {
+        window.set_admin_selected_token(1);
+        window.set_admin_editable(editor.editable);
+        window.set_admin_editor_title(editor.title.into());
+        window.set_admin_editor_notice(editor.notice.into());
+        window.set_admin_fields(ModelRc::new(VecModel::from(editor.fields)));
+        window.set_admin_choices(ModelRc::new(VecModel::from(editor.choices)));
+        window.set_admin_editor_actions(ModelRc::new(VecModel::from(vec![
+            ProAdminActionRow {
+                action: ProAdminAction::Save,
+                label: "Confirmer".into(),
+                enabled: editor.submittable,
+                destructive: editor.destructive,
+            },
+            ProAdminActionRow {
+                action: ProAdminAction::Cancel,
+                label: "Annuler".into(),
+                enabled: true,
+                destructive: false,
+            },
+        ])));
+    }
 }
 
 #[cfg(test)]

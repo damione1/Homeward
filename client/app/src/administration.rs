@@ -199,6 +199,12 @@ impl<T, D> PrivateState<T, D> {
     pub fn draft(&self) -> Option<&D> {
         self.draft.as_ref()
     }
+    pub fn draft_mut(&mut self) -> Option<&mut D> {
+        self.draft.as_mut()
+    }
+    pub fn dismiss_draft(&mut self) {
+        self.draft = None;
+    }
     pub fn retire(&mut self) -> Result<(), Refusal> {
         self.authority = None;
         self.panes.clear();

@@ -80,6 +80,89 @@ fn ready(state: &State) -> bool {
 fn generation(owner: &Administration) -> i32 {
     owner.0.state.lock().unwrap().generation
 }
+fn managed(state: &State) -> Option<&auth::Account> {
+    let Payload::Accounts(accounts) = state.private.pane(Section::Accounts)?.content.as_ref()?
+    else {
+        return None;
+    };
+    accounts
+        .iter()
+        .find(|account| account.login_name == "NHF018 managed")
+}
+fn select_managed(owner: &Administration) {
+    let token = {
+        let state = owner.0.state.lock().unwrap();
+        let account = managed(&state).unwrap();
+        state.rows.iter().find(|row|matches!(&row.target,render::Target::Account(id) if id.as_str()==account.id.value)).unwrap().token
+    };
+    owner.select(token, generation(owner));
+}
+async fn account_forms(owner: &Administration) {
+    section(owner, Section::Accounts).await;
+    owner.action(0, generation(owner), ProAdminAction::Create);
+    // Empty local input never queues a mutation, and remains editable.
+    owner.editor_action(1, generation(owner), ProAdminAction::Save);
+    {
+        let state = owner.0.state.lock().unwrap();
+        assert!(state.pending.is_none());
+        assert!(state.private.draft().unwrap().editable());
+    }
+    for (field, value) in [
+        (forms::Field::Login, "NHF018 managed"),
+        (forms::Field::Name, "Before edit"),
+        (forms::Field::Password, "NHF018 isolated managed password"),
+    ] {
+        owner.edit(1, generation(owner), field as i32, value.into());
+    }
+    let stale = generation(owner);
+    owner.editor_action(1, stale, ProAdminAction::Save);
+    let submitted = generation(owner);
+    owner.editor_action(1, stale, ProAdminAction::Save);
+    assert_eq!(
+        generation(owner),
+        submitted,
+        "a captured second confirmation cannot submit another write"
+    );
+    until(owner, "account created through editor", |state| {
+        ready(state) && state.private.draft().is_none() && managed(state).is_some()
+    })
+    .await;
+    select_managed(owner);
+    owner.action(0, generation(owner), ProAdminAction::Save);
+    owner.edit(
+        1,
+        generation(owner),
+        forms::Field::Name as i32,
+        "After edit".into(),
+    );
+    owner.editor_action(1, generation(owner), ProAdminAction::Save);
+    until(owner, "account updated through editor", |state| {
+        ready(state)
+            && state.private.draft().is_none()
+            && managed(state).is_some_and(|account| account.display_name == "After edit")
+    })
+    .await;
+    select_managed(owner);
+    owner.action(0, generation(owner), ProAdminAction::Remove);
+    assert!(
+        owner.0.state.lock().unwrap().pending.is_none(),
+        "opening deletion is not consent to delete"
+    );
+    owner.editor_action(1, generation(owner), ProAdminAction::Cancel);
+    until(owner, "cancelled deletion keeps the account", |state| {
+        ready(state) && state.private.draft().is_none() && managed(state).is_some()
+    })
+    .await;
+    select_managed(owner);
+    owner.action(0, generation(owner), ProAdminAction::Remove);
+    owner.editor_action(1, generation(owner), ProAdminAction::Save);
+    until(
+        owner,
+        "account deleted after explicit confirmation",
+        |state| ready(state) && state.private.draft().is_none() && managed(state).is_none(),
+    )
+    .await;
+}
 async fn section(owner: &Administration, section: Section) {
     let token = Section::ALL
         .iter()
@@ -141,6 +224,7 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
     for value in Section::ALL {
         section(&owner, value).await;
     }
+    account_forms(&owner).await;
     section(&owner, Section::Integrations).await;
     let token = {
         let state = owner.0.state.lock().unwrap();
@@ -243,6 +327,11 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
         generation(&owner),
         before,
         "ordinary user cannot enqueue an admin view"
+    );
+    owner.action(0, generation(&owner), ProAdminAction::Create);
+    assert!(
+        owner.0.state.lock().unwrap().private.draft().is_none(),
+        "ordinary account cannot open an administrative mutation"
     );
     session.logout().await.unwrap();
     login(&session, &fixture.admin).await;
