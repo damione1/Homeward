@@ -104,12 +104,15 @@ func (window Window) selection(ctx context.Context, span Span, budget *calculati
 		if window.kind != Timed {
 			return "", false, nil
 		}
+		if !window.to.value.After(window.from.value) {
+			return "", false, nil
+		}
 		if span.mode == spanPoint {
 			return span.start.String(), !span.start.value.Before(window.from.value) && span.start.value.Before(window.to.value), nil
 		}
 		return span.start.String(), span.start.value.Before(window.to.value) && span.end.value.After(window.from.value), nil
 	case AllDay:
-		if window.kind == AllDay {
+		if window.kind == AllDay || window.mode == agendaWindow {
 			return span.startDate.String(), span.startDate.ordinal() < window.toDate.ordinal() && span.endDate.ordinal() > window.fromDate.ordinal(), nil
 		}
 		startWall := LocalDateTime{date: span.startDate}.wallUTC()

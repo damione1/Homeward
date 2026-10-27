@@ -99,3 +99,61 @@ func TestNHF015SelectedFoldRoundTripsWithoutChangingLegacyRows(t *testing.T) {
 		t.Fatal("zero-duration editing admitted")
 	}
 }
+
+func TestNHF015AgendaWindowIncludesTimedAndSkippedCivilDates(t *testing.T) {
+	ctx := context.Background()
+	from, to := nha100Date(t, "2026-11-01"), nha100Date(t, "2026-11-02")
+	zone := nha100Zone(t, "America/Toronto")
+	window, err := AgendaWindow(ctx, from, to, zone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if window.to.value.Sub(window.from.value).Hours() != 25 {
+		t.Fatal("fold day was not 25h")
+	}
+	timed, err := SelectedTimedSpan(ctx, nha100Local(t, "2026-11-01T01:30:00"), nha100Instant(t, "2026-11-01T06:30:00Z"), nha100Instant(t, "2026-11-01T07:30:00Z"), zone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected, err := window.ContainsSpan(ctx, timed); err != nil || !selected {
+		t.Fatal("mixed agenda omitted timed event")
+	}
+	day := nha100Day(t, "2026-11-01", "2026-11-02")
+	if selected, err := window.ContainsSpan(ctx, day); err != nil || !selected {
+		t.Fatal("mixed agenda omitted all-day event")
+	}
+	legacy, _ := DateWindow(from, to)
+	if selected, _ := legacy.ContainsSpan(ctx, timed); selected {
+		t.Fatal("legacy date window changed")
+	}
+	if window.identity() == legacy.identity() {
+		t.Fatal("different window modes share a cursor identity")
+	}
+	skipped, err := AgendaWindow(ctx, nha100Date(t, "2011-12-30"), nha100Date(t, "2011-12-31"), nha100Zone(t, "Pacific/Apia"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	civil := nha100Day(t, "2011-12-30", "2011-12-31")
+	if selected, err := skipped.ContainsSpan(ctx, civil); err != nil || !selected {
+		t.Fatal("skipped civil date lost its all-day event")
+	}
+	if selected, err := skipped.ContainsSpan(ctx, timed); err != nil || selected {
+		t.Fatal("skipped date selected an unrelated timed event")
+	}
+}
+
+func TestNHF015SkippedDayHasNoTimedOverlapEvenAcrossItsBoundary(t *testing.T) {
+	ctx := context.Background()
+	zone := nha100Zone(t, "Pacific/Apia")
+	window, err := AgendaWindow(ctx, nha100Date(t, "2011-12-30"), nha100Date(t, "2011-12-31"), zone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	span, err := SelectedTimedSpan(ctx, nha100Local(t, "2011-12-29T23:30:00"), nha100Instant(t, "2011-12-30T09:30:00Z"), nha100Instant(t, "2011-12-30T10:30:00Z"), zone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected, err := window.ContainsSpan(ctx, span); err != nil || selected {
+		t.Fatal("zero elapsed window selected a timed interval")
+	}
+}
