@@ -142,6 +142,11 @@ pub(in crate::administration_host) struct Job {
     cancel: CancellationToken,
 }
 enum Reply {
+    References {
+        read: super::planner::ReferenceRead,
+        capture: Box<Capture>,
+    },
+    PlanHistory(Box<super::planner::HistoryReply>),
     Simulation(Box<home_wire_contract::home::configurationsimulation::v1::SimulatePlanResponse>),
     Plan(Box<home_wire_contract::home::configurationplan::v1::Plan>),
     Mutation {
@@ -166,6 +171,8 @@ enum Error {
 enum Effect {
     Read,
     Simulation,
+    References,
+    History,
     Mutation,
 }
 pub(in crate::administration_host) struct Completion {
@@ -265,6 +272,9 @@ impl Workflow {
             return false;
         }
         self.synchronized = false;
+        if let Some(planner) = &mut self.planner {
+            planner.subscription_syncing();
+        }
         true
     }
     pub fn watch_ready(&mut self, permit: super::WatchPermit) -> bool {
@@ -272,6 +282,9 @@ impl Workflow {
             return false;
         }
         self.synchronized = true;
+        if let Some(planner) = &mut self.planner {
+            planner.set_ready(true);
+        }
         true
     }
     pub fn watch_stopped(&mut self, permit: super::WatchPermit) -> bool {
@@ -279,6 +292,9 @@ impl Workflow {
             return false;
         }
         self.synchronized = false;
+        if let Some(planner) = &mut self.planner {
+            planner.set_ready(false);
+        }
         true
     }
     fn queue(&mut self, kind: JobKind) -> bool {
@@ -480,17 +496,15 @@ impl Workflow {
         if self.planner.is_some()
             && !matches!(
                 value,
-                ProAdminAction::Cancel
-                    | ProAdminAction::CloseSecret
-                    | ProAdminAction::Refresh
-                    | ProAdminAction::Resolve
+                ProAdminAction::Cancel | ProAdminAction::CloseSecret | ProAdminAction::Resolve
             )
         {
+            let synchronized = self.synchronized;
             if self.active.is_none()
-                && let Some(operation) = self
-                    .planner
-                    .as_mut()
-                    .and_then(|planner| planner.action(value))
+                && let Some(operation) = self.planner.as_mut().and_then(|planner| {
+                    planner.set_ready(synchronized);
+                    planner.action(value)
+                })
             {
                 self.queue(JobKind::Plan(Box::new(operation)));
             }
@@ -633,6 +647,16 @@ impl Workflow {
         }
         self.active = None;
         match completion.result {
+            Ok(Reply::References { read, capture }) => {
+                if let Some(planner) = &mut self.planner {
+                    planner.accept_reference(read, *capture);
+                }
+            }
+            Ok(Reply::PlanHistory(reply)) => {
+                if let Some(planner) = &mut self.planner {
+                    planner.accept_history(*reply);
+                }
+            }
             Ok(Reply::Simulation(response)) => {
                 if let Some(planner) = &mut self.planner {
                     planner.accept_simulation(*response);
@@ -648,6 +672,13 @@ impl Workflow {
                 current,
             }) => {
                 let current = current.map(|value| *value);
+                if let Some(planner) = &mut self.planner {
+                    planner.complete_activation(&activation, current.clone());
+                    if let Some(current) = current.and_then(|value| Capture::admit(value).ok()) {
+                        self.observe(current);
+                    }
+                    return false;
+                }
                 let Some(draft) = &mut self.draft else {
                     return false;
                 };
@@ -739,10 +770,18 @@ impl Workflow {
             Err(error) => {
                 self.synchronized = false;
                 if let Some(planner) = &mut self.planner {
+                    planner.set_ready(false);
                     match completion.effect {
                         Effect::Read => planner.failed(),
                         Effect::Simulation => planner.simulation_failed(),
-                        Effect::Mutation => planner.failed(),
+                        Effect::References => planner.references_failed(),
+                        Effect::History => planner.history_failed(),
+                        Effect::Mutation => match error {
+                            Error::Conflict => planner.activation_conflict(),
+                            Error::Rejected => planner.activation_rejected(),
+                            Error::Uncertain | Error::Invalid => planner.activation_uncertain(),
+                            Error::Denied => unreachable!(),
+                        },
                     }
                 }
                 if let Some(draft) = &mut self.draft {
@@ -801,14 +840,26 @@ impl Workflow {
         self.draft.as_ref().map_or("", |value| value.notice)
     }
     pub fn editable(&self) -> bool {
-        if self.planner.is_some() {
-            return self.active.is_none();
+        if let Some(planner) = &self.planner {
+            return self.active.is_none() && planner.mutable();
         }
         self.active.is_none() && self.draft.as_ref().is_some_and(|value| value.editable())
     }
     pub fn fields(&self) -> Vec<ProAdminField> {
         if let Some(planner) = &self.planner {
-            return planner.fields(self.editable());
+            let mut fields = planner.fields(self.editable());
+            if let Some(current) = &self.current {
+                fields.push(field(
+                    Field::CurrentActive,
+                    format!(
+                        "{} · {}",
+                        current.active().revision(),
+                        render::hex(current.active().manifest().bytes())
+                    ),
+                    false,
+                ));
+            }
+            return fields;
         }
         let Some(draft) = &self.draft else {
             return Vec::new();
@@ -1037,6 +1088,11 @@ pub(in crate::administration_host) async fn execute(
                 Effect::Read
             }
             super::planner::Operation::Simulate(_) => Effect::Simulation,
+            super::planner::Operation::References(_) => Effect::References,
+            super::planner::Operation::History(_) => Effect::History,
+            super::planner::Operation::Apply(_) | super::planner::Operation::Rollback(_) => {
+                Effect::Mutation
+            }
         },
     };
     let result = tokio::select! {biased;()=parent.cancelled()=>Err(Error::Uncertain),result=execute_inner(session,connection,expected,job)=>result};
@@ -1078,6 +1134,108 @@ async fn execute_inner(
             };
             let api = connection.configuration_plans();
             let (family, identity, value) = match *operation {
+                super::planner::Operation::References(read) => {
+                    let response = call!(
+                        connection.configuration(),
+                        read_document,
+                        wire::ReadDocumentRequest {
+                            id: read.id.to_wire().into(),
+                            ..Default::default()
+                        }
+                    );
+                    let capture = Capture::admit(response).map_err(|_| Error::Invalid)?;
+                    if capture.id() != &read.id {
+                        return Err(Error::Invalid);
+                    }
+                    return Ok(Reply::References {
+                        read,
+                        capture: Box::new(capture),
+                    });
+                }
+                super::planner::Operation::History(query) => {
+                    use super::planner::{HistoryQuery, HistoryReply};
+                    let (generations, policy) = match query {
+                        HistoryQuery::Initial { policy } => {
+                            (Some(None), policy.map(|id| (id, None)))
+                        }
+                        HistoryQuery::Generations(page) => (Some(Some(page)), None),
+                        HistoryQuery::Policy { id, page } => (None, Some((id, Some(page)))),
+                    };
+                    let mut reply = HistoryReply {
+                        generations: None,
+                        versions: None,
+                    };
+                    if let Some(page) = generations {
+                        let response = call!(
+                            connection.configuration(),
+                            list_generations,
+                            wire::ListGenerationsRequest {
+                                page: wire::PageRequest {
+                                    page_size: 50,
+                                    page_token: page,
+                                    ..Default::default()
+                                }
+                                .into(),
+                                ..Default::default()
+                            }
+                        );
+                        configuration_contract::admit_configuration_response(
+                            ConfigurationResponse::Generations(&response),
+                        )
+                        .map_err(|_| Error::Invalid)?;
+                        reply.generations = Some(response);
+                    }
+                    if let Some((id, page)) = policy {
+                        let response = call!(
+                            connection.configuration(),
+                            list_versions,
+                            wire::ListVersionsRequest {
+                                id: id.to_wire().into(),
+                                page: wire::PageRequest {
+                                    page_size: 50,
+                                    page_token: page,
+                                    ..Default::default()
+                                }
+                                .into(),
+                                ..Default::default()
+                            }
+                        );
+                        configuration_contract::admit_configuration_response(
+                            ConfigurationResponse::Versions(&response),
+                        )
+                        .map_err(|_| Error::Invalid)?;
+                        reply.versions = Some((id, response));
+                    }
+                    return Ok(Reply::PlanHistory(Box::new(reply)));
+                }
+                super::planner::Operation::Apply(request) => {
+                    use home_wire_contract::configuration_apply_contract::{
+                        self, ActivationResponse,
+                    };
+                    let response = call!(connection.configuration_apply(), apply, *request);
+                    configuration_apply_contract::admit_activation_response(
+                        ActivationResponse::Apply(&response),
+                    )
+                    .map_err(|_| Error::Invalid)?;
+                    return Ok(Reply::Mutation {
+                        activation: response.activation.into_option().ok_or(Error::Invalid)?,
+                        current: response.current.into_option().map(Box::new),
+                    });
+                }
+                super::planner::Operation::Rollback(request) => {
+                    use home_wire_contract::configuration_apply_contract::{
+                        self, ActivationResponse,
+                    };
+                    let response = call!(connection.configuration_apply(), rollback, *request);
+                    configuration_apply_contract::admit_activation_response(
+                        ActivationResponse::Rollback(&response),
+                    )
+                    .map_err(|_| Error::Invalid)?;
+                    return Ok(Reply::Mutation {
+                        activation: response.activation.into_option().ok_or(Error::Invalid)?,
+                        current: response.current.into_option().map(Box::new),
+                    });
+                }
                 super::planner::Operation::Simulate(request) => {
                     let response = call!(
                         connection.configuration_simulation(),

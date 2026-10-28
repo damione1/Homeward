@@ -1,11 +1,13 @@
 //! Explicit multi-file inputs and diagnostic previews. A plan never authorizes
 //! a mutation and never supplies editable bytes to a source field.
+mod activation;
 mod simulation;
 use super::render;
 use crate::{
     ProAdminAction, ProAdminActionRow, ProAdminChoice, ProAdminField, ProAdminFieldKind,
     configuration::{Candidate, Capture, SourceFamily, SourceFile, SourceIdentity, UserSource},
 };
+pub(super) use activation::{HistoryQuery, HistoryReply, ReferenceRead};
 use buffa::EnumValue;
 use home_wire_contract::home::configurationplan::v1 as wire;
 use zeroize::Zeroizing;
@@ -60,8 +62,9 @@ impl Field {
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct FileKey(u64);
+pub(super) struct FileKey(u64);
 struct File {
+    reference: activation::SourceReference,
     key: FileKey,
     path: String,
     source: Zeroizing<String>,
@@ -69,6 +72,7 @@ struct File {
 impl File {
     fn empty(key: FileKey) -> Self {
         Self {
+            reference: activation::SourceReference::default(),
             key,
             path: String::new(),
             source: Zeroizing::new(String::new()),
@@ -76,11 +80,16 @@ impl File {
     }
 }
 pub(super) enum Operation {
+    References(ReferenceRead),
+    History(HistoryQuery),
+    Apply(Box<home_wire_contract::home::configurationapply::v1::ApplyRequest>),
+    Rollback(Box<home_wire_contract::home::configurationapply::v1::RollbackRequest>),
     Build(wire::BuildPlanRequest),
     Revalidate(wire::RevalidatePlanRequest),
     Simulate(home_wire_contract::home::configurationsimulation::v1::SimulatePlanRequest),
 }
 pub(super) struct Editor {
+    activation: activation::Activation,
     simulation: simulation::Simulation,
     captured: Capture,
     family: SourceFamily,
@@ -96,6 +105,7 @@ pub(super) struct Editor {
 impl Editor {
     pub fn open(captured: Capture) -> Self {
         Self {
+            activation: activation::Activation::default(),
             simulation: simulation::Simulation::default(),
             captured,
             family: SourceFamily::Operational,
@@ -119,6 +129,7 @@ impl Editor {
         }
     }
     pub fn resolve(&mut self, current: Capture) {
+        self.resolve_activation();
         self.simulation.clear();
         self.captured = current;
         self.stale = false;
@@ -142,6 +153,13 @@ impl Editor {
             "Candidat modifié ; l’aperçu précédent a été retiré. Aucun fichier n’a été envoyé.";
     }
     pub fn edit(&mut self, token: i32, text: String) {
+        if !self.mutable() {
+            let _ = Zeroizing::new(text);
+            return;
+        }
+        if self.edit_reference(token, &text) {
+            return;
+        }
         if let Some(field) = simulation::Field::admit(token) {
             self.simulation.edit(field, text);
             self.notice = "Paramètres de simulation modifiés ; le rapport précédent a été retiré. Aucun appareil n’a été interrogé.";
@@ -168,11 +186,13 @@ impl Editor {
                 if text.len() > 4096 {
                     return;
                 }
-                self.files
+                let file = self
+                    .files
                     .iter_mut()
                     .find(|file| file.key == self.selected)
-                    .expect("selected file")
-                    .path = text.to_string();
+                    .expect("selected file");
+                file.path = text.to_string();
+                file.reference.clear();
             }
             Field::Source => {
                 let other_bytes: usize = self
@@ -202,6 +222,12 @@ impl Editor {
         self.invalidate();
     }
     pub fn choose(&mut self, token: i32, option: i32) {
+        if self.choose_activation(token, option) {
+            return;
+        }
+        if !self.mutable() {
+            return;
+        }
         if Field::admit(token) != Some(Field::Family) {
             return;
         }
@@ -215,6 +241,7 @@ impl Editor {
         };
         if family != self.family {
             self.family = family;
+            self.resolve_activation();
             self.invalidate();
         }
     }
@@ -237,7 +264,16 @@ impl Editor {
         )
     }
     pub fn action(&mut self, action: ProAdminAction) -> Option<Operation> {
+        if !self.mutable() && matches!(action, ProAdminAction::AddFile | ProAdminAction::RemoveFile)
+        {
+            return None;
+        }
         match action {
+            ProAdminAction::Refresh => return self.source_read(),
+            ProAdminAction::Restore => return self.history_read(),
+            ProAdminAction::More => return self.history_more(),
+            ProAdminAction::Apply => return self.prepare_apply(),
+            ProAdminAction::Rollback => return self.prepare_rollback(),
             ProAdminAction::Simulate => {
                 let request = self
                     .candidate()
@@ -304,19 +340,14 @@ impl Editor {
                     ..Default::default()
                 }));
             }
-            ProAdminAction::Refresh
-            | ProAdminAction::Create
+            ProAdminAction::Create
             | ProAdminAction::Save
             | ProAdminAction::Remove
             | ProAdminAction::Cancel
-            | ProAdminAction::More
             | ProAdminAction::Enable
             | ProAdminAction::Disable
             | ProAdminAction::Revoke
             | ProAdminAction::CloseSecret
-            | ProAdminAction::Apply
-            | ProAdminAction::Restore
-            | ProAdminAction::Rollback
             | ProAdminAction::Resolve => (),
         }
         None
@@ -382,6 +413,31 @@ impl Editor {
         [
             (ProAdminAction::Preview, "Construire l’aperçu", valid),
             (
+                ProAdminAction::Refresh,
+                "Lire les références du fichier",
+                available && self.family != SourceFamily::Operational,
+            ),
+            (
+                ProAdminAction::Restore,
+                "Charger l’historique pour un retour",
+                available,
+            ),
+            (
+                ProAdminAction::More,
+                "Page historique suivante",
+                available && self.history_more().is_some(),
+            ),
+            (
+                ProAdminAction::Apply,
+                "Confirmer l’application de ce candidat",
+                available && self.can_apply(),
+            ),
+            (
+                ProAdminAction::Rollback,
+                "Confirmer le retour historique sélectionné",
+                available && self.can_rollback(),
+            ),
+            (
                 ProAdminAction::Simulate,
                 "Simuler avec les doubles fournis",
                 valid && self.family.simulatable(),
@@ -398,12 +454,12 @@ impl Editor {
             (
                 ProAdminAction::AddFile,
                 "Ajouter un fichier",
-                available && self.files.len() < 64,
+                available && self.mutable() && self.files.len() < 64,
             ),
             (
                 ProAdminAction::RemoveFile,
                 "Retirer ce fichier",
-                available && self.files.len() > 1,
+                available && self.mutable() && self.files.len() > 1,
             ),
             (
                 ProAdminAction::NextFile,
@@ -422,11 +478,12 @@ impl Editor {
             action,
             label: label.into(),
             enabled,
-            destructive: false,
+            destructive: matches!(action, ProAdminAction::Apply | ProAdminAction::Rollback),
         })
         .collect()
     }
     pub fn fields(&self, editable: bool) -> Vec<ProAdminField> {
+        let editable = editable && self.mutable();
         let mut fields = vec![
             field(Field::Family, self.family.label().into(), false),
             field(Field::Identity, self.identity.clone(), editable),
@@ -557,10 +614,11 @@ impl Editor {
         if self.family.simulatable() {
             fields.extend(self.simulation.fields(editable));
         }
+        fields.extend(self.activation_fields(editable));
         fields
     }
     pub fn choices(&self, editable: bool) -> Vec<ProAdminChoice> {
-        SourceFamily::ALL
+        let mut values: Vec<_> = SourceFamily::ALL
             .into_iter()
             .enumerate()
             .map(|(index, family)| ProAdminChoice {
@@ -568,9 +626,11 @@ impl Editor {
                 field_token: Field::Family as i32,
                 label: family.label().into(),
                 selected: family == self.family,
-                enabled: editable,
+                enabled: editable && self.mutable(),
             })
-            .collect()
+            .collect();
+        values.extend(self.activation_choices(editable));
+        values
     }
 }
 fn field(field: Field, value: String, editable: bool) -> ProAdminField {
@@ -613,7 +673,7 @@ fn field(field: Field, value: String, editable: bool) -> ProAdminField {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn editor() -> Editor {
+    pub(super) fn editor() -> Editor {
         let capture = Capture::admit(super::super::workflow::tests::response(7, 6)).unwrap();
         let mut editor = Editor::open(capture);
         editor.choose(Field::Family as i32, 6);
@@ -623,7 +683,7 @@ mod tests {
         editor.edit(Field::Source as i32, "views: []\n".into());
         editor
     }
-    fn plan() -> wire::Plan {
+    pub(super) fn plan() -> wire::Plan {
         wire::Plan {
             state: wire::PlanState::Admitted.into(),
             author: "synthetic-admin".into(),
