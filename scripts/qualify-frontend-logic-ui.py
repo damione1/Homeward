@@ -142,7 +142,7 @@ def run_case(proof, binary, server_binary, helper, case):
                 break
             scroll(difference)
             time.sleep(.04)
-        for attempt in range(45):
+        for attempt in range(100):
             elements = tree()
             inner = next(row for row in elements if any(value.get('id') == 'KitDataTable::list'
                          for value in row.get('typeNamesAndIds', [])))
@@ -159,7 +159,7 @@ def run_case(proof, binary, server_binary, helper, case):
                     return row
             client.tool(Tool.SCROLL, windowHandle=window,
                 position=dict(x=position.get('x', 0) + extent['width'] / 2, y=(top + bottom) / 2),
-                deltaX=0, deltaY=10000 if attempt == 0 else -180)
+                deltaX=0, deltaY=10000 if attempt == 0 else -min(72, max(24, (bottom-top)/2)))
             time.sleep(.04)
         raise RuntimeError('Virtualized native record is unreachable: ' + label)
 
@@ -277,6 +277,7 @@ def run_case(proof, binary, server_binary, helper, case):
             wait('Session sécurisée active', timeout=30)
             settings()
             tap('Logique et traces')
+            reveal('Lecture autorisée', 'Text')
             record('17 définitions retenues · 72 reportées')
             capture('catalogue')
             client.tool(Tool.CLICK, elementHandle=record('Définition synthétique 01')['handle'])
@@ -286,11 +287,7 @@ def run_case(proof, binary, server_binary, helper, case):
             field_value('Tentative explicite')
             capture('start-confirmation')
             tap('Confirmer une seule tentative')
-            deadline = time.monotonic() + 20
-            while not any('Run synthétique enregistré' in row.get('accessibleLabel', '') for row in tree()):
-                if time.monotonic() > deadline:
-                    raise RuntimeError('Native explicit synthetic start did not finish')
-                time.sleep(.05)
+            reveal('Run synthétique enregistré', 'Text')
             capture('started')
             tap('Fermer')
             ready_action('Exécuter · synthétique')
@@ -328,11 +325,7 @@ def run_case(proof, binary, server_binary, helper, case):
             tap('Annuler les étapes futures…')
             capture('cancel-confirmation')
             tap('Confirmer une seule tentative')
-            deadline = time.monotonic() + 20
-            while not any('ne sont pas inversés' in row.get('accessibleLabel', '') for row in tree()):
-                if time.monotonic() > deadline:
-                    raise RuntimeError('Native cancellation did not preserve dispatched-effect semantics')
-                time.sleep(.05)
+            reveal('ne sont pas inversés', 'Text')
             capture('canceled-future-only')
             tap('Fermer')
             tap('Logique et traces')
@@ -343,7 +336,7 @@ def run_case(proof, binary, server_binary, helper, case):
             if field_value('Octets exacts fournis'):
                 raise RuntimeError('Logic metadata inferred editable source bytes')
             tap('Script')
-            fill('Identité logique', 'script.synthetic-native')
+            fill('Identité logique', 'script.synthetic_native')
             fill('Fichier d’entrée', 'logic.yaml')
             fill('Chemin logique du fichier sélectionné', 'logic.yaml')
             fill('Octets exacts fournis', 'sequence:\n- action: light.turn_on\n  target: {entity_id: light.fixture}\n  data: {brightness_pct: 25}\n')
