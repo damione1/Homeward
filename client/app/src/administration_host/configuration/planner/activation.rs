@@ -239,6 +239,13 @@ impl Editor {
             .as_ref()
             .map(|receipt| receipt.outcome)
     }
+    #[cfg(test)]
+    pub fn activation_displayed_active(&self) -> Option<&ActiveGeneration> {
+        self.activation
+            .receipt
+            .as_ref()
+            .map(Receipt::displayed_active)
+    }
     pub fn mutable(&self) -> bool {
         matches!(
             self.activation.stage,

@@ -61,7 +61,7 @@ func TestNHF019ConfigurationServer(t *testing.T) {
 	defer cancel()
 	const login = "NHF019 isolated administrator"
 	const password = "NHF019 synthetic isolated password"
-	nha162RunBootstrap(t, ctx, data, login, password)
+	adminID := nha162RunBootstrap(t, ctx, data, login, password)
 	authentication := authv1connect.NewAuthServiceClient(client, base)
 	accounts := authv1connect.NewAccountServiceClient(client, base)
 	tokens := nha162RunLogin(t, ctx, authentication, login, password)
@@ -79,14 +79,24 @@ func TestNHF019ConfigurationServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": base, "ca_pem": string(certificate), "admin": map[string]string{"login_name": login, "password": password}, "production_configuration": false, "no_physical_providers": true})
+	faultProxy := nhf019StartFaultProxy(t, out, data, base, roots, documents)
+	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": faultProxy.url, "ca_pem": string(certificate), "admin": map[string]string{"login_name": login, "password": password}, "production_configuration": false, "no_physical_providers": true})
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
+	revoked := false
 	for {
 		select {
 		case <-ctx.Done():
 			t.Fatal("configuration fixture deadline", ctx.Err())
 		case <-ticker.C:
+			if _, err := os.Stat(filepath.Join(out, "revoke-admin")); err == nil && !revoked {
+				_, err = accounts.UpdateAccount(ctx, nha056SessionRequest(&auth.UpdateAccountRequest{AccountId: adminID, Role: auth.AccountRole_ACCOUNT_ROLE_USER.Enum()}, keeper.AccessToken))
+				if err != nil {
+					t.Fatal("synthetic role withdrawal", err)
+				}
+				revoked = true
+				nhf003WritePrivate(t, out, "admin-revoked.json", map[string]bool{"revoked": true})
+			}
 			if _, err := os.Stat(filepath.Join(out, "stop")); err != nil {
 				continue
 			}
@@ -109,7 +119,7 @@ func TestNHF019ConfigurationServer(t *testing.T) {
 			if err := run.join(t); err != nil {
 				t.Fatal(err)
 			}
-			nhf003WritePrivate(t, out, "result.json", map[string]any{"synthetic_only": true, "actual_run_joined": true, "production_configuration": false, "no_physical_providers": true, "root_source_restored": true, "source_sha256": hex.EncodeToString(sum[:]), "before_revision": before.Msg.Document.Version.Revision, "after_revision": after.Msg.Document.Version.Revision})
+			nhf003WritePrivate(t, out, "result.json", map[string]any{"synthetic_only": true, "actual_run_joined": true, "production_configuration": false, "no_physical_providers": true, "root_source_restored": true, "source_sha256": hex.EncodeToString(sum[:]), "before_revision": before.Msg.Document.Version.Revision, "after_revision": after.Msg.Document.Version.Revision, "admin_role_withdrawn": revoked, "fault_counts": faultProxy.snapshot()})
 			return
 		}
 	}

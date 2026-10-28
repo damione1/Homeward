@@ -11,6 +11,7 @@ use home_wire_contract::home::{
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::sync::{Arc, Mutex};
+mod faults;
 
 #[derive(Default)]
 struct MemoryStore(Mutex<Option<Zeroizing<Vec<u8>>>>);
@@ -505,6 +506,7 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
         restored.sql(),
         "simulation mutated configuration"
     );
+    faults::qualify(&owner, &session, &connection, &path, &source).await;
     owner.foreground(false);
     assert!(!owner.0.state.lock().unwrap().configuration.opened());
     cancel.cancel();

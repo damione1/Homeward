@@ -45,11 +45,12 @@ def main():
             if process.wait(timeout=30) != 0:
                 raise RuntimeError('Actual configuration Run did not join: ' + str(proof / 'server.log'))
             isolation = json.loads((fixture / 'result.json').read_text())
-            if not (isolation['synthetic_only'] and isolation['actual_run_joined'] and isolation['no_physical_providers'] and isolation['production_configuration'] is False and isolation['root_source_restored'] and isolation['after_revision'] > isolation['before_revision']):
+            counts = isolation['fault_counts']
+            if not (isolation['synthetic_only'] and isolation['actual_run_joined'] and isolation['no_physical_providers'] and isolation['production_configuration'] is False and isolation['root_source_restored'] and isolation['after_revision'] == isolation['before_revision'] + 5 and isolation['admin_role_withdrawn'] and counts['lost'] == 1 and counts['injected'] == 3 and counts['canceled'] == 2 and counts['active'] == 0 and counts['received'] == counts['forwarded'] + counts['injected'] + counts['canceled']):
                 raise RuntimeError('Configuration isolation or new-revision evidence incomplete')
         if SHARED['source_inventory'](config) != sources:
             raise RuntimeError('Configuration sources changed during qualification')
-        (proof / 'result.json').write_text(json.dumps(dict(status='PASS', actual_rust_go_tls=True, children_joined=True, native_rendering=False, isolation=isolation, sql_cas=True, workspace_cas=True, aba_after_rollback=True, source_byte_limit=True, limitations=['Commit-loss/uncertain/restart failure matrix not yet qualified', 'Native configuration interactions not yet qualified']), indent=2) + '\n')
+        (proof / 'result.json').write_text(json.dumps(dict(status='PASS', actual_rust_go_tls=True, children_joined=True, native_rendering=False, isolation=isolation, sql_cas=True, workspace_cas=True, aba_after_rollback=True, source_byte_limit=True, response_lost_after_actual_commit=True, injected_business_outcomes=['commit_unknown', 'committed_reconciling', 'restart_required'], foreground_cancellation=True, admin_withdrawal_purges_source=True, no_implicit_mutation_retry=True, limitations=['Business outcome fault responses are injected without forwarding Apply; they do not prove backend commit/restart behavior', 'Native configuration interactions not yet qualified']), indent=2) + '\n')
         print('Actual configuration Rust/Go TLS owner PASS ' + str(proof), flush=True)
     finally:
         SHARED['stop'](client)
