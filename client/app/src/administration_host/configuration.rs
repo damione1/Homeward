@@ -1,4 +1,5 @@
 //! Configuration metadata reuses the settings session owner and its private purge.
+mod planner;
 mod watch;
 mod workflow;
 use std::collections::BTreeSet;

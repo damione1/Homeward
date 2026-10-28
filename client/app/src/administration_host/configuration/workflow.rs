@@ -125,6 +125,7 @@ impl Draft {
     }
 }
 enum JobKind {
+    Plan(Box<super::planner::Operation>),
     Write(wire::WriteDocumentRequest),
     Restore(wire::RestoreDocumentRequest),
     History(Option<String>),
@@ -141,6 +142,7 @@ pub(in crate::administration_host) struct Job {
     cancel: CancellationToken,
 }
 enum Reply {
+    Plan(Box<home_wire_contract::home::configurationplan::v1::Plan>),
     Mutation {
         activation: wire::ActivationResult,
         current: Option<Box<wire::ReadDocumentResponse>>,
@@ -171,6 +173,7 @@ pub(in crate::administration_host) struct Completion {
 }
 
 pub(in crate::administration_host) struct Workflow {
+    planner: Option<Box<super::planner::Editor>>,
     watch: super::watch::Cohort,
     scope: Option<Scope>,
     next_attempt: u64,
@@ -184,6 +187,7 @@ pub(in crate::administration_host) struct Workflow {
 impl Default for Workflow {
     fn default() -> Self {
         Self {
+            planner: None,
             watch: super::watch::Cohort::default(),
             scope: Some(Scope(1)),
             next_attempt: 0,
@@ -198,6 +202,7 @@ impl Default for Workflow {
 }
 impl Workflow {
     pub fn retire(&mut self) {
+        self.planner = None;
         self.watch.restart();
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
@@ -211,7 +216,7 @@ impl Workflow {
         self.synchronized = false;
     }
     pub fn opened(&self) -> bool {
-        self.draft.is_some()
+        self.draft.is_some() || self.planner.is_some()
     }
     pub fn observe(&mut self, capture: Capture) {
         if self.snapshot_admission(&capture) != Ok(true) {
@@ -219,6 +224,9 @@ impl Workflow {
         }
         if let Some(draft) = &mut self.draft {
             draft.observe(&capture);
+        }
+        if let Some(planner) = &mut self.planner {
+            planner.observe(&capture);
         }
         self.current = Some(capture);
         self.synchronized = self.watch.live();
@@ -311,6 +319,12 @@ impl Workflow {
                 .is_some_and(|value| Anchor::capture(value).is_ok());
         vec![
             action(
+                ProAdminAction::Preview,
+                "Préparer un candidat et son aperçu",
+                self.synchronized && self.active.is_none(),
+                false,
+            ),
+            action(
                 ProAdminAction::Save,
                 "Fournir la source opérationnelle",
                 enabled,
@@ -325,6 +339,17 @@ impl Workflow {
         ]
     }
     pub fn open(&mut self, action: ProAdminAction) -> bool {
+        if action == ProAdminAction::Preview {
+            if self.opened() || self.active.is_some() || !self.synchronized || self.scope.is_none()
+            {
+                return false;
+            }
+            let Some(capture) = self.current.clone() else {
+                return false;
+            };
+            self.planner = Some(Box::new(super::planner::Editor::open(capture)));
+            return true;
+        }
         let mode = match action {
             ProAdminAction::Save => Mode::Write,
             ProAdminAction::Restore => Mode::Restore,
@@ -392,6 +417,10 @@ impl Workflow {
         if self.active.is_some() {
             return;
         }
+        if let Some(planner) = &mut self.planner {
+            planner.edit(field, text);
+            return;
+        }
         let Some(draft) = &mut self.draft else {
             return;
         };
@@ -412,6 +441,10 @@ impl Workflow {
     }
     pub fn choose(&mut self, field: i32, option: i32) {
         if self.active.is_some() {
+            return;
+        }
+        if let Some(planner) = &mut self.planner {
+            planner.choose(field, option);
             return;
         }
         let Some(draft) = &mut self.draft else {
@@ -441,6 +474,25 @@ impl Workflow {
     pub fn editor_action(&mut self, value: ProAdminAction) -> bool {
         if !self.opened() {
             return false;
+        }
+        if self.planner.is_some()
+            && !matches!(
+                value,
+                ProAdminAction::Cancel
+                    | ProAdminAction::CloseSecret
+                    | ProAdminAction::Refresh
+                    | ProAdminAction::Resolve
+            )
+        {
+            if self.active.is_none()
+                && let Some(operation) = self
+                    .planner
+                    .as_mut()
+                    .and_then(|planner| planner.action(value))
+            {
+                self.queue(JobKind::Plan(Box::new(operation)));
+            }
+            return true;
         }
         match value {
             ProAdminAction::Cancel | ProAdminAction::CloseSecret => {
@@ -579,6 +631,11 @@ impl Workflow {
         }
         self.active = None;
         match completion.result {
+            Ok(Reply::Plan(plan)) => {
+                if let Some(planner) = &mut self.planner {
+                    planner.accept(*plan);
+                }
+            }
             Ok(Reply::Mutation {
                 activation,
                 current,
@@ -631,6 +688,12 @@ impl Workflow {
             Ok(Reply::Read { purpose, capture }) => {
                 self.observe(*capture);
                 if matches!(purpose, ReadPurpose::Resolve)
+                    && let (Some(planner), Some(current)) =
+                        (&mut self.planner, self.current.clone())
+                {
+                    planner.resolve(current);
+                }
+                if matches!(purpose, ReadPurpose::Resolve)
                     && let (Some(current), Some(draft)) = (self.current.clone(), &mut self.draft)
                 {
                     let fresh = match &draft.edit {
@@ -658,6 +721,9 @@ impl Workflow {
             }
             Err(error) => {
                 self.synchronized = false;
+                if let Some(planner) = &mut self.planner {
+                    planner.failed();
+                }
                 if let Some(draft) = &mut self.draft {
                     if completion.effect == Effect::Read {
                         draft.notice = "Lecture indisponible. Les références et le résultat précédent ne sont pas modifiés.";
@@ -689,6 +755,9 @@ impl Workflow {
         false
     }
     pub fn title(&self) -> &'static str {
+        if self.planner.is_some() {
+            return "Préparer un plan de configuration";
+        }
         match self.draft.as_ref().map(|value| value.mode()) {
             Some(Mode::Write) => "Source opérationnelle explicite",
             Some(Mode::Restore) => "Restaurer une génération",
@@ -696,6 +765,9 @@ impl Workflow {
         }
     }
     pub fn notice(&self) -> &'static str {
+        if let Some(planner) = &self.planner {
+            return planner.notice();
+        }
         if !self.synchronized
             && self.active.is_none()
             && self
@@ -708,9 +780,15 @@ impl Workflow {
         self.draft.as_ref().map_or("", |value| value.notice)
     }
     pub fn editable(&self) -> bool {
+        if self.planner.is_some() {
+            return self.active.is_none();
+        }
         self.active.is_none() && self.draft.as_ref().is_some_and(|value| value.editable())
     }
     pub fn fields(&self) -> Vec<ProAdminField> {
+        if let Some(planner) = &self.planner {
+            return planner.fields(self.editable());
+        }
         let Some(draft) = &self.draft else {
             return Vec::new();
         };
@@ -771,6 +849,9 @@ impl Workflow {
         fields
     }
     pub fn choices(&self) -> Vec<ProAdminChoice> {
+        if let Some(planner) = &self.planner {
+            return planner.choices(self.editable());
+        }
         let Some(draft) = &self.draft else {
             return Vec::new();
         };
@@ -803,6 +884,9 @@ impl Workflow {
             .collect()
     }
     pub fn editor_actions(&self) -> Vec<ProAdminActionRow> {
+        if let Some(planner) = &self.planner {
+            return planner.actions(self.active.is_none());
+        }
         let Some(draft) = &self.draft else {
             return Vec::new();
         };
@@ -926,7 +1010,7 @@ pub(in crate::administration_host) async fn execute(
     let permit = job.permit;
     let effect = match &job.kind {
         JobKind::Write(_) | JobKind::Restore(_) => Effect::Mutation,
-        JobKind::History(_) | JobKind::Read(_) => Effect::Read,
+        JobKind::History(_) | JobKind::Read(_) | JobKind::Plan(_) => Effect::Read,
     };
     let result = tokio::select! {biased;()=parent.cancelled()=>Err(Error::Uncertain),result=execute_inner(session,connection,expected,job)=>result};
     Completion {
@@ -954,13 +1038,55 @@ async fn execute_inner(
         return Err(Error::Denied);
     }
     let api = connection.configuration();
-    macro_rules! call {($method:ident,$request:expr)=>{{
-        let result=tokio::select! {biased;()=job.cancel.cancelled()=>return Err(Error::Uncertain),()=lease.cancellation.cancelled()=>return Err(Error::Denied),result=api.$method($request,lease.token(),Duration::from_secs(4),&job.cancel)=>result};
+    macro_rules! call {($client:expr,$method:ident,$request:expr)=>{{
+        let client = $client;
+        let result=tokio::select! {biased;()=job.cancel.cancelled()=>return Err(Error::Uncertain),()=lease.cancellation.cancelled()=>return Err(Error::Denied),result=client.$method($request,lease.token(),Duration::from_secs(4),&job.cancel)=>result};
         match result {Ok(value)=>value,Err(error)=>{let classified=failure(&error);let _=session.observe_failure(lease.generation,&error).await;return Err(classified);}}
     }}}
     match job.kind {
+        JobKind::Plan(operation) => {
+            use home_wire_contract::{
+                config_plans::{self, PlanResponse},
+                home::configurationplan::v1 as plan,
+            };
+            let api = connection.configuration_plans();
+            let (family, identity, value) = match *operation {
+                super::planner::Operation::Build(request) => {
+                    let family = request.candidate.family;
+                    let identity = request.candidate.identity.clone();
+                    let response = call!(api, build_plan, request);
+                    config_plans::admit_plan_response(PlanResponse::Build(&response))
+                        .map_err(|_| Error::Invalid)?;
+                    (
+                        family,
+                        identity,
+                        response.plan.into_option().ok_or(Error::Invalid)?,
+                    )
+                }
+                super::planner::Operation::Revalidate(request) => {
+                    let family = request.candidate.family;
+                    let identity = request.candidate.identity.clone();
+                    let response = call!(api, revalidate_plan, request);
+                    config_plans::admit_plan_response(PlanResponse::Revalidate(&response))
+                        .map_err(|_| Error::Invalid)?;
+                    (
+                        family,
+                        identity,
+                        response.plan.into_option().ok_or(Error::Invalid)?,
+                    )
+                }
+            };
+            if value.family != family
+                || value.identity != identity
+                || value.author != lease.account_id().as_str()
+                || value.family == plan::SourceFamily::Unspecified
+            {
+                return Err(Error::Invalid);
+            }
+            Ok(Reply::Plan(Box::new(value)))
+        }
         JobKind::Write(request) => {
-            let response = call!(write_document, request);
+            let response = call!(api, write_document, request);
             configuration_contract::admit_configuration_response(ConfigurationResponse::Write(
                 &response,
             ))
@@ -971,7 +1097,7 @@ async fn execute_inner(
             })
         }
         JobKind::Restore(request) => {
-            let response = call!(restore_document, request);
+            let response = call!(api, restore_document, request);
             configuration_contract::admit_configuration_response(ConfigurationResponse::Restore(
                 &response,
             ))
@@ -983,6 +1109,7 @@ async fn execute_inner(
         }
         JobKind::History(page) => {
             let response = call!(
+                api,
                 list_generations,
                 wire::ListGenerationsRequest {
                     page: wire::PageRequest {
@@ -1002,6 +1129,7 @@ async fn execute_inner(
         }
         JobKind::Read(purpose) => {
             let response = call!(
+                api,
                 read_document,
                 wire::ReadDocumentRequest {
                     id: wire::DocumentId {
@@ -1025,10 +1153,13 @@ async fn execute_inner(
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use buffa_types::google::protobuf::Timestamp;
-    fn response(revision: i64, generation: i64) -> wire::ReadDocumentResponse {
+    pub(in crate::administration_host::configuration) fn response(
+        revision: i64,
+        generation: i64,
+    ) -> wire::ReadDocumentResponse {
         wire::ReadDocumentResponse {
             document: wire::Document {
                 id: wire::DocumentId {
