@@ -17,10 +17,20 @@ use tokio_util::sync::CancellationToken;
 pub(super) enum Selection {
     Account(AccountId),
     Integration(IntegrationId),
+    Configuration(super::configuration::Selection),
 }
 #[derive(Clone)]
 pub(super) struct PageToken(String);
 impl PageToken {
+    pub(super) fn configuration(value: &str) -> Result<Self, ReadError> {
+        if value.is_empty() || value.len() > 1200 || value.contains(['\0', '\r', '\n']) {
+            return Err(ReadError::Invalid);
+        }
+        Ok(Self(value.into()))
+    }
+    pub(super) fn as_str(&self) -> &str {
+        &self.0
+    }
     pub fn parse(value: &str) -> Result<Self, ReadError> {
         if value.is_empty() || value.len() > 512 || value.contains(['\0', '\r', '\n']) {
             return Err(ReadError::Invalid);
@@ -45,6 +55,7 @@ pub(super) enum Payload {
     },
     Integrations(Box<IntegrationList>),
     Integration(Box<IntegrationDetail>),
+    Configuration(Box<super::configuration::Payload>),
     Health(Box<observation::GetHealthResponse>),
     Metrics(Box<observation::GetMetricsResponse>),
     Logs(Box<observation::QueryRuntimeLogsResponse>),
@@ -75,7 +86,7 @@ pub(super) struct Loaded {
     pub payload: Result<Payload, ReadError>,
     pub session_generation: home_client_session::Generation,
 }
-const TIMEOUT: Duration = Duration::from_secs(4);
+pub(super) const TIMEOUT: Duration = Duration::from_secs(4);
 
 macro_rules! call {
     ($session:expr,$lease:expr,$cancel:expr,$client:expr,$method:ident,$request:expr) => {{
@@ -94,6 +105,7 @@ macro_rules! call {
         }
     }};
 }
+pub(super) use call;
 
 pub(super) async fn admitted_lease(
     session: &SessionCoordinator,
@@ -251,6 +263,17 @@ async fn read_section(
         ..Default::default()
     };
     match section {
+        Section::Configuration => {
+            let selection = match selection {
+                Some(Selection::Configuration(value)) => value,
+                Some(Selection::Account(_) | Selection::Integration(_)) | None => {
+                    super::configuration::Selection::Documents
+                }
+            };
+            super::configuration::load(session, connection, lease, selection, page, cancel)
+                .await
+                .map(|value| Payload::Configuration(Box::new(value)))
+        }
         Section::MfaPolicy => {
             let response = call!(
                 session,
@@ -393,7 +416,7 @@ async fn read_section(
                 }
                 Ok(Payload::Policy { account, response })
             }
-            Some(Selection::Integration(_)) | None => {
+            Some(Selection::Integration(_) | Selection::Configuration(_)) | None => {
                 let response = call!(
                     session,
                     lease,
@@ -485,7 +508,7 @@ async fn read_section(
                     health,
                 })))
             }
-            Some(Selection::Account(_)) | None => {
+            Some(Selection::Account(_) | Selection::Configuration(_)) | None => {
                 let types = call!(
                     session,
                     lease,

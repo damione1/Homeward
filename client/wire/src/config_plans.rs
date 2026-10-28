@@ -29,7 +29,7 @@ impl<'a> AdmittedPlanResponse<'a> {
         &self.0
     }
 }
-fn label(value: &str, max: usize) -> bool {
+pub(crate) fn label(value: &str, max: usize) -> bool {
     !value.is_empty()
         && value.len() <= max
         && value.trim() == value
@@ -38,7 +38,7 @@ fn label(value: &str, max: usize) -> bool {
 fn hash(value: &[u8]) -> bool {
     value.len() == 32 && value.iter().any(|byte| *byte != 0)
 }
-fn family(value: EnumValue<wire::SourceFamily>) -> Option<wire::SourceFamily> {
+pub(crate) fn family(value: EnumValue<wire::SourceFamily>) -> Option<wire::SourceFamily> {
     match value {
         EnumValue::Known(
             value @ (wire::SourceFamily::Operational
@@ -54,7 +54,7 @@ fn family(value: EnumValue<wire::SourceFamily>) -> Option<wire::SourceFamily> {
         EnumValue::Known(wire::SourceFamily::Unspecified) | EnumValue::Unknown(_) => None,
     }
 }
-fn candidate(value: &wire::Candidate) -> bool {
+pub(crate) fn candidate(value: &wire::Candidate) -> bool {
     if !value.__buffa_unknown_fields.is_empty()
         || family(value.family).is_none()
         || !label(&value.identity, 255)

@@ -41,6 +41,7 @@ pub mod calendars_contract;
 pub mod camera_video_contract;
 pub mod cameras_contract;
 pub mod config_plans;
+pub mod configuration_apply_contract;
 pub mod configuration_contract;
 pub mod controls_contract;
 pub mod dashboard_contract;

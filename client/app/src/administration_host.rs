@@ -1,5 +1,6 @@
 //! One session-owned settings reader. Callbacks only enqueue bounded intentions;
 //! auth, admission and joins stay on the runtime, outside the Slint event loop.
+mod configuration;
 mod forms;
 mod read;
 mod receipt;
@@ -265,69 +266,40 @@ impl Administration {
         else {
             return;
         };
-        match (&target, state.section) {
-            (render::Target::Account(id), Section::Policies) => {
-                state.selection = Some(Selection::Account(id.clone()));
-                state.request();
+        match &target {
+            render::Target::Account(id) => {
+                if state.section == Section::Policies {
+                    state.selection = Some(Selection::Account(id.clone()));
+                    state.request();
+                } else {
+                    state.selected = Some(target);
+                }
             }
-            (render::Target::Integration(id), Section::Integrations) => {
+            render::Target::Integration(id) => {
+                if state.section != Section::Integrations {
+                    return;
+                }
                 state.selection = Some(Selection::Integration(id.clone()));
                 state.request();
             }
-            (
-                render::Target::Account(_)
-                | render::Target::Session(_)
-                | render::Target::Factor(_)
-                | render::Target::Key(_)
-                | render::Target::Invitation(_),
-                Section::Account
-                | Section::Sessions
-                | Section::Factors
-                | Section::MfaPolicy
-                | Section::McpKeys
-                | Section::Accounts
-                | Section::Invitations
-                | Section::Policies
-                | Section::Integrations
-                | Section::Health
-                | Section::Metrics
-                | Section::Logs
-                | Section::Audits
-                | Section::SecretAudits,
-            ) => state.selected = Some(target),
-            (
-                render::Target::Fact(_),
-                Section::Account
-                | Section::Sessions
-                | Section::Factors
-                | Section::MfaPolicy
-                | Section::McpKeys
-                | Section::Accounts
-                | Section::Invitations
-                | Section::Policies
-                | Section::Integrations
-                | Section::Health
-                | Section::Metrics
-                | Section::Logs
-                | Section::Audits
-                | Section::SecretAudits,
-            )
-            | (
-                render::Target::Integration(_),
-                Section::Account
-                | Section::Sessions
-                | Section::Factors
-                | Section::MfaPolicy
-                | Section::McpKeys
-                | Section::Accounts
-                | Section::Invitations
-                | Section::Policies
-                | Section::Health
-                | Section::Metrics
-                | Section::Logs
-                | Section::Audits
-                | Section::SecretAudits,
-            ) => return,
+            render::Target::Configuration(selection) => {
+                if state.section != Section::Configuration {
+                    return;
+                }
+                state.selection = Some(Selection::Configuration(selection.clone()));
+                state.page = None;
+                state.request();
+            }
+            render::Target::Session(_)
+            | render::Target::Factor(_)
+            | render::Target::Key(_)
+            | render::Target::Invitation(_) => state.selected = Some(target),
+            render::Target::Fact(_) => {
+                if state.section != Section::Configuration {
+                    return;
+                }
+                state.selected = Some(target);
+            }
         }
         self.publish(&state);
     }

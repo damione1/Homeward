@@ -27,19 +27,19 @@ impl<'a> AdmittedConfigurationRequest<'a> {
     }
 }
 
-fn hash(value: &[u8]) -> bool {
+pub(crate) fn hash(value: &[u8]) -> bool {
     value.len() == 32 && value.iter().any(|byte| *byte != 0)
 }
-fn id(value: &wire::DocumentId) -> bool {
+pub(crate) fn id(value: &wire::DocumentId) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && !value.value.trim().is_empty()
         && value.value.len() <= 255
         && !value.value.contains(['\0', '\r', '\n'])
 }
-fn version(value: &wire::DocumentVersion) -> bool {
+pub(crate) fn version(value: &wire::DocumentVersion) -> bool {
     value.__buffa_unknown_fields.is_empty() && value.revision > 0 && hash(&value.source_sha256)
 }
-fn generation(value: &wire::ActiveGeneration) -> bool {
+pub(crate) fn generation(value: &wire::ActiveGeneration) -> bool {
     value.__buffa_unknown_fields.is_empty() && value.revision > 0 && hash(&value.manifest_sha256)
 }
 fn page(value: &wire::PageRequest) -> bool {
@@ -211,17 +211,8 @@ fn observable_document(document: &wire::Document) -> bool {
         | EnumValue::Unknown(_) => false,
     }
 }
-pub fn admit_configuration_read(
-    value: &wire::ReadDocumentResponse,
-) -> Result<(), ConfigurationAdmissionError> {
-    let document = value
-        .document
-        .as_option()
-        .ok_or(ConfigurationAdmissionError::Invalid)?;
-    if !value.__buffa_unknown_fields.is_empty()
-        || value.resume_token.len() != 118
-        || !value.active_generation.as_option().is_some_and(generation)
-        || !document.__buffa_unknown_fields.is_empty()
+fn admit_document(document: &wire::Document) -> Result<(), ConfigurationAdmissionError> {
+    if !document.__buffa_unknown_fields.is_empty()
         || !document.id.as_option().is_some_and(id)
         || !document.version.as_option().is_some_and(version)
         || !document.updated_at.as_option().is_some_and(timestamp)
@@ -266,6 +257,148 @@ pub fn admit_configuration_read(
         None => return Err(ConfigurationAdmissionError::Invalid),
     }
     Ok(())
+}
+pub fn admit_configuration_read(
+    value: &wire::ReadDocumentResponse,
+) -> Result<(), ConfigurationAdmissionError> {
+    if !value.__buffa_unknown_fields.is_empty()
+        || value.resume_token.len() != 118
+        || !value.active_generation.as_option().is_some_and(generation)
+    {
+        return Err(ConfigurationAdmissionError::Invalid);
+    }
+    admit_document(
+        value
+            .document
+            .as_option()
+            .ok_or(ConfigurationAdmissionError::Invalid)?,
+    )
+}
+
+pub enum ConfigurationResponse<'a> {
+    Read(&'a wire::ReadDocumentResponse),
+    Documents(&'a wire::ListDocumentsResponse),
+    Versions(&'a wire::ListVersionsResponse),
+    Generations(&'a wire::ListGenerationsResponse),
+    Schemas(&'a wire::ListSchemasResponse),
+    Write(&'a wire::WriteDocumentResponse),
+    Restore(&'a wire::RestoreDocumentResponse),
+    Watch(&'a wire::WatchConfigurationResponse),
+}
+
+fn continuation(value: &wire::PageContinuation) -> bool {
+    value.__buffa_unknown_fields.is_empty()
+        && match &value.result {
+            Some(wire::page_continuation::Result::NextPageToken(value)) => {
+                !value.is_empty() && value.len() <= 1200
+            }
+            Some(wire::page_continuation::Result::Complete(value)) => {
+                value.__buffa_unknown_fields.is_empty()
+            }
+            None => false,
+        }
+}
+
+/// Bounded metadata admission. A document projection contains no editable source.
+pub fn admit_configuration_response(
+    value: ConfigurationResponse<'_>,
+) -> Result<(), ConfigurationAdmissionError> {
+    let valid = match value {
+        ConfigurationResponse::Read(value) => return admit_configuration_read(value),
+        ConfigurationResponse::Watch(value) => return admit_configuration_watch(value),
+        ConfigurationResponse::Documents(value) => {
+            value.__buffa_unknown_fields.is_empty()
+                && value.documents.len() <= 100
+                && value.continuation.as_option().is_some_and(continuation)
+                && value
+                    .documents
+                    .iter()
+                    .all(|document| admit_document(document).is_ok())
+        }
+        ConfigurationResponse::Versions(value) => {
+            value.__buffa_unknown_fields.is_empty()
+                && value.versions.len() <= 100
+                && value.continuation.as_option().is_some_and(continuation)
+                && value.versions.iter().all(|value| {
+                    value.__buffa_unknown_fields.is_empty()
+                        && value.id.as_option().is_some_and(id)
+                        && value.version.as_option().is_some_and(version)
+                        && match value.availability {
+                            EnumValue::Known(wire::VersionAvailability::Retained) => {
+                                value.updated_at.as_option().is_some_and(timestamp)
+                                    && !value.schema_version.is_empty()
+                                    && value.schema_version.len() <= 128
+                            }
+                            EnumValue::Known(wire::VersionAvailability::Purged) => {
+                                !value.updated_at.is_set() && value.schema_version.is_empty()
+                            }
+                            EnumValue::Known(wire::VersionAvailability::Unspecified)
+                            | EnumValue::Unknown(_) => false,
+                        }
+                })
+        }
+        ConfigurationResponse::Generations(value) => {
+            value.__buffa_unknown_fields.is_empty()
+                && value.generations.len() <= 100
+                && value.continuation.as_option().is_some_and(continuation)
+                && value.generations.iter().all(|value| {
+                    value.__buffa_unknown_fields.is_empty()
+                        && value.generation.as_option().is_some_and(generation)
+                        && value.created_at.as_option().is_some_and(timestamp)
+                        && match value.availability {
+                            EnumValue::Known(
+                                wire::GenerationAvailability::Complete
+                                | wire::GenerationAvailability::PartiallyPurged,
+                            ) => true,
+                            EnumValue::Known(wire::GenerationAvailability::Unspecified)
+                            | EnumValue::Unknown(_) => false,
+                        }
+                })
+        }
+        ConfigurationResponse::Schemas(value) => {
+            value.__buffa_unknown_fields.is_empty()
+                && value.schemas.len() <= 100
+                && value.continuation.as_option().is_some_and(continuation)
+                && value.schemas.iter().all(|value| {
+                    value.__buffa_unknown_fields.is_empty()
+                        && schema(&wire::Document {
+                            kind: value.kind,
+                            schema_version: value.schema_version.clone(),
+                            syntax_profile: value.syntax_profile.clone(),
+                            ..Default::default()
+                        })
+                        && value.editable_operational_workspace
+                            == (value.kind == wire::DocumentKind::OperationalYaml)
+                })
+        }
+        ConfigurationResponse::Write(value) => {
+            value.__buffa_unknown_fields.is_empty()
+                && value
+                    .activation
+                    .as_option()
+                    .is_some_and(|value| admit_configuration_activation(value).is_ok())
+                && value
+                    .current
+                    .as_option()
+                    .is_none_or(|value| admit_configuration_read(value).is_ok())
+        }
+        ConfigurationResponse::Restore(value) => {
+            value.__buffa_unknown_fields.is_empty()
+                && value
+                    .activation
+                    .as_option()
+                    .is_some_and(|value| admit_configuration_activation(value).is_ok())
+                && value
+                    .current
+                    .as_option()
+                    .is_none_or(|value| admit_configuration_read(value).is_ok())
+        }
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(ConfigurationAdmissionError::Invalid)
+    }
 }
 pub fn admit_configuration_activation(
     value: &wire::ActivationResult,

@@ -29,6 +29,7 @@ pub enum Section {
     Invitations,
     Policies,
     Integrations,
+    Configuration,
     Health,
     Metrics,
     Logs,
@@ -36,7 +37,7 @@ pub enum Section {
     SecretAudits,
 }
 impl Section {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::Account,
         Self::Sessions,
         Self::Factors,
@@ -46,6 +47,7 @@ impl Section {
         Self::Invitations,
         Self::Policies,
         Self::Integrations,
+        Self::Configuration,
         Self::Health,
         Self::Metrics,
         Self::Logs,
@@ -63,6 +65,7 @@ impl Section {
             Self::Invitations => "Invitations",
             Self::Policies => "Droits",
             Self::Integrations => "Intégrations",
+            Self::Configuration => "Configuration",
             Self::Health => "Santé",
             Self::Metrics => "Métriques",
             Self::Logs => "Journaux",
@@ -84,6 +87,7 @@ impl Section {
             | Self::Invitations
             | Self::Policies
             | Self::Integrations
+            | Self::Configuration
             | Self::Health
             | Self::Metrics
             | Self::Logs => None,
@@ -97,6 +101,7 @@ impl Section {
             | Self::Invitations
             | Self::Policies
             | Self::Integrations
+            | Self::Configuration
             | Self::Health
             | Self::Metrics
             | Self::Logs
