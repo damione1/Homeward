@@ -247,4 +247,10 @@ impl ObservabilityTransport {
         observation::QueryAuditsRequest,
         observation::QueryAuditsResponse
     );
+    unary!(
+        read_run_trace,
+        read_run_trace_with_options,
+        observation::ReadRunTraceRequest,
+        observation::ReadRunTraceResponse
+    );
 }

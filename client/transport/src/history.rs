@@ -43,4 +43,10 @@ impl HistoryTransport {
         QueryAggregatesRequest,
         QueryAggregatesResponse
     );
+    query!(
+        query_execution_traces,
+        query_execution_traces_with_options,
+        QueryExecutionTracesRequest,
+        QueryExecutionTracesResponse
+    );
 }
