@@ -159,7 +159,9 @@ fn leases_are_exact_bounded_expiring_and_unknown_nested_data_is_not_ignored() {
         lease.live(now + Duration::from_secs(30)),
         Err(admit::AdmissionError::Expired)
     );
-    assert!(!format!("{lease:?}").contains("42"));
+    let debug = format!("{lease:?}");
+    assert!(debug.contains("[REDACTED]"));
+    assert!(!debug.contains(&format!("{:?}", valid.session.reference)));
 }
 
 #[test]
