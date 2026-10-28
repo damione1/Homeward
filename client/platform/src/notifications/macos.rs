@@ -96,13 +96,18 @@ pub(super) fn request_authorization() -> Result<Settings, Error> {
 fn identifier(id: &PresentationId) -> Retained<NSString> {
     NSString::from_str(&format!("homeward.{}", id.as_str()))
 }
-pub(super) fn submit_once(value: &Content) -> Result<Submission, Error> {
+pub(super) fn submit_once(value: &Content, scope: &PresentationScope) -> Result<Submission, Error> {
     if !settings()?.allows_delivery() {
         return Err(Error::PermissionDenied);
     }
     autoreleasepool(|_| {
         let center = center()?;
         value.check_fresh(SystemTime::now())?;
+        if !scope.current(SystemTime::now()) {
+            return Err(Error::ScopeClosed);
+        }
+        macos_delegate::install(&center)?;
+        macos_delegate::register(scope, value.id())?;
         // SAFETY: retained mutable content is private to this submission.
         let content = unsafe { UNMutableNotificationContent::new() };
         let title = NSString::from_str(&value.title);
@@ -119,16 +124,32 @@ pub(super) fn submit_once(value: &Content) -> Result<Submission, Error> {
             UNNotificationRequest::requestWithIdentifier_content_trigger(&id, &content, None)
         };
         let (sender, receiver) = mpsc::sync_channel(1);
+        let callback_scope = scope.clone();
+        let callback_id = value.id().clone();
+        let issued_at = value.issued_at;
+        let expires_at = value.expires_at;
         let callback = RcBlock::new(move |error: *mut NSError| {
+            let now = SystemTime::now();
+            if !callback_scope.current(now) || now < issued_at || now >= expires_at {
+                // A completion arriving after cancellation cannot leave an OS
+                // message behind. This is targeted cleanup, never resubmission.
+                let _ = remove(&callback_id);
+            }
             let _ = sender.try_send(error.is_null());
         });
-        // SAFETY: the OS copies the request/block. An ambiguous timeout below
-        // is never interpreted as rejection or retried by this adapter.
-        unsafe { center.addNotificationRequest_withCompletionHandler(&request, Some(&callback)) };
-        if receiver
+        // SAFETY: OS copies the request/block. The critical dispatch admission
+        // is serialized with retirement; no scope lock spans the callback wait.
+        scope.dispatch(value.id(), SystemTime::now(), || unsafe {
+            center.addNotificationRequest_withCompletionHandler(&request, Some(&callback));
+        })?;
+        let accepted = receiver
             .recv_timeout(CALLBACK_TIMEOUT)
-            .map_err(|_| Error::Timeout)?
-        {
+            .map_err(|_| Error::Timeout)?;
+        if !scope.current(SystemTime::now()) || value.check_fresh(SystemTime::now()).is_err() {
+            let _ = remove(value.id());
+            return Err(Error::ScopeClosed);
+        }
+        if accepted {
             Ok(Submission::AcceptedByOs)
         } else {
             Err(Error::NativeUnavailable)

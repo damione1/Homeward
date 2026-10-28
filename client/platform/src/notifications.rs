@@ -4,6 +4,10 @@ use std::time::{Duration, SystemTime};
 
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "macos")]
+mod macos_delegate;
+mod scope;
+pub use scope::{ForegroundEvidence, MAX_SCOPE_FRESHNESS, PresentationScope};
 
 pub const MAX_LIFETIME: Duration = Duration::from_secs(3600);
 
@@ -100,6 +104,9 @@ pub enum Error {
     InvalidContent,
     Expired,
     ClockUncertain,
+    ScopeClosed,
+    AlreadyAttempted,
+    Capacity,
 }
 impl Error {
     pub fn label(self) -> &'static str {
@@ -113,6 +120,9 @@ impl Error {
             Self::InvalidContent => "Contenu de notification non admis",
             Self::Expired => "Notification expirée",
             Self::ClockUncertain => "Fraîcheur de notification non vérifiable",
+            Self::ScopeClosed => "Présentation suspendue ; admission fraîche requise",
+            Self::AlreadyAttempted => "Une remise a déjà été tentée ; aucun renvoi",
+            Self::Capacity => "Capacité de notifications natives atteinte",
         }
     }
 }
@@ -193,15 +203,6 @@ pub fn settings() -> Result<Settings, Error> {
 pub fn request_authorization() -> Result<Settings, Error> {
     #[cfg(target_os = "macos")]
     return macos::request_authorization();
-    #[cfg(target_os = "android")]
-    return Err(Error::PendingQualification);
-    #[cfg(not(any(target_os = "macos", target_os = "android")))]
-    Err(Error::Unsupported)
-}
-pub fn submit_once(content: &Content) -> Result<Submission, Error> {
-    content.check_fresh(SystemTime::now())?;
-    #[cfg(target_os = "macos")]
-    return macos::submit_once(content);
     #[cfg(target_os = "android")]
     return Err(Error::PendingQualification);
     #[cfg(not(any(target_os = "macos", target_os = "android")))]
