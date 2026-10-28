@@ -9,6 +9,7 @@ mod calendar;
 mod calendar_host;
 mod camera;
 mod camera_host;
+mod companion_host;
 pub mod configuration;
 mod control_text;
 mod dashboard;

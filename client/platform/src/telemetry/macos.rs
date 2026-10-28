@@ -16,6 +16,49 @@ use std::{
     ptr,
 };
 
+unsafe extern "C" {
+    fn sysctlbyname(
+        name: *const std::ffi::c_char,
+        value: *mut c_void,
+        length: *mut usize,
+        new_value: *mut c_void,
+        new_length: usize,
+    ) -> i32;
+}
+fn descriptor(name: &CStr) -> Option<String> {
+    let mut bytes = [0u8; 129];
+    let mut length = bytes.len();
+    // SAFETY: read-only sysctl; bounded writable buffer and a valid C name.
+    if unsafe {
+        sysctlbyname(
+            name.as_ptr(),
+            bytes.as_mut_ptr().cast(),
+            &mut length,
+            ptr::null_mut(),
+            0,
+        )
+    } != 0
+        || !(2..=129).contains(&length)
+    {
+        return None;
+    }
+    let value = CStr::from_bytes_with_nul(&bytes[..length])
+        .ok()?
+        .to_str()
+        .ok()?;
+    if value.len() > 128 || value.chars().any(char::is_control) {
+        return None;
+    }
+    Some(value.into())
+}
+pub(super) fn device_info() -> Option<super::DeviceInfo> {
+    Some(super::DeviceInfo {
+        platform: super::Platform::MacOs,
+        model: descriptor(c"hw.model")?,
+        os_version: descriptor(c"kern.osproductversion")?,
+    })
+}
+
 #[link(name = "IOKit", kind = "framework")]
 unsafe extern "C" {
     fn IOPSCopyPowerSourcesInfo() -> CFTypeRef;

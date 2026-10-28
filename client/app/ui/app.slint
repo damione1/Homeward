@@ -298,6 +298,25 @@ export component HomewardWindow inherits Window {
     private property <bool> media-interactive: root.background-interactive && root.view-loaded && root.page == ViewPage.detail;
     changed media-interactive => { root.media-set-interactive(root.media-interactive); }
     in property <string> preferences-status;
+    in property <int> companion-generation;
+    in property <ProAdminStage> companion-stage: ProAdminStage.unavailable;
+    in property <string> companion-status;
+    in property <string> companion-notice;
+    in property <int> companion-active-index: -1;
+    in property <[TableColumn]> companion-columns;
+    in property <[TableRow]> companion-rows;
+    in property <[ProAdminActionRow]> companion-actions;
+    in property <[ProAdminField]> companion-fields;
+    in property <[ProAdminChoice]> companion-choices;
+    in property <bool> companion-editor-visible;
+    in property <string> companion-editor-title;
+    in property <[ProAdminActionRow]> companion-editor-actions;
+    callback companion-visible(bool);
+    callback companion-action(int,int,ProAdminAction);
+    callback companion-editor-action(int,int,ProAdminAction);
+    callback companion-choose(int,int,int,int);
+    callback companion-select(int,int);
+    callback companion-navigate(NavigationStep);
     in property <string> admin-title: "Réglages du serveur";
     in property <string> admin-status;
     in property <string> admin-notice;
@@ -317,7 +336,7 @@ export component HomewardWindow inherits Window {
     in property <[ProAdminActionRow]> admin-actions;
     in property <[ProAdminActionRow]> admin-editor-actions;
     private property <bool> admin-panel-visible: root.page == ViewPage.settings && root.access-stage == ProAccessStage.connected && root.background-interactive;
-    changed admin-panel-visible => { root.admin-visible(root.admin-panel-visible); }
+    changed admin-panel-visible => { root.admin-visible(root.admin-panel-visible); root.companion-visible(root.admin-panel-visible); }
     callback admin-visible(bool);
     callback admin-choose-section(int,int);
     callback admin-select(int,int);
@@ -778,6 +797,21 @@ export component HomewardWindow inherits Window {
                         KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.reduced-motion ? "Autoriser les animations" : "Réduire les animations"; activated => { root.reduced-motion = !root.reduced-motion; root.preferences-edited(); } }
                     }
                     Text { text: root.preferences-status; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+                }
+                HomewardAdministration {
+                    theme: root.theme; title: "Ce compagnon"; description: "Partage privé des capacités de cet appareil";
+                    stage: root.companion-stage; status: root.companion-status; notice: root.companion-notice;
+                    generation: root.companion-generation; active-index: root.companion-active-index;
+                    columns: root.companion-columns; rows: root.companion-rows; actions: root.companion-actions;
+                    fields: root.companion-fields; choices: root.companion-choices;
+                    selected-token: 1; editor-visible: root.companion-editor-visible; editable: root.companion-editor-visible;
+                    editor-title: root.companion-editor-title; editor-actions: root.companion-editor-actions;
+                    editor-notice: "Seules les données choisies et autorisées sont collectées. Un retrait coupe la collecte locale immédiatement.";
+                    action(t,g,a) => { root.companion-action(t,g,a); }
+                    editor-action(t,g,a) => { root.companion-editor-action(t,g,a); }
+                    choose(t,g,f,option) => { root.companion-choose(t,g,f,option); }
+                    select(t,g) => { root.companion-select(t,g); }
+                    navigate(step) => { root.companion-navigate(step); }
                 }
                 HomewardAdministration {
                     theme: root.theme; title: root.admin-title; status: root.admin-status; notice: root.admin-notice;

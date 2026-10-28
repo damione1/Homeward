@@ -52,6 +52,17 @@ func nhf021StartProxy(t *testing.T, out, data, origin string, roots *x509.CertPo
 		defer release()
 		ctx = context.WithValue(ctx, actorContextKey{}, actor)
 		r = r.WithContext(ctx)
+		if r.URL.Path == companionv1connect.CompanionServiceGetInstallationProcedure {
+			marker := filepath.Join(out, "reject-next-read")
+			if _, err := os.Stat(marker); err == nil {
+				if err := os.Remove(marker); err != nil {
+					_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnavailable))
+					return
+				}
+				_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnavailable))
+				return
+			}
+		}
 		// Fault injection only removes an actual successful response. It never
 		// causes a second call. The owner must resolve the original operation.
 		marker := filepath.Join(out, "lose-next-reply")

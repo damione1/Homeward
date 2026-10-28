@@ -313,6 +313,20 @@ pub fn sample(
 }
 
 pub struct NativeCollector;
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeviceInfo {
+    pub platform: Platform,
+    pub model: String,
+    pub os_version: String,
+}
+/// Descriptive model/OS only, never a serial/hostname/network identifier.
+/// Call from an owned worker after an explicit registration intention.
+pub fn device_info() -> Option<DeviceInfo> {
+    #[cfg(target_os = "macos")]
+    return macos::device_info();
+    #[cfg(not(target_os = "macos"))]
+    None
+}
 impl Collector for NativeCollector {
     fn battery(&mut self) -> Observation<Battery> {
         #[cfg(target_os = "macos")]
