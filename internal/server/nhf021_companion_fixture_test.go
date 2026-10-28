@@ -46,6 +46,7 @@ func nhf021StartProxy(t *testing.T, out, data, origin string, roots *x509.CertPo
 	transport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS13}}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.Transport = transport
+	nhf023ReceptionProxy(proxy, out)
 	t.Cleanup(transport.CloseIdleConnections)
 	authenticator := &sessionAuth{store: run.observed.lists.store, coordinator: run.observed.sessions}
 	path, handler := companionv1connect.NewCompanionServiceHandler(h, connect.WithReadMaxBytes(32*1024), connect.WithSendMaxBytes(32*1024))

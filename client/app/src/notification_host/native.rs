@@ -1,7 +1,32 @@
 use super::*;
 use home_client_platform::notifications as os;
 
+pub(super) trait Reception: Send + Sync {
+    /// Nonblocking: this also runs inside native presentation admission.
+    fn status(&self) -> os::ReceptionStatus;
+    fn renew(&self) -> Result<(), os::Error>;
+    /// Must revoke synchronously and enqueue native cleanup without blocking.
+    fn stop(&self);
+}
+impl Reception for os::ReceptionLease {
+    fn status(&self) -> os::ReceptionStatus {
+        self.status()
+    }
+    fn renew(&self) -> Result<(), os::Error> {
+        self.renew()
+    }
+    fn stop(&self) {
+        self.stop();
+    }
+}
+
 pub(super) trait Source: Send + Sync {
+    fn background_supported(&self) -> bool {
+        false
+    }
+    fn start_reception(&self) -> Result<Arc<dyn Reception>, os::Error> {
+        Err(os::Error::Unsupported)
+    }
     fn backend(&self) -> os::Backend;
     fn settings(&self, request: bool) -> Result<os::Settings, os::Error>;
     fn present(
@@ -14,6 +39,12 @@ pub(super) trait Source: Send + Sync {
 }
 pub(super) struct Native;
 impl Source for Native {
+    fn background_supported(&self) -> bool {
+        os::backend() == os::Backend::Android
+    }
+    fn start_reception(&self) -> Result<Arc<dyn Reception>, os::Error> {
+        Ok(Arc::new(os::ReceptionLease::start()?))
+    }
     fn backend(&self) -> os::Backend {
         os::backend()
     }

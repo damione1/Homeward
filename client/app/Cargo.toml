@@ -67,6 +67,12 @@ name = "android.permission.ACCESS_NETWORK_STATE"
 [[package.metadata.android.uses_permission]]
 name = "android.permission.POST_NOTIFICATIONS"
 
+[[package.metadata.android.uses_permission]]
+name = "android.permission.FOREGROUND_SERVICE"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
+
 [package.metadata.android.application]
 has_code = true
 label = "Homeward Dev"

@@ -32,11 +32,18 @@ pub fn initialize(app: &AndroidApp) -> Result<(), Error> {
         // copied; resource authority remains with the fresh server grant.
         env.register_native_methods(
             &class,
-            &[NativeMethod {
-                name: "notificationOpened".into(),
-                sig: "(Ljava/lang/String;)V".into(),
-                fn_ptr: opened as *mut std::ffi::c_void,
-            }],
+            &[
+                NativeMethod {
+                    name: "notificationOpened".into(),
+                    sig: "(Ljava/lang/String;)V".into(),
+                    fn_ptr: opened as *mut std::ffi::c_void,
+                },
+                NativeMethod {
+                    name: "receptionState".into(),
+                    sig: "(JZ)V".into(),
+                    fn_ptr: reception_changed as *mut std::ffi::c_void,
+                },
+            ],
         )?;
         env.call_method(activity, "attachNotifications", "()V", &[])?;
         Ok(())
@@ -44,7 +51,73 @@ pub fn initialize(app: &AndroidApp) -> Result<(), Error> {
     .map_err(Error::from)
 }
 pub fn destroyed() {
+    super::reception::destroyed();
     host::destroyed();
+}
+pub(super) fn start_reception(id: i64) -> Result<(), Error> {
+    wait(enqueue(move |context| {
+        if !context.is_alive() {
+            return Err(Error::ScopeClosed);
+        }
+        if !context.settings()?.allows_delivery() {
+            return Err(Error::PermissionDenied);
+        }
+        context
+            .with_env(|env| {
+                env.call_method(
+                    context.activity.as_obj(),
+                    "startReception",
+                    "(J)V",
+                    &[JValue::Long(id)],
+                )?;
+                Ok(())
+            })
+            .map_err(Error::from)
+    })?)
+}
+pub(super) fn renew_reception(id: i64) -> Result<(), Error> {
+    wait(enqueue(move |context| {
+        if !context.is_alive() {
+            return Err(Error::ScopeClosed);
+        }
+        let running = context.with_env(|env| {
+            env.call_method(
+                context.activity.as_obj(),
+                "renewReception",
+                "(J)Z",
+                &[JValue::Long(id)],
+            )?
+            .z()
+        })?;
+        if running {
+            Ok(())
+        } else {
+            Err(Error::ScopeClosed)
+        }
+    })?)
+}
+pub(super) fn stop_reception(id: i64) {
+    let _ = enqueue(move |context| -> Result<(), Error> {
+        context
+            .with_env(|env| {
+                env.call_method(
+                    context.activity.as_obj(),
+                    "stopReception",
+                    "(J)V",
+                    &[JValue::Long(id)],
+                )?;
+                Ok(())
+            })
+            .map_err(Error::from)
+    });
+}
+unsafe extern "system" fn reception_changed(
+    _env: JNIEnv<'_>,
+    _class: jni::objects::JClass<'_>,
+    id: jni::sys::jlong,
+    running: jni::sys::jboolean,
+) {
+    super::reception::changed(id, running != 0);
 }
 impl Context {
     fn settings(&self) -> Result<Settings, Error> {

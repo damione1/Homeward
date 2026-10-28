@@ -108,6 +108,7 @@ pub(super) fn project(state: &State) -> Projection {
     let rows = state
         .entries
         .iter()
+        .filter(|_| state.foreground)
         .filter_map(|entry| {
             let key = state.row_key(&admit::DeliveryId::parse(&entry.id.value).ok()?)?;
             let received = if entry.reception == wire::Reception::Received {
@@ -150,10 +151,19 @@ pub(super) fn project(state: &State) -> Projection {
     Projection {
         view: NotificationPresentation {
             generation: state.generation,
-            status: state.stage.label().into(),
+            status: if state.background_running() && matches!(state.stage, Stage::Ready) {
+                "Réception locale avec service Android actif · serveur de développement isolé"
+                    .into()
+            } else {
+                state.stage.label().into()
+            },
             permission: permission(&state.permission).into(),
             notice: if state.notice.is_empty() {
-                "Les messages sont propres à cette installation. La réception locale nécessite l’application au premier plan ; aucune réception permanente en arrière-plan n’est garantie.".into()
+                if state.background_supported {
+                    "Les messages sont propres à cette installation. Réception au premier plan, ou avec le service activé séparément. Aucune réception permanente en arrière-plan n’est garantie.".into()
+                } else {
+                    "Les messages sont propres à cette installation. La réception locale nécessite l’application au premier plan ; aucune réception permanente en arrière-plan n’est garantie.".into()
+                }
             } else {
                 state.notice.as_str().into()
             },
@@ -196,6 +206,21 @@ pub(super) fn project(state: &State) -> Projection {
             can_revoke: free && registered,
             confirming: state.draft.is_some(),
             confirmation: state.draft.map_or("", state::Draft::label).into(),
+            background_status: if !state.background_supported {
+                "".into()
+            } else {
+                match state.background.as_ref().map(|v| v.source.status()) {
+                    None | Some(os::ReceptionStatus::Stopped) => "Arrière-plan arrêté · activation explicite nécessaire".into(),
+                    Some(os::ReceptionStatus::Starting) => "Démarrage du service système…".into(),
+                    Some(os::ReceptionStatus::Running) => "Arrière-plan actif · notification système avec arrêt · réseau et batterie utilisés. Doze/Fire peut retarder ou arrêter la réception. Aucun redémarrage automatique.".into(),
+                }
+            },
+            can_start_background: free
+                && state.background_supported
+                && state.background.is_none()
+                && state.open_binding().is_some()
+                && admit::can_present(&state.permission),
+            can_stop_background: state.background.is_some(),
         },
         rows,
     }

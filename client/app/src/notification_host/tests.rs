@@ -173,34 +173,7 @@ fn missing_native_services_are_valid_unavailable_snapshots_not_protocol_failures
 
 #[test]
 fn native_read_intent_survives_only_a_short_same_session_activity_pause() {
-    let mut state = State {
-        active: true,
-        local_stopped: false,
-        scope: 1,
-        identity: Some((
-            AccountId::parse("synthetic-account").unwrap(),
-            SessionId::parse("synthetic-session").unwrap(),
-        )),
-        parent: Some(companion::Installation {
-            id: companion::InstallationId {
-                value: "a".repeat(32),
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        }),
-        destination: Some(wire::Destination {
-            id: wire::DestinationId {
-                value: "b".repeat(32),
-                ..Default::default()
-            }
-            .into(),
-            state: wire::DestinationState::Active.into(),
-            native_delivery: true,
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
+    let mut state = native_state();
     let binding = state.open_binding().unwrap();
     let id = admit::DeliveryId::parse(&"c".repeat(32)).unwrap();
     let now = Instant::now();
@@ -231,4 +204,138 @@ fn native_read_intent_survives_only_a_short_same_session_activity_pause() {
         SessionId::parse("another-session").unwrap(),
     ));
     assert!(!state.capture_native_open(binding, id, now));
+}
+
+fn native_state() -> State {
+    State {
+        active: true,
+        local_stopped: false,
+        scope: 1,
+        identity: Some((
+            AccountId::parse("synthetic-account").unwrap(),
+            SessionId::parse("synthetic-session").unwrap(),
+        )),
+        parent: Some(companion::Installation {
+            id: companion::InstallationId {
+                value: "a".repeat(32),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        }),
+        destination: Some(wire::Destination {
+            id: wire::DestinationId {
+                value: "b".repeat(32),
+                ..Default::default()
+            }
+            .into(),
+            state: wire::DestinationState::Active.into(),
+            native_delivery: true,
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
+#[derive(Default)]
+struct InjectedReception(std::sync::atomic::AtomicBool);
+impl native::Reception for InjectedReception {
+    fn status(&self) -> os::ReceptionStatus {
+        if self.0.load(Ordering::Acquire) {
+            os::ReceptionStatus::Running
+        } else {
+            os::ReceptionStatus::Stopped
+        }
+    }
+    fn renew(&self) -> Result<(), os::Error> {
+        if self.0.load(Ordering::Acquire) {
+            Ok(())
+        } else {
+            Err(os::Error::ScopeClosed)
+        }
+    }
+    fn stop(&self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+fn reception() -> Arc<InjectedReception> {
+    Arc::new(InjectedReception(std::sync::atomic::AtomicBool::new(true)))
+}
+
+#[test]
+fn background_is_separately_confirmed_and_never_revives_after_os_stop() {
+    use native::Reception;
+    let mut state = native_state();
+    state.visible = true;
+    state.background_supported = true;
+    state.permission = native::permission_for(
+        Ok(os::Settings {
+            permission: os::Permission::Authorized,
+            alerts: os::Setting::Disabled,
+            notification_center: os::Setting::Enabled,
+        }),
+        os::Backend::Android,
+    );
+    state.action(state.generation, NotificationAction::StartBackground);
+    assert!(matches!(state.draft, Some(state::Draft::Background)));
+    assert!(state.intent.is_none());
+    state.action(state.generation, NotificationAction::Confirm);
+    assert!(matches!(state.intent.take(), Some(Intent::Background)));
+    let source = reception();
+    let binding = state.open_binding().unwrap();
+    assert!(state.install_background(source.clone(), binding));
+    assert!(state.background_running());
+    state.foreground = false;
+    state.interrupt_reads();
+    assert!(state.can_receive());
+    assert!(matches!(state.plan(), Some(Job::Read)));
+    source.stop();
+    assert!(!state.can_receive());
+    assert!(state.reconcile_background());
+    assert!(state.background.is_none());
+    state.running = false;
+    assert!(state.plan().is_none());
+    assert!(source.renew().is_err());
+    // Returning to the UI never re-creates a stopped service.
+    state.foreground = true;
+    assert!(!state.reconcile_background());
+    assert!(state.background.is_none());
+    assert!(state.intent.is_none());
+}
+
+#[test]
+fn background_cannot_cross_owner_binding_or_outlive_local_withdrawal() {
+    use native::Reception;
+    for action in [
+        NotificationAction::Disable,
+        NotificationAction::Revoke,
+        NotificationAction::StopBackground,
+    ] {
+        let mut state = native_state();
+        state.visible = true;
+        let source = reception();
+        assert!(state.install_background(source.clone(), state.open_binding().unwrap()));
+        state.running = true; // withdrawal must also work during an in-flight receipt
+        if action == NotificationAction::Revoke {
+            state.running = false;
+        }
+        state.action(state.generation, action);
+        assert_eq!(source.status(), os::ReceptionStatus::Stopped);
+        assert!(state.background.is_none());
+    }
+    let mut state = native_state();
+    let source = reception();
+    assert!(state.install_background(source.clone(), state.open_binding().unwrap()));
+    state.identity = Some((
+        AccountId::parse("another-account").unwrap(),
+        SessionId::parse("another-session").unwrap(),
+    ));
+    assert!(!state.background_running());
+    assert!(state.reconcile_background());
+    assert_eq!(source.status(), os::ReceptionStatus::Stopped);
+    let source = reception();
+    assert!(state.install_background(source.clone(), state.open_binding().unwrap()));
+    state.clear();
+    assert_eq!(source.status(), os::ReceptionStatus::Stopped);
+    assert!(state.background.is_none());
 }

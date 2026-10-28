@@ -42,6 +42,7 @@ pub(super) enum Draft {
     Permission,
     Enable,
     Revoke,
+    Background,
 }
 impl Draft {
     pub fn label(self) -> &'static str {
@@ -60,11 +61,22 @@ impl Draft {
                     "Les notifications natives ne sont pas disponibles sur cet appareil."
                 }
             },
-            Self::Enable => {
-                "Activer la présentation native des nouveaux messages encore valides ? La réception nécessite Homeward au premier plan."
-            }
+            Self::Enable => match os::backend() {
+                os::Backend::Android => {
+                    "Activer la présentation native des nouveaux messages encore valides ? La réception utilise Homeward au premier plan, ou le service Android activé séparément."
+                }
+                os::Backend::MacOs => {
+                    "Activer la présentation native des nouveaux messages encore valides ? La réception nécessite Homeward au premier plan."
+                }
+                os::Backend::Unavailable => {
+                    "La présentation native n’est pas disponible sur cet appareil."
+                }
+            },
             Self::Revoke => {
                 "Révoquer cette destination et retirer son inbox ? La présentation locale est déjà arrêtée."
+            }
+            Self::Background => {
+                "Garder la réception locale active avec une notification système et un bouton d’arrêt ? Ce mode consomme du réseau et de la batterie. Android/Fire peut le retarder ou l’arrêter, notamment en Doze. Aucun redémarrage automatique après fermeture ou arrêt du système."
             }
         }
     }
@@ -76,6 +88,7 @@ pub(super) enum Intent {
     Enable,
     Disable,
     Revoke,
+    Background,
     Row(admit::DeliveryId, NotificationRowAction),
 }
 #[derive(Clone)]
@@ -147,6 +160,11 @@ pub(super) struct NativeOpen {
     id: admit::DeliveryId,
     until: Instant,
 }
+pub(super) struct Background {
+    binding: OpenBinding,
+    pub source: Arc<dyn native::Reception>,
+    observed: os::ReceptionStatus,
+}
 pub(super) struct State {
     pub scope: u64,
     pub fence: u64,
@@ -174,6 +192,8 @@ pub(super) struct State {
     pub resolution_attempted: bool,
     pub local_stopped: bool,
     pub native: Option<os::PresentationScope>,
+    pub background_supported: bool,
+    pub background: Option<Background>,
     pub(super) native_open: Option<NativeOpen>,
     pub native_stop: CancellationToken,
     pub cleanup: Vec<os::PresentationId>,
@@ -213,6 +233,8 @@ impl Default for State {
             resolution_attempted: false,
             local_stopped: true,
             native: None,
+            background_supported: false,
+            background: None,
             native_open: None,
             native_stop: CancellationToken::new(),
             cleanup: Vec::new(),
@@ -226,6 +248,72 @@ impl Default for State {
     }
 }
 impl State {
+    pub fn background_running(&self) -> bool {
+        self.background.as_ref().is_some_and(|value| {
+            value.source.status() == os::ReceptionStatus::Running
+                && self.open_binding().as_ref() == Some(&value.binding)
+        })
+    }
+    pub fn can_receive(&self) -> bool {
+        self.foreground || self.background_running()
+    }
+    pub fn stop_background(&mut self) {
+        if let Some(value) = self.background.take() {
+            value.source.stop();
+        }
+    }
+    pub fn install_background(
+        &mut self,
+        source: Arc<dyn native::Reception>,
+        binding: OpenBinding,
+    ) -> bool {
+        if !self.foreground
+            || self.background.is_some()
+            || self.open_binding().as_ref() != Some(&binding)
+        {
+            source.stop();
+            return false;
+        }
+        self.stop_native();
+        let observed = source.status();
+        self.background = Some(Background {
+            source,
+            binding,
+            observed,
+        });
+        self.requested = true;
+        self.bump();
+        true
+    }
+    pub fn reconcile_background(&mut self) -> bool {
+        let Some(value) = self.background.as_ref() else {
+            return false;
+        };
+        let status = value.source.status();
+        if status == os::ReceptionStatus::Stopped
+            || self.open_binding().as_ref() != Some(&value.binding)
+        {
+            self.stop_background();
+            self.interrupt();
+            self.requested = self.foreground;
+            self.notice = "Réception en arrière-plan arrêtée. Réactivez-la explicitement pour reprendre ; aucun démarrage automatique.".into();
+            if !self.foreground {
+                self.entries.clear();
+                self.stage = Stage::Suspended;
+            }
+            return true;
+        }
+        if status != value.observed {
+            self.background
+                .as_mut()
+                .expect("observed background")
+                .observed = status;
+            self.requested = true;
+            self.bump();
+            return true;
+        }
+        false
+    }
     pub fn open_binding(&self) -> Option<OpenBinding> {
         let destination = self.destination.as_ref()?;
         if !self.active
@@ -298,6 +386,7 @@ impl State {
         self.stage = Stage::Invalid;
         self.row_keys.clear();
         self.cancel.cancel();
+        self.stop_background();
         self.stop_native();
     }
     fn sync_row_keys(&mut self) -> bool {
@@ -358,6 +447,9 @@ impl State {
     }
     pub fn interrupt(&mut self) {
         self.stop_native();
+        self.interrupt_reads();
+    }
+    pub fn interrupt_reads(&mut self) {
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
         self.fence = self.fence.saturating_add(1);
@@ -371,6 +463,7 @@ impl State {
         }
     }
     pub fn clear(&mut self) {
+        self.stop_background();
         self.native_open = None;
         self.interrupt();
         self.active = false;
@@ -392,6 +485,7 @@ impl State {
         self.permission = native::permission(Err(os::Error::Unsupported));
     }
     pub fn invalid(&mut self) {
+        self.stop_background();
         self.native_open = None;
         self.interrupt();
         self.local_stopped = true;
@@ -430,11 +524,19 @@ impl State {
             return;
         }
         if action == NotificationAction::Disable {
+            self.stop_background();
             self.local_stopped = true;
             self.interrupt();
             self.intent = Some(Intent::Disable);
             self.requested = true;
             self.bump();
+            return;
+        }
+        if action == NotificationAction::StopBackground {
+            self.stop_background();
+            self.interrupt();
+            self.requested = true;
+            self.notice = "Réception en arrière-plan arrêtée localement. La réception normale au premier plan reste distincte.".into();
             return;
         }
         if self.running {
@@ -477,6 +579,7 @@ impl State {
                     .is_some_and(|d| d.state == wire::DestinationState::Active)
                 {
                     self.local_stopped = true;
+                    self.stop_background();
                     self.stop_native();
                     self.draft = Some(Draft::Revoke);
                 }
@@ -488,13 +591,27 @@ impl State {
                         Draft::Permission => Intent::Permission,
                         Draft::Enable => Intent::Enable,
                         Draft::Revoke => Intent::Revoke,
+                        Draft::Background => Intent::Background,
                     });
                 }
             }
             NotificationAction::Cancel => {
                 self.draft = None;
             }
+            NotificationAction::StartBackground => {
+                if self.background_supported
+                    && self.background.is_none()
+                    && self.open_binding().is_some()
+                    && admit::can_present(&self.permission)
+                    && self.pending.is_none()
+                {
+                    self.draft = Some(Draft::Background);
+                }
+            }
             NotificationAction::Disable => unreachable!("withdrawal handled before the busy gate"),
+            NotificationAction::StopBackground => {
+                unreachable!("service stop handled before busy gate")
+            }
         }
         self.bump();
     }
@@ -536,7 +653,7 @@ impl State {
             self.running = true;
             return Some(Job::Cleanup(std::mem::take(&mut self.cleanup)));
         }
-        if !self.active || !self.foreground {
+        if !self.active || !self.can_receive() {
             return None;
         }
         if self.pending.is_some() {

@@ -211,3 +211,16 @@ fn wall_clock_gap_expires_values_even_if_monotonic_deadline_has_not_elapsed() {
     assert_eq!(state.gate, Gate::NeedsRead);
     assert!(matches!(state.plan(Instant::now()), Some(Job::Read)));
 }
+
+#[test]
+fn suspension_cancels_telemetry_without_withdrawing_independent_notification_metadata() {
+    let mut state = State::default();
+    let collection = state.cancel.clone();
+    let notification = state.notification_cancel.clone();
+    state.foreground(false);
+    assert!(collection.is_cancelled());
+    assert!(!notification.is_cancelled());
+    assert!(state.plan(Instant::now()).is_none());
+    state.clear();
+    assert!(notification.is_cancelled());
+}

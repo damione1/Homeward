@@ -37,7 +37,7 @@ impl Run<'_> {
         if state.scope != self.ticket.scope
             || state.fence != self.ticket.fence
             || !state.active
-            || !state.foreground
+            || !state.can_receive()
             || state.validated != Some(self.lease.generation)
             || self.stop.is_cancelled()
             || self.lease.cancellation.is_cancelled()
@@ -98,6 +98,7 @@ impl Run<'_> {
         }
         let mut state = self.owner.0.state.lock().expect("notification permission");
         if !admit::can_present(&value) {
+            state.stop_background();
             state.stop_native();
         }
         state.permission = value.clone();
@@ -150,6 +151,7 @@ impl Run<'_> {
             }
         }
         if !value.native_delivery || value.state != wire::DestinationState::Active {
+            state.stop_background();
             state.stop_native();
         }
         if value.state != wire::DestinationState::Active {
@@ -519,6 +521,22 @@ impl Run<'_> {
                 self.update(desired, permission.clone()).await?;
             }
             self.native_scope(&parent, &self.destination()?, &permission)?;
+            let background = self
+                .owner
+                .0
+                .state
+                .lock()
+                .expect("notification service renewal")
+                .background
+                .as_ref()
+                .map(|value| value.source.clone());
+            if let Some(background) = background {
+                tokio::task::spawn_blocking(move || background.renew())
+                    .await
+                    .map_err(|_| Error::Invalid)?
+                    .map_err(Error::Native)?;
+                self.check()?;
+            }
             self.inbox().await
         } else {
             let value = call!(
@@ -688,6 +706,7 @@ impl Run<'_> {
             let native = self.lease.cancellation.clone();
             let owner = state.native_stop.clone();
             let parent = self.parent.cancellation.clone();
+            let reception = state.background.as_ref().map(|value| value.source.clone());
             state.native_parent_stop = Some(parent.clone());
             let binding = state.open_binding().ok_or(Error::Invalid)?;
             let target = Arc::downgrade(&self.owner.0);
@@ -706,7 +725,14 @@ impl Run<'_> {
                 }
             });
             state.native = Some(os::PresentationScope::with_open_handler(
-                move || !native.is_cancelled() && !owner.is_cancelled() && !parent.is_cancelled(),
+                move || {
+                    !native.is_cancelled()
+                        && !owner.is_cancelled()
+                        && !parent.is_cancelled()
+                        && reception
+                            .as_ref()
+                            .is_none_or(|source| source.status() == os::ReceptionStatus::Running)
+                },
                 on_open,
             ));
         }
@@ -891,6 +917,39 @@ impl Run<'_> {
     async fn intent(&self, intent: Intent) -> Result<(), Error> {
         self.fresh_parent().await?;
         match intent {
+            Intent::Background => {
+                // Resolve the current parent/destination/permission first; a
+                // service is neither a new session nor server authority.
+                self.read().await?;
+                let binding = self
+                    .owner
+                    .0
+                    .state
+                    .lock()
+                    .expect("notification service binding")
+                    .open_binding()
+                    .ok_or(Error::Invalid)?;
+                let source = self.owner.0.source.clone();
+                let reception = tokio::task::spawn_blocking(move || source.start_reception())
+                    .await
+                    .map_err(|_| Error::Invalid)?
+                    .map_err(Error::Native)?;
+                if let Err(error) = self.check() {
+                    reception.stop();
+                    return Err(error);
+                }
+                let mut state = self
+                    .owner
+                    .0
+                    .state
+                    .lock()
+                    .expect("notification service installation");
+                if !state.install_background(reception, binding) {
+                    return Err(Error::Cancelled);
+                }
+                self.owner.post(&state);
+                Ok(())
+            }
             Intent::Register => {
                 let permission = self.settings(false).await?;
                 self.write(Pending::Register(Box::new(
@@ -1031,6 +1090,7 @@ impl Notifications {
                     }
                     Error::Invalid => state.invalid(),
                     Error::Parent => {
+                        state.stop_background();
                         state.entries.clear();
                         state.parent = None;
                         state.stage = Stage::WaitingParent;

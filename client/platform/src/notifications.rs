@@ -10,7 +10,9 @@ pub use android::{destroyed, initialize};
 mod macos;
 #[cfg(target_os = "macos")]
 mod macos_delegate;
+mod reception;
 mod scope;
+pub use reception::{RECEPTION_IDLE_LIMIT, ReceptionLease, ReceptionStatus};
 pub use scope::{ForegroundEvidence, MAX_SCOPE_FRESHNESS, OpenIntentHandler, PresentationScope};
 
 pub const MAX_LIFETIME: Duration = Duration::from_secs(3600);

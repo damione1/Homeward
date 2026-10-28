@@ -52,6 +52,41 @@ class Presentation(IntEnum):
     PERMISSION_DENIED = 5
     UNAVAILABLE = 6
 
+class Reception(IntEnum):
+    NOT_RECEIVED = 1
+    RECEIVED = 2
+
+class Cadence(IntEnum):
+    SECONDS_30 = 1
+    MINUTE_1 = 2
+    MINUTES_5 = 3
+
+    def seconds(self):
+        match self:
+            case Cadence.SECONDS_30:
+                return 30
+            case Cadence.MINUTE_1:
+                return 60
+            case Cadence.MINUTES_5:
+                return 300
+        raise AssertionError('Unhandled companion cadence')
+
+class Mode(Enum):
+    FOREGROUND = 'foreground'
+    BACKGROUND = 'background'
+    BACKGROUND_REFRESH = 'background-refresh'
+
+    def __str__(self):
+        return self.value
+
+    def background(self):
+        match self:
+            case Mode.FOREGROUND:
+                return False
+            case Mode.BACKGROUND | Mode.BACKGROUND_REFRESH:
+                return True
+        raise AssertionError('Unhandled reception qualification mode')
+
 
 class FailurePolicy(Enum):
     STOP = 'stop'
@@ -61,7 +96,9 @@ class FailurePolicy(Enum):
         return self.value
 
 
-def qualify(policy=FailurePolicy.STOP):
+def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
+    if not isinstance(mode, Mode):
+        raise TypeError('Qualification mode enum required')
     proof = CACHE / ('android-owner-' + str(time.time_ns()))
     proof.mkdir(mode=0o700)
     shutil.copy2(__file__, proof / 'driver.py')
@@ -75,6 +112,7 @@ def qualify(policy=FailurePolicy.STOP):
     ui = None
     sequence = 0
     (proof / 'artifacts.json').write_text(json.dumps(dict(apk_sha256=SHARED['sha'](apk), server_sha256=SHARED['sha'](binary)), indent=2) + '\n')
+    (proof / 'mode.json').write_text(json.dumps(dict(mode=mode.value)) + '\n')
 
     def control(value):
         if not isinstance(value, Control):
@@ -144,10 +182,71 @@ def qualify(policy=FailurePolicy.STOP):
     def text(value):
         DEVICE('shell', 'input', 'text', shlex.quote(value.replace(' ', '%s')))
 
+    def service(expected, name):
+        deadline = time.monotonic() + 10
+        while True:
+            value = DEVICE('shell', 'dumpsys', 'activity', 'services', PACKAGE).stdout
+            actual = 'HomewardReceptionService' in value and 'isForeground=true' in value
+            if actual is expected and (expected or 'HomewardReceptionService' not in value):
+                (proof / (name + '.txt')).write_text(value)
+                return
+            if time.monotonic() >= deadline:
+                (proof / (name + '-failed.txt')).write_text(value)
+                raise RuntimeError('Actual OS foreground service state missing: ' + name)
+            time.sleep(.15)
+
+    def stop_service_from_os():
+        # HOME is asynchronous. Wait for that transition before asking SystemUI
+        # to expand, otherwise the pending HOME can collapse the new shade.
+        time.sleep(.5)
+        DEVICE('shell', 'cmd', 'statusbar', 'expand-notifications')
+        deadline = time.monotonic() + 10
+        expanded = False
+        while True:
+            DEVICE('shell', 'uiautomator', 'dump', '/sdcard/homeward-reception.xml', check=False)
+            raw = DEVICE('shell', 'cat', '/sdcard/homeward-reception.xml', check=False).stdout
+            try:
+                tree = ET.fromstring(raw)
+            except ET.ParseError:
+                tree = None
+            nodes = [] if tree is None else list(tree.iter('node'))
+            button = next((n for n in nodes if INPUT['normalized'](n.get('text', '')) == INPUT['normalized']('Arrêter l’arrière-plan') and n.get('package') == 'com.android.systemui'), None)
+            if button is not None:
+                bounds = list(map(int, re.findall(r'\d+', button.get('bounds', ''))))
+                if len(bounds) != 4:
+                    raise RuntimeError('Invalid OS stop action bounds')
+                point = [(bounds[0] + bounds[2]) // 2, (bounds[1] + bounds[3]) // 2]
+                if not (0 <= point[0] < 1280 and 0 <= point[1] < 800):
+                    raise RuntimeError('OS stop action outside owned display')
+                (proof / 'background-os-stop.xml').write_text(raw)
+                ui.capture('background-os-stop')
+                DEVICE('shell', 'input', 'tap', *point)
+                (proof / 'background-os-stop.json').write_text(json.dumps(dict(bounds=bounds, point=point)) + '\n')
+                return
+            title = next((n for n in nodes if n.get('text') == 'Réception Homeward active' and n.get('package') == 'com.android.systemui'), None)
+            if title is None:
+                DEVICE('shell', 'cmd', 'statusbar', 'expand-notifications')
+            if not expanded and title is not None:
+                parents = {child: parent for parent in tree.iter() for child in parent}
+                ancestor, node = title, None
+                while ancestor in parents and node is None:
+                    ancestor = parents[ancestor]
+                    node = next((n for n in ancestor.iter('node') if n.get('resource-id') == 'android:id/expand_button' and n.get('content-desc') == 'Expand'), None)
+                if node is not None:
+                    bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
+                    if len(bounds) == 4:
+                        DEVICE('shell', 'input', 'tap', (bounds[0] + bounds[2]) // 2, (bounds[1] + bounds[3]) // 2)
+                        expanded = True
+            if time.monotonic() >= deadline:
+                (proof / 'background-os-stop-failed.xml').write_text(raw)
+                ui.capture('background-os-stop-failed')
+                raise RuntimeError('Actual SystemUI stop action missing')
+            time.sleep(.15)
+
     try:
         with (proof / 'server.log').open('wb') as log:
             server = subprocess.Popen([str(binary), '-test.run=^TestNHF022NotificationServer$', '-test.v', '-test.timeout=11m'],
-                cwd=ROOT / 'internal/server', env=dict(os.environ, HOMEWARD_NHF022_FIXTURE=str(fixture), HOMEWARD_NHF022_SYNTHETIC_ONLY='1'),
+                cwd=ROOT / 'internal/server', env=dict(os.environ, HOMEWARD_NHF022_FIXTURE=str(fixture), HOMEWARD_NHF022_SYNTHETIC_ONLY='1', HOMEWARD_NHF023_BACKGROUND_REFRESH='1' if mode is Mode.BACKGROUND_REFRESH else '0'),
                 stdout=log, stderr=subprocess.STDOUT)
             private = SHARED['wait_file'](fixture / 'ready.json', server, timeout=120)
             origin = urlsplit(private['origin'])
@@ -234,9 +333,43 @@ def qualify(policy=FailurePolicy.STOP):
                     tap('Activer les notifications natives')
                     tap('Confirmer')
                     state('native-enabled', lambda s: s['destinations'][0].get('native_delivery', False))
+                    if mode.background():
+                        top()
+                        tap('Recevoir en arrière-plan')
+                        tap('Confirmer')
+                        service(True, 'background-service-running')
+                        DEVICE('shell', 'input', 'keyevent', 'KEYCODE_HOME')
+                        time.sleep(.5)
+                        activities = DEVICE('shell', 'dumpsys', 'activity', 'activities').stdout
+                        if re.search(r'mResumedActivity:.*' + re.escape(PACKAGE), activities):
+                            raise RuntimeError('Homeward remained the resumed Activity')
+                        (proof / 'background-activity-hidden.txt').write_text(activities)
+                        before_background = control(Control.OBSERVE)
+                        background_started = time.monotonic()
+                        cadence = Cadence(before_background['installations'][0]['consent']['cadence'])
+                        if mode is Mode.BACKGROUND_REFRESH and (fixture / 'background-refresh-observed.json').exists():
+                            raise RuntimeError('Credentials refreshed before hiding the Activity; no background refresh proof')
+                        # Observe at least the actual selected cadence; default
+                        # UI registration uses60s, not the protocol minimum30s.
+                        while time.monotonic() - background_started < cadence.seconds() + 5:
+                            time.sleep(.25)
+                        if mode is Mode.BACKGROUND_REFRESH:
+                            SHARED['wait_file'](fixture / 'background-refresh-observed.json', server, timeout=210)
+                            refreshed = json.loads((fixture / 'background-refresh-observed.json').read_text())
+                            if refreshed['native_refresh_http_200'] != 1:
+                                raise RuntimeError('Unexpected native refresh call count')
+                            (proof / 'background-native-refresh.json').write_text(json.dumps(refreshed) + '\n')
+                        after_background = control(Control.OBSERVE)
+                        if after_background['companion_counts']['publications'] != before_background['companion_counts']['publications']:
+                            raise RuntimeError('Companion collected while Activity was suspended')
+                        service(True, 'background-service-after-cadence')
+                        (proof / 'background-telemetry-stopped.json').write_text(json.dumps(dict(before=before_background['companion_counts'], after=after_background['companion_counts'], cadence_seconds=cadence.seconds(), observed_seconds=time.monotonic() - background_started), indent=2) + '\n')
+                    seeded_at = time.monotonic()
                     control(Control.SEED_NOMINAL)
                     delivered = state('native-os-accepted', lambda s: any(e['title'] == 'Notification synthétique' and Presentation(e['presentation']) is Presentation.OS_ACCEPTED for e in s['deliveries']))
                     message = next(e for e in delivered['deliveries'] if e['title'] == 'Notification synthétique')
+                    if mode.background():
+                        (proof / 'background-reception.json').write_text(json.dumps(dict(synthetic_seed_to_os_receipt_seconds=time.monotonic() - seeded_at, activity_hidden=True, foreground_service=True, hardware_budget=False), indent=2) + '\n')
                     tag = 'homeward.' + message['id']['value']
                     # getActiveNotifications includes queued/snoozed records.
                     # The owned-emulator diagnostic must observe the posted list,
@@ -290,11 +423,25 @@ def qualify(policy=FailurePolicy.STOP):
                         if time.monotonic() >= deadline:
                             raise RuntimeError('Fresh native navigation grant did not reach the UI')
                         time.sleep(.15)
+                    if mode.background():
+                        DEVICE('shell', 'input', 'keyevent', 'KEYCODE_HOME')
+                        service(True, 'background-service-before-os-stop')
+                        stop_service_from_os()
+                        service(False, 'background-service-stopped-by-os-action')
+                        control(Control.SEED_ENTITY)
+                        time.sleep(6)
+                        state('background-stop-no-reception', lambda s: any(e['title'] == 'Ressource synthétique' and Reception(e['reception']) is Reception.NOT_RECEIVED and Presentation(e['presentation']) is Presentation.NOT_ATTEMPTED for e in s['deliveries']))
+                        service(False, 'background-service-not-restarted')
+                        DEVICE('shell', 'cmd', 'statusbar', 'collapse')
+                        DEVICE('shell', 'am', 'start', '-W', '-n', PACKAGE + '/' + SESSION['ACTIVITY'])
+                        state('foreground-reception-resumes-without-service', lambda s: any(e['title'] == 'Ressource synthétique' and Reception(e['reception']) is Reception.RECEIVED for e in s['deliveries']))
+                        service(False, 'foreground-does-not-restart-service')
                     settings()
                     top()
                     tap('Arrêter la présentation')
+                    prior_ids = {e['id']['value'] for e in control(Control.OBSERVE)['deliveries']}
                     control(Control.SEED_ENTITY)
-                    state('local-stop-no-new-presentation', lambda s: any(e['title'] == 'Ressource synthétique' and Presentation(e['presentation']) is Presentation.NOT_ATTEMPTED and e['reception'] == 2 for e in s['deliveries']))
+                    state('local-stop-no-new-presentation', lambda s: any(e['id']['value'] not in prior_ids and e['title'] == 'Ressource synthétique' and Presentation(e['presentation']) is Presentation.NOT_ATTEMPTED and Reception(e['reception']) is Reception.RECEIVED for e in s['deliveries']))
                     top()
                     tap('Révoquer la destination')
                     tap('Confirmer')
@@ -331,7 +478,9 @@ def qualify(policy=FailurePolicy.STOP):
             result = dict(status='PASS_PENDING_VISUAL_INSPECTION', actual_rust_go_tls=True, native_android_collectors=True,
                 actual_os_permission=True, os_submission_receipt=True, native_center_visibility_qualified=True, default_consents_off=True,
                 local_stop_and_revocation=True, physical_device=False, native_os_click_qualified=True,
-                background_qualified=False, isolation=isolation, children_joined=True)
+                background_qualified=mode.background(), native_background_refresh_qualified=mode is Mode.BACKGROUND_REFRESH,
+                background_scope='Owned API35 emulator, live process, user-started foreground service; no persistent delivery/Doze/physical hardware claim' if mode.background() else None,
+                isolation=isolation, children_joined=True)
             (proof / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
             print('PASS ' + str(proof), flush=True)
     finally:
@@ -344,4 +493,6 @@ def qualify(policy=FailurePolicy.STOP):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--failure-policy', type=FailurePolicy, choices=list(FailurePolicy), default=FailurePolicy.STOP)
-    qualify(parser.parse_args().failure_policy)
+    parser.add_argument('--mode', type=Mode, choices=list(Mode), default=Mode.FOREGROUND)
+    args = parser.parse_args()
+    qualify(args.failure_policy, args.mode)

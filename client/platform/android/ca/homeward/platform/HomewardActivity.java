@@ -39,8 +39,28 @@ public final class HomewardActivity extends NativeActivity {
         Surface(int code) { this.code = code; }
     }
     private boolean nativeReady;
+    private volatile boolean resumed;
     private boolean permissionPending;
     private native void notificationOpened(String opaqueId);
+    private static native void receptionState(long owner, boolean running);
+    static void receptionChanged(long owner, boolean running) { receptionState(owner, running); }
+    public void startReception(long owner) {
+        runOnUiThread(() -> {
+            if (isDestroyed() || isFinishing() || !hasWindowFocus()) { receptionChanged(owner, false); return; }
+            HomewardReceptionService.authorize(owner);
+            try {
+                startForegroundService(new Intent(this, HomewardReceptionService.class)
+                    .setAction(HomewardReceptionService.START).putExtra(HomewardReceptionService.OWNER, owner));
+            } catch (RuntimeException refused) {
+                HomewardReceptionService.revoke(getApplicationContext(), owner);
+                receptionChanged(owner, false);
+            }
+        });
+    }
+    public boolean renewReception(long owner) { return HomewardReceptionService.renew(owner); }
+    public void stopReception(long owner) { HomewardReceptionService.revoke(getApplicationContext(), owner); }
+    @Override protected void onResume() { resumed = true; super.onResume(); }
+    @Override protected void onPause() { resumed = false; super.onPause(); }
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -52,6 +72,7 @@ public final class HomewardActivity extends NativeActivity {
         acceptIntent(intent);
     }
     @Override protected void onDestroy() {
+        HomewardReceptionService.stopAll(getApplicationContext());
         nativeReady = false;
         pendingOpens.clear();
         super.onDestroy();
@@ -111,6 +132,7 @@ public final class HomewardActivity extends NativeActivity {
     }
     public void postNotification(String id, String title, String body, long lifetimeMillis) {
         if (isDestroyed() || isFinishing() || lifetimeMillis <= 0) throw new IllegalStateException("Activity no longer admits a notification");
+        if (!resumed && !HomewardReceptionService.active()) throw new IllegalStateException("No foreground reception authority");
         Intent intent = new Intent(this, HomewardActivity.class);
         intent.setAction("ca.homeward.OPEN." + id);
         intent.putExtra(CLICK, id);
