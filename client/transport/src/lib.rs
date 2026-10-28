@@ -13,6 +13,7 @@ mod dashboard;
 mod failure;
 mod history;
 mod lists;
+mod logic;
 mod media;
 mod reconnect;
 pub use actions::{ActionTransport, ActionWatch};
@@ -34,6 +35,7 @@ pub use dashboard::{DashboardTransport, DashboardWatch};
 pub use failure::{DetailFailure, Failure, FailureKind};
 pub use history::HistoryTransport;
 pub use lists::{ListTransport, ListWatch};
+pub use logic::LogicTransport;
 pub use media::MediaTransport;
 pub use reconnect::ReconnectPolicy;
 
@@ -41,6 +43,9 @@ pub use reconnect::ReconnectPolicy;
 #[rustfmt::skip]
 pub mod services {
     pub mod home {
+        pub mod logic {
+            pub mod v1 { include!("generated/home.logic.v1.rs"); }
+        }
         pub mod configuration {
             pub mod v1 { include!("generated/home.configuration.v1.rs"); }
         }
