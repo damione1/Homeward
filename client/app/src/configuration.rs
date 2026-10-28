@@ -357,13 +357,19 @@ impl Receipt {
                 return Err(Refusal::Invalid);
             }
             if let Some(published) = current.as_ref() {
-                if !published.document().active
-                    || revision != published.active.revision
-                    || revision == previous.active.revision && published.active != previous.active
+                if published.active.revision < previous.active.revision
+                    || published.active.revision == previous.active.revision
+                        && published.active != previous.active
                 {
                     return Err(Refusal::Invalid);
                 }
-                Some(PublicationEvidence::Observed(published.active.clone()))
+                if revision == published.active.revision {
+                    Some(PublicationEvidence::Observed(published.active.clone()))
+                } else {
+                    // Apply and its follow-up Read are separate cuts. A later
+                    // publication does not erase this attempt's known result.
+                    Some(PublicationEvidence::Reported { revision })
+                }
             } else {
                 // Published is an authoritative business result even when the
                 // following metadata read failed. Never invent its manifest.
@@ -374,7 +380,10 @@ impl Receipt {
         };
         let displayed_active = match &publication {
             Some(PublicationEvidence::Observed(value)) => value.clone(),
-            Some(PublicationEvidence::Reported { .. }) | None => previous.active.clone(),
+            Some(PublicationEvidence::Reported { .. }) => current
+                .as_ref()
+                .map_or_else(|| previous.active.clone(), |value| value.active.clone()),
+            None => previous.active.clone(),
         };
         let diagnostics = activation
             .diagnostics

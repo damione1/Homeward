@@ -43,6 +43,7 @@ pub mod cameras_contract;
 pub mod config_plans;
 pub mod configuration_apply_contract;
 pub mod configuration_contract;
+pub mod configuration_simulation_contract;
 pub mod controls_contract;
 pub mod dashboard_contract;
 pub mod environment_contract;

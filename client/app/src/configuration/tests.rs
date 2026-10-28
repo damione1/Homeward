@@ -233,14 +233,29 @@ fn publication_requires_matching_authoritative_evidence_and_keeps_business_outco
         Some(PublicationEvidence::Reported { revision: 8 })
     );
     assert_eq!(reported.displayed_active(), prior.active());
-    assert!(Receipt::admit(&prior, &published, Some(response())).is_err());
+    let stale_metadata = Receipt::admit(&prior, &published, Some(response())).unwrap();
+    assert_eq!(
+        stale_metadata.publication,
+        Some(PublicationEvidence::Reported { revision: 8 })
+    );
+    let mut later = response();
+    later.active_generation.as_option_mut().unwrap().revision = 9;
+    let later = Receipt::admit(&prior, &published, Some(later)).unwrap();
+    assert_eq!(later.outcome, Outcome::Published);
+    assert_eq!(
+        later.publication,
+        Some(PublicationEvidence::Reported { revision: 8 })
+    );
+    assert_eq!(later.displayed_active().revision(), 9);
     let mut current = response();
     current.active_generation.as_option_mut().unwrap().revision = 8;
     let receipt = Receipt::admit(&prior, &published, Some(current)).unwrap();
     assert_eq!(receipt.outcome, Outcome::Published);
     assert_eq!(receipt.displayed_active().revision(), 8);
     let (_, mut draft) = submitted();
-    assert!(draft.complete(&published, Some(response())).is_err());
+    let mut malformed = response();
+    malformed.resume_token.clear();
+    assert!(draft.complete(&published, Some(malformed)).is_err());
     assert_eq!(draft.stage(), EditStage::Uncertain);
 }
 

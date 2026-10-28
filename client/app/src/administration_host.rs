@@ -349,7 +349,17 @@ impl Administration {
             | ProAdminAction::Enable
             | ProAdminAction::Disable
             | ProAdminAction::Revoke
-            | ProAdminAction::CloseSecret => return,
+            | ProAdminAction::CloseSecret
+            | ProAdminAction::Preview
+            | ProAdminAction::Revalidate
+            | ProAdminAction::Simulate
+            | ProAdminAction::Apply
+            | ProAdminAction::Restore
+            | ProAdminAction::Rollback
+            | ProAdminAction::AddFile
+            | ProAdminAction::RemoveFile
+            | ProAdminAction::NextFile
+            | ProAdminAction::Resolve => return,
         }
         self.retired(&state);
     }
@@ -401,7 +411,17 @@ impl Administration {
             | ProAdminAction::More
             | ProAdminAction::Enable
             | ProAdminAction::Disable
-            | ProAdminAction::Revoke => return,
+            | ProAdminAction::Revoke
+            | ProAdminAction::Preview
+            | ProAdminAction::Revalidate
+            | ProAdminAction::Simulate
+            | ProAdminAction::Apply
+            | ProAdminAction::Restore
+            | ProAdminAction::Rollback
+            | ProAdminAction::AddFile
+            | ProAdminAction::RemoveFile
+            | ProAdminAction::NextFile
+            | ProAdminAction::Resolve => return,
         }
         self.retired(&state);
     }

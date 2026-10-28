@@ -113,7 +113,7 @@ fn dirty(value: EnumValue<wire::DirtyState>) -> bool {
         EnumValue::Known(wire::DirtyState::Unspecified) | EnumValue::Unknown(_) => false,
     }
 }
-fn timestamp(value: &buffa_types::google::protobuf::Timestamp) -> bool {
+pub(crate) fn timestamp(value: &buffa_types::google::protobuf::Timestamp) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && (-62_135_596_800..=253_402_300_799).contains(&value.seconds)
         && (0..1_000_000_000).contains(&value.nanos)
