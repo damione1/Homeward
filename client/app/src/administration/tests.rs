@@ -1,5 +1,6 @@
 use super::*;
 use buffa_types::google::protobuf::Timestamp;
+use home_wire_contract::home::observability::v1 as observation;
 
 fn account(name: &str, role: auth::AccountRole) -> auth::Account {
     auth::Account {
@@ -102,6 +103,20 @@ fn instance() -> integration::IntegrationInstance {
                 ..Default::default()
             }),
         )),
+        report: observation::IntegrationReportPresence {
+            result: Some(observation::integration_report_presence::Result::NoReport(
+                Box::default(),
+            )),
+            ..Default::default()
+        }
+        .into(),
+        supervision: observation::IntegrationSupervision {
+            result: Some(observation::integration_supervision::Result::NotSupervised(
+                Box::default(),
+            )),
+            ..Default::default()
+        }
+        .into(),
         ..Default::default()
     }
 }
