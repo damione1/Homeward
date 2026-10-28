@@ -64,7 +64,6 @@ name = "android.permission.INTERNET"
 [package.metadata.android.application]
 label = "Homeward Dev"
 uses_cleartext_traffic = false
-debuggable = true
 
 [package.metadata.android.application.activity]
 config_changes = "orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|uiMode"
