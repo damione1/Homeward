@@ -142,6 +142,7 @@ pub(in crate::administration_host) struct Job {
     cancel: CancellationToken,
 }
 enum Reply {
+    Simulation(Box<home_wire_contract::home::configurationsimulation::v1::SimulatePlanResponse>),
     Plan(Box<home_wire_contract::home::configurationplan::v1::Plan>),
     Mutation {
         activation: wire::ActivationResult,
@@ -164,6 +165,7 @@ enum Error {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Effect {
     Read,
+    Simulation,
     Mutation,
 }
 pub(in crate::administration_host) struct Completion {
@@ -631,6 +633,11 @@ impl Workflow {
         }
         self.active = None;
         match completion.result {
+            Ok(Reply::Simulation(response)) => {
+                if let Some(planner) = &mut self.planner {
+                    planner.accept_simulation(*response);
+                }
+            }
             Ok(Reply::Plan(plan)) => {
                 if let Some(planner) = &mut self.planner {
                     planner.accept(*plan);
@@ -722,7 +729,11 @@ impl Workflow {
             Err(error) => {
                 self.synchronized = false;
                 if let Some(planner) = &mut self.planner {
-                    planner.failed();
+                    match completion.effect {
+                        Effect::Read => planner.failed(),
+                        Effect::Simulation => planner.simulation_failed(),
+                        Effect::Mutation => planner.failed(),
+                    }
                 }
                 if let Some(draft) = &mut self.draft {
                     if completion.effect == Effect::Read {
@@ -1010,7 +1021,13 @@ pub(in crate::administration_host) async fn execute(
     let permit = job.permit;
     let effect = match &job.kind {
         JobKind::Write(_) | JobKind::Restore(_) => Effect::Mutation,
-        JobKind::History(_) | JobKind::Read(_) | JobKind::Plan(_) => Effect::Read,
+        JobKind::History(_) | JobKind::Read(_) => Effect::Read,
+        JobKind::Plan(operation) => match **operation {
+            super::planner::Operation::Build(_) | super::planner::Operation::Revalidate(_) => {
+                Effect::Read
+            }
+            super::planner::Operation::Simulate(_) => Effect::Simulation,
+        },
     };
     let result = tokio::select! {biased;()=parent.cancelled()=>Err(Error::Uncertain),result=execute_inner(session,connection,expected,job)=>result};
     Completion {
@@ -1051,6 +1068,15 @@ async fn execute_inner(
             };
             let api = connection.configuration_plans();
             let (family, identity, value) = match *operation {
+                super::planner::Operation::Simulate(request) => {
+                    let response = call!(
+                        connection.configuration_simulation(),
+                        simulate_plan,
+                        request
+                    );
+                    home_wire_contract::configuration_simulation_contract::admit_simulation_response(&response).map_err(|_|Error::Invalid)?;
+                    return Ok(Reply::Simulation(Box::new(response)));
+                }
                 super::planner::Operation::Build(request) => {
                     let family = request.candidate.family;
                     let identity = request.candidate.identity.clone();

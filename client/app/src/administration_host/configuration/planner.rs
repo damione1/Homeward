@@ -1,5 +1,6 @@
 //! Explicit multi-file inputs and diagnostic previews. A plan never authorizes
 //! a mutation and never supplies editable bytes to a source field.
+mod simulation;
 use super::render;
 use crate::{
     ProAdminAction, ProAdminActionRow, ProAdminChoice, ProAdminField, ProAdminFieldKind,
@@ -77,8 +78,10 @@ impl File {
 pub(super) enum Operation {
     Build(wire::BuildPlanRequest),
     Revalidate(wire::RevalidatePlanRequest),
+    Simulate(home_wire_contract::home::configurationsimulation::v1::SimulatePlanRequest),
 }
 pub(super) struct Editor {
+    simulation: simulation::Simulation,
     captured: Capture,
     family: SourceFamily,
     identity: String,
@@ -93,6 +96,7 @@ pub(super) struct Editor {
 impl Editor {
     pub fn open(captured: Capture) -> Self {
         Self {
+            simulation: simulation::Simulation::default(),
             captured,
             family: SourceFamily::Operational,
             identity: String::new(),
@@ -115,6 +119,7 @@ impl Editor {
         }
     }
     pub fn resolve(&mut self, current: Capture) {
+        self.simulation.clear();
         self.captured = current;
         self.stale = false;
         self.plan = None;
@@ -131,11 +136,17 @@ impl Editor {
             .expect("selected file")
     }
     fn invalidate(&mut self) {
+        self.simulation.clear();
         self.plan = None;
         self.notice =
             "Candidat modifié ; l’aperçu précédent a été retiré. Aucun fichier n’a été envoyé.";
     }
     pub fn edit(&mut self, token: i32, text: String) {
+        if let Some(field) = simulation::Field::admit(token) {
+            self.simulation.edit(field, text);
+            self.notice = "Paramètres de simulation modifiés ; le rapport précédent a été retiré. Aucun appareil n’a été interrogé.";
+            return;
+        }
         let text = Zeroizing::new(text);
         let Some(field) = Field::admit(token) else {
             return;
@@ -227,6 +238,21 @@ impl Editor {
     }
     pub fn action(&mut self, action: ProAdminAction) -> Option<Operation> {
         match action {
+            ProAdminAction::Simulate => {
+                let request = self
+                    .candidate()
+                    .and_then(|candidate| self.simulation.request(&candidate));
+                match request {
+                    Ok(request) => {
+                        self.notice = "Simulation en cours avec vos états synthétiques ; aucune commande physique.";
+                        return Some(Operation::Simulate(request));
+                    }
+                    Err(_) => {
+                        self.notice = "Simulation non envoyée : vérifiez la famille logique, les fichiers, l’horloge, les événements et les doubles JSON.";
+                        return None;
+                    }
+                }
+            }
             ProAdminAction::AddFile => {
                 if self.files.len() >= 64 {
                     self.notice = "Le candidat est limité à 64 fichiers.";
@@ -288,7 +314,6 @@ impl Editor {
             | ProAdminAction::Disable
             | ProAdminAction::Revoke
             | ProAdminAction::CloseSecret
-            | ProAdminAction::Simulate
             | ProAdminAction::Apply
             | ProAdminAction::Restore
             | ProAdminAction::Rollback
@@ -323,10 +348,44 @@ impl Editor {
         self.plan = None;
         self.notice = "Aperçu indisponible ou non pris en charge. Le candidat reste privé ; aucune activation n’a été tentée.";
     }
+    pub fn simulation_failed(&mut self) {
+        self.simulation.clear();
+        self.notice = "Simulation indisponible ou non prise en charge. L’aperçu reste distinct ; aucune activation n’a été tentée.";
+    }
+    pub fn accept_simulation(
+        &mut self,
+        response: home_wire_contract::home::configurationsimulation::v1::SimulatePlanResponse,
+    ) {
+        if self.simulation.accept(response) {
+            self.notice = "Rapport de simulation reçu. Les intentions sont synthétiques ; aucune configuration publiée ni aucun appareil validé.";
+        } else {
+            self.simulation_failed();
+        }
+    }
+    fn input_complete(&self) -> bool {
+        // Keep source-sized copies and wire admission off the keystroke path.
+        let mut paths = std::collections::BTreeSet::new();
+        !self.identity.is_empty()
+            && self.identity.trim() == self.identity
+            && !self.identity.contains(['\0', '\r', '\n'])
+            && self.files.iter().all(|file| {
+                !file.source.is_empty()
+                    && !file.path.is_empty()
+                    && file.path.trim() == file.path
+                    && !file.path.contains(['\0', '\r', '\n'])
+                    && paths.insert(file.path.as_str())
+            })
+            && paths.contains(self.entry.as_str())
+    }
     pub fn actions(&self, available: bool) -> Vec<ProAdminActionRow> {
-        let valid = available && self.candidate().is_ok();
+        let valid = available && self.input_complete();
         [
             (ProAdminAction::Preview, "Construire l’aperçu", valid),
+            (
+                ProAdminAction::Simulate,
+                "Simuler avec les doubles fournis",
+                valid && self.family.simulatable(),
+            ),
             (
                 ProAdminAction::Revalidate,
                 "Revalider l’aperçu",
@@ -495,6 +554,9 @@ impl Editor {
                 false,
             ));
         }
+        if self.family.simulatable() {
+            fields.extend(self.simulation.fields(editable));
+        }
         fields
     }
     pub fn choices(&self, editable: bool) -> Vec<ProAdminChoice> {
@@ -584,6 +646,22 @@ mod tests {
             receipt: "r".repeat(44),
             ..Default::default()
         }
+    }
+    #[test]
+    fn an_unavailable_simulation_does_not_erase_a_distinct_diagnostic_plan() {
+        let mut editor = editor();
+        editor.choose(Field::Family as i32, 8);
+        let mut plan = plan();
+        plan.family = wire::SourceFamily::Script.into();
+        assert!(editor.accept(plan));
+        editor.simulation_failed();
+        assert!(editor.plan.is_some());
+        editor.edit(Field::Source as i32, "sequence: []\n".into());
+        assert!(editor.plan.is_none());
+        assert!(matches!(
+            editor.action(ProAdminAction::Simulate),
+            Some(Operation::Simulate(_))
+        ));
     }
     #[test]
     fn multi_file_editing_keeps_exact_bytes_and_bounds_total_during_input() {
