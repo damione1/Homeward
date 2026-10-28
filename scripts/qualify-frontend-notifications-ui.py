@@ -381,7 +381,6 @@ def run_case(proof, binary, server_binary, helper, permission_helper, case, deli
                 capture('notification-native-enabled')
             (fixture / 'seed-nominal').touch(mode=0o600)
             SHARED['wait_file'](fixture / 'seed-nominal-done.json', server)
-            wait('Notification synthétique', 'ListItem', timeout=25)
             notice_reveal('Notification synthétique','ListItem')
             if delivery is Delivery.NATIVE:
                 notice_reveal('Remise attestée au centre OS','Text',message='Notification synthétique')
