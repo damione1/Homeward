@@ -693,6 +693,16 @@ impl Workflow {
                 }
             }
             Ok(Reply::Read { purpose, capture }) => {
+                if self.snapshot_admission(&capture) != Ok(true) {
+                    self.synchronized = false;
+                    if let Some(draft) = &mut self.draft {
+                        draft.notice = "La relecture est plus ancienne ou contredit les références connues. Aucune résolution n’est appliquée ; relisez de nouveau.";
+                    }
+                    if let Some(planner) = &mut self.planner {
+                        planner.failed();
+                    }
+                    return false;
+                }
                 self.observe(*capture);
                 if matches!(purpose, ReadPurpose::Resolve)
                     && let (Some(planner), Some(current)) =
@@ -1436,6 +1446,46 @@ pub(super) mod tests {
             panic!("write")
         };
         assert_eq!(request.expected.revision, 8);
+    }
+    #[test]
+    fn an_old_or_contradictory_resolution_cannot_rearm_an_uncertain_write() {
+        let mut workflow = ready();
+        let job = write(&mut workflow);
+        workflow.accept(Completion {
+            permit: job.permit,
+            effect: Effect::Mutation,
+            result: Err(Error::Uncertain),
+        });
+        workflow.observe(Capture::admit(response(9, 9)).unwrap());
+        for mut capture in [response(8, 8), response(9, 9)] {
+            if capture.document.version.revision == 9 {
+                capture
+                    .document
+                    .as_option_mut()
+                    .unwrap()
+                    .version
+                    .as_option_mut()
+                    .unwrap()
+                    .source_sha256 = vec![9; 32];
+            }
+            workflow.editor_action(ProAdminAction::Resolve);
+            let read = workflow.take_pending().unwrap();
+            workflow.accept(Completion {
+                permit: read.permit,
+                effect: Effect::Read,
+                result: Ok(Reply::Read {
+                    purpose: ReadPurpose::Resolve,
+                    capture: Box::new(Capture::admit(capture).unwrap()),
+                }),
+            });
+            assert_eq!(
+                workflow.draft.as_ref().unwrap().stage(),
+                EditStage::Uncertain
+            );
+            assert_eq!(workflow.current.as_ref().unwrap().sql().revision(), 9);
+            workflow.editor_action(ProAdminAction::Save);
+            assert!(workflow.pending.is_none());
+        }
     }
     #[test]
     fn history_read_failure_does_not_claim_an_ambiguous_write() {
