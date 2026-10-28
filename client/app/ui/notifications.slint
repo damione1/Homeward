@@ -2,7 +2,7 @@ import { KitTheme, KitThemes, KitCard, KitCardHeader, KitButton, KitWrap, KitNot
 export enum NotificationAction { refresh, register, permission, enable, disable, revoke, confirm, cancel }
 export enum NotificationRowAction { open, read, dismiss }
 export struct NotificationPresentation {
-    generation: int, status: string, permission: string, notice: string,
+    generation: int, status: string, permission: string, notice: string, permission-action-label: string,
     busy: bool, registered: bool, native-enabled: bool, can-register: bool,
     can-enable: bool, can-permission: bool, can-revoke: bool,
     confirming: bool, confirmation: string,
@@ -22,7 +22,7 @@ export component HomewardNotifications inherits KitCard {
     KitWrap {
         KitButton { theme:root.theme; control-size:comfortable; text:"Actualiser"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.refresh);} }
         if root.view.can-register: KitButton { theme:root.theme; control-size:comfortable; text:"Inscrire cette installation"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.register);} }
-        if root.view.can-permission: KitButton { theme:root.theme; control-size:comfortable; text:"Demander l’autorisation macOS"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.permission);} }
+        if root.view.can-permission: KitButton { theme:root.theme; control-size:comfortable; text:root.view.permission-action-label; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.permission);} }
         if root.view.can-enable: KitButton { theme:root.theme; control-size:comfortable; text:"Activer les notifications natives"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.enable);} }
         if root.view.registered: KitButton { theme:root.theme; control-size:comfortable; text:"Arrêter la présentation"; disabled:!root.interactive; activated=>{root.action(root.view.generation,NotificationAction.disable);} }
         if root.view.can-revoke: KitButton { theme:root.theme; control-size:comfortable; text:"Révoquer la destination"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.revoke);} }

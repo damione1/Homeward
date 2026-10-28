@@ -4,6 +4,7 @@ No Slint model or route is injected. Each selected input preserves its screensho
 OCR bounds and touch coordinates; the helper never addresses a physical device.
 """
 from enum import Enum
+from frontend_android_package import ACTIVITY_NAME
 import json
 import hashlib
 import os

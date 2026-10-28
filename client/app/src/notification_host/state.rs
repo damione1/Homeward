@@ -49,9 +49,17 @@ impl Draft {
             Self::Register => {
                 "Inscrire une destination privée pour cette installation et cette session ? La présentation native restera désactivée."
             }
-            Self::Permission => {
-                "Demander à macOS l’autorisation d’afficher des notifications ? Ce choix n’active pas la présentation dans Homeward."
-            }
+            Self::Permission => match os::backend() {
+                os::Backend::MacOs => {
+                    "Demander à macOS l’autorisation d’afficher des notifications ? Ce choix n’active pas la présentation dans Homeward."
+                }
+                os::Backend::Android => {
+                    "Configurer le canal Android et demander l’autorisation si nécessaire ? Ce choix n’active pas la présentation dans Homeward."
+                }
+                os::Backend::Unavailable => {
+                    "Les notifications natives ne sont pas disponibles sur cet appareil."
+                }
+            },
             Self::Enable => {
                 "Activer la présentation native des nouveaux messages encore valides ? La réception nécessite Homeward au premier plan."
             }

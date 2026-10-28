@@ -168,7 +168,7 @@ impl PresentationScope {
         #[cfg(target_os = "macos")]
         return macos::submit_once(value, self);
         #[cfg(target_os = "android")]
-        return Err(Error::PendingQualification);
+        return android::submit_once(value, self);
         #[cfg(not(any(target_os = "macos", target_os = "android")))]
         Err(Error::Unsupported)
     }
@@ -180,6 +180,7 @@ impl PresentationScope {
             .and_then(|book| book.entries.get(id).map(|e| e.foreground))
             .unwrap_or(ForegroundEvidence::NotObserved)
     }
+    #[cfg(any(target_os = "macos", test))]
     pub(super) fn foreground(&self, id: &PresentationId, now: SystemTime) -> bool {
         let Ok(mut book) = self.0.book.lock() else {
             return false;

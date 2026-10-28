@@ -153,6 +153,15 @@ pub fn valid_permission(v: &wire::PermissionSnapshot) -> bool {
         && v.notification_center == wire::Setting::Unsupported;
     match v.source {
         EnumValue::Known(wire::PermissionSource::MacOsUserNotifications) => true,
+        EnumValue::Known(wire::PermissionSource::AndroidNotificationManager) => matches!(
+            v.permission,
+            EnumValue::Known(
+                wire::Permission::NotRequested
+                    | wire::Permission::Denied
+                    | wire::Permission::Authorized
+                    | wire::Permission::Unknown
+            )
+        ),
         EnumValue::Known(
             wire::PermissionSource::BundleRequired | wire::PermissionSource::Unsupported,
         ) => v.permission == wire::Permission::Unknown && no_surfaces,
@@ -167,7 +176,13 @@ pub fn valid_permission(v: &wire::PermissionSnapshot) -> bool {
 }
 pub fn can_present(v: &wire::PermissionSnapshot) -> bool {
     valid_permission(v)
-        && v.source == wire::PermissionSource::MacOsUserNotifications
+        && matches!(
+            v.source,
+            EnumValue::Known(
+                wire::PermissionSource::MacOsUserNotifications
+                    | wire::PermissionSource::AndroidNotificationManager
+            )
+        )
         && matches!(
             v.permission,
             EnumValue::Known(
@@ -198,6 +213,7 @@ fn permission_for_platform(
             v.source,
             EnumValue::Known(
                 wire::PermissionSource::AndroidPendingQualification
+                    | wire::PermissionSource::AndroidNotificationManager
                     | wire::PermissionSource::Unsupported
             )
         ),

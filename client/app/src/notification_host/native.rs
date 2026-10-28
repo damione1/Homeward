@@ -2,6 +2,7 @@ use super::*;
 use home_client_platform::notifications as os;
 
 pub(super) trait Source: Send + Sync {
+    fn backend(&self) -> os::Backend;
     fn settings(&self, request: bool) -> Result<os::Settings, os::Error>;
     fn present(
         &self,
@@ -13,6 +14,9 @@ pub(super) trait Source: Send + Sync {
 }
 pub(super) struct Native;
 impl Source for Native {
+    fn backend(&self) -> os::Backend {
+        os::backend()
+    }
     fn settings(&self, request: bool) -> Result<os::Settings, os::Error> {
         if request {
             os::request_authorization()
@@ -35,6 +39,12 @@ impl Source for Native {
     }
 }
 pub(super) fn permission(value: Result<os::Settings, os::Error>) -> wire::PermissionSnapshot {
+    permission_for(value, os::backend())
+}
+pub(super) fn permission_for(
+    value: Result<os::Settings, os::Error>,
+    backend: os::Backend,
+) -> wire::PermissionSnapshot {
     let empty = |source| wire::PermissionSnapshot {
         permission: wire::Permission::Unknown.into(),
         alerts: wire::Setting::Unsupported.into(),
@@ -44,7 +54,14 @@ pub(super) fn permission(value: Result<os::Settings, os::Error>) -> wire::Permis
     };
     match value {
         Ok(value) => wire::PermissionSnapshot {
-            source: wire::PermissionSource::MacOsUserNotifications.into(),
+            source: match backend {
+                os::Backend::MacOs => wire::PermissionSource::MacOsUserNotifications,
+                os::Backend::Android => wire::PermissionSource::AndroidNotificationManager,
+                os::Backend::Unavailable => {
+                    return empty(wire::PermissionSource::Unsupported.into());
+                }
+            }
+            .into(),
             permission: match value.permission {
                 os::Permission::NotRequested => wire::Permission::NotRequested,
                 os::Permission::Denied => wire::Permission::Denied,

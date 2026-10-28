@@ -61,9 +61,15 @@ target_sdk_version = 35
 [[package.metadata.android.uses_permission]]
 name = "android.permission.INTERNET"
 
+[[package.metadata.android.uses_permission]]
+name = "android.permission.POST_NOTIFICATIONS"
+
 [package.metadata.android.application]
+has_code = true
 label = "Homeward Dev"
 uses_cleartext_traffic = false
 
 [package.metadata.android.application.activity]
+name = "ca.homeward.platform.HomewardActivity"
+launch_mode = "singleTop"
 config_changes = "orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|uiMode"

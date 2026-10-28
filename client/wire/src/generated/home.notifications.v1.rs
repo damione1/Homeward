@@ -191,6 +191,7 @@ pub enum PermissionSource {
     PERMISSION_SOURCE_BUNDLE_REQUIRED = 2i32,
     PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION = 3i32,
     PERMISSION_SOURCE_UNSUPPORTED = 4i32,
+    PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER = 5i32,
 }
 impl PermissionSource {
     ///Idiomatic alias for [`Self::PERMISSION_SOURCE_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -208,6 +209,9 @@ impl PermissionSource {
     ///Idiomatic alias for [`Self::PERMISSION_SOURCE_UNSUPPORTED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Unsupported: Self = Self::PERMISSION_SOURCE_UNSUPPORTED;
+    ///Idiomatic alias for [`Self::PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AndroidNotificationManager: Self = Self::PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER;
 }
 impl ::core::default::Default for PermissionSource {
     fn default() -> Self {
@@ -230,6 +234,11 @@ impl ::buffa::Enumeration for PermissionSource {
                 )
             }
             4i32 => ::core::option::Option::Some(Self::PERMISSION_SOURCE_UNSUPPORTED),
+            5i32 => {
+                ::core::option::Option::Some(
+                    Self::PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -249,6 +258,9 @@ impl ::buffa::Enumeration for PermissionSource {
                 "PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION"
             }
             Self::PERMISSION_SOURCE_UNSUPPORTED => "PERMISSION_SOURCE_UNSUPPORTED",
+            Self::PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER => {
+                "PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -272,6 +284,11 @@ impl ::buffa::Enumeration for PermissionSource {
             "PERMISSION_SOURCE_UNSUPPORTED" => {
                 ::core::option::Option::Some(Self::PERMISSION_SOURCE_UNSUPPORTED)
             }
+            "PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER" => {
+                ::core::option::Option::Some(
+                    Self::PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -282,6 +299,7 @@ impl ::buffa::Enumeration for PermissionSource {
             Self::PERMISSION_SOURCE_BUNDLE_REQUIRED,
             Self::PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION,
             Self::PERMISSION_SOURCE_UNSUPPORTED,
+            Self::PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER,
         ]
     }
 }

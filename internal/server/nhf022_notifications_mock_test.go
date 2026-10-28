@@ -97,6 +97,9 @@ func nhf022Permission(v *wire.PermissionSnapshot) bool {
 	switch v.Source {
 	case wire.PermissionSource_PERMISSION_SOURCE_MAC_OS_USER_NOTIFICATIONS:
 		return true
+	case wire.PermissionSource_PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER:
+		return v.Permission == wire.Permission_PERMISSION_NOT_REQUESTED || v.Permission == wire.Permission_PERMISSION_DENIED ||
+			v.Permission == wire.Permission_PERMISSION_AUTHORIZED || v.Permission == wire.Permission_PERMISSION_UNKNOWN
 	case wire.PermissionSource_PERMISSION_SOURCE_BUNDLE_REQUIRED, wire.PermissionSource_PERMISSION_SOURCE_UNSUPPORTED:
 		return v.Permission == wire.Permission_PERMISSION_UNKNOWN && noSurface
 	case wire.PermissionSource_PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION:
@@ -116,7 +119,7 @@ func nhf022PermissionPlatform(platform companion.Platform, v *wire.PermissionSna
 		return v.Source == wire.PermissionSource_PERMISSION_SOURCE_MAC_OS_USER_NOTIFICATIONS ||
 			v.Source == wire.PermissionSource_PERMISSION_SOURCE_BUNDLE_REQUIRED || v.Source == wire.PermissionSource_PERMISSION_SOURCE_UNSUPPORTED
 	case companion.Platform_PLATFORM_ANDROID:
-		return v.Source == wire.PermissionSource_PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION || v.Source == wire.PermissionSource_PERMISSION_SOURCE_UNSUPPORTED
+		return v.Source == wire.PermissionSource_PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION || v.Source == wire.PermissionSource_PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER || v.Source == wire.PermissionSource_PERMISSION_SOURCE_UNSUPPORTED
 	case companion.Platform_PLATFORM_UNSPECIFIED:
 		return false
 	default:
@@ -124,7 +127,7 @@ func nhf022PermissionPlatform(platform companion.Platform, v *wire.PermissionSna
 	}
 }
 func nhf022CanPresent(v *wire.PermissionSnapshot) bool {
-	if !nhf022Permission(v) || v.Source != wire.PermissionSource_PERMISSION_SOURCE_MAC_OS_USER_NOTIFICATIONS {
+	if !nhf022Permission(v) || (v.Source != wire.PermissionSource_PERMISSION_SOURCE_MAC_OS_USER_NOTIFICATIONS && v.Source != wire.PermissionSource_PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER) {
 		return false
 	}
 	permitted := v.Permission == wire.Permission_PERMISSION_AUTHORIZED || v.Permission == wire.Permission_PERMISSION_PROVISIONAL || v.Permission == wire.Permission_PERMISSION_EPHEMERAL
@@ -694,6 +697,27 @@ func TestNHF022PermissionAndReceiptAdmission(t *testing.T) {
 	android.NotificationCenter = wire.Setting_SETTING_UNSUPPORTED
 	if !nhf022Permission(android) || nhf022CanPresent(android) {
 		t.Fatal("pending capability not represented honestly")
+	}
+	measuredAndroid := proto.Clone(granted).(*wire.PermissionSnapshot)
+	measuredAndroid.Source = wire.PermissionSource_PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER
+	if !nhf022PermissionPlatform(companion.Platform_PLATFORM_ANDROID, measuredAndroid) ||
+		nhf022PermissionPlatform(companion.Platform_PLATFORM_MAC_OS, measuredAndroid) ||
+		!nhf022CanPresent(measuredAndroid) || nhf022PermissionPlatform(companion.Platform_PLATFORM_ANDROID, granted) {
+		t.Fatal("native notification evidence crossed platform identity")
+	}
+	measuredAndroid.Permission = wire.Permission_PERMISSION_PROVISIONAL
+	if nhf022Permission(measuredAndroid) {
+		t.Fatal("Android cannot report a macOS provisional grant")
+	}
+	measuredAndroid.Permission = wire.Permission_PERMISSION_EPHEMERAL
+	if nhf022Permission(measuredAndroid) {
+		t.Fatal("Android cannot report a macOS ephemeral grant")
+	}
+	measuredAndroid.Permission = wire.Permission_PERMISSION_AUTHORIZED
+	measuredAndroid.Alerts = wire.Setting_SETTING_UNKNOWN
+	measuredAndroid.NotificationCenter = wire.Setting_SETTING_UNKNOWN
+	if nhf022CanPresent(measuredAndroid) {
+		t.Fatal("missing Android channel became permission for native presentation")
 	}
 	granted.Permission = wire.Permission(999)
 	if nhf022Permission(granted) {

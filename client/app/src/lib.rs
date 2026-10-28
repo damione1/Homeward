@@ -61,10 +61,14 @@ pub fn run() -> Result<(), slint::PlatformError> {
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
     let context = home_client_platform::NativeStoreContext::new(&app);
+    let _ = home_client_platform::notifications::initialize(&app);
     let lifecycle = session_host::LifecycleBridge::new();
     let events = lifecycle.clone();
     slint::android::init_with_event_listener(app, move |event| {
         use slint::android::android_activity::{MainEvent, PollEvent};
+        if matches!(event, PollEvent::Main(MainEvent::Destroy)) {
+            home_client_platform::notifications::destroyed();
+        }
         if matches!(
             event,
             PollEvent::Main(

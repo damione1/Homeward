@@ -21,41 +21,43 @@ pub(super) fn empty(generation: i32) -> Projection {
     project(&state)
 }
 fn permission(v: &wire::PermissionSnapshot) -> String {
-    let label = match v.source {
-        EnumValue::Known(wire::PermissionSource::BundleRequired) => {
-            "Ouvrez l’application macOS installée pour recevoir des notifications natives."
-        }
-        EnumValue::Known(wire::PermissionSource::AndroidPendingQualification) => {
-            "Android/Fire : réception en arrière-plan à qualifier, sans Google Play Services obligatoire."
-        }
-        EnumValue::Known(wire::PermissionSource::Unsupported) => {
-            "Permissions OS indisponibles ; l’inbox reste distincte de l’affichage natif."
-        }
-        EnumValue::Known(wire::PermissionSource::MacOsUserNotifications) => match v.permission {
-            EnumValue::Known(wire::Permission::NotRequested) => "Autorisation macOS non demandée",
-            EnumValue::Known(wire::Permission::Denied) => {
-                "Autorisation macOS refusée · modifiable dans les réglages du système"
-            }
-            EnumValue::Known(wire::Permission::Authorized) => "Autorisation macOS accordée",
-            EnumValue::Known(wire::Permission::Provisional) => "Autorisation macOS provisoire",
-            EnumValue::Known(wire::Permission::Ephemeral) => "Autorisation macOS temporaire",
-            EnumValue::Known(wire::Permission::Unknown | wire::Permission::Unspecified)
-            | EnumValue::Unknown(_) => "Autorisation OS inconnue",
-        },
-        EnumValue::Known(wire::PermissionSource::Unspecified) | EnumValue::Unknown(_) => {
-            "Permission non admise"
-        }
+    let platform = match v.source {
+        EnumValue::Known(wire::PermissionSource::MacOsUserNotifications) => Some("macOS"),
+        EnumValue::Known(wire::PermissionSource::AndroidNotificationManager) => Some("Android"),
+        EnumValue::Known(
+            wire::PermissionSource::BundleRequired
+            | wire::PermissionSource::AndroidPendingQualification
+            | wire::PermissionSource::Unsupported
+            | wire::PermissionSource::Unspecified,
+        )
+        | EnumValue::Unknown(_) => None,
     };
-    if v.source == wire::PermissionSource::MacOsUserNotifications {
-        format!(
-            "{label} · Bannières : {} · Centre OS : {}",
+    if let Some(platform) = platform {
+        let permission = match v.permission {
+            EnumValue::Known(wire::Permission::NotRequested) => "non demandée",
+            EnumValue::Known(wire::Permission::Denied) => {
+                "refusée · modifiable dans les réglages du système"
+            }
+            EnumValue::Known(wire::Permission::Authorized) => "accordée",
+            EnumValue::Known(wire::Permission::Provisional) => "provisoire",
+            EnumValue::Known(wire::Permission::Ephemeral) => "temporaire",
+            EnumValue::Known(wire::Permission::Unknown | wire::Permission::Unspecified)
+            | EnumValue::Unknown(_) => "inconnue",
+        };
+        return format!(
+            "Autorisation {platform} {permission} · Bannières : {} · Centre OS : {}",
             setting(v.alerts),
             setting(v.notification_center)
-        )
-    } else {
-        label.into()
+        );
     }
+    match v.source {
+        EnumValue::Known(wire::PermissionSource::BundleRequired) => "Ouvrez l’application macOS installée pour recevoir des notifications natives.",
+        EnumValue::Known(wire::PermissionSource::AndroidPendingQualification) => "Android/Fire : réception en arrière-plan à qualifier, sans Google Play Services obligatoire.",
+        EnumValue::Known(wire::PermissionSource::Unsupported) => "Permissions OS indisponibles ; l’inbox reste distincte de l’affichage natif.",
+        EnumValue::Known(wire::PermissionSource::Unspecified | wire::PermissionSource::MacOsUserNotifications | wire::PermissionSource::AndroidNotificationManager) | EnumValue::Unknown(_) => "Permission non admise",
+    }.into()
 }
+
 fn setting(value: EnumValue<wire::Setting>) -> &'static str {
     match value {
         EnumValue::Known(wire::Setting::Enabled) => "activé",
@@ -172,9 +174,25 @@ pub(super) fn project(state: &State) -> Projection {
                         .destination
                         .as_ref()
                         .is_some_and(|d| !d.native_delivery)),
+            permission_action_label: match os::backend() {
+                os::Backend::MacOs => "Demander l’autorisation macOS",
+                os::Backend::Android => "Configurer les notifications Android",
+                os::Backend::Unavailable => "Notifications indisponibles",
+            }
+            .into(),
             can_permission: free
-                && state.permission.source == wire::PermissionSource::MacOsUserNotifications
-                && state.permission.permission == wire::Permission::NotRequested,
+                && matches!(
+                    state.permission.source,
+                    EnumValue::Known(
+                        wire::PermissionSource::MacOsUserNotifications
+                            | wire::PermissionSource::AndroidNotificationManager
+                    )
+                )
+                && (state.permission.permission == wire::Permission::NotRequested
+                    || (state.permission.source
+                        == wire::PermissionSource::AndroidNotificationManager
+                        && state.permission.permission == wire::Permission::Authorized
+                        && state.permission.notification_center == wire::Setting::Unknown)),
             can_revoke: free && registered,
             confirming: state.draft.is_some(),
             confirmation: state.draft.map_or("", state::Draft::label).into(),

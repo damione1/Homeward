@@ -37,6 +37,7 @@ Platform = TRANSPORT['Platform']
 PlatformSelection = TRANSPORT['PlatformSelection']
 device = TRANSPORT['device']
 PACKAGE = 'ca.homeward.frontend.dev'
+ACTIVITY = ANDROID_INPUT['ACTIVITY_NAME']
 
 
 class FixtureMode(Enum):
@@ -469,7 +470,7 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                 device_clock = device('shell', 'date', '+%s.%N').stdout.strip()
                 write(directory / 'clock.json', {'host_before_ns': before, 'device_epoch_seconds': device_clock, 'host_after_ns': time.time_ns()})
                 for step in [AppStep.LOGIN, AppStep.RESTORE_READ_LOGOUT, AppStep.STORE_FAILURE, AppStep.SIGNED_OUT]:
-                    device('shell', 'am', 'start', '-n', PACKAGE + '/android.app.NativeActivity')
+                    device('shell', 'am', 'start', '-n', PACKAGE + '/' + ACTIVITY)
                     ui.find('Afficher ma maison', match=contains) if step is AppStep.RESTORE_READ_LOGOUT else ui.find('Identifiant')
                     snapshot(step.value)
                     match step:
@@ -513,7 +514,7 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                                 before_pid = device('shell', 'pidof', PACKAGE).stdout.strip()
                                 device('shell', 'input', 'keyevent', '3')
                                 time.sleep(.7)
-                                device('shell', 'am', 'start', '--activity-reorder-to-front', '-n', PACKAGE + '/android.app.NativeActivity')
+                                device('shell', 'am', 'start', '--activity-reorder-to-front', '-n', PACKAGE + '/' + ACTIVITY)
                                 time.sleep(2)
                                 assert device('shell', 'pidof', PACKAGE).stdout.strip() == before_pid, 'foreground restarted instead of resuming the owned app'
                                 snapshot('resumed-read', CacheImageExpectation.READY if kind is FixtureKind.CACHE else None)

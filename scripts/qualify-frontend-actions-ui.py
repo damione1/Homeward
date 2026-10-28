@@ -423,7 +423,7 @@ def android(directory, server, scenario, apk, ocr):
         def text(value):
             device('shell', 'input', 'text', shlex.quote(value.replace(' ', '%s')))
         def start():
-            device('shell', 'am', 'start', '-n', package + '/android.app.NativeActivity')
+            device('shell', 'am', 'start', '-n', package + '/' + SESSION['ACTIVITY'])
         def navigate(label):
             rows, _, _, _ = ui.labels()
             if not any(ANDROID['normalized'](row['label']) == ANDROID['normalized'](label) for row in rows):

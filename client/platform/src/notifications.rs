@@ -2,6 +2,10 @@
 //! presentation receipt. No permissions are requested by construction/query.
 use std::time::{Duration, SystemTime};
 
+#[cfg(target_os = "android")]
+mod android;
+#[cfg(target_os = "android")]
+pub use android::{destroyed, initialize};
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
@@ -10,6 +14,21 @@ mod scope;
 pub use scope::{ForegroundEvidence, MAX_SCOPE_FRESHNESS, PresentationScope};
 
 pub const MAX_LIFETIME: Duration = Duration::from_secs(3600);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Backend {
+    MacOs,
+    Android,
+    Unavailable,
+}
+pub const fn backend() -> Backend {
+    #[cfg(target_os = "macos")]
+    return Backend::MacOs;
+    #[cfg(target_os = "android")]
+    return Backend::Android;
+    #[cfg(not(any(target_os = "macos", target_os = "android")))]
+    Backend::Unavailable
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PresentationId(String);
@@ -195,7 +214,7 @@ pub fn settings() -> Result<Settings, Error> {
     #[cfg(target_os = "macos")]
     return macos::settings();
     #[cfg(target_os = "android")]
-    return Err(Error::PendingQualification);
+    return android::settings();
     #[cfg(not(any(target_os = "macos", target_os = "android")))]
     Err(Error::Unsupported)
 }
@@ -204,7 +223,7 @@ pub fn request_authorization() -> Result<Settings, Error> {
     #[cfg(target_os = "macos")]
     return macos::request_authorization();
     #[cfg(target_os = "android")]
-    return Err(Error::PendingQualification);
+    return android::request_authorization();
     #[cfg(not(any(target_os = "macos", target_os = "android")))]
     Err(Error::Unsupported)
 }
@@ -212,7 +231,7 @@ pub fn delivery_evidence(id: &PresentationId) -> Result<DeliveryEvidence, Error>
     #[cfg(target_os = "macos")]
     return macos::delivery_evidence(id);
     #[cfg(target_os = "android")]
-    return Err(Error::PendingQualification);
+    return android::delivery_evidence(id);
     #[cfg(not(any(target_os = "macos", target_os = "android")))]
     Err(Error::Unsupported)
 }
@@ -222,7 +241,7 @@ pub fn remove(id: &PresentationId) -> Result<(), Error> {
     #[cfg(target_os = "macos")]
     return macos::remove(id);
     #[cfg(target_os = "android")]
-    return Err(Error::PendingQualification);
+    return android::remove(id);
     #[cfg(not(any(target_os = "macos", target_os = "android")))]
     Err(Error::Unsupported)
 }

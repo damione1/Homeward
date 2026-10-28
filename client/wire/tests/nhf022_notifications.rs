@@ -511,3 +511,40 @@ fn uncertain_registration_has_a_read_only_nonce_selector_and_immutable_identity(
         Err(Invalid::ForeignIdentity)
     );
 }
+
+#[test]
+fn measured_android_permission_is_admitted_only_for_an_android_destination() {
+    let mut value = destination();
+    value.permission.get_or_insert_default().source =
+        wire::PermissionSource::AndroidNotificationManager.into();
+    assert!(valid_permission(&value.permission));
+    assert!(can_present(&value.permission));
+    assert!(
+        !valid_destination(&value),
+        "Android evidence cannot impersonate macOS"
+    );
+    value.platform = companion::Platform::Android.into();
+    assert!(valid_destination(&value));
+    value.permission.get_or_insert_default().permission = wire::Permission::Provisional.into();
+    assert!(
+        !valid_permission(&value.permission),
+        "Android cannot report a macOS provisional grant"
+    );
+    value.permission.get_or_insert_default().permission = wire::Permission::Ephemeral.into();
+    assert!(!valid_permission(&value.permission));
+    value.permission.get_or_insert_default().permission = wire::Permission::Authorized.into();
+    value.permission.get_or_insert_default().notification_center = wire::Setting::Unknown.into();
+    value.permission.get_or_insert_default().alerts = wire::Setting::Unknown.into();
+    assert!(valid_destination(&value));
+    assert!(
+        !can_present(&value.permission),
+        "Missing channel is not observed delivery permission"
+    );
+    value.native_delivery = true;
+    assert!(!valid_destination(&value));
+    value.permission = permission().into();
+    assert!(
+        !valid_destination(&value),
+        "macOS evidence cannot impersonate Android"
+    );
+}
