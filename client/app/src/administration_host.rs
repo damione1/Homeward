@@ -605,6 +605,145 @@ impl Administration {
         state.bump();
         self.retired(&state);
     }
+    fn configuration_watch_current(
+        &self,
+        state: &State,
+        permit: configuration::WatchPermit,
+    ) -> bool {
+        state.section == Section::Configuration
+            && self.current(state, state.generation)
+            && !state.cancel.is_cancelled()
+            && state.configuration.watch_admits(permit)
+    }
+    fn configuration_watch_syncing(&self, permit: configuration::WatchPermit) -> bool {
+        let mut state = self.0.state.lock().expect("admin state");
+        if !self.configuration_watch_current(&state, permit) {
+            return false;
+        }
+        if !state.configuration.watch_syncing(permit) {
+            return false;
+        }
+        state.bump();
+        self.retired(&state);
+        true
+    }
+    fn configuration_watch_ready(&self, permit: configuration::WatchPermit) -> bool {
+        let mut state = self.0.state.lock().expect("admin state");
+        if !self.configuration_watch_current(&state, permit) {
+            return false;
+        }
+        if !state.configuration.watch_ready(permit) {
+            return false;
+        }
+        state.stage = if state.rows.is_empty() {
+            Stage::Empty
+        } else {
+            Stage::Ready
+        };
+        state.bump();
+        self.retired(&state);
+        true
+    }
+    fn configuration_snapshot(
+        &self,
+        permit: configuration::WatchPermit,
+        loaded: Loaded,
+        page: Option<PageToken>,
+    ) -> Result<bool, configuration::WatchStop> {
+        let mut state = self.0.state.lock().expect("admin state");
+        if !self.configuration_watch_current(&state, permit) {
+            return Ok(false);
+        }
+        if !self
+            .0
+            .source
+            .lock()
+            .expect("admin source")
+            .as_ref()
+            .is_some_and(|(session, generation)| {
+                *generation == loaded.session_generation && session.is_current(*generation)
+            })
+        {
+            return Ok(false);
+        }
+        if !loaded.authority.administrator()
+            || !state.private.authority().is_some_and(|previous| {
+                previous.administrator() && previous.identity == loaded.authority.identity
+            })
+        {
+            return Err(configuration::WatchStop::Denied);
+        }
+        let payload = loaded
+            .payload
+            .map_err(|_| configuration::WatchStop::Invalid)?;
+        let Payload::Configuration(value) = &payload else {
+            return Err(configuration::WatchStop::Invalid);
+        };
+        match state.configuration.snapshot_admission(&value.root) {
+            Ok(true) => (),
+            Ok(false) => return Err(configuration::WatchStop::Unavailable),
+            Err(_) => return Err(configuration::WatchStop::Invalid),
+        }
+        state.configuration.observe(value.root.clone());
+        let (rows, next) = render::rows(&payload, &loaded.authority.identity);
+        if state
+            .selected
+            .as_ref()
+            .is_some_and(|selected| !rows.iter().any(|row| &row.target == selected))
+        {
+            state.selected = None;
+        }
+        state.rows = rows;
+        state.next = next;
+        state.page = page;
+        let context = state.private.context();
+        let stage = state.stage.clone();
+        state
+            .private
+            .publish(
+                context,
+                Section::Configuration,
+                Pane {
+                    stage,
+                    content: Some(payload),
+                },
+            )
+            .map_err(|_| configuration::WatchStop::Denied)?;
+        state.bump();
+        self.retired(&state);
+        Ok(true)
+    }
+    fn configuration_watch_stopped(
+        &self,
+        permit: configuration::WatchPermit,
+        stop: configuration::WatchStop,
+    ) {
+        let mut state = self.0.state.lock().expect("admin state");
+        if !self.configuration_watch_current(&state, permit) {
+            return;
+        }
+        if !state.configuration.watch_stopped(permit) {
+            return;
+        }
+        match stop {
+            configuration::WatchStop::Unavailable => state.stage = Stage::Offline,
+            configuration::WatchStop::Denied | configuration::WatchStop::Invalid => {
+                state.configuration.retire();
+                let _ = state.private.retire();
+                state.rows.clear();
+                state.selected = None;
+                state.next = None;
+                state.page = None;
+                state.stage = match stop {
+                    configuration::WatchStop::Denied => Stage::Denied,
+                    configuration::WatchStop::Invalid => Stage::Invalid,
+                    configuration::WatchStop::Unavailable => Stage::Offline,
+                };
+            }
+        }
+        state.bump();
+        self.retired(&state);
+    }
     fn checked_authority(
         &self,
         generation: i32,
@@ -644,6 +783,7 @@ impl Administration {
         let mut phases = session.subscribe();
         let mut generation = phases.borrow().generation;
         let mut jobs = JoinSet::new();
+        let mut watches = JoinSet::new();
         let mut busy = false;
         let mut monitor = tokio::time::interval(std::time::Duration::from_secs(5));
         monitor.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -654,6 +794,29 @@ impl Administration {
             let changed = self.0.changed.notified();
             tokio::pin!(changed);
             changed.as_mut().enable();
+            if watches.len() < 2 {
+                let watch = {
+                    let mut state = self.0.state.lock().expect("admin state");
+                    if state.section == Section::Configuration
+                        && self.current(&state, state.generation)
+                    {
+                        state
+                            .configuration
+                            .take_watch()
+                            .map(|job| (job, state.selection.clone(), state.page.clone()))
+                    } else {
+                        None
+                    }
+                };
+                if let Some((job, selection, page)) = watch {
+                    let owner = self.clone();
+                    let session = session.clone();
+                    let connection = connection.clone();
+                    watches.spawn(configuration::watch(
+                        owner, session, connection, generation, selection, page, job,
+                    ));
+                }
+            }
             let config_job = {
                 let mut state = self.0.state.lock().expect("admin state");
                 if !busy
@@ -802,11 +965,13 @@ impl Administration {
                 phase=phases.changed()=>{if phase.is_err(){break;}},
                 ()=&mut changed=>{},
                 _=monitor.tick()=>{probe_requested=true;},
+                result=watches.join_next(),if !watches.is_empty()=>{if result.is_some_and(|result|result.is_err()){let mut state=self.0.state.lock().expect("admin state");state.clear();state.active=true;state.stage=Stage::Invalid;self.retired(&state);}},
                 result=jobs.join_next(),if !jobs.is_empty()=>{busy=false;if result.is_some_and(|result|result.is_err()){let mut state=self.0.state.lock().expect("admin state");state.clear();state.active=true;state.stage=Stage::Invalid;self.retired(&state);}},
             }
         }
         self.clear();
         while jobs.join_next().await.is_some() {}
+        while watches.join_next().await.is_some() {}
     }
 }
 

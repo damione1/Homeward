@@ -1,6 +1,8 @@
 //! Configuration metadata reuses the settings session owner and its private purge.
+mod watch;
 mod workflow;
 use std::collections::BTreeSet;
+pub(super) use watch::{Permit as WatchPermit, Stop as WatchStop, run as watch};
 pub(super) use workflow::{Completion, Workflow, execute};
 
 use buffa::EnumValue;

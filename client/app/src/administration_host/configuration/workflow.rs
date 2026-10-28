@@ -171,6 +171,7 @@ pub(in crate::administration_host) struct Completion {
 }
 
 pub(in crate::administration_host) struct Workflow {
+    watch: super::watch::Cohort,
     scope: Option<Scope>,
     next_attempt: u64,
     cancel: CancellationToken,
@@ -183,6 +184,7 @@ pub(in crate::administration_host) struct Workflow {
 impl Default for Workflow {
     fn default() -> Self {
         Self {
+            watch: super::watch::Cohort::default(),
             scope: Some(Scope(1)),
             next_attempt: 0,
             cancel: CancellationToken::new(),
@@ -196,6 +198,7 @@ impl Default for Workflow {
 }
 impl Workflow {
     pub fn retire(&mut self) {
+        self.watch.restart();
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
         self.scope = self
@@ -211,17 +214,62 @@ impl Workflow {
         self.draft.is_some()
     }
     pub fn observe(&mut self, capture: Capture) {
-        if self.current.as_ref().is_some_and(|previous| {
-            capture.sql().revision() < previous.sql().revision()
-                || capture.active().revision() < previous.active().revision()
-        }) {
+        if self.snapshot_admission(&capture) != Ok(true) {
             return;
         }
         if let Some(draft) = &mut self.draft {
             draft.observe(&capture);
         }
         self.current = Some(capture);
+        self.synchronized = self.watch.live();
+    }
+    pub fn snapshot_admission(
+        &self,
+        capture: &Capture,
+    ) -> Result<bool, crate::administration::Refusal> {
+        let Some(previous) = &self.current else {
+            return Ok(true);
+        };
+        if capture.id() != previous.id()
+            || (capture.sql().revision() == previous.sql().revision()
+                && capture.sql().source() != previous.sql().source())
+            || (capture.active().revision() == previous.active().revision()
+                && capture.active().manifest() != previous.active().manifest())
+        {
+            return Err(crate::administration::Refusal::Invalid);
+        }
+        Ok(capture.sql().revision() >= previous.sql().revision()
+            && capture.active().revision() >= previous.active().revision())
+    }
+    pub fn take_watch(&mut self) -> Option<super::watch::Job> {
+        if self.current.is_none() || self.scope.is_none() {
+            return None;
+        }
+        self.watch.start()
+    }
+    pub fn watch_admits(&self, permit: super::WatchPermit) -> bool {
+        self.watch.admits(permit)
+    }
+    pub fn watch_syncing(&mut self, permit: super::WatchPermit) -> bool {
+        if !self.watch.syncing(permit) {
+            return false;
+        }
+        self.synchronized = false;
+        true
+    }
+    pub fn watch_ready(&mut self, permit: super::WatchPermit) -> bool {
+        if !self.watch.ready(permit) {
+            return false;
+        }
         self.synchronized = true;
+        true
+    }
+    pub fn watch_stopped(&mut self, permit: super::WatchPermit) -> bool {
+        if !self.watch.stop(permit) {
+            return false;
+        }
+        self.synchronized = false;
+        true
     }
     fn queue(&mut self, kind: JobKind) -> bool {
         if self.active.is_some() || self.pending.is_some() {
@@ -397,24 +445,24 @@ impl Workflow {
         match value {
             ProAdminAction::Cancel | ProAdminAction::CloseSecret => {
                 let current = self.current.clone();
-                let synchronized = self.synchronized
-                    && self.active.is_none()
-                    && self.draft.as_ref().is_none_or(|draft| {
-                        !matches!(draft.stage(), EditStage::InFlight | EditStage::Uncertain)
-                    });
                 self.retire();
                 if let Some(value) = current {
                     self.observe(value);
                 }
-                self.synchronized = synchronized;
                 true
             }
             ProAdminAction::Refresh => {
-                self.queue(JobKind::Read(ReadPurpose::Observe));
+                if self.queue(JobKind::Read(ReadPurpose::Observe)) {
+                    self.watch.restart();
+                    self.synchronized = false;
+                }
                 true
             }
             ProAdminAction::Resolve => {
-                self.queue(JobKind::Read(ReadPurpose::Resolve));
+                if self.queue(JobKind::Read(ReadPurpose::Resolve)) {
+                    self.watch.restart();
+                    self.synchronized = false;
+                }
                 true
             }
             ProAdminAction::More => {
@@ -648,6 +696,15 @@ impl Workflow {
         }
     }
     pub fn notice(&self) -> &'static str {
+        if !self.synchronized
+            && self.active.is_none()
+            && self
+                .draft
+                .as_ref()
+                .is_some_and(|draft| draft.stage() == EditStage::Draft)
+        {
+            return "Suivi de configuration non synchronisé. Aucune confirmation n’est admise avant une lecture et un abonnement valides.";
+        }
         self.draft.as_ref().map_or("", |value| value.notice)
     }
     pub fn editable(&self) -> bool {
@@ -1023,13 +1080,69 @@ mod tests {
     fn ready() -> Workflow {
         let mut workflow = Workflow::default();
         workflow.observe(Capture::admit(response(7, 6)).unwrap());
+        let job = workflow.take_watch().unwrap();
+        workflow.watch_ready(job.permit);
         workflow
     }
     fn write(workflow: &mut Workflow) -> Job {
+        if let Some(job) = workflow.take_watch() {
+            workflow.watch_ready(job.permit);
+        }
         assert!(workflow.open(ProAdminAction::Save));
         workflow.edit(Field::Source as i32, "workday: {}\n".into());
         workflow.editor_action(ProAdminAction::Save);
         workflow.take_pending().unwrap()
+    }
+    #[test]
+    fn snapshots_require_live_readiness_and_never_rebase_a_dirty_source() {
+        let mut workflow = Workflow::default();
+        workflow.observe(Capture::admit(response(7, 6)).unwrap());
+        assert!(!workflow.open(ProAdminAction::Save));
+        let watch = workflow.take_watch().unwrap();
+        assert!(!workflow.open(ProAdminAction::Save));
+        workflow.watch_ready(watch.permit);
+        assert!(workflow.open(ProAdminAction::Save));
+        workflow.edit(Field::Source as i32, "# retained draft\n".into());
+        workflow.watch_syncing(watch.permit);
+        workflow.editor_action(ProAdminAction::Save);
+        assert!(workflow.pending.is_none());
+        workflow.observe(Capture::admit(response(8, 8)).unwrap());
+        assert_eq!(
+            workflow.draft.as_ref().unwrap().stage(),
+            EditStage::Conflict
+        );
+        assert_eq!(
+            &*workflow.draft.as_ref().unwrap().text,
+            "# retained draft\n"
+        );
+        workflow.watch_ready(watch.permit);
+        workflow.editor_action(ProAdminAction::Save);
+        assert!(workflow.pending.is_none());
+        assert_eq!(
+            workflow.draft.as_ref().unwrap().captured.sql().revision(),
+            7
+        );
+    }
+    #[test]
+    fn immutable_reference_forks_and_older_snapshots_cannot_replace_current_metadata() {
+        let mut workflow = ready();
+        let old = Capture::admit(response(6, 5)).unwrap();
+        assert_eq!(workflow.snapshot_admission(&old), Ok(false));
+        let mut fork = response(7, 6);
+        let mut document = fork.document.into_option().unwrap();
+        let mut version = document.version.into_option().unwrap();
+        version.source_sha256 = vec![9; 32];
+        document.version = version.into();
+        fork.document = document.into();
+        let fork = Capture::admit(fork).unwrap();
+        assert!(workflow.snapshot_admission(&fork).is_err());
+        workflow.observe(fork);
+        workflow.observe(old);
+        assert_eq!(workflow.current.as_ref().unwrap().sql().revision(), 7);
+        assert_eq!(
+            workflow.current.as_ref().unwrap().sql().source().bytes(),
+            &[1; 32]
+        );
     }
     #[test]
     fn an_explicit_source_and_confirmation_seal_one_exact_attempt() {
@@ -1158,6 +1271,8 @@ mod tests {
         });
         assert!(workflow.pending.is_none());
         assert_eq!(workflow.draft.as_ref().unwrap().stage(), EditStage::Draft);
+        let watch = workflow.take_watch().unwrap();
+        workflow.watch_ready(watch.permit);
         workflow.editor_action(ProAdminAction::Save);
         let next = workflow.take_pending().unwrap();
         let JobKind::Write(request) = next.kind else {
