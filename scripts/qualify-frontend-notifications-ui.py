@@ -231,6 +231,14 @@ def run_case(proof, binary, server_binary, helper, permission_helper, case, deli
             targets=[item for item in content if item.get('accessibleRole')==role and label in item.get('accessibleLabel','')]
             pane=panel(); top=pane['absolutePosition']['y']+8; bottom=top+pane['size']['height']-16
             lists=[item for item in elements if item.get('accessibleRole')=='List' and item.get('accessibleLabel')=='Notifications']
+            if lists and (message or role=='ListItem'):
+                # Expose the outer list before scrolling its inner viewport.
+                # A partially clipped row has no mounted action descendants.
+                difference=top+12-lists[0]['absolutePosition'].get('y',0)
+                if abs(difference)>16:
+                    scroll(max(-260,min(260,difference)))
+                    time.sleep(.04)
+                    continue
             target=targets[0] if targets else None
             if target:
                 y=target['absolutePosition'].get('y',0)+target['size']['height']/2
