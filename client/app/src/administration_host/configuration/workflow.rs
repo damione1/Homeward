@@ -1,4 +1,6 @@
 //! One private editor cohort seals attempts independently of table generations.
+#[cfg(test)]
+mod tls_probe;
 use super::{render, wire};
 use crate::{
     ProAdminAction, ProAdminActionRow, ProAdminChoice, ProAdminField, ProAdminFieldKind,

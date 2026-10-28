@@ -191,7 +191,7 @@ impl Default for Activation {
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
-enum Field {
+pub(in crate::administration_host::configuration) enum Field {
     Document = 2100,
     Sql = 2101,
     Workspace = 2102,
@@ -232,6 +232,13 @@ impl Field {
     }
 }
 impl Editor {
+    #[cfg(test)]
+    pub fn activation_outcome(&self) -> Option<Outcome> {
+        self.activation
+            .receipt
+            .as_ref()
+            .map(|receipt| receipt.outcome)
+    }
     pub fn mutable(&self) -> bool {
         matches!(
             self.activation.stage,

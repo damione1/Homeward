@@ -10,7 +10,7 @@ use zeroize::Zeroizing;
 
 #[derive(Clone, Copy)]
 #[repr(i32)]
-pub(super) enum Field {
+pub(in crate::administration_host::configuration) enum Field {
     Now = 2000,
     TimeZone = 2001,
     Limit = 2002,
@@ -166,6 +166,10 @@ impl Default for Simulation {
     }
 }
 impl Simulation {
+    #[cfg(test)]
+    pub fn report(&self) -> Option<&wire::Report> {
+        self.report.as_ref()
+    }
     pub fn clear(&mut self) {
         self.report = None;
     }

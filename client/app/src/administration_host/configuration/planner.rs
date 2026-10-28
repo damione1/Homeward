@@ -7,15 +7,19 @@ use crate::{
     ProAdminAction, ProAdminActionRow, ProAdminChoice, ProAdminField, ProAdminFieldKind,
     configuration::{Candidate, Capture, SourceFamily, SourceFile, SourceIdentity, UserSource},
 };
+#[cfg(test)]
+pub(super) use activation::Field as ActivationField;
 pub(super) use activation::{HistoryQuery, HistoryReply, ReferenceRead};
 use buffa::EnumValue;
 use home_wire_contract::home::configurationplan::v1 as wire;
+#[cfg(test)]
+pub(super) use simulation::Field as SimulationField;
 use zeroize::Zeroizing;
 
 const MAX_BYTES: usize = 1_048_576;
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
-enum Field {
+pub(super) enum Field {
     Family = 1200,
     Identity = 1201,
     Entry = 1202,
@@ -139,6 +143,19 @@ impl Editor {
     }
     pub fn notice(&self) -> &'static str {
         self.notice
+    }
+    #[cfg(test)]
+    pub fn plan_state(&self) -> Option<wire::PlanState> {
+        self.plan.as_ref().and_then(|plan| match plan.state {
+            EnumValue::Known(state) => Some(state),
+            EnumValue::Unknown(_) => None,
+        })
+    }
+    #[cfg(test)]
+    pub fn simulation_report(
+        &self,
+    ) -> Option<&home_wire_contract::home::configurationsimulation::v1::Report> {
+        self.simulation.report()
     }
     fn selected(&self) -> &File {
         self.files
