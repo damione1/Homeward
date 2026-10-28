@@ -3,6 +3,7 @@
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod home {
+    pub mod notifications { pub mod v1 { include!("generated/home.notifications.v1.rs"); } }
     pub mod companion { pub mod v1 { include!("generated/home.companion.v1.rs"); } }
     pub mod logic { pub mod v1 { include!("generated/home.logic.v1.rs"); } }
     pub mod cameras { pub mod v1 { include!("generated/home.cameras.v1.rs"); } }
@@ -55,6 +56,7 @@ pub mod integration_admin_contract;
 pub mod lists_contract;
 pub mod logic_contract;
 pub mod media_contract;
+pub mod notifications_contract;
 pub mod observability_contract;
 pub mod solar_contract;
 

@@ -16,6 +16,7 @@ mod history;
 mod lists;
 mod logic;
 mod media;
+mod notifications;
 mod reconnect;
 pub use actions::{ActionTransport, ActionWatch};
 pub use administration::{
@@ -39,12 +40,14 @@ pub use history::HistoryTransport;
 pub use lists::{ListTransport, ListWatch};
 pub use logic::LogicTransport;
 pub use media::MediaTransport;
+pub use notifications::NotificationTransport;
 pub use reconnect::ReconnectPolicy;
 
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod services {
     pub mod home {
+        pub mod notifications { pub mod v1 { include!("generated/home.notifications.v1.rs"); } }
         pub mod companion {
             pub mod v1 { include!("generated/home.companion.v1.rs"); }
         }
