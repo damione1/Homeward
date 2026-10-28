@@ -469,6 +469,11 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
         .identity
         .clone();
     for value in Section::ALL {
+        // NHF020's synthetic LogicService is intentionally absent from this
+        // production administration fixture; its owner has a separate harness.
+        if value == Section::Logic {
+            continue;
+        }
         section(&owner, value).await;
     }
     account_forms(&owner).await;
