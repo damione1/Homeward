@@ -12,6 +12,7 @@ use home_wire_contract::home::{
         AuthError, AuthorizationPolicyError, AuthorizationTermination, SecondFactorPolicyError,
     },
     calendars::v1::CalendarError,
+    configuration::v1::ConfigurationError,
     integrationadmin::v1::IntegrationError,
     lists::v1::ListError,
     observability::v1::ObservabilityError,
@@ -109,6 +110,12 @@ impl Failure {
 
     /// Preserve the exact conflicting document version; a conflict never permits retry.
     pub fn integration_error(&self) -> Result<Option<IntegrationError>, DetailFailure> {
+        self.typed_detail()
+    }
+
+    /// SQL version/workspace conflicts and uncertain commits remain typed.
+    /// Neither an RPC error nor this detail authorizes a mutation replay.
+    pub fn configuration_error(&self) -> Result<Option<ConfigurationError>, DetailFailure> {
         self.typed_detail()
     }
 
