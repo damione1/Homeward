@@ -184,6 +184,8 @@ pub(super) struct State {
     pub selected: usize,
     pub notice: String,
     pub cancel: CancellationToken,
+    pub notification_cancel: CancellationToken,
+    pub notification_retired: bool,
     pub next_sample: Instant,
     pub samples: u64,
     pub sample_time: std::time::Duration,
@@ -213,6 +215,8 @@ impl Default for State {
             selected: 0,
             notice: String::new(),
             cancel: CancellationToken::new(),
+            notification_cancel: CancellationToken::new(),
+            notification_retired: false,
             next_sample: Instant::now(),
             samples: 0,
             sample_time: std::time::Duration::ZERO,
@@ -232,6 +236,8 @@ impl State {
         true
     }
     pub fn interrupt(&mut self) {
+        self.notification_cancel.cancel();
+        self.notification_cancel = CancellationToken::new();
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
         self.fence = self.fence.saturating_add(1);
@@ -244,6 +250,7 @@ impl State {
     }
     pub fn clear(&mut self) {
         self.interrupt();
+        self.notification_retired = false;
         self.privacy = self.privacy.saturating_add(1);
         self.validated = None;
         self.identity = None;
@@ -417,7 +424,11 @@ impl State {
                             prior,
                             desired,
                         },
-                        Draft::Revoke { context, prior } => Intent::Revoke { context, prior },
+                        Draft::Revoke { context, prior } => {
+                            self.notification_retired = true;
+                            self.notification_cancel.cancel();
+                            Intent::Revoke { context, prior }
+                        }
                     });
                     self.bump();
                 }
@@ -633,6 +644,7 @@ impl State {
         true
     }
     pub fn invalid(&mut self) {
+        self.notification_cancel.cancel();
         self.interrupt();
         self.context = None;
         self.record = None;

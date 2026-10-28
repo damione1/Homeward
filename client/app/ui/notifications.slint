@@ -1,0 +1,46 @@
+import { KitTheme, KitThemes, KitCard, KitCardHeader, KitButton, KitWrap, KitNotificationCenter, NotificationRow, ControlSize } from "@kit/kit.slint";
+export enum NotificationAction { refresh, register, permission, enable, disable, revoke, confirm, cancel }
+export enum NotificationRowAction { open, read, dismiss }
+export struct NotificationPresentation {
+    generation: int, status: string, permission: string, notice: string,
+    busy: bool, registered: bool, native-enabled: bool, can-register: bool,
+    can-enable: bool, can-permission: bool, can-revoke: bool,
+    confirming: bool, confirmation: string,
+}
+export component HomewardNotifications inherits KitCard {
+    in property <NotificationPresentation> view;
+    in property <[NotificationRow]> rows;
+    in property <bool> interactive;
+    callback action(int,NotificationAction);
+    callback row-action(int,int,NotificationRowAction);
+    KitCardHeader { theme:root.theme; title:"Notifications"; description:root.view.status; }
+    if root.view.registered: Text { text:root.view.native-enabled ? "Présentation native activée" : "Présentation native arrêtée"; color:root.theme.text-primary; font-size:14px * root.theme.text-scale; wrap:word-wrap; }
+    Text { text:root.view.permission; color:root.theme.text-primary; font-size:14px * root.theme.text-scale; wrap:word-wrap; }
+    Text { text:root.view.notice; color:root.theme.text-secondary; font-size:14px * root.theme.text-scale; wrap:word-wrap; }
+    KitWrap {
+        KitButton { theme:root.theme; control-size:comfortable; text:"Actualiser"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.refresh);} }
+        if root.view.can-register: KitButton { theme:root.theme; control-size:comfortable; text:"Inscrire cette installation"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.register);} }
+        if root.view.can-permission: KitButton { theme:root.theme; control-size:comfortable; text:"Demander l’autorisation macOS"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.permission);} }
+        if root.view.can-enable: KitButton { theme:root.theme; control-size:comfortable; text:"Activer les notifications natives"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.enable);} }
+        if root.view.registered: KitButton { theme:root.theme; control-size:comfortable; text:"Arrêter la présentation"; disabled:!root.interactive; activated=>{root.action(root.view.generation,NotificationAction.disable);} }
+        if root.view.can-revoke: KitButton { theme:root.theme; control-size:comfortable; text:"Révoquer la destination"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.revoke);} }
+    }
+    if root.view.confirming: VerticalLayout {
+        spacing:12px;
+        Text { text:root.view.confirmation; color:root.theme.text-primary; font-size:14px * root.theme.text-scale; wrap:word-wrap; }
+        KitWrap {
+            KitButton { theme:root.theme; control-size:comfortable; text:"Confirmer"; disabled:!root.interactive || root.view.busy; activated=>{root.action(root.view.generation,NotificationAction.confirm);} }
+            KitButton { theme:root.theme; control-size:comfortable; text:"Annuler"; disabled:!root.interactive || root.view.busy; activated=>{root.action(root.view.generation,NotificationAction.cancel);} }
+        }
+    }
+    KitNotificationCenter {
+        theme:root.theme; control-size:comfortable; rows:root.rows;
+        disabled:!root.interactive || root.view.busy || root.view.confirming;
+        empty-label:"Aucune notification";
+        empty-description:"Seuls les messages encore valides de cette installation sont affichés.";
+        open-label:"Ouvrir"; mark-read-label:"Marquer comme lue"; read-label:"Lue"; dismiss-label:"Retirer";
+        activate(t,g)=>{root.row-action(t,g,NotificationRowAction.open);}
+        mark-read(t,g)=>{root.row-action(t,g,NotificationRowAction.read);}
+        dismiss-row(t,g)=>{root.row-action(t,g,NotificationRowAction.dismiss);}
+    }
+}

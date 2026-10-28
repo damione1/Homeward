@@ -34,6 +34,7 @@ mod list_state;
 pub mod media;
 mod media_host;
 mod navigation;
+mod notification_host;
 mod preferences;
 mod profile;
 mod raster;

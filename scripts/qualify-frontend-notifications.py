@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SHARED = runpy.run_path(str(ROOT / 'scripts/qualify-frontend-environment.py'))
 class Probe(Enum):
     TRANSPORT = 'transport'
+    OWNER = 'owner'
+    ALL = 'all'
 
     def __str__(self):
         return self.value
@@ -30,15 +32,21 @@ class Probe(Enum):
                         'actual_notifications_tls_private_inbox_receipts_targets_and_revocation',
                         'NHF022_NOTIFICATIONS_TRANSPORT_TLS_PASS', dict(registrations=2, updates=4, receipts=7, revocations=1, seeded=8, opens=2, lost_replies=3))
 
+            case Probe.OWNER:
+                return ('homeward_app', ['-p', 'homeward-app', '--lib'],
+                        'notification_host::tls_probe::actual_notification_owner_inbox_native_reservations_and_revocation',
+                        'NHF022_NOTIFICATION_OWNER_TLS_PASS', dict(registrations=3, updates=6, receipts=13, revocations=1, seeded=8, opens=2, lost_replies=3))
+            case Probe.ALL:
+                raise ValueError('Choose a leaf probe')
 
 
 def main():
     if not os.environ.get('CARGO_TARGET_DIR') or not os.environ.get('GOCACHE'):
         raise SystemExit('Use the reserved frontend.py run --cargo environment')
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--probe', type=Probe, choices=list(Probe), default=Probe.TRANSPORT)
+    parser.add_argument('--probe', type=Probe, choices=list(Probe), default=Probe.ALL)
     args = parser.parse_args()
-    selected = (args.probe,)
+    selected = (Probe.TRANSPORT, Probe.OWNER) if args.probe is Probe.ALL else (args.probe,)
     config = json.loads((ROOT / 'frontend.local.json').read_text())
     proof = Path(config['frontend_cache']) / 'nhf022' / ('tls-' + args.probe.value + '-' + str(time.time_ns()))
     proof.mkdir(parents=True, mode=0o700)
@@ -82,11 +90,11 @@ def run_probe(proof, server, probe, sources, config):
             if process.wait(timeout=30) != 0:
                 raise RuntimeError('Notification Run did not join: ' + str(proof / 'server.log'))
             isolation = json.loads((fixture / 'result.json').read_text())
-            if not (isolation['synthetic_only'] and isolation['actual_run_joined'] and isolation['no_physical_providers'] and isolation['configuration_unchanged'] and isolation['production_configuration'] is False and isolation['account_revoked'] and isolation['counts'] == expected_counts and isolation['companion_counts'] == dict(registrations=1, consent_changes=0, publications=0, revocations=1, lost_replies=0)):
+            if not (isolation['synthetic_only'] and isolation['actual_run_joined'] and isolation['no_physical_providers'] and isolation['configuration_unchanged'] and isolation['production_configuration'] is False and isolation['account_revoked'] and isolation['counts'] == expected_counts and isolation['companion_counts'] == dict(registrations=2 if probe is Probe.OWNER else 1, consent_changes=0, publications=0, revocations=1, lost_replies=0)):
                 raise RuntimeError('Incomplete notification isolation or exact counts: ' + str(isolation))
         if SHARED['source_inventory'](config) != sources:
             raise RuntimeError('Notification source inputs changed during qualification')
-        (proof / 'result.json').write_text(json.dumps(dict(status='PASS', probe=probe.value, actual_rust_go_tls=True, children_joined=True, isolation=isolation, native_account_session_bound=True, default_native_delivery_off=True, installation_and_account_revocation=True, owner_integration=False, limitations=['Measurements and permissions are injected, not OS evidence', 'Native rendering and Android qualification remain separate', 'Production notification service remains deferred', 'OS permission and presentation receipts are injected for protocol qualification']), indent=2) + '\n')
+        (proof / 'result.json').write_text(json.dumps(dict(status='PASS', probe=probe.value, actual_rust_go_tls=True, children_joined=True, isolation=isolation, native_account_session_bound=True, default_native_delivery_off=True, installation_and_account_revocation=True, owner_integration=probe is Probe.OWNER, limitations=['Measurements and permissions are injected, not OS evidence', 'Native rendering and Android qualification remain separate', 'Production notification service remains deferred', 'OS permission and presentation receipts are injected for protocol qualification']), indent=2) + '\n')
         print('Notification ' + probe.value + ' actual Rust/Go TLS PASS ' + str(proof), flush=True)
     finally:
         SHARED['stop'](client)

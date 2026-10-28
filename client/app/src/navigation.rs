@@ -80,6 +80,15 @@ pub(crate) struct NativeNavigation {
     focus: crate::dashboard_focus::Host,
 }
 impl NativeNavigation {
+    pub(crate) fn notification_home(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+        let opener = self.state.borrow().fallback_opener();
+        self.state.borrow_mut().open(&window, Route::Home, opener);
+        changed(&window, &self.state, &*self.refresh, false);
+        take_focus(&window, &self.state, Target::Body(BodyFocus::Read));
+    }
     pub fn attach_catalogue(&self, choices: crate::dashboard_selection::Choices) {
         self.state.borrow_mut().choices = Some(choices);
     }

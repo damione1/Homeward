@@ -95,6 +95,11 @@ impl PresentationScope {
             && self.0.admitted_from.load(Ordering::Acquire) <= now
             && now < self.0.admitted_until.load(Ordering::Acquire)
     }
+    /// Read-only cancellation/freshness check for an adapter immediately before
+    /// its native operation. Dispatch still validates the individual message.
+    pub fn allows_presentation(&self) -> bool {
+        self.current(SystemTime::now())
+    }
     /// Immediately disables the delegate and drains opaque IDs for targeted OS
     /// removal off the UI thread. No global remove-all operation is permitted.
     #[must_use = "remove each returned app-owned OS identifier off the UI thread"]
