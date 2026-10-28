@@ -1,0 +1,246 @@
+syntax = "proto3";
+
+package home.companion.v1;
+
+import "google/protobuf/timestamp.proto";
+import "home/auth/v1/auth.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/companion/v1;companionv1";
+
+// Provisional NHF021 contract. Only an explicitly enabled isolated synthetic
+// server is admitted. No production route or integration Host credential.
+enum Deployment {
+  DEPLOYMENT_UNSPECIFIED = 0;
+  DEPLOYMENT_SYNTHETIC_ONLY = 1;
+}
+enum Platform {
+  PLATFORM_UNSPECIFIED = 0;
+  PLATFORM_MAC_OS = 1;
+  PLATFORM_ANDROID = 2;
+}
+enum Feature {
+  FEATURE_UNSPECIFIED = 0;
+  FEATURE_BATTERY_LEVEL = 1;
+  FEATURE_BATTERY_STATE = 2;
+  FEATURE_CHARGING = 3;
+  FEATURE_CONNECTIVITY = 4;
+  FEATURE_ACTIVITY = 5;
+  FEATURE_FOCUS = 6;
+  FEATURE_DO_NOT_DISTURB = 7;
+  FEATURE_KIOSK = 8;
+  FEATURE_SCREEN_SAVER = 9;
+  FEATURE_BRIGHTNESS = 10;
+  FEATURE_VOLUME = 11;
+  FEATURE_LOCATION = 12;
+  FEATURE_CAMERA_MOTION = 13;
+  FEATURE_NOTIFICATIONS = 14;
+}
+enum Availability {
+  AVAILABILITY_UNSPECIFIED = 0;
+  AVAILABILITY_AVAILABLE = 1;
+  AVAILABILITY_PARTIAL = 2;
+  AVAILABILITY_UNSUPPORTED = 3;
+  AVAILABILITY_PENDING_QUALIFICATION = 4;
+}
+enum Permission {
+  PERMISSION_UNSPECIFIED = 0;
+  PERMISSION_NOT_REQUIRED = 1;
+  PERMISSION_NOT_REQUESTED = 2;
+  PERMISSION_GRANTED = 3;
+  PERMISSION_DENIED = 4;
+  PERMISSION_RESTRICTED = 5;
+  PERMISSION_UNSUPPORTED = 6;
+}
+enum Source {
+  SOURCE_UNSPECIFIED = 0;
+  SOURCE_MAC_OS_POWER_SOURCES = 1;
+  SOURCE_MAC_OS_NETWORK_CONFIGURATION = 2;
+  SOURCE_NATIVE_LIFECYCLE = 3;
+  SOURCE_NONE = 4;
+}
+message Capability {
+  Feature feature = 1;
+  Availability availability = 2;
+  Permission permission = 3;
+  Source source = 4;
+}
+// Descriptive model/OS version only; never a serial, hostname, SSID, MAC
+// address, location or credential. Android reports unqualified capabilities.
+message DeviceDescription {
+  Platform platform = 1;
+  string model = 2;
+  string os_version = 3;
+  repeated Capability capabilities = 4;
+}
+message InstallationId { string value = 1; }
+message DeviceId { string value = 1; }
+enum Cadence {
+  CADENCE_UNSPECIFIED = 0;
+  CADENCE_SECONDS_30 = 1;
+  CADENCE_MINUTE_1 = 2;
+  CADENCE_MINUTES_5 = 3;
+}
+// No location/camera consent flag or value payload is exposed until the
+// corresponding OS path is actually implemented and qualified.
+message Consent {
+  bool battery = 1;
+  bool connectivity = 2;
+  bool activity = 3;
+  Cadence cadence = 4;
+}
+enum NoData {
+  NO_DATA_UNSPECIFIED = 0;
+  NO_DATA_DISABLED = 1;
+  NO_DATA_UNSUPPORTED = 2;
+  NO_DATA_NO_HARDWARE = 3;
+  NO_DATA_UNAVAILABLE = 4;
+  NO_DATA_PERMISSION_DENIED = 5;
+  NO_DATA_STALE = 6;
+}
+enum PowerState {
+  POWER_STATE_UNSPECIFIED = 0;
+  POWER_STATE_BATTERY = 1;
+  POWER_STATE_CHARGING = 2;
+  POWER_STATE_EXTERNAL_POWER = 3;
+  POWER_STATE_FULL = 4;
+}
+message Battery {
+  uint32 percent = 1;
+  PowerState state = 2;
+}
+message BatteryObservation {
+  oneof observation {
+    Battery value = 1;
+    NoData no_data = 2;
+  }
+}
+enum Connectivity {
+  CONNECTIVITY_UNSPECIFIED = 0;
+  CONNECTIVITY_LOCALLY_REACHABLE = 1;
+  CONNECTIVITY_CONNECTION_REQUIRED = 2;
+  CONNECTIVITY_NO_LOCAL_ROUTE = 3;
+}
+message ConnectivityObservation {
+  oneof observation {
+    Connectivity value = 1;
+    NoData no_data = 2;
+  }
+}
+enum AppActivity {
+  APP_ACTIVITY_UNSPECIFIED = 0;
+  // App visibility only; not geographic/human presence or system Focus.
+  APP_ACTIVITY_FOREGROUND = 1;
+}
+message ActivityObservation {
+  oneof observation {
+    AppActivity value = 1;
+    NoData no_data = 2;
+  }
+}
+message Snapshot {
+  google.protobuf.Timestamp captured_at = 1;
+  BatteryObservation battery = 2;
+  ConnectivityObservation connectivity = 3;
+  ActivityObservation activity = 4;
+}
+enum InstallationState {
+  INSTALLATION_STATE_UNSPECIFIED = 0;
+  INSTALLATION_STATE_ACTIVE = 1;
+  INSTALLATION_STATE_REVOKED = 2;
+  INSTALLATION_STATE_EXPIRED = 3;
+}
+message Context {
+  Deployment deployment = 1;
+  // Changes when the synthetic server restarts; old installations are retired.
+  string epoch = 2;
+}
+message Installation {
+  InstallationId id = 1;
+  DeviceId device_id = 2;
+  // Derived from fresh actual native authentication, never client claims.
+  home.auth.v1.AccountId account_id = 3;
+  home.auth.v1.SessionId session_id = 4;
+  DeviceDescription device = 5;
+  Consent consent = 6;
+  uint64 revision = 7;
+  InstallationState state = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  string registration_request_id = 10;
+  uint64 last_sequence = 11;
+  // Only this installation's latest accepted sample is retained; no history,
+  // tablet broadcast or inference of a geographic away state.
+  Snapshot latest = 12;
+  google.protobuf.Timestamp accepted_at = 13;
+}
+message RegisterInstallationRequest {
+  string request_id = 1;
+  DeviceDescription device = 2;
+  // A prior read must admit SyntheticOnly before the first mutation. This
+  // also prevents a registration after a server restart between read/confirm.
+  Context expected = 3;
+}
+message RegisterInstallationResponse {
+  Context context = 1;
+  Installation installation = 2;
+}
+message GetInstallationRequest {
+  oneof selector {
+    InstallationId id = 1;
+    // Resolves a lost registration reply without repeating the mutation.
+    string registration_request_id = 2;
+  }
+}
+message GetInstallationResponse {
+  Context context = 1;
+  Installation installation = 2;
+}
+message UpdateConsentRequest {
+  Context expected = 1;
+  InstallationId id = 2;
+  uint64 expected_revision = 3;
+  Consent consent = 4;
+}
+message UpdateConsentResponse {
+  Context context = 1;
+  Installation installation = 2;
+}
+message PublishTelemetryRequest {
+  Context expected = 1;
+  InstallationId id = 2;
+  uint64 expected_revision = 3;
+  // Exactly the next sequence. A lost acknowledgment is resolved by a read,
+  // not a blind resend. Offline/suspended samples are discarded, never queued.
+  uint64 sequence = 4;
+  Snapshot snapshot = 5;
+}
+message PublishTelemetryResponse {
+  Context context = 1;
+  Installation installation = 2;
+}
+message RevokeInstallationRequest {
+  Context expected = 1;
+  InstallationId id = 2;
+  uint64 expected_revision = 3;
+}
+message RevokeInstallationResponse {
+  Context context = 1;
+  Installation installation = 2;
+}
+message DescribeCompanionRequest {}
+message DescribeCompanionResponse {
+  Context context = 1;
+}
+
+// Every operation admits a fresh native session and is bound to its actual
+// account+session. No List/broadcast or integration credential endpoint exists.
+// Registration is explicit and always starts with all consent flags false.
+// The mock applies cadence/revision/sequence/expiry bounds and purges retained
+// samples when consent is changed, revoked or expires.
+service CompanionService {
+  rpc DescribeCompanion(DescribeCompanionRequest) returns (DescribeCompanionResponse);
+  rpc RegisterInstallation(RegisterInstallationRequest) returns (RegisterInstallationResponse);
+  rpc GetInstallation(GetInstallationRequest) returns (GetInstallationResponse);
+  rpc UpdateConsent(UpdateConsentRequest) returns (UpdateConsentResponse);
+  rpc PublishTelemetry(PublishTelemetryRequest) returns (PublishTelemetryResponse);
+  rpc RevokeInstallation(RevokeInstallationRequest) returns (RevokeInstallationResponse);
+}

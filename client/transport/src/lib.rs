@@ -7,6 +7,7 @@ mod auth;
 mod calendars;
 mod cameras;
 mod client;
+mod companion;
 mod configuration;
 mod connection;
 mod dashboard;
@@ -25,6 +26,7 @@ pub use auth::AuthTransport;
 pub use calendars::{CalendarTransport, CalendarWatch};
 pub use cameras::{CameraTransport, CameraWatch};
 pub use client::{AccessToken, StateTransport, StateWatch};
+pub use companion::CompanionTransport;
 pub use configuration::{
     ConfigurationApplyTransport, ConfigurationPlanTransport, ConfigurationSimulationTransport,
     ConfigurationTransport, ConfigurationWatch,
@@ -43,6 +45,9 @@ pub use reconnect::ReconnectPolicy;
 #[rustfmt::skip]
 pub mod services {
     pub mod home {
+        pub mod companion {
+            pub mod v1 { include!("generated/home.companion.v1.rs"); }
+        }
         pub mod logic {
             pub mod v1 { include!("generated/home.logic.v1.rs"); }
         }
