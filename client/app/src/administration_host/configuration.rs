@@ -1,5 +1,7 @@
 //! Configuration metadata reuses the settings session owner and its private purge.
+mod workflow;
 use std::collections::BTreeSet;
+pub(super) use workflow::{Completion, Workflow, execute};
 
 use buffa::EnumValue;
 use home_client_session::{AccessLease, SessionCoordinator};
@@ -25,7 +27,12 @@ pub(super) enum Selection {
     Generations,
 }
 #[derive(Clone)]
-pub(super) enum Payload {
+pub(super) struct Payload {
+    pub root: Capture,
+    pub page: Page,
+}
+#[derive(Clone)]
+pub(super) enum Page {
     Documents(wire::ListDocumentsResponse),
     Document(Box<Capture>),
     Versions {
@@ -49,6 +56,25 @@ pub(super) async fn load(
         ..Default::default()
     };
     let api = connection.configuration();
+    let root = call!(
+        session,
+        lease,
+        cancel,
+        api.clone(),
+        read_document,
+        wire::ReadDocumentRequest {
+            id: wire::DocumentId {
+                value: "operational.main".into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        }
+    );
+    let root = Capture::admit(root).map_err(|_| ReadError::Invalid)?;
+    if root.id().as_str() != "operational.main" {
+        return Err(ReadError::Invalid);
+    }
     match selection {
         Selection::Documents => {
             let response = call!(
@@ -74,25 +100,29 @@ pub(super) async fn load(
             {
                 return Err(ReadError::Invalid);
             }
-            Ok(Payload::Documents(response))
+            Ok(Page::Documents(response))
         }
         Selection::Document(id) => {
-            let response = call!(
-                session,
-                lease,
-                cancel,
-                api,
-                read_document,
-                wire::ReadDocumentRequest {
-                    id: id.to_wire().into(),
-                    ..Default::default()
-                }
-            );
-            let capture = Capture::admit(response).map_err(|_| ReadError::Invalid)?;
+            let capture = if id == *root.id() {
+                root.clone()
+            } else {
+                let response = call!(
+                    session,
+                    lease,
+                    cancel,
+                    api,
+                    read_document,
+                    wire::ReadDocumentRequest {
+                        id: id.to_wire().into(),
+                        ..Default::default()
+                    }
+                );
+                Capture::admit(response).map_err(|_| ReadError::Invalid)?
+            };
             if capture.id() != &id {
                 return Err(ReadError::Invalid);
             }
-            Ok(Payload::Document(Box::new(capture)))
+            Ok(Page::Document(Box::new(capture)))
         }
         Selection::Versions(id) => {
             let response = call!(
@@ -117,7 +147,7 @@ pub(super) async fn load(
             }) {
                 return Err(ReadError::Invalid);
             }
-            Ok(Payload::Versions { id, response })
+            Ok(Page::Versions { id, response })
         }
         Selection::Schemas => {
             let response = call!(
@@ -141,7 +171,7 @@ pub(super) async fn load(
             }) {
                 return Err(ReadError::Invalid);
             }
-            Ok(Payload::Schemas(response))
+            Ok(Page::Schemas(response))
         }
         Selection::Generations => {
             let response = call!(
@@ -167,9 +197,10 @@ pub(super) async fn load(
             {
                 return Err(ReadError::Invalid);
             }
-            Ok(Payload::Generations(response))
+            Ok(Page::Generations(response))
         }
     }
+    .map(|page| Payload { root, page })
 }
 
 fn next(value: &wire::PageContinuation) -> Option<PageToken> {
@@ -192,8 +223,8 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
     };
     let navigate = |value| render::Target::Configuration(value);
     let mut page = None;
-    match payload {
-        Payload::Documents(value) => {
+    match &payload.page {
+        Page::Documents(value) => {
             push(
                 navigate(Selection::Schemas),
                 "Schémas".into(),
@@ -217,7 +248,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
             }
             page = next(&value.continuation);
         }
-        Payload::Document(value) => {
+        Page::Document(value) => {
             push(
                 navigate(Selection::Documents),
                 "Documents".into(),
@@ -260,8 +291,18 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                 ),
             }
             push(render::fact("configuration/source"),"Source protégée".into(),"Ce document fournit des métadonnées. L’édition exige une source explicitement fournie.".into());
+            push(
+                render::fact("configuration/sql-active"),
+                "Utilisation du document SQL".into(),
+                if value.document().active {
+                    "Cette version participe à la génération active"
+                } else {
+                    "Version enregistrée distincte de la génération active"
+                }
+                .into(),
+            );
         }
-        Payload::Versions { id, response } => {
+        Page::Versions { id, response } => {
             push(
                 navigate(Selection::Document(id.clone())),
                 "Document courant".into(),
@@ -288,7 +329,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
             }
             page = next(&response.continuation);
         }
-        Payload::Schemas(value) => {
+        Page::Schemas(value) => {
             push(
                 navigate(Selection::Documents),
                 "Documents".into(),
@@ -311,7 +352,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
             }
             page = next(&value.continuation);
         }
-        Payload::Generations(value) => {
+        Page::Generations(value) => {
             push(
                 navigate(Selection::Documents),
                 "Documents".into(),

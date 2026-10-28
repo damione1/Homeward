@@ -31,6 +31,7 @@ struct Inner {
     receipts: receipt::Receipts,
 }
 struct State {
+    configuration: configuration::Workflow,
     private: PrivateState<Payload, forms::Draft>,
     pending: Option<forms::Operation>,
     section: Section,
@@ -51,6 +52,7 @@ struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
+            configuration: configuration::Workflow::default(),
             private: PrivateState::default(),
             pending: None,
             section: Section::Account,
@@ -73,6 +75,7 @@ impl Default for State {
 impl State {
     fn bump(&mut self) -> bool {
         let Some(next) = self.generation.checked_add(1) else {
+            self.configuration.retire();
             self.stage = Stage::Invalid;
             self.requested = false;
             return false;
@@ -81,6 +84,7 @@ impl State {
         true
     }
     fn request(&mut self) {
+        self.configuration.retire();
         self.private.dismiss_draft();
         self.private.dismiss_secret();
         self.pending = None;
@@ -94,6 +98,7 @@ impl State {
         self.probing = true;
     }
     fn clear(&mut self) {
+        self.configuration.retire();
         self.pending = None;
         self.cancel.cancel();
         let _ = self.private.retire();
@@ -255,6 +260,7 @@ impl Administration {
         if !self.current(&state, generation)
             || state.stage != Stage::Ready
             || state.private.draft().is_some()
+            || state.configuration.opened()
         {
             return;
         }
@@ -307,6 +313,18 @@ impl Administration {
         let mut state = self.0.state.lock().expect("admin state");
         if !self.current(&state, generation) {
             return;
+        }
+        if state.section == Section::Configuration {
+            if state.configuration.opened() {
+                return;
+            }
+            if matches!(state.stage, Stage::Ready | Stage::Empty)
+                && state.configuration.open(action)
+            {
+                state.bump();
+                self.retired(&state);
+                return;
+            }
         }
         if let Some(command) = forms::available(&state)
             .into_iter()
@@ -368,6 +386,11 @@ impl Administration {
         if token != 1 || !self.current(&state, generation) {
             return;
         }
+        if state.section == Section::Configuration && state.configuration.opened() {
+            state.configuration.edit(field, value);
+            self.publish(&state);
+            return;
+        }
         if let Some(draft) = state.private.draft_mut() {
             draft.edit(field, value);
             self.publish(&state);
@@ -378,6 +401,12 @@ impl Administration {
         if token != 1 || !self.current(&state, generation) {
             return;
         }
+        if state.section == Section::Configuration && state.configuration.opened() {
+            state.configuration.choose(field, option);
+            state.bump();
+            self.retired(&state);
+            return;
+        }
         if let Some(draft) = state.private.draft_mut() {
             draft.choose(field, option);
             self.publish(&state);
@@ -386,6 +415,11 @@ impl Administration {
     fn editor_action(&self, token: i32, generation: i32, action: ProAdminAction) {
         let mut state = self.0.state.lock().expect("admin state");
         if token != 1 || !self.current(&state, generation) {
+            return;
+        }
+        if state.section == Section::Configuration && state.configuration.editor_action(action) {
+            state.bump();
+            self.retired(&state);
             return;
         }
         match action {
@@ -455,6 +489,7 @@ impl Administration {
         if !self.current(&state, state.generation)
             || state.rows.is_empty()
             || state.private.draft().is_some()
+            || state.configuration.opened()
         {
             return;
         }
@@ -498,6 +533,9 @@ impl Administration {
                 state.section = loaded.section;
                 match loaded.payload {
                     Ok(payload) => {
+                        if let Payload::Configuration(value) = &payload {
+                            state.configuration.observe(value.root.clone());
+                        }
                         let (rows, next) = render::rows(&payload, &identity);
                         state.rows = rows;
                         state.next = next;
@@ -540,6 +578,32 @@ impl Administration {
             }
         }
         self.publish(&state);
+    }
+    fn configuration_written(&self, result: configuration::Completion) {
+        let mut state = self.0.state.lock().expect("admin state");
+        if state.section != Section::Configuration
+            || !self.current(&state, state.generation)
+            || state.cancel.is_cancelled()
+        {
+            return;
+        }
+        if state.configuration.accept(result) {
+            state.stage = Stage::Denied;
+            state.rows.clear();
+            state.selected = None;
+            state.next = None;
+            let context = state.private.context();
+            let _ = state.private.publish(
+                context,
+                Section::Configuration,
+                Pane {
+                    stage: Stage::Denied,
+                    content: None,
+                },
+            );
+        }
+        state.bump();
+        self.retired(&state);
     }
     fn checked_authority(
         &self,
@@ -590,6 +654,32 @@ impl Administration {
             let changed = self.0.changed.notified();
             tokio::pin!(changed);
             changed.as_mut().enable();
+            let config_job = {
+                let mut state = self.0.state.lock().expect("admin state");
+                if !busy
+                    && state.section == Section::Configuration
+                    && self.current(&state, state.generation)
+                {
+                    state
+                        .configuration
+                        .take_pending()
+                        .map(|job| (job, state.cancel.clone()))
+                } else {
+                    None
+                }
+            };
+            if let Some((job, token)) = config_job {
+                busy = true;
+                let owner = self.clone();
+                let session = session.clone();
+                let connection = connection.clone();
+                jobs.spawn(async move {
+                    let result =
+                        configuration::execute(&session, &connection, generation, job, &token)
+                            .await;
+                    owner.configuration_written(result);
+                });
+            }
             let operation = {
                 let mut state = self.0.state.lock().expect("admin state");
                 if !busy && self.current(&state, state.generation) {

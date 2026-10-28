@@ -822,6 +822,7 @@ pub(super) struct Projection {
     next: bool,
     fields: Vec<(String, String, bool)>,
     commands: Vec<forms::Command>,
+    configuration_actions: Vec<ProAdminActionRow>,
     editor: Option<Editor>,
     secret: Option<(
         crate::administration::SecretKind,
@@ -829,6 +830,7 @@ pub(super) struct Projection {
     )>,
 }
 struct Editor {
+    actions: Option<Vec<ProAdminActionRow>>,
     title: &'static str,
     notice: &'static str,
     editable: bool,
@@ -876,15 +878,34 @@ impl Projection {
             next: state.next.is_some(),
             fields,
             commands: forms::available(state),
-            editor: state.private.draft().map(|draft| Editor {
-                title: draft.title(),
-                notice: draft.notice,
-                editable: draft.editable(),
-                submittable: draft.state == crate::administration::MutationState::Draft,
-                destructive: draft.destructive(),
-                fields: draft.fields(),
-                choices: draft.choices(),
-            }),
+            configuration_actions: if state.section == Section::Configuration {
+                state.configuration.actions()
+            } else {
+                Vec::new()
+            },
+            editor: if state.section == Section::Configuration && state.configuration.opened() {
+                Some(Editor {
+                    actions: Some(state.configuration.editor_actions()),
+                    title: state.configuration.title(),
+                    notice: state.configuration.notice(),
+                    editable: state.configuration.editable(),
+                    submittable: false,
+                    destructive: true,
+                    fields: state.configuration.fields(),
+                    choices: state.configuration.choices(),
+                })
+            } else {
+                state.private.draft().map(|draft| Editor {
+                    actions: None,
+                    title: draft.title(),
+                    notice: draft.notice,
+                    editable: draft.editable(),
+                    submittable: draft.state == crate::administration::MutationState::Draft,
+                    destructive: draft.destructive(),
+                    fields: draft.fields(),
+                    choices: draft.choices(),
+                })
+            },
             secret: state.private.secret_kind().zip(
                 state
                     .private
@@ -1001,6 +1022,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         enabled: true,
         destructive: command.destructive(),
     }));
+    actions.extend(value.configuration_actions);
     if value.next {
         actions.push(ProAdminActionRow {
             action: ProAdminAction::More,
@@ -1047,20 +1069,24 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         window.set_admin_editor_notice(editor.notice.into());
         window.set_admin_fields(ModelRc::new(VecModel::from(editor.fields)));
         window.set_admin_choices(ModelRc::new(VecModel::from(editor.choices)));
-        window.set_admin_editor_actions(ModelRc::new(VecModel::from(vec![
-            ProAdminActionRow {
-                action: ProAdminAction::Save,
-                label: "Confirmer".into(),
-                enabled: editor.submittable,
-                destructive: editor.destructive,
-            },
-            ProAdminActionRow {
-                action: ProAdminAction::Cancel,
-                label: "Annuler".into(),
-                enabled: true,
-                destructive: false,
-            },
-        ])));
+        window.set_admin_editor_actions(ModelRc::new(VecModel::from(
+            editor.actions.unwrap_or_else(|| {
+                vec![
+                    ProAdminActionRow {
+                        action: ProAdminAction::Save,
+                        label: "Confirmer".into(),
+                        enabled: editor.submittable,
+                        destructive: editor.destructive,
+                    },
+                    ProAdminActionRow {
+                        action: ProAdminAction::Cancel,
+                        label: "Annuler".into(),
+                        enabled: true,
+                        destructive: false,
+                    },
+                ]
+            }),
+        )));
     }
     if let Some((kind, secret)) = value.secret {
         let label = match kind {

@@ -445,6 +445,16 @@ impl SourceEdit {
     pub fn source(&self) -> Option<&UserSource> {
         self.source.as_ref()
     }
+    pub fn observe(&mut self, current: &Capture) {
+        if matches!(
+            self.stage,
+            EditStage::Draft
+                | EditStage::Completed(Outcome::RejectedBeforeCommit | Outcome::NotCommitted)
+        ) && !self.anchor.matches(current)
+        {
+            self.stage = EditStage::Conflict;
+        }
+    }
     pub fn supply(&mut self, source: UserSource) -> Result<(), Refusal> {
         match self.stage {
             EditStage::Draft
@@ -497,6 +507,16 @@ impl SourceEdit {
     pub fn uncertain(&mut self) {
         if self.stage == EditStage::InFlight {
             self.stage = EditStage::Uncertain;
+        }
+    }
+    pub fn rejected_before_commit(&mut self) {
+        if self.stage == EditStage::InFlight {
+            self.stage = EditStage::Completed(Outcome::RejectedBeforeCommit);
+        }
+    }
+    pub fn conflict_before_commit(&mut self) {
+        if self.stage == EditStage::InFlight {
+            self.stage = EditStage::Conflict;
         }
     }
     pub fn complete(
