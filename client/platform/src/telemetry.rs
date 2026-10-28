@@ -2,6 +2,10 @@
 //! absence, suspension and API failure never turn into a physical zero/off/away.
 use std::time::{Duration, SystemTime};
 
+#[cfg(target_os = "android")]
+mod android;
+#[cfg(any(target_os = "android", test))]
+mod android_values;
 #[cfg(target_os = "macos")]
 mod macos;
 
@@ -81,6 +85,8 @@ pub enum Source {
     MacOsPowerSources,
     MacOsNetworkConfiguration,
     NativeLifecycle,
+    AndroidBatteryManager,
+    AndroidConnectivityManager,
     None,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -120,12 +126,25 @@ pub fn capabilities(platform: Platform) -> [Capability; 14] {
             ),
             (
                 Platform::Android,
-                Feature::BatteryLevel
-                | Feature::BatteryState
-                | Feature::Charging
-                | Feature::Connectivity
-                | Feature::Activity
-                | Feature::DoNotDisturb
+                Feature::BatteryLevel | Feature::BatteryState | Feature::Charging,
+            ) => (
+                Availability::Available,
+                Permission::NotRequired,
+                Source::AndroidBatteryManager,
+            ),
+            (Platform::Android, Feature::Connectivity) => (
+                Availability::Partial,
+                Permission::NotRequired,
+                Source::AndroidConnectivityManager,
+            ),
+            (Platform::Android, Feature::Activity) => (
+                Availability::Partial,
+                Permission::NotRequired,
+                Source::NativeLifecycle,
+            ),
+            (
+                Platform::Android,
+                Feature::DoNotDisturb
                 | Feature::Kiosk
                 | Feature::ScreenSaver
                 | Feature::Brightness
@@ -324,20 +343,26 @@ pub struct DeviceInfo {
 pub fn device_info() -> Option<DeviceInfo> {
     #[cfg(target_os = "macos")]
     return macos::device_info();
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "android")]
+    return android::device_info();
+    #[cfg(not(any(target_os = "macos", target_os = "android")))]
     None
 }
 impl Collector for NativeCollector {
     fn battery(&mut self) -> Observation<Battery> {
         #[cfg(target_os = "macos")]
         return macos::battery();
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "android")]
+        return android::battery();
+        #[cfg(not(any(target_os = "macos", target_os = "android")))]
         Observation::Unsupported
     }
     fn connectivity(&mut self) -> Observation<Connectivity> {
         #[cfg(target_os = "macos")]
         return macos::connectivity();
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "android")]
+        return android::connectivity();
+        #[cfg(not(any(target_os = "macos", target_os = "android")))]
         Observation::Unsupported
     }
 }

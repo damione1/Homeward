@@ -1,124 +1,50 @@
-//! Android NotificationManager with one bounded JNI worker. No native Binder
-//! call holds a presentation-scope lock or blocks the UI thread.
+//! Notification admission atop the shared bounded Android JNI worker.
 use super::*;
+use crate::android::host::{self, Context, enqueue, wait};
 use android_activity::AndroidApp;
 use jni::{
-    JNIEnv, JavaVM, NativeMethod,
-    objects::{GlobalRef, JIntArray, JObject, JString, JValue},
+    JNIEnv, NativeMethod,
+    objects::{JIntArray, JObject, JString, JValue},
 };
 use std::{
     collections::HashMap,
-    sync::{
-        Arc, Mutex, OnceLock, Weak,
-        atomic::{AtomicBool, Ordering},
-        mpsc,
-    },
-    time::Instant,
+    sync::{Arc, Mutex, OnceLock, Weak},
 };
 
-const TIMEOUT: Duration = Duration::from_secs(5);
-const MAX_PENDING: usize = 8;
-type Operation = Box<dyn FnOnce(&Context) + Send>;
-struct Job {
-    until: Instant,
-    operation: Operation,
-}
-struct Context {
-    vm: JavaVM,
-    activity: GlobalRef,
-    alive: Arc<AtomicBool>,
-}
-#[derive(Clone)]
-struct Handle {
-    jobs: mpsc::SyncSender<Job>,
-    alive: Arc<AtomicBool>,
-}
-static CONTEXT: Mutex<Option<Handle>> = Mutex::new(None);
 type Routes = HashMap<PresentationId, Weak<scope::Inner>>;
 static ROUTES: OnceLock<Mutex<Routes>> = OnceLock::new();
-
-/// Install only from the real Android entry point; an ELF shell has no app
-/// identity. The global reference stays valid even after Activity destruction.
-pub fn initialize(app: &AndroidApp) -> Result<(), Error> {
-    // SAFETY: AndroidApp owns the VM and its activity throughout this borrow.
-    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }
-        .map_err(|_| Error::NativeUnavailable)?;
-    let activity = {
-        let mut env = vm
-            .attach_current_thread()
-            .map_err(|_| Error::NativeUnavailable)?;
-        // SAFETY: borrowed valid activity, promoted to our own global ref below.
-        let activity = unsafe { JObject::from_raw(app.activity_as_ptr().cast()) };
-        let result = env.with_local_frame(16, |env| -> jni::errors::Result<_> {
-            let class = env.get_object_class(&activity)?;
-            // Signature exactly matches the private Java native method;
-            // callback copies only a bounded opaque ID and never authorizes it.
-            env.register_native_methods(
-                &class,
-                &[NativeMethod {
-                    name: "notificationOpened".into(),
-                    sig: "(Ljava/lang/String;)V".into(),
-                    fn_ptr: opened as *mut std::ffi::c_void,
-                }],
-            )?;
-            env.call_method(&activity, "attachNotifications", "()V", &[])?;
-            env.new_global_ref(activity)
-        });
-        if env.exception_check().unwrap_or(true) {
-            let _ = env.exception_clear();
-            return Err(Error::NativeUnavailable);
+impl From<host::Failure> for Error {
+    fn from(value: host::Failure) -> Self {
+        match value {
+            host::Failure::Unavailable => Self::NativeUnavailable,
+            host::Failure::Timeout => Self::Timeout,
+            host::Failure::Capacity => Self::Capacity,
+            host::Failure::Closed => Self::ScopeClosed,
         }
-        result.map_err(|_| Error::NativeUnavailable)?
-    };
-    let alive = Arc::new(AtomicBool::new(true));
-    let context = Context {
-        vm,
-        activity,
-        alive: alive.clone(),
-    };
-    let (jobs, receiver) = mpsc::sync_channel::<Job>(MAX_PENDING);
-    std::thread::Builder::new()
-        .name("android-notifications".into())
-        .spawn(move || {
-            while let Ok(job) = receiver.recv() {
-                if Instant::now() < job.until {
-                    (job.operation)(&context);
-                }
-            }
-        })
-        .map_err(|_| Error::NativeUnavailable)?;
-    let mut slot = CONTEXT.lock().map_err(|_| Error::NativeUnavailable)?;
-    if let Some(previous) = slot.replace(Handle { jobs, alive }) {
-        previous.alive.store(false, Ordering::Release);
     }
-    Ok(())
 }
-/// Activity lifecycle cancellation is immediate, even if a Binder call stalls.
+pub fn initialize(app: &AndroidApp) -> Result<(), Error> {
+    host::initialize(app, |env, activity| {
+        let class = env.get_object_class(activity)?;
+        // Exact signature of the private Java method. Only an opaque ID is
+        // copied; resource authority remains with the fresh server grant.
+        env.register_native_methods(
+            &class,
+            &[NativeMethod {
+                name: "notificationOpened".into(),
+                sig: "(Ljava/lang/String;)V".into(),
+                fn_ptr: opened as *mut std::ffi::c_void,
+            }],
+        )?;
+        env.call_method(activity, "attachNotifications", "()V", &[])?;
+        Ok(())
+    })
+    .map_err(Error::from)
+}
 pub fn destroyed() {
-    if let Ok(slot) = CONTEXT.lock()
-        && let Some(previous) = slot.as_ref()
-    {
-        // Keep the one bounded worker for targeted cleanup after destruction.
-        // A replacement Activity drops this handle; old jobs then join naturally.
-        previous.alive.store(false, Ordering::Release);
-    }
+    host::destroyed();
 }
 impl Context {
-    fn with_env<T>(
-        &self,
-        f: impl FnOnce(&mut JNIEnv<'_>) -> jni::errors::Result<T>,
-    ) -> Result<T, Error> {
-        let mut env = self
-            .vm
-            .attach_current_thread()
-            .map_err(|_| Error::NativeUnavailable)?;
-        let result = env.with_local_frame(64, f);
-        if env.exception_check().unwrap_or(true) {
-            let _ = env.exception_clear();
-            return Err(Error::NativeUnavailable);
-        }
-        result.map_err(|_| Error::NativeUnavailable)
-    }
     fn settings(&self) -> Result<Settings, Error> {
         let raw = self
             .with_env(|env| {
@@ -156,6 +82,7 @@ impl Context {
             )?;
             Ok(())
         })
+        .map_err(Error::from)
     }
 }
 fn setting(raw: i32) -> Setting {
@@ -166,43 +93,12 @@ fn setting(raw: i32) -> Setting {
         _ => Setting::Unknown,
     }
 }
-fn enqueue<T: Send + 'static>(
-    operation: impl FnOnce(&Context) -> Result<T, Error> + Send + 'static,
-) -> Result<mpsc::Receiver<Result<T, Error>>, Error> {
-    let handle = CONTEXT
-        .lock()
-        .map_err(|_| Error::NativeUnavailable)?
-        .clone()
-        .ok_or(Error::NativeUnavailable)?;
-    let (sender, receiver) = mpsc::sync_channel(1);
-    handle
-        .jobs
-        .try_send(Job {
-            until: Instant::now() + TIMEOUT,
-            operation: Box::new(move |context| {
-                let _ = sender.try_send(operation(context));
-            }),
-        })
-        .map_err(|error| match error {
-            mpsc::TrySendError::Full(_) => Error::Capacity,
-            mpsc::TrySendError::Disconnected(_) => Error::NativeUnavailable,
-        })?;
-    Ok(receiver)
-}
-fn wait<T>(receiver: mpsc::Receiver<Result<T, Error>>) -> Result<T, Error> {
-    receiver
-        .recv_timeout(TIMEOUT)
-        .map_err(|error| match error {
-            mpsc::RecvTimeoutError::Timeout => Error::Timeout,
-            mpsc::RecvTimeoutError::Disconnected => Error::NativeUnavailable,
-        })?
-}
 pub(super) fn settings() -> Result<Settings, Error> {
     wait(enqueue(Context::settings)?)
 }
 pub(super) fn request_authorization() -> Result<Settings, Error> {
     wait(enqueue(|context| {
-        if !context.alive.load(Ordering::Acquire) {
+        if !context.is_alive() {
             return Err(Error::ScopeClosed);
         }
         context.with_env(|env| {
@@ -221,22 +117,24 @@ pub(super) fn request_authorization() -> Result<Settings, Error> {
 pub(super) fn delivery_evidence(id: &PresentationId) -> Result<DeliveryEvidence, Error> {
     let id = id.clone();
     wait(enqueue(move |context| {
-        context.with_env(|env| {
-            let id = env.new_string(id.as_str())?;
-            let raw = env
-                .call_method(
-                    context.activity.as_obj(),
-                    "notificationEvidence",
-                    "(Ljava/lang/String;)I",
-                    &[JValue::Object(id.as_ref())],
-                )?
-                .i()?;
-            Ok(match raw {
-                1 => DeliveryEvidence::PresentInOsCenter,
-                2 => DeliveryEvidence::NotObserved,
-                _ => DeliveryEvidence::Unknown,
+        context
+            .with_env(|env| {
+                let id = env.new_string(id.as_str())?;
+                let raw = env
+                    .call_method(
+                        context.activity.as_obj(),
+                        "notificationEvidence",
+                        "(Ljava/lang/String;)I",
+                        &[JValue::Object(id.as_ref())],
+                    )?
+                    .i()?;
+                Ok(match raw {
+                    1 => DeliveryEvidence::PresentInOsCenter,
+                    2 => DeliveryEvidence::NotObserved,
+                    _ => DeliveryEvidence::Unknown,
+                })
             })
-        })
+            .map_err(Error::from)
     })?)
 }
 pub(super) fn remove(id: &PresentationId) -> Result<(), Error> {
@@ -264,7 +162,7 @@ pub(super) fn submit_once(value: &Content, scope: &PresentationScope) -> Result<
     let receiver = scope.dispatch(value.id(), SystemTime::now(), || {
         enqueue(move |context| {
             let current = || {
-                context.alive.load(Ordering::Acquire)
+                context.is_alive()
                     && content.check_fresh(SystemTime::now()).is_ok()
                     && admitted
                         .dispatch(content.id(), SystemTime::now(), || ())
@@ -305,7 +203,7 @@ pub(super) fn submit_once(value: &Content, scope: &PresentationScope) -> Result<
                 let _ = context.remove(content.id());
                 return Err(Error::ScopeClosed);
             }
-            result
+            result.map_err(Error::from)
         })
     })??;
     wait(receiver)

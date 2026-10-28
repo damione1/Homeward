@@ -94,6 +94,8 @@ known!(
     wire::Source,
     MacOsPowerSources,
     MacOsNetworkConfiguration,
+    AndroidBatteryManager,
+    AndroidConnectivityManager,
     NativeLifecycle,
     None
 );
@@ -182,16 +184,24 @@ fn capability_profile(platform: EnumValue<wire::Platform>, c: &wire::Capability)
             EnumValue::Known(wire::Feature::Unspecified) | EnumValue::Unknown(_) => None,
         },
         EnumValue::Known(wire::Platform::Android) => match c.feature {
+            EnumValue::Known(
+                wire::Feature::BatteryLevel | wire::Feature::BatteryState | wire::Feature::Charging,
+            ) => Some((
+                wire::Availability::Available,
+                wire::Source::AndroidBatteryManager,
+            )),
+            EnumValue::Known(wire::Feature::Connectivity) => Some((
+                wire::Availability::Partial,
+                wire::Source::AndroidConnectivityManager,
+            )),
+            EnumValue::Known(wire::Feature::Activity) => {
+                Some((wire::Availability::Partial, wire::Source::NativeLifecycle))
+            }
             EnumValue::Known(wire::Feature::Focus) => {
                 Some((wire::Availability::Unsupported, wire::Source::None))
             }
             EnumValue::Known(
-                wire::Feature::BatteryLevel
-                | wire::Feature::BatteryState
-                | wire::Feature::Charging
-                | wire::Feature::Connectivity
-                | wire::Feature::Activity
-                | wire::Feature::DoNotDisturb
+                wire::Feature::DoNotDisturb
                 | wire::Feature::Kiosk
                 | wire::Feature::ScreenSaver
                 | wire::Feature::Brightness

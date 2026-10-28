@@ -63,6 +63,8 @@ fn capability(value: os::Capability) -> wire::Capability {
             os::Source::MacOsPowerSources => wire::Source::MacOsPowerSources,
             os::Source::MacOsNetworkConfiguration => wire::Source::MacOsNetworkConfiguration,
             os::Source::NativeLifecycle => wire::Source::NativeLifecycle,
+            os::Source::AndroidBatteryManager => wire::Source::AndroidBatteryManager,
+            os::Source::AndroidConnectivityManager => wire::Source::AndroidConnectivityManager,
             os::Source::None => wire::Source::None,
         }
         .into(),

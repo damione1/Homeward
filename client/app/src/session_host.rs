@@ -1367,6 +1367,11 @@ pub(crate) fn run_with_lifecycle(
     let (preferences_tx, preferences) = watch::channel(initial_preferences);
     let preferences_window = window.as_weak();
     window.on_preferences_changed(move |dark, opaque, large, reduced| {
+        home_client_platform::appearance::apply(if dark {
+            home_client_platform::appearance::SystemBars::Dark
+        } else {
+            home_client_platform::appearance::SystemBars::Light
+        });
         preferences_tx.send_replace(Preferences::from_ui(dark, opaque, large, reduced));
         if let Some(window) = preferences_window.upgrade() {
             window.set_preferences_status("Enregistrement…".into());

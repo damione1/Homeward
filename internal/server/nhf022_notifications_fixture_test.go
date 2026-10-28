@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"github.com/damione1/Homeward/gen/home/notifications/v1/notificationsv1connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/testpg"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -27,6 +29,7 @@ const (
 	nhf022ControlSeedEntity
 	nhf022ControlSeedExpiring
 	nhf022ControlWithdrawTarget
+	nhf022ControlObserve
 )
 
 var nhf022Controls = []struct {
@@ -37,6 +40,7 @@ var nhf022Controls = []struct {
 	{"seed-entity", nhf022ControlSeedEntity},
 	{"seed-expiring", nhf022ControlSeedExpiring},
 	{"withdraw-target", nhf022ControlWithdrawTarget},
+	{"capture-state", nhf022ControlObserve},
 }
 
 func TestNHF022NotificationServer(t *testing.T) {
@@ -145,6 +149,39 @@ func TestNHF022NotificationServer(t *testing.T) {
 					if err := notifications.seed(nhf022SeedExpiring); err != nil {
 						t.Fatal(err)
 					}
+				case nhf022ControlObserve:
+					handler.mu.Lock()
+					installations := make([]proto.Message, 0, len(handler.records))
+					for _, record := range handler.records {
+						installations = append(installations, proto.Clone(record.value))
+					}
+					companionCounts := handler.counts
+					handler.mu.Unlock()
+					notifications.mu.Lock()
+					destinations := make([]proto.Message, 0, len(notifications.records))
+					deliveries := make([]proto.Message, 0)
+					for _, record := range notifications.records {
+						destinations = append(destinations, proto.Clone(record.value))
+						for _, entry := range record.entries {
+							deliveries = append(deliveries, proto.Clone(entry))
+						}
+					}
+					counts := notifications.counts
+					notifications.mu.Unlock()
+					encode := func(messages []proto.Message) []json.RawMessage {
+						values := make([]json.RawMessage, 0, len(messages))
+						for _, message := range messages {
+							raw, err := (protojson.MarshalOptions{UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}).Marshal(message)
+							if err != nil {
+								t.Fatal(err)
+							}
+							values = append(values, raw)
+						}
+						return values
+					}
+					// Private test output only. No access/refresh credentials,
+					// public RPC, provider or installation mutation is added.
+					nhf003WritePrivate(t, out, "observed-state.json", map[string]any{"installations": encode(installations), "destinations": encode(destinations), "deliveries": encode(deliveries), "companion_counts": companionCounts, "counts": counts})
 				case nhf022ControlWithdrawTarget:
 					notifications.mu.Lock()
 					notifications.targetReadable = false

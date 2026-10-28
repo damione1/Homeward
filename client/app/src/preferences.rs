@@ -80,6 +80,10 @@ impl Preferences {
         )
     }
     pub fn apply(self, window: &HomewardWindow) {
+        home_client_platform::appearance::apply(match self.appearance {
+            Appearance::Light => home_client_platform::appearance::SystemBars::Light,
+            Appearance::Dark => home_client_platform::appearance::SystemBars::Dark,
+        });
         window.set_dark_mode(match self.appearance {
             Appearance::Light => false,
             Appearance::Dark => true,

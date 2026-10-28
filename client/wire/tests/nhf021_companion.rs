@@ -305,3 +305,42 @@ fn first_mutation_requires_a_previously_admitted_synthetic_context() {
         .is_ok()
     );
 }
+
+#[test]
+fn android_native_sources_cannot_impersonate_macos_collectors() {
+    let mut android = device();
+    android.platform = wire::Platform::Android.into();
+    for c in &mut android.capabilities {
+        match c.feature {
+            EnumValue::Known(
+                wire::Feature::BatteryLevel | wire::Feature::BatteryState | wire::Feature::Charging,
+            ) => c.source = wire::Source::AndroidBatteryManager.into(),
+            EnumValue::Known(wire::Feature::Connectivity) => {
+                c.source = wire::Source::AndroidConnectivityManager.into()
+            }
+            EnumValue::Known(wire::Feature::Activity | wire::Feature::Focus) => (),
+            EnumValue::Known(
+                wire::Feature::DoNotDisturb
+                | wire::Feature::Kiosk
+                | wire::Feature::ScreenSaver
+                | wire::Feature::Brightness
+                | wire::Feature::Volume
+                | wire::Feature::Location
+                | wire::Feature::CameraMotion
+                | wire::Feature::Notifications,
+            ) => {
+                c.availability = wire::Availability::PendingQualification.into();
+                c.permission = wire::Permission::NotRequested.into();
+            }
+            EnumValue::Known(wire::Feature::Unspecified) | EnumValue::Unknown(_) => {
+                panic!("fixture must use known features")
+            }
+        }
+    }
+    assert!(valid_device(&android));
+    android.capabilities[0].source = wire::Source::MacOsPowerSources.into();
+    assert!(!valid_device(&android));
+    let mut macos = device();
+    macos.capabilities[0].source = wire::Source::AndroidBatteryManager.into();
+    assert!(!valid_device(&macos));
+}

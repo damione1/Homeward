@@ -329,6 +329,8 @@ const (
 	Source_SOURCE_MAC_OS_NETWORK_CONFIGURATION Source = 2
 	Source_SOURCE_NATIVE_LIFECYCLE             Source = 3
 	Source_SOURCE_NONE                         Source = 4
+	Source_SOURCE_ANDROID_BATTERY_MANAGER      Source = 5
+	Source_SOURCE_ANDROID_CONNECTIVITY_MANAGER Source = 6
 )
 
 // Enum value maps for Source.
@@ -339,6 +341,8 @@ var (
 		2: "SOURCE_MAC_OS_NETWORK_CONFIGURATION",
 		3: "SOURCE_NATIVE_LIFECYCLE",
 		4: "SOURCE_NONE",
+		5: "SOURCE_ANDROID_BATTERY_MANAGER",
+		6: "SOURCE_ANDROID_CONNECTIVITY_MANAGER",
 	}
 	Source_value = map[string]int32{
 		"SOURCE_UNSPECIFIED":                  0,
@@ -346,6 +350,8 @@ var (
 		"SOURCE_MAC_OS_NETWORK_CONFIGURATION": 2,
 		"SOURCE_NATIVE_LIFECYCLE":             3,
 		"SOURCE_NONE":                         4,
+		"SOURCE_ANDROID_BATTERY_MANAGER":      5,
+		"SOURCE_ANDROID_CONNECTIVITY_MANAGER": 6,
 	}
 )
 
@@ -764,7 +770,7 @@ func (x *Capability) GetSource() Source {
 }
 
 // Descriptive model/OS version only; never a serial, hostname, SSID, MAC
-// address, location or credential. Android reports unqualified capabilities.
+// address, location or credential. Each platform reports only implemented capabilities.
 type DeviceDescription struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Platform      Platform               `protobuf:"varint,1,opt,name=platform,proto3,enum=home.companion.v1.Platform" json:"platform,omitempty"`
@@ -2399,13 +2405,15 @@ const file_home_companion_v1_companion_proto_rawDesc = "" +
 	"\x12PERMISSION_GRANTED\x10\x03\x12\x15\n" +
 	"\x11PERMISSION_DENIED\x10\x04\x12\x19\n" +
 	"\x15PERMISSION_RESTRICTED\x10\x05\x12\x1a\n" +
-	"\x16PERMISSION_UNSUPPORTED\x10\x06*\x98\x01\n" +
+	"\x16PERMISSION_UNSUPPORTED\x10\x06*\xe5\x01\n" +
 	"\x06Source\x12\x16\n" +
 	"\x12SOURCE_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bSOURCE_MAC_OS_POWER_SOURCES\x10\x01\x12'\n" +
 	"#SOURCE_MAC_OS_NETWORK_CONFIGURATION\x10\x02\x12\x1b\n" +
 	"\x17SOURCE_NATIVE_LIFECYCLE\x10\x03\x12\x0f\n" +
-	"\vSOURCE_NONE\x10\x04*g\n" +
+	"\vSOURCE_NONE\x10\x04\x12\"\n" +
+	"\x1eSOURCE_ANDROID_BATTERY_MANAGER\x10\x05\x12'\n" +
+	"#SOURCE_ANDROID_CONNECTIVITY_MANAGER\x10\x06*g\n" +
 	"\aCadence\x12\x17\n" +
 	"\x13CADENCE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12CADENCE_SECONDS_30\x10\x01\x12\x14\n" +

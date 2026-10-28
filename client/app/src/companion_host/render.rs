@@ -100,6 +100,8 @@ fn source(value: EnumValue<wire::Source>) -> &'static str {
     match value {
         EnumValue::Known(wire::Source::MacOsPowerSources) => "Batterie macOS",
         EnumValue::Known(wire::Source::MacOsNetworkConfiguration) => "Route locale macOS",
+        EnumValue::Known(wire::Source::AndroidBatteryManager) => "Batterie Android",
+        EnumValue::Known(wire::Source::AndroidConnectivityManager) => "Route locale Android",
         EnumValue::Known(wire::Source::NativeLifecycle) => "Visibilité de l’application",
         EnumValue::Known(wire::Source::None) => "Aucune source qualifiée",
         EnumValue::Known(wire::Source::Unspecified) | EnumValue::Unknown(_) => "Source non admise",

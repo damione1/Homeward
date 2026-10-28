@@ -7,9 +7,17 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.os.BatteryManager;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
+import android.view.WindowInsetsController;
 import android.service.notification.StatusBarNotification;
 import java.util.ArrayDeque;
 
@@ -129,4 +137,48 @@ public final class HomewardActivity extends NativeActivity {
     public void removeNotification(String id) {
         manager().cancel("homeward." + id, 1);
     }
+    /** Descriptive OS metadata, never serial/hostname/account identifiers. */
+    public String[] companionDeviceInfo() {
+        return new String[] {Build.MODEL, Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")"};
+    }
+    /** One sticky read, no receiver registration or periodic Java collection. */
+    public int[] companionBattery() {
+        Intent value = getApplicationContext().registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if (value == null || !value.hasExtra(BatteryManager.EXTRA_PRESENT)) return new int[] {0, 0, 0, 0, 0};
+        if (!value.getBooleanExtra(BatteryManager.EXTRA_PRESENT, false)) return new int[] {2, 0, 0, 0, 0};
+        return new int[] {1, value.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
+            value.getIntExtra(BatteryManager.EXTRA_SCALE, -1), value.getIntExtra(BatteryManager.EXTRA_STATUS, -1),
+            value.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1)};
+    }
+    /** Route configuration only. No packets, Internet test, SSID, IP or MAC. */
+    public int companionConnectivity() {
+        try {
+            ConnectivityManager manager = (ConnectivityManager) getApplicationContext().getSystemService(CONNECTIVITY_SERVICE);
+            Network network = manager.getActiveNetwork();
+            if (network == null) return 3;
+            NetworkCapabilities capabilities = manager.getNetworkCapabilities(network);
+            LinkProperties properties = manager.getLinkProperties(network);
+            if (capabilities == null || properties == null) return 0;
+            if (Build.VERSION.SDK_INT >= 28 && !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)) return 2;
+            return properties.getRoutes().isEmpty() ? 3 : 1;
+        } catch (SecurityException denied) {
+            return 4;
+        }
+    }
+
+    public void systemBarAppearance(boolean dark) {
+        runOnUiThread(() -> {
+            if (isDestroyed() || isFinishing()) return;
+            View decor = getWindow().getDecorView();
+            int mask = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            int flags = decor.getSystemUiVisibility();
+            decor.setSystemUiVisibility(dark ? flags & ~mask : flags | mask);
+            if (Build.VERSION.SDK_INT >= 30) {
+                WindowInsetsController controller = getWindow().getInsetsController();
+                int appearance = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                if (controller != null) controller.setSystemBarsAppearance(dark ? 0 : appearance, appearance);
+            }
+        });
+    }
+
 }

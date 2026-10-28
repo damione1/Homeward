@@ -62,6 +62,9 @@ target_sdk_version = 35
 name = "android.permission.INTERNET"
 
 [[package.metadata.android.uses_permission]]
+name = "android.permission.ACCESS_NETWORK_STATE"
+
+[[package.metadata.android.uses_permission]]
 name = "android.permission.POST_NOTIFICATIONS"
 
 [package.metadata.android.application]

@@ -1,3 +1,5 @@
+pub(crate) mod host;
+
 use std::sync::{Arc, Mutex};
 
 use android_activity::AndroidApp;
