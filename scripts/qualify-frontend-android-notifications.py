@@ -14,8 +14,20 @@ import subprocess
 import time
 import xml.etree.ElementTree as ET
 import zipfile
+from enum import Enum
 
 from frontend_android_package import ACTIVITY_NAME
+
+
+class Stage(Enum):
+    READ_ONLY_PASS = 'READ_ONLY_PASS'
+    AWAITING_EXPLICIT_OS_PERMISSION = 'AWAITING_EXPLICIT_OS_PERMISSION'
+    OS_REGISTRATION_PASS = 'OS_REGISTRATION_PASS'
+
+
+def observed_stages(progress):
+    prefix = 'INSTRUMENTATION_STATUS: stage='
+    return {Stage(line[len(prefix):].strip()) for line in progress.splitlines() if line.startswith(prefix)}
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((ROOT / 'frontend.local.json').read_text())
@@ -69,7 +81,8 @@ def build_probe(proof):
     shutil.copyfile(__file__, proof / 'probe-driver.py')
     run(Path(os.environ['JAVA_HOME']) / 'bin/javac', '-source', '8', '-target', '8',
         '-Xlint:-options', '-classpath', ANDROID_JAR, '-d', classes, source,
-        ROOT / 'client/platform/android/ca/homeward/platform/HomewardActivity.java')
+        ROOT / 'client/platform/android/ca/homeward/platform/HomewardActivity.java',
+        ROOT / 'client/platform/android/ca/homeward/platform/HomewardReceptionService.java')
     run(TOOLS / 'd8', '--min-api', '26', '--lib', ANDROID_JAR, '--debug', '--output', proof,
         *sorted((classes / 'ca/homeward/qualification').glob('*.class')))
     manifest = proof / 'AndroidManifest.xml'
@@ -131,9 +144,10 @@ def qualify():
                 center_captured = False
                 while time.monotonic() < until and instrument.poll() is None:
                     progress = output.read_text()
-                    if 'AWAITING_EXPLICIT_OS_PERMISSION' in progress and not allowed:
+                    stages = observed_stages(progress)
+                    if Stage.AWAITING_EXPLICIT_OS_PERMISSION in stages and not allowed:
                         allowed = allow_permission(proof)
-                    if 'OS_CENTER_PASS' in progress and not center_captured:
+                    if Stage.OS_REGISTRATION_PASS in stages and not center_captured:
                         DEVICE('shell', 'cmd', 'statusbar', 'expand-notifications')
                         time.sleep(.3)
                         screenshot(proof / 'os-center.png')
@@ -159,7 +173,8 @@ def qualify():
                 'scope': 'Java NotificationManager API35 emulator; native Activity/library loads and opaque click intent accepted; JNI-owner/TLS/physical/background/performance not qualified',
                 'apk_sha256': apk_hash,
                 'read_only_query': True, 'explicit_permission_dialog': True,
-                'two_present_in_os_center': True, 'targeted_removal_preserves_other_message': True,
+                'two_registered_with_os': True, 'native_center_visibility_qualified': False,
+                'targeted_removal_preserves_other_message': True,
                 'sources': str(proof / 'NotificationAdapterProbe.java'),
                 'physical_device': False, 'real_device_actions': 0,
             }

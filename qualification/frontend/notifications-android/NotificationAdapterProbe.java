@@ -10,6 +10,7 @@ import ca.homeward.platform.HomewardActivity;
 
 /** OS adapter evidence only: no server, session, delivery receipt or device driver. */
 public final class NotificationAdapterProbe extends Instrumentation {
+    private enum Stage { READ_ONLY_PASS, AWAITING_EXPLICIT_OS_PERMISSION, OS_REGISTRATION_PASS }
     private static final String FIRST = "0123456789abcdef0123456789abcdef";
     private static final String SECOND = "1123456789abcdef0123456789abcdef";
     @Override public void onCreate(Bundle args) { super.onCreate(args); start(); }
@@ -24,8 +25,8 @@ public final class NotificationAdapterProbe extends Instrumentation {
         } while (SystemClock.elapsedRealtime() < until);
         return false;
     }
-    private void stage(String text) {
-        Bundle report = new Bundle(); report.putString("stage", text); sendStatus(1, report);
+    private void stage(Stage value) {
+        Bundle report = new Bundle(); report.putString("stage", value.name()); sendStatus(1, report);
     }
     @Override public void onStart() {
         HomewardActivity activity = null;
@@ -45,19 +46,22 @@ public final class NotificationAdapterProbe extends Instrumentation {
             require(before[0] == 1 && before[1] == 4 && before[2] == 4, "read-only settings invented permission/channel");
             require(manager.getNotificationChannel("homeward.messages.v1") == null, "query created a channel");
             require(activity.notificationEvidence(FIRST) == 2, "unposted message observed");
-            stage("READ_ONLY_PASS");
+            stage(Stage.READ_ONLY_PASS);
             activity.requestNotifications();
-            stage("AWAITING_EXPLICIT_OS_PERMISSION");
+            stage(Stage.AWAITING_EXPLICIT_OS_PERMISSION);
             until = SystemClock.elapsedRealtime() + 45000;
             int[] settings = activity.notificationSettings();
             while (settings[0] != 3 && SystemClock.elapsedRealtime() < until) {
                 SystemClock.sleep(100); settings = activity.notificationSettings();
             }
             require(settings[0] == 3 && settings[1] == 2 && settings[2] == 1, "actual OS permission/channel not enabled");
+            until = SystemClock.elapsedRealtime() + 10000;
+            while (!activity.hasWindowFocus() && SystemClock.elapsedRealtime() < until) SystemClock.sleep(100);
+            require(activity.hasWindowFocus(), "target Activity has not resumed after permission");
             activity.postNotification(FIRST, "Qualification Homeward", "Message synthétique A", 30000);
             activity.postNotification(SECOND, "Qualification Homeward", "Message synthétique B", 30000);
-            require(evidence(activity, FIRST, 1) && evidence(activity, SECOND, 1), "OS center did not attest the two messages");
-            stage("OS_CENTER_PASS");
+            require(evidence(activity, FIRST, 1) && evidence(activity, SECOND, 1), "OS manager did not register the two messages");
+            stage(Stage.OS_REGISTRATION_PASS);
             SystemClock.sleep(2500);
             activity.removeNotification(FIRST);
             require(evidence(activity, FIRST, 2), "targeted removal failed");
