@@ -1481,6 +1481,8 @@ pub(crate) fn run_with_lifecycle(
     let notification_navigation = native_navigation.clone();
     window.on_notification_target(move |generation| {
         if let Some(target) = notification_ui.notifications.take_navigation(generation) {
+            #[cfg(debug_assertions)]
+            eprintln!("homeward: notification navigation authorized");
             match target {
                 crate::notification_host::NavigationTarget::Home => {
                     notification_navigation.notification_home()

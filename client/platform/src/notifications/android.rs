@@ -8,10 +8,12 @@ use jni::{
 };
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, OnceLock, Weak},
+    sync::{Mutex, OnceLock},
 };
 
-type Routes = HashMap<PresentationId, Weak<scope::Inner>>;
+// At most64 opaque-ID ledgers until expiry/consumption, without message
+// bodies or credentials. A short Activity pause must not erase its click route.
+type Routes = HashMap<PresentationId, PresentationScope>;
 static ROUTES: OnceLock<Mutex<Routes>> = OnceLock::new();
 impl From<host::Failure> for Error {
     fn from(value: host::Failure) -> Self {
@@ -129,7 +131,9 @@ pub(super) fn delivery_evidence(id: &PresentationId) -> Result<DeliveryEvidence,
                     )?
                     .i()?;
                 Ok(match raw {
-                    1 => DeliveryEvidence::PresentInOsCenter,
+                    // Android also returns queued and snoozed records here.
+                    // Presence in this API does not attest center presentation.
+                    1 => DeliveryEvidence::RegisteredWithOs,
                     2 => DeliveryEvidence::NotObserved,
                     _ => DeliveryEvidence::Unknown,
                 })
@@ -146,15 +150,11 @@ pub(super) fn submit_once(value: &Content, scope: &PresentationScope) -> Result<
         .get_or_init(Mutex::default)
         .lock()
         .map_err(|_| Error::NativeUnavailable)?;
-    routes.retain(|_, scope| {
-        scope
-            .upgrade()
-            .is_some_and(|s| PresentationScope(s).allows_presentation())
-    });
+    routes.retain(|id, route| route.retains_open_route(id, SystemTime::now()));
     if routes.len() >= 64 {
         return Err(Error::Capacity);
     }
-    routes.insert(value.id().clone(), Arc::downgrade(&scope.0));
+    routes.insert(value.id().clone(), scope.clone());
     drop(routes);
     let content = value.clone();
     let admitted = scope.clone();
@@ -218,9 +218,9 @@ unsafe extern "system" fn opened(mut env: JNIEnv<'_>, _this: JObject<'_>, raw: J
         if let Ok(id) = PresentationId::parse(&value) {
             let route = ROUTES
                 .get()
-                .and_then(|routes| routes.lock().ok()?.get(&id)?.upgrade());
+                .and_then(|routes| routes.lock().ok()?.get(&id).cloned());
             if let Some(route) = route {
-                PresentationScope(route).opened(&id, SystemTime::now());
+                route.capture_open_intent(&id, SystemTime::now());
             }
         }
         Ok(())

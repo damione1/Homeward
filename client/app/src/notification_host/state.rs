@@ -134,6 +134,18 @@ pub(super) struct RowKey {
     pub generation: i32,
     revision: u64,
 }
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct OpenBinding {
+    scope: u64,
+    identity: (AccountId, SessionId),
+    parent: parent_admit::InstallationId,
+    destination: admit::DestinationId,
+}
+pub(super) struct NativeOpen {
+    binding: OpenBinding,
+    id: admit::DeliveryId,
+    until: Instant,
+}
 pub(super) struct State {
     pub scope: u64,
     pub fence: u64,
@@ -161,6 +173,7 @@ pub(super) struct State {
     pub resolution_attempted: bool,
     pub local_stopped: bool,
     pub native: Option<os::PresentationScope>,
+    pub(super) native_open: Option<NativeOpen>,
     pub native_stop: CancellationToken,
     pub cleanup: Vec<os::PresentationId>,
     pub cancel: CancellationToken,
@@ -199,6 +212,7 @@ impl Default for State {
             resolution_attempted: false,
             local_stopped: true,
             native: None,
+            native_open: None,
             native_stop: CancellationToken::new(),
             cleanup: Vec::new(),
             cancel: CancellationToken::new(),
@@ -211,6 +225,67 @@ impl Default for State {
     }
 }
 impl State {
+    pub fn open_binding(&self) -> Option<OpenBinding> {
+        let destination = self.destination.as_ref()?;
+        if !self.active
+            || self.local_stopped
+            || destination.state != wire::DestinationState::Active
+            || !destination.native_delivery
+        {
+            return None;
+        }
+        Some(OpenBinding {
+            scope: self.scope,
+            identity: self.identity.clone()?,
+            parent: parent_admit::InstallationId::parse(&self.parent.as_ref()?.id.value).ok()?,
+            destination: admit::DestinationId::parse(&destination.id.value).ok()?,
+        })
+    }
+    pub fn capture_native_open(
+        &mut self,
+        binding: OpenBinding,
+        id: admit::DeliveryId,
+        now: Instant,
+    ) -> bool {
+        if self
+            .native_open
+            .as_ref()
+            .is_some_and(|value| now >= value.until)
+        {
+            self.native_open = None;
+        }
+        if self.open_binding().as_ref() != Some(&binding) || self.native_open.is_some() {
+            return false;
+        }
+        self.native_open = Some(NativeOpen {
+            binding,
+            id,
+            until: now + os::MAX_SCOPE_FRESHNESS,
+        });
+        self.requested = true;
+        self.next_poll = now;
+        true
+    }
+    pub fn pending_native_open(&mut self, now: Instant) -> Option<admit::DeliveryId> {
+        if !self.foreground {
+            return None;
+        }
+        let value = self.native_open.as_ref()?;
+        if now >= value.until || self.open_binding().as_ref() != Some(&value.binding) {
+            self.native_open = None;
+            return None;
+        }
+        Some(value.id.clone())
+    }
+    pub fn finish_native_open(&mut self, id: &admit::DeliveryId) {
+        if self
+            .native_open
+            .as_ref()
+            .is_some_and(|value| &value.id == id)
+        {
+            self.native_open = None;
+        }
+    }
     pub fn bump(&mut self) {
         if let Some(next) = self.generation.checked_add(1) {
             self.generation = next;
@@ -295,6 +370,7 @@ impl State {
         }
     }
     pub fn clear(&mut self) {
+        self.native_open = None;
         self.interrupt();
         self.active = false;
         self.validated = None;
@@ -315,6 +391,7 @@ impl State {
         self.permission = native::permission(Err(os::Error::Unsupported));
     }
     pub fn invalid(&mut self) {
+        self.native_open = None;
         self.interrupt();
         self.local_stopped = true;
         self.requested = false;

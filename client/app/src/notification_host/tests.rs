@@ -170,3 +170,65 @@ fn missing_native_services_are_valid_unavailable_snapshots_not_protocol_failures
         assert_eq!(snapshot.notification_center, wire::Setting::Unsupported);
     }
 }
+
+#[test]
+fn native_read_intent_survives_only_a_short_same_session_activity_pause() {
+    let mut state = State {
+        active: true,
+        local_stopped: false,
+        scope: 1,
+        identity: Some((
+            AccountId::parse("synthetic-account").unwrap(),
+            SessionId::parse("synthetic-session").unwrap(),
+        )),
+        parent: Some(companion::Installation {
+            id: companion::InstallationId {
+                value: "a".repeat(32),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        }),
+        destination: Some(wire::Destination {
+            id: wire::DestinationId {
+                value: "b".repeat(32),
+                ..Default::default()
+            }
+            .into(),
+            state: wire::DestinationState::Active.into(),
+            native_delivery: true,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let binding = state.open_binding().unwrap();
+    let id = admit::DeliveryId::parse(&"c".repeat(32)).unwrap();
+    let now = Instant::now();
+    state.foreground = false;
+    state.interrupt();
+    assert!(state.capture_native_open(binding.clone(), id.clone(), now));
+    assert!(state.pending_native_open(now).is_none());
+    state.foreground = true;
+    assert_eq!(state.pending_native_open(now), Some(id.clone()));
+    state.foreground = false;
+    state.interrupt();
+    assert!(state.pending_native_open(now).is_none());
+    state.foreground = true;
+    assert_eq!(state.pending_native_open(now), Some(id.clone()));
+    state.finish_native_open(&id);
+    assert!(state.pending_native_open(now).is_none());
+    assert!(state.capture_native_open(binding.clone(), id.clone(), now));
+    assert!(
+        state
+            .pending_native_open(now + os::MAX_SCOPE_FRESHNESS)
+            .is_none()
+    );
+    state.local_stopped = true;
+    assert!(!state.capture_native_open(binding.clone(), id.clone(), now));
+    state.local_stopped = false;
+    state.identity = Some((
+        AccountId::parse("another-account").unwrap(),
+        SessionId::parse("another-session").unwrap(),
+    ));
+    assert!(!state.capture_native_open(binding, id, now));
+}

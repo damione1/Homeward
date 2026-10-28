@@ -8,6 +8,7 @@ import contextlib
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import runpy
 import shlex
@@ -114,9 +115,20 @@ def qualify(policy=FailurePolicy.STOP):
         time.sleep(.25)
 
     def tap(label, scroll=True):
-        row, width, height, capture = ui.find(label, scroll=scroll, timeout=35)
-        x = round(row['x'] + row['width'] / 2)
-        y = round(row['y'] + row['height'] / 2)
+        deadline = time.monotonic() + 35
+        while True:
+            row, width, height, capture = ui.find(label, scroll=scroll, timeout=max(.1, deadline - time.monotonic()))
+            x = round(row['x'] + row['width'] / 2)
+            y = round(row['y'] + row['height'] / 2)
+            if not scroll or row['y'] + row['height'] < height - 64:
+                break
+            if time.monotonic() >= deadline:
+                raise RuntimeError('Observed Android label remains clipped at viewport edge: ' + label)
+            # OCR can recognize the first pixels of a clipped button. Move it
+            # inside the viewport before tapping; preserve every actual gesture.
+            DEVICE('shell', 'input', 'swipe', width * 3 // 4, height * 4 // 5,
+                   width * 3 // 4, height * 4 // 5 - 96, '700')
+            time.sleep(.35)
         if not (0 <= x < width and 0 <= y < height):
             raise RuntimeError('Input outside observed emulator')
         capture.with_suffix('.tap.json').write_text(json.dumps(dict(requested=label, observed=row, x=x, y=y), indent=2) + '\n')
@@ -195,7 +207,6 @@ def qualify(policy=FailurePolicy.STOP):
                         raise RuntimeError('Actual Android value missing despite known emulator battery/route/foreground')
                     battery = DEVICE('shell', 'dumpsys', 'battery').stdout
                     (proof / 'independent-os-battery.txt').write_text(battery)
-                    import re
                     level = int(re.search(r'^\s*level: (\d+)$', battery, re.M).group(1))
                     scale = int(re.search(r'^\s*scale: (\d+)$', battery, re.M).group(1))
                     if latest['battery']['value']['percent'] != (level * 100 + scale // 2) // scale:
@@ -224,17 +235,61 @@ def qualify(policy=FailurePolicy.STOP):
                     tap('Confirmer')
                     state('native-enabled', lambda s: s['destinations'][0].get('native_delivery', False))
                     control(Control.SEED_NOMINAL)
-                    delivered = state('native-center-receipt', lambda s: any(e['title'] == 'Notification synthétique' and Presentation(e['presentation']) is Presentation.PRESENT_IN_OS_CENTER for e in s['deliveries']))
+                    delivered = state('native-os-accepted', lambda s: any(e['title'] == 'Notification synthétique' and Presentation(e['presentation']) is Presentation.OS_ACCEPTED for e in s['deliveries']))
                     message = next(e for e in delivered['deliveries'] if e['title'] == 'Notification synthétique')
-                    center = DEVICE('shell', 'dumpsys', 'notification', '--noredact').stdout
-                    if 'homeward.' + message['id']['value'] not in center:
-                        raise RuntimeError('Server receipt has no corresponding actual OS notification')
-                    (proof / 'native-notification-center.txt').write_text(center)
+                    tag = 'homeward.' + message['id']['value']
+                    # getActiveNotifications includes queued/snoozed records.
+                    # The owned-emulator diagnostic must observe the posted list,
+                    # not merely find the tag anywhere in a dumpsys archive.
+                    deadline = time.monotonic() + 12
+                    while True:
+                        center = DEVICE('shell', 'dumpsys', 'notification', '--noredact').stdout
+                        body = center.partition('  Notification List:\n')[2]
+                        posted = re.split(r'(?m)^  (?=\S)', body, maxsplit=1)[0]
+                        if tag in posted:
+                            break
+                        if time.monotonic() >= deadline:
+                            (proof / 'native-notification-unposted.txt').write_text(center)
+                            raise RuntimeError('OS accepted notification did not enter posted list')
+                        time.sleep(.15)
+                    (proof / 'native-notification-posted.txt').write_text(center)
                     DEVICE('shell', 'cmd', 'statusbar', 'expand-notifications')
-                    time.sleep(.5)
+                    deadline = time.monotonic() + 12
+                    while True:
+                        DEVICE('shell', 'uiautomator', 'dump', '/sdcard/homeward-notification.xml', check=False)
+                        result = DEVICE('shell', 'cat', '/sdcard/homeward-notification.xml', check=False)
+                        try:
+                            tree = ET.fromstring(result.stdout)
+                        except ET.ParseError:
+                            tree = None
+                        node = None if tree is None else next((n for n in tree.iter('node') if n.get('package') == 'com.android.systemui' and n.get('text') == message['title']), None)
+                        if node is not None:
+                            break
+                        if time.monotonic() >= deadline:
+                            ui.capture('native-notification-not-visible')
+                            (proof / 'native-notification-not-visible.xml').write_text(result.stdout)
+                            raise RuntimeError('Posted message absent from actual OS notification view')
+                        time.sleep(.15)
+                    (proof / 'native-notification.xml').write_text(result.stdout)
                     ui.capture('actual-native-notification')
-                    DEVICE('shell', 'cmd', 'statusbar', 'collapse')
-                    time.sleep(.5)
+                    bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
+                    if len(bounds) != 4:
+                        raise RuntimeError('Invalid observed OS notification bounds')
+                    point = ((bounds[0] + bounds[2]) // 2, (bounds[1] + bounds[3]) // 2)
+                    if not (0 <= point[0] < 1280 and 0 <= point[1] < 800):
+                        raise RuntimeError('Observed notification outside owned display')
+                    DEVICE('shell', 'input', 'tap', *point)
+                    (proof / 'native-notification-click.json').write_text(json.dumps(dict(title=message['title'], bounds=bounds, point=point), indent=2) + '\n')
+                    state('native-click-authorized', lambda s: s['counts']['opens'] == 1)
+                    deadline = time.monotonic() + 10
+                    while True:
+                        log = DEVICE('logcat', '-d').stdout
+                        if 'homeward: notification navigation authorized' in log:
+                            (proof / 'native-grant-dispatch.json').write_text(json.dumps(dict(debug_marker_observed=True, fresh_ui_grant_consumed=True)) + '\n')
+                            break
+                        if time.monotonic() >= deadline:
+                            raise RuntimeError('Fresh native navigation grant did not reach the UI')
+                        time.sleep(.15)
                     settings()
                     top()
                     tap('Arrêter la présentation')
@@ -274,8 +329,8 @@ def qualify(policy=FailurePolicy.STOP):
             if not (isolation['actual_run_joined'] and isolation['no_physical_providers'] and isolation['configuration_unchanged'] and not isolation['production_configuration']):
                 raise RuntimeError('Isolation failed')
             result = dict(status='PASS_PENDING_VISUAL_INSPECTION', actual_rust_go_tls=True, native_android_collectors=True,
-                actual_os_permission=True, os_manager_presence_receipt=True, native_center_visibility_qualified=False, default_consents_off=True,
-                local_stop_and_revocation=True, physical_device=False, native_os_click_qualified=False,
+                actual_os_permission=True, os_submission_receipt=True, native_center_visibility_qualified=True, default_consents_off=True,
+                local_stop_and_revocation=True, physical_device=False, native_os_click_qualified=True,
                 background_qualified=False, isolation=isolation, children_joined=True)
             (proof / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
             print('PASS ' + str(proof), flush=True)

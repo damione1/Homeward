@@ -640,18 +640,23 @@ impl Run<'_> {
             }
         }
         // Native click IDs use exactly the inbox ResolveOpen path.
-        let clicked = self
-            .owner
-            .0
-            .state
-            .lock()
-            .expect("notification native click")
-            .native
-            .as_ref()
-            .and_then(os::PresentationScope::take_open);
+        let clicked = {
+            let mut state = self
+                .owner
+                .0
+                .state
+                .lock()
+                .expect("notification native click");
+            state.pending_native_open(Instant::now()).or_else(|| {
+                state
+                    .native
+                    .as_ref()
+                    .and_then(os::PresentationScope::take_open)
+                    .and_then(|id| admit::DeliveryId::parse(id.as_str()).ok())
+            })
+        };
         if let Some(id) = clicked {
-            self.open(admit::DeliveryId::parse(id.as_str()).map_err(|_| Error::Invalid)?)
-                .await?;
+            self.open(id).await?;
         }
         Ok(())
     }
@@ -684,9 +689,26 @@ impl Run<'_> {
             let owner = state.native_stop.clone();
             let parent = self.parent.cancellation.clone();
             state.native_parent_stop = Some(parent.clone());
-            state.native = Some(os::PresentationScope::new(move || {
-                !native.is_cancelled() && !owner.is_cancelled() && !parent.is_cancelled()
-            }));
+            let binding = state.open_binding().ok_or(Error::Invalid)?;
+            let target = Arc::downgrade(&self.owner.0);
+            let on_open = Arc::new(move |id: os::PresentationId| {
+                let Some(target) = target.upgrade() else {
+                    return;
+                };
+                let Ok(id) = admit::DeliveryId::parse(id.as_str()) else {
+                    return;
+                };
+                let mut state = target.state.lock().expect("native notification intention");
+                let queued = state.capture_native_open(binding.clone(), id, Instant::now());
+                drop(state);
+                if queued {
+                    target.changed.notify_one();
+                }
+            });
+            state.native = Some(os::PresentationScope::with_open_handler(
+                move || !native.is_cancelled() && !owner.is_cancelled() && !parent.is_cancelled(),
+                on_open,
+            ));
         }
         let scope = state.native.as_ref().expect("created native scope").clone();
         let current = SystemTime::now();
@@ -775,7 +797,7 @@ impl Run<'_> {
             .await
             .map_err(|_| Error::Invalid)?;
         self.check()?;
-        if matches!(evidence, Ok(os::DeliveryEvidence::PresentInOsCenter)) {
+        if evidence.is_ok_and(os::DeliveryEvidence::attests_center) {
             self.receipt(entry, wire::ReceiptKind::PresentInOsCenter)
                 .await?;
         }
@@ -813,8 +835,15 @@ impl Run<'_> {
             Open,
             Open
         );
-        admit::bind_open(&grant, &self.parent.context, &destination, &message, &now())
-            .map_err(|_| Error::Invalid)?;
+        admit::bind_open(&grant, &self.parent.context, &destination, &message, &now()).map_err(
+            |error| {
+                #[cfg(debug_assertions)]
+                eprintln!("homeward: notification grant rejected {error:?}");
+                Error::Invalid
+            },
+        )?;
+        #[cfg(debug_assertions)]
+        eprintln!("homeward: notification grant ready");
         let mut state = self.owner.0.state.lock().expect("notification open grant");
         state.next_grant = state.next_grant.checked_add(1).ok_or(Error::Invalid)?;
         let generation = state.next_grant;
@@ -840,9 +869,13 @@ impl Run<'_> {
                         .is_none_or(|grant| grant.tag != generation)
                     || !owner.authenticated(&state)
                 {
+                    #[cfg(debug_assertions)]
+                    eprintln!("homeward: notification grant dispatch invalidated");
                     return;
                 }
                 drop(state);
+                #[cfg(debug_assertions)]
+                eprintln!("homeward: notification grant dispatching");
                 window.invoke_notification_target(generation);
             });
         }

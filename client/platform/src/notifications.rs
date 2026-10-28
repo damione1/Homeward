@@ -11,7 +11,7 @@ mod macos;
 #[cfg(target_os = "macos")]
 mod macos_delegate;
 mod scope;
-pub use scope::{ForegroundEvidence, MAX_SCOPE_FRESHNESS, PresentationScope};
+pub use scope::{ForegroundEvidence, MAX_SCOPE_FRESHNESS, OpenIntentHandler, PresentationScope};
 
 pub const MAX_LIFETIME: Duration = Duration::from_secs(3600);
 
@@ -100,13 +100,23 @@ pub enum Submission {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeliveryEvidence {
     PresentInOsCenter,
+    RegisteredWithOs,
     NotObserved,
     Unknown,
 }
 impl DeliveryEvidence {
+    /// Registration can include queued/snoozed Android records. It cannot
+    /// produce the stronger center-presentation receipt.
+    pub fn attests_center(self) -> bool {
+        match self {
+            Self::PresentInOsCenter => true,
+            Self::RegisteredWithOs | Self::NotObserved | Self::Unknown => false,
+        }
+    }
     pub fn label(self) -> &'static str {
         match self {
             Self::PresentInOsCenter => "Remise attestée au centre de notifications OS",
+            Self::RegisteredWithOs => "Enregistrée auprès de l’OS ; affichage non attesté",
             Self::NotObserved => "Remise non observée",
             Self::Unknown => "Remise inconnue",
         }
@@ -337,6 +347,13 @@ mod tests {
             )
             .is_err()
         );
+    }
+    #[test]
+    fn os_registration_never_attests_visible_center_presentation() {
+        assert!(!DeliveryEvidence::RegisteredWithOs.attests_center());
+        assert!(!DeliveryEvidence::NotObserved.attests_center());
+        assert!(!DeliveryEvidence::Unknown.attests_center());
+        assert!(DeliveryEvidence::PresentInOsCenter.attests_center());
     }
     #[test]
     fn os_permission_and_surface_setting_are_separate_from_submission() {

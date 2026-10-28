@@ -190,6 +190,8 @@ impl Notifications {
     }
     pub fn take_navigation(&self, generation: i32) -> Option<NavigationTarget> {
         let mut state = self.0.state.lock().expect("notification navigation grant");
+        #[cfg(debug_assertions)]
+        eprintln!("homeward: notification grant UI callback");
         if state
             .grant
             .as_ref()
@@ -212,12 +214,14 @@ impl Notifications {
             &now(),
         )
         .ok()?;
-        match grant.response.authorized_target.resource.as_ref()? {
-            wire::target::Resource::Home(_) => Some(NavigationTarget::Home),
-            wire::target::Resource::Entity(id) => {
-                Some(NavigationTarget::Entity(id.value.parse().ok()?))
-            }
-        }
+        let target = match grant.response.authorized_target.resource.as_ref()? {
+            wire::target::Resource::Home(_) => NavigationTarget::Home,
+            wire::target::Resource::Entity(id) => NavigationTarget::Entity(id.value.parse().ok()?),
+        };
+        // A pause or lost read response must not consume the short-lived native
+        // intention. Clear it only when a freshly bound grant reaches the UI.
+        state.finish_native_open(&admit::DeliveryId::parse(&grant.message.id.value).ok()?);
+        Some(target)
     }
     pub async fn run(
         &self,
