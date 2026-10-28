@@ -5062,6 +5062,15 @@ pub struct ResolveOpenResponse {
         ::buffa_types::google::protobuf::Timestamp,
         ::buffa::Inline<::buffa_types::google::protobuf::Timestamp>,
     >,
+    /// Server clock origin for the at-most-five-second grant. Clients measure
+    /// elapsed time from the fresh request using a monotonic clock; independent
+    /// device wall clocks must neither extend nor reject this short lease.
+    ///
+    /// Field 6: `issued_at`
+    pub issued_at: ::buffa::MessageField<
+        ::buffa_types::google::protobuf::Timestamp,
+        ::buffa::Inline<::buffa_types::google::protobuf::Timestamp>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -5073,6 +5082,7 @@ impl ::core::fmt::Debug for ResolveOpenResponse {
             .field("delivery_id", &self.delivery_id)
             .field("authorized_target", &self.authorized_target)
             .field("valid_until", &self.valid_until)
+            .field("issued_at", &self.issued_at)
             .finish()
     }
 }
@@ -5143,6 +5153,14 @@ impl ::buffa::Message for ResolveOpenResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.issued_at.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.issued_at.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5192,6 +5210,14 @@ impl ::buffa::Message for ResolveOpenResponse {
                 buf,
             );
             self.valid_until.write_to(__cache, buf);
+        }
+        if self.issued_at.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                6u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.issued_at.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5261,6 +5287,17 @@ impl ::buffa::Message for ResolveOpenResponse {
                     ctx,
                 )?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.issued_at.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5274,6 +5311,7 @@ impl ::buffa::Message for ResolveOpenResponse {
         self.delivery_id = ::buffa::MessageField::none();
         self.authorized_target = ::buffa::MessageField::none();
         self.valid_until = ::buffa::MessageField::none();
+        self.issued_at = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -14050,6 +14088,14 @@ pub mod __buffa {
             pub valid_until: ::buffa::MessageFieldView<
                 ::buffa_types::google::protobuf::__buffa::view::TimestampView<'a>,
             >,
+            /// Server clock origin for the at-most-five-second grant. Clients measure
+            /// elapsed time from the fresh request using a monotonic clock; independent
+            /// device wall clocks must neither extend nor reject this short lease.
+            ///
+            /// Field 6: `issued_at`
+            pub issued_at: ::buffa::MessageFieldView<
+                ::buffa_types::google::protobuf::__buffa::view::TimestampView<'a>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for ResolveOpenResponseView<'a> {
@@ -14213,6 +14259,31 @@ pub mod __buffa {
                             }
                         }
                     }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.issued_at.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.issued_at = ::buffa::MessageFieldView::set(
+                                    <::buffa_types::google::protobuf::__buffa::view::TimestampView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -14289,6 +14360,15 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    issued_at: match self.issued_at.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                ::buffa_types::google::protobuf::Timestamp,
+                                ::buffa::Inline<::buffa_types::google::protobuf::Timestamp>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -14338,6 +14418,14 @@ pub mod __buffa {
                 if self.valid_until.is_set() {
                     let __slot = __cache.reserve();
                     let inner_size = self.valid_until.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.issued_at.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.issued_at.compute_size(__cache);
                     __cache.set(__slot, inner_size);
                     size
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -14393,6 +14481,14 @@ pub mod __buffa {
                         buf,
                     );
                     self.valid_until.write_to(__cache, buf);
+                }
+                if self.issued_at.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.issued_at.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -14533,6 +14629,19 @@ pub mod __buffa {
                 ::buffa_types::google::protobuf::__buffa::view::TimestampView<'_>,
             > {
                 &self.0.reborrow().valid_until
+            }
+            /// Server clock origin for the at-most-five-second grant. Clients measure
+            /// elapsed time from the fresh request using a monotonic clock; independent
+            /// device wall clocks must neither extend nor reject this short lease.
+            ///
+            /// Field 6: `issued_at`
+            #[must_use]
+            pub fn issued_at(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                ::buffa_types::google::protobuf::__buffa::view::TimestampView<'_>,
+            > {
+                &self.0.reborrow().issued_at
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<ResolveOpenResponseView<'static>>>

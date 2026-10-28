@@ -448,7 +448,7 @@ func (h *nhf022Notifications) ResolveOpen(ctx context.Context, r *connect.Reques
 			deadline = entry.ExpiresAt.AsTime()
 		}
 		result = &wire.ResolveOpenResponse{Context: h.parent.context(), DestinationId: proto.Clone(record.value.Id).(*wire.DestinationId),
-			DeliveryId: proto.Clone(entry.Id).(*wire.DeliveryId), AuthorizedTarget: proto.Clone(entry.Target).(*wire.Target), ValidUntil: timestamppb.New(deadline)}
+			DeliveryId: proto.Clone(entry.Id).(*wire.DeliveryId), AuthorizedTarget: proto.Clone(entry.Target).(*wire.Target), ValidUntil: timestamppb.New(deadline), IssuedAt: timestamppb.New(now)}
 		h.counts.Opens++
 		return nil
 	})

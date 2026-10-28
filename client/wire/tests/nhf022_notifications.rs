@@ -397,6 +397,7 @@ fn open_grant_is_fresh_short_lived_and_bound_to_the_same_original_resource() {
         delivery_id: delivery.id.clone(),
         authorized_target: delivery.target.clone(),
         valid_until: stamp(1005).into(),
+        issued_at: stamp(1000).into(),
         ..Default::default()
     };
     assert_eq!(
@@ -461,6 +462,7 @@ fn opening_cannot_outlive_the_installation_destination_or_fractional_grant_bound
         delivery_id: delivery.id.clone(),
         authorized_target: delivery.target.clone(),
         valid_until: stamp(1005).into(),
+        issued_at: stamp(1000).into(),
         ..Default::default()
     };
     assert_eq!(
@@ -546,5 +548,111 @@ fn measured_android_permission_is_admitted_only_for_an_android_destination() {
     assert!(
         !valid_destination(&value),
         "macOS evidence cannot impersonate Android"
+    );
+}
+
+#[test]
+fn fresh_open_uses_elapsed_request_time_without_extending_or_trusting_device_wall_clock() {
+    use std::time::Duration;
+    let delivery = delivery();
+    let destination = destination();
+    let mut response = wire::ResolveOpenResponse {
+        context: context().into(),
+        destination_id: destination.id.clone(),
+        delivery_id: delivery.id.clone(),
+        authorized_target: delivery.target.clone(),
+        issued_at: stamp(1000).into(),
+        valid_until: stamp(1005).into(),
+        ..Default::default()
+    };
+    // Independent device wall time is deliberately absent from interactive
+    // binding. Both clock directions use the same monotonic request budget.
+    for wall_time in [999, 1006] {
+        assert_eq!(
+            bind_open(
+                &response,
+                &context(),
+                &destination,
+                &delivery,
+                &stamp(wall_time)
+            ),
+            Err(Invalid::Expired)
+        );
+        assert_eq!(
+            bind_open_elapsed(
+                &response,
+                &context(),
+                &destination,
+                &delivery,
+                Duration::from_millis(4999)
+            ),
+            Ok(())
+        );
+    }
+    assert_eq!(
+        bind_open_elapsed(
+            &response,
+            &context(),
+            &destination,
+            &delivery,
+            Duration::from_secs(5)
+        ),
+        Err(Invalid::Expired)
+    );
+    response.valid_until = stamp(1001).into();
+    assert_eq!(
+        bind_open_elapsed(
+            &response,
+            &context(),
+            &destination,
+            &delivery,
+            Duration::from_secs(1)
+        ),
+        Err(Invalid::Expired)
+    );
+    // Fractional server origins, truncated grants and network/UI delays all
+    // consume the exact duration; a wall-clock rollback cannot reset it.
+    response.issued_at.get_or_insert_default().nanos = 500_000_000;
+    assert_eq!(
+        bind_open_elapsed(
+            &response,
+            &context(),
+            &destination,
+            &delivery,
+            Duration::from_millis(499)
+        ),
+        Ok(())
+    );
+    assert_eq!(
+        bind_open_elapsed(
+            &response,
+            &context(),
+            &destination,
+            &delivery,
+            Duration::from_millis(500)
+        ),
+        Err(Invalid::Expired)
+    );
+    response.valid_until = stamp(1006).into();
+    assert_eq!(
+        bind_open_elapsed(
+            &response,
+            &context(),
+            &destination,
+            &delivery,
+            Duration::ZERO
+        ),
+        Err(Invalid::Expired)
+    );
+    response.issued_at = Default::default();
+    assert_eq!(
+        bind_open_elapsed(
+            &response,
+            &context(),
+            &destination,
+            &delivery,
+            Duration::ZERO
+        ),
+        Err(Invalid::Representation)
     );
 }

@@ -824,6 +824,7 @@ impl Run<'_> {
         );
         self.accept_delivery(&response.context, (*response.delivery).clone())?;
         let message = (*response.delivery).clone();
+        let requested_at = Instant::now();
         let grant = call!(
             run,
             resolve_open,
@@ -835,13 +836,18 @@ impl Run<'_> {
             Open,
             Open
         );
-        admit::bind_open(&grant, &self.parent.context, &destination, &message, &now()).map_err(
-            |error| {
-                #[cfg(debug_assertions)]
-                eprintln!("homeward: notification grant rejected {error:?}");
-                Error::Invalid
-            },
-        )?;
+        admit::bind_open_elapsed(
+            &grant,
+            &self.parent.context,
+            &destination,
+            &message,
+            requested_at.elapsed(),
+        )
+        .map_err(|_error| {
+            #[cfg(debug_assertions)]
+            eprintln!("homeward: notification grant rejected {_error:?}");
+            Error::Invalid
+        })?;
         #[cfg(debug_assertions)]
         eprintln!("homeward: notification grant ready");
         let mut state = self.owner.0.state.lock().expect("notification open grant");
@@ -850,6 +856,7 @@ impl Run<'_> {
         state.grant = Some(Grant {
             tag: generation,
             response: grant,
+            requested_at,
             message,
             parent_stop: self.parent.cancellation.clone(),
             native_generation: self.lease.generation,

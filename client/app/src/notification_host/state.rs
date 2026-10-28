@@ -124,6 +124,7 @@ pub(super) enum Job {
 pub(super) struct Grant {
     pub tag: i32,
     pub response: wire::ResolveOpenResponse,
+    pub requested_at: Instant,
     pub message: wire::Delivery,
     pub parent_stop: CancellationToken,
     pub native_generation: home_client_session::Generation,

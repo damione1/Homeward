@@ -206,12 +206,12 @@ impl Notifications {
         if grant.parent_stop.is_cancelled() || state.validated != Some(grant.native_generation) {
             return None;
         }
-        admit::bind_open(
+        admit::bind_open_elapsed(
             &grant.response,
             state.context.as_ref()?,
             state.destination.as_ref()?,
             &grant.message,
-            &now(),
+            grant.requested_at.elapsed(),
         )
         .ok()?;
         let target = match grant.response.authorized_target.resource.as_ref()? {
