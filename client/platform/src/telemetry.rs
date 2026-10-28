@@ -55,7 +55,7 @@ impl Feature {
             Self::Volume => "Volume système",
             Self::Location => "Localisation",
             Self::CameraMotion => "Mouvement caméra",
-            Self::Notifications => "Notifications natives",
+            Self::Notifications => "Collecte des notifications OS",
         }
     }
 }

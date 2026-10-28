@@ -342,7 +342,7 @@ def run_case(proof, binary, server_binary, helper, case):
             # virtualized kit table; notifications are honestly unsupported here.
             client.tool(Tool.CLICK, elementHandle=record('Niveau de batterie')['handle'])
             client.tool(Tool.KEY, windowHandle=window, text=Key.END.value, eventType='PressAndRelease')
-            record('Notifications natives', Key.END)
+            record('Collecte des notifications OS', Key.END)
             capture('capabilities-end-keyboard')
             tap('Révoquer l’installation')
             field_value('Conséquence', 'Votre connexion reste ouverte')

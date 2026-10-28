@@ -32,6 +32,12 @@ use tokio::{sync::Notify, task::JoinSet};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
+pub(crate) struct NotificationParent {
+    pub context: wire::Context,
+    pub installation: wire::Installation,
+    pub cancellation: CancellationToken,
+}
+#[derive(Clone)]
 pub(crate) struct Companion(Arc<Inner>);
 struct Inner {
     state: Mutex<State>,
@@ -66,6 +72,40 @@ impl Companion {
                     && state.validated == Some(view.generation)
                     && matches!(view.phase, Phase::Ready | Phase::Refreshing)
             })
+    }
+    pub(crate) fn notification_parent(&self) -> Option<NotificationParent> {
+        let state = self.0.state.lock().expect("companion notification parent");
+        if !state.active
+            || !state.foreground
+            || matches!(&state.draft, Some(Draft::Revoke { .. }))
+            || state.notification_retired
+            || state.notification_cancel.is_cancelled()
+            || !self.authenticated(&state)
+        {
+            return None;
+        }
+        let installation = state.record.as_ref()?;
+        if installation.state != wire::InstallationState::Active
+            || installation.expires_at.seconds <= chrono::Utc::now().timestamp()
+        {
+            return None;
+        }
+        Some(NotificationParent {
+            context: state.context.clone()?,
+            installation: installation.clone(),
+            cancellation: state.notification_cancel.clone(),
+        })
+    }
+    #[cfg(test)]
+    pub(crate) fn notification_fixture_action(&self, action: ProAdminAction, editor: bool) -> bool {
+        let state = self.0.state.lock().expect("companion fixture action");
+        if state.context.is_none() || state.running {
+            return false;
+        }
+        let generation = state.generation;
+        drop(state);
+        self.action(generation, action, editor);
+        true
     }
     pub fn bind(window: &HomewardWindow) -> Self {
         let this = Self::new(Some(window.as_weak()), Arc::new(native::Native));

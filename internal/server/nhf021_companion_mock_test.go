@@ -46,6 +46,7 @@ type nhf021Companion struct {
 	authority *authorization.Authority
 	epoch     string
 	records   map[nhf021InstallationID]*nhf021Record
+	onRetire  func(nhf021InstallationID, wire.InstallationState)
 	counts    nhf021Counts
 	// Real time by default; deterministic server-unit tests may inject time.
 	now func() time.Time
@@ -75,8 +76,9 @@ func nhf021ID(raw string) bool {
 func nhf021Text(raw string) bool {
 	return raw != "" && len(raw) <= 128 && utf8.ValidString(raw) && strings.TrimSpace(raw) == raw && !strings.ContainsFunc(raw, unicode.IsControl)
 }
-func nhf021Known(v proto.Message) bool {
-	if v == nil || !v.ProtoReflect().IsValid() || proto.Size(v) > 32*1024 {
+func nhf021Known(v proto.Message) bool { return nhf021KnownLimit(v, 32*1024) }
+func nhf021KnownLimit(v proto.Message, maxBytes int) bool {
+	if v == nil || !v.ProtoReflect().IsValid() || proto.Size(v) > maxBytes {
 		return false
 	}
 	var known func(protoreflect.Message, int) bool
@@ -288,8 +290,8 @@ func (h *nhf021Companion) withNative(ctx context.Context, fn func(nhf021Owner, t
 		defer h.mu.Unlock()
 		now := h.now()
 		for id, r := range h.records {
-			if !now.Before(r.value.ExpiresAt.AsTime()) {
-				nhf021Purge(r.value, wire.InstallationState_INSTALLATION_STATE_EXPIRED)
+			if !now.Before(r.value.ExpiresAt.AsTime()) && r.value.State == wire.InstallationState_INSTALLATION_STATE_ACTIVE {
+				h.retireLocked(r.value, wire.InstallationState_INSTALLATION_STATE_EXPIRED)
 			}
 			if now.After(r.value.ExpiresAt.AsTime().Add(30 * time.Minute)) {
 				delete(h.records, id)
@@ -498,7 +500,7 @@ func (h *nhf021Companion) RevokeInstallation(ctx context.Context, r *connect.Req
 		if v.Revision >= math.MaxUint64-1 {
 			return nhf021Error(connect.CodeResourceExhausted)
 		}
-		nhf021Purge(v, wire.InstallationState_INSTALLATION_STATE_REVOKED)
+		h.retireLocked(v, wire.InstallationState_INSTALLATION_STATE_REVOKED)
 		v.Revision++
 		h.counts.Revocations++
 		result = proto.Clone(v).(*wire.Installation)
@@ -508,4 +510,12 @@ func (h *nhf021Companion) RevokeInstallation(ctx context.Context, r *connect.Req
 		return nil, err
 	}
 	return connect.NewResponse(&wire.RevokeInstallationResponse{Context: h.context(), Installation: result}), nil
+}
+
+// Memory-only dependent retirement under authority -> companion locks.
+func (h *nhf021Companion) retireLocked(v *wire.Installation, state wire.InstallationState) {
+	nhf021Purge(v, state)
+	if h.onRetire != nil {
+		h.onRetire(nhf021InstallationID(v.Id.Value), state)
+	}
 }

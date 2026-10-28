@@ -27,9 +27,17 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Additional test-only services reuse exactly the same actual native guard.
+type nhf021TestRoute struct {
+	path        string
+	handler     http.Handler
+	isRead      func(string) bool
+	onLostReply func()
+}
+
 // Same actual TLS/native-session guard as Run, on a fresh test-only endpoint.
 // Identity cannot be supplied in a JSON claim or synthetic privilege header.
-func nhf021StartProxy(t *testing.T, out, data, origin string, roots *x509.CertPool, run *nha162Running, h *nhf021Companion) string {
+func nhf021StartProxy(t *testing.T, out, data, origin string, roots *x509.CertPool, run *nha162Running, h *nhf021Companion, extra ...nhf021TestRoute) string {
 	t.Helper()
 	target, err := url.Parse(origin)
 	if err != nil || target.Scheme != "https" || target.Hostname() != "127.0.0.1" {
@@ -43,56 +51,65 @@ func nhf021StartProxy(t *testing.T, out, data, origin string, roots *x509.CertPo
 	path, handler := companionv1connect.NewCompanionServiceHandler(h, connect.WithReadMaxBytes(32*1024), connect.WithSendMaxBytes(32*1024))
 	mux := http.NewServeMux()
 	errorWriter := connect.NewErrorWriter()
-	mux.Handle(path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		actor, ctx, release, err := authenticator.AuthenticateWithLease(r.Context(), r)
-		if err != nil {
-			_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnauthenticated))
-			return
+	routes := append([]nhf021TestRoute{{path: path, handler: handler,
+		isRead: func(procedure string) bool {
+			return procedure == companionv1connect.CompanionServiceGetInstallationProcedure
+		},
+		onLostReply: func() { h.mu.Lock(); h.counts.LostReplies++; h.mu.Unlock() },
+	}}, extra...)
+	for _, route := range routes {
+		if route.handler == nil || route.isRead == nil || route.onLostReply == nil {
+			t.Fatal("complete synthetic route required")
 		}
-		defer release()
-		ctx = context.WithValue(ctx, actorContextKey{}, actor)
-		r = r.WithContext(ctx)
-		if r.URL.Path == companionv1connect.CompanionServiceGetInstallationProcedure {
-			marker := filepath.Join(out, "reject-next-read")
-			if _, err := os.Stat(marker); err == nil {
+		mux.Handle(route.path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			actor, ctx, release, err := authenticator.AuthenticateWithLease(r.Context(), r)
+			if err != nil {
+				_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnauthenticated))
+				return
+			}
+			defer release()
+			ctx = context.WithValue(ctx, actorContextKey{}, actor)
+			r = r.WithContext(ctx)
+			if route.isRead(r.URL.Path) {
+				marker := filepath.Join(out, "reject-next-read")
+				if _, err := os.Stat(marker); err == nil {
+					if err := os.Remove(marker); err != nil {
+						_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnavailable))
+						return
+					}
+					_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnavailable))
+					return
+				}
+			}
+			// Fault injection only removes an actual successful response. It never
+			// causes a second call. The owner must resolve the original operation.
+			marker := filepath.Join(out, "lose-next-reply")
+			raw, err := os.ReadFile(marker)
+			if err != nil && !os.IsNotExist(err) {
+				_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnavailable))
+				return
+			}
+			if string(raw) == r.URL.Path && !route.isRead(r.URL.Path) {
 				if err := os.Remove(marker); err != nil {
 					_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnavailable))
 					return
 				}
-				_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnavailable))
+				recorded := httptest.NewRecorder()
+				route.handler.ServeHTTP(recorded, r)
+				if recorded.Code == http.StatusOK {
+					route.onLostReply()
+					panic(http.ErrAbortHandler)
+				}
+				for key, values := range recorded.Header() {
+					w.Header()[key] = values
+				}
+				w.WriteHeader(recorded.Code)
+				_, _ = io.Copy(w, recorded.Body)
 				return
 			}
-		}
-		// Fault injection only removes an actual successful response. It never
-		// causes a second call. The owner must resolve the original operation.
-		marker := filepath.Join(out, "lose-next-reply")
-		raw, err := os.ReadFile(marker)
-		if err != nil && !os.IsNotExist(err) {
-			_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnavailable))
-			return
-		}
-		if string(raw) == r.URL.Path && r.URL.Path != companionv1connect.CompanionServiceGetInstallationProcedure {
-			if err := os.Remove(marker); err != nil {
-				_ = errorWriter.Write(w, r, nhf021Error(connect.CodeUnavailable))
-				return
-			}
-			recorded := httptest.NewRecorder()
-			handler.ServeHTTP(recorded, r)
-			if recorded.Code == http.StatusOK {
-				h.mu.Lock()
-				h.counts.LostReplies++
-				h.mu.Unlock()
-				panic(http.ErrAbortHandler)
-			}
-			for key, values := range recorded.Header() {
-				w.Header()[key] = values
-			}
-			w.WriteHeader(recorded.Code)
-			_, _ = io.Copy(w, recorded.Body)
-			return
-		}
-		handler.ServeHTTP(w, r)
-	}))
+			route.handler.ServeHTTP(w, r)
+		}))
+	}
 	mux.Handle("/", proxy)
 	server := httptest.NewUnstartedServer(mux)
 	pair, err := tls.LoadX509KeyPair(filepath.Join(data, nha181CertificateName), filepath.Join(data, nha181PrivateKeyName))

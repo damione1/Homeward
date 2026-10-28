@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create an unsigned development macOS bundle from the shared Cargo output."""
+"""Create a locally signed development macOS bundle from the shared Cargo output."""
 import json
 import os
 from pathlib import Path
@@ -18,5 +18,7 @@ with (contents / 'Info.plist').open('wb') as stream:
     plistlib.dump({'CFBundleExecutable': 'homeward-desktop', 'CFBundleIdentifier': 'ca.homeward.frontend.dev',
                   'CFBundleName': 'Homeward Dev', 'CFBundlePackageType': 'APPL',
                   'CFBundleVersion': '1', 'NSHighResolutionCapable': True}, stream)
+subprocess.run(['codesign', '--force', '--sign', '-', str(bundle)], check=True)
+subprocess.run(['codesign', '--verify', '--strict', str(bundle)], check=True)
 print(bundle)
 subprocess.run(['open', '-n', str(bundle)], check=True)

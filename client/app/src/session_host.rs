@@ -150,6 +150,7 @@ pub(crate) struct LifecycleBridge {
     cameras: Arc<Mutex<Option<crate::camera_host::Cameras>>>,
     administration: Arc<Mutex<Option<crate::administration_host::Administration>>>,
     companion: Arc<Mutex<Option<crate::companion_host::Companion>>>,
+    notifications: Arc<Mutex<Option<crate::notification_host::Notifications>>>,
 }
 impl LifecycleBridge {
     pub(crate) fn new() -> Self {
@@ -168,6 +169,7 @@ impl LifecycleBridge {
             cameras: Arc::new(Mutex::new(None)),
             administration: Arc::new(Mutex::new(None)),
             companion: Arc::new(Mutex::new(None)),
+            notifications: Arc::new(Mutex::new(None)),
         }
     }
     // Called by native event listeners on the UI thread. Cancel publication and
@@ -184,6 +186,14 @@ impl LifecycleBridge {
             .as_ref()
         {
             administration.foreground(state == Lifecycle::Foreground);
+        }
+        if let Some(notifications) = self
+            .notifications
+            .lock()
+            .expect("lifecycle notifications")
+            .as_ref()
+        {
+            notifications.foreground(state == Lifecycle::Foreground);
         }
         if let Some(companion) = self
             .companion
@@ -346,6 +356,7 @@ struct Ui {
     cameras: crate::camera_host::Cameras,
     administration: crate::administration_host::Administration,
     companion: crate::companion_host::Companion,
+    notifications: crate::notification_host::Notifications,
 }
 impl Ui {
     fn current_devices(&self) -> Result<(DeviceBinding, i32), Refusal> {
@@ -378,6 +389,7 @@ impl Ui {
     }
     fn invalidate_cache(&self) {
         self.companion.clear();
+        self.notifications.clear();
         self.administration.clear();
         self.history.clear();
         self.media.clear();
@@ -727,6 +739,7 @@ struct Profile {
 }
 async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, ui: &Ui) {
     ui.companion.clear();
+    ui.notifications.clear();
     ui.administration.clear();
     ui.history.clear();
     ui.media.clear();
@@ -775,7 +788,31 @@ async fn install_profile(
     let mut action_updates = actions.subscribe_updates();
     let cancel = CancellationToken::new();
     ui.companion.clear();
+    ui.notifications.clear();
     ui.administration.clear();
+    let (
+        notifications,
+        notification_session,
+        notification_connection,
+        notification_parent,
+        notification_cancel,
+    ) = (
+        ui.notifications.clone(),
+        owner.clone(),
+        connection.clone(),
+        ui.companion.clone(),
+        cancel.clone(),
+    );
+    tasks.spawn(async move {
+        notifications
+            .run(
+                notification_session,
+                notification_connection,
+                notification_parent,
+                notification_cancel,
+            )
+            .await;
+    });
     let (companion, companion_session, companion_api, companion_cancel) = (
         ui.companion.clone(),
         owner.clone(),
@@ -1066,6 +1103,7 @@ async fn session_action(
     match action {
         Action::Login { login, password } => {
             ui.companion.clear();
+            ui.notifications.clear();
             let _ = cache.invalidate();
             let _ = owner.login(login, password).await;
         }
@@ -1074,11 +1112,13 @@ async fn session_action(
         }
         Action::Cancel => {
             ui.companion.clear();
+            ui.notifications.clear();
             let _ = cache.invalidate();
             let _ = owner.logout_local().await;
         }
         Action::Logout => {
             ui.companion.clear();
+            ui.notifications.clear();
             let _ = cache.invalidate();
             if let Ok(ServerRevocation::Uncertain) = owner.logout().await {
                 ui.post(epoch, |window| {
@@ -1361,6 +1401,11 @@ pub(crate) fn run_with_lifecycle(
     let cameras = crate::camera_host::Cameras::bind(&window);
     let administration = crate::administration_host::Administration::bind(&window);
     let companion = crate::companion_host::Companion::bind(&window);
+    let notifications = crate::notification_host::Notifications::bind(&window);
+    *lifecycle
+        .notifications
+        .lock()
+        .expect("lifecycle notifications") = Some(notifications.clone());
     *lifecycle
         .companion
         .lock()
@@ -1395,6 +1440,7 @@ pub(crate) fn run_with_lifecycle(
         cameras,
         administration,
         companion,
+        notifications,
     };
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
@@ -1426,6 +1472,20 @@ pub(crate) fn run_with_lifecycle(
         },
     );
     let recipe_ui = ui.clone();
+    let notification_ui = ui.clone();
+    let notification_navigation = native_navigation.clone();
+    window.on_notification_target(move |generation| {
+        if let Some(target) = notification_ui.notifications.take_navigation(generation) {
+            match target {
+                crate::notification_host::NavigationTarget::Home => {
+                    notification_navigation.notification_home()
+                }
+                crate::notification_host::NavigationTarget::Entity(id) => {
+                    let _ = notification_navigation.more_info(id, None);
+                }
+            }
+        }
+    });
     native_navigation.attach_catalogue(ui.dashboard_choices.clone());
     let dispatch_ui = ui.clone();
     let recipe_sender = sender.clone();
@@ -1812,6 +1872,7 @@ mod tests {
             cameras: crate::camera_host::Cameras::detached(),
             administration: crate::administration_host::Administration::detached(),
             companion: crate::companion_host::Companion::detached(),
+            notifications: crate::notification_host::Notifications::detached(),
         };
         ui.request_view(epoch);
 
@@ -1907,6 +1968,7 @@ mod tests {
             cameras: crate::camera_host::Cameras::detached(),
             administration: crate::administration_host::Administration::detached(),
             companion: crate::companion_host::Companion::detached(),
+            notifications: crate::notification_host::Notifications::detached(),
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));

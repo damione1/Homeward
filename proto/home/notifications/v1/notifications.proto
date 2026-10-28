@@ -1,0 +1,258 @@
+syntax = "proto3";
+
+package home.notifications.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "home/auth/v1/auth.proto";
+import "home/companion/v1/companion.proto";
+import "home/registry/v1/registry.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/notifications/v1;notificationsv1";
+
+// Provisional NHF022 surface. Test-only, explicit SyntheticOnly admission;
+// never an integration Host, provider token or universal WatchView event.
+message DestinationId { string value = 1; }
+message DeliveryId { string value = 1; }
+
+enum Permission {
+  PERMISSION_UNSPECIFIED = 0;
+  PERMISSION_NOT_REQUESTED = 1;
+  PERMISSION_DENIED = 2;
+  PERMISSION_AUTHORIZED = 3;
+  PERMISSION_PROVISIONAL = 4;
+  PERMISSION_EPHEMERAL = 5;
+  PERMISSION_UNKNOWN = 6;
+}
+enum Setting {
+  SETTING_UNSPECIFIED = 0;
+  SETTING_ENABLED = 1;
+  SETTING_DISABLED = 2;
+  SETTING_UNSUPPORTED = 3;
+  SETTING_UNKNOWN = 4;
+}
+enum PermissionSource {
+  PERMISSION_SOURCE_UNSPECIFIED = 0;
+  PERMISSION_SOURCE_MAC_OS_USER_NOTIFICATIONS = 1;
+  PERMISSION_SOURCE_BUNDLE_REQUIRED = 2;
+  PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION = 3;
+  PERMISSION_SOURCE_UNSUPPORTED = 4;
+}
+message PermissionSnapshot {
+  Permission permission = 1;
+  Setting alerts = 2;
+  Setting notification_center = 3;
+  PermissionSource source = 4;
+}
+enum ForegroundTransport {
+  FOREGROUND_TRANSPORT_UNSPECIFIED = 0;
+  FOREGROUND_TRANSPORT_NATIVE_SESSION_LAN_POLL = 1;
+}
+enum BackgroundTransport {
+  BACKGROUND_TRANSPORT_UNSPECIFIED = 0;
+  BACKGROUND_TRANSPORT_UNAVAILABLE = 1;
+  // Declares the Android/Fire path to qualify in NHF023–024. This is not a
+  // running foreground service, a GMS assumption, or a delivery promise.
+  BACKGROUND_TRANSPORT_ANDROID_FOREGROUND_SERVICE_PENDING_QUALIFICATION = 2;
+}
+enum DestinationState {
+  DESTINATION_STATE_UNSPECIFIED = 0;
+  DESTINATION_STATE_ACTIVE = 1;
+  DESTINATION_STATE_REVOKED = 2;
+  DESTINATION_STATE_EXPIRED = 3;
+}
+// This registration is always scoped to the same native account/session and
+// companion installation. No provider credential or hardware-wide identifier.
+message Destination {
+  DestinationId id = 1;
+  home.companion.v1.InstallationId installation_id = 2;
+  home.companion.v1.DeviceId device_id = 3;
+  home.auth.v1.AccountId account_id = 4;
+  home.auth.v1.SessionId session_id = 5;
+  home.companion.v1.Platform platform = 6;
+  DestinationState state = 7;
+  uint64 revision = 8;
+  bool native_delivery = 9;
+  PermissionSnapshot permission = 10;
+  google.protobuf.Timestamp expires_at = 11;
+  string last_request_id = 12;
+  string registration_request_id = 13;
+}
+// Destinations are typed resources, never URLs, scripts or service calls.
+// Even a previously admitted target requires ResolveOpen immediately before
+// navigation. Entity IDs are immutable identifiers, not aliases or URI paths.
+message Target {
+  oneof resource {
+    google.protobuf.Empty home = 1;
+    home.registry.v1.EntityId entity = 2;
+  }
+}
+enum TransportAcceptance {
+  TRANSPORT_ACCEPTANCE_UNSPECIFIED = 0;
+  TRANSPORT_ACCEPTANCE_ACCEPTED_FOREGROUND_LAN = 1;
+  TRANSPORT_ACCEPTANCE_PROVIDER_REJECTED = 2;
+  TRANSPORT_ACCEPTANCE_UNAVAILABLE = 3;
+}
+enum TransportReason {
+  TRANSPORT_REASON_UNSPECIFIED = 0;
+  TRANSPORT_REASON_NONE = 1;
+  TRANSPORT_REASON_NO_PROVIDER = 2;
+  TRANSPORT_REASON_PROVIDER_FAILURE = 3;
+}
+enum Reception {
+  RECEPTION_UNSPECIFIED = 0;
+  RECEPTION_NOT_RECEIVED = 1;
+  RECEPTION_RECEIVED = 2;
+}
+enum Presentation {
+  PRESENTATION_UNSPECIFIED = 0;
+  PRESENTATION_NOT_ATTEMPTED = 1;
+  PRESENTATION_OS_ACCEPTED = 2;
+  // Attestation is presence in the OS center, not a claim that a person saw
+  // a banner. Focus/DND, previews and user attention remain OS-controlled.
+  PRESENTATION_PRESENT_IN_OS_CENTER = 3;
+  PRESENTATION_OUTCOME_UNKNOWN = 4;
+  PRESENTATION_PERMISSION_DENIED = 5;
+  PRESENTATION_UNAVAILABLE = 6;
+}
+enum ReadState {
+  READ_STATE_UNSPECIFIED = 0;
+  READ_STATE_UNREAD = 1;
+  READ_STATE_READ = 2;
+  READ_STATE_DISMISSED = 3;
+}
+message Delivery {
+  DeliveryId id = 1;
+  DestinationId destination_id = 2;
+  uint64 revision = 3;
+  string title = 4;
+  string body = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  Target target = 8;
+  TransportAcceptance transport_acceptance = 9;
+  TransportReason transport_reason = 10;
+  Reception reception = 11;
+  Presentation presentation = 12;
+  ReadState read_state = 13;
+  string last_request_id = 14;
+}
+message DescribeNotificationsRequest {}
+message DescribeNotificationsResponse {
+  home.companion.v1.Context context = 1;
+  ForegroundTransport foreground = 2;
+  BackgroundTransport mac_os_background = 3;
+  BackgroundTransport android_background = 4;
+  uint32 minimum_poll_seconds = 5;
+  uint32 maximum_message_lifetime_seconds = 6;
+  uint32 maximum_inbox_entries = 7;
+  bool google_play_services_required = 8;
+}
+message RegisterDestinationRequest {
+  home.companion.v1.Context expected_context = 1;
+  home.companion.v1.InstallationId installation_id = 2;
+  string request_id = 3;
+  PermissionSnapshot permission = 4;
+}
+message RegisterDestinationResponse {
+  home.companion.v1.Context context = 1;
+  Destination destination = 2;
+}
+message GetDestinationRequest {
+  oneof selector {
+    DestinationId id = 1;
+    // Resolve the original registration after a lost reply, without another
+    // creation request. Private to the authenticated native account/session.
+    string registration_request_id = 2;
+  }
+}
+message GetDestinationResponse {
+  home.companion.v1.Context context = 1;
+  Destination destination = 2;
+}
+message UpdateDestinationRequest {
+  home.companion.v1.Context expected_context = 1;
+  DestinationId id = 2;
+  uint64 expected_revision = 3;
+  string request_id = 4;
+  bool native_delivery = 5;
+  PermissionSnapshot permission = 6;
+}
+message UpdateDestinationResponse {
+  home.companion.v1.Context context = 1;
+  Destination destination = 2;
+}
+// A bounded current inbox, not an unbounded history or an offline send queue.
+// Repeated reads may return the same IDs; clients must never re-present them.
+message ReadInboxRequest { DestinationId id = 1; }
+message ReadInboxResponse {
+  home.companion.v1.Context context = 1;
+  Destination destination = 2;
+  uint64 revision = 3;
+  repeated Delivery entries = 4;
+}
+enum ReceiptKind {
+  RECEIPT_KIND_UNSPECIFIED = 0;
+  RECEIPT_KIND_RECEIVED = 1;
+  RECEIPT_KIND_OS_ACCEPTED = 2;
+  RECEIPT_KIND_PRESENT_IN_OS_CENTER = 3;
+  RECEIPT_KIND_OUTCOME_UNKNOWN = 4;
+  RECEIPT_KIND_PERMISSION_DENIED = 5;
+  RECEIPT_KIND_UNAVAILABLE = 6;
+  RECEIPT_KIND_READ = 7;
+  RECEIPT_KIND_DISMISSED = 8;
+}
+message AcknowledgeDeliveryRequest {
+  home.companion.v1.Context expected_context = 1;
+  DestinationId destination_id = 2;
+  DeliveryId delivery_id = 3;
+  uint64 expected_revision = 4;
+  string request_id = 5;
+  ReceiptKind kind = 6;
+  google.protobuf.Timestamp observed_at = 7;
+}
+message AcknowledgeDeliveryResponse {
+  home.companion.v1.Context context = 1;
+  Delivery delivery = 2;
+}
+// Used after an uncertain acknowledgement; no automatic mutation replay.
+message GetDeliveryRequest {
+  DestinationId destination_id = 1;
+  DeliveryId delivery_id = 2;
+}
+message GetDeliveryResponse {
+  home.companion.v1.Context context = 1;
+  Delivery delivery = 2;
+}
+message ResolveOpenRequest {
+  DestinationId destination_id = 1;
+  DeliveryId delivery_id = 2;
+}
+message ResolveOpenResponse {
+  home.companion.v1.Context context = 1;
+  DestinationId destination_id = 2;
+  DeliveryId delivery_id = 3;
+  Target authorized_target = 4;
+  google.protobuf.Timestamp valid_until = 5;
+}
+message RevokeDestinationRequest {
+  home.companion.v1.Context expected_context = 1;
+  DestinationId id = 2;
+  uint64 expected_revision = 3;
+  string request_id = 4;
+}
+message RevokeDestinationResponse {
+  home.companion.v1.Context context = 1;
+  Destination destination = 2;
+}
+service NotificationService {
+  rpc DescribeNotifications(DescribeNotificationsRequest) returns (DescribeNotificationsResponse);
+  rpc RegisterDestination(RegisterDestinationRequest) returns (RegisterDestinationResponse);
+  rpc GetDestination(GetDestinationRequest) returns (GetDestinationResponse);
+  rpc UpdateDestination(UpdateDestinationRequest) returns (UpdateDestinationResponse);
+  rpc ReadInbox(ReadInboxRequest) returns (ReadInboxResponse);
+  rpc AcknowledgeDelivery(AcknowledgeDeliveryRequest) returns (AcknowledgeDeliveryResponse);
+  rpc GetDelivery(GetDeliveryRequest) returns (GetDeliveryResponse);
+  rpc ResolveOpen(ResolveOpenRequest) returns (ResolveOpenResponse);
+  rpc RevokeDestination(RevokeDestinationRequest) returns (RevokeDestinationResponse);
+}

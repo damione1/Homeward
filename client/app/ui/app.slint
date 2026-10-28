@@ -6,6 +6,8 @@ import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHom
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
 import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
+import { HomewardNotifications, NotificationPresentation, NotificationAction, NotificationRowAction } from "notifications.slint";
+import { NotificationRow } from "@kit/kit.slint";
 import { HomewardAdministration } from "administration.slint";
 import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField, ProAdminChoice } from "@kit-pro/kit-pro.slint";
 export { ProAdminFieldKind } from "@kit-pro/kit-pro.slint";
@@ -317,6 +319,12 @@ export component HomewardWindow inherits Window {
     callback companion-choose(int,int,int,int);
     callback companion-select(int,int);
     callback companion-navigate(NavigationStep);
+    in property <NotificationPresentation> notification-view;
+    in property <[NotificationRow]> notification-rows;
+    callback notification-visible(bool);
+    callback notification-action(int,NotificationAction);
+    callback notification-row-action(int,int,NotificationRowAction);
+    callback notification-target(int);
     in property <string> admin-title: "Réglages du serveur";
     in property <string> admin-status;
     in property <string> admin-notice;
@@ -336,7 +344,7 @@ export component HomewardWindow inherits Window {
     in property <[ProAdminActionRow]> admin-actions;
     in property <[ProAdminActionRow]> admin-editor-actions;
     private property <bool> admin-panel-visible: root.page == ViewPage.settings && root.access-stage == ProAccessStage.connected && root.background-interactive;
-    changed admin-panel-visible => { root.admin-visible(root.admin-panel-visible); root.companion-visible(root.admin-panel-visible); }
+    changed admin-panel-visible => { root.admin-visible(root.admin-panel-visible); root.companion-visible(root.admin-panel-visible); root.notification-visible(root.admin-panel-visible); }
     callback admin-visible(bool);
     callback admin-choose-section(int,int);
     callback admin-select(int,int);
@@ -812,6 +820,12 @@ export component HomewardWindow inherits Window {
                     choose(t,g,f,option) => { root.companion-choose(t,g,f,option); }
                     select(t,g) => { root.companion-select(t,g); }
                     navigate(step) => { root.companion-navigate(step); }
+                }
+                HomewardNotifications {
+                    theme:root.theme; view:root.notification-view; rows:root.notification-rows;
+                    interactive:root.background-interactive;
+                    action(g,a)=>{root.notification-action(g,a);}
+                    row-action(t,g,a)=>{root.notification-row-action(t,g,a);}
                 }
                 HomewardAdministration {
                     theme: root.theme; title: root.admin-title; status: root.admin-status; notice: root.admin-notice;
