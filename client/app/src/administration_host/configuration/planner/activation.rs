@@ -715,7 +715,7 @@ impl Editor {
                 choice_row(
                     Field::Sql,
                     ExpectationChoice::Unobserved as i32,
-                    "Non observé — lire le serveur",
+                    "SQL non observé — lire le serveur",
                     matches!(reference.sql, Observation::Unobserved),
                     available,
                 ),
@@ -736,7 +736,7 @@ impl Editor {
                 choice_row(
                     Field::Workspace,
                     ExpectationChoice::Unobserved as i32,
-                    "Non observé — lire le serveur",
+                    "Workspace non observé — lire le serveur",
                     matches!(reference.workspace, Observation::Unobserved),
                     available,
                 ),
@@ -834,11 +834,7 @@ fn workspace_label(value: &Observation<Workspace>) -> String {
         match value {
             Workspace::Observed { hash, dirty } =>
                 format!("{} · {}", dirty.label(), render::hex(hash.bytes())),
-            Workspace::Unobserved(reason) => match reason {
-                UnobservedReason::NoPhysicalLocator =>
-                    "non observé : aucun emplacement physique".into(),
-                UnobservedReason::SourceUnavailable => "non observé : source indisponible".into(),
-            },
+            Workspace::Unobserved(reason) => reason.label().into(),
             Workspace::ExpectedAbsent =>
                 "absence attendue déclarée par vous, non une observation".into(),
         }

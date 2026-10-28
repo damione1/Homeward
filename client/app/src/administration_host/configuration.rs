@@ -19,7 +19,16 @@ use super::{
     read::{PageToken, ReadError, TIMEOUT, call},
     render,
 };
-use crate::configuration::{Capture, DocumentId, UnobservedReason, Workspace};
+use crate::configuration::{Capture, DocumentId, Workspace};
+
+fn workspace_label(value: &Workspace) -> String {
+    match value {
+        Workspace::Observed { hash, dirty } => {
+            format!("{} · {}", dirty.label(), render::hex(hash.bytes()))
+        }
+        Workspace::Unobserved(reason) => reason.label().into(),
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Selection {
@@ -284,13 +293,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                 Workspace::Unobserved(reason) => push(
                     render::fact("configuration/workspace"),
                     "Fichiers non observés".into(),
-                    match reason {
-                        UnobservedReason::NoPhysicalLocator => {
-                            "Aucun emplacement de fichier disponible"
-                        }
-                        UnobservedReason::SourceUnavailable => "La source est indisponible",
-                    }
-                    .into(),
+                    reason.label().into(),
                 ),
             }
             push(render::fact("configuration/source"),"Source protégée".into(),"Ce document fournit des métadonnées. L’édition exige une source explicitement fournie.".into());

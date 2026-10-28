@@ -535,10 +535,7 @@ impl Editor {
                     render::hex(self.captured.sql().source().bytes()),
                     self.captured.active().revision(),
                     render::hex(self.captured.active().manifest().bytes()),
-                    self.captured.workspace().writable_hash().map_or_else(
-                        || "non observé ou indisponible".into(),
-                        |value| render::hex(value.bytes())
-                    ),
+                    super::workspace_label(self.captured.workspace()),
                     if self.stale {
                         "Capture à résoudre"
                     } else {
@@ -557,7 +554,7 @@ impl Editor {
                     "Non pris en charge"
                 }
             };
-            fields.push(field(Field::Plan,format!("{} · {}\nAuteur {}\nFamille {} · identité {}\nSource {}\nSémantique {}\nGénération {} · {}\nWorkspace du plan {}\nReçu diagnostique : {}\nAucune activation",state,plan.schema_version,plan.author,self.family.label(),plan.identity,render::hex(&plan.source_sha256),plan.semantic_sha256.as_ref().map_or_else(||"absente".into(),|value|render::hex(value)),plan.generation_revision,render::hex(&plan.manifest_sha256),render::hex(&plan.observed_workspace_sha256),if plan.receipt.is_empty(){"absent"}else{"fourni par le serveur"}),false));
+            fields.push(field(Field::Plan,format!("{} · {}\nAuteur {}\nFamille {} · identité {}\nPortée : {}\nSource {}\nSémantique {}\nGénération {} · {}\nWorkspace du plan {}\nReçu diagnostique : {}\nCet aperçu ne prouve aucun enregistrement ni publication",state,plan.schema_version,plan.author,self.family.label(),plan.identity,effect(plan.effect),render::hex(&plan.source_sha256),plan.semantic_sha256.as_ref().map_or_else(||"absente".into(),|value|render::hex(value)),plan.generation_revision,render::hex(&plan.manifest_sha256),render::hex(&plan.observed_workspace_sha256),if plan.receipt.is_empty(){"absent"}else{"fourni par le serveur"}),false));
             let kind = match plan.base.kind {
                 EnumValue::Known(wire::BaseKind::ActiveSql) => "Version SQL active",
                 EnumValue::Known(wire::BaseKind::ImmutableReference) => "Référence immuable",
@@ -587,7 +584,7 @@ impl Editor {
                     .iter()
                     .map(|change| {
                         format!(
-                            "{} · {} · références +{} / -{}",
+                            "{} · {} · {} · références +{} / -{}",
                             match change.operation {
                                 EnumValue::Known(wire::ChangeOperation::Added) => "Ajout",
                                 EnumValue::Known(wire::ChangeOperation::Removed) => "Retrait",
@@ -596,6 +593,7 @@ impl Editor {
                                 | EnumValue::Unknown(_) => "Non pris en charge",
                             },
                             change.field,
+                            effect(change.effect),
                             change.references_added,
                             change.references_removed
                         )
@@ -648,6 +646,19 @@ impl Editor {
             .collect();
         values.extend(self.activation_choices(editable));
         values
+    }
+}
+fn effect(value: EnumValue<wire::Effect>) -> &'static str {
+    match value {
+        EnumValue::Known(wire::Effect::None) => "Aucun changement",
+        EnumValue::Known(wire::Effect::Dashboard) => "Dashboard",
+        EnumValue::Known(wire::Effect::Configuration) => "Configuration du serveur",
+        EnumValue::Known(wire::Effect::HumanRights) => "Droits humains",
+        EnumValue::Known(wire::Effect::TechnicalOwnership) => "Propriété technique",
+        EnumValue::Known(wire::Effect::RunTargets) => "Cibles d’exécution logique",
+        EnumValue::Known(wire::Effect::Unspecified) | EnumValue::Unknown(_) => {
+            "Portée non prise en charge"
+        }
     }
 }
 fn field(field: Field, value: String, editable: bool) -> ProAdminField {

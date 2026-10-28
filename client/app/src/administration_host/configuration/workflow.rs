@@ -886,9 +886,11 @@ impl Workflow {
                 false,
             ),
         ];
-        if let Some(hash) = draft.captured.workspace().writable_hash() {
-            fields.push(field(Field::Workspace, render::hex(hash.bytes()), false));
-        }
+        fields.push(field(
+            Field::Workspace,
+            super::workspace_label(draft.captured.workspace()),
+            false,
+        ));
         if draft.mode() == Mode::Write {
             fields.push(field(
                 Field::Source,

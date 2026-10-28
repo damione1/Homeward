@@ -134,6 +134,14 @@ pub enum UnobservedReason {
     NoPhysicalLocator,
     SourceUnavailable,
 }
+impl UnobservedReason {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::NoPhysicalLocator => "Non observé : aucun emplacement physique",
+            Self::SourceUnavailable => "Non observé : source indisponible",
+        }
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Workspace {
     Observed { hash: WorkspaceHash, dirty: Dirty },

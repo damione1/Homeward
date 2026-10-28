@@ -278,13 +278,7 @@ impl Simulation {
                         format!(
                             "{} · {} · {} · {}\n{}",
                             intent.alias,
-                            match &intent.parameters {
-                                Some(wire::intent::Parameters::Switch(_)) => "Interrupteur",
-                                Some(wire::intent::Parameters::Light(_)) => "Lumière",
-                                Some(wire::intent::Parameters::Climate(_)) => "Climat",
-                                Some(wire::intent::Parameters::Fan(_)) => "Ventilateur",
-                                None => "Paramètres absents",
-                            },
+                            parameters(intent.parameters.as_ref()),
                             match intent.outcome {
                                 EnumValue::Known(wire::IntentOutcome::Recorded) =>
                                     "Enregistrée dans la simulation",
@@ -308,11 +302,13 @@ impl Simulation {
                     .iter()
                     .map(|node| {
                         format!(
-                            "{} · {} · {}\n{}",
+                            "{} · {} · {}\n{}\nBranches {} · itérations {}",
                             action(node.action),
                             stage(node.stage),
                             super::render::at(&node.at),
-                            position(&node.position)
+                            position(&node.position),
+                            indexes(&node.branches),
+                            indexes(&node.iterations)
                         )
                     })
                     .collect::<Vec<_>>()
@@ -339,6 +335,91 @@ impl Simulation {
         }
         fields
     }
+}
+fn indexes(values: &[u32]) -> String {
+    if values.is_empty() {
+        "non fournies".into()
+    } else {
+        values
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(" / ")
+    }
+}
+fn power(on: bool) -> &'static str {
+    if on { "Marche" } else { "Arrêt" }
+}
+fn parameter<T: std::fmt::Display>(
+    values: &mut Vec<String>,
+    name: &str,
+    value: Option<T>,
+    unit: &str,
+) {
+    if let Some(value) = value {
+        values.push(format!("{name} {value}{unit}"));
+    }
+}
+fn parameters(value: Option<&wire::intent::Parameters>) -> String {
+    let mut values = Vec::new();
+    let kind = match value {
+        Some(wire::intent::Parameters::Switch(value)) => {
+            values.push(power(value.on).into());
+            "Interrupteur"
+        }
+        Some(wire::intent::Parameters::Light(value)) => {
+            if let Some(on) = value.on {
+                values.push(power(on).into());
+            }
+            parameter(&mut values, "Luminosité", value.brightness_percent, " %");
+            parameter(
+                &mut values,
+                "Variation",
+                value.brightness_step_percent,
+                " %",
+            );
+            parameter(&mut values, "Luminosité", value.brightness_255, " / 255");
+            parameter(
+                &mut values,
+                "Température de couleur",
+                value.color_temp_mireds,
+                " mired",
+            );
+            parameter(&mut values, "Transition", value.transition_seconds, " s");
+            "Lumière"
+        }
+        Some(wire::intent::Parameters::Climate(value)) => {
+            parameter(&mut values, "Consigne", value.temperature_celsius, " °C");
+            if let Some(mode) = value.mode {
+                values.push(
+                    match mode {
+                        EnumValue::Known(mode) => crate::device_view::mode_label(mode),
+                        EnumValue::Unknown(_) => "Mode non pris en charge",
+                    }
+                    .into(),
+                );
+            }
+            parameter(&mut values, "Humidité", value.humidity_percent, " %");
+            parameter(&mut values, "Ventilation", value.fan_mode.as_deref(), "");
+            parameter(&mut values, "Préréglage", value.preset_mode.as_deref(), "");
+            "Climat"
+        }
+        Some(wire::intent::Parameters::Fan(value)) => {
+            values.push(power(value.on).into());
+            parameter(&mut values, "Vitesse", Some(value.percentage), " %");
+            "Ventilateur"
+        }
+        None => return "Paramètres absents".into(),
+    };
+    format!(
+        "{} : {}",
+        kind,
+        if values.is_empty() {
+            "Aucune valeur fournie".into()
+        } else {
+            values.join(" · ")
+        }
+    )
 }
 fn position(value: &wire::Position) -> String {
     format!(

@@ -8,6 +8,7 @@ mod light;
 mod native;
 mod number;
 mod panel;
+pub(crate) use panel::mode_label;
 pub(crate) mod presentation;
 pub(crate) mod progress;
 mod recipes;
