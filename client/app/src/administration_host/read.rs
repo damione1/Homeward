@@ -18,6 +18,7 @@ pub(super) enum Selection {
     Account(AccountId),
     Integration(IntegrationId),
     Configuration(super::configuration::Selection),
+    Logic(super::logic::Selection),
 }
 #[derive(Clone)]
 pub(super) struct PageToken(String);
@@ -56,6 +57,7 @@ pub(super) enum Payload {
     Integrations(Box<IntegrationList>),
     Integration(Box<IntegrationDetail>),
     Configuration(Box<super::configuration::Payload>),
+    Logic(Box<super::logic::Payload>),
     Health(Box<observation::GetHealthResponse>),
     Metrics(Box<observation::GetMetricsResponse>),
     Logs(Box<observation::QueryRuntimeLogsResponse>),
@@ -266,13 +268,24 @@ async fn read_section(
         Section::Configuration => {
             let selection = match selection {
                 Some(Selection::Configuration(value)) => value,
-                Some(Selection::Account(_) | Selection::Integration(_)) | None => {
-                    super::configuration::Selection::Documents
-                }
+                Some(Selection::Account(_) | Selection::Integration(_) | Selection::Logic(_))
+                | None => super::configuration::Selection::Documents,
             };
             super::configuration::load(session, connection, lease, selection, page, cancel)
                 .await
                 .map(|value| Payload::Configuration(Box::new(value)))
+        }
+        Section::Logic => {
+            let selection = match selection {
+                Some(Selection::Logic(value)) => value,
+                Some(
+                    Selection::Account(_) | Selection::Integration(_) | Selection::Configuration(_),
+                )
+                | None => super::logic::Selection::Catalogue,
+            };
+            super::logic::load(session, connection, lease, selection, cancel)
+                .await
+                .map(|value| Payload::Logic(Box::new(value)))
         }
         Section::MfaPolicy => {
             let response = call!(
@@ -416,7 +429,8 @@ async fn read_section(
                 }
                 Ok(Payload::Policy { account, response })
             }
-            Some(Selection::Integration(_) | Selection::Configuration(_)) | None => {
+            Some(Selection::Integration(_) | Selection::Configuration(_) | Selection::Logic(_))
+            | None => {
                 let response = call!(
                     session,
                     lease,
@@ -508,7 +522,8 @@ async fn read_section(
                     health,
                 })))
             }
-            Some(Selection::Account(_) | Selection::Configuration(_)) | None => {
+            Some(Selection::Account(_) | Selection::Configuration(_) | Selection::Logic(_))
+            | None => {
                 let types = call!(
                     session,
                     lease,

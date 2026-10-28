@@ -22,6 +22,7 @@ pub(super) enum Target {
     Invitation(InvitationId),
     Integration(IntegrationId),
     Configuration(super::configuration::Selection),
+    Logic(super::logic::Selection),
     Fact(FactKey),
 }
 #[derive(Clone)]
@@ -125,6 +126,7 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
     };
     match payload {
         Payload::Configuration(value) => return super::configuration::rows(value),
+        Payload::Logic(value) => return super::logic::rows(value),
         Payload::Personal { profile } => {
             push(
                 fact("identity/account"),
@@ -860,7 +862,7 @@ impl Projection {
             match payload{
                 Payload::Policy{response,..}=>if let Some(auth::get_policy_response::Result::Present(value))=&response.result{fields.push(("Source de la politique".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted policy UTF-8"),true));},
                 Payload::Integration(value)=>if let Some(home_wire_contract::home::integrationadmin::v1::integration_instance::Configuration::Editable(value))=&value.response.instance.configuration{fields.push(("Paramètres publics".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted integration UTF-8"),true));for reference in &value.secrets{fields.push((format!("Référence · {}",reference.field),reference.name.clone(),false));}},
-                Payload::Personal{..}|Payload::Sessions(_)|Payload::Factors(_)|Payload::MfaPolicy(_)|Payload::Keys(_)|Payload::Accounts(_)|Payload::Invitations(_)|Payload::Integrations(_)|Payload::Health(_)|Payload::Metrics(_)|Payload::Logs(_)|Payload::Audits(_)|Payload::Configuration(_)=>(),
+                Payload::Personal{..}|Payload::Sessions(_)|Payload::Factors(_)|Payload::MfaPolicy(_)|Payload::Keys(_)|Payload::Accounts(_)|Payload::Invitations(_)|Payload::Integrations(_)|Payload::Health(_)|Payload::Metrics(_)|Payload::Logs(_)|Payload::Audits(_)|Payload::Configuration(_)|Payload::Logic(_)=>(),
             }
         }
         Self {
@@ -880,6 +882,10 @@ impl Projection {
             commands: forms::available(state),
             configuration_actions: if state.section == Section::Configuration {
                 state.configuration.actions()
+            } else if state.section == Section::Logic
+                && matches!(state.stage, Stage::Ready | Stage::Empty)
+            {
+                state.logic.actions()
             } else {
                 Vec::new()
             },
@@ -893,6 +899,17 @@ impl Projection {
                     destructive: true,
                     fields: state.configuration.fields(),
                     choices: state.configuration.choices(),
+                })
+            } else if state.section == Section::Logic && state.logic.opened() {
+                Some(Editor {
+                    actions: Some(state.logic.editor_actions()),
+                    title: state.logic.title(),
+                    notice: state.logic.notice(),
+                    editable: state.logic.editable(),
+                    submittable: false,
+                    destructive: true,
+                    fields: state.logic.fields(),
+                    choices: Vec::new(),
                 })
             } else {
                 state.private.draft().map(|draft| Editor {
@@ -947,6 +964,8 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     window.set_admin_notice(
         if value.section == Section::Factors {
             "L'enrôlement matériel n'est pas pris en charge sur cet appareil."
+        } else if value.section == Section::Logic {
+            "Serveur synthétique uniquement. Aucune routine ni action sur un appareil réel. La simulation de source est distincte de l’exécution."
         } else {
             ""
         }

@@ -344,13 +344,15 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                     | Payload::Metrics(_)
                     | Payload::Logs(_)
                     | Payload::Audits(_)
-                    | Payload::Configuration(_),
+                    | Payload::Configuration(_)
+                    | Payload::Logic(_),
                 )
                 | None => (),
             }
         }
         Section::Account
         | Section::Configuration
+        | Section::Logic
         | Section::Health
         | Section::Metrics
         | Section::Logs

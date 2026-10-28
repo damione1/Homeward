@@ -44,4 +44,5 @@ subprocess.run(['python3', 'scripts/qualify-frontend-media.py'], cwd=root, check
 subprocess.run(['python3', 'scripts/qualify-frontend-calendars.py'], cwd=root, check=True)
 subprocess.run(['python3', 'scripts/qualify-frontend-cameras.py'], cwd=root, check=True)
 subprocess.run(['python3', 'scripts/qualify-frontend-configuration.py'], cwd=root, check=True)
+subprocess.run(['python3', 'scripts/qualify-frontend-logic.py'], cwd=root, check=True)
 subprocess.run(['python3', 'scripts/qualify-frontend-video.py'], cwd=root, check=True)

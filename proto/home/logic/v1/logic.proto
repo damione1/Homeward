@@ -1,0 +1,245 @@
+syntax = "proto3";
+
+package home.logic.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "home/auth/v1/auth.proto";
+import "home/configuration/v1/configuration.proto";
+import "home/configurationplan/v1/plans.proto";
+import "home/history/v1/history.proto";
+import "home/observability/v1/observability.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/logic/v1;logicv1";
+
+// Provisional NHF020 facade for the deferred NHA163 surface. The only admitted
+// deployment is an explicitly enabled, isolated synthetic server. No production
+// handler is registered by this change. Existing trace APIs remain independent.
+enum Deployment {
+  DEPLOYMENT_UNSPECIFIED = 0;
+  DEPLOYMENT_SYNTHETIC_ONLY = 1;
+}
+enum Compatibility {
+  COMPATIBILITY_UNSPECIFIED = 0;
+  COMPATIBILITY_SUPPORTED = 1;
+  COMPATIBILITY_PARTIAL = 2;
+  COMPATIBILITY_UNSUPPORTED = 3;
+}
+enum Diagnostic {
+  DIAGNOSTIC_UNSPECIFIED = 0;
+  DIAGNOSTIC_INVALID_SCHEMA = 1;
+  DIAGNOSTIC_EXCLUDED_REFERENCE = 2;
+  DIAGNOSTIC_UNSUPPORTED_EXTENSION = 3;
+  DIAGNOSTIC_SOURCE_UNAVAILABLE = 4;
+}
+enum RunMode {
+  RUN_MODE_UNSPECIFIED = 0;
+  RUN_MODE_SINGLE = 1;
+  RUN_MODE_RESTART = 2;
+  RUN_MODE_QUEUED = 3;
+  RUN_MODE_PARALLEL = 4;
+}
+enum RunStatus {
+  RUN_STATUS_UNSPECIFIED = 0;
+  RUN_STATUS_QUEUED = 1;
+  RUN_STATUS_RUNNING = 2;
+  RUN_STATUS_COMPLETED = 3;
+  RUN_STATUS_CANCELED = 4;
+  RUN_STATUS_INTERRUPTED = 5;
+  RUN_STATUS_FAILED = 6;
+}
+enum RunReason {
+  RUN_REASON_UNSPECIFIED = 0;
+  RUN_REASON_EXPLICIT_REQUEST = 1;
+  RUN_REASON_SINGLE_BUSY = 2;
+  RUN_REASON_RESTART_REPLACED = 3;
+  RUN_REASON_WAITING_FOR_SLOT = 4;
+  RUN_REASON_EXPLICIT_CANCELLATION = 5;
+  RUN_REASON_SERVER_RESTART = 6;
+  RUN_REASON_SYNTHETIC_FAILURE = 7;
+}
+message Context {
+  Deployment deployment = 1;
+  // Changes at server restart; never use an old run/cursor across epochs.
+  string epoch = 2;
+  uint64 catalog_revision = 3;
+  home.configuration.v1.ActiveGeneration generation = 4;
+}
+message Continuation {
+  oneof result {
+    string next_page_token = 1;
+    google.protobuf.Empty complete = 2;
+  }
+}
+message DefinitionRef {
+  string id = 1;
+  home.configuration.v1.DocumentVersion version = 2;
+}
+message Definition {
+  DefinitionRef reference = 1;
+  string title = 2;
+  // Only AUTOMATION, SCRIPT and SCENE are admitted by this surface.
+  home.configurationplan.v1.SourceFamily family = 3;
+  home.configuration.v1.DocumentId source_document = 4;
+  // Protected metadata, NEVER editable YAML or an inferred source preview.
+  bytes protected_source_reference = 5;
+  string schema_version = 6;
+  Compatibility compatibility = 7;
+  repeated Diagnostic diagnostics = 8;
+  RunMode mode = 9;
+  // Presentation hints do not replace fresh server authorization on every RPC.
+  bool can_run = 10;
+  bool can_simulate = 11;
+}
+message ListDefinitionsRequest {
+  uint32 page_size = 1;
+  optional string page_token = 2;
+}
+message ListDefinitionsResponse {
+  Context context = 1;
+  repeated Definition definitions = 2;
+  uint32 retained_count = 3;
+  uint32 reported_count = 4;
+  Continuation continuation = 5;
+}
+message Actor {
+  oneof observation {
+    home.auth.v1.AccountId account = 1;
+    google.protobuf.Empty redacted = 2;
+    google.protobuf.Empty not_recorded = 3;
+  }
+}
+message Run {
+  string id = 1;
+  DefinitionRef definition = 2;
+  home.configuration.v1.ActiveGeneration generation = 3;
+  Actor actor = 4;
+  RunMode mode = 5;
+  RunStatus status = 6;
+  RunReason reason = 7;
+  google.protobuf.Timestamp created_at = 8;
+  string start_request_id = 9;
+  bool can_cancel = 10;
+  // Synthetic runs grant no claim about a physical command or its outcome.
+  bool simulated = 11;
+  bool hardware_validated = 12;
+}
+message ListRunsRequest {
+  Context context = 1;
+  string definition_id = 2;
+  uint32 page_size = 3;
+  optional string page_token = 4;
+}
+message ListRunsResponse {
+  Context context = 1;
+  repeated Run runs = 2;
+  Continuation continuation = 3;
+}
+message StartRunRequest {
+  Context expected = 1;
+  DefinitionRef definition = 2;
+  // One explicit attempt. A lost response is resolved by GetRun, not resending.
+  string request_id = 3;
+}
+message StartRunResponse {
+  Context context = 1;
+  Run run = 2;
+}
+message GetRunRequest {
+  Context context = 1;
+  oneof selector {
+    string run_id = 2;
+    string start_request_id = 3;
+  }
+}
+message GetRunResponse {
+  Context context = 1;
+  Run run = 2;
+}
+message CancelRunRequest {
+  Context expected = 1;
+  string run_id = 2;
+  string request_id = 3;
+}
+enum Cancellation {
+  CANCELLATION_UNSPECIFIED = 0;
+  CANCELLATION_FUTURE_STEPS_STOPPED = 1;
+  CANCELLATION_ALREADY_TERMINAL = 2;
+}
+message CancelRunResponse {
+  Context context = 1;
+  Run run = 2;
+  Cancellation cancellation = 3;
+  // Always false: cancellation never reverses an already dispatched effect.
+  bool dispatched_effects_reversed = 4;
+}
+message SourcePosition {
+  string file = 1;
+  string path = 2;
+  uint32 line = 3;
+  uint32 column = 4;
+}
+message Node {
+  home.observability.v1.TraceActionKind kind = 1;
+  home.observability.v1.TraceNodeStage stage = 2;
+  oneof source {
+    SourcePosition position = 3;
+    google.protobuf.Empty redacted = 4;
+    google.protobuf.Empty not_recorded = 5;
+  }
+}
+message Command {
+  string command_id = 1;
+  home.history.v1.CommandOutcome outcome = 2;
+  // No device aliases, command arguments, credentials or observed values.
+}
+enum GapReason {
+  GAP_REASON_UNSPECIFIED = 0;
+  GAP_REASON_EVICTED = 1;
+  GAP_REASON_REDACTED = 2;
+  GAP_REASON_NOT_RETAINED = 3;
+}
+message Gap {
+  GapReason reason = 1;
+  // The containing row's ordinal is the first missing position. For a known
+  // count, the next row starts at ordinal + known_missing_count. An unknown
+  // count must be zero and permits a jump without asserting continuity.
+  uint64 known_missing_count = 2;
+  bool count_unknown = 3;
+}
+message TraceRow {
+  uint64 ordinal = 1;
+  google.protobuf.Timestamp at = 2;
+  oneof event {
+    Node node = 3;
+    Command command = 4;
+    Gap gap = 5;
+    RunReason lifecycle = 6;
+  }
+}
+message ReadTraceRequest {
+  Context context = 1;
+  string run_id = 2;
+  uint32 page_size = 3;
+  optional string page_token = 4;
+}
+message ReadTraceResponse {
+  Context context = 1;
+  // Actor/generation belong to this captured run, never the current UI login.
+  Run run = 2;
+  string capture_id = 3;
+  repeated TraceRow rows = 4;
+  Continuation continuation = 5;
+}
+
+// The synthetic fixture authenticates via the real shared TLS/session owner and
+// fresh configuration authorization. Page/capture bounds are admitted at both
+// ends; no trigger, compiler, script engine or physical driver is implemented.
+service LogicService {
+  rpc ListDefinitions(ListDefinitionsRequest) returns (ListDefinitionsResponse);
+  rpc ListRuns(ListRunsRequest) returns (ListRunsResponse);
+  rpc StartRun(StartRunRequest) returns (StartRunResponse);
+  rpc GetRun(GetRunRequest) returns (GetRunResponse);
+  rpc CancelRun(CancelRunRequest) returns (CancelRunResponse);
+  rpc ReadTrace(ReadTraceRequest) returns (ReadTraceResponse);
+}

@@ -19,7 +19,8 @@ fn logs(owner: &Administration) -> Option<obs::QueryRuntimeLogsResponse> {
         | Payload::Health(_)
         | Payload::Metrics(_)
         | Payload::Configuration(_)
-        | Payload::Audits(_) => None,
+        | Payload::Audits(_)
+        | Payload::Logic(_) => None,
     }
 }
 async fn marker(root: &Path, name: &str) {

@@ -7,8 +7,8 @@ use crate::{
     AccountTransport, ActionTransport, AuthTransport, CalendarTransport, CameraTransport,
     ConfigurationApplyTransport, ConfigurationPlanTransport, ConfigurationSimulationTransport,
     ConfigurationTransport, DashboardTransport, Failure, HistoryTransport, IntegrationTransport,
-    ListTransport, McpKeyTransport, MediaTransport, ObservabilityTransport, PolicyTransport,
-    StateTransport, services::home,
+    ListTransport, LogicTransport, McpKeyTransport, MediaTransport, ObservabilityTransport,
+    PolicyTransport, StateTransport, services::home,
 };
 
 /// A shared verified TLS connection configuration. Service facades reuse the
@@ -116,6 +116,15 @@ impl Connection {
     pub fn observability(&self) -> ObservabilityTransport {
         ObservabilityTransport {
             client: home::observability::v1::ObservabilityServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
+        }
+    }
+
+    pub fn logic(&self) -> LogicTransport {
+        LogicTransport {
+            client: home::logic::v1::LogicServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),

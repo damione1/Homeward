@@ -2,6 +2,7 @@
 //! auth, admission and joins stay on the runtime, outside the Slint event loop.
 mod configuration;
 mod forms;
+mod logic;
 mod read;
 mod receipt;
 mod render;
@@ -32,6 +33,7 @@ struct Inner {
 }
 struct State {
     configuration: configuration::Workflow,
+    logic: logic::Workflow,
     private: PrivateState<Payload, forms::Draft>,
     pending: Option<forms::Operation>,
     section: Section,
@@ -53,6 +55,7 @@ impl Default for State {
     fn default() -> Self {
         Self {
             configuration: configuration::Workflow::default(),
+            logic: logic::Workflow::default(),
             private: PrivateState::default(),
             pending: None,
             section: Section::Account,
@@ -76,6 +79,7 @@ impl State {
     fn bump(&mut self) -> bool {
         let Some(next) = self.generation.checked_add(1) else {
             self.configuration.retire();
+            self.logic.retire();
             self.stage = Stage::Invalid;
             self.requested = false;
             return false;
@@ -85,6 +89,7 @@ impl State {
     }
     fn request(&mut self) {
         self.configuration.retire();
+        self.logic.retire();
         self.private.dismiss_draft();
         self.private.dismiss_secret();
         self.pending = None;
@@ -99,6 +104,7 @@ impl State {
     }
     fn clear(&mut self) {
         self.configuration.retire();
+        self.logic.retire();
         self.pending = None;
         self.cancel.cancel();
         let _ = self.private.retire();
@@ -261,6 +267,7 @@ impl Administration {
             || state.stage != Stage::Ready
             || state.private.draft().is_some()
             || state.configuration.opened()
+            || state.logic.opened()
         {
             return;
         }
@@ -288,6 +295,14 @@ impl Administration {
                 state.selection = Some(Selection::Integration(id.clone()));
                 state.request();
             }
+            render::Target::Logic(selection) => {
+                if state.section != Section::Logic {
+                    return;
+                }
+                state.selection = Some(Selection::Logic(selection.clone()));
+                state.page = None;
+                state.request();
+            }
             render::Target::Configuration(selection) => {
                 if state.section != Section::Configuration {
                     return;
@@ -301,7 +316,7 @@ impl Administration {
             | render::Target::Key(_)
             | render::Target::Invitation(_) => state.selected = Some(target),
             render::Target::Fact(_) => {
-                if state.section != Section::Configuration {
+                if !matches!(state.section, Section::Configuration | Section::Logic) {
                     return;
                 }
                 state.selected = Some(target);
@@ -311,8 +326,29 @@ impl Administration {
     }
     fn action(&self, _token: i32, generation: i32, action: ProAdminAction) {
         let mut state = self.0.state.lock().expect("admin state");
-        if !self.current(&state, generation) {
+        if !self.current(&state, generation) || state.logic.opened() {
             return;
+        }
+        if state.section == Section::Logic && matches!(state.stage, Stage::Ready | Stage::Empty) {
+            if action == ProAdminAction::Simulate
+                && state
+                    .logic
+                    .actions()
+                    .iter()
+                    .any(|value| value.action == action && value.enabled)
+            {
+                state.section = Section::Configuration;
+                state.selection = None;
+                state.page = None;
+                state.request();
+                self.retired(&state);
+                return;
+            }
+            if state.logic.open(action) {
+                state.bump();
+                self.retired(&state);
+                return;
+            }
         }
         if state.section == Section::Configuration {
             if state.configuration.opened() {
@@ -417,6 +453,15 @@ impl Administration {
         if token != 1 || !self.current(&state, generation) {
             return;
         }
+        if state.section == Section::Logic && state.logic.editor_action(action) {
+            if state.logic.opened() {
+                state.bump();
+            } else {
+                state.request();
+            }
+            self.retired(&state);
+            return;
+        }
         if state.section == Section::Configuration && state.configuration.editor_action(action) {
             state.bump();
             self.retired(&state);
@@ -490,6 +535,7 @@ impl Administration {
             || state.rows.is_empty()
             || state.private.draft().is_some()
             || state.configuration.opened()
+            || state.logic.opened()
         {
             return;
         }
@@ -533,6 +579,9 @@ impl Administration {
                 state.section = loaded.section;
                 match loaded.payload {
                     Ok(payload) => {
+                        if let Payload::Logic(value) = &payload {
+                            state.logic.observe(value);
+                        }
                         if let Payload::Configuration(value) = &payload {
                             state.configuration.observe(value.root.clone());
                         }
@@ -578,6 +627,22 @@ impl Administration {
             }
         }
         self.publish(&state);
+    }
+    fn logic_written(&self, result: logic::Completion) {
+        let mut state = self.0.state.lock().expect("admin state");
+        if state.section != Section::Logic
+            || !self.current(&state, state.generation)
+            || state.cancel.is_cancelled()
+        {
+            return;
+        }
+        if state.logic.accept(result) {
+            state.clear();
+            state.active = true;
+            state.stage = Stage::Denied;
+        }
+        state.bump();
+        self.retired(&state);
     }
     fn configuration_written(&self, result: configuration::Completion) {
         let mut state = self.0.state.lock().expect("admin state");
@@ -841,6 +906,31 @@ impl Administration {
                         configuration::execute(&session, &connection, generation, job, &token)
                             .await;
                     owner.configuration_written(result);
+                });
+            }
+            let logic_job = {
+                let mut state = self.0.state.lock().expect("admin state");
+                if !busy
+                    && state.section == Section::Logic
+                    && self.current(&state, state.generation)
+                {
+                    state
+                        .logic
+                        .take_pending()
+                        .map(|job| (job, state.cancel.clone()))
+                } else {
+                    None
+                }
+            };
+            if let Some((job, token)) = logic_job {
+                busy = true;
+                let owner = self.clone();
+                let session = session.clone();
+                let connection = connection.clone();
+                jobs.spawn(async move {
+                    let result =
+                        logic::execute(&session, &connection, generation, job, &token).await;
+                    owner.logic_written(result);
                 });
             }
             let operation = {

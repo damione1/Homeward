@@ -299,7 +299,8 @@ async fn subscription(
             | read::Payload::Health(_)
             | read::Payload::Metrics(_)
             | read::Payload::Logs(_)
-            | read::Payload::Audits(_),
+            | read::Payload::Audits(_)
+            | read::Payload::Logic(_),
         ) => return Err(Stop::Invalid),
         Err(value) => return Err(read_stop(*value)),
     };
