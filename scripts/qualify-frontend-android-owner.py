@@ -3,6 +3,7 @@
 Only the owned API35 emulator receives input. No real provider is attached.
 """
 from enum import Enum, IntEnum
+from datetime import datetime
 import argparse
 import contextlib
 import hashlib
@@ -25,6 +26,7 @@ SESSION = runpy.run_path(str(ROOT / 'scripts/qualify-frontend-session.py'))
 SHARED = runpy.run_path(str(ROOT / 'scripts/qualify-frontend-environment.py'))
 TRANSPORT = SESSION['TRANSPORT']
 INPUT = runpy.run_path(str(ROOT / 'scripts/frontend-android-input.py'))
+from frontend_android_power import IdleState, PowerCycle, Wakefulness
 OS = runpy.run_path(str(ROOT / 'scripts/qualify-frontend-android-notifications.py'))
 CONFIG = json.loads((ROOT / 'frontend.local.json').read_text())
 CACHE = Path(CONFIG['frontend_cache']) / 'nhf023'
@@ -35,6 +37,7 @@ class Control(Enum):
     OBSERVE = 'capture-state'
     SEED_NOMINAL = 'seed-nominal'
     SEED_ENTITY = 'seed-entity'
+    SEED_EXPIRING = 'seed-expiring'
 
 class Platform(IntEnum):
     MAC_OS = 1
@@ -84,6 +87,7 @@ class Mode(Enum):
     BACKGROUND = 'background'
     BACKGROUND_REFRESH = 'background-refresh'
     BACKGROUND_PERMISSION = 'background-permission'
+    BACKGROUND_POWER = 'background-power'
 
     def __str__(self):
         return self.value
@@ -92,7 +96,7 @@ class Mode(Enum):
         match self:
             case Mode.FOREGROUND:
                 return False
-            case Mode.BACKGROUND | Mode.BACKGROUND_REFRESH | Mode.BACKGROUND_PERMISSION:
+            case Mode.BACKGROUND | Mode.BACKGROUND_REFRESH | Mode.BACKGROUND_PERMISSION | Mode.BACKGROUND_POWER:
                 return True
         raise AssertionError('Unhandled reception qualification mode')
 
@@ -105,16 +109,20 @@ class FailurePolicy(Enum):
         return self.value
 
 
-def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
+def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND, server_binary=None, interrupted_proof=None):
     if not isinstance(mode, Mode):
         raise TypeError('Qualification mode enum required')
+    server_binary = server_binary or CACHE / 'android-companion-notifications-server.test'
+    if not server_binary.is_absolute() or not server_binary.is_file():
+        raise RuntimeError('Build the current Go-race fixture or provide its retained exact binary with --server-binary')
     proof = CACHE / ('android-owner-' + str(time.time_ns()))
     proof.mkdir(mode=0o700)
     shutil.copy2(__file__, proof / 'driver.py')
+    shutil.copy2(ROOT / 'scripts/frontend_android_power.py', proof / 'frontend_android_power.py')
     apk = proof / 'Homeward.apk'
     shutil.copy2(Path(os.environ['CARGO_TARGET_DIR']) / 'debug/apk/homeward-dev.apk', apk)
     binary = proof / 'server.test'
-    shutil.copy2(CACHE / 'android-companion-notifications-server.test', binary)
+    shutil.copy2(server_binary, binary)
     fixture = proof / 'fixture'
     server = None
     installed = forwarded = False
@@ -134,6 +142,42 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
         SHARED['wait_file'](done, server, timeout=10)
         if value is Control.OBSERVE:
             return json.loads((fixture / 'observed-state.json').read_text())
+
+    def recover_interrupted(existing):
+        # A reservation can terminate the whole owned process group before its
+        # finally block. Recovery is explicit and admits only that exact APK
+        # and synthetic profile on the same task AVD, never an unknown install.
+        if interrupted_proof is None:
+            raise RuntimeError('Preserve existing emulator app')
+        prior = interrupted_proof.resolve()
+        if not prior.is_relative_to(CACHE.resolve()) or not prior.is_dir():
+            raise RuntimeError('Interrupted proof must be inside the owned frontend cache')
+        identity = json.loads((prior / 'device.json').read_text())
+        if identity['serial'] != TRANSPORT['SERIAL'] or identity['avd'] != TRANSPORT['AVD']:
+            raise RuntimeError('Interrupted proof belongs to another device')
+        paths = existing.stdout.strip().splitlines()
+        if len(paths) != 1 or not paths[0].startswith('package:'):
+            raise RuntimeError('Preserve an unfamiliar installed package layout')
+        apk_path = paths[0].removeprefix('package:')
+        if not re.fullmatch(r'/data/app/[A-Za-z0-9_+./=~-]+/base\.apk', apk_path):
+            raise RuntimeError('Preserve an unfamiliar installed APK path')
+        expected = json.loads((prior / 'artifacts.json').read_text())['apk_sha256']
+        actual = DEVICE('shell', 'sha256sum', apk_path).stdout.split()[0]
+        old_fixture = json.loads((prior / 'fixture/ready.json').read_text())
+        old_origin = urlsplit(old_fixture['origin'])
+        if not (old_fixture['mode'] == 'synthetic-only' and old_fixture['no_physical_providers']
+                and not old_fixture['production_configuration'] and old_origin.scheme == 'https'
+                and old_origin.hostname == '127.0.0.1'):
+            raise RuntimeError('Preserve a package without the previous isolated fixture')
+        profile = json.loads(DEVICE('shell', 'run-as', PACKAGE, 'cat', 'files/endpoint.json').stdout)
+        if actual != expected or profile != SESSION['public_profile'](old_fixture):
+            raise RuntimeError('Preserve a package not owned by the interrupted proof')
+        DEVICE('shell', 'am', 'force-stop', PACKAGE)
+        if DEVICE('uninstall', PACKAGE).stdout.strip() != 'Success':
+            raise RuntimeError('Interrupted test package cleanup failed')
+        (proof / 'interrupted-package-recovered.json').write_text(json.dumps(dict(
+            previous_proof=str(prior), exact_apk_verified=True, synthetic_profile_verified=True,
+            same_owned_avd=True, previous_test_package_uninstalled=True), indent=2) + '\n')
 
     def state(name, predicate, timeout=25):
         deadline = time.monotonic() + timeout
@@ -210,7 +254,7 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
         time.sleep(.5)
         DEVICE('shell', 'cmd', 'statusbar', 'expand-notifications')
         deadline = time.monotonic() + 10
-        expanded = False
+        expanded = set()
         while True:
             DEVICE('shell', 'uiautomator', 'dump', '/sdcard/homeward-reception.xml', check=False)
             raw = DEVICE('shell', 'cat', '/sdcard/homeward-reception.xml', check=False).stdout
@@ -235,17 +279,29 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
             title = next((n for n in nodes if n.get('text') == 'Réception Homeward active' and n.get('package') == 'com.android.systemui'), None)
             if title is None:
                 DEVICE('shell', 'cmd', 'statusbar', 'expand-notifications')
-            if not expanded and title is not None:
+            if len(expanded) < 4 and title is not None:
                 parents = {child: parent for parent in tree.iter() for child in parent}
                 ancestor, node = title, None
+                title_bounds = list(map(int, re.findall(r'\d+', title.get('bounds', ''))))
                 while ancestor in parents and node is None:
                     ancestor = parents[ancestor]
-                    node = next((n for n in ancestor.iter('node') if n.get('resource-id') == 'android:id/expand_button' and n.get('content-desc') == 'Expand'), None)
+                    candidates = []
+                    for candidate in ancestor.iter('node'):
+                        bounds = tuple(map(int, re.findall(r'\d+', candidate.get('bounds', ''))))
+                        if (candidate.get('resource-id') == 'android:id/expand_button'
+                                and candidate.get('content-desc') == 'Expand'
+                                and len(bounds) == 4 and bounds not in expanded and len(title_bounds) == 4):
+                            candidates.append((abs(bounds[1] + bounds[3] - title_bounds[1] - title_bounds[3]), candidate))
+                    if candidates:
+                        # A group expander and the service's own expander can
+                        # both be ancestors. Choose the one next to its title,
+                        # then re-observe the hierarchy before the next input.
+                        node = min(candidates, key=lambda row: row[0])[1]
                 if node is not None:
                     bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
                     if len(bounds) == 4:
                         DEVICE('shell', 'input', 'tap', (bounds[0] + bounds[2]) // 2, (bounds[1] + bounds[3]) // 2)
-                        expanded = True
+                        expanded.add(tuple(bounds))
             if time.monotonic() >= deadline:
                 (proof / 'background-os-stop-failed.xml').write_text(raw)
                 ui.capture('background-os-stop-failed')
@@ -297,6 +353,77 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
             and s['companion_counts']['registrations'] == registered['companion_counts']['registrations'])
         service(False, 'permission-withdrawal-restored-stays-stopped')
 
+    def power_cycle():
+        before = control(Control.OBSERVE)
+        ids = {entry['id']['value'] for entry in before['deliveries']}
+        cadence = Cadence(before['installations'][0]['consent']['cadence'])
+        power = PowerCycle(DEVICE, proof)
+        with power.idle():
+            started = time.monotonic()
+            control(Control.SEED_EXPIRING)
+            seeded = state('doze-message-seeded', lambda s:
+                any(e['id']['value'] not in ids for e in s['deliveries']))
+            brief = next(e for e in seeded['deliveries'] if e['id']['value'] not in ids)
+            ttl = (datetime.fromisoformat(brief['expires_at']) - datetime.fromisoformat(brief['created_at'])).total_seconds()
+            if not 0 < ttl <= 5:
+                raise RuntimeError('Doze message must actually expire within five seconds')
+            while time.monotonic() - started < cadence.seconds() + 5:
+                time.sleep(.25)
+            if power.observe('doze-after-cadence') not in (
+                    (IdleState.IDLE, Wakefulness.ASLEEP), (IdleState.IDLE, Wakefulness.DOZING)):
+                raise RuntimeError('Forced Doze/screen-off not maintained through observation')
+            asleep = state('doze-no-telemetry', lambda s:
+                s['companion_counts']['publications'] == before['companion_counts']['publications'])
+            service_before = DEVICE('shell', 'dumpsys', 'activity', 'services', PACKAGE).stdout
+            (proof / 'doze-service-before-wake.txt').write_text(service_before)
+            # The server may already have purged this expired delivery during
+            # an inbox read. Absence is the expected privacy outcome, not a
+            # missing fixture row that should be reconstructed by the driver.
+            expired = next((e for e in asleep['deliveries'] if e['id'] == brief['id']), None)
+            (proof / 'doze-observation.json').write_text(json.dumps(dict(
+                observed_seconds=time.monotonic() - started, cadence_seconds=cadence.seconds(),
+                publications_before=before['companion_counts']['publications'],
+                publications_after=asleep['companion_counts']['publications'],
+                seeded_message=brief, message_before_wake=expired,
+                message_purged_before_wake=expired is None,
+                service_record_present='HomewardReceptionService' in service_before,
+                scope='Forced deep Doze and actual screen-off on owned API35 AVD; no physical sleep, real-LAN blocking or energy verdict'), indent=2) + '\n')
+        DEVICE('shell', 'cmd', 'statusbar', 'collapse')
+        DEVICE('shell', 'am', 'start', '-W', '-n', PACKAGE + '/' + SESSION['ACTIVITY'])
+        ui.find('Session sécurisée active', match=INPUT['LabelMatch'].CONTAINS, timeout=45)
+        service_after = DEVICE('shell', 'dumpsys', 'activity', 'services', PACKAGE).stdout
+        (proof / 'doze-service-after-wake.txt').write_text(service_after)
+        if 'HomewardReceptionService' not in service_before and 'HomewardReceptionService' in service_after:
+            raise RuntimeError('Foreground reception restarted automatically after Doze')
+        center = DEVICE('shell', 'dumpsys', 'notification', '--noredact').stdout
+        posted = re.split(r'(?m)^  (?=\S)', center.partition('  Notification List:\n')[2], maxsplit=1)[0]
+        (proof / 'doze-notification-manager-after-wake.txt').write_text(center)
+        if 'homeward.' + brief['id']['value'] in posted:
+            raise RuntimeError('Expired message present in OS after wake')
+        ids = {entry['id']['value'] for entry in asleep['deliveries']}
+        control(Control.SEED_ENTITY)
+        resumed = state('doze-fresh-reception-after-wake', lambda s:
+            any(e['id']['value'] not in ids and Reception(e['reception']) is Reception.RECEIVED for e in s['deliveries']))
+        after = next((e for e in resumed['deliveries'] if e['id'] == brief['id']), None)
+        if after is not None and (expired is None or after['presentation'] != expired['presentation']
+                                  or after['last_request_id'] != expired['last_request_id']):
+            raise RuntimeError('Expired message received a new receipt/presentation after wake')
+        center = DEVICE('shell', 'dumpsys', 'notification', '--noredact').stdout
+        posted = re.split(r'(?m)^  (?=\S)', center.partition('  Notification List:\n')[2], maxsplit=1)[0]
+        (proof / 'doze-notification-manager-after-fresh-reception.txt').write_text(center)
+        if 'homeward.' + brief['id']['value'] in posted:
+            raise RuntimeError('Expired message reappeared during resumed foreground reception')
+        settings()
+        ui.capture('doze-recovered-foreground')
+        # End the explicit service if it survived. If it expired, reopening must
+        # preserve the stopped state; never restart merely to finish the test.
+        if 'HomewardReceptionService' in service_after:
+            DEVICE('shell', 'input', 'keyevent', 'KEYCODE_HOME')
+            stop_service_from_os()
+        service(False, 'doze-service-stopped-at-end')
+        DEVICE('shell', 'cmd', 'statusbar', 'collapse')
+        DEVICE('shell', 'am', 'start', '-W', '-n', PACKAGE + '/' + SESSION['ACTIVITY'])
+
     try:
         with (proof / 'server.log').open('wb') as log:
             server = subprocess.Popen([str(binary), '-test.run=^TestNHF022NotificationServer$', '-test.v', '-test.timeout=11m'],
@@ -312,7 +439,7 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
                 try:
                     existing = DEVICE('shell', 'pm', 'path', PACKAGE, check=False)
                     if 'package:' in existing.stdout:
-                        raise RuntimeError('Preserve existing emulator app')
+                        recover_interrupted(existing)
                     DEVICE('install', '--no-streaming', apk)
                     installed = True
                     if DEVICE('shell', 'pm', 'clear', PACKAGE).stdout.strip() != 'Success':
@@ -405,7 +532,8 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
                             raise RuntimeError('Credentials refreshed before hiding the Activity; no background refresh proof')
                         # Observe at least the actual selected cadence; default
                         # UI registration uses60s, not the protocol minimum30s.
-                        while time.monotonic() - background_started < cadence.seconds() + 5:
+                        hold = 0 if mode is Mode.BACKGROUND_POWER else cadence.seconds() + 5
+                        while time.monotonic() - background_started < hold:
                             time.sleep(.25)
                         if mode is Mode.BACKGROUND_REFRESH:
                             SHARED['wait_file'](fixture / 'background-refresh-observed.json', server, timeout=210)
@@ -417,7 +545,7 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
                         if after_background['companion_counts']['publications'] != before_background['companion_counts']['publications']:
                             raise RuntimeError('Companion collected while Activity was suspended')
                         service(True, 'background-service-after-cadence')
-                        (proof / 'background-telemetry-stopped.json').write_text(json.dumps(dict(before=before_background['companion_counts'], after=after_background['companion_counts'], cadence_seconds=cadence.seconds(), observed_seconds=time.monotonic() - background_started), indent=2) + '\n')
+                        (proof / 'background-telemetry-stopped.json').write_text(json.dumps(dict(before=before_background['companion_counts'], after=after_background['companion_counts'], cadence_seconds=cadence.seconds(), observed_seconds=time.monotonic() - background_started, cadence_covered=hold >= cadence.seconds()), indent=2) + '\n')
                     seeded_at = time.monotonic()
                     control(Control.SEED_NOMINAL)
                     delivered = state('native-os-accepted', lambda s: any(e['title'] == 'Notification synthétique' and Presentation(e['presentation']) is Presentation.OS_ACCEPTED for e in s['deliveries']))
@@ -483,6 +611,9 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
                         if mode is Mode.BACKGROUND_PERMISSION:
                             time.sleep(.5)
                             withdraw_permission()
+                        elif mode is Mode.BACKGROUND_POWER:
+                            time.sleep(.5)
+                            power_cycle()
                         else:
                             stop_service_from_os()
                             service(False, 'background-service-stopped-by-os-action')
@@ -539,10 +670,13 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
                 local_stop_and_revocation=mode is not Mode.BACKGROUND_PERMISSION,
                 actual_android_permission_withdrawal=mode is Mode.BACKGROUND_PERMISSION,
                 registration_restored_after_process_restart=mode is Mode.BACKGROUND_PERMISSION,
+                forced_doze_on_owned_avd=mode is Mode.BACKGROUND_POWER,
                 destination_revocation=True,
                 physical_device=False, native_os_click_qualified=True,
                 background_qualified=mode.background(), native_background_refresh_qualified=mode is Mode.BACKGROUND_REFRESH,
-                background_scope='Owned API35 emulator, live process, user-started foreground service; no persistent delivery/Doze/physical hardware claim' if mode.background() else None,
+                background_scope=('Owned API35 emulator, forced deep Doze and screen-off/wake; no persistent delivery, real-LAN blocking, energy or physical-hardware verdict'
+                                  if mode is Mode.BACKGROUND_POWER else
+                                  'Owned API35 emulator, live process, user-started foreground service; no persistent delivery/Doze/physical hardware claim') if mode.background() else None,
                 isolation=isolation, children_joined=True)
             (proof / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
             print('PASS ' + str(proof), flush=True)
@@ -557,5 +691,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--failure-policy', type=FailurePolicy, choices=list(FailurePolicy), default=FailurePolicy.STOP)
     parser.add_argument('--mode', type=Mode, choices=list(Mode), default=Mode.FOREGROUND)
+    parser.add_argument('--server-binary', type=Path, help='Absolute path to the current Go-race fixture binary, including a retained qualified copy')
+    parser.add_argument('--recover-interrupted-proof', type=Path, help='Explicitly clean only the exact APK/profile left by this prior owned-AVD proof')
     args = parser.parse_args()
-    qualify(args.failure_policy, args.mode)
+    qualify(args.failure_policy, args.mode, args.server_binary, args.recover_interrupted_proof)
