@@ -4,8 +4,10 @@ use connectrpc::client::{ClientConfig, HttpClient};
 use http::Uri;
 
 use crate::{
-    ActionTransport, AuthTransport, CalendarTransport, CameraTransport, DashboardTransport,
-    Failure, HistoryTransport, ListTransport, MediaTransport, StateTransport, services::home,
+    AccountTransport, ActionTransport, AuthTransport, CalendarTransport, CameraTransport,
+    DashboardTransport, Failure, HistoryTransport, IntegrationTransport, ListTransport,
+    McpKeyTransport, MediaTransport, ObservabilityTransport, PolicyTransport, StateTransport,
+    services::home,
 };
 
 /// A shared verified TLS connection configuration. Service facades reuse the
@@ -67,6 +69,55 @@ impl Connection {
     pub fn auth(&self) -> AuthTransport {
         AuthTransport {
             client: home::auth::v1::AuthServiceClient::new(self.http.clone(), self.config.clone()),
+        }
+    }
+
+    pub fn accounts(&self) -> AccountTransport {
+        AccountTransport {
+            client: home::auth::v1::AccountServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
+        }
+    }
+
+    pub fn policies(&self) -> PolicyTransport {
+        PolicyTransport {
+            client: home::auth::v1::AuthorizationPolicyServiceClient::new(
+                self.http.clone(),
+                // A valid policy source alone may occupy 1 MiB; leave bounded
+                // space for its protobuf metadata without widening other APIs.
+                self.config
+                    .clone()
+                    .with_default_max_message_size(2 * 1024 * 1024),
+            ),
+        }
+    }
+
+    pub fn mcp_keys(&self) -> McpKeyTransport {
+        McpKeyTransport {
+            client: home::auth::v1::McpKeyServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
+        }
+    }
+
+    pub fn integrations(&self) -> IntegrationTransport {
+        IntegrationTransport {
+            client: home::integrationadmin::v1::IntegrationServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
+        }
+    }
+
+    pub fn observability(&self) -> ObservabilityTransport {
+        ObservabilityTransport {
+            client: home::observability::v1::ObservabilityServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
         }
     }
 

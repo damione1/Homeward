@@ -1,0 +1,55 @@
+import { KitTheme, KitThemes, TableColumn, TableRow, NavigationStep } from "@kit/kit.slint";
+import { ProAdminWorkspace, ProAdminEditor, ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField, ProAdminChoice } from "@kit-pro/kit-pro.slint";
+export component HomewardAdministration inherits VerticalLayout {
+    in property <KitTheme> theme: KitThemes.light;
+    in property <string> title;
+    in property <string> status;
+    in property <string> notice;
+    in property <ProAdminStage> stage;
+    in property <int> generation;
+    in property <int> active-index: -1;
+    in property <int> selected-token;
+    in property <[ProAdminSection]> sections;
+    in property <[TableColumn]> columns;
+    in property <[TableRow]> rows;
+    in property <[ProAdminField]> fields;
+    in property <[ProAdminChoice]> choices;
+    in property <bool> editor-visible;
+    in property <bool> editable;
+    in property <string> editor-title;
+    in property <string> editor-notice;
+    in property <[ProAdminActionRow]> actions;
+    in property <[ProAdminActionRow]> editor-actions;
+    callback choose-section(int,int);
+    callback select(int,int);
+    callback action(int,int,ProAdminAction);
+    callback navigate(NavigationStep);
+    callback edit(int,int,int,string);
+    callback choose(int,int,int,int);
+    callback editor-action(int,int,ProAdminAction);
+    spacing: 16px;
+    ProAdminWorkspace {
+        interactive: !root.editor-visible;
+        theme: root.theme; title: root.title;
+        description: "Compte, accès et état du serveur";
+        stage: root.stage; status-label: root.status; notice: root.notice;
+        empty-label: "Aucune entrée pour cette vue";
+        generation: root.generation; active-index: root.active-index;
+        sections: root.sections; columns: root.columns; rows: root.rows; actions: root.actions;
+        choose-section(t,g) => { root.choose-section(t,g); }
+        select(t,g) => { root.select(t,g); }
+        navigate(step) => { root.navigate(step); }
+        action(t,g,a) => { root.action(t,g,a); }
+    }
+    if root.editor-visible || root.fields.length > 0: ProAdminEditor {
+        theme: root.theme; title: root.editor-title;
+        description: "Informations autorisées pour la session courante";
+        token: root.selected-token; generation: root.generation;
+        editable: root.editable; fields: root.fields; choices: root.choices; actions: root.editor-actions;
+        notice: root.editor-notice;
+        reveal-label: "Afficher le mot de passe"; hide-label: "Masquer le mot de passe";
+        edit(t,g,f,value) => { root.edit(t,g,f,value); }
+        choose(t,g,f,option) => { root.choose(t,g,f,option); }
+        action(t,g,a) => { root.editor-action(t,g,a); }
+    }
+}

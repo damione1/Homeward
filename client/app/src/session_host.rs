@@ -82,6 +82,10 @@ enum Action {
     Read(ActivationPermit<CacheProjection>),
 }
 enum Intent {
+    Invitation {
+        epoch: ProfileEpoch,
+        value: InvitationIntent,
+    },
     Device {
         epoch: ProfileEpoch,
         prepared: Box<Prepared>,
@@ -96,6 +100,11 @@ enum Intent {
         action: Action,
     },
     Close,
+}
+struct InvitationIntent {
+    generation: i32,
+    request: crate::invitation::Request,
+    cancel: CancellationToken,
 }
 
 #[derive(Clone)]
@@ -139,6 +148,7 @@ pub(crate) struct LifecycleBridge {
     media: Arc<Mutex<Option<crate::media_host::Media>>>,
     calendars: Arc<Mutex<Option<crate::calendar_host::Calendars>>>,
     cameras: Arc<Mutex<Option<crate::camera_host::Cameras>>>,
+    administration: Arc<Mutex<Option<crate::administration_host::Administration>>>,
 }
 impl LifecycleBridge {
     pub(crate) fn new() -> Self {
@@ -155,6 +165,7 @@ impl LifecycleBridge {
             media: Arc::new(Mutex::new(None)),
             calendars: Arc::new(Mutex::new(None)),
             cameras: Arc::new(Mutex::new(None)),
+            administration: Arc::new(Mutex::new(None)),
         }
     }
     // Called by native event listeners on the UI thread. Cancel publication and
@@ -163,6 +174,14 @@ impl LifecycleBridge {
         let _transition = self.transition.lock().expect("lifecycle gate poisoned");
         if *self.events.borrow() == state {
             return;
+        }
+        if let Some(administration) = self
+            .administration
+            .lock()
+            .expect("lifecycle administration mutex")
+            .as_ref()
+        {
+            administration.foreground(state == Lifecycle::Foreground);
         }
         if let Some(lists) = self.lists.lock().expect("lifecycle lists mutex").as_ref() {
             lists.foreground(state == Lifecycle::Foreground);
@@ -239,6 +258,8 @@ impl LifecycleBridge {
                 .expect("lifecycle window mutex poisoned")
                 .clone();
             if let Some(window) = window.upgrade() {
+                window.invoke_clear_invitation();
+                window.set_recovery_receipt("".into());
                 cache_view::clear(&window);
             }
         }
@@ -313,6 +334,7 @@ struct Ui {
     media: crate::media_host::Media,
     calendars: crate::calendar_host::Calendars,
     cameras: crate::camera_host::Cameras,
+    administration: crate::administration_host::Administration,
 }
 impl Ui {
     fn current_devices(&self) -> Result<(DeviceBinding, i32), Refusal> {
@@ -344,6 +366,7 @@ impl Ui {
         }
     }
     fn invalidate_cache(&self) {
+        self.administration.clear();
         self.history.clear();
         self.media.clear();
         self.calendars.clear();
@@ -545,7 +568,29 @@ fn profile_message(error: ProfileFailure) -> &'static str {
         }
     }
 }
+fn invitation_allowed(phase: Phase) -> bool {
+    match phase {
+        Phase::SignedOut
+        | Phase::NeedsLogin
+        | Phase::CredentialRejected
+        | Phase::RateLimited
+        | Phase::NetworkUnavailable => true,
+        Phase::Busy
+        | Phase::Challenge { .. }
+        | Phase::EnrollmentRequired
+        | Phase::Ready
+        | Phase::Refreshing
+        | Phase::AuthorityUnavailable
+        | Phase::RightsChanged
+        | Phase::StorageUnavailable
+        | Phase::UnsupportedResponse
+        | Phase::Closed => false,
+    }
+}
 fn render_view(window: &HomewardWindow, view: SessionView) {
+    if !invitation_allowed(view.phase) {
+        window.invoke_clear_invitation();
+    }
     window.set_busy(matches!(view.phase, Phase::Busy | Phase::Refreshing));
     window.set_can_recover(false);
     window.set_message_title("".into());
@@ -666,8 +711,10 @@ struct Profile {
     cancel: CancellationToken,
     actions: ActionController,
     devices: DeviceStore,
+    accounts: home_client_transport::AccountTransport,
 }
 async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, ui: &Ui) {
+    ui.administration.clear();
     ui.history.clear();
     ui.media.clear();
     ui.calendars.clear();
@@ -714,6 +761,18 @@ async fn install_profile(
         ActionController::start(owner.clone(), connection.actions());
     let mut action_updates = actions.subscribe_updates();
     let cancel = CancellationToken::new();
+    ui.administration.clear();
+    let (administration, admin_session, admin_connection, admin_cancel) = (
+        ui.administration.clone(),
+        owner.clone(),
+        connection.clone(),
+        cancel.clone(),
+    );
+    tasks.spawn(async move {
+        administration
+            .run(admin_session, admin_connection, admin_cancel)
+            .await;
+    });
     ui.history.clear();
     ui.media.clear();
     ui.calendars.clear();
@@ -968,6 +1027,7 @@ async fn install_profile(
         cancel,
         actions,
         devices,
+        accounts: connection.accounts(),
     })
 }
 
@@ -1015,6 +1075,48 @@ async fn session_action(
     }
 }
 
+async fn accept_invitation(
+    value: InvitationIntent,
+    api: home_client_transport::AccountTransport,
+    source: SessionCoordinator,
+    profile_cancel: CancellationToken,
+    ui: Ui,
+    epoch: ProfileEpoch,
+) {
+    let generation = source.generation();
+    let allowed = invitation_allowed(source.subscribe().borrow().phase);
+    let outcome = if allowed {
+        tokio::select! {biased;
+            ()=profile_cancel.cancelled()=>return,
+            ()=value.cancel.cancelled()=>return,
+            result=crate::invitation::accept(&api,value.request,&value.cancel)=>result,
+        }
+    } else {
+        crate::invitation::Outcome::Rejected
+    };
+    if !source.is_current(generation)
+        || profile_cancel.is_cancelled()
+        || value.cancel.is_cancelled()
+    {
+        return;
+    }
+    ui.post(epoch,move|window|{
+        if !source.is_current(generation)||window.get_invitation_generation()!=value.generation||!window.get_invitation_visible(){return}
+        window.set_invitation_busy(false);
+        match outcome{
+            crate::invitation::Outcome::Accepted{login}=>{
+                window.invoke_clear_invitation();window.set_user_draft(login.into());
+                window.set_message_title("Invitation acceptée".into());
+                window.set_message("Votre compte est prêt. Connectez-vous avec le mot de passe que vous venez de choisir.".into());
+                window.set_message_severity(AlertSeverity::Success);
+            },
+            crate::invitation::Outcome::Rejected=>window.set_invitation_feedback("L’invitation a été refusée, est expirée ou a déjà été utilisée. Vérifiez le jeton avec votre administrateur.".into()),
+            crate::invitation::Outcome::Uncertain=>{window.set_invitation_uncertain(true);window.set_invitation_feedback("Le résultat n’a pas pu être confirmé. Aucune nouvelle tentative n’est envoyée. Revenez à la connexion et essayez les identifiants de votre compte avant de demander une autre invitation.".into());},
+            crate::invitation::Outcome::Cancelled=>(),
+        }
+    });
+}
+
 async fn worker(
     mut input: mpsc::Receiver<Intent>,
     services: NativeServices,
@@ -1051,6 +1153,13 @@ async fn worker(
     loop {
         tokio::select! {
             intent = input.recv() => match intent {
+                Some(Intent::Invitation {epoch,value})=>{
+                    if let Some(profile)=&profile && profile.epoch==epoch && ui.epoch.load(Ordering::SeqCst)==epoch.0 && *lifecycle.borrow()==Lifecycle::Foreground {
+                        if tasks.len()<20 {
+                            tasks.spawn(accept_invitation(value,profile.accounts.clone(),profile.owner.clone(),profile.cancel.clone(),ui.clone(),epoch));
+                        }else{ui.post(epoch,move|window|{if window.get_invitation_generation()==value.generation{window.set_invitation_busy(false);window.set_invitation_feedback("Une opération est déjà en cours. Réessayez dans un instant.".into());}});}
+                    }
+                },
                 Some(Intent::Device { epoch, prepared }) => {
                     if let Some(profile)=&profile && profile.epoch==epoch && ui.epoch.load(Ordering::SeqCst)==epoch.0 {
                         let Prepared{target,request,guard,layout:_}=*prepared;
@@ -1222,6 +1331,11 @@ pub(crate) fn run_with_lifecycle(
     let media = crate::media_host::Media::bind(&window);
     let calendars = crate::calendar_host::Calendars::bind(&window);
     let cameras = crate::camera_host::Cameras::bind(&window);
+    let administration = crate::administration_host::Administration::bind(&window);
+    *lifecycle
+        .administration
+        .lock()
+        .expect("lifecycle administration mutex") = Some(administration.clone());
     *lifecycle.cameras.lock().expect("lifecycle cameras mutex") = Some(cameras.clone());
     *lifecycle
         .calendars
@@ -1246,6 +1360,7 @@ pub(crate) fn run_with_lifecycle(
         media,
         calendars,
         cameras,
+        administration,
     };
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
@@ -1461,12 +1576,27 @@ pub(crate) fn run_with_lifecycle(
     window.on_sign_in(move |login_name, password| {
         let password = Zeroizing::new(password.to_string());
         if let Some(window) = weak.upgrade() {
+            window.invoke_clear_invitation();
             window.set_password_draft("".into());
         }
         login(Action::Login {
             login: login_name.into(),
             password,
         });
+    });
+    let invitation_cancel = Arc::new(Mutex::new(CancellationToken::new()));
+    let closed = invitation_cancel.clone();
+    window.on_invitation_closed(move || closed.lock().expect("invitation cancellation").cancel());
+    let (invitation_ui, invitation_sender) = (ui.clone(), sender.clone());
+    window.on_accept_invitation(move|generation,token,password,display_name|{
+        let Some(window)=invitation_ui.window.upgrade() else{return};
+        if !window.get_endpoint_ready()||!window.get_invitation_visible()||window.get_invitation_generation()!=generation||window.get_invitation_busy()||window.get_invitation_uncertain()||window.get_busy()||window.get_access_stage()!=ProAccessStage::Identity{return}
+        let request=crate::invitation::Request{token:Zeroizing::new(token.to_string()),password:Zeroizing::new(password.to_string()),display_name:display_name.to_string()};
+        if !request.valid(){window.set_invitation_feedback("Renseignez un jeton et un mot de passe valides ; le nom est limité à 256 caractères.".into());return}
+        let cancel={let mut pending=invitation_cancel.lock().expect("invitation cancellation");pending.cancel();*pending=CancellationToken::new();pending.clone()};
+        window.set_invitation_token_draft("".into());window.set_invitation_password_draft("".into());window.set_invitation_busy(true);window.set_invitation_feedback("Acceptation en cours…".into());
+        let epoch=ProfileEpoch(invitation_ui.epoch.load(Ordering::SeqCst));
+        if invitation_sender.try_send(Intent::Invitation{epoch,value:InvitationIntent{generation,request,cancel}}).is_err(){window.set_invitation_busy(false);window.set_invitation_feedback("Une opération est en attente. Ressaisissez les données pour réessayer.".into());}
     });
     let (recover, weak) = (send.clone(), window.as_weak());
     window.on_verify_recovery(move |code| {
@@ -1646,6 +1776,7 @@ mod tests {
             media: crate::media_host::Media::detached(),
             calendars: crate::calendar_host::Calendars::detached(),
             cameras: crate::camera_host::Cameras::detached(),
+            administration: crate::administration_host::Administration::detached(),
         };
         ui.request_view(epoch);
 
@@ -1739,6 +1870,7 @@ mod tests {
             media: crate::media_host::Media::detached(),
             calendars: crate::calendar_host::Calendars::detached(),
             cameras: crate::camera_host::Cameras::detached(),
+            administration: crate::administration_host::Administration::detached(),
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));

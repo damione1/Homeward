@@ -7,8 +7,14 @@ use base64::{
 use buffa::{Message, MessageName};
 use connectrpc::{ConnectError, ErrorCode};
 use home_wire_contract::home::{
-    actions::v1::ActionOperationFailure, auth::v1::AuthorizationTermination,
-    calendars::v1::CalendarError, lists::v1::ListError,
+    actions::v1::ActionOperationFailure,
+    auth::v1::{
+        AuthError, AuthorizationPolicyError, AuthorizationTermination, SecondFactorPolicyError,
+    },
+    calendars::v1::CalendarError,
+    integrationadmin::v1::IntegrationError,
+    lists::v1::ListError,
+    observability::v1::ObservabilityError,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,6 +88,31 @@ impl Failure {
     /// Calendar conflict/uncertainty is an explicit domain outcome; an Aborted
     /// RPC status alone cannot distinguish them and never permits a replay.
     pub fn calendar_error(&self) -> Result<Option<CalendarError>, DetailFailure> {
+        self.typed_detail()
+    }
+
+    pub fn auth_error(&self) -> Result<Option<AuthError>, DetailFailure> {
+        self.typed_detail()
+    }
+
+    pub fn second_factor_policy_error(
+        &self,
+    ) -> Result<Option<SecondFactorPolicyError>, DetailFailure> {
+        self.typed_detail()
+    }
+
+    pub fn authorization_policy_error(
+        &self,
+    ) -> Result<Option<AuthorizationPolicyError>, DetailFailure> {
+        self.typed_detail()
+    }
+
+    /// Preserve the exact conflicting document version; a conflict never permits retry.
+    pub fn integration_error(&self) -> Result<Option<IntegrationError>, DetailFailure> {
+        self.typed_detail()
+    }
+
+    pub fn observability_error(&self) -> Result<Option<ObservabilityError>, DetailFailure> {
         self.typed_detail()
     }
 

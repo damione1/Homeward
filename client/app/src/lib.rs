@@ -2,6 +2,8 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 slint::include_modules!();
 
+pub mod administration;
+mod administration_host;
 mod cache_view;
 mod calendar;
 mod calendar_host;
@@ -24,6 +26,7 @@ mod environment_text;
 mod environment_view;
 pub mod history;
 mod history_host;
+mod invitation;
 mod list_host;
 mod list_state;
 pub mod media;

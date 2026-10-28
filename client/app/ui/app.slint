@@ -1,11 +1,15 @@
 import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitUrlField,
-    KitTextArea, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth,
-    KitDataTable, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
+    KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess,
+    KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest, IconKind } from "@kit/kit.slint";
 import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction } from "@kit-pro/kit-pro.slint";
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
 import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
+import { HomewardAdministration } from "administration.slint";
+import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField, ProAdminChoice } from "@kit-pro/kit-pro.slint";
+export { ProAdminFieldKind } from "@kit-pro/kit-pro.slint";
+export { TableColumn } from "@kit/kit.slint";
 import { ProVideoAction } from "@kit-pro/kit-pro.slint";
 import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-pro/kit-pro.slint";
 import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro/kit-pro.slint";
@@ -55,6 +59,26 @@ export component HomewardWindow inherits Window {
     in-out property <string> user-draft;
     in-out property <string> password-draft;
     in-out property <string> recovery-draft;
+    in property <string> recovery-receipt;
+    callback close-recovery-receipt();
+    in-out property <bool> invitation-visible;
+    in-out property <bool> invitation-busy;
+    in-out property <bool> invitation-uncertain;
+    in-out property <int> invitation-generation: 1;
+    in-out property <string> invitation-token-draft;
+    in-out property <string> invitation-password-draft;
+    in-out property <string> invitation-name-draft;
+    in-out property <string> invitation-feedback;
+    callback accept-invitation(int,string,string,string);
+    callback invitation-closed();
+    public function clear-invitation() {
+        root.invitation-visible = false; root.invitation-busy = false; root.invitation-uncertain = false;
+        root.invitation-token-draft = ""; root.invitation-password-draft = ""; root.invitation-name-draft = ""; root.invitation-feedback = "";
+        if (root.invitation-generation < 2147483647) { root.invitation-generation += 1; }
+        root.invitation-closed();
+    }
+    changed show-endpoint => { if (root.show-endpoint) { root.clear-invitation(); } }
+    changed access-stage => { if (root.access-stage != ProAccessStage.identity) { root.clear-invitation(); } }
     callback connect-endpoint(string, string);
     callback sign-in(string, string);
     callback verify-recovery(string);
@@ -274,6 +298,34 @@ export component HomewardWindow inherits Window {
     private property <bool> media-interactive: root.background-interactive && root.view-loaded && root.page == ViewPage.detail;
     changed media-interactive => { root.media-set-interactive(root.media-interactive); }
     in property <string> preferences-status;
+    in property <string> admin-title: "Réglages du serveur";
+    in property <string> admin-status;
+    in property <string> admin-notice;
+    in property <ProAdminStage> admin-stage: ProAdminStage.loading;
+    in property <int> admin-generation;
+    in property <int> admin-active-index: -1;
+    in property <int> admin-selected-token;
+    in property <[ProAdminSection]> admin-sections;
+    in property <[TableColumn]> admin-columns;
+    in property <[TableRow]> admin-rows;
+    in property <[ProAdminField]> admin-fields;
+    in property <[ProAdminChoice]> admin-choices;
+    in property <bool> admin-editor-visible;
+    in property <bool> admin-editable;
+    in property <string> admin-editor-title;
+    in property <string> admin-editor-notice;
+    in property <[ProAdminActionRow]> admin-actions;
+    in property <[ProAdminActionRow]> admin-editor-actions;
+    private property <bool> admin-panel-visible: root.page == ViewPage.settings && root.access-stage == ProAccessStage.connected && root.background-interactive;
+    changed admin-panel-visible => { root.admin-visible(root.admin-panel-visible); }
+    callback admin-visible(bool);
+    callback admin-choose-section(int,int);
+    callback admin-select(int,int);
+    callback admin-action(int,int,ProAdminAction);
+    callback admin-navigate(NavigationStep);
+    callback admin-edit(int,int,int,string);
+    callback admin-choose(int,int,int,int);
+    callback admin-editor-action(int,int,ProAdminAction);
     private property <bool> connected: root.access-stage == ProAccessStage.connected;
     private property <bool> background-interactive: root.connected && !root.native-popup.open && !root.recipe-confirmation.open;
     callback private-view-cleared(bool);
@@ -359,7 +411,16 @@ export component HomewardWindow inherits Window {
                 font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
             Text { text: "Confiance SHA-256 : " + root.trust-fingerprint; color: root.theme.text-secondary;
                 font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
-            ProAccessPanel {
+            if root.recovery-receipt != "": KitCard {
+                theme: root.theme;
+                KitCardHeader { theme: root.theme; title: "Nouveaux codes de secours";
+                    description: "Conservez ces codes maintenant. Les anciens codes sont invalidés et une nouvelle connexion est nécessaire."; }
+                KitTextArea { theme: root.theme; control-size: comfortable; label: "Codes à conserver"; access: FieldAccess.read-only;
+                    text: root.recovery-receipt; min-lines: 5; max-lines: 10; }
+                KitButton { theme: root.theme; control-size: comfortable; text: "J’ai conservé les codes · fermer";
+                    activated => { root.close-recovery-receipt(); } }
+            }
+            if !root.invitation-visible && root.recovery-receipt == "": ProAccessPanel {
                 theme: root.theme; control-size: ControlSize.comfortable; stage: root.access-stage; title: "Bienvenue chez vous";
                 description: "Connectez-vous à votre installation.";
                 user-label: "Identifiant"; password-label: "Mot de passe"; submit-label: "Se connecter";
@@ -385,6 +446,35 @@ export component HomewardWindow inherits Window {
                 restart => { root.cancel-access(); }
                 cancel => { root.cancel-access(); }
                 sign-out => { root.sign-out(); }
+            }
+            if root.access-stage == ProAccessStage.identity && !root.invitation-visible && root.recovery-receipt == "": KitButton {
+                theme: root.theme; control-size: comfortable; text: "J’ai une invitation";
+                disabled: root.busy || root.invitation-generation >= 2147483647;
+                activated => { root.clear-invitation(); root.password-draft = ""; root.recovery-draft = ""; root.invitation-visible = true; }
+            }
+            if root.invitation-visible: KitCard {
+                theme: root.theme;
+                KitCardHeader { theme: root.theme; title: "Accepter une invitation";
+                    description: "Utilisez le jeton fourni par votre administrateur. La connexion à votre compte se fait ensuite séparément."; }
+                KitTextField { theme: root.theme; control-size: comfortable; label: "Jeton d’invitation";
+                    purpose: TextPurpose.password; reveal-label: "Afficher le jeton"; hide-label: "Masquer le jeton";
+                    access: root.invitation-busy || root.invitation-uncertain ? FieldAccess.read-only : FieldAccess.editable;
+                    text <=> root.invitation-token-draft; }
+                KitTextField { theme: root.theme; control-size: comfortable; label: "Votre nom";
+                    access: root.invitation-busy || root.invitation-uncertain ? FieldAccess.read-only : FieldAccess.editable;
+                    text <=> root.invitation-name-draft; }
+                KitTextField { theme: root.theme; control-size: comfortable; label: "Votre mot de passe";
+                    purpose: TextPurpose.password; reveal-label: "Afficher le mot de passe"; hide-label: "Masquer le mot de passe";
+                    access: root.invitation-busy || root.invitation-uncertain ? FieldAccess.read-only : FieldAccess.editable;
+                    text <=> root.invitation-password-draft; }
+                if root.invitation-feedback != "": KitAlert { theme: root.theme; title: "Invitation"; message: root.invitation-feedback; }
+                KitWrap {
+                    KitButton { theme: root.theme; control-size: comfortable; text: root.invitation-busy ? "Acceptation en cours…" : "Accepter l’invitation";
+                        disabled: root.invitation-busy || root.invitation-uncertain || root.invitation-token-draft == "" || root.invitation-password-draft == "";
+                        activated => { root.accept-invitation(root.invitation-generation,root.invitation-token-draft,root.invitation-password-draft,root.invitation-name-draft); } }
+                    KitButton { theme: root.theme; control-size: comfortable; text: "Retour à la connexion";
+                        activated => { root.clear-invitation(); } }
+                }
             }
             KitButton { theme: root.theme; control-size: comfortable; text: "Changer de serveur";
                 activated => { root.password-draft = ""; root.recovery-draft = ""; root.show-endpoint = true; } }
@@ -676,7 +766,7 @@ export component HomewardWindow inherits Window {
                     viewport(w,h,bg,accent) => { root.history-viewport(w,h,bg,accent); }
                 }
             }
-            KitScrollArea {
+            settings-pane := KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
                 visible: root.page == ViewPage.settings;
                 KitCard { theme: root.theme;
@@ -688,6 +778,21 @@ export component HomewardWindow inherits Window {
                         KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.reduced-motion ? "Autoriser les animations" : "Réduire les animations"; activated => { root.reduced-motion = !root.reduced-motion; root.preferences-edited(); } }
                     }
                     Text { text: root.preferences-status; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+                }
+                HomewardAdministration {
+                    theme: root.theme; title: root.admin-title; status: root.admin-status; notice: root.admin-notice;
+                    stage: root.admin-stage; generation: root.admin-generation; active-index: root.admin-active-index;
+                    selected-token: root.admin-selected-token; sections: root.admin-sections; columns: root.admin-columns;
+                    rows: root.admin-rows; fields: root.admin-fields; actions: root.admin-actions; editor-actions: root.admin-editor-actions;
+                    choices: root.admin-choices; editor-visible: root.admin-editor-visible; editable: root.admin-editable;
+                    editor-title: root.admin-editor-title; editor-notice: root.admin-editor-notice;
+                    choose-section(t,g) => { root.admin-choose-section(t,g); }
+                    select(t,g) => { root.admin-select(t,g); }
+                    action(t,g,a) => { root.admin-action(t,g,a); }
+                    navigate(step) => { root.admin-navigate(step); }
+                    edit(t,g,f,value) => { root.admin-edit(t,g,f,value); }
+                    choose(t,g,f,option) => { root.admin-choose(t,g,f,option); }
+                    editor-action(t,g,a) => { root.admin-editor-action(t,g,a); }
                 }
                 KitCard { theme: root.theme;
                     KitCardHeader { theme: root.theme; title: root.session-title; description: root.session-description; }

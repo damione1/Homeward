@@ -27,7 +27,46 @@ macro_rules! unauthenticated_call {
     };
 }
 
+macro_rules! authenticated_call {
+    ($name:ident, $wire:ident, $request:ident, $response:ident) => {
+        pub async fn $name(
+            &self,
+            request: auth::$request,
+            token: &AccessToken,
+            timeout: Duration,
+            cancel: &CancellationToken,
+        ) -> Result<auth::$response, Failure> {
+            let options = StateTransport::options(token, timeout)?;
+            tokio::select! { biased;
+                () = cancel.cancelled() => Err(Failure::cancelled()),
+                response = self.client.$wire(request, options) => {
+                    response.map(|value| value.into_owned()).map_err(Failure::from)
+                }
+            }
+        }
+    };
+}
+
 impl AuthTransport {
+    authenticated_call!(
+        list_factors,
+        list_factors_with_options,
+        ListFactorsRequest,
+        ListFactorsResponse
+    );
+    authenticated_call!(
+        remove_factor,
+        remove_factor_with_options,
+        RemoveFactorRequest,
+        RemoveFactorResponse
+    );
+    authenticated_call!(
+        replace_recovery_codes,
+        replace_recovery_codes_with_options,
+        ReplaceRecoveryCodesRequest,
+        ReplaceRecoveryCodesResponse
+    );
+
     pub async fn list_sessions(
         &self,
         request: auth::ListSessionsRequest,

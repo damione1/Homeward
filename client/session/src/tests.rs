@@ -496,6 +496,9 @@ async fn late_refresh_cannot_restore_the_previous_account_after_logout_and_login
         .login("alice".into(), Zeroizing::new("synthetic password".into()))
         .await
         .unwrap();
+    let alice = owner.access(&CancellationToken::new()).await.unwrap();
+    assert_eq!(alice.account_id().as_str(), "account-alice");
+    assert_eq!(alice.session_id().as_str(), "session-alice");
     clock.0.store(BASE + 121, Ordering::SeqCst);
     api.ignore_cancel.store(true, Ordering::SeqCst);
     let waiter = {
@@ -518,6 +521,10 @@ async fn late_refresh_cannot_restore_the_previous_account_after_logout_and_login
     owner.inner.tasks.close();
     owner.inner.tasks.wait().await;
     assert_eq!(owner.generation(), generation);
+    assert!(alice.cancellation.is_cancelled());
+    let bob = owner.access(&CancellationToken::new()).await.unwrap();
+    assert_eq!(bob.account_id().as_str(), "account-bob");
+    assert_eq!(bob.session_id().as_str(), "session-bob");
     let saved = store.load().unwrap().unwrap();
     let current = SecretRecord::decode(&saved, &clock.now().unwrap()).unwrap();
     assert_eq!(current.tokens.session.account_id.value, "account-bob");
