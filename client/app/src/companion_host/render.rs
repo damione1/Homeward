@@ -271,7 +271,8 @@ pub(super) fn project(state: &State) -> Projection {
         || native::capabilities(platform),
         |r| r.device.capabilities.clone(),
     );
-    for capability in capabilities {
+    let mut selected_detail = None;
+    for (index, capability) in capabilities.into_iter().enumerate() {
         let value = state
             .record
             .as_ref()
@@ -295,16 +296,24 @@ pub(super) fn project(state: &State) -> Projection {
                     }
                 },
             );
-        p.rows.push((
-            feature(capability.feature).into(),
-            format!(
-                "{} · {} · {} · {}",
-                availability(capability.availability),
-                permission(capability.permission),
-                source(capability.source),
-                value
-            ),
-        ));
+        if index == state.selected {
+            selected_detail = Some(ProAdminField {
+                token: 14,
+                label: "Mesure sélectionnée".into(),
+                description: format!(
+                    "{} · {} · {} · {}",
+                    feature(capability.feature),
+                    availability(capability.availability),
+                    permission(capability.permission),
+                    source(capability.source)
+                )
+                .into(),
+                value: value.clone().into(),
+                kind: ProAdminFieldKind::Multiline,
+                editable: false,
+            });
+        }
+        p.rows.push((feature(capability.feature).into(), value));
     }
     p.selected = state.selected.min(13) as i32;
     if let Some(record) = &state.record {
@@ -342,6 +351,9 @@ pub(super) fn project(state: &State) -> Projection {
                 ),
             ),
         ];
+        if let Some(detail) = selected_detail {
+            p.fields.insert(0, detail);
+        }
         p.editor_title = "Informations de cette installation".into();
     }
     if let Some(draft) = &state.draft {
@@ -397,7 +409,7 @@ pub(super) fn apply(window: &HomewardWindow, p: Projection) {
         },
         TableColumn {
             token: 2,
-            label: "Disponibilité, permission et dernière mesure".into(),
+            label: "Dernière mesure".into(),
             ..Default::default()
         },
     ])));
