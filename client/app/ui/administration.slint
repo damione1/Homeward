@@ -3,6 +3,7 @@ import { ProAdminWorkspace, ProAdminEditor, ProAdminStage, ProAdminAction, ProAd
 export component HomewardAdministration inherits VerticalLayout {
     in property <KitTheme> theme: KitThemes.light;
     in property <string> title;
+    in property <string> description: "Compte, accès, configuration et état du serveur";
     in property <string> status;
     in property <string> notice;
     in property <ProAdminStage> stage;
@@ -31,7 +32,7 @@ export component HomewardAdministration inherits VerticalLayout {
     ProAdminWorkspace {
         interactive: !root.editor-visible;
         theme: root.theme; title: root.title;
-        description: "Compte, accès, configuration et état du serveur";
+        description: root.description;
         stage: root.stage; status-label: root.status; notice: root.notice;
         empty-label: "Aucune entrée pour cette vue";
         generation: root.generation; active-index: root.active-index;

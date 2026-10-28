@@ -149,6 +149,7 @@ pub(crate) struct LifecycleBridge {
     calendars: Arc<Mutex<Option<crate::calendar_host::Calendars>>>,
     cameras: Arc<Mutex<Option<crate::camera_host::Cameras>>>,
     administration: Arc<Mutex<Option<crate::administration_host::Administration>>>,
+    companion: Arc<Mutex<Option<crate::companion_host::Companion>>>,
 }
 impl LifecycleBridge {
     pub(crate) fn new() -> Self {
@@ -166,6 +167,7 @@ impl LifecycleBridge {
             calendars: Arc::new(Mutex::new(None)),
             cameras: Arc::new(Mutex::new(None)),
             administration: Arc::new(Mutex::new(None)),
+            companion: Arc::new(Mutex::new(None)),
         }
     }
     // Called by native event listeners on the UI thread. Cancel publication and
@@ -182,6 +184,14 @@ impl LifecycleBridge {
             .as_ref()
         {
             administration.foreground(state == Lifecycle::Foreground);
+        }
+        if let Some(companion) = self
+            .companion
+            .lock()
+            .expect("lifecycle companion mutex")
+            .as_ref()
+        {
+            companion.foreground(state == Lifecycle::Foreground);
         }
         if let Some(lists) = self.lists.lock().expect("lifecycle lists mutex").as_ref() {
             lists.foreground(state == Lifecycle::Foreground);
@@ -335,6 +345,7 @@ struct Ui {
     calendars: crate::calendar_host::Calendars,
     cameras: crate::camera_host::Cameras,
     administration: crate::administration_host::Administration,
+    companion: crate::companion_host::Companion,
 }
 impl Ui {
     fn current_devices(&self) -> Result<(DeviceBinding, i32), Refusal> {
@@ -366,6 +377,7 @@ impl Ui {
         }
     }
     fn invalidate_cache(&self) {
+        self.companion.clear();
         self.administration.clear();
         self.history.clear();
         self.media.clear();
@@ -714,6 +726,7 @@ struct Profile {
     accounts: home_client_transport::AccountTransport,
 }
 async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, ui: &Ui) {
+    ui.companion.clear();
     ui.administration.clear();
     ui.history.clear();
     ui.media.clear();
@@ -761,7 +774,19 @@ async fn install_profile(
         ActionController::start(owner.clone(), connection.actions());
     let mut action_updates = actions.subscribe_updates();
     let cancel = CancellationToken::new();
+    ui.companion.clear();
     ui.administration.clear();
+    let (companion, companion_session, companion_api, companion_cancel) = (
+        ui.companion.clone(),
+        owner.clone(),
+        connection.companion(),
+        cancel.clone(),
+    );
+    tasks.spawn(async move {
+        companion
+            .run(companion_session, companion_api, companion_cancel)
+            .await;
+    });
     let (administration, admin_session, admin_connection, admin_cancel) = (
         ui.administration.clone(),
         owner.clone(),
@@ -1040,6 +1065,7 @@ async fn session_action(
 ) {
     match action {
         Action::Login { login, password } => {
+            ui.companion.clear();
             let _ = cache.invalidate();
             let _ = owner.login(login, password).await;
         }
@@ -1047,10 +1073,12 @@ async fn session_action(
             let _ = owner.complete_recovery(code).await;
         }
         Action::Cancel => {
+            ui.companion.clear();
             let _ = cache.invalidate();
             let _ = owner.logout_local().await;
         }
         Action::Logout => {
+            ui.companion.clear();
             let _ = cache.invalidate();
             if let Ok(ServerRevocation::Uncertain) = owner.logout().await {
                 ui.post(epoch, |window| {
@@ -1332,6 +1360,11 @@ pub(crate) fn run_with_lifecycle(
     let calendars = crate::calendar_host::Calendars::bind(&window);
     let cameras = crate::camera_host::Cameras::bind(&window);
     let administration = crate::administration_host::Administration::bind(&window);
+    let companion = crate::companion_host::Companion::bind(&window);
+    *lifecycle
+        .companion
+        .lock()
+        .expect("lifecycle companion mutex") = Some(companion.clone());
     *lifecycle
         .administration
         .lock()
@@ -1361,6 +1394,7 @@ pub(crate) fn run_with_lifecycle(
         calendars,
         cameras,
         administration,
+        companion,
     };
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
@@ -1777,6 +1811,7 @@ mod tests {
             calendars: crate::calendar_host::Calendars::detached(),
             cameras: crate::camera_host::Cameras::detached(),
             administration: crate::administration_host::Administration::detached(),
+            companion: crate::companion_host::Companion::detached(),
         };
         ui.request_view(epoch);
 
@@ -1871,6 +1906,7 @@ mod tests {
             calendars: crate::calendar_host::Calendars::detached(),
             cameras: crate::camera_host::Cameras::detached(),
             administration: crate::administration_host::Administration::detached(),
+            companion: crate::companion_host::Companion::detached(),
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));

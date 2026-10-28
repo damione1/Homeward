@@ -5,10 +5,10 @@ use http::Uri;
 
 use crate::{
     AccountTransport, ActionTransport, AuthTransport, CalendarTransport, CameraTransport,
-    ConfigurationApplyTransport, ConfigurationPlanTransport, ConfigurationSimulationTransport,
-    ConfigurationTransport, DashboardTransport, Failure, HistoryTransport, IntegrationTransport,
-    ListTransport, LogicTransport, McpKeyTransport, MediaTransport, ObservabilityTransport,
-    PolicyTransport, StateTransport, services::home,
+    CompanionTransport, ConfigurationApplyTransport, ConfigurationPlanTransport,
+    ConfigurationSimulationTransport, ConfigurationTransport, DashboardTransport, Failure,
+    HistoryTransport, IntegrationTransport, ListTransport, LogicTransport, McpKeyTransport,
+    MediaTransport, ObservabilityTransport, PolicyTransport, StateTransport, services::home,
 };
 
 /// A shared verified TLS connection configuration. Service facades reuse the
@@ -116,6 +116,15 @@ impl Connection {
     pub fn observability(&self) -> ObservabilityTransport {
         ObservabilityTransport {
             client: home::observability::v1::ObservabilityServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
+        }
+    }
+
+    pub fn companion(&self) -> CompanionTransport {
+        CompanionTransport {
+            client: home::companion::v1::CompanionServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),

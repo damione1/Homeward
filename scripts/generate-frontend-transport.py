@@ -43,9 +43,10 @@ with tempfile.TemporaryDirectory(prefix='homeward-connect-') as temp:
                     'proto/home/configurationsimulation/v1/simulation.proto', '--path',
                     'proto/home/configurationapply/v1/apply.proto', '--path',
                     'proto/home/logic/v1/logic.proto', '--path',
+                    'proto/home/companion/v1/companion.proto', '--path',
                     'proto/home/actions/v1/actions_rpc.proto'], cwd=ROOT, check=True)
     files = {p.name: p.read_bytes() for p in generated.iterdir() if p.is_file()}
-    if set(files) != {'home.logic.v1.rs', 'home.state.v1.rs', 'home.auth.v1.rs', 'home.dashboard.v1.rs', 'home.actions.v1.rs', 'home.lists.v1.rs', 'home.history.v1.rs', 'home.media.v1.rs', 'home.calendars.v1.rs', 'home.cameras.v1.rs', 'home.integrationadmin.v1.rs', 'home.observability.v1.rs', 'home.configuration.v1.rs', 'home.configurationplan.v1.rs', 'home.configurationsimulation.v1.rs', 'home.configurationapply.v1.rs'}:
+    if set(files) != {'home.companion.v1.rs', 'home.logic.v1.rs', 'home.state.v1.rs', 'home.auth.v1.rs', 'home.dashboard.v1.rs', 'home.actions.v1.rs', 'home.lists.v1.rs', 'home.history.v1.rs', 'home.media.v1.rs', 'home.calendars.v1.rs', 'home.cameras.v1.rs', 'home.integrationadmin.v1.rs', 'home.observability.v1.rs', 'home.configuration.v1.rs', 'home.configurationplan.v1.rs', 'home.configurationsimulation.v1.rs', 'home.configurationapply.v1.rs'}:
         raise SystemExit('Unexpected service-stub output; inspect before accepting it.')
     if args.check:
         existing = {p.name: p.read_bytes() for p in OUTPUT.iterdir() if p.is_file()}
