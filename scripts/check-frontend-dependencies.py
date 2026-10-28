@@ -42,7 +42,7 @@ for target in Target:
         raise SystemExit('Native clients must use the pinned body-provenance correction')
     for name in ['slint-kit', 'slint-kit-core', 'slint-kit-slint', 'slint-kit-build']:
         matches = [package for package in packages if package['name'] == name]
-        if len(matches) != 1 or matches[0]['version'] != '0.1.0' or matches[0]['source'] is not None or not Path(matches[0]['manifest_path']).resolve().is_relative_to(Path(config['free_kit'])):
+        if len(matches) != 1 or matches[0]['version'] != '0.2.0' or matches[0]['source'] is not None or not Path(matches[0]['manifest_path']).resolve().is_relative_to(Path(config['free_kit'])):
             raise SystemExit(f'{target}: duplicate or unexpected free kit origin: {name}')
     for name in ['slint-kit-pro', 'slint-kit-pro-build']:
         matches = [package for package in packages if package['name'] == name]

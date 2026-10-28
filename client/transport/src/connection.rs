@@ -5,9 +5,10 @@ use http::Uri;
 
 use crate::{
     AccountTransport, ActionTransport, AuthTransport, CalendarTransport, CameraTransport,
-    DashboardTransport, Failure, HistoryTransport, IntegrationTransport, ListTransport,
-    McpKeyTransport, MediaTransport, ObservabilityTransport, PolicyTransport, StateTransport,
-    services::home,
+    ConfigurationApplyTransport, ConfigurationPlanTransport, ConfigurationSimulationTransport,
+    ConfigurationTransport, DashboardTransport, Failure, HistoryTransport, IntegrationTransport,
+    ListTransport, McpKeyTransport, MediaTransport, ObservabilityTransport, PolicyTransport,
+    StateTransport, services::home,
 };
 
 /// A shared verified TLS connection configuration. Service facades reuse the
@@ -117,6 +118,52 @@ impl Connection {
             client: home::observability::v1::ObservabilityServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
+            ),
+        }
+    }
+
+    // Exact user-provided source may occupy 1 MiB before protobuf metadata.
+    // Keep this larger envelope specific to the four configuration services.
+    pub fn configuration(&self) -> ConfigurationTransport {
+        ConfigurationTransport {
+            client: home::configuration::v1::ConfigurationServiceClient::new(
+                self.http.clone(),
+                self.config
+                    .clone()
+                    .with_default_max_message_size(2 * 1024 * 1024),
+            ),
+        }
+    }
+
+    pub fn configuration_plans(&self) -> ConfigurationPlanTransport {
+        ConfigurationPlanTransport {
+            client: home::configurationplan::v1::ConfigurationPlanServiceClient::new(
+                self.http.clone(),
+                self.config
+                    .clone()
+                    .with_default_max_message_size(2 * 1024 * 1024),
+            ),
+        }
+    }
+
+    pub fn configuration_simulation(&self) -> ConfigurationSimulationTransport {
+        ConfigurationSimulationTransport {
+            client: home::configurationsimulation::v1::ConfigurationSimulationServiceClient::new(
+                self.http.clone(),
+                self.config
+                    .clone()
+                    .with_default_max_message_size(2 * 1024 * 1024),
+            ),
+        }
+    }
+
+    pub fn configuration_apply(&self) -> ConfigurationApplyTransport {
+        ConfigurationApplyTransport {
+            client: home::configurationapply::v1::ConfigurationApplyServiceClient::new(
+                self.http.clone(),
+                self.config
+                    .clone()
+                    .with_default_max_message_size(2 * 1024 * 1024),
             ),
         }
     }

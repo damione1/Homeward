@@ -18,6 +18,7 @@ fn logs(owner: &Administration) -> Option<obs::QueryRuntimeLogsResponse> {
         | Payload::Integration(_)
         | Payload::Health(_)
         | Payload::Metrics(_)
+        | Payload::Configuration(_)
         | Payload::Audits(_) => None,
     }
 }

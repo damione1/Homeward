@@ -1,5 +1,6 @@
 //! One session-owned settings reader. Callbacks only enqueue bounded intentions;
 //! auth, admission and joins stay on the runtime, outside the Slint event loop.
+mod configuration;
 mod forms;
 mod read;
 mod receipt;
@@ -30,6 +31,7 @@ struct Inner {
     receipts: receipt::Receipts,
 }
 struct State {
+    configuration: configuration::Workflow,
     private: PrivateState<Payload, forms::Draft>,
     pending: Option<forms::Operation>,
     section: Section,
@@ -50,6 +52,7 @@ struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
+            configuration: configuration::Workflow::default(),
             private: PrivateState::default(),
             pending: None,
             section: Section::Account,
@@ -72,6 +75,7 @@ impl Default for State {
 impl State {
     fn bump(&mut self) -> bool {
         let Some(next) = self.generation.checked_add(1) else {
+            self.configuration.retire();
             self.stage = Stage::Invalid;
             self.requested = false;
             return false;
@@ -80,6 +84,7 @@ impl State {
         true
     }
     fn request(&mut self) {
+        self.configuration.retire();
         self.private.dismiss_draft();
         self.private.dismiss_secret();
         self.pending = None;
@@ -93,6 +98,7 @@ impl State {
         self.probing = true;
     }
     fn clear(&mut self) {
+        self.configuration.retire();
         self.pending = None;
         self.cancel.cancel();
         let _ = self.private.retire();
@@ -254,6 +260,7 @@ impl Administration {
         if !self.current(&state, generation)
             || state.stage != Stage::Ready
             || state.private.draft().is_some()
+            || state.configuration.opened()
         {
             return;
         }
@@ -265,69 +272,40 @@ impl Administration {
         else {
             return;
         };
-        match (&target, state.section) {
-            (render::Target::Account(id), Section::Policies) => {
-                state.selection = Some(Selection::Account(id.clone()));
-                state.request();
+        match &target {
+            render::Target::Account(id) => {
+                if state.section == Section::Policies {
+                    state.selection = Some(Selection::Account(id.clone()));
+                    state.request();
+                } else {
+                    state.selected = Some(target);
+                }
             }
-            (render::Target::Integration(id), Section::Integrations) => {
+            render::Target::Integration(id) => {
+                if state.section != Section::Integrations {
+                    return;
+                }
                 state.selection = Some(Selection::Integration(id.clone()));
                 state.request();
             }
-            (
-                render::Target::Account(_)
-                | render::Target::Session(_)
-                | render::Target::Factor(_)
-                | render::Target::Key(_)
-                | render::Target::Invitation(_),
-                Section::Account
-                | Section::Sessions
-                | Section::Factors
-                | Section::MfaPolicy
-                | Section::McpKeys
-                | Section::Accounts
-                | Section::Invitations
-                | Section::Policies
-                | Section::Integrations
-                | Section::Health
-                | Section::Metrics
-                | Section::Logs
-                | Section::Audits
-                | Section::SecretAudits,
-            ) => state.selected = Some(target),
-            (
-                render::Target::Fact(_),
-                Section::Account
-                | Section::Sessions
-                | Section::Factors
-                | Section::MfaPolicy
-                | Section::McpKeys
-                | Section::Accounts
-                | Section::Invitations
-                | Section::Policies
-                | Section::Integrations
-                | Section::Health
-                | Section::Metrics
-                | Section::Logs
-                | Section::Audits
-                | Section::SecretAudits,
-            )
-            | (
-                render::Target::Integration(_),
-                Section::Account
-                | Section::Sessions
-                | Section::Factors
-                | Section::MfaPolicy
-                | Section::McpKeys
-                | Section::Accounts
-                | Section::Invitations
-                | Section::Policies
-                | Section::Health
-                | Section::Metrics
-                | Section::Logs
-                | Section::Audits
-                | Section::SecretAudits,
-            ) => return,
+            render::Target::Configuration(selection) => {
+                if state.section != Section::Configuration {
+                    return;
+                }
+                state.selection = Some(Selection::Configuration(selection.clone()));
+                state.page = None;
+                state.request();
+            }
+            render::Target::Session(_)
+            | render::Target::Factor(_)
+            | render::Target::Key(_)
+            | render::Target::Invitation(_) => state.selected = Some(target),
+            render::Target::Fact(_) => {
+                if state.section != Section::Configuration {
+                    return;
+                }
+                state.selected = Some(target);
+            }
         }
         self.publish(&state);
     }
@@ -335,6 +313,18 @@ impl Administration {
         let mut state = self.0.state.lock().expect("admin state");
         if !self.current(&state, generation) {
             return;
+        }
+        if state.section == Section::Configuration {
+            if state.configuration.opened() {
+                return;
+            }
+            if matches!(state.stage, Stage::Ready | Stage::Empty)
+                && state.configuration.open(action)
+            {
+                state.bump();
+                self.retired(&state);
+                return;
+            }
         }
         if let Some(command) = forms::available(&state)
             .into_iter()
@@ -377,13 +367,28 @@ impl Administration {
             | ProAdminAction::Enable
             | ProAdminAction::Disable
             | ProAdminAction::Revoke
-            | ProAdminAction::CloseSecret => return,
+            | ProAdminAction::CloseSecret
+            | ProAdminAction::Preview
+            | ProAdminAction::Revalidate
+            | ProAdminAction::Simulate
+            | ProAdminAction::Apply
+            | ProAdminAction::Restore
+            | ProAdminAction::Rollback
+            | ProAdminAction::AddFile
+            | ProAdminAction::RemoveFile
+            | ProAdminAction::NextFile
+            | ProAdminAction::Resolve => return,
         }
         self.retired(&state);
     }
     fn edit(&self, token: i32, generation: i32, field: i32, value: String) {
         let mut state = self.0.state.lock().expect("admin state");
         if token != 1 || !self.current(&state, generation) {
+            return;
+        }
+        if state.section == Section::Configuration && state.configuration.opened() {
+            state.configuration.edit(field, value);
+            self.publish(&state);
             return;
         }
         if let Some(draft) = state.private.draft_mut() {
@@ -396,6 +401,12 @@ impl Administration {
         if token != 1 || !self.current(&state, generation) {
             return;
         }
+        if state.section == Section::Configuration && state.configuration.opened() {
+            state.configuration.choose(field, option);
+            state.bump();
+            self.retired(&state);
+            return;
+        }
         if let Some(draft) = state.private.draft_mut() {
             draft.choose(field, option);
             self.publish(&state);
@@ -404,6 +415,11 @@ impl Administration {
     fn editor_action(&self, token: i32, generation: i32, action: ProAdminAction) {
         let mut state = self.0.state.lock().expect("admin state");
         if token != 1 || !self.current(&state, generation) {
+            return;
+        }
+        if state.section == Section::Configuration && state.configuration.editor_action(action) {
+            state.bump();
+            self.retired(&state);
             return;
         }
         match action {
@@ -429,7 +445,17 @@ impl Administration {
             | ProAdminAction::More
             | ProAdminAction::Enable
             | ProAdminAction::Disable
-            | ProAdminAction::Revoke => return,
+            | ProAdminAction::Revoke
+            | ProAdminAction::Preview
+            | ProAdminAction::Revalidate
+            | ProAdminAction::Simulate
+            | ProAdminAction::Apply
+            | ProAdminAction::Restore
+            | ProAdminAction::Rollback
+            | ProAdminAction::AddFile
+            | ProAdminAction::RemoveFile
+            | ProAdminAction::NextFile
+            | ProAdminAction::Resolve => return,
         }
         self.retired(&state);
     }
@@ -463,6 +489,7 @@ impl Administration {
         if !self.current(&state, state.generation)
             || state.rows.is_empty()
             || state.private.draft().is_some()
+            || state.configuration.opened()
         {
             return;
         }
@@ -506,6 +533,9 @@ impl Administration {
                 state.section = loaded.section;
                 match loaded.payload {
                     Ok(payload) => {
+                        if let Payload::Configuration(value) = &payload {
+                            state.configuration.observe(value.root.clone());
+                        }
                         let (rows, next) = render::rows(&payload, &identity);
                         state.rows = rows;
                         state.next = next;
@@ -549,6 +579,171 @@ impl Administration {
         }
         self.publish(&state);
     }
+    fn configuration_written(&self, result: configuration::Completion) {
+        let mut state = self.0.state.lock().expect("admin state");
+        if state.section != Section::Configuration
+            || !self.current(&state, state.generation)
+            || state.cancel.is_cancelled()
+        {
+            return;
+        }
+        if state.configuration.accept(result) {
+            state.stage = Stage::Denied;
+            state.rows.clear();
+            state.selected = None;
+            state.next = None;
+            let context = state.private.context();
+            let _ = state.private.publish(
+                context,
+                Section::Configuration,
+                Pane {
+                    stage: Stage::Denied,
+                    content: None,
+                },
+            );
+        }
+        state.bump();
+        self.retired(&state);
+    }
+    fn configuration_watch_current(
+        &self,
+        state: &State,
+        permit: configuration::WatchPermit,
+    ) -> bool {
+        state.section == Section::Configuration
+            && self.current(state, state.generation)
+            && !state.cancel.is_cancelled()
+            && state.configuration.watch_admits(permit)
+    }
+    fn configuration_watch_syncing(&self, permit: configuration::WatchPermit) -> bool {
+        let mut state = self.0.state.lock().expect("admin state");
+        if !self.configuration_watch_current(&state, permit) {
+            return false;
+        }
+        if !state.configuration.watch_syncing(permit) {
+            return false;
+        }
+        state.bump();
+        self.retired(&state);
+        true
+    }
+    fn configuration_watch_ready(&self, permit: configuration::WatchPermit) -> bool {
+        let mut state = self.0.state.lock().expect("admin state");
+        if !self.configuration_watch_current(&state, permit) {
+            return false;
+        }
+        if !state.configuration.watch_ready(permit) {
+            return false;
+        }
+        state.stage = if state.rows.is_empty() {
+            Stage::Empty
+        } else {
+            Stage::Ready
+        };
+        state.bump();
+        self.retired(&state);
+        true
+    }
+    fn configuration_snapshot(
+        &self,
+        permit: configuration::WatchPermit,
+        loaded: Loaded,
+        page: Option<PageToken>,
+    ) -> Result<bool, configuration::WatchStop> {
+        let mut state = self.0.state.lock().expect("admin state");
+        if !self.configuration_watch_current(&state, permit) {
+            return Ok(false);
+        }
+        if !self
+            .0
+            .source
+            .lock()
+            .expect("admin source")
+            .as_ref()
+            .is_some_and(|(session, generation)| {
+                *generation == loaded.session_generation && session.is_current(*generation)
+            })
+        {
+            return Ok(false);
+        }
+        if !loaded.authority.administrator()
+            || !state.private.authority().is_some_and(|previous| {
+                previous.administrator() && previous.identity == loaded.authority.identity
+            })
+        {
+            return Err(configuration::WatchStop::Denied);
+        }
+        let payload = loaded
+            .payload
+            .map_err(|_| configuration::WatchStop::Invalid)?;
+        let Payload::Configuration(value) = &payload else {
+            return Err(configuration::WatchStop::Invalid);
+        };
+        match state.configuration.snapshot_admission(&value.root) {
+            Ok(true) => (),
+            Ok(false) => return Err(configuration::WatchStop::Unavailable),
+            Err(_) => return Err(configuration::WatchStop::Invalid),
+        }
+        state.configuration.observe(value.root.clone());
+        let (rows, next) = render::rows(&payload, &loaded.authority.identity);
+        if state
+            .selected
+            .as_ref()
+            .is_some_and(|selected| !rows.iter().any(|row| &row.target == selected))
+        {
+            state.selected = None;
+        }
+        state.rows = rows;
+        state.next = next;
+        state.page = page;
+        let context = state.private.context();
+        let stage = state.stage.clone();
+        state
+            .private
+            .publish(
+                context,
+                Section::Configuration,
+                Pane {
+                    stage,
+                    content: Some(payload),
+                },
+            )
+            .map_err(|_| configuration::WatchStop::Denied)?;
+        state.bump();
+        self.retired(&state);
+        Ok(true)
+    }
+    fn configuration_watch_stopped(
+        &self,
+        permit: configuration::WatchPermit,
+        stop: configuration::WatchStop,
+    ) {
+        let mut state = self.0.state.lock().expect("admin state");
+        if !self.configuration_watch_current(&state, permit) {
+            return;
+        }
+        if !state.configuration.watch_stopped(permit) {
+            return;
+        }
+        match stop {
+            configuration::WatchStop::Unavailable => state.stage = Stage::Offline,
+            configuration::WatchStop::Denied | configuration::WatchStop::Invalid => {
+                state.configuration.retire();
+                let _ = state.private.retire();
+                state.rows.clear();
+                state.selected = None;
+                state.next = None;
+                state.page = None;
+                state.stage = match stop {
+                    configuration::WatchStop::Denied => Stage::Denied,
+                    configuration::WatchStop::Invalid => Stage::Invalid,
+                    configuration::WatchStop::Unavailable => Stage::Offline,
+                };
+            }
+        }
+        state.bump();
+        self.retired(&state);
+    }
     fn checked_authority(
         &self,
         generation: i32,
@@ -588,6 +783,7 @@ impl Administration {
         let mut phases = session.subscribe();
         let mut generation = phases.borrow().generation;
         let mut jobs = JoinSet::new();
+        let mut watches = JoinSet::new();
         let mut busy = false;
         let mut monitor = tokio::time::interval(std::time::Duration::from_secs(5));
         monitor.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -598,6 +794,55 @@ impl Administration {
             let changed = self.0.changed.notified();
             tokio::pin!(changed);
             changed.as_mut().enable();
+            if watches.len() < 2 {
+                let watch = {
+                    let mut state = self.0.state.lock().expect("admin state");
+                    if state.section == Section::Configuration
+                        && self.current(&state, state.generation)
+                    {
+                        state
+                            .configuration
+                            .take_watch()
+                            .map(|job| (job, state.selection.clone(), state.page.clone()))
+                    } else {
+                        None
+                    }
+                };
+                if let Some((job, selection, page)) = watch {
+                    let owner = self.clone();
+                    let session = session.clone();
+                    let connection = connection.clone();
+                    watches.spawn(configuration::watch(
+                        owner, session, connection, generation, selection, page, job,
+                    ));
+                }
+            }
+            let config_job = {
+                let mut state = self.0.state.lock().expect("admin state");
+                if !busy
+                    && state.section == Section::Configuration
+                    && self.current(&state, state.generation)
+                {
+                    state
+                        .configuration
+                        .take_pending()
+                        .map(|job| (job, state.cancel.clone()))
+                } else {
+                    None
+                }
+            };
+            if let Some((job, token)) = config_job {
+                busy = true;
+                let owner = self.clone();
+                let session = session.clone();
+                let connection = connection.clone();
+                jobs.spawn(async move {
+                    let result =
+                        configuration::execute(&session, &connection, generation, job, &token)
+                            .await;
+                    owner.configuration_written(result);
+                });
+            }
             let operation = {
                 let mut state = self.0.state.lock().expect("admin state");
                 if !busy && self.current(&state, state.generation) {
@@ -720,11 +965,13 @@ impl Administration {
                 phase=phases.changed()=>{if phase.is_err(){break;}},
                 ()=&mut changed=>{},
                 _=monitor.tick()=>{probe_requested=true;},
+                result=watches.join_next(),if !watches.is_empty()=>{if result.is_some_and(|result|result.is_err()){let mut state=self.0.state.lock().expect("admin state");state.clear();state.active=true;state.stage=Stage::Invalid;self.retired(&state);}},
                 result=jobs.join_next(),if !jobs.is_empty()=>{busy=false;if result.is_some_and(|result|result.is_err()){let mut state=self.0.state.lock().expect("admin state");state.clear();state.active=true;state.stage=Stage::Invalid;self.retired(&state);}},
             }
         }
         self.clear();
         while jobs.join_next().await.is_some() {}
+        while watches.join_next().await.is_some() {}
     }
 }
 

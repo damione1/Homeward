@@ -4707,7 +4707,7 @@ dependencies = [
 
 [[package]]
 name = "slint-kit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "slint-kit-core",
  "slint-kit-slint",
@@ -4715,7 +4715,7 @@ dependencies = [
 
 [[package]]
 name = "slint-kit-build"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "slint-build",
  "slint-kit-core",
@@ -4724,7 +4724,7 @@ dependencies = [
 
 [[package]]
 name = "slint-kit-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -4750,7 +4750,7 @@ dependencies = [
 
 [[package]]
 name = "slint-kit-slint"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "slint",
  "slint-kit-core",
@@ -6715,4 +6715,4 @@ dependencies = [
 
 [[patch.unused]]
 name = "slint-kit-native"
-version = "0.1.0"
+version = "0.2.0"

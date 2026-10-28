@@ -74,7 +74,7 @@ pub(super) fn editors(control: &Control) -> Vec<Editor> {
     }
     result
 }
-fn mode_label(value: registry::ClimateMode) -> &'static str {
+pub(crate) fn mode_label(value: registry::ClimateMode) -> &'static str {
     match value {
         registry::ClimateMode::Unspecified => "Non précisé",
         registry::ClimateMode::Off => "Arrêt",

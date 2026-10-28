@@ -7,6 +7,7 @@ mod auth;
 mod calendars;
 mod cameras;
 mod client;
+mod configuration;
 mod connection;
 mod dashboard;
 mod failure;
@@ -23,6 +24,10 @@ pub use auth::AuthTransport;
 pub use calendars::{CalendarTransport, CalendarWatch};
 pub use cameras::{CameraTransport, CameraWatch};
 pub use client::{AccessToken, StateTransport, StateWatch};
+pub use configuration::{
+    ConfigurationApplyTransport, ConfigurationPlanTransport, ConfigurationSimulationTransport,
+    ConfigurationTransport, ConfigurationWatch,
+};
 pub use connection::Connection;
 pub use connectrpc::ErrorCode as RpcCode;
 pub use dashboard::{DashboardTransport, DashboardWatch};
@@ -36,6 +41,18 @@ pub use reconnect::ReconnectPolicy;
 #[rustfmt::skip]
 pub mod services {
     pub mod home {
+        pub mod configuration {
+            pub mod v1 { include!("generated/home.configuration.v1.rs"); }
+        }
+        pub mod configurationplan {
+            pub mod v1 { include!("generated/home.configurationplan.v1.rs"); }
+        }
+        pub mod configurationsimulation {
+            pub mod v1 { include!("generated/home.configurationsimulation.v1.rs"); }
+        }
+        pub mod configurationapply {
+            pub mod v1 { include!("generated/home.configurationapply.v1.rs"); }
+        }
         pub mod cameras {
             pub mod v1 { include!("generated/home.cameras.v1.rs"); }
         }
