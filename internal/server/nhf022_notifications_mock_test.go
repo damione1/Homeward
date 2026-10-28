@@ -633,7 +633,11 @@ func (h *nhf022Notifications) seed(caseValue nhf022SeedCase) error {
 	entries := []*wire.Delivery{}
 	switch caseValue {
 	case nhf022SeedNominal:
-		entries = append(entries, fresh(ids[0], "Notification synthétique", "Message privé de cette installation, via le serveur isolé.", home()))
+		accepted := fresh(ids[0], "Notification synthétique", "Message privé de cette installation, via le serveur isolé.", home())
+		// The nominal scenario delivers this message before the refusal. Do not
+		// let CSPRNG identity ordering decide which receipt precedes a blocked OS call.
+		accepted.CreatedAt = timestamppb.New(now.Add(-time.Nanosecond))
+		entries = append(entries, accepted)
 		failed := fresh(ids[1], "Remise fournisseur refusée — synthétique", "Le refus reste distinct d’une acceptation ou d’un affichage OS.", home())
 		failed.TransportAcceptance = wire.TransportAcceptance_TRANSPORT_ACCEPTANCE_PROVIDER_REJECTED
 		failed.TransportReason = wire.TransportReason_TRANSPORT_REASON_PROVIDER_FAILURE

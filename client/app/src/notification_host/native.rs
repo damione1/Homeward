@@ -37,8 +37,8 @@ impl Source for Native {
 pub(super) fn permission(value: Result<os::Settings, os::Error>) -> wire::PermissionSnapshot {
     let empty = |source| wire::PermissionSnapshot {
         permission: wire::Permission::Unknown.into(),
-        alerts: wire::Setting::Unknown.into(),
-        notification_center: wire::Setting::Unknown.into(),
+        alerts: wire::Setting::Unsupported.into(),
+        notification_center: wire::Setting::Unsupported.into(),
         source,
         ..Default::default()
     };

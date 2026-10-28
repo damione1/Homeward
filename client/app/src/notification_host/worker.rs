@@ -91,6 +91,7 @@ impl Run<'_> {
             .await
             .map_err(|_| Error::Invalid)?;
         self.check()?;
+        let failure = settings.as_ref().err().copied();
         let value = native::permission(settings);
         if !admit::valid_permission(&value) {
             return Err(Error::Invalid);
@@ -100,6 +101,9 @@ impl Run<'_> {
             state.stop_native();
         }
         state.permission = value.clone();
+        if let Some(error) = failure {
+            state.notice = error.label().into();
+        }
         state.bump();
         self.owner.post(&state);
         Ok(value)

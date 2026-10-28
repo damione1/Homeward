@@ -10,6 +10,7 @@ import contextlib
 from enum import Enum
 import json
 import hashlib
+import shutil
 import os
 import re
 from pathlib import Path
@@ -30,6 +31,14 @@ NATIVE = runpy.run_path(str(ROOT / 'scripts/qualify-frontend-recipes-ui.py'))
 Tool, structured, Case = MCP['Tool'], MCP['structured'], NATIVE['Case']
 
 
+class Delivery(Enum):
+    INBOX = 'inbox'
+    NATIVE = 'native'
+
+    def __str__(self):
+        return self.value
+
+
 class Key(Enum):
     END = '\uf72b'
     HOME = '\uf729'
@@ -40,7 +49,7 @@ class NativeCommand(Enum):
     CLOSE = 'close'
 
 
-def run_case(proof, binary, server_binary, helper, case):
+def run_case(proof, binary, server_binary, helper, permission_helper, case, delivery):
     directory = proof / case.value
     directory.mkdir(mode=0o700)
     fixture = directory / 'fixture'
@@ -48,7 +57,7 @@ def run_case(proof, binary, server_binary, helper, case):
     profile, preferences = product / 'endpoint.json', product / 'interface.json'
     if profile.exists() or preferences.exists():
         raise RuntimeError('Preserve existing Homeward settings')
-    server = app = private = namespace = None
+    server = app = private = namespace = permission_process = None
     credential_owned = profile_owned = preferences_owned = False
     client = window = root = None
     appearance, text = case.preferences()
@@ -201,6 +210,57 @@ def run_case(proof, binary, server_binary, helper, case):
             tap('Navigation')
         tap('Préférences', 'ListItem')
 
+    def notice_elements():
+        groups=[row for row in tree() if row.get('accessibleRole')=='Groupbox' and row.get('accessibleLabel')=='Notifications']
+        return structured(client.tool(Tool.TREE,elementHandle=groups[0]['handle'],maxElements=1000))['elements'] if groups else []
+
+    def notice_reveal(label,role='Button',message=None,enabled=False):
+        reveal('Notifications','Text')
+        deadline=time.monotonic()+25
+        while time.monotonic()<deadline:
+            elements=notice_elements()
+            if not elements:
+                # A new inbox can arrive between polls after the old card was
+                # scrolled away. Recover its anchor instead of scrolling past it.
+                reveal('Notifications','Text')
+                elements=notice_elements()
+            content=elements
+            if message:
+                items=[item for item in elements if item.get('accessibleRole')=='ListItem' and item.get('accessibleLabel')==message]
+                content=structured(client.tool(Tool.TREE,elementHandle=items[0]['handle'],maxElements=100))['elements'] if items else []
+            targets=[item for item in content if item.get('accessibleRole')==role and label in item.get('accessibleLabel','')]
+            pane=panel(); top=pane['absolutePosition']['y']+8; bottom=top+pane['size']['height']-16
+            lists=[item for item in elements if item.get('accessibleRole')=='List' and item.get('accessibleLabel')=='Notifications']
+            target=targets[0] if targets else None
+            if target:
+                y=target['absolutePosition'].get('y',0)+target['size']['height']/2
+                inside=top<y<bottom
+                if (message or role=='ListItem') and lists:
+                    listing=lists[0];inside=inside and listing['absolutePosition'].get('y',0)<y<listing['absolutePosition'].get('y',0)+listing['size']['height']
+                if inside and (not enabled or target.get('accessibleEnabled',False)):
+                    return target
+                if not inside:
+                    if top<y<bottom and lists:
+                        listing=lists[0];box=listing['absolutePosition'];extent=listing['size']
+                        client.tool(Tool.SCROLL,windowHandle=window,position=dict(x=box['x']+extent['width']/2,y=max(top,min(bottom,box.get('y',0)+extent['height']/2))),deltaX=0,deltaY=260 if y<box.get('y',0) else -260)
+                    else:scroll(260 if y<top else -260)
+            elif lists and (message or role=='ListItem'):
+                listing=lists[0];box=listing['absolutePosition'];extent=listing['size']
+                if max(top,box.get('y',0))<min(bottom,box.get('y',0)+extent['height']):
+                    client.tool(Tool.SCROLL,windowHandle=window,position=dict(x=box['x']+extent['width']/2,y=(max(top,box.get('y',0))+min(bottom,box.get('y',0)+extent['height']))/2),deltaX=0,deltaY=260 if message=='Notification synthétique' else -260)
+                else:scroll(-260)
+            elif message or role=='ListItem':
+                # Offscreen virtualized rows need the outer pane exposed first.
+                scroll(-260)
+            else:
+                # Header controls also start outside the clipped card at 200%.
+                scroll(-160)
+            time.sleep(.05)
+        raise RuntimeError('Notification control not reachable: '+label)
+
+    def notice_tap(label,message=None):
+        client.tool(Tool.CLICK,elementHandle=notice_reveal(label,message=message,enabled=True)['handle'])
+
     def sign_in(credentials):
         scroll(10000)
         fill('Identifiant', credentials['login_name'])
@@ -300,19 +360,56 @@ def run_case(proof, binary, server_binary, helper, case):
             tap('Confirmer')
             reveal('Présentation native arrêtée', 'Text')
             capture('notification-registered-default-off')
+            permission_requested=False
+            if delivery is Delivery.NATIVE:
+                if any('Autorisation macOS non demandée' in row.get('accessibleLabel','') for row in notice_elements()):
+                    notice_tap('Demander l’autorisation macOS')
+                    permission_process=subprocess.Popen([str(permission_helper)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                    permission_process.stdin.write(json.dumps(dict(pid=app.pid,bundle=str(Path(binary).parents[2]),syntheticOnly=True)))
+                    permission_process.stdin.close();permission_process.stdin=None
+                    notice_tap('Confirmer');permission_requested=True
+                    output,error=permission_process.communicate(timeout=12)
+                    if permission_process.returncode!=0:raise RuntimeError('Owned notification permission helper failed: '+error)
+                    permission_report=json.loads(output)
+                    SESSION['write'](directory / 'os-permission.json',permission_report)
+                    if permission_report['status']!='pressed':raise RuntimeError('Owned OS permission action not found; see os-permission.json')
+                    notice_reveal('Autorisation macOS accordée','Text')
+                # A read synchronizes the OS snapshot without enabling native delivery.
+                notice_tap('Actualiser');time.sleep(.5)
+                notice_tap('Activer les notifications natives');notice_tap('Confirmer')
+                notice_reveal('Présentation native activée','Text')
+                capture('notification-native-enabled')
             (fixture / 'seed-nominal').touch(mode=0o600)
             SHARED['wait_file'](fixture / 'seed-nominal-done.json', server)
             wait('Notification synthétique', 'ListItem', timeout=25)
-            reveal('Notification synthétique', 'ListItem')
+            notice_reveal('Notification synthétique','ListItem')
+            if delivery is Delivery.NATIVE:
+                notice_reveal('Remise attestée au centre OS','Text',message='Notification synthétique')
+                notice_reveal('Présentation au premier plan demandée','Text',message='Notification synthétique')
             capture('notification-inbox')
-            # Keep the provider refusal as a separate visible state. No OS
-            # presentation is requested or inferred from a rendered inbox.
-            reveal('Remise fournisseur refusée', 'ListItem')
+            notice_reveal('Remise fournisseur refusée','ListItem')
             capture('notification-provider-refused')
-            tap('Révoquer la destination')
+            notice_tap('Ouvrir',message='Notification synthétique')
+            wait('Accueil','Text',timeout=20);settings()
+            notice_tap('Marquer comme lue',message='Notification synthétique')
+            notice_reveal('Lue',message='Notification synthétique')
+            capture('notification-read')
+            notice_tap('Retirer',message='Notification synthétique')
+            deadline=time.monotonic()+20
+            while any(row.get('accessibleRole')=='ListItem' and row.get('accessibleLabel')=='Notification synthétique' for row in notice_elements()):
+                if time.monotonic()>deadline:raise RuntimeError('Dismissed message remained in the native inbox')
+                time.sleep(.05)
+            capture('notification-dismissed')
+            if delivery is Delivery.NATIVE:
+                notice_tap('Arrêter la présentation');notice_reveal('Présentation native arrêtée','Text')
+                (fixture / 'seed-entity').touch(mode=0o600)
+                SHARED['wait_file'](fixture / 'seed-entity-done.json',server)
+                notice_reveal('Présentation non tentée','Text',message='Ressource synthétique')
+                capture('notification-local-stop')
+            notice_tap('Révoquer la destination')
             reveal('La présentation locale est déjà arrêtée', 'Text')
             capture('notification-revocation-confirmation')
-            tap('Confirmer')
+            notice_tap('Confirmer')
             reveal('Destination révoquée', 'Text')
             capture('notification-revoked')
             tap('Se déconnecter');reveal('Se connecter')
@@ -323,15 +420,17 @@ def run_case(proof, binary, server_binary, helper, case):
             if server.wait(timeout=25) != 0:
                 raise RuntimeError('Notification fixture did not join')
             isolation=json.loads((fixture / 'result.json').read_text())
-            expected=dict(registrations=1,updates=0,receipts=2,revocations=1,seeded=3,opens=0,lost_replies=0)
+            expected=dict(registrations=1,updates=isolation['counts']['updates'],receipts=8 if delivery is Delivery.NATIVE else 4,revocations=1,seeded=4 if delivery is Delivery.NATIVE else 3,opens=1,lost_replies=0)
+            expected_updates=(2,3) if delivery is Delivery.NATIVE else (0,)
+            if isolation['counts']['updates'] not in expected_updates:raise RuntimeError('Unexpected native permission/consent updates')
             if not (isolation['configuration_unchanged'] and isolation['counts']==expected
                     and isolation['companion_counts']==dict(registrations=1,consent_changes=0,publications=0,revocations=0,lost_replies=0)
                     and isolation['no_physical_providers'] and isolation['actual_run_joined']):
                 raise RuntimeError('Native inbox exact mutations or isolation failed: '+str(isolation))
             result=dict(status='AUTOMATED_PASS_REQUIRES_VISUAL_INSPECTION',case=case.value,isolation=isolation,
                 native_rendering=True,actual_rust_go_tls=True,mcp_input=True,production_configuration=False,
-                actual_os_notification_settings=True,permission_requested=False,native_notification_submitted=False,
-                actual_os_presentation=False,real_devices=False,children_joined=True)
+                actual_os_notification_settings=True,permission_requested=permission_requested,native_notification_submitted=delivery is Delivery.NATIVE,
+                actual_os_presentation=delivery is Delivery.NATIVE,foreground_delegate_observed=delivery is Delivery.NATIVE,delivery=delivery.value,real_devices=False,children_joined=True)
             SESSION['write'](directory / 'result.json',result)
             return result
         except BaseException:
@@ -340,6 +439,7 @@ def run_case(proof, binary, server_binary, helper, case):
                     capture('failure')
             raise
         finally:
+            SHARED['stop'](permission_process)
             SHARED['stop'](app)
             if server is not None and server.poll() is None:
                 if fixture.is_dir():
@@ -367,6 +467,7 @@ def run_case(proof, binary, server_binary, helper, case):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--delivery',type=Delivery,choices=list(Delivery),default=Delivery.INBOX)
     parser.add_argument('--reuse-build', type=Path, help='Reuse compiled artifacts only when all product and kit source hashes match')
     parser.add_argument('--matrix', action='store_true', help='Run cases from --case through the end of the matrix')
     parser.add_argument('--case', type=Case, choices=list(Case), default=Case.LIGHT_STANDARD)
@@ -380,14 +481,16 @@ def main():
     before = SHARED['source_inventory'](config)
     SESSION['write'](proof / 'sources.json', before)
     server, helper = proof / 'administration.test', proof / 'native-ui'
+    permission_helper=proof / 'notification-permission'
     if args.reuse_build:
         previous = args.reuse_build.resolve(strict=True)
         expected = json.loads((previous / 'sources.json').read_text())
-        # Only this Python UI driver may change: Rust, Slint, Go, schemas,
+        # Only the two UI drivers may change: Rust, Slint, Go, schemas,
         # dependencies, other qualifiers and both kits remain byte-identical.
         def product_inventory(value):
             copied = json.loads(json.dumps(value))
-            copied['homeward'].pop('scripts/qualify-frontend-notifications-ui.py', None)
+            for path in ('scripts/qualify-frontend-notifications-ui.py','qualification/frontend/notification-permission.swift'):
+                copied['homeward'].pop(path,None)
             return copied
         if product_inventory(expected) != product_inventory(before):
             raise RuntimeError('Reused native artifacts do not match current product/kit sources')
@@ -412,8 +515,11 @@ def main():
                 hashes[target.name] = hashlib.file_digest(input_file, 'sha256').hexdigest()
         (proof / 'build.jsonl').write_bytes((previous / 'build.jsonl').read_bytes())
         (proof / 'artifact.json').write_bytes((previous / 'artifact.json').read_bytes())
-        SESSION['write'](proof / 'reuse.json', dict(original=str(previous), sources_equal_except_ui_driver=True, sha256=hashes))
-        print('Reusing exact compiled product/Go/Swift artifacts; UI driver is the only changed source', flush=True)
+        SESSION['write'](proof / 'reuse.json', dict(original=str(previous), sources_equal_except_ui_drivers=True, sha256=hashes))
+        permission_source='qualification/frontend/notification-permission.swift'
+        if expected['homeward'].get(permission_source)==before['homeward'].get(permission_source):
+            os.link(previous / 'notification-permission',permission_helper)
+        print('Reusing exact product/Go/native-focus artifacts; only UI drivers may change',flush=True)
     else:
         built = Path(MCP['build_native'](proof))
         binary = proof / 'homeward-desktop'
@@ -423,16 +529,29 @@ def main():
         subprocess.run(['go', 'test', '-race', '-c', '-o', str(server), './internal/server'], cwd=ROOT, check=True)
         subprocess.run(['xcrun', 'swiftc', '-module-cache-path', str(Path(config['frontend_cache']) / 'session-spike/swift-modules'),
             str(ROOT / 'qualification/frontend/native-ui.swift'), '-o', str(helper)], check=True)
+    if not permission_helper.exists():
+        subprocess.run(['xcrun','swiftc','-module-cache-path',str(Path(config['frontend_cache']) / 'session-spike/swift-modules'),
+            str(ROOT / 'qualification/frontend/notification-permission.swift'),'-o',str(permission_helper)],check=True)
     import plistlib
     bundle=proof / 'Homeward Notification Qualification.app'
     executable=bundle / 'Contents/MacOS/homeward-desktop'
     executable.parent.mkdir(parents=True)
-    os.link(binary,executable)
+    shutil.copy2(binary,executable)
+    display_name='Homeward Notification Qualification '+str(time.time_ns())
     with (bundle / 'Contents/Info.plist').open('wb') as stream:
         plistlib.dump(dict(CFBundleExecutable='homeward-desktop',CFBundleIdentifier='ca.homeward.qualification.notifications.'+str(time.time_ns()),
-            CFBundleName='Homeward Notification Qualification',CFBundleDisplayName='Homeward Notification Qualification',
+            CFBundleName=display_name,CFBundleDisplayName=display_name,
             CFBundlePackageType='APPL',CFBundleVersion='1',NSHighResolutionCapable=True),stream)
-    result = [run_case(proof, executable, server, helper, case) for case in (list(Case)[list(Case).index(args.case):] if args.matrix else [args.case])]
+    # Bind the development signature to this private bundle's identifier and
+    # Info.plist. Never mutate the frozen Cargo executable through a hard link.
+    subprocess.run(['codesign','--force','--sign','-',str(bundle)],check=True)
+    subprocess.run(['codesign','--verify','--strict',str(bundle)],check=True)
+    signature=subprocess.run(['codesign','-dvv',str(bundle)],capture_output=True,text=True,check=True)
+    SESSION['write'](proof / 'bundle-signature.json',dict(kind='ad-hoc-local-only',unsigned_sha256=SHARED['sha'](binary),
+        signed_sha256=SHARED['sha'](executable),details=signature.stderr,notarized=False))
+    registration='/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+    subprocess.run([registration,'-f',str(bundle)],check=True)
+    result = [run_case(proof, executable, server, helper, permission_helper, case,args.delivery) for case in (list(Case)[list(Case).index(args.case):] if args.matrix else [args.case])]
     if SHARED['source_inventory'](config) != before:
         raise RuntimeError('Native proof inputs changed during the run')
     SESSION['write'](proof / 'result.json', result)

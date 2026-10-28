@@ -8,6 +8,8 @@ export struct NotificationPresentation {
     confirming: bool, confirmation: string,
 }
 export component HomewardNotifications inherits KitCard {
+    accessible-role:groupbox;
+    accessible-label:"Notifications";
     in property <NotificationPresentation> view;
     in property <[NotificationRow]> rows;
     in property <bool> interactive;

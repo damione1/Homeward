@@ -157,10 +157,10 @@ enum Selection {
 }
 fn row(owner: &Notifications, selection: Selection, action: NotificationRowAction) {
     let mut state = owner.0.state.lock().unwrap();
-    let token = state
+    let entry = state
         .entries
         .iter()
-        .position(|entry| {
+        .find(|entry| {
             entry.transport_acceptance == wire::TransportAcceptance::AcceptedForegroundLan
                 && match selection {
                     Selection::Home => matches!(
@@ -173,10 +173,10 @@ fn row(owner: &Notifications, selection: Selection, action: NotificationRowActio
                     ),
                 }
         })
-        .unwrap() as i32
-        + 1;
-    let generation = state.generation;
-    state.row_action(token, generation, action);
+        .unwrap();
+    let id = admit::DeliveryId::parse(&entry.id.value).unwrap();
+    let key = state.row_key(&id).unwrap();
+    state.row_action(key.token, key.generation, action);
     drop(state);
     owner.0.changed.notify_one();
 }

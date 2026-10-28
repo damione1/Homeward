@@ -4,7 +4,13 @@ use buffa::EnumValue;
 use slint::{ModelRc, VecModel};
 pub(super) struct Projection {
     view: NotificationPresentation,
-    rows: Vec<(String, String, bool)>,
+    rows: Vec<Row>,
+}
+struct Row {
+    key: state::RowKey,
+    label: String,
+    description: String,
+    read: bool,
 }
 pub(super) fn empty(generation: i32) -> Projection {
     let state = State {
@@ -100,23 +106,43 @@ pub(super) fn project(state: &State) -> Projection {
     let rows = state
         .entries
         .iter()
-        .map(|entry| {
+        .filter_map(|entry| {
+            let key = state.row_key(&admit::DeliveryId::parse(&entry.id.value).ok()?)?;
             let received = if entry.reception == wire::Reception::Received {
                 "Reçu"
             } else {
                 "Réception à acquitter"
             };
-            (
-                entry.title.clone(),
-                format!(
-                    "{}\n{} · {}\n{}",
+            let foreground = state
+                .native
+                .as_ref()
+                .and_then(|scope| {
+                    os::PresentationId::parse(&entry.id.value)
+                        .ok()
+                        .map(|id| scope.foreground_evidence(&id))
+                })
+                .unwrap_or(os::ForegroundEvidence::NotObserved);
+            let foreground = match foreground {
+                os::ForegroundEvidence::NotObserved => "",
+                os::ForegroundEvidence::AllowedByDelegate => {
+                    "\nPrésentation au premier plan demandée"
+                }
+                os::ForegroundEvidence::SuppressedByDelegate => {
+                    "\nPrésentation au premier plan suspendue"
+                }
+            };
+            Some(Row {
+                key,
+                label: entry.title.clone(),
+                description: format!(
+                    "{}\n{} · {}\n{}{foreground}",
                     entry.body,
                     transport(entry),
                     received,
                     presentation(entry)
                 ),
-                entry.read_state == wire::ReadState::Read,
-            )
+                read: entry.read_state == wire::ReadState::Read,
+            })
         })
         .collect();
     Projection {
@@ -157,20 +183,18 @@ pub(super) fn project(state: &State) -> Projection {
     }
 }
 pub(super) fn apply(window: &HomewardWindow, projection: Projection) {
-    let generation = projection.view.generation;
     let rows = projection
         .rows
         .into_iter()
-        .enumerate()
-        .map(|(index, (label, description, read))| NotificationRow {
+        .map(|row| NotificationRow {
             item: OptionRow {
-                token: index as i32 + 1,
-                generation,
-                label: label.into(),
-                description: description.into(),
+                token: row.key.token,
+                generation: row.key.generation,
+                label: row.label.into(),
+                description: row.description.into(),
                 disabled: false,
             },
-            read,
+            read: row.read,
         })
         .collect::<Vec<_>>();
     window.set_notification_view(projection.view);

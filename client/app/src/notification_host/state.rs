@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Stage {
@@ -119,6 +120,12 @@ pub(super) struct Grant {
     pub parent_stop: CancellationToken,
     pub native_generation: home_client_session::Generation,
 }
+#[derive(Clone, Copy)]
+pub(super) struct RowKey {
+    pub token: i32,
+    pub generation: i32,
+    revision: u64,
+}
 pub(super) struct State {
     pub scope: u64,
     pub fence: u64,
@@ -136,6 +143,8 @@ pub(super) struct State {
     pub parent: Option<companion::Installation>,
     pub destination: Option<wire::Destination>,
     pub entries: Vec<wire::Delivery>,
+    pub(super) row_keys: BTreeMap<admit::DeliveryId, RowKey>,
+    pub(super) next_row_token: i32,
     pub inbox_revision: u64,
     pub permission: wire::PermissionSnapshot,
     pub draft: Option<Draft>,
@@ -172,6 +181,8 @@ impl Default for State {
             parent: None,
             destination: None,
             entries: Vec::new(),
+            row_keys: BTreeMap::new(),
+            next_row_token: 0,
             inbox_revision: 0,
             permission: native::permission(Err(os::Error::Unsupported)),
             draft: None,
@@ -195,12 +206,59 @@ impl State {
     pub fn bump(&mut self) {
         if let Some(next) = self.generation.checked_add(1) {
             self.generation = next;
-        } else {
-            self.active = false;
-            self.stage = Stage::Invalid;
-            self.cancel.cancel();
-            self.stop_native();
+            if self.sync_row_keys() {
+                return;
+            }
         }
+        self.active = false;
+        self.stage = Stage::Invalid;
+        self.row_keys.clear();
+        self.cancel.cancel();
+        self.stop_native();
+    }
+    fn sync_row_keys(&mut self) -> bool {
+        if self.entries.len() > admit::MAX_ENTRIES {
+            return false;
+        }
+        let current = self
+            .entries
+            .iter()
+            .map(|entry| admit::DeliveryId::parse(&entry.id.value).map(|id| (id, entry.revision)))
+            .collect::<Result<BTreeMap<_, _>, _>>();
+        let Ok(current) = current else {
+            return false;
+        };
+        if current.len() != self.entries.len() {
+            return false;
+        }
+        self.row_keys.retain(|id, _| current.contains_key(id));
+        for (id, revision) in current {
+            if let Some(key) = self.row_keys.get_mut(&id) {
+                // An unchanged poll or a reorder does not recycle the kit's
+                // identity snapshot or cancel a pending dismiss animation.
+                if key.revision != revision {
+                    key.revision = revision;
+                    key.generation = self.generation;
+                }
+            } else {
+                let Some(token) = self.next_row_token.checked_add(1) else {
+                    return false;
+                };
+                self.next_row_token = token;
+                self.row_keys.insert(
+                    id,
+                    RowKey {
+                        token,
+                        generation: self.generation,
+                        revision,
+                    },
+                );
+            }
+        }
+        true
+    }
+    pub fn row_key(&self, id: &admit::DeliveryId) -> Option<RowKey> {
+        self.row_keys.get(id).copied()
     }
     pub fn stop_native(&mut self) {
         self.native_parent_stop = None;
@@ -222,6 +280,7 @@ impl State {
         self.draft = None;
         self.grant = None;
         self.bump();
+        self.row_keys.clear();
         if self.fence == u64::MAX {
             self.active = false;
             self.stage = Stage::Invalid;
@@ -236,6 +295,7 @@ impl State {
         self.parent = None;
         self.destination = None;
         self.entries.clear();
+        self.row_keys.clear();
         self.inbox_revision = 0;
         self.pending = None;
         self.intent = None;
@@ -252,6 +312,7 @@ impl State {
         self.requested = false;
         self.intent = None;
         self.entries.clear();
+        self.row_keys.clear();
         self.stage = Stage::Invalid;
         self.notice = "Réponse refusée ; aucune présentation ni ouverture autorisée.".into();
     }
@@ -352,8 +413,7 @@ impl State {
         self.bump();
     }
     pub fn row_action(&mut self, token: i32, generation: i32, action: NotificationRowAction) {
-        if generation != self.generation
-            || !self.active
+        if !self.active
             || !self.visible
             || !self.foreground
             || self.running
@@ -362,20 +422,25 @@ impl State {
         {
             return;
         }
-        let Some(entry) = token
-            .checked_sub(1)
-            .and_then(|token| usize::try_from(token).ok())
-            .and_then(|index| self.entries.get(index))
+        let Some((id, _)) = self
+            .row_keys
+            .iter()
+            .find(|(_, key)| key.token == token && key.generation == generation)
+        else {
+            return;
+        };
+        let Some(entry) = self
+            .entries
+            .iter()
+            .find(|entry| entry.id.value == id.as_str())
         else {
             return;
         };
         if !fresh(entry, &now()) {
             return;
         }
-        if let Ok(id) = admit::DeliveryId::parse(&entry.id.value) {
-            self.intent = Some(Intent::Row(id, action));
-            self.bump();
-        }
+        self.intent = Some(Intent::Row(id.clone(), action));
+        self.bump();
     }
     pub fn plan(&mut self) -> Option<Job> {
         if self.running {

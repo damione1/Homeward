@@ -67,3 +67,106 @@ fn cleanup_runs_without_foreground_or_native_credentials() {
     assert!(matches!(state.plan(),Some(Job::Cleanup(ids)) if ids==vec![id]));
     assert!(state.plan().is_none());
 }
+
+#[test]
+fn row_intents_follow_message_identity_across_reorder_and_reject_recycled_or_changed_rows() {
+    fn message(n: u128) -> wire::Delivery {
+        wire::Delivery {
+            id: wire::DeliveryId {
+                value: format!("{n:032x}"),
+                ..Default::default()
+            }
+            .into(),
+            revision: 1,
+            created_at: Timestamp {
+                seconds: 1,
+                ..Default::default()
+            }
+            .into(),
+            expires_at: Timestamp {
+                seconds: 2_000_000_000,
+                ..Default::default()
+            }
+            .into(),
+            read_state: wire::ReadState::Unread.into(),
+            ..Default::default()
+        }
+    }
+    let first = admit::DeliveryId::parse(&format!("{:032x}", 1)).unwrap();
+    let replacement = admit::DeliveryId::parse(&format!("{:032x}", 3)).unwrap();
+    let mut state = State {
+        active: true,
+        visible: true,
+        entries: vec![message(1), message(2)],
+        ..Default::default()
+    };
+    state.bump();
+    let original = state.row_key(&first).unwrap();
+    state.entries.reverse();
+    state.bump();
+    state.bump();
+    let reordered = state.row_key(&first).unwrap();
+    assert_eq!(
+        (reordered.token, reordered.generation),
+        (original.token, original.generation)
+    );
+    state.row_action(
+        original.token,
+        original.generation,
+        NotificationRowAction::Open,
+    );
+    assert!(
+        matches!(state.intent.take(),Some(Intent::Row(id,NotificationRowAction::Open)) if id==first)
+    );
+    state
+        .entries
+        .iter_mut()
+        .find(|e| e.id.value == first.as_str())
+        .unwrap()
+        .revision = 2;
+    state.bump();
+    state.row_action(
+        original.token,
+        original.generation,
+        NotificationRowAction::Dismiss,
+    );
+    assert!(state.intent.is_none());
+    state.entries.retain(|e| e.id.value != first.as_str());
+    state.entries.push(message(3));
+    state.bump();
+    assert_ne!(state.row_key(&replacement).unwrap().token, original.token);
+    state.row_action(
+        original.token,
+        original.generation,
+        NotificationRowAction::Open,
+    );
+    assert!(state.intent.is_none());
+    let current = state.row_key(&replacement).unwrap();
+    state.interrupt();
+    state.bump();
+    state.row_action(
+        current.token,
+        current.generation,
+        NotificationRowAction::Read,
+    );
+    assert!(state.intent.is_none());
+    assert_ne!(state.row_key(&replacement).unwrap().token, current.token);
+}
+
+#[test]
+fn missing_native_services_are_valid_unavailable_snapshots_not_protocol_failures() {
+    for error in [
+        os::Error::BundleRequired,
+        os::Error::Unsupported,
+        os::Error::PendingQualification,
+        os::Error::Timeout,
+        os::Error::NativeUnavailable,
+    ] {
+        let snapshot = native::permission(Err(error));
+        assert!(admit::valid_permission(&snapshot));
+        assert!(!admit::can_present(&snapshot));
+        assert_eq!(snapshot.permission, wire::Permission::Unknown);
+        assert_eq!(snapshot.alerts, wire::Setting::Unsupported);
+        assert_eq!(snapshot.notification_center, wire::Setting::Unsupported);
+    }
+}
