@@ -766,6 +766,8 @@ async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, u
         previous.cache.close().await;
         previous.owner.close().await;
         while tasks.join_next().await.is_some() {}
+        ui.companion.set_registrations(None);
+        ui.notifications.set_registrations(None);
         // Drop the OS process lease before constructing a replacement profile.
     }
 }
@@ -777,6 +779,9 @@ async fn install_profile(
     tasks: &mut JoinSet<()>,
 ) -> Result<Profile, StoreFailure> {
     let store = services.store(endpoint.key())?;
+    let registrations = crate::registration_store::Registrations::new(services.store(
+        crate::registration_store::Registrations::key(endpoint.key()),
+    )?);
     endpoint
         .save(&services.directory()?)
         .map_err(|_| StoreFailure::Unavailable)?;
@@ -789,6 +794,8 @@ async fn install_profile(
     let cancel = CancellationToken::new();
     ui.companion.clear();
     ui.notifications.clear();
+    ui.companion.set_registrations(Some(registrations.clone()));
+    ui.notifications.set_registrations(Some(registrations));
     ui.administration.clear();
     let (
         notifications,

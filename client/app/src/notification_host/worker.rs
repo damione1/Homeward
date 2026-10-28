@@ -338,6 +338,32 @@ impl Run<'_> {
         Ok(())
     }
     async fn write(&self, pending: Pending) -> Result<(), Error> {
+        if let Pending::Register(request) = &pending {
+            self.check()?;
+            let registrations = self
+                .owner
+                .0
+                .registrations
+                .lock()
+                .expect("notification registration persistence")
+                .clone();
+            if let Some(registrations) = registrations {
+                registrations
+                    .remember(
+                        crate::registration_store::Kind::Notifications,
+                        crate::registration_store::Subject {
+                            account: self.lease.account_id(),
+                            session: self.lease.session_id(),
+                            epoch: &self.parent.context.epoch,
+                            parent: Some(&self.parent.installation.id.value),
+                        },
+                        &request.request_id,
+                    )
+                    .await
+                    .map_err(|_| Error::Invalid)?;
+                self.check()?;
+            }
+        }
         self.reserve(pending.clone())?;
         let run = self;
         match &pending {
@@ -482,7 +508,7 @@ impl Run<'_> {
             return self.resolve(pending).await;
         }
         let permission = self.settings(false).await?;
-        let prior = self
+        let mut prior = self
             .owner
             .0
             .state
@@ -491,6 +517,59 @@ impl Run<'_> {
             .destination
             .clone();
         let run = self;
+        if prior.is_none() {
+            let registrations = self
+                .owner
+                .0
+                .registrations
+                .lock()
+                .expect("notification recovery store")
+                .clone();
+            if let Some(registrations) = registrations {
+                let nonce = registrations
+                    .lookup(
+                        crate::registration_store::Kind::Notifications,
+                        crate::registration_store::Subject {
+                            account: self.lease.account_id(),
+                            session: self.lease.session_id(),
+                            epoch: &self.parent.context.epoch,
+                            parent: Some(&parent.id.value),
+                        },
+                    )
+                    .await
+                    .map_err(|_| Error::Invalid)?;
+                if let Some(nonce) = nonce {
+                    let request = wire::GetDestinationRequest {
+                        selector: Some(
+                            wire::get_destination_request::Selector::RegistrationRequestId(
+                                nonce.clone(),
+                            ),
+                        ),
+                        ..Default::default()
+                    };
+                    admit::admit_request(admit::Request::Get(&request))
+                        .map_err(|_| Error::Invalid)?;
+                    self.check()?;
+                    let api = self.connection.notifications();
+                    let response = tokio::select! {biased; ()=self.lease.cancellation.cancelled()=>return Err(Error::Cancelled),
+                    value=api.get_destination(request,self.lease.token(),Duration::from_secs(5),self.stop)=>value };
+                    self.check()?;
+                    match response {
+                        Ok(value) => {
+                            admit::admit_response(admit::Response::Get(&value))
+                                .map_err(|_| Error::Invalid)?;
+                            if value.destination.registration_request_id != nonce {
+                                return Err(Error::Invalid);
+                            }
+                            self.accept_destination(&value.context, (*value.destination).clone())?;
+                            prior = Some((*value.destination).clone());
+                        }
+                        Err(error) if error.kind() == FailureKind::Rpc(RpcCode::NotFound) => {}
+                        Err(error) => return Err(Error::Transport(error)),
+                    }
+                }
+            }
+        }
         if let Some(prior) = prior {
             let value = call!(
                 run,

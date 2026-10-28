@@ -38,6 +38,7 @@ mod notification_host;
 mod preferences;
 mod profile;
 mod raster;
+mod registration_store;
 mod session_host;
 mod video_host;
 

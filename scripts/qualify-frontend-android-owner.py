@@ -56,6 +56,14 @@ class Reception(IntEnum):
     NOT_RECEIVED = 1
     RECEIVED = 2
 
+class Permission(IntEnum):
+    NOT_REQUESTED = 1
+    DENIED = 2
+    AUTHORIZED = 3
+    PROVISIONAL = 4
+    EPHEMERAL = 5
+    UNKNOWN = 6
+
 class Cadence(IntEnum):
     SECONDS_30 = 1
     MINUTE_1 = 2
@@ -75,6 +83,7 @@ class Mode(Enum):
     FOREGROUND = 'foreground'
     BACKGROUND = 'background'
     BACKGROUND_REFRESH = 'background-refresh'
+    BACKGROUND_PERMISSION = 'background-permission'
 
     def __str__(self):
         return self.value
@@ -83,7 +92,7 @@ class Mode(Enum):
         match self:
             case Mode.FOREGROUND:
                 return False
-            case Mode.BACKGROUND | Mode.BACKGROUND_REFRESH:
+            case Mode.BACKGROUND | Mode.BACKGROUND_REFRESH | Mode.BACKGROUND_PERMISSION:
                 return True
         raise AssertionError('Unhandled reception qualification mode')
 
@@ -242,6 +251,51 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
                 ui.capture('background-os-stop-failed')
                 raise RuntimeError('Actual SystemUI stop action missing')
             time.sleep(.15)
+
+    def withdraw_permission():
+        registered = control(Control.OBSERVE)
+        before = DEVICE('shell', 'pidof', PACKAGE, check=False).stdout.strip()
+        DEVICE('shell', 'pm', 'revoke', PACKAGE, 'android.permission.POST_NOTIFICATIONS')
+        package = DEVICE('shell', 'dumpsys', 'package', PACKAGE).stdout
+        (proof / 'permission-revoked-package.txt').write_text(package)
+        if not re.search(r'android\.permission\.POST_NOTIFICATIONS:\s+granted=false', package):
+            raise RuntimeError('Actual Android notification permission not revoked')
+        service(False, 'service-stopped-after-permission-withdrawal')
+        after = DEVICE('shell', 'pidof', PACKAGE, check=False).stdout.strip()
+        (proof / 'permission-withdrawal-process.json').write_text(json.dumps(dict(pid_before=before, pid_after=after, process_survived=bool(after) and before == after), indent=2) + '\n')
+        prior = {entry['id']['value'] for entry in control(Control.OBSERVE)['deliveries']}
+        control(Control.SEED_ENTITY)
+        time.sleep(6)
+        untouched = state('permission-withdrawal-no-reception', lambda s: any(e['id']['value'] not in prior and Reception(e['reception']) is Reception.NOT_RECEIVED and Presentation(e['presentation']) is Presentation.NOT_ATTEMPTED for e in s['deliveries']))
+        new_ids = {entry['id']['value'] for entry in untouched['deliveries']} - prior
+        center = DEVICE('shell', 'dumpsys', 'notification', '--noredact').stdout
+        posted = re.split(r'(?m)^  (?=\S)', center.partition('  Notification List:\n')[2], maxsplit=1)[0]
+        if any('homeward.' + value in posted for value in new_ids):
+            raise RuntimeError('A new message was posted after permission withdrawal')
+        (proof / 'permission-withdrawal-notification-manager.txt').write_text(center)
+        service(False, 'permission-withdrawal-no-service-restart')
+        DEVICE('shell', 'cmd', 'statusbar', 'collapse')
+        DEVICE('shell', 'am', 'start', '-W', '-n', PACKAGE + '/' + SESSION['ACTIVITY'])
+        ui.find('Session sécurisée active', match=INPUT['LabelMatch'].CONTAINS, timeout=45)
+        service(False, 'permission-withdrawal-foreground-no-service')
+        settings()
+        ui.find('Collecte arrêtée localement', scroll=True, timeout=30)
+        recovered = state('permission-withdrawal-registration-restored', lambda s:
+            len(s['installations']) == 1 and len(s['destinations']) == 1
+            and s['installations'][0]['id'] == registered['installations'][0]['id']
+            and s['destinations'][0]['id'] == registered['destinations'][0]['id']
+            and s['counts']['registrations'] == registered['counts']['registrations']
+            and s['companion_counts']['registrations'] == registered['companion_counts']['registrations']
+            and Permission(s['destinations'][0]['permission']['permission']) is Permission.DENIED
+            and not s['destinations'][0]['native_delivery'])
+        ui.capture('permission-withdrawal-foreground')
+        hold = Cadence(recovered['installations'][0]['consent']['cadence']).seconds() + 5
+        time.sleep(hold)
+        state('permission-withdrawal-no-automatic-telemetry', lambda s:
+            s['companion_counts']['publications'] == registered['companion_counts']['publications']
+            and s['counts']['registrations'] == registered['counts']['registrations']
+            and s['companion_counts']['registrations'] == registered['companion_counts']['registrations'])
+        service(False, 'permission-withdrawal-restored-stays-stopped')
 
     try:
         with (proof / 'server.log').open('wb') as log:
@@ -426,22 +480,27 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
                     if mode.background():
                         DEVICE('shell', 'input', 'keyevent', 'KEYCODE_HOME')
                         service(True, 'background-service-before-os-stop')
-                        stop_service_from_os()
-                        service(False, 'background-service-stopped-by-os-action')
-                        control(Control.SEED_ENTITY)
-                        time.sleep(6)
-                        state('background-stop-no-reception', lambda s: any(e['title'] == 'Ressource synthétique' and Reception(e['reception']) is Reception.NOT_RECEIVED and Presentation(e['presentation']) is Presentation.NOT_ATTEMPTED for e in s['deliveries']))
-                        service(False, 'background-service-not-restarted')
-                        DEVICE('shell', 'cmd', 'statusbar', 'collapse')
-                        DEVICE('shell', 'am', 'start', '-W', '-n', PACKAGE + '/' + SESSION['ACTIVITY'])
-                        state('foreground-reception-resumes-without-service', lambda s: any(e['title'] == 'Ressource synthétique' and Reception(e['reception']) is Reception.RECEIVED for e in s['deliveries']))
-                        service(False, 'foreground-does-not-restart-service')
+                        if mode is Mode.BACKGROUND_PERMISSION:
+                            time.sleep(.5)
+                            withdraw_permission()
+                        else:
+                            stop_service_from_os()
+                            service(False, 'background-service-stopped-by-os-action')
+                            control(Control.SEED_ENTITY)
+                            time.sleep(6)
+                            state('background-stop-no-reception', lambda s: any(e['title'] == 'Ressource synthétique' and Reception(e['reception']) is Reception.NOT_RECEIVED and Presentation(e['presentation']) is Presentation.NOT_ATTEMPTED for e in s['deliveries']))
+                            service(False, 'background-service-not-restarted')
+                            DEVICE('shell', 'cmd', 'statusbar', 'collapse')
+                            DEVICE('shell', 'am', 'start', '-W', '-n', PACKAGE + '/' + SESSION['ACTIVITY'])
+                            state('foreground-reception-resumes-without-service', lambda s: any(e['title'] == 'Ressource synthétique' and Reception(e['reception']) is Reception.RECEIVED for e in s['deliveries']))
+                            service(False, 'foreground-does-not-restart-service')
                     settings()
-                    top()
-                    tap('Arrêter la présentation')
-                    prior_ids = {e['id']['value'] for e in control(Control.OBSERVE)['deliveries']}
-                    control(Control.SEED_ENTITY)
-                    state('local-stop-no-new-presentation', lambda s: any(e['id']['value'] not in prior_ids and e['title'] == 'Ressource synthétique' and Presentation(e['presentation']) is Presentation.NOT_ATTEMPTED and Reception(e['reception']) is Reception.RECEIVED for e in s['deliveries']))
+                    if mode is not Mode.BACKGROUND_PERMISSION:
+                        top()
+                        tap('Arrêter la présentation')
+                        prior_ids = {e['id']['value'] for e in control(Control.OBSERVE)['deliveries']}
+                        control(Control.SEED_ENTITY)
+                        state('local-stop-no-new-presentation', lambda s: any(e['id']['value'] not in prior_ids and e['title'] == 'Ressource synthétique' and Presentation(e['presentation']) is Presentation.NOT_ATTEMPTED and Reception(e['reception']) is Reception.RECEIVED for e in s['deliveries']))
                     top()
                     tap('Révoquer la destination')
                     tap('Confirmer')
@@ -477,7 +536,11 @@ def qualify(policy=FailurePolicy.STOP, mode=Mode.FOREGROUND):
                 raise RuntimeError('Isolation failed')
             result = dict(status='PASS_PENDING_VISUAL_INSPECTION', actual_rust_go_tls=True, native_android_collectors=True,
                 actual_os_permission=True, os_submission_receipt=True, native_center_visibility_qualified=True, default_consents_off=True,
-                local_stop_and_revocation=True, physical_device=False, native_os_click_qualified=True,
+                local_stop_and_revocation=mode is not Mode.BACKGROUND_PERMISSION,
+                actual_android_permission_withdrawal=mode is Mode.BACKGROUND_PERMISSION,
+                registration_restored_after_process_restart=mode is Mode.BACKGROUND_PERMISSION,
+                destination_revocation=True,
+                physical_device=False, native_os_click_qualified=True,
                 background_qualified=mode.background(), native_background_refresh_qualified=mode is Mode.BACKGROUND_REFRESH,
                 background_scope='Owned API35 emulator, live process, user-started foreground service; no persistent delivery/Doze/physical hardware claim' if mode.background() else None,
                 isolation=isolation, children_joined=True)

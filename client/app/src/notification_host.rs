@@ -46,6 +46,7 @@ struct Inner {
     window: Option<slint::Weak<HomewardWindow>>,
     source: Arc<dyn native::Source>,
     session: Mutex<Option<(u64, SessionCoordinator)>>,
+    registrations: Mutex<Option<Arc<crate::registration_store::Registrations>>>,
 }
 pub(crate) enum NavigationTarget {
     Home,
@@ -83,6 +84,7 @@ impl Notifications {
             window,
             source,
             session: Mutex::new(None),
+            registrations: Mutex::new(None),
         }))
     }
     #[cfg(test)]
@@ -234,6 +236,16 @@ impl Notifications {
         // intention. Clear it only when a freshly bound grant reaches the UI.
         state.finish_native_open(&admit::DeliveryId::parse(&grant.message.id.value).ok()?);
         Some(target)
+    }
+    pub(crate) fn set_registrations(
+        &self,
+        store: Option<Arc<crate::registration_store::Registrations>>,
+    ) {
+        *self
+            .0
+            .registrations
+            .lock()
+            .expect("notification registration store") = store;
     }
     pub async fn run(
         &self,

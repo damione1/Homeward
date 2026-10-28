@@ -50,6 +50,7 @@ struct Inner {
     window: Option<slint::Weak<HomewardWindow>>,
     source: Arc<dyn native::Source>,
     session: Mutex<Option<(u64, SessionCoordinator)>>,
+    registrations: Mutex<Option<Arc<crate::registration_store::Registrations>>>,
 }
 impl Companion {
     #[cfg(test)]
@@ -63,7 +64,18 @@ impl Companion {
             window,
             source,
             session: Mutex::new(None),
+            registrations: Mutex::new(None),
         }))
+    }
+    pub(crate) fn set_registrations(
+        &self,
+        store: Option<Arc<crate::registration_store::Registrations>>,
+    ) {
+        *self
+            .0
+            .registrations
+            .lock()
+            .expect("companion registration store") = store;
     }
     fn authenticated(&self, state: &State) -> bool {
         self.0
