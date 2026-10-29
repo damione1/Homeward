@@ -46,6 +46,8 @@ class QualificationScope(Enum):
     LATENCY = 'latency'
     LATENCY_LOAD = 'latency-load'
     IME = 'ime'
+    VOICEOVER = 'voiceover'
+    RECOVERY = 'recovery'
     def __str__(self): return self.value
     def cycle_count(self):
         match self:
@@ -54,7 +56,14 @@ class QualificationScope(Enum):
             case QualificationScope.LATENCY: return 0
             case QualificationScope.LATENCY_LOAD: return 0
             case QualificationScope.IME: return 0
+            case QualificationScope.VOICEOVER: return 0
+            case QualificationScope.RECOVERY: return 0
         raise AssertionError('Unhandled qualification scope')
+
+class RecoveryAction(Enum):
+    OUTAGE = 'outage'
+    RESTORE = 'restore'
+    RESTART = 'restart'
 
 class LatencyStatus(Enum):
     MEASURED = 'MEASURED'
@@ -62,6 +71,10 @@ class LatencyStatus(Enum):
 
 class NativeInputCommand(Enum):
     COMPOSE = 'compose'
+    RESTORE = 'restore'
+
+class NativeReaderCommand(Enum):
+    QUALIFY = 'qualify'
     RESTORE = 'restore'
 
 class Appearance(Enum):
@@ -85,7 +98,7 @@ class BuildProfile(Enum):
         raise AssertionError('Unhandled build profile')
 
 
-def qualify(profile, retained_server, scope, appearance, text_scale):
+def qualify(profile, retained_server, scope, appearance, text_scale, retained_app=None):
     if platform.system() != 'Darwin' or not os.environ.get('CARGO_TARGET_DIR'):
         raise RuntimeError('Native macOS proof must run through the frontend build reservation')
     proof = Path(CONFIG['frontend_cache']) / 'nhf023' / ('desktop-resources-' + str(time.time_ns()))
@@ -100,7 +113,13 @@ def qualify(profile, retained_server, scope, appearance, text_scale):
         if not retained_server.is_absolute() or not retained_server.is_file():
             raise RuntimeError('Retained server binary must exist at an absolute path')
         shutil.copy2(retained_server, server)
-    run(['cargo','build','--locked','-p','homeward-app','--bin','homeward-desktop',*profile.arguments()])
+    if retained_app is None:
+        run(['cargo','build','--locked','-p','homeward-app','--bin','homeward-desktop',*profile.arguments()])
+        app_source = Path(os.environ['CARGO_TARGET_DIR']) / profile.value / 'homeward-desktop'
+    else:
+        if not retained_app.is_absolute() or not retained_app.is_file() or not os.access(retained_app, os.X_OK):
+            raise RuntimeError('Retained app binary must be executable at an absolute path')
+        app_source = retained_app
     helper = proof / 'native-ui'
     modules = Path(CONFIG['frontend_cache']) / 'session-spike/swift-modules'
     run(['xcrun','swiftc','-module-cache-path',modules,ROOT/'qualification/frontend/native-ui.swift','-o',helper])
@@ -114,15 +133,23 @@ def qualify(profile, retained_server, scope, appearance, text_scale):
         input_helper = proof / 'native-input'
         run(['xcrun','swiftc','-O','-parse-as-library','-module-cache-path',modules,
              ROOT/'qualification/frontend/native-input.swift','-o',input_helper])
+    reader_helper = None
+    if scope is QualificationScope.VOICEOVER:
+        reader_helper = proof / 'native-voiceover'
+        run(['xcrun','swiftc','-O','-parse-as-library','-module-cache-path',modules,
+             ROOT/'qualification/frontend/native-voiceover.swift','-o',reader_helper])
     bundle = proof / 'Homeward Resources.app/Contents'
     (bundle / 'MacOS').mkdir(parents=True)
     binary = bundle / 'MacOS/homeward-desktop'
-    os.link(Path(os.environ['CARGO_TARGET_DIR']) / profile.value / 'homeward-desktop', binary)
+    shutil.copy2(app_source, binary)
     with (bundle/'Info.plist').open('wb') as output:
         plistlib.dump(dict(CFBundleExecutable=binary.name,CFBundleIdentifier=SESSION['PACKAGE'],CFBundleName='Homeward Resources',CFBundlePackageType='APPL',NSHighResolutionCapable=True),output)
     write = SESSION['write']
-    artifacts = [binary,server,helper] + ([latency_helper] if latency_helper else []) + ([input_helper] if input_helper else [])
-    write(proof/'build.json',dict(binary=str(binary),server=str(server),helper=str(helper),profile=profile.value,binaries={str(p.relative_to(proof)):SESSION['digest'](p) for p in artifacts}))
+    artifacts = [binary,server,helper] + ([latency_helper] if latency_helper else []) + ([input_helper] if input_helper else []) + ([reader_helper] if reader_helper else [])
+    write(proof/'build.json',dict(binary=str(binary),server=str(server),helper=str(helper),profile=profile.value,
+        retained_app=str(retained_app) if retained_app else None,
+        retained_app_requires_original_build_provenance=retained_app is not None,
+        binaries={str(p.relative_to(proof)):SESSION['digest'](p) for p in artifacts}))
     write(proof/'machine.json',dict(os=platform.platform(),architecture=platform.machine(),model=subprocess.check_output(['sysctl','-n','hw.model'],text=True).strip(),ram_bytes=int(subprocess.check_output(['sysctl','-n','hw.memsize'],text=True)),cpu=subprocess.check_output(['sysctl','-n','machdep.cpu.brand_string'],text=True).strip(),physical_android=False))
     product = Path.home()/'Library/Application Support/Homeward'
     public, preferences = product/'endpoint.json', product/'interface.json'
@@ -208,7 +235,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale):
                     capture('styled-preferences-before-home')
                     native(Command.NAVIGATE,section=NavigationSection.HOME.value); wait('Ma maison')
                 capture('home-before-cycles')
-                baseline=idle_window() if scope is not QualificationScope.IME else None
+                baseline=idle_window() if scope not in (QualificationScope.IME,QualificationScope.VOICEOVER,QualificationScope.RECOVERY) else None
                 write(proof/'baseline-resources.json',baseline)
                 cycles=[]
                 for cycle in range(1,scope.cycle_count()+1):
@@ -233,6 +260,67 @@ def qualify(profile, retained_server, scope, appearance, text_scale):
                 loaded = None
                 latency = None
                 composition = None
+                reader_result = None
+                recovery = None
+                if scope is QualificationScope.RECOVERY:
+                    checkpoints = []
+                    sequence = 0
+                    def control_recovery(action):
+                        nonlocal sequence
+                        if not isinstance(action, RecoveryAction): raise TypeError('Typed recovery action required')
+                        sequence += 1
+                        command = control/'command.writing'
+                        write(command,dict(sequence=sequence,action=action.value)); command.replace(control/'command.json')
+                        acknowledgement = control/f'ack-{sequence:02d}.json'
+                        deadline = time.monotonic()+30
+                        while not acknowledgement.is_file():
+                            if app.poll() is not None or time.monotonic()>=deadline:
+                                raise RuntimeError('Synthetic recovery command was not acknowledged')
+                            time.sleep(.05)
+                        result = json.loads(acknowledgement.read_text())
+                        if result['sequence']!=sequence or result['action']!=action.value:
+                            raise RuntimeError('Out of order recovery acknowledgement')
+                        write(proof/f'recovery-ack-{sequence:02d}.json',result)
+                    def checkpoint(name):
+                        capture(name)
+                        checkpoints.append(dict(name=name,resources=sample()))
+                        write(proof/(name+'.json'),checkpoints[-1])
+                    native(Command.NAVIGATE,section=NavigationSection.INVENTORY.value)
+                    wait('États à jour')
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
+                    checkpoint('recovery-live-before-outage')
+                    try:
+                        control_recovery(RecoveryAction.OUTAGE)
+                        wait('Hors ligne · dernières données reçues')
+                        native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
+                        checkpoint('recovery-dated-view-offline')
+                    finally:
+                        # Restore only this isolated fixture, also after a failed UI assertion.
+                        control_recovery(RecoveryAction.RESTORE)
+                    wait('États à jour')
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
+                    checkpoint('recovery-live-after-outage')
+                    control_recovery(RecoveryAction.RESTART)
+                    # An actual OS suspension/resume forces a fresh capture after
+                    # the acknowledged Go Run replacement. A transient live label
+                    # alone cannot prove that the new epoch was consumed.
+                    native(Command.MINIMIZE)
+                    hidden=native(Command.LIFECYCLE)
+                    if not hidden['minimized'] or hidden['on_screen']: raise RuntimeError('Recovery window did not minimize')
+                    native(Command.RESTORE)
+                    wait('États à jour',timeout=35)
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
+                    visible=native(Command.LIFECYCLE)
+                    if visible['minimized'] or not visible['on_screen']: raise RuntimeError('Recovery window did not restore')
+                    checkpoint('recovery-live-after-server-restart-and-resume')
+                    native(Command.NAVIGATE,section=NavigationSection.HOME.value)
+                    wait('Ma maison'); wait('Confort principal')
+                    recovery=dict(dated_view_during_outage=True,live_after_restore=True,
+                        fresh_view_after_server_restart_and_native_resume=True,
+                        hidden=hidden,visible=visible,checkpoints=checkpoints,
+                        rights_withdrawal_qualified=False,refresh_qualified=False,
+                        rotation_qualified=False,physical_android=False)
+                    write(proof/'recovery-checkpoints.json',checkpoints)
                 if scope is QualificationScope.FULL:
                     # StateService load is real and lasts50s. Navigate an observed
                     # server-configured room and back while the update stream runs.
@@ -316,6 +404,25 @@ def qualify(profile, retained_server, scope, appearance, text_scale):
                             run([input_helper],input=json.dumps(dict(command=NativeInputCommand.RESTORE.value,outputDirectory=str(proof/'input'))),text=True,timeout=10)
                         capture('input-failure-before-fixture-close')
                         raise
+                if scope is QualificationScope.VOICEOVER:
+                    try:
+                        payload=dict(command=NativeReaderCommand.QUALIFY.value,pid=app.pid,syntheticOnly=True,outputDirectory=str(proof/'reader'))
+                        with (proof/'reader-stdout.json').open('w') as output, (proof/'reader-stderr.log').open('w') as errors:
+                            process=subprocess.Popen([str(reader_helper)],cwd=ROOT,stdin=subprocess.PIPE,stdout=output,stderr=errors,text=True)
+                            try: process.communicate(json.dumps(payload),timeout=45)
+                            except subprocess.TimeoutExpired:
+                                process.terminate()
+                                try: process.wait(timeout=8)
+                                except subprocess.TimeoutExpired: process.kill(); process.wait()
+                                raise
+                            if process.returncode!=0: raise RuntimeError('Actual VoiceOver qualification failed; inspect owned reader diagnostics')
+                        reader_result=json.loads((proof/'reader/result.json').read_text())
+                        capture('after-native-reader')
+                    except BaseException:
+                        if (proof/'reader/reader-lease.json').is_file():
+                            run([reader_helper],input=json.dumps(dict(command=NativeReaderCommand.RESTORE.value,pid=app.pid,syntheticOnly=True,outputDirectory=str(proof/'reader'))),text=True,timeout=10)
+                        capture('reader-failure-before-fixture-close')
+                        raise
                 native(Command.NAVIGATE,section=NavigationSection.SETTINGS.value); wait('À votre mesure')
                 capture('preferences-before-shutdown')
                 # Settings now contains companion, notifications and account
@@ -336,6 +443,9 @@ def qualify(profile, retained_server, scope, appearance, text_scale):
         report=json.loads((control/'result.json').read_text())
         if report['command_driver_entries']!=0 or not report['server_joined'] or report['state_read_ok']<1+scope.cycle_count() or report['state_release_ok']<1+scope.cycle_count():
             raise RuntimeError('Fresh reads, pagination cleanup and read-only shutdown not proved')
+        if scope is QualificationScope.RECOVERY:
+            if report['servers_started']!=2 or report['servers_joined']!=2 or report['connections_remaining']!=0 or report['state_read_ok']<2 or report['state_release_ok']<2 or report['action_rpc_calls']!=0 or report['revoke_ok']!=1:
+                raise RuntimeError('Recovery did not prove joined server replacement, fresh reads and zero actions')
         write(proof/'result.json',dict(status='PASS_PENDING_VISUAL_INSPECTION',profile=profile.value,qualification_scope=scope.value,appearance=appearance.value,text_scale=text_scale.value,actual_native_cycles=len(cycles),entity_count=private['entity_count'],load=load,baseline=baseline,after_cycles=after,after_load=loaded,cycles=cycles,server=report,children_joined=True,
             cases=[dict(platform='macos',native_rendering=True,children_joined=True)],
             scope=f'Native macOS {profile.value}, {scope.value} scope, isolated Go-race TLS; load, cycles and compositor latency only when explicitly recorded; no physical tablet result',
@@ -343,6 +453,8 @@ def qualify(profile, retained_server, scope, appearance, text_scale):
             rss_change_after_warmup_bytes=(statistics.mean(row['resources']['rss_bytes'] for row in cycles[-10:])-statistics.mean(row['resources']['rss_bytes'] for row in cycles[9:19])) if cycles else None,
             physical_tablet=False,input_to_present_p95_ms=latency['p95_ms'] if latency else None,compositor_latency=latency,
             native_composition=composition,
+            native_reader=reader_result,
+            native_recovery=recovery,
             provisional_input_target_met_on_this_host=latency['p95_ms']<=80 if latency else None,
             cold_cached_view_startup_seconds=None,all_nhf023_acceptance_closed=False))
         print('DESKTOP_RESOURCES_PASS '+str(proof),flush=True)
@@ -376,8 +488,9 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--profile',type=BuildProfile,choices=list(BuildProfile),default=BuildProfile.RELEASE)
     parser.add_argument('--server-binary',type=Path)
+    parser.add_argument('--app-binary',type=Path,help='Reuse an exact executable; retain its original build manifest, not a claim that current sources built it')
     parser.add_argument('--scope',type=QualificationScope,choices=list(QualificationScope),default=QualificationScope.FULL)
     parser.add_argument('--appearance',type=Appearance,choices=list(Appearance),default=Appearance.LIGHT)
     parser.add_argument('--text-scale',type=TextScale,choices=list(TextScale),default=TextScale.STANDARD)
     args=parser.parse_args()
-    qualify(args.profile,args.server_binary,args.scope,args.appearance,args.text_scale)
+    qualify(args.profile,args.server_binary,args.scope,args.appearance,args.text_scale,args.app_binary)
