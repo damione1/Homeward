@@ -81,6 +81,11 @@ class NativeAction(Enum):
     SIGN_OUT = 'sign-out'
     SCROLL_END = 'scroll-end'
     CHECK_ROW = 'check-row'
+    NAVIGATE = 'navigate'
+
+
+class NativeNavigationSection(Enum):
+    INVENTORY = 'Inventaire'
 
 
 class AppStep(Enum):
@@ -306,12 +311,13 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                         return subprocess.run([str(helper), str(action)], capture_output=True, text=True, timeout=5)
                     def accessible(command, **fields):
                         return subprocess.run([str(helper), '-'], input=json.dumps({'pid': child.pid, 'command': command.value, 'syntheticOnly': True, **fields}), capture_output=True, text=True, timeout=20)
-                    def wait_native(label, editors=None):
+                    def wait_native(label, editors=None, contains=False):
                         deadline = time.monotonic() + 10
                         while True:
                             response = accessible(NativeAction.TREE)
                             rows = json.loads(response.stdout) if response.returncode == 0 else []
-                            found = any(label in (row['title'], row['description'], row['text']) for row in rows)
+                            found = any(any(label in str(row[key]) if contains else label == row[key]
+                                            for key in ['title','description','text']) for row in rows)
                             fields_ready = editors is None or sum(row['role'] == 'AXTextField' for row in rows) == editors
                             if found and fields_ready:
                                 return
@@ -334,7 +340,7 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                         assert info['accessibility_trusted'] and info['post_events_allowed']
                         time.sleep(.5)
                         if step is AppStep.RESTORE_READ_LOGOUT:
-                            wait_native('Afficher ma maison')
+                            wait_native('États à jour', contains=True)
                         else:
                             wait_native('Se connecter', editors=2)
                         snapshot(step.value)
@@ -348,8 +354,9 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                                 snapshot('authenticated')
                             case AppStep.RESTORE_READ_LOGOUT:
                                 assert present()
-                                assert accessible(NativeAction.READ).returncode == 0
-                                time.sleep(1)
+                                # Startup restores the OS session and obtains a
+                                # fresh authorized view without a second click.
+                                assert accessible(NativeAction.NAVIGATE, section=NativeNavigationSection.INVENTORY.value).returncode == 0
                                 snapshot('protected-read')
                                 if kind is FixtureKind.CACHE:
                                     scroll = accessible(NativeAction.SCROLL_END, expectedRowLabel=private['expected_last_alias'])
@@ -471,7 +478,7 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                 write(directory / 'clock.json', {'host_before_ns': before, 'device_epoch_seconds': device_clock, 'host_after_ns': time.time_ns()})
                 for step in [AppStep.LOGIN, AppStep.RESTORE_READ_LOGOUT, AppStep.STORE_FAILURE, AppStep.SIGNED_OUT]:
                     device('shell', 'am', 'start', '-n', PACKAGE + '/' + ACTIVITY)
-                    ui.find('Afficher ma maison', match=contains) if step is AppStep.RESTORE_READ_LOGOUT else ui.find('Identifiant')
+                    ui.find('États à jour', match=contains) if step is AppStep.RESTORE_READ_LOGOUT else ui.find('Identifiant')
                     snapshot(step.value)
                     match step:
                         case AppStep.LOGIN:
@@ -488,7 +495,6 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                             snapshot('authenticated')
                         case AppStep.RESTORE_READ_LOGOUT:
                             assert len(records()) == 1
-                            ui.tap('Afficher ma maison', match=contains)
                             if kind is FixtureKind.CACHE:
                                 ui.find('850 entités', match=contains)
                             ui.tap('Inventaire')

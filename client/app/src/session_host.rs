@@ -129,6 +129,28 @@ enum ReadIntent {
     Requested(ProfileEpoch),
 }
 
+#[derive(Default)]
+enum StartupRead {
+    #[default]
+    Pending,
+    Claimed,
+    Cancelled,
+}
+impl StartupRead {
+    fn claim(&mut self, phase: Phase) -> bool {
+        if !matches!(phase, Phase::Ready | Phase::Refreshing) {
+            return false;
+        }
+        match self {
+            Self::Pending => {
+                *self = Self::Claimed;
+                true
+            }
+            Self::Claimed | Self::Cancelled => false,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Lifecycle {
     Foreground,
@@ -344,6 +366,8 @@ struct Ui {
     epoch: Arc<AtomicU64>,
     cache_handle: Arc<Mutex<Option<CacheBinding>>>,
     read_intent: Arc<Mutex<ReadIntent>>,
+    startup_read: Arc<Mutex<StartupRead>>,
+    lifecycle: watch::Sender<Lifecycle>,
     projection_request: crate::dashboard::SharedRequest,
     viewport: watch::Sender<Viewport>,
     dashboard_retry: Arc<tokio::sync::Notify>,
@@ -388,6 +412,7 @@ impl Ui {
         }
     }
     fn invalidate_cache(&self) {
+        *self.startup_read.lock().expect("startup read mutex") = StartupRead::Cancelled;
         self.companion.clear();
         self.notifications.clear();
         self.administration.clear();
@@ -413,6 +438,7 @@ impl Ui {
     }
     fn request_view(&self, epoch: ProfileEpoch) {
         if self.epoch.load(Ordering::SeqCst) == epoch.0 {
+            *self.startup_read.lock().expect("startup read mutex") = StartupRead::Cancelled;
             *self.read_intent.lock().expect("read intent mutex poisoned") =
                 ReadIntent::Requested(epoch);
         }
@@ -549,8 +575,48 @@ impl Ui {
             window.set_setup_message(message.into());
         });
     }
-    fn view(&self, epoch: ProfileEpoch, view: SessionView) {
-        self.post(epoch, move |window| render_view(&window, view));
+    fn view(&self, epoch: ProfileEpoch, view: SessionView, current: watch::Receiver<SessionView>) {
+        let ui = self.clone();
+        self.post(epoch, move |window| {
+            // A queued startup/Ready callback must not revive a logout, changed
+            // authority, replaced profile or a more recent session state.
+            // The receiver carries state only; retaining the coordinator here
+            // would also retain its OS store lease while this callback waits.
+            if *current.borrow() != view {
+                return;
+            }
+            render_view(&window, view);
+            let binding = ui
+                .cache_handle
+                .lock()
+                .expect("UI cache handle mutex poisoned")
+                .clone();
+            let Some(binding) = binding.filter(|binding| binding.epoch == epoch) else {
+                return;
+            };
+            if !window.get_endpoint_ready()
+                || window.get_show_endpoint()
+                || !ui
+                    .startup_read
+                    .lock()
+                    .expect("startup read mutex")
+                    .claim(view.phase)
+            {
+                return;
+            }
+            // Only an OS-restored session reaches Ready while this one-shot is
+            // pending: explicit login, logout, read and endpoint changes cancel
+            // it synchronously. All private data still comes from fresh RPCs.
+            ui.request_view(epoch);
+            ui.dashboard_retry.notify_one();
+            if *ui.lifecycle.borrow() == Lifecycle::Foreground
+                && let Ok(permit) = binding.handle.prepare_activation()
+            {
+                let _ = binding.handle.activate_prepared(permit);
+            }
+            // If restoration finished in background, the requested read is
+            // admitted by the existing fenced native Foreground path instead.
+        });
     }
     fn projection_target(&self, profile: ProfileEpoch) -> ProjectionTarget {
         ProjectionTarget {
@@ -1078,7 +1144,7 @@ async fn install_profile(
                 | Phase::UnsupportedResponse => {}
             }
             let _ = cache_handle.session_changed(view.phase);
-            observer_ui.view(epoch, view);
+            observer_ui.view(epoch, view, changes.clone());
             tokio::select! {
                 () = observer_cancel.cancelled() => break,
                 changed = changes.changed() => if changed.is_err() { break; },
@@ -1440,6 +1506,8 @@ pub(crate) fn run_with_lifecycle(
         epoch: Arc::new(AtomicU64::new(0)),
         cache_handle: lifecycle.cache_handle.clone(),
         read_intent: lifecycle.read_intent.clone(),
+        startup_read: Arc::new(Mutex::new(StartupRead::default())),
+        lifecycle: lifecycle.events.clone(),
         projection_request: Arc::new(Mutex::new(crate::dashboard::ProjectionRequest::default())),
         viewport: viewport_tx.clone(),
         dashboard_retry: Arc::new(tokio::sync::Notify::new()),
@@ -1872,6 +1940,8 @@ mod tests {
             epoch: Arc::new(AtomicU64::new(epoch.0)),
             cache_handle: bridge.cache_handle.clone(),
             read_intent: bridge.read_intent.clone(),
+            startup_read: Arc::new(Mutex::new(StartupRead::default())),
+            lifecycle: bridge.events.clone(),
             projection_request: Arc::new(
                 Mutex::new(crate::dashboard::ProjectionRequest::default()),
             ),
@@ -1968,6 +2038,8 @@ mod tests {
             epoch: Arc::new(AtomicU64::new(0)),
             cache_handle: Arc::new(Mutex::new(None)),
             read_intent: Arc::new(Mutex::new(ReadIntent::NotRequested)),
+            startup_read: Arc::new(Mutex::new(StartupRead::default())),
+            lifecycle: watch::channel(Lifecycle::Foreground).0,
             projection_request: Arc::new(
                 Mutex::new(crate::dashboard::ProjectionRequest::default()),
             ),
@@ -2008,6 +2080,37 @@ mod tests {
         bridge.set(Lifecycle::Foreground);
         assert!(events.has_changed().unwrap());
         assert_eq!(*events.borrow_and_update(), Lifecycle::Foreground);
+    }
+
+    #[test]
+    fn startup_is_one_read_and_explicit_invalidation_prevents_a_late_ready_callback() {
+        let mut startup = StartupRead::default();
+        for phase in [
+            Phase::SignedOut,
+            Phase::Busy,
+            Phase::NeedsLogin,
+            Phase::CredentialRejected,
+            Phase::AuthorityUnavailable,
+            Phase::RightsChanged,
+            Phase::StorageUnavailable,
+            Phase::UnsupportedResponse,
+            Phase::Closed,
+            Phase::NetworkUnavailable,
+            Phase::RateLimited,
+            Phase::EnrollmentRequired,
+            Phase::Challenge {
+                recovery: true,
+                fido2: false,
+            },
+        ] {
+            assert!(!startup.claim(phase));
+        }
+        assert!(startup.claim(Phase::Ready));
+        assert!(!startup.claim(Phase::Ready));
+        assert!(!startup.claim(Phase::Refreshing));
+        let mut cancelled = StartupRead::Cancelled;
+        assert!(!cancelled.claim(Phase::Ready));
+        assert!(!cancelled.claim(Phase::Refreshing));
     }
 
     #[test]

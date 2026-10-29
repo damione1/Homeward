@@ -48,6 +48,8 @@ class QualificationScope(Enum):
     IME = 'ime'
     VOICEOVER = 'voiceover'
     RECOVERY = 'recovery'
+    STARTUP = 'startup'
+    STARTUP_WITHDRAWN = 'startup-withdrawn'
     def __str__(self): return self.value
     def cycle_count(self):
         match self:
@@ -58,12 +60,16 @@ class QualificationScope(Enum):
             case QualificationScope.IME: return 0
             case QualificationScope.VOICEOVER: return 0
             case QualificationScope.RECOVERY: return 0
+            case QualificationScope.STARTUP: return 0
+            case QualificationScope.STARTUP_WITHDRAWN: return 0
         raise AssertionError('Unhandled qualification scope')
 
 class RecoveryAction(Enum):
     OUTAGE = 'outage'
     RESTORE = 'restore'
     RESTART = 'restart'
+    DENY = 'deny'
+    ALLOW = 'allow'
 
 class LatencyStatus(Enum):
     MEASURED = 'MEASURED'
@@ -235,7 +241,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                     capture('styled-preferences-before-home')
                     native(Command.NAVIGATE,section=NavigationSection.HOME.value); wait('Ma maison')
                 capture('home-before-cycles')
-                baseline=idle_window() if scope not in (QualificationScope.IME,QualificationScope.VOICEOVER,QualificationScope.RECOVERY) else None
+                baseline=idle_window() if scope not in (QualificationScope.IME,QualificationScope.VOICEOVER,QualificationScope.RECOVERY,QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN) else None
                 write(proof/'baseline-resources.json',baseline)
                 cycles=[]
                 for cycle in range(1,scope.cycle_count()+1):
@@ -262,7 +268,8 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                 composition = None
                 reader_result = None
                 recovery = None
-                if scope is QualificationScope.RECOVERY:
+                startup = None
+                if scope in (QualificationScope.RECOVERY,QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN):
                     checkpoints = []
                     sequence = 0
                     def control_recovery(action):
@@ -274,7 +281,10 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                         acknowledgement = control/f'ack-{sequence:02d}.json'
                         deadline = time.monotonic()+30
                         while not acknowledgement.is_file():
-                            if app.poll() is not None or time.monotonic()>=deadline:
+                            # Startup changes rights while the old app is
+                            # deliberately closed. The isolated Go fixture,
+                            # not that process, acknowledges this command.
+                            if time.monotonic()>=deadline:
                                 raise RuntimeError('Synthetic recovery command was not acknowledged')
                             time.sleep(.05)
                         result = json.loads(acknowledgement.read_text())
@@ -285,6 +295,48 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                         capture(name)
                         checkpoints.append(dict(name=name,resources=sample()))
                         write(proof/(name+'.json'),checkpoints[-1])
+                if scope in (QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN):
+                    native(Command.CLOSE)
+                    if app.wait(timeout=15)!=0: raise RuntimeError('Pre-startup application did not close normally')
+                    if scope is QualificationScope.STARTUP_WITHDRAWN:
+                        control_recovery(RecoveryAction.DENY)
+                    with (proof/'reopened-app.log').open('wb') as reopened_log:
+                        reopened_at=time.monotonic()
+                        app=subprocess.Popen([str(binary)],stdout=reopened_log,stderr=subprocess.STDOUT)
+                    # No read callback, mouse action or injected access token is
+                    # used between process launch and the first fresh view.
+                    if scope is QualificationScope.STARTUP:
+                        wait('États à jour'); wait('Confort principal')
+                        capture('startup-fresh-view')
+                        upper_bound=time.monotonic()-reopened_at
+                        startup=dict(fresh_view_upper_bound_seconds=upper_bound,
+                            provisional_two_second_target_met_on_this_host=upper_bound<=2,
+                            automatic_read=True,session_restored_from_os=True,
+                            private_state_disk_cache=False,physical_android=False,
+                            method='Process launch through completion of owned-window screenshot and AX status/data confirmation; conservative upper bound, not first-frame timing or OS disk-cache eviction')
+                    else:
+                        # With no remaining entity grants, OpenView returns a
+                        # successful empty authorized capture, not an auth error.
+                        wait('Aucun élément autorisé dans cette vue.')
+                        rows=tree()
+                        if any(private['expected_first_alias'] in str(row.get(key,'')) or 'Confort principal' in str(row.get(key,'')) for row in rows for key in ['title','description','text']):
+                            raise RuntimeError('Startup disclosed a former protected projection after denial')
+                        capture('startup-withdrawn-view-cleared')
+                        native(Command.MINIMIZE)
+                        hidden=native(Command.LIFECYCLE)
+                        if not hidden['minimized'] or hidden['on_screen']: raise RuntimeError('Withdrawn startup did not minimize')
+                        control_recovery(RecoveryAction.ALLOW)
+                        native(Command.RESTORE)
+                        wait('États à jour'); wait('Confort principal')
+                        visible=native(Command.LIFECYCLE)
+                        if visible['minimized'] or not visible['on_screen']: raise RuntimeError('Regranted startup did not restore')
+                        capture('startup-regranted-fresh-view')
+                        startup=dict(withdrawn_startup_has_empty_authorized_view=True,
+                            fresh_view_after_regrant_and_native_resume=True,hidden=hidden,visible=visible,
+                            automatic_read=True,private_state_disk_cache=False,physical_android=False,
+                            fresh_view_upper_bound_seconds=None)
+                    write(proof/'startup.json',startup)
+                if scope is QualificationScope.RECOVERY:
                     native(Command.NAVIGATE,section=NavigationSection.INVENTORY.value)
                     wait('États à jour')
                     native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
@@ -446,6 +498,11 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
         if scope is QualificationScope.RECOVERY:
             if report['servers_started']!=2 or report['servers_joined']!=2 or report['connections_remaining']!=0 or report['state_read_ok']<2 or report['state_release_ok']<2 or report['action_rpc_calls']!=0 or report['revoke_ok']!=1:
                 raise RuntimeError('Recovery did not prove joined server replacement, fresh reads and zero actions')
+        if scope in (QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN):
+            correct_reads = report['state_read_calls']==report['state_read_ok']==report['state_release_ok']
+            enough_reads = report['state_read_ok']==2 if scope is QualificationScope.STARTUP else report['state_read_ok']>=3
+            if not correct_reads or not enough_reads or report['action_rpc_calls']!=0 or report['revoke_ok']!=1 or report['start_login_calls']!=1 or report['connections_remaining']!=0:
+                raise RuntimeError('Startup did not prove exact automatic reads, denial/cleanup and zero replay')
         write(proof/'result.json',dict(status='PASS_PENDING_VISUAL_INSPECTION',profile=profile.value,qualification_scope=scope.value,appearance=appearance.value,text_scale=text_scale.value,actual_native_cycles=len(cycles),entity_count=private['entity_count'],load=load,baseline=baseline,after_cycles=after,after_load=loaded,cycles=cycles,server=report,children_joined=True,
             cases=[dict(platform='macos',native_rendering=True,children_joined=True)],
             scope=f'Native macOS {profile.value}, {scope.value} scope, isolated Go-race TLS; load, cycles and compositor latency only when explicitly recorded; no physical tablet result',
@@ -455,6 +512,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
             native_composition=composition,
             native_reader=reader_result,
             native_recovery=recovery,
+            native_startup=startup,
             provisional_input_target_met_on_this_host=latency['p95_ms']<=80 if latency else None,
             cold_cached_view_startup_seconds=None,all_nhf023_acceptance_closed=False))
         print('DESKTOP_RESOURCES_PASS '+str(proof),flush=True)
