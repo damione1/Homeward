@@ -346,7 +346,20 @@ def build_apps(stage, selection):
     if selection is not Platform.ANDROID:
         tool_versions['macos_sdk']=execute(['xcrun','--show-sdk-version']).strip()
     if selection is not Platform.MACOS:
-        tool_versions['cargo_apk']=execute(['cargo','apk','--version'],home).strip()
+        # cargo-apk0.10 exposes no --version flag. Record its actual binary
+        # and the Cargo installer version without copying registry URLs.
+        apk_tool=shutil.which('cargo-apk')
+        if apk_tool is None:
+            raise RuntimeError('cargo-apk must be installed on PATH')
+        apk_tool=Path(apk_tool).resolve()
+        installed=apk_tool.parent.parent / '.crates.toml'
+        versions=[]
+        if installed.is_file():
+            for key in tomllib.loads(installed.read_text()).get('v1',{}):
+                found=re.fullmatch(r'cargo-apk ([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?) \(.+\)',key)
+                if found:versions.append(found[1])
+        tool_versions['cargo_apk']=dict(version=versions[0] if len(versions)==1 else None,binary_sha256=sha(apk_tool),
+                                       version_source='Cargo installer metadata when available; CLI has no version flag')
         java_version=subprocess.run([str(Path(env['JAVA_HOME']) / 'bin/javac'),'-version'],capture_output=True,text=True,check=True)
         tool_versions['javac']=(java_version.stdout+java_version.stderr).strip()
         for name, path in [('android_build_tools',Path(env['ANDROID_HOME']) / 'build-tools/35.0.0/source.properties'),
