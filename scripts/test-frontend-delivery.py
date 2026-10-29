@@ -2,6 +2,7 @@
 """Source export and refusal boundaries; no compiler, app or device started."""
 import importlib.util
 import json
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -26,6 +27,9 @@ class DeliveryBoundaries(unittest.TestCase):
                 (root/'signing.keystore').write_bytes(b'PRIVATE TEST SIGNING MATERIAL MUST NOT BE EXPORTED')
                 (root/'crates/component').mkdir(parents=True)
                 (root/'crates/component/LICENSE').symlink_to('../../LICENSE')
+                if root==roots[delivery.Source.HOMEWARD]:
+                    (root/'scripts').mkdir()
+                    shutil.copyfile(Path(delivery.__file__),root/'scripts/frontend-delivery.py')
                 subprocess.run(['git','init','-q',root],check=True)
                 subprocess.run(['git','-C',root,'add','.'],check=True)
                 subprocess.run(['git','-C',root,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Fixture'],check=True)
@@ -35,6 +39,12 @@ class DeliveryBoundaries(unittest.TestCase):
             with patch.object(delivery,'ROOT',home):
                 delivery.stage_sources(stage)
                 delivery.verify_sources(stage)
+                relocated=base/'relocated';relocated.mkdir()
+                with delivery.tarfile.open(stage/'PRIVATE-source-artifacts.tar.gz') as stream:
+                    stream.extractall(relocated,filter='data')
+                delivery.restore_sources(relocated)
+                delivery.verify_sources(relocated)
+                self.assertEqual((relocated/'sources/homeward/code.txt').read_text(),'Validated source\n')
                 for source in delivery.Source:
                     exported=stage/'sources'/source.value
                     self.assertFalse((exported/'signing.keystore').exists())

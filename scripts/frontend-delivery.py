@@ -50,6 +50,7 @@ class Platform(Enum):
 
 class Command(Enum):
     STAGE = 'stage'
+    RESTORE = 'restore'
     BUILD = 'build'
     VERIFY = 'verify'
 
@@ -150,12 +151,41 @@ def stage_sources(destination):
     configure_sources(stage)
     for source in Source:
         identities[source.value]['files'] = files(stage / 'sources' / source.value)
+    bootstrap = stage / 'frontend-delivery.py'
+    shutil.copyfile(stage / 'sources/homeward/scripts/frontend-delivery.py',bootstrap)
     record = dict(format=1,mode='versioned-source-artifacts',distribution='local-evaluation-only',
                   sources=identities,free_remote_availability='not asserted; exact local source archive supplied',
+                  bootstrap_sha256=sha(bootstrap),
                   private_source_notice='Pro source archive remains private. No remote availability, commercial license clearance or store publication is asserted.',
                   no_signing_credentials_exported=True)
     write(stage / 'source-record.json', record)
+    # Keep premium sources separate from the installable-binary directory.
+    private_bundle = stage / 'PRIVATE-source-artifacts.tar.gz'
+    with tarfile.open(private_bundle,'w:gz') as stream:
+        for path in [stage / 'source-record.json',bootstrap,*sorted(archives.iterdir())]:
+            stream.add(path,arcname=str(path.relative_to(stage)),recursive=False)
+    (stage / 'PRIVATE-source-artifacts.sha256').write_text(sha(private_bundle)+'  '+private_bundle.name+'\n')
     print(stage / 'source-record.json')
+
+
+def restore_sources(stage):
+    stage = stage.expanduser().resolve()
+    record = json.loads((stage / 'source-record.json').read_text())
+    if record.get('format') != 1 or record.get('mode') != 'versioned-source-artifacts':
+        raise RuntimeError('Unsupported source artifact format')
+    if (stage / 'sources').exists() or (stage / 'sources').is_symlink():
+        raise RuntimeError('Preserve existing source trees; restore in a fresh directory')
+    for source in Source:
+        item = record['sources'][source.value]
+        archive = stage / item['archive']
+        if not archive.resolve().is_relative_to(stage) or sha(archive) != item['archive_sha256']:
+            raise RuntimeError('Source archive checksum mismatch: ' + source.value)
+    (stage / 'sources').mkdir()
+    for source in Source:
+        with tarfile.open(stage / record['sources'][source.value]['archive']) as stream:
+            stream.extractall(stage / 'sources',filter='data')
+    configure_sources(stage)
+    verify_sources(stage)
 
 
 def verify_sources(stage):
@@ -165,6 +195,8 @@ def verify_sources(stage):
         raise RuntimeError('Unsupported source artifact format')
     if set(record['sources']) != {source.value for source in Source}:
         raise RuntimeError('Exactly three identified source trees are required')
+    if sha(stage / 'frontend-delivery.py') != record['bootstrap_sha256']:
+        raise RuntimeError('Source bootstrap checksum mismatch')
     for source in Source:
         item = record['sources'][source.value]
         archive = stage / item['archive']
@@ -308,9 +340,21 @@ def build_apps(stage, selection):
     metadata = dict(packages=sorted(packages.values(),key=lambda package:(package['name'],package['version'],package['id'])))
     license_inventory(stage,metadata,destination)
     shutil.copyfile(home / 'Cargo.lock',destination / 'Cargo.lock')
+    tool_versions = dict(python=platform.python_version(),host=platform.platform(),architecture=platform.machine())
+    if selection is not Platform.ANDROID:
+        tool_versions['macos_sdk']=execute(['xcrun','--show-sdk-version']).strip()
+    if selection is not Platform.MACOS:
+        tool_versions['cargo_apk']=execute(['cargo','apk','--version']).strip()
+        java_version=subprocess.run([str(Path(env['JAVA_HOME']) / 'bin/javac'),'-version'],capture_output=True,text=True,check=True)
+        tool_versions['javac']=(java_version.stdout+java_version.stderr).strip()
+        for name, path in [('android_build_tools',Path(env['ANDROID_HOME']) / 'build-tools/35.0.0/source.properties'),
+                           ('android_ndk',Path(env['ANDROID_NDK_ROOT']) / 'source.properties')]:
+            tool_versions[name]=next(line.split('=',1)[1].strip() for line in path.read_text().splitlines() if line.startswith('Pkg.Revision'))
     result = dict(status='BUILDING',source_record='../source-record.json',distribution='local-evaluation-only',
                   rustc=execute(['rustc','-Vv']).strip(),cargo=execute(['cargo','-V']).strip(),
+                  tool_versions=tool_versions,
                   sources={name:{key:value[key] for key in ('revision','tree')} for name,value in record['sources'].items()},
+                  component_versions=[dict(name=package['name'],version=package['version']) for package in metadata['packages'] if package['name'] in ('slint','slint-kit','slint-kit-pro','connectrpc')],
                   license_inventory_targets=selection.targets(),platforms={})
     write(destination / 'build-record.json',result)
     selected = (Platform.MACOS, Platform.ANDROID) if selection is Platform.ALL else (selection,)
@@ -343,6 +387,8 @@ def main():
     commands=parser.add_subparsers(dest='command',required=True)
     stage=commands.add_parser(Command.STAGE.value)
     stage.add_argument('--output',required=True,type=Path)
+    restore=commands.add_parser(Command.RESTORE.value)
+    restore.add_argument('--stage',required=True,type=Path)
     build=commands.add_parser(Command.BUILD.value)
     build.add_argument('--stage',required=True,type=Path)
     build.add_argument('--platform',type=Platform,choices=list(Platform),default=Platform.ALL)
@@ -351,6 +397,7 @@ def main():
     args=parser.parse_args()
     match Command(args.command):
         case Command.STAGE:stage_sources(args.output)
+        case Command.RESTORE:restore_sources(args.stage);print('Pinned source trees restored')
         case Command.BUILD:build_apps(args.stage,args.platform)
         case Command.VERIFY:verify_artifacts(args.stage);print('Source/artifact checksums verified')
 
