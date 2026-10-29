@@ -81,11 +81,12 @@ class StorageGuardTests(unittest.TestCase):
 
 
 def load_tests(loader, tests, _pattern):
-    spec = importlib.util.spec_from_file_location(
-        'test_prune_frontend_cache', Path(__file__).with_name('test-prune-frontend-cache.py'))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    tests.addTests(loader.loadTestsFromModule(module))
+    for module_name, filename in [('test_prune_frontend_cache', 'test-prune-frontend-cache.py'),
+                                  ('test_frontend_delivery', 'test-frontend-delivery.py')]:
+        spec = importlib.util.spec_from_file_location(module_name, Path(__file__).with_name(filename))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        tests.addTests(loader.loadTestsFromModule(module))
     return tests
 
 
