@@ -34,6 +34,25 @@ class Command(Enum):
     CLOSE = 'close'
     CHECK_ROW = 'check-row'
     NAVIGATE = 'navigate'
+    KEY = 'key'
+    RESIZE = 'resize'
+
+class NativeKey(Enum):
+    TAB = 'tab'
+    BACKTAB = 'backtab'
+    DOWN = 'down'
+    HOME = 'home'
+    END = 'end'
+    ENTER = 'enter'
+    ESCAPE = 'escape'
+
+class KeyboardStage(Enum):
+    SEARCH = 'keyboard-search-tab-backtab'
+    INVENTORY = 'keyboard-navigation-inventory'
+    LAST_DETAIL = 'keyboard-last-entity-detail'
+    RESTORED_DETAIL = 'keyboard-restored-row-detail'
+    SETTINGS = 'keyboard-compact-settings'
+    DRAWER = 'keyboard-drawer-restored-focus'
 
 class NavigationSection(Enum):
     HOME = 'Accueil'
@@ -50,6 +69,7 @@ class QualificationScope(Enum):
     RECOVERY = 'recovery'
     STARTUP = 'startup'
     STARTUP_WITHDRAWN = 'startup-withdrawn'
+    KEYBOARD = 'keyboard'
     def __str__(self): return self.value
     def cycle_count(self):
         match self:
@@ -62,6 +82,7 @@ class QualificationScope(Enum):
             case QualificationScope.RECOVERY: return 0
             case QualificationScope.STARTUP: return 0
             case QualificationScope.STARTUP_WITHDRAWN: return 0
+            case QualificationScope.KEYBOARD: return 0
         raise AssertionError('Unhandled qualification scope')
 
 class RecoveryAction(Enum):
@@ -241,7 +262,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                     capture('styled-preferences-before-home')
                     native(Command.NAVIGATE,section=NavigationSection.HOME.value); wait('Ma maison')
                 capture('home-before-cycles')
-                baseline=idle_window() if scope not in (QualificationScope.IME,QualificationScope.VOICEOVER,QualificationScope.RECOVERY,QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN) else None
+                baseline=idle_window() if scope not in (QualificationScope.IME,QualificationScope.VOICEOVER,QualificationScope.RECOVERY,QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN,QualificationScope.KEYBOARD) else None
                 write(proof/'baseline-resources.json',baseline)
                 cycles=[]
                 for cycle in range(1,scope.cycle_count()+1):
@@ -269,6 +290,73 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                 reader_result = None
                 recovery = None
                 startup = None
+                keyboard = None
+                if scope is QualificationScope.KEYBOARD:
+                    def key(value):
+                        if not isinstance(value,NativeKey): raise TypeError('Typed native key required')
+                        native(Command.KEY,key=value.value)
+                        with (proof/'keyboard-keys.jsonl').open('a') as trace:
+                            trace.write(json.dumps(dict(key=value.value,monotonic_seconds=time.monotonic()))+'\n')
+                    def focused_search():
+                        return any(row['role']=='AXTextField' and row['title']=='Rechercher dans ma maison' and row['focused'] for row in tree())
+                    def drawer_open():
+                        return any(row['role']=='AXButton' and row['title']=='Fermer la navigation' for row in tree())
+                    def begin_menu(wide_anchor):
+                        rows=tree()
+                        if any(row['role']=='AXButton' and row['title']=='Navigation' for row in rows):
+                            native(Command.TAP,label='Navigation')
+                            if not drawer_open(): raise RuntimeError('Native navigation drawer did not open')
+                            key(NativeKey.TAB)
+                        else:
+                            native(Command.TAP,label=wide_anchor.value)
+                    native(Command.TAP,label='Rechercher dans ma maison')
+                    if not focused_search(): raise RuntimeError('Native search did not receive focus')
+                    key(NativeKey.TAB)
+                    if focused_search(): raise RuntimeError('Tab failed to leave the search editor')
+                    key(NativeKey.BACKTAB)
+                    if not focused_search(): raise RuntimeError('Shift-Tab failed to return to search')
+                    capture(KeyboardStage.SEARCH.value)
+                    begin_menu(NavigationSection.HOME)
+                    for value in [NativeKey.HOME,NativeKey.DOWN,NativeKey.DOWN,NativeKey.ENTER]: key(value)
+                    wait('Inventaire')
+                    if not any(row['role']=='AXTable' for row in tree()): raise RuntimeError('Keyboard navigation did not open inventory')
+                    capture(KeyboardStage.INVENTORY.value)
+                    # FocusScopes do not all expose AXFocused on this backend.
+                    # Verify the actual table behavior rather than inventing an
+                    # accessibility focus value or injecting a Slint callback.
+                    table_tabs=None
+                    for attempt in range(1,9):
+                        key(NativeKey.TAB); key(NativeKey.END)
+                        if any(private['expected_last_alias'] in (row['title'],row['description'],row['text']) for row in tree()):
+                            table_tabs=attempt; break
+                    if table_tabs is None: raise RuntimeError('Keyboard Tab/End did not reach the last inventory row')
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_last_alias'])
+                    key(NativeKey.ENTER); wait('Retour aux éléments'); wait(private['expected_last_alias'])
+                    capture(KeyboardStage.LAST_DETAIL.value)
+                    key(NativeKey.ENTER); wait('Inventaire')
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_last_alias'])
+                    key(NativeKey.ENTER); wait('Retour aux éléments'); wait(private['expected_last_alias'])
+                    capture(KeyboardStage.RESTORED_DETAIL.value)
+                    key(NativeKey.ENTER); wait('Inventaire')
+                    original_bounds=native(Command.INFO)['bounds']
+                    native(Command.RESIZE,width=800,height=700)
+                    begin_menu(NavigationSection.INVENTORY)
+                    key(NativeKey.END); key(NativeKey.ENTER); wait('À votre mesure')
+                    capture(KeyboardStage.SETTINGS.value)
+                    # The committed drawer selection restores its opener. Enter
+                    # must reopen that drawer; Escape must dismiss it, twice.
+                    for _ in range(2):
+                        key(NativeKey.ENTER)
+                        if not drawer_open(): raise RuntimeError('Keyboard focus did not return to the drawer opener')
+                        key(NativeKey.ESCAPE)
+                        if drawer_open(): raise RuntimeError('Escape failed to dismiss native navigation')
+                    capture(KeyboardStage.DRAWER.value)
+                    native(Command.RESIZE,width=original_bounds['Width'],height=original_bounds['Height']-28)
+                    keyboard=dict(search_tab_shift_tab=True,navigation_home_down_enter=True,
+                        table_tab_end_enter=True,tabs_to_table=table_tabs,
+                        detail_back_restores_row_focus=True,compact_drawer_escape_restores_opener=True,
+                        physical_android=False,all_module_keyboard_qualified=False,screen_reader_qualified=False)
+                    write(proof/'keyboard.json',keyboard)
                 if scope in (QualificationScope.RECOVERY,QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN):
                     checkpoints = []
                     sequence = 0
@@ -513,6 +601,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
             native_reader=reader_result,
             native_recovery=recovery,
             native_startup=startup,
+            native_keyboard=keyboard,
             provisional_input_target_met_on_this_host=latency['p95_ms']<=80 if latency else None,
             cold_cached_view_startup_seconds=None,all_nhf023_acceptance_closed=False))
         print('DESKTOP_RESOURCES_PASS '+str(proof),flush=True)
