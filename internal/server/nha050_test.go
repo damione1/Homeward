@@ -39,6 +39,7 @@ import (
 // This is a fixture façade over the existing view.Service, composed through
 // Run's real port. NHA-050 does not add the future public façade147 to product.
 type nha050StateHandler struct {
+	statev1connect.UnimplementedStateServiceHandler
 	service *view.Service
 	entered chan struct{}
 }

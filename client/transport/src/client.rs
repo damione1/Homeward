@@ -77,6 +77,23 @@ impl StateTransport {
         }
     }
 
+    /// Relinquish ephemeral pagination storage. This cannot dispatch a device
+    /// command or revoke the independently admitted streaming cursor.
+    pub async fn release_view(
+        &self,
+        request: state::ReleaseViewRequest,
+        token: &AccessToken,
+        timeout: Duration,
+        cancel: &CancellationToken,
+    ) -> Result<(), Failure> {
+        let options = Self::options(token, timeout)?;
+        tokio::select! {
+            biased;
+            () = cancel.cancelled() => Err(Failure::cancelled()),
+            response = self.client.release_view_with_options(request, options) => response.map(|_| ()).map_err(Failure::from),
+        }
+    }
+
     pub async fn watch_view(
         &self,
         request: state::WatchViewRequest,

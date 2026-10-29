@@ -6,7 +6,7 @@ import CoreGraphics
 // Qualification only: address one owned process/window, never enumerate other
 // applications, inspect editor values, or retain credentials in input files.
 enum Command: String, Decodable {
-    case info, click, close, minimize, restore, focus
+    case info, lifecycle, click, close, minimize, restore, focus
     case tap, resize, key, scroll, tree, press, release, gesture
     case gestureBegin = "gesture-begin"
     case canvas
@@ -35,7 +35,10 @@ struct Input: Decodable {
     let gesture: NativeGesture?
     let canvasGesture: CanvasGesture?; let endFraction: Double?
 }
-enum ProbeFailure: Error { case invalidInput, missingWindow, accessibilityUnavailable }
+enum ProbeFailure: Error {
+    case invalidInput, missingWindow, accessibilityUnavailable
+    case restoreRejected, restoreIncomplete, focusUnavailable
+}
 
 func attribute(_ element: AXUIElement, _ name: CFString) -> CFTypeRef? {
     var value: CFTypeRef?
@@ -284,7 +287,11 @@ func activate(_ application: NSRunningApplication, _ window: AXUIElement) {
     _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
     _ = AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
     _ = AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, kCFBooleanTrue)
-    Thread.sleep(forTimeInterval: 0.15)
+    let deadline = ProcessInfo.processInfo.systemUptime + 2
+    while NSWorkspace.shared.frontmostApplication?.processIdentifier != application.processIdentifier,
+          ProcessInfo.processInfo.systemUptime < deadline {
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.02))
+    }
 }
 do {
     guard CommandLine.arguments.count == 2 else { throw ProbeFailure.invalidInput }
@@ -294,6 +301,15 @@ do {
     guard let app = NSRunningApplication(processIdentifier: input.pid), !app.isTerminated else { throw ProbeFailure.missingWindow }
     let application = AXUIElementCreateApplication(input.pid)
     switch input.command {
+    case .lifecycle:
+        // Observe an actually minimized window without activating it. Most
+        // interaction commands deliberately activate their owned app first.
+        guard AXIsProcessTrusted(),
+              let windows = attribute(application, kAXWindowsAttribute as CFString) as? [AXUIElement],
+              let window = windows.first,
+              let minimized = attribute(window, kAXMinimizedAttribute as CFString) as? Bool else { throw ProbeFailure.accessibilityUnavailable }
+        let data = try JSONSerialization.data(withJSONObject: ["minimized": minimized, "on_screen": ownedWindow(input.pid) != nil], options: [.sortedKeys])
+        print(String(decoding: data, as: UTF8.self))
     case .info:
         guard let native = ownedWindow(input.pid), let bounds = native[kCGWindowBounds as String] as? [String: Any] else { throw ProbeFailure.missingWindow }
         let data = try JSONSerialization.data(withJSONObject: ["pid": input.pid, "window_id": native[kCGWindowNumber as String] ?? 0, "bounds": bounds, "accessibility_trusted": AXIsProcessTrusted(), "post_events_allowed": CGPreflightPostEventAccess()], options: [.sortedKeys])
@@ -301,15 +317,19 @@ do {
     case .click, .close, .minimize, .restore, .focus, .fillLogin, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree, .press, .release, .gesture, .gestureBegin, .canvas:
         guard AXIsProcessTrusted(), let windows = attribute(application, kAXWindowsAttribute as CFString) as? [AXUIElement], let window = windows.first else { throw ProbeFailure.accessibilityUnavailable }
         if case .restore = input.command {
-            guard AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse) == .success else { throw ProbeFailure.invalidInput }
+            guard AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse) == .success else { throw ProbeFailure.restoreRejected }
             app.activate(options: [])
             _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-            Thread.sleep(forTimeInterval: 0.25)
+            let deadline = ProcessInfo.processInfo.systemUptime + 2
+            while (attribute(window, kAXMinimizedAttribute as CFString) as? Bool != false || ownedWindow(input.pid) == nil),
+                  ProcessInfo.processInfo.systemUptime < deadline {
+                RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.02))
+            }
         }
         activate(app, window)
-        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == input.pid else { throw ProbeFailure.missingWindow }
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == input.pid else { throw ProbeFailure.focusUnavailable }
         switch input.command {
-        case .info: throw ProbeFailure.invalidInput
+        case .info, .lifecycle: throw ProbeFailure.invalidInput
         case .focus: break
         case .canvas:
             guard input.syntheticOnly == true, let label = input.label,
@@ -467,7 +487,7 @@ do {
         case .minimize:
             guard AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanTrue) == .success else { throw ProbeFailure.invalidInput }
         case .restore:
-            guard attribute(window, kAXMinimizedAttribute as CFString) as? Bool == false else { throw ProbeFailure.invalidInput }
+            guard attribute(window, kAXMinimizedAttribute as CFString) as? Bool == false else { throw ProbeFailure.restoreIncomplete }
         case .close:
             guard let raw = attribute(window, kAXCloseButtonAttribute as CFString), CFGetTypeID(raw) == AXUIElementGetTypeID() else { throw ProbeFailure.missingWindow }
             let button = unsafeBitCast(raw, to: AXUIElement.self)
@@ -488,6 +508,10 @@ do {
             }
         }
     }
+} catch let error as ProbeFailure {
+    // This enum contains only fixed operation codes, never UI text or input.
+    fputs("Owned native UI qualification failed: \(error).\n", stderr)
+    exit(1)
 } catch {
     fputs("Owned native UI qualification failed.\n", stderr)
     exit(1)

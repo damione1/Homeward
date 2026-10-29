@@ -54,7 +54,7 @@ func nativeRoutePermission(route RouteKey) (authorization.Permission, bool, bool
 		operation = authv1.ScopeOperation_SCOPE_OPERATION_WRITE
 	case authv1connect.AccountServiceUpdateAccountProcedure, authv1connect.AccountServiceDeleteAccountProcedure, authv1connect.AuthorizationPolicyServiceReplacePolicyProcedure, authv1connect.AccountServiceSetSecondFactorPolicyProcedure:
 		operation = authv1.ScopeOperation_SCOPE_OPERATION_ADMINISTER
-	case statev1connect.StateServiceOpenViewProcedure, statev1connect.StateServiceReadPageProcedure, statev1connect.StateServiceWatchViewProcedure:
+	case statev1connect.StateServiceOpenViewProcedure, statev1connect.StateServiceReadPageProcedure, statev1connect.StateServiceReleaseViewProcedure, statev1connect.StateServiceWatchViewProcedure:
 		family = authv1.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY
 		operation = authv1.ScopeOperation_SCOPE_OPERATION_READ
 	default:

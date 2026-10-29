@@ -4758,6 +4758,7 @@ version = "0.2.0"
 dependencies = [
  "slint",
  "slint-kit-core",
+ "web-time",
 ]
 
 [[package]]

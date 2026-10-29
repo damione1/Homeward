@@ -246,6 +246,8 @@ func TestNHF004CacheServer(t *testing.T) {
 			result["revoke_ok"] = proxy.revokeOK.Load()
 			result["state_read_calls"] = proxy.stateReads.Load()
 			result["state_read_ok"] = proxy.stateReadOK.Load()
+			result["state_release_calls"] = proxy.stateReleases.Load()
+			result["state_release_ok"] = proxy.stateReleaseOK.Load()
 			result["action_rpc_calls"] = proxy.actions.Load()
 			result["login_observation"] = proxy.loginObservation()
 		}

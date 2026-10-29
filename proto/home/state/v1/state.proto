@@ -164,6 +164,14 @@ message ReadPageRequest {
 message ReadPageResponse {
   OpenViewResponse page = 1;
 }
+// Discard only the authenticated actor's pagination storage after consumption
+// or cancellation. This does not revoke a ViewCursor or affect device state.
+message ReleaseViewRequest {
+  string snapshot_token = 1;
+}
+// Unknown, expired and foreign tokens are indistinguishable no-ops. Releasing
+// again is safe; it never opens a view or authorizes a command.
+message ReleaseViewResponse {}
 message WatchViewRequest {
   ViewCursor cursor = 1;
   // Complete filter; the digest in cursor is only a comparison value.
@@ -199,9 +207,10 @@ message WatchViewResponse {
   }
 }
 
-// Schema only. HTTP/Connect serving and client transport belong to later tickets.
+// Authorized state reads and pagination cleanup; no device command dispatch.
 service StateService {
   rpc OpenView(OpenViewRequest) returns (OpenViewResponse);
   rpc ReadPage(ReadPageRequest) returns (ReadPageResponse);
+  rpc ReleaseView(ReleaseViewRequest) returns (ReleaseViewResponse);
   rpc WatchView(WatchViewRequest) returns (stream WatchViewResponse);
 }
