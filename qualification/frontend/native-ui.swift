@@ -10,8 +10,10 @@ enum Command: String, Decodable {
     case tap, resize, key, scroll, tree, press, release, gesture
     case gestureBegin = "gesture-begin"
     case canvas
+    case navigate
     case fillLogin = "fill-login", read, signOut = "sign-out", scrollEnd = "scroll-end", checkRow = "check-row"
 }
+enum NavigationSection: String, Decodable { case home = "Accueil", inventory = "Inventaire", settings = "Préférences" }
 enum NativeGesture: String, Decodable {
     case tap, hold, doubleTap = "double-tap"
 }
@@ -34,6 +36,7 @@ struct Input: Decodable {
     let fraction: Double?
     let gesture: NativeGesture?
     let canvasGesture: CanvasGesture?; let endFraction: Double?
+    let section: NavigationSection?
 }
 enum ProbeFailure: Error {
     case invalidInput, missingWindow, accessibilityUnavailable
@@ -314,7 +317,7 @@ do {
         guard let native = ownedWindow(input.pid), let bounds = native[kCGWindowBounds as String] as? [String: Any] else { throw ProbeFailure.missingWindow }
         let data = try JSONSerialization.data(withJSONObject: ["pid": input.pid, "window_id": native[kCGWindowNumber as String] ?? 0, "bounds": bounds, "accessibility_trusted": AXIsProcessTrusted(), "post_events_allowed": CGPreflightPostEventAccess()], options: [.sortedKeys])
         print(String(decoding: data, as: UTF8.self))
-    case .click, .close, .minimize, .restore, .focus, .fillLogin, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree, .press, .release, .gesture, .gestureBegin, .canvas:
+    case .click, .close, .minimize, .restore, .focus, .fillLogin, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree, .press, .release, .gesture, .gestureBegin, .canvas, .navigate:
         guard AXIsProcessTrusted(), let windows = attribute(application, kAXWindowsAttribute as CFString) as? [AXUIElement], let window = windows.first else { throw ProbeFailure.accessibilityUnavailable }
         if case .restore = input.command {
             guard AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse) == .success else { throw ProbeFailure.restoreRejected }
@@ -331,6 +334,9 @@ do {
         switch input.command {
         case .info, .lifecycle: throw ProbeFailure.invalidInput
         case .focus: break
+        case .navigate:
+            guard input.syntheticOnly == true, let section = input.section else { throw ProbeFailure.invalidInput }
+            try navigate(window, section.rawValue)
         case .canvas:
             guard input.syntheticOnly == true, let label = input.label,
                   let gesture = input.canvasGesture, let fraction = input.fraction else { throw ProbeFailure.invalidInput }

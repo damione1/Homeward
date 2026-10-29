@@ -33,12 +33,19 @@ class Command(Enum):
     LIFECYCLE = 'lifecycle'
     CLOSE = 'close'
     CHECK_ROW = 'check-row'
+    NAVIGATE = 'navigate'
+
+class NavigationSection(Enum):
+    HOME = 'Accueil'
+    INVENTORY = 'Inventaire'
+    SETTINGS = 'Préférences'
 
 class QualificationScope(Enum):
     FULL = 'full'
     SHUTDOWN = 'shutdown'
     LATENCY = 'latency'
     LATENCY_LOAD = 'latency-load'
+    IME = 'ime'
     def __str__(self): return self.value
     def cycle_count(self):
         match self:
@@ -46,11 +53,26 @@ class QualificationScope(Enum):
             case QualificationScope.SHUTDOWN: return 0
             case QualificationScope.LATENCY: return 0
             case QualificationScope.LATENCY_LOAD: return 0
+            case QualificationScope.IME: return 0
         raise AssertionError('Unhandled qualification scope')
 
 class LatencyStatus(Enum):
     MEASURED = 'MEASURED'
     OVERFLOW = 'CAPTURE_OVERFLOW_NO_VERDICT'
+
+class NativeInputCommand(Enum):
+    COMPOSE = 'compose'
+    RESTORE = 'restore'
+
+class Appearance(Enum):
+    LIGHT = 'light'
+    DARK = 'dark'
+    def __str__(self): return self.value
+
+class TextScale(Enum):
+    STANDARD = 'standard'
+    DOUBLE = 'double'
+    def __str__(self): return self.value
 
 class BuildProfile(Enum):
     DEBUG = 'debug'
@@ -63,7 +85,7 @@ class BuildProfile(Enum):
         raise AssertionError('Unhandled build profile')
 
 
-def qualify(profile, retained_server, scope):
+def qualify(profile, retained_server, scope, appearance, text_scale):
     if platform.system() != 'Darwin' or not os.environ.get('CARGO_TARGET_DIR'):
         raise RuntimeError('Native macOS proof must run through the frontend build reservation')
     proof = Path(CONFIG['frontend_cache']) / 'nhf023' / ('desktop-resources-' + str(time.time_ns()))
@@ -87,6 +109,11 @@ def qualify(profile, retained_server, scope):
         latency_helper = proof / 'native-latency'
         run(['xcrun','swiftc','-O','-parse-as-library','-module-cache-path',modules,
              ROOT/'qualification/frontend/native-latency.swift','-o',latency_helper])
+    input_helper = None
+    if scope is QualificationScope.IME:
+        input_helper = proof / 'native-input'
+        run(['xcrun','swiftc','-O','-parse-as-library','-module-cache-path',modules,
+             ROOT/'qualification/frontend/native-input.swift','-o',input_helper])
     bundle = proof / 'Homeward Resources.app/Contents'
     (bundle / 'MacOS').mkdir(parents=True)
     binary = bundle / 'MacOS/homeward-desktop'
@@ -94,7 +121,7 @@ def qualify(profile, retained_server, scope):
     with (bundle/'Info.plist').open('wb') as output:
         plistlib.dump(dict(CFBundleExecutable=binary.name,CFBundleIdentifier=SESSION['PACKAGE'],CFBundleName='Homeward Resources',CFBundlePackageType='APPL',NSHighResolutionCapable=True),output)
     write = SESSION['write']
-    artifacts = [binary,server,helper] + ([latency_helper] if latency_helper else [])
+    artifacts = [binary,server,helper] + ([latency_helper] if latency_helper else []) + ([input_helper] if input_helper else [])
     write(proof/'build.json',dict(binary=str(binary),server=str(server),helper=str(helper),profile=profile.value,binaries={str(p.relative_to(proof)):SESSION['digest'](p) for p in artifacts}))
     write(proof/'machine.json',dict(os=platform.platform(),architecture=platform.machine(),model=subprocess.check_output(['sysctl','-n','hw.model'],text=True).strip(),ram_bytes=int(subprocess.check_output(['sysctl','-n','hw.memsize'],text=True)),cpu=subprocess.check_output(['sysctl','-n','machdep.cpu.brand_string'],text=True).strip(),physical_android=False))
     product = Path.home()/'Library/Application Support/Homeward'
@@ -105,6 +132,7 @@ def qualify(profile, retained_server, scope):
         raise RuntimeError('Preserve existing Homeward process')
     app = None
     written = False
+    owned_preferences_digest = None
     namespace = None
     try:
         with SESSION['fixture'](proof/'desktop',server,kind=SESSION['FixtureKind'].CACHE,profile=SESSION['UIProfile'].HOME) as (private,control):
@@ -164,10 +192,23 @@ def qualify(profile, retained_server, scope):
                 wait('Afficher ma maison')
                 native(Command.READ)
                 wait(private['expected_first_alias'])
-                native(Command.TAP,label='Accueil')
+                native(Command.NAVIGATE,section=NavigationSection.HOME.value)
                 wait('Ma maison'); wait('Confort principal')
+                if appearance is Appearance.DARK or text_scale is TextScale.DOUBLE:
+                    native(Command.NAVIGATE,section=NavigationSection.SETTINGS.value); wait('À votre mesure')
+                    if appearance is Appearance.DARK:
+                        native(Command.TAP,label='Thème sombre'); wait('Thème clair')
+                    if text_scale is TextScale.DOUBLE:
+                        native(Command.TAP,label='Texte à 200 %'); wait('Texte standard')
+                    deadline=time.monotonic()+5
+                    while not preferences.is_file():
+                        if time.monotonic()>=deadline: raise RuntimeError('Owned UI preferences were not persisted')
+                        time.sleep(.05)
+                    owned_preferences_digest=SESSION['digest'](preferences)
+                    capture('styled-preferences-before-home')
+                    native(Command.NAVIGATE,section=NavigationSection.HOME.value); wait('Ma maison')
                 capture('home-before-cycles')
-                baseline=idle_window()
+                baseline=idle_window() if scope is not QualificationScope.IME else None
                 write(proof/'baseline-resources.json',baseline)
                 cycles=[]
                 for cycle in range(1,scope.cycle_count()+1):
@@ -191,6 +232,7 @@ def qualify(profile, retained_server, scope):
                 load = None
                 loaded = None
                 latency = None
+                composition = None
                 if scope is QualificationScope.FULL:
                     # StateService load is real and lasts50s. Navigate an observed
                     # server-configured room and back while the update stream runs.
@@ -216,7 +258,7 @@ def qualify(profile, retained_server, scope):
                     write(proof/'load.json',load)
                     capture('home-after-load')
                     loaded=idle_window()
-                    native(Command.TAP,label='Inventaire')
+                    native(Command.NAVIGATE,section=NavigationSection.INVENTORY.value)
                     wait(private['expected_first_alias'])
                     native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
                     capture('inventory-after-load')
@@ -255,7 +297,26 @@ def qualify(profile, retained_server, scope):
                     if load['updates']!=1000 or not 49<=load['elapsed_seconds']<=70: raise RuntimeError('Expected20Hz load missing')
                     write(proof/'load.json',load)
                     capture('home-after-latency-load')
-                native(Command.TAP,label='Préférences'); wait('À votre mesure')
+                if scope is QualificationScope.IME:
+                    try:
+                        with (proof/'input-stdout.json').open('w') as output, (proof/'input-stderr.log').open('w') as errors:
+                            process=subprocess.Popen([str(input_helper)],cwd=ROOT,stdin=subprocess.PIPE,stdout=output,stderr=errors,text=True)
+                            try:
+                                process.communicate(json.dumps(dict(command=NativeInputCommand.COMPOSE.value,pid=app.pid,syntheticOnly=True,outputDirectory=str(proof/'input'))),timeout=30)
+                            except subprocess.TimeoutExpired:
+                                process.terminate()
+                                try: process.wait(timeout=5)
+                                except subprocess.TimeoutExpired: process.kill(); process.wait()
+                                raise
+                            if process.returncode!=0: raise RuntimeError('Native IME composition failed; inspect owned input diagnostics')
+                        composition=json.loads((proof/'input/result.json').read_text())
+                        capture('home-after-ime')
+                    except BaseException:
+                        if (proof/'input/source-lease.json').is_file():
+                            run([input_helper],input=json.dumps(dict(command=NativeInputCommand.RESTORE.value,outputDirectory=str(proof/'input'))),text=True,timeout=10)
+                        capture('input-failure-before-fixture-close')
+                        raise
+                native(Command.NAVIGATE,section=NavigationSection.SETTINGS.value); wait('À votre mesure')
                 capture('preferences-before-shutdown')
                 # Settings now contains companion, notifications and account
                 # sections. Find the actual visible action through its scroll
@@ -275,12 +336,13 @@ def qualify(profile, retained_server, scope):
         report=json.loads((control/'result.json').read_text())
         if report['command_driver_entries']!=0 or not report['server_joined'] or report['state_read_ok']<1+scope.cycle_count() or report['state_release_ok']<1+scope.cycle_count():
             raise RuntimeError('Fresh reads, pagination cleanup and read-only shutdown not proved')
-        write(proof/'result.json',dict(status='PASS_PENDING_VISUAL_INSPECTION',profile=profile.value,qualification_scope=scope.value,actual_native_cycles=len(cycles),entity_count=private['entity_count'],load=load,baseline=baseline,after_cycles=after,after_load=loaded,cycles=cycles,server=report,children_joined=True,
+        write(proof/'result.json',dict(status='PASS_PENDING_VISUAL_INSPECTION',profile=profile.value,qualification_scope=scope.value,appearance=appearance.value,text_scale=text_scale.value,actual_native_cycles=len(cycles),entity_count=private['entity_count'],load=load,baseline=baseline,after_cycles=after,after_load=loaded,cycles=cycles,server=report,children_joined=True,
             cases=[dict(platform='macos',native_rendering=True,children_joined=True)],
             scope=f'Native macOS {profile.value}, {scope.value} scope, isolated Go-race TLS; load, cycles and compositor latency only when explicitly recorded; no physical tablet result',
-            provisional_rss_target_met_on_this_host=after['mean_rss_bytes']<=180*1024*1024,
+            provisional_rss_target_met_on_this_host=after['mean_rss_bytes']<=180*1024*1024 if after else None,
             rss_change_after_warmup_bytes=(statistics.mean(row['resources']['rss_bytes'] for row in cycles[-10:])-statistics.mean(row['resources']['rss_bytes'] for row in cycles[9:19])) if cycles else None,
             physical_tablet=False,input_to_present_p95_ms=latency['p95_ms'] if latency else None,compositor_latency=latency,
+            native_composition=composition,
             provisional_input_target_met_on_this_host=latency['p95_ms']<=80 if latency else None,
             cold_cached_view_startup_seconds=None,all_nhf023_acceptance_closed=False))
         print('DESKTOP_RESOURCES_PASS '+str(proof),flush=True)
@@ -305,6 +367,9 @@ def qualify(profile, retained_server, scope):
         if namespace is not None:
             deleted=subprocess.run(['security','delete-generic-password','-s','ca.homeward.session.v1','-a',namespace],capture_output=True,timeout=10)
             if deleted.returncode not in (0,44): errors.append('Synthetic credential cleanup unconfirmed')
+        if owned_preferences_digest is not None and preferences.exists():
+            if SESSION['digest'](preferences)==owned_preferences_digest: preferences.unlink()
+            else: errors.append('Preserve externally changed UI preferences')
         if errors: raise RuntimeError('; '.join(errors))
 
 if __name__=='__main__':
@@ -312,5 +377,7 @@ if __name__=='__main__':
     parser.add_argument('--profile',type=BuildProfile,choices=list(BuildProfile),default=BuildProfile.RELEASE)
     parser.add_argument('--server-binary',type=Path)
     parser.add_argument('--scope',type=QualificationScope,choices=list(QualificationScope),default=QualificationScope.FULL)
+    parser.add_argument('--appearance',type=Appearance,choices=list(Appearance),default=Appearance.LIGHT)
+    parser.add_argument('--text-scale',type=TextScale,choices=list(TextScale),default=TextScale.STANDARD)
     args=parser.parse_args()
-    qualify(args.profile,args.server_binary,args.scope)
+    qualify(args.profile,args.server_binary,args.scope,args.appearance,args.text_scale)
