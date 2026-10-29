@@ -26,6 +26,7 @@ pub(crate) struct CacheProjection {
     history_entity: Option<EntityId>,
     revision: i32,
     phase: CachePhase,
+    authorized_total: usize,
     total: usize,
     rows: Vec<Row>,
     home: HomeProjection,
@@ -232,6 +233,7 @@ pub(crate) fn project_devices(
         profile_zone,
         revision: request.revision,
         phase,
+        authorized_total: view.map_or(0, CachedView::len),
         total,
         rows,
         home: HomeProjection {
@@ -868,7 +870,7 @@ pub(crate) fn render(
     if total == 0 {
         window.set_cache_active_index(-1);
     }
-    window.set_read_status(cache_status(projection.phase, total).into());
+    window.set_read_status(cache_status(projection.phase, projection.authorized_total).into());
     let model = window.get_cache_rows();
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
         window.set_commands_ready(projection.devices.ready);
@@ -1110,6 +1112,32 @@ mod tests {
             .into(),
             ..Default::default()
         })
+    }
+
+    #[test]
+    fn an_empty_local_search_does_not_claim_that_authorized_entities_disappeared() {
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        bind(&window);
+        let view = home_view();
+        let request = ProjectionRequest {
+            query: "no-synthetic-alias-matches-this".into(),
+            ..Default::default()
+        };
+        let projection =
+            project_request(CachePhase::Live, Some(&view), Viewport::default(), &request);
+        assert_eq!(projection.total, 0);
+        assert!(projection.rows.is_empty());
+        render(
+            &window,
+            ProjectionMailbox::<()>::new().generation(),
+            projection,
+        );
+        assert_eq!(window.get_cache_rows().row_count(), 0);
+        assert_eq!(
+            window.get_read_status().as_str(),
+            format!("États à jour · {} entités", view.len())
+        );
     }
 
     #[test]
