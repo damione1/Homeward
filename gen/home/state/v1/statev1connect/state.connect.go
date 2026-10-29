@@ -37,6 +37,9 @@ const (
 	StateServiceOpenViewProcedure = "/home.state.v1.StateService/OpenView"
 	// StateServiceReadPageProcedure is the fully-qualified name of the StateService's ReadPage RPC.
 	StateServiceReadPageProcedure = "/home.state.v1.StateService/ReadPage"
+	// StateServiceReleaseViewProcedure is the fully-qualified name of the StateService's ReleaseView
+	// RPC.
+	StateServiceReleaseViewProcedure = "/home.state.v1.StateService/ReleaseView"
 	// StateServiceWatchViewProcedure is the fully-qualified name of the StateService's WatchView RPC.
 	StateServiceWatchViewProcedure = "/home.state.v1.StateService/WatchView"
 )
@@ -45,6 +48,7 @@ const (
 type StateServiceClient interface {
 	OpenView(context.Context, *connect.Request[v1.OpenViewRequest]) (*connect.Response[v1.OpenViewResponse], error)
 	ReadPage(context.Context, *connect.Request[v1.ReadPageRequest]) (*connect.Response[v1.ReadPageResponse], error)
+	ReleaseView(context.Context, *connect.Request[v1.ReleaseViewRequest]) (*connect.Response[v1.ReleaseViewResponse], error)
 	WatchView(context.Context, *connect.Request[v1.WatchViewRequest]) (*connect.ServerStreamForClient[v1.WatchViewResponse], error)
 }
 
@@ -71,6 +75,12 @@ func NewStateServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(stateServiceMethods.ByName("ReadPage")),
 			connect.WithClientOptions(opts...),
 		),
+		releaseView: connect.NewClient[v1.ReleaseViewRequest, v1.ReleaseViewResponse](
+			httpClient,
+			baseURL+StateServiceReleaseViewProcedure,
+			connect.WithSchema(stateServiceMethods.ByName("ReleaseView")),
+			connect.WithClientOptions(opts...),
+		),
 		watchView: connect.NewClient[v1.WatchViewRequest, v1.WatchViewResponse](
 			httpClient,
 			baseURL+StateServiceWatchViewProcedure,
@@ -82,9 +92,10 @@ func NewStateServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 
 // stateServiceClient implements StateServiceClient.
 type stateServiceClient struct {
-	openView  *connect.Client[v1.OpenViewRequest, v1.OpenViewResponse]
-	readPage  *connect.Client[v1.ReadPageRequest, v1.ReadPageResponse]
-	watchView *connect.Client[v1.WatchViewRequest, v1.WatchViewResponse]
+	openView    *connect.Client[v1.OpenViewRequest, v1.OpenViewResponse]
+	readPage    *connect.Client[v1.ReadPageRequest, v1.ReadPageResponse]
+	releaseView *connect.Client[v1.ReleaseViewRequest, v1.ReleaseViewResponse]
+	watchView   *connect.Client[v1.WatchViewRequest, v1.WatchViewResponse]
 }
 
 // OpenView calls home.state.v1.StateService.OpenView.
@@ -97,6 +108,11 @@ func (c *stateServiceClient) ReadPage(ctx context.Context, req *connect.Request[
 	return c.readPage.CallUnary(ctx, req)
 }
 
+// ReleaseView calls home.state.v1.StateService.ReleaseView.
+func (c *stateServiceClient) ReleaseView(ctx context.Context, req *connect.Request[v1.ReleaseViewRequest]) (*connect.Response[v1.ReleaseViewResponse], error) {
+	return c.releaseView.CallUnary(ctx, req)
+}
+
 // WatchView calls home.state.v1.StateService.WatchView.
 func (c *stateServiceClient) WatchView(ctx context.Context, req *connect.Request[v1.WatchViewRequest]) (*connect.ServerStreamForClient[v1.WatchViewResponse], error) {
 	return c.watchView.CallServerStream(ctx, req)
@@ -106,6 +122,7 @@ func (c *stateServiceClient) WatchView(ctx context.Context, req *connect.Request
 type StateServiceHandler interface {
 	OpenView(context.Context, *connect.Request[v1.OpenViewRequest]) (*connect.Response[v1.OpenViewResponse], error)
 	ReadPage(context.Context, *connect.Request[v1.ReadPageRequest]) (*connect.Response[v1.ReadPageResponse], error)
+	ReleaseView(context.Context, *connect.Request[v1.ReleaseViewRequest]) (*connect.Response[v1.ReleaseViewResponse], error)
 	WatchView(context.Context, *connect.Request[v1.WatchViewRequest], *connect.ServerStream[v1.WatchViewResponse]) error
 }
 
@@ -128,6 +145,12 @@ func NewStateServiceHandler(svc StateServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(stateServiceMethods.ByName("ReadPage")),
 		connect.WithHandlerOptions(opts...),
 	)
+	stateServiceReleaseViewHandler := connect.NewUnaryHandler(
+		StateServiceReleaseViewProcedure,
+		svc.ReleaseView,
+		connect.WithSchema(stateServiceMethods.ByName("ReleaseView")),
+		connect.WithHandlerOptions(opts...),
+	)
 	stateServiceWatchViewHandler := connect.NewServerStreamHandler(
 		StateServiceWatchViewProcedure,
 		svc.WatchView,
@@ -140,6 +163,8 @@ func NewStateServiceHandler(svc StateServiceHandler, opts ...connect.HandlerOpti
 			stateServiceOpenViewHandler.ServeHTTP(w, r)
 		case StateServiceReadPageProcedure:
 			stateServiceReadPageHandler.ServeHTTP(w, r)
+		case StateServiceReleaseViewProcedure:
+			stateServiceReleaseViewHandler.ServeHTTP(w, r)
 		case StateServiceWatchViewProcedure:
 			stateServiceWatchViewHandler.ServeHTTP(w, r)
 		default:
@@ -157,6 +182,10 @@ func (UnimplementedStateServiceHandler) OpenView(context.Context, *connect.Reque
 
 func (UnimplementedStateServiceHandler) ReadPage(context.Context, *connect.Request[v1.ReadPageRequest]) (*connect.Response[v1.ReadPageResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.state.v1.StateService.ReadPage is not implemented"))
+}
+
+func (UnimplementedStateServiceHandler) ReleaseView(context.Context, *connect.Request[v1.ReleaseViewRequest]) (*connect.Response[v1.ReleaseViewResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.state.v1.StateService.ReleaseView is not implemented"))
 }
 
 func (UnimplementedStateServiceHandler) WatchView(context.Context, *connect.Request[v1.WatchViewRequest], *connect.ServerStream[v1.WatchViewResponse]) error {

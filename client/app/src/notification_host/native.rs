@@ -1,7 +1,33 @@
 use super::*;
 use home_client_platform::notifications as os;
 
+pub(super) trait Reception: Send + Sync {
+    /// Nonblocking: this also runs inside native presentation admission.
+    fn status(&self) -> os::ReceptionStatus;
+    fn renew(&self) -> Result<(), os::Error>;
+    /// Must revoke synchronously and enqueue native cleanup without blocking.
+    fn stop(&self);
+}
+impl Reception for os::ReceptionLease {
+    fn status(&self) -> os::ReceptionStatus {
+        self.status()
+    }
+    fn renew(&self) -> Result<(), os::Error> {
+        self.renew()
+    }
+    fn stop(&self) {
+        self.stop();
+    }
+}
+
 pub(super) trait Source: Send + Sync {
+    fn background_supported(&self) -> bool {
+        false
+    }
+    fn start_reception(&self) -> Result<Arc<dyn Reception>, os::Error> {
+        Err(os::Error::Unsupported)
+    }
+    fn backend(&self) -> os::Backend;
     fn settings(&self, request: bool) -> Result<os::Settings, os::Error>;
     fn present(
         &self,
@@ -13,6 +39,15 @@ pub(super) trait Source: Send + Sync {
 }
 pub(super) struct Native;
 impl Source for Native {
+    fn background_supported(&self) -> bool {
+        os::backend() == os::Backend::Android
+    }
+    fn start_reception(&self) -> Result<Arc<dyn Reception>, os::Error> {
+        Ok(Arc::new(os::ReceptionLease::start()?))
+    }
+    fn backend(&self) -> os::Backend {
+        os::backend()
+    }
     fn settings(&self, request: bool) -> Result<os::Settings, os::Error> {
         if request {
             os::request_authorization()
@@ -35,6 +70,12 @@ impl Source for Native {
     }
 }
 pub(super) fn permission(value: Result<os::Settings, os::Error>) -> wire::PermissionSnapshot {
+    permission_for(value, os::backend())
+}
+pub(super) fn permission_for(
+    value: Result<os::Settings, os::Error>,
+    backend: os::Backend,
+) -> wire::PermissionSnapshot {
     let empty = |source| wire::PermissionSnapshot {
         permission: wire::Permission::Unknown.into(),
         alerts: wire::Setting::Unsupported.into(),
@@ -44,7 +85,14 @@ pub(super) fn permission(value: Result<os::Settings, os::Error>) -> wire::Permis
     };
     match value {
         Ok(value) => wire::PermissionSnapshot {
-            source: wire::PermissionSource::MacOsUserNotifications.into(),
+            source: match backend {
+                os::Backend::MacOs => wire::PermissionSource::MacOsUserNotifications,
+                os::Backend::Android => wire::PermissionSource::AndroidNotificationManager,
+                os::Backend::Unavailable => {
+                    return empty(wire::PermissionSource::Unsupported.into());
+                }
+            }
+            .into(),
             permission: match value.permission {
                 os::Permission::NotRequested => wire::Permission::NotRequested,
                 os::Permission::Denied => wire::Permission::Denied,

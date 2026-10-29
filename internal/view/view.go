@@ -499,6 +499,28 @@ func (s *Service) expire(now time.Time) {
 	}
 }
 
+// ReleaseView relinquishes pagination storage, not the independent signed
+// replay cursor. Ownership is checked against the authenticated actor; callers
+// cannot distinguish foreign, expired and already released snapshot tokens.
+func (s *Service) ReleaseView(ctx context.Context, actor ActorID, snapshotToken string) error {
+	if !s.ready() || ctx == nil || snapshotToken == "" {
+		return ErrInvalidInput
+	}
+	if _, err := actor.Value(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if capture, exists := s.captures[snapshotToken]; exists && capture.actor == actor {
+		s.used -= capture.bytes
+		delete(s.captures, snapshotToken)
+	}
+	return nil
+}
+
 func (s *Service) ReadPage(ctx context.Context, actor ActorID, snapshotToken, pageToken string) (Page, error) {
 	if !s.ready() || ctx == nil || snapshotToken == "" || pageToken == "" {
 		return Page{}, ErrInvalidInput

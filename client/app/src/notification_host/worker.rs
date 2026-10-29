@@ -37,7 +37,7 @@ impl Run<'_> {
         if state.scope != self.ticket.scope
             || state.fence != self.ticket.fence
             || !state.active
-            || !state.foreground
+            || !state.can_receive()
             || state.validated != Some(self.lease.generation)
             || self.stop.is_cancelled()
             || self.lease.cancellation.is_cancelled()
@@ -92,12 +92,13 @@ impl Run<'_> {
             .map_err(|_| Error::Invalid)?;
         self.check()?;
         let failure = settings.as_ref().err().copied();
-        let value = native::permission(settings);
+        let value = native::permission_for(settings, self.owner.0.source.backend());
         if !admit::valid_permission(&value) {
             return Err(Error::Invalid);
         }
         let mut state = self.owner.0.state.lock().expect("notification permission");
         if !admit::can_present(&value) {
+            state.stop_background();
             state.stop_native();
         }
         state.permission = value.clone();
@@ -150,6 +151,7 @@ impl Run<'_> {
             }
         }
         if !value.native_delivery || value.state != wire::DestinationState::Active {
+            state.stop_background();
             state.stop_native();
         }
         if value.state != wire::DestinationState::Active {
@@ -336,6 +338,32 @@ impl Run<'_> {
         Ok(())
     }
     async fn write(&self, pending: Pending) -> Result<(), Error> {
+        if let Pending::Register(request) = &pending {
+            self.check()?;
+            let registrations = self
+                .owner
+                .0
+                .registrations
+                .lock()
+                .expect("notification registration persistence")
+                .clone();
+            if let Some(registrations) = registrations {
+                registrations
+                    .remember(
+                        crate::registration_store::Kind::Notifications,
+                        crate::registration_store::Subject {
+                            account: self.lease.account_id(),
+                            session: self.lease.session_id(),
+                            epoch: &self.parent.context.epoch,
+                            parent: Some(&self.parent.installation.id.value),
+                        },
+                        &request.request_id,
+                    )
+                    .await
+                    .map_err(|_| Error::Invalid)?;
+                self.check()?;
+            }
+        }
         self.reserve(pending.clone())?;
         let run = self;
         match &pending {
@@ -480,7 +508,7 @@ impl Run<'_> {
             return self.resolve(pending).await;
         }
         let permission = self.settings(false).await?;
-        let prior = self
+        let mut prior = self
             .owner
             .0
             .state
@@ -489,6 +517,59 @@ impl Run<'_> {
             .destination
             .clone();
         let run = self;
+        if prior.is_none() {
+            let registrations = self
+                .owner
+                .0
+                .registrations
+                .lock()
+                .expect("notification recovery store")
+                .clone();
+            if let Some(registrations) = registrations {
+                let nonce = registrations
+                    .lookup(
+                        crate::registration_store::Kind::Notifications,
+                        crate::registration_store::Subject {
+                            account: self.lease.account_id(),
+                            session: self.lease.session_id(),
+                            epoch: &self.parent.context.epoch,
+                            parent: Some(&parent.id.value),
+                        },
+                    )
+                    .await
+                    .map_err(|_| Error::Invalid)?;
+                if let Some(nonce) = nonce {
+                    let request = wire::GetDestinationRequest {
+                        selector: Some(
+                            wire::get_destination_request::Selector::RegistrationRequestId(
+                                nonce.clone(),
+                            ),
+                        ),
+                        ..Default::default()
+                    };
+                    admit::admit_request(admit::Request::Get(&request))
+                        .map_err(|_| Error::Invalid)?;
+                    self.check()?;
+                    let api = self.connection.notifications();
+                    let response = tokio::select! {biased; ()=self.lease.cancellation.cancelled()=>return Err(Error::Cancelled),
+                    value=api.get_destination(request,self.lease.token(),Duration::from_secs(5),self.stop)=>value };
+                    self.check()?;
+                    match response {
+                        Ok(value) => {
+                            admit::admit_response(admit::Response::Get(&value))
+                                .map_err(|_| Error::Invalid)?;
+                            if value.destination.registration_request_id != nonce {
+                                return Err(Error::Invalid);
+                            }
+                            self.accept_destination(&value.context, (*value.destination).clone())?;
+                            prior = Some((*value.destination).clone());
+                        }
+                        Err(error) if error.kind() == FailureKind::Rpc(RpcCode::NotFound) => {}
+                        Err(error) => return Err(Error::Transport(error)),
+                    }
+                }
+            }
+        }
         if let Some(prior) = prior {
             let value = call!(
                 run,
@@ -519,6 +600,22 @@ impl Run<'_> {
                 self.update(desired, permission.clone()).await?;
             }
             self.native_scope(&parent, &self.destination()?, &permission)?;
+            let background = self
+                .owner
+                .0
+                .state
+                .lock()
+                .expect("notification service renewal")
+                .background
+                .as_ref()
+                .map(|value| value.source.clone());
+            if let Some(background) = background {
+                tokio::task::spawn_blocking(move || background.renew())
+                    .await
+                    .map_err(|_| Error::Invalid)?
+                    .map_err(Error::Native)?;
+                self.check()?;
+            }
             self.inbox().await
         } else {
             let value = call!(
@@ -640,18 +737,23 @@ impl Run<'_> {
             }
         }
         // Native click IDs use exactly the inbox ResolveOpen path.
-        let clicked = self
-            .owner
-            .0
-            .state
-            .lock()
-            .expect("notification native click")
-            .native
-            .as_ref()
-            .and_then(os::PresentationScope::take_open);
+        let clicked = {
+            let mut state = self
+                .owner
+                .0
+                .state
+                .lock()
+                .expect("notification native click");
+            state.pending_native_open(Instant::now()).or_else(|| {
+                state
+                    .native
+                    .as_ref()
+                    .and_then(os::PresentationScope::take_open)
+                    .and_then(|id| admit::DeliveryId::parse(id.as_str()).ok())
+            })
+        };
         if let Some(id) = clicked {
-            self.open(admit::DeliveryId::parse(id.as_str()).map_err(|_| Error::Invalid)?)
-                .await?;
+            self.open(id).await?;
         }
         Ok(())
     }
@@ -683,10 +785,35 @@ impl Run<'_> {
             let native = self.lease.cancellation.clone();
             let owner = state.native_stop.clone();
             let parent = self.parent.cancellation.clone();
+            let reception = state.background.as_ref().map(|value| value.source.clone());
             state.native_parent_stop = Some(parent.clone());
-            state.native = Some(os::PresentationScope::new(move || {
-                !native.is_cancelled() && !owner.is_cancelled() && !parent.is_cancelled()
-            }));
+            let binding = state.open_binding().ok_or(Error::Invalid)?;
+            let target = Arc::downgrade(&self.owner.0);
+            let on_open = Arc::new(move |id: os::PresentationId| {
+                let Some(target) = target.upgrade() else {
+                    return;
+                };
+                let Ok(id) = admit::DeliveryId::parse(id.as_str()) else {
+                    return;
+                };
+                let mut state = target.state.lock().expect("native notification intention");
+                let queued = state.capture_native_open(binding.clone(), id, Instant::now());
+                drop(state);
+                if queued {
+                    target.changed.notify_one();
+                }
+            });
+            state.native = Some(os::PresentationScope::with_open_handler(
+                move || {
+                    !native.is_cancelled()
+                        && !owner.is_cancelled()
+                        && !parent.is_cancelled()
+                        && reception
+                            .as_ref()
+                            .is_none_or(|source| source.status() == os::ReceptionStatus::Running)
+                },
+                on_open,
+            ));
         }
         let scope = state.native.as_ref().expect("created native scope").clone();
         let current = SystemTime::now();
@@ -775,7 +902,7 @@ impl Run<'_> {
             .await
             .map_err(|_| Error::Invalid)?;
         self.check()?;
-        if matches!(evidence, Ok(os::DeliveryEvidence::PresentInOsCenter)) {
+        if evidence.is_ok_and(os::DeliveryEvidence::attests_center) {
             self.receipt(entry, wire::ReceiptKind::PresentInOsCenter)
                 .await?;
         }
@@ -802,6 +929,7 @@ impl Run<'_> {
         );
         self.accept_delivery(&response.context, (*response.delivery).clone())?;
         let message = (*response.delivery).clone();
+        let requested_at = Instant::now();
         let grant = call!(
             run,
             resolve_open,
@@ -813,14 +941,27 @@ impl Run<'_> {
             Open,
             Open
         );
-        admit::bind_open(&grant, &self.parent.context, &destination, &message, &now())
-            .map_err(|_| Error::Invalid)?;
+        admit::bind_open_elapsed(
+            &grant,
+            &self.parent.context,
+            &destination,
+            &message,
+            requested_at.elapsed(),
+        )
+        .map_err(|_error| {
+            #[cfg(debug_assertions)]
+            eprintln!("homeward: notification grant rejected {_error:?}");
+            Error::Invalid
+        })?;
+        #[cfg(debug_assertions)]
+        eprintln!("homeward: notification grant ready");
         let mut state = self.owner.0.state.lock().expect("notification open grant");
         state.next_grant = state.next_grant.checked_add(1).ok_or(Error::Invalid)?;
         let generation = state.next_grant;
         state.grant = Some(Grant {
             tag: generation,
             response: grant,
+            requested_at,
             message,
             parent_stop: self.parent.cancellation.clone(),
             native_generation: self.lease.generation,
@@ -840,9 +981,13 @@ impl Run<'_> {
                         .is_none_or(|grant| grant.tag != generation)
                     || !owner.authenticated(&state)
                 {
+                    #[cfg(debug_assertions)]
+                    eprintln!("homeward: notification grant dispatch invalidated");
                     return;
                 }
                 drop(state);
+                #[cfg(debug_assertions)]
+                eprintln!("homeward: notification grant dispatching");
                 window.invoke_notification_target(generation);
             });
         }
@@ -851,6 +996,39 @@ impl Run<'_> {
     async fn intent(&self, intent: Intent) -> Result<(), Error> {
         self.fresh_parent().await?;
         match intent {
+            Intent::Background => {
+                // Resolve the current parent/destination/permission first; a
+                // service is neither a new session nor server authority.
+                self.read().await?;
+                let binding = self
+                    .owner
+                    .0
+                    .state
+                    .lock()
+                    .expect("notification service binding")
+                    .open_binding()
+                    .ok_or(Error::Invalid)?;
+                let source = self.owner.0.source.clone();
+                let reception = tokio::task::spawn_blocking(move || source.start_reception())
+                    .await
+                    .map_err(|_| Error::Invalid)?
+                    .map_err(Error::Native)?;
+                if let Err(error) = self.check() {
+                    reception.stop();
+                    return Err(error);
+                }
+                let mut state = self
+                    .owner
+                    .0
+                    .state
+                    .lock()
+                    .expect("notification service installation");
+                if !state.install_background(reception, binding) {
+                    return Err(Error::Cancelled);
+                }
+                self.owner.post(&state);
+                Ok(())
+            }
             Intent::Register => {
                 let permission = self.settings(false).await?;
                 self.write(Pending::Register(Box::new(
@@ -991,6 +1169,7 @@ impl Notifications {
                     }
                     Error::Invalid => state.invalid(),
                     Error::Parent => {
+                        state.stop_background();
                         state.entries.clear();
                         state.parent = None;
                         state.stage = Stage::WaitingParent;

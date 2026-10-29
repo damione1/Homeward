@@ -378,7 +378,7 @@ def android(proof, server):
                         raise RuntimeError('Credential metadata unavailable')
                     return ET.fromstring(result.stdout).findall('string[@name="record"]')
                 def start():
-                    device('shell', 'am', 'start', '-n', package + '/android.app.NativeActivity')
+                    device('shell', 'am', 'start', '-n', package + '/' + session['ACTIVITY'])
                 def back():
                     device('shell', 'input', 'keyevent', '4')
                     time.sleep(.3)

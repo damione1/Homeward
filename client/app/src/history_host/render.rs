@@ -439,7 +439,7 @@ mod tests {
     #[tokio::test]
     async fn response_queued_before_session_close_cannot_publish_private_text_on_ui() {
         i_slint_backend_testing::init_no_event_loop();
-        let window = HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         let connection = home_client_transport::Connection::new(
             "https://127.0.0.1:9",
             include_bytes!("../../tests/fixtures/trust-a.pem"),

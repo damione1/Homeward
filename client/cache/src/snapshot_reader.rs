@@ -30,6 +30,9 @@ impl From<CacheFailure> for SnapshotFailure {
 
 #[async_trait]
 trait SnapshotApi: Send + Sync {
+    fn track(&self, _token: &str) -> Option<crate::snapshot_cleanup::ReleaseGuard> {
+        None
+    }
     async fn open(&self, request: wire::OpenViewRequest)
     -> Result<wire::OpenViewResponse, Failure>;
     async fn read(&self, request: wire::ReadPageRequest)
@@ -39,10 +42,15 @@ trait SnapshotApi: Send + Sync {
 struct NativeApi<'a> {
     transport: &'a StateTransport,
     lease: &'a AccessLease,
+    cleanup: Option<&'a crate::snapshot_cleanup::CleanupHandle>,
 }
 
 #[async_trait]
 impl SnapshotApi for NativeApi<'_> {
+    fn track(&self, token: &str) -> Option<crate::snapshot_cleanup::ReleaseGuard> {
+        self.cleanup
+            .and_then(|cleanup| cleanup.track(token, self.lease))
+    }
     async fn open(
         &self,
         request: wire::OpenViewRequest,
@@ -86,6 +94,8 @@ fn wall_now() -> Result<Timestamp, CacheFailure> {
 /// Capture all pages under one admitted access generation. A refused last page
 /// exposes no provisional data. The caller must still gate subsequent publication
 /// against its owner generation, since an already returned view can be invalidated.
+/// Low-level protocol probes use this unmanaged variant; production hosts use
+/// CacheOwner, which also relinquishes pagination storage on completion/drop.
 pub async fn read_snapshot(
     transport: &StateTransport,
     lease: &AccessLease,
@@ -94,7 +104,34 @@ pub async fn read_snapshot(
     cancel: &CancellationToken,
 ) -> Result<CachedView, SnapshotFailure> {
     read_from(
-        &NativeApi { transport, lease },
+        &NativeApi {
+            transport,
+            lease,
+            cleanup: None,
+        },
+        filter,
+        page_size,
+        cancel,
+        &lease.cancellation,
+        wall_now,
+    )
+    .await
+}
+
+pub(crate) async fn read_snapshot_owned(
+    transport: &StateTransport,
+    lease: &AccessLease,
+    filter: Filter,
+    page_size: u32,
+    cancel: &CancellationToken,
+    cleanup: &crate::snapshot_cleanup::CleanupHandle,
+) -> Result<CachedView, SnapshotFailure> {
+    read_from(
+        &NativeApi {
+            transport,
+            lease,
+            cleanup: Some(cleanup),
+        },
         filter,
         page_size,
         cancel,
@@ -138,6 +175,9 @@ async fn read_from(
         () = access.cancelled() => return Err(SnapshotFailure::Cancelled),
         response = api.open(request) => response.map_err(SnapshotFailure::Transport)?,
     };
+    // Acquire before checking cancellation: even a response arriving at a
+    // suspension boundary has an owned server reservation to relinquish.
+    let _release = api.track(&first.snapshot_token);
     check_cancel(cancel, access)?;
     let mut capture = SnapshotCapture::begin(filter, page_size, first, &now()?)?;
     while let Some(request) = capture.next_request() {

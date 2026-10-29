@@ -74,6 +74,7 @@ func (a *nha139Auditor) snapshot() []AuditEvent {
 }
 
 type nha139StateFixture struct {
+	statev1connect.UnimplementedStateServiceHandler
 	streamEnded chan struct{}
 	streamFail  *atomic.Bool
 	delay       *atomic.Bool

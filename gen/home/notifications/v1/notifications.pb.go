@@ -150,6 +150,7 @@ const (
 	PermissionSource_PERMISSION_SOURCE_BUNDLE_REQUIRED               PermissionSource = 2
 	PermissionSource_PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION PermissionSource = 3
 	PermissionSource_PERMISSION_SOURCE_UNSUPPORTED                   PermissionSource = 4
+	PermissionSource_PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER  PermissionSource = 5
 )
 
 // Enum value maps for PermissionSource.
@@ -160,6 +161,7 @@ var (
 		2: "PERMISSION_SOURCE_BUNDLE_REQUIRED",
 		3: "PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION",
 		4: "PERMISSION_SOURCE_UNSUPPORTED",
+		5: "PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER",
 	}
 	PermissionSource_value = map[string]int32{
 		"PERMISSION_SOURCE_UNSPECIFIED":                   0,
@@ -167,6 +169,7 @@ var (
 		"PERMISSION_SOURCE_BUNDLE_REQUIRED":               2,
 		"PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION": 3,
 		"PERMISSION_SOURCE_UNSUPPORTED":                   4,
+		"PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER":  5,
 	}
 )
 
@@ -2164,8 +2167,12 @@ type ResolveOpenResponse struct {
 	DeliveryId       *DeliveryId            `protobuf:"bytes,3,opt,name=delivery_id,json=deliveryId,proto3" json:"delivery_id,omitempty"`
 	AuthorizedTarget *Target                `protobuf:"bytes,4,opt,name=authorized_target,json=authorizedTarget,proto3" json:"authorized_target,omitempty"`
 	ValidUntil       *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=valid_until,json=validUntil,proto3" json:"valid_until,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Server clock origin for the at-most-five-second grant. Clients measure
+	// elapsed time from the fresh request using a monotonic clock; independent
+	// device wall clocks must neither extend nor reject this short lease.
+	IssuedAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ResolveOpenResponse) Reset() {
@@ -2229,6 +2236,13 @@ func (x *ResolveOpenResponse) GetAuthorizedTarget() *Target {
 func (x *ResolveOpenResponse) GetValidUntil() *timestamppb.Timestamp {
 	if x != nil {
 		return x.ValidUntil
+	}
+	return nil
+}
+
+func (x *ResolveOpenResponse) GetIssuedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.IssuedAt
 	}
 	return nil
 }
@@ -2489,7 +2503,7 @@ const file_home_notifications_v1_notifications_proto_rawDesc = "" +
 	"\x12ResolveOpenRequest\x12K\n" +
 	"\x0edestination_id\x18\x01 \x01(\v2$.home.notifications.v1.DestinationIdR\rdestinationId\x12B\n" +
 	"\vdelivery_id\x18\x02 \x01(\v2!.home.notifications.v1.DeliveryIdR\n" +
-	"deliveryId\"\xe5\x02\n" +
+	"deliveryId\"\x9e\x03\n" +
 	"\x13ResolveOpenResponse\x124\n" +
 	"\acontext\x18\x01 \x01(\v2\x1a.home.companion.v1.ContextR\acontext\x12K\n" +
 	"\x0edestination_id\x18\x02 \x01(\v2$.home.notifications.v1.DestinationIdR\rdestinationId\x12B\n" +
@@ -2497,7 +2511,8 @@ const file_home_notifications_v1_notifications_proto_rawDesc = "" +
 	"deliveryId\x12J\n" +
 	"\x11authorized_target\x18\x04 \x01(\v2\x1d.home.notifications.v1.TargetR\x10authorizedTarget\x12;\n" +
 	"\vvalid_until\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"validUntil\"\xe3\x01\n" +
+	"validUntil\x127\n" +
+	"\tissued_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\bissuedAt\"\xe3\x01\n" +
 	"\x18RevokeDestinationRequest\x12E\n" +
 	"\x10expected_context\x18\x01 \x01(\v2\x1a.home.companion.v1.ContextR\x0fexpectedContext\x124\n" +
 	"\x02id\x18\x02 \x01(\v2$.home.notifications.v1.DestinationIdR\x02id\x12+\n" +
@@ -2521,13 +2536,14 @@ const file_home_notifications_v1_notifications_proto_rawDesc = "" +
 	"\x0fSETTING_ENABLED\x10\x01\x12\x14\n" +
 	"\x10SETTING_DISABLED\x10\x02\x12\x17\n" +
 	"\x13SETTING_UNSUPPORTED\x10\x03\x12\x13\n" +
-	"\x0fSETTING_UNKNOWN\x10\x04*\xe5\x01\n" +
+	"\x0fSETTING_UNKNOWN\x10\x04*\x99\x02\n" +
 	"\x10PermissionSource\x12!\n" +
 	"\x1dPERMISSION_SOURCE_UNSPECIFIED\x10\x00\x12/\n" +
 	"+PERMISSION_SOURCE_MAC_OS_USER_NOTIFICATIONS\x10\x01\x12%\n" +
 	"!PERMISSION_SOURCE_BUNDLE_REQUIRED\x10\x02\x123\n" +
 	"/PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION\x10\x03\x12!\n" +
-	"\x1dPERMISSION_SOURCE_UNSUPPORTED\x10\x04*m\n" +
+	"\x1dPERMISSION_SOURCE_UNSUPPORTED\x10\x04\x122\n" +
+	".PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER\x10\x05*m\n" +
 	"\x13ForegroundTransport\x12$\n" +
 	" FOREGROUND_TRANSPORT_UNSPECIFIED\x10\x00\x120\n" +
 	",FOREGROUND_TRANSPORT_NATIVE_SESSION_LAN_POLL\x10\x01*\xac\x01\n" +
@@ -2714,33 +2730,34 @@ var file_home_notifications_v1_notifications_proto_depIdxs = []int32{
 	13, // 61: home.notifications.v1.ResolveOpenResponse.delivery_id:type_name -> home.notifications.v1.DeliveryId
 	16, // 62: home.notifications.v1.ResolveOpenResponse.authorized_target:type_name -> home.notifications.v1.Target
 	41, // 63: home.notifications.v1.ResolveOpenResponse.valid_until:type_name -> google.protobuf.Timestamp
-	44, // 64: home.notifications.v1.RevokeDestinationRequest.expected_context:type_name -> home.companion.v1.Context
-	12, // 65: home.notifications.v1.RevokeDestinationRequest.id:type_name -> home.notifications.v1.DestinationId
-	44, // 66: home.notifications.v1.RevokeDestinationResponse.context:type_name -> home.companion.v1.Context
-	15, // 67: home.notifications.v1.RevokeDestinationResponse.destination:type_name -> home.notifications.v1.Destination
-	18, // 68: home.notifications.v1.NotificationService.DescribeNotifications:input_type -> home.notifications.v1.DescribeNotificationsRequest
-	20, // 69: home.notifications.v1.NotificationService.RegisterDestination:input_type -> home.notifications.v1.RegisterDestinationRequest
-	22, // 70: home.notifications.v1.NotificationService.GetDestination:input_type -> home.notifications.v1.GetDestinationRequest
-	24, // 71: home.notifications.v1.NotificationService.UpdateDestination:input_type -> home.notifications.v1.UpdateDestinationRequest
-	26, // 72: home.notifications.v1.NotificationService.ReadInbox:input_type -> home.notifications.v1.ReadInboxRequest
-	28, // 73: home.notifications.v1.NotificationService.AcknowledgeDelivery:input_type -> home.notifications.v1.AcknowledgeDeliveryRequest
-	30, // 74: home.notifications.v1.NotificationService.GetDelivery:input_type -> home.notifications.v1.GetDeliveryRequest
-	32, // 75: home.notifications.v1.NotificationService.ResolveOpen:input_type -> home.notifications.v1.ResolveOpenRequest
-	34, // 76: home.notifications.v1.NotificationService.RevokeDestination:input_type -> home.notifications.v1.RevokeDestinationRequest
-	19, // 77: home.notifications.v1.NotificationService.DescribeNotifications:output_type -> home.notifications.v1.DescribeNotificationsResponse
-	21, // 78: home.notifications.v1.NotificationService.RegisterDestination:output_type -> home.notifications.v1.RegisterDestinationResponse
-	23, // 79: home.notifications.v1.NotificationService.GetDestination:output_type -> home.notifications.v1.GetDestinationResponse
-	25, // 80: home.notifications.v1.NotificationService.UpdateDestination:output_type -> home.notifications.v1.UpdateDestinationResponse
-	27, // 81: home.notifications.v1.NotificationService.ReadInbox:output_type -> home.notifications.v1.ReadInboxResponse
-	29, // 82: home.notifications.v1.NotificationService.AcknowledgeDelivery:output_type -> home.notifications.v1.AcknowledgeDeliveryResponse
-	31, // 83: home.notifications.v1.NotificationService.GetDelivery:output_type -> home.notifications.v1.GetDeliveryResponse
-	33, // 84: home.notifications.v1.NotificationService.ResolveOpen:output_type -> home.notifications.v1.ResolveOpenResponse
-	35, // 85: home.notifications.v1.NotificationService.RevokeDestination:output_type -> home.notifications.v1.RevokeDestinationResponse
-	77, // [77:86] is the sub-list for method output_type
-	68, // [68:77] is the sub-list for method input_type
-	68, // [68:68] is the sub-list for extension type_name
-	68, // [68:68] is the sub-list for extension extendee
-	0,  // [0:68] is the sub-list for field type_name
+	41, // 64: home.notifications.v1.ResolveOpenResponse.issued_at:type_name -> google.protobuf.Timestamp
+	44, // 65: home.notifications.v1.RevokeDestinationRequest.expected_context:type_name -> home.companion.v1.Context
+	12, // 66: home.notifications.v1.RevokeDestinationRequest.id:type_name -> home.notifications.v1.DestinationId
+	44, // 67: home.notifications.v1.RevokeDestinationResponse.context:type_name -> home.companion.v1.Context
+	15, // 68: home.notifications.v1.RevokeDestinationResponse.destination:type_name -> home.notifications.v1.Destination
+	18, // 69: home.notifications.v1.NotificationService.DescribeNotifications:input_type -> home.notifications.v1.DescribeNotificationsRequest
+	20, // 70: home.notifications.v1.NotificationService.RegisterDestination:input_type -> home.notifications.v1.RegisterDestinationRequest
+	22, // 71: home.notifications.v1.NotificationService.GetDestination:input_type -> home.notifications.v1.GetDestinationRequest
+	24, // 72: home.notifications.v1.NotificationService.UpdateDestination:input_type -> home.notifications.v1.UpdateDestinationRequest
+	26, // 73: home.notifications.v1.NotificationService.ReadInbox:input_type -> home.notifications.v1.ReadInboxRequest
+	28, // 74: home.notifications.v1.NotificationService.AcknowledgeDelivery:input_type -> home.notifications.v1.AcknowledgeDeliveryRequest
+	30, // 75: home.notifications.v1.NotificationService.GetDelivery:input_type -> home.notifications.v1.GetDeliveryRequest
+	32, // 76: home.notifications.v1.NotificationService.ResolveOpen:input_type -> home.notifications.v1.ResolveOpenRequest
+	34, // 77: home.notifications.v1.NotificationService.RevokeDestination:input_type -> home.notifications.v1.RevokeDestinationRequest
+	19, // 78: home.notifications.v1.NotificationService.DescribeNotifications:output_type -> home.notifications.v1.DescribeNotificationsResponse
+	21, // 79: home.notifications.v1.NotificationService.RegisterDestination:output_type -> home.notifications.v1.RegisterDestinationResponse
+	23, // 80: home.notifications.v1.NotificationService.GetDestination:output_type -> home.notifications.v1.GetDestinationResponse
+	25, // 81: home.notifications.v1.NotificationService.UpdateDestination:output_type -> home.notifications.v1.UpdateDestinationResponse
+	27, // 82: home.notifications.v1.NotificationService.ReadInbox:output_type -> home.notifications.v1.ReadInboxResponse
+	29, // 83: home.notifications.v1.NotificationService.AcknowledgeDelivery:output_type -> home.notifications.v1.AcknowledgeDeliveryResponse
+	31, // 84: home.notifications.v1.NotificationService.GetDelivery:output_type -> home.notifications.v1.GetDeliveryResponse
+	33, // 85: home.notifications.v1.NotificationService.ResolveOpen:output_type -> home.notifications.v1.ResolveOpenResponse
+	35, // 86: home.notifications.v1.NotificationService.RevokeDestination:output_type -> home.notifications.v1.RevokeDestinationResponse
+	78, // [78:87] is the sub-list for method output_type
+	69, // [69:78] is the sub-list for method input_type
+	69, // [69:69] is the sub-list for extension type_name
+	69, // [69:69] is the sub-list for extension extendee
+	0,  // [0:69] is the sub-list for field type_name
 }
 
 func init() { file_home_notifications_v1_notifications_proto_init() }

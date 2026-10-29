@@ -89,9 +89,48 @@ fn permission_and_platform_limits_do_not_advertise_unimplemented_collectors() {
     assert_eq!(activity.availability, Availability::Partial);
     assert_eq!(activity.source, Source::NativeLifecycle);
     let android = capabilities(Platform::Android);
-    assert!(
-        android
-            .iter()
-            .all(|c| c.availability != Availability::Available)
+    let battery = android
+        .iter()
+        .find(|c| c.feature == Feature::BatteryLevel)
+        .unwrap();
+    assert_eq!(battery.source, Source::AndroidBatteryManager);
+    assert_eq!(battery.permission, Permission::NotRequired);
+    let location = android
+        .iter()
+        .find(|c| c.feature == Feature::Location)
+        .unwrap();
+    assert_eq!(location.availability, Availability::PendingQualification);
+    assert_eq!(location.source, Source::None);
+}
+
+#[test]
+fn android_unknown_or_absent_data_never_becomes_a_physical_zero_or_offline() {
+    for raw in [
+        [0, 0, 0, 0, 0],
+        [1, -1, 100, 2, 1],
+        [1, 10, 0, 2, 1],
+        [1, 90, 100, 1, 1],
+        [1, 90, 100, 99, 1],
+        [1, 90, 100, 2, 16],
+    ] {
+        assert_eq!(android_values::battery(raw), Observation::Unavailable);
+    }
+    assert_eq!(
+        android_values::battery([2, 0, 0, 0, 0]),
+        Observation::NoHardware
+    );
+    assert_eq!(
+        android_values::connectivity(4),
+        Observation::PermissionDenied
+    );
+    assert_eq!(android_values::connectivity(99), Observation::Unavailable);
+    let Observation::Value(value) = android_values::battery([1, 42, 100, 4, 1]) else {
+        panic!("valid external-power observation missing");
+    };
+    assert_eq!(value.percent.get(), 42);
+    assert_eq!(value.state, PowerState::ExternalPower);
+    assert_eq!(
+        android_values::connectivity(3),
+        Observation::Value(Connectivity::NoLocalRoute)
     );
 }

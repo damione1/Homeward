@@ -8,7 +8,7 @@ use crate::{
 };
 use buffa::{EnumValue, Message};
 use buffa_types::google::protobuf::Timestamp;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, time::Duration};
 
 pub const MAX_BYTES: u32 = 128 * 1024;
 pub const MAX_ENTRIES: usize = 64;
@@ -153,6 +153,15 @@ pub fn valid_permission(v: &wire::PermissionSnapshot) -> bool {
         && v.notification_center == wire::Setting::Unsupported;
     match v.source {
         EnumValue::Known(wire::PermissionSource::MacOsUserNotifications) => true,
+        EnumValue::Known(wire::PermissionSource::AndroidNotificationManager) => matches!(
+            v.permission,
+            EnumValue::Known(
+                wire::Permission::NotRequested
+                    | wire::Permission::Denied
+                    | wire::Permission::Authorized
+                    | wire::Permission::Unknown
+            )
+        ),
         EnumValue::Known(
             wire::PermissionSource::BundleRequired | wire::PermissionSource::Unsupported,
         ) => v.permission == wire::Permission::Unknown && no_surfaces,
@@ -167,7 +176,13 @@ pub fn valid_permission(v: &wire::PermissionSnapshot) -> bool {
 }
 pub fn can_present(v: &wire::PermissionSnapshot) -> bool {
     valid_permission(v)
-        && v.source == wire::PermissionSource::MacOsUserNotifications
+        && matches!(
+            v.source,
+            EnumValue::Known(
+                wire::PermissionSource::MacOsUserNotifications
+                    | wire::PermissionSource::AndroidNotificationManager
+            )
+        )
         && matches!(
             v.permission,
             EnumValue::Known(
@@ -198,6 +213,7 @@ fn permission_for_platform(
             v.source,
             EnumValue::Known(
                 wire::PermissionSource::AndroidPendingQualification
+                    | wire::PermissionSource::AndroidNotificationManager
                     | wire::PermissionSource::Unsupported
             )
         ),
@@ -459,6 +475,7 @@ pub fn admit_response(value: Response<'_>) -> Result<(), Invalid> {
                 && r.delivery_id.as_option().is_some_and(delivery_id)
                 && r.authorized_target.as_option().is_some_and(valid_target)
                 && r.valid_until.as_option().is_some_and(stamp)
+                && r.issued_at.as_option().is_some_and(stamp)
         }
     };
     if valid {
@@ -593,6 +610,8 @@ pub fn bind_delivery(
     }
     Ok(())
 }
+/// Bind against an exact server-domain timestamp. Interactive clients should
+/// use `bind_open_elapsed` for independent clocks and retain the request origin.
 pub fn bind_open(
     value: &wire::ResolveOpenResponse,
     context: &companion::Context,
@@ -600,10 +619,41 @@ pub fn bind_open(
     delivery: &wire::Delivery,
     now: &Timestamp,
 ) -> Result<(), Invalid> {
-    admit_response(Response::Open(value))?;
+    open_lifetime(value, context, destination, delivery)?;
     if !stamp(now) {
         return Err(Invalid::Representation);
     }
+    if time(now) < time(&value.issued_at) || time(now) >= time(&value.valid_until) {
+        return Err(Invalid::Expired);
+    }
+    Ok(())
+}
+
+/// Only for a fresh authenticated ResolveOpen response. The elapsed duration
+/// starts BEFORE sending that request, and continues through UI consumption.
+/// Network and dispatch delays therefore consume the server lease rather than
+/// extending it. Never persist or restore the monotonic origin or this grant.
+pub fn bind_open_elapsed(
+    value: &wire::ResolveOpenResponse,
+    context: &companion::Context,
+    destination: &wire::Destination,
+    delivery: &wire::Delivery,
+    elapsed_since_request: Duration,
+) -> Result<(), Invalid> {
+    let lifetime = open_lifetime(value, context, destination, delivery)?;
+    if elapsed_since_request >= lifetime {
+        return Err(Invalid::Expired);
+    }
+    Ok(())
+}
+
+fn open_lifetime(
+    value: &wire::ResolveOpenResponse,
+    context: &companion::Context,
+    destination: &wire::Destination,
+    delivery: &wire::Delivery,
+) -> Result<Duration, Invalid> {
+    admit_response(Response::Open(value))?;
     if value.context.as_option() != Some(context) {
         return Err(Invalid::StaleContext);
     }
@@ -614,18 +664,22 @@ pub fn bind_open(
     {
         return Err(Invalid::ForeignIdentity);
     }
+    let issued = &value.issued_at;
     if destination.state != wire::DestinationState::Active
         || delivery.transport_acceptance != wire::TransportAcceptance::AcceptedForegroundLan
         || delivery.read_state == wire::ReadState::Dismissed
-        || time(now) < time(&delivery.created_at)
-        || time(now) >= time(&delivery.expires_at)
-        || time(now) >= time(&destination.expires_at)
-        || time(now) >= time(&value.valid_until)
-        || time(&value.valid_until) > (now.seconds.saturating_add(5), now.nanos)
+        || time(issued) < time(&delivery.created_at)
+        || time(issued) >= time(&value.valid_until)
+        || time(&value.valid_until) > (issued.seconds.saturating_add(5), issued.nanos)
         || time(&value.valid_until) > time(&delivery.expires_at)
         || time(&value.valid_until) > time(&destination.expires_at)
     {
         return Err(Invalid::Expired);
     }
-    Ok(())
+    let issued = Duration::new(issued.seconds as u64, issued.nanos as u32);
+    let until = Duration::new(
+        value.valid_until.seconds as u64,
+        value.valid_until.nanos as u32,
+    );
+    until.checked_sub(issued).ok_or(Invalid::Expired)
 }

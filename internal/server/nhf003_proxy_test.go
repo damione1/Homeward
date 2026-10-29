@@ -37,6 +37,7 @@ type nhf003Proxy struct {
 	observationMu                                     sync.Mutex
 	lastLogin                                         *nhf003LoginObservation
 	stateReads, stateReadOK, revokeOK                 atomic.Uint64
+	stateReleases, stateReleaseOK                     atomic.Uint64
 	actions                                           atomic.Uint64
 }
 
@@ -105,6 +106,8 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 		switch request.URL.Path {
 		case statev1connect.StateServiceOpenViewProcedure:
 			p.stateReads.Add(1)
+		case statev1connect.StateServiceReleaseViewProcedure:
+			p.stateReleases.Add(1)
 		case authv1connect.AuthServiceStartLoginProcedure:
 			p.login.Add(1)
 		case authv1connect.AuthServiceCompleteLoginProcedure:
@@ -124,6 +127,9 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 		path := response.Request.URL.Path
 		if path == statev1connect.StateServiceOpenViewProcedure {
 			p.stateReadOK.Add(1)
+		}
+		if path == statev1connect.StateServiceReleaseViewProcedure {
+			p.stateReleaseOK.Add(1)
 		}
 		if path == authv1connect.AuthServiceRevokeSessionProcedure {
 			p.revokeOK.Add(1)

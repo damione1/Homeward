@@ -25,7 +25,7 @@ fn session() -> SessionCoordinator {
 #[test]
 fn model_publication_does_not_reenter_state_from_gesture_cancellation() {
     i_slint_backend_testing::init_no_event_loop();
-    let window = HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     let owner = Media::bind(&window);
     let (locked, wait_locked) = std::sync::mpsc::channel();
     let (release, wait_release) = std::sync::mpsc::channel();
@@ -166,7 +166,7 @@ fn backgrounding_discards_the_intention_and_resume_has_no_write_to_replay() {
 #[tokio::test]
 async fn queued_media_projection_cannot_publish_private_content_after_session_close() {
     i_slint_backend_testing::init_no_event_loop();
-    let window = HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     let owner = Media::detached();
     let session = session();
     ready(&owner, &session);

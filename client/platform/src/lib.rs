@@ -1,5 +1,6 @@
 //! Native secure services. No production plaintext persistence fallback.
 #![deny(clippy::wildcard_enum_match_arm)]
+pub mod appearance;
 #[cfg(any(target_os = "macos", target_os = "android"))]
 mod lease;
 pub mod notifications;

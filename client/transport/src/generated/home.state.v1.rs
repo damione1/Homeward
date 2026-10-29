@@ -16,6 +16,16 @@ pub type OwnedReadPageRequestView = ::buffa::view::OwnedView<
 pub type OwnedReadPageResponseView = ::buffa::view::OwnedView<
     ::home_wire_contract::home::state::v1::__buffa::view::ReadPageResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ReleaseViewRequestView<'static>>`.
+pub type OwnedReleaseViewRequestView = ::buffa::view::OwnedView<
+    ::home_wire_contract::home::state::v1::__buffa::view::ReleaseViewRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ReleaseViewResponseView<'static>>`.
+pub type OwnedReleaseViewResponseView = ::buffa::view::OwnedView<
+    ::home_wire_contract::home::state::v1::__buffa::view::ReleaseViewResponseView<
+        'static,
+    >,
+>;
 ///Shorthand for `OwnedView<WatchViewRequestView<'static>>`.
 pub type OwnedWatchViewRequestView = ::buffa::view::OwnedView<
     ::home_wire_contract::home::state::v1::__buffa::view::WatchViewRequestView<'static>,
@@ -38,13 +48,19 @@ pub const STATE_SERVICE_READ_PAGE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec:
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ReleaseView` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const STATE_SERVICE_RELEASE_VIEW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/home.state.v1.StateService/ReleaseView",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `WatchView` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const STATE_SERVICE_WATCH_VIEW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/home.state.v1.StateService/WatchView",
         ::connectrpc::StreamType::ServerStream,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
-/// Schema only. HTTP/Connect serving and client transport belong to later tickets.
+/// Authorized state reads and pagination cleanup; no device command dispatch.
 ///
 /// # Implementing handlers
 ///
@@ -138,6 +154,29 @@ pub trait StateService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 ::home_wire_contract::home::state::v1::ReadPageResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Handle the ReleaseView RPC.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn release_view<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            ::home_wire_contract::home::state::v1::ReleaseViewRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                ::home_wire_contract::home::state::v1::ReleaseViewResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -254,6 +293,35 @@ impl<S: StateService> StateServiceExt for S {
                 },
             )
             .with_spec(STATE_SERVICE_READ_PAGE_SPEC)
+            .route_view(
+                STATE_SERVICE_SERVICE_NAME,
+                "ReleaseView",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            ::home_wire_contract::home::state::v1::__buffa::view::ReleaseViewRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                ::home_wire_contract::home::state::v1::ReleaseViewRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.release_view(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    ::home_wire_contract::home::state::v1::ReleaseViewResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(STATE_SERVICE_RELEASE_VIEW_SPEC)
             .route_view_server_stream::<
                 _,
                 _,
@@ -348,6 +416,12 @@ impl<T: StateService> ::connectrpc::Dispatcher for StateServiceServer<T> {
                         .with_spec(STATE_SERVICE_READ_PAGE_SPEC),
                 )
             }
+            "ReleaseView" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(STATE_SERVICE_RELEASE_VIEW_SPEC),
+                )
+            }
             "WatchView" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::server_streaming()
@@ -410,6 +484,28 @@ impl<T: StateService> ::connectrpc::Dispatcher for StateServiceServer<T> {
                         .await?
                         .encode::<
                             ::home_wire_contract::home::state::v1::ReadPageResponse,
+                        >(format)
+                })
+            }
+            "ReleaseView" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        ::home_wire_contract::home::state::v1::ReleaseViewRequest,
+                    >(request.encoded()?, format)?;
+                    let req: ::home_wire_contract::home::state::v1::__buffa::view::ReleaseViewRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        ::home_wire_contract::home::state::v1::ReleaseViewRequest,
+                    >::from_parts(&req, &body);
+                    svc.release_view(ctx, req)
+                        .await?
+                        .encode::<
+                            ::home_wire_contract::home::state::v1::ReleaseViewResponse,
                         >(format)
                 })
             }
@@ -651,6 +747,51 @@ where
                 &self.transport,
                 &self.config,
                 STATE_SERVICE_READ_PAGE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ReleaseView RPC. Sends a request to /home.state.v1.StateService/ReleaseView.
+    pub async fn release_view(
+        &self,
+        request: ::home_wire_contract::home::state::v1::ReleaseViewRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                ::home_wire_contract::home::state::v1::__buffa::view::ReleaseViewResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.release_view_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ReleaseView RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn release_view_with_options(
+        &self,
+        request: ::home_wire_contract::home::state::v1::ReleaseViewRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                ::home_wire_contract::home::state::v1::__buffa::view::ReleaseViewResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                STATE_SERVICE_RELEASE_VIEW_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

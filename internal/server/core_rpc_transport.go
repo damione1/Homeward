@@ -51,6 +51,7 @@ func registerCoreRPCRoutes(plan *PublicPlan, handler *coreRPCHandler) error {
 	stateRoutes := []ConnectProcedure{
 		{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		{Path: statev1connect.StateServiceReadPageProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		{Path: statev1connect.StateServiceReleaseViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		{Path: statev1connect.StateServiceWatchViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportTLSRequired},
 	}
 	if err := plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {

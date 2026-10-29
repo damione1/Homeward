@@ -12,6 +12,7 @@ use std::{
 
 pub const MAX_SCOPE_FRESHNESS: Duration = Duration::from_secs(10);
 const MAX_MESSAGES: usize = 64;
+pub type OpenIntentHandler = Arc<dyn Fn(PresentationId) + Send + Sync>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ForegroundEvidence {
     NotObserved,
@@ -41,6 +42,8 @@ pub(super) struct Inner {
     admitted_until: AtomicU64,
     authority: Box<dyn Fn() -> bool + Send + Sync>,
     book: Mutex<Book>,
+    #[cfg(target_os = "android")]
+    open_handler: Option<OpenIntentHandler>,
 }
 #[derive(Clone)]
 pub struct PresentationScope(pub(super) Arc<Inner>);
@@ -56,12 +59,31 @@ impl PresentationScope {
     /// read. authority must be a nonblocking, non-panicking cancellation check;
     /// it runs on native callback threads and must not acquire UI/owner locks.
     pub fn new(authority: impl Fn() -> bool + Send + Sync + 'static) -> Self {
+        Self::build(authority, None)
+    }
+    /// A native click is only a short-lived read/navigation intention. The
+    /// owner must bind it to its session/installation and obtain a fresh grant.
+    /// The handler may run after presentation suspension, outside scope locks.
+    pub fn with_open_handler(
+        authority: impl Fn() -> bool + Send + Sync + 'static,
+        handler: OpenIntentHandler,
+    ) -> Self {
+        Self::build(authority, Some(handler))
+    }
+    fn build(
+        authority: impl Fn() -> bool + Send + Sync + 'static,
+        handler: Option<OpenIntentHandler>,
+    ) -> Self {
+        #[cfg(not(target_os = "android"))]
+        let _ = handler;
         Self(Arc::new(Inner {
             closed: AtomicBool::new(false),
             admitted_from: AtomicU64::new(0),
             admitted_until: AtomicU64::new(0),
             authority: Box::new(authority),
             book: Mutex::new(Book::default()),
+            #[cfg(target_os = "android")]
+            open_handler: handler,
         }))
     }
     /// Only after fresh session, companion, destination and OS-permission
@@ -168,7 +190,7 @@ impl PresentationScope {
         #[cfg(target_os = "macos")]
         return macos::submit_once(value, self);
         #[cfg(target_os = "android")]
-        return Err(Error::PendingQualification);
+        return android::submit_once(value, self);
         #[cfg(not(any(target_os = "macos", target_os = "android")))]
         Err(Error::Unsupported)
     }
@@ -180,6 +202,7 @@ impl PresentationScope {
             .and_then(|book| book.entries.get(id).map(|e| e.foreground))
             .unwrap_or(ForegroundEvidence::NotObserved)
     }
+    #[cfg(any(target_os = "macos", test))]
     pub(super) fn foreground(&self, id: &PresentationId, now: SystemTime) -> bool {
         let Ok(mut book) = self.0.book.lock() else {
             return false;
@@ -194,6 +217,35 @@ impl PresentationScope {
             ForegroundEvidence::SuppressedByDelegate
         };
         allowed
+    }
+    #[cfg(target_os = "android")]
+    pub(super) fn retains_open_route(&self, id: &PresentationId, now: SystemTime) -> bool {
+        self.0.book.lock().ok().is_some_and(|book| {
+            book.entries
+                .get(id)
+                .is_some_and(|entry| entry.fresh(now) && !entry.opened)
+        })
+    }
+    #[cfg(target_os = "android")]
+    pub(super) fn capture_open_intent(&self, id: &PresentationId, now: SystemTime) {
+        let Some(handler) = self.0.open_handler.as_ref() else {
+            self.opened(id, now);
+            return;
+        };
+        let Ok(mut book) = self.0.book.lock() else {
+            return;
+        };
+        let Some(entry) = book.entries.get_mut(id) else {
+            return;
+        };
+        if !entry.fresh(now) || entry.opened {
+            return;
+        }
+        entry.opened = true;
+        drop(book);
+        // No presentation authority is granted here, and the owner callback
+        // never runs while holding the scope mutex (close takes that mutex).
+        handler(id.clone());
     }
     pub(super) fn opened(&self, id: &PresentationId, now: SystemTime) {
         let Ok(mut book) = self.0.book.lock() else {

@@ -16,7 +16,11 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     CacheFailure, CachedView, DeliveryTicket, Filter, ProjectionGeneration, ProjectionMailbox,
-    Publication, SnapshotFailure, WatchExit, read_snapshot, watch_once,
+    Publication, SnapshotFailure, WatchExit, watch_once,
+};
+use crate::{
+    snapshot_cleanup::{CleanupHandle, CleanupOwner},
+    snapshot_reader::read_snapshot_owned,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -327,6 +331,7 @@ impl<P: Send + 'static> Inner<P> {
 pub struct CacheOwner<P: Send + 'static> {
     handle: CacheHandle<P>,
     task: Option<JoinHandle<()>>,
+    cleanup: Option<CleanupOwner>,
 }
 
 impl<P: Send + 'static> CacheOwner<P> {
@@ -337,11 +342,19 @@ impl<P: Send + 'static> CacheOwner<P> {
         project: impl Fn(CachePhase, Option<&CachedView>, Viewport) -> P + Send + Sync + 'static,
         notify: impl Fn(DeliveryTicket<P>) + Send + Sync + 'static,
     ) -> (Self, mpsc::Receiver<CacheEvent>) {
+        let (cleanup, releases) = CleanupOwner::start(session.clone(), transport.clone());
         let runner = Arc::new(move |context: RunContext<P>| -> RunFuture {
-            let (session, transport, filter) = (session.clone(), transport.clone(), filter.clone());
-            Box::pin(native_run(context, session, transport, filter))
+            let (session, transport, filter, releases) = (
+                session.clone(),
+                transport.clone(),
+                filter.clone(),
+                releases.clone(),
+            );
+            Box::pin(native_run(context, session, transport, filter, releases))
         });
-        Self::build(Arc::new(project), Arc::new(notify), runner)
+        let (mut owner, events) = Self::build(Arc::new(project), Arc::new(notify), runner);
+        owner.cleanup = Some(cleanup);
+        (owner, events)
     }
 
     fn build(
@@ -381,6 +394,7 @@ impl<P: Send + 'static> CacheOwner<P> {
             Self {
                 handle,
                 task: Some(task),
+                cleanup: None,
             },
             event_rx,
         )
@@ -393,6 +407,9 @@ impl<P: Send + 'static> CacheOwner<P> {
         self.handle.terminate();
         if let Some(task) = self.task.take() {
             let _ = task.await;
+        }
+        if let Some(cleanup) = self.cleanup.take() {
+            cleanup.close().await;
         }
         self.handle.inner.stopped.cancel();
     }
@@ -485,6 +502,7 @@ async fn native_run<P: Send + 'static>(
     session: SessionCoordinator,
     transport: StateTransport,
     filter: Filter,
+    releases: CleanupHandle,
 ) {
     let emitter = Emitter {
         inner: context.inner.clone(),
@@ -498,7 +516,7 @@ async fn native_run<P: Send + 'static>(
     let mut viewport = context.inner.viewport.subscribe();
     // Pin both futures across viewport changes. A scroll never drops/restarts an
     // in-flight decoder or a shared credential-refresh waiter.
-    let feed = feed(&emitter, &session, &transport, filter, cancel);
+    let feed = feed(&emitter, &session, &transport, filter, cancel, &releases);
     let maintenance = maintain_access(&emitter, &session, cancel);
     tokio::pin!(feed, maintenance);
     let mut ended = false;
@@ -539,6 +557,7 @@ async fn feed<P: Send + 'static>(
     transport: &StateTransport,
     filter: Filter,
     cancel: &CancellationToken,
+    releases: &CleanupHandle,
 ) {
     let policy = ReconnectPolicy::new(4, Duration::from_millis(250), Duration::from_secs(4))
         .expect("fixed read retry policy");
@@ -564,43 +583,47 @@ async fn feed<P: Send + 'static>(
         }
         let view = match retained.take() {
             Some(view) => view,
-            None => match read_snapshot(transport, &lease, filter.clone(), 256, cancel).await {
-                Ok(view) => {
-                    if !session.is_current(lease.generation) || cancel.is_cancelled() {
+            None => {
+                match read_snapshot_owned(transport, &lease, filter.clone(), 256, cancel, releases)
+                    .await
+                {
+                    Ok(view) => {
+                        if !session.is_current(lease.generation) || cancel.is_cancelled() {
+                            continue;
+                        }
+                        emitter.set(CachePhase::Live, Some(&view));
+                        view
+                    }
+                    Err(SnapshotFailure::Cancelled) => {
+                        if cancel.is_cancelled() {
+                            return;
+                        }
                         continue;
                     }
-                    emitter.set(CachePhase::Live, Some(&view));
-                    view
-                }
-                Err(SnapshotFailure::Cancelled) => {
-                    if cancel.is_cancelled() {
+                    Err(SnapshotFailure::Transport(failure)) => {
+                        if !session.is_current(lease.generation) {
+                            continue;
+                        }
+                        emitter.set(CachePhase::Offline, None);
+                        let _ = session.observe_failure(lease.generation, &failure).await;
+                        emitter
+                            .event(CacheEvent::Transport(failure.kind()), cancel)
+                            .await;
+                        let retryable = failure.may_resume_read();
+                        failures = failures.saturating_add(1);
+                        if retryable && policy.wait_after(failures, cancel).await.unwrap_or(false) {
+                            continue;
+                        }
+                        emitter.set(CachePhase::Blocked, None);
                         return;
                     }
-                    continue;
-                }
-                Err(SnapshotFailure::Transport(failure)) => {
-                    if !session.is_current(lease.generation) {
-                        continue;
+                    Err(SnapshotFailure::Contract(error)) => {
+                        emitter.set(CachePhase::Invalid, None);
+                        emitter.event(CacheEvent::Contract(error), cancel).await;
+                        return;
                     }
-                    emitter.set(CachePhase::Offline, None);
-                    let _ = session.observe_failure(lease.generation, &failure).await;
-                    emitter
-                        .event(CacheEvent::Transport(failure.kind()), cancel)
-                        .await;
-                    let retryable = failure.may_resume_read();
-                    failures = failures.saturating_add(1);
-                    if retryable && policy.wait_after(failures, cancel).await.unwrap_or(false) {
-                        continue;
-                    }
-                    emitter.set(CachePhase::Blocked, None);
-                    return;
                 }
-                Err(SnapshotFailure::Contract(error)) => {
-                    emitter.set(CachePhase::Invalid, None);
-                    emitter.event(CacheEvent::Contract(error), cancel).await;
-                    return;
-                }
-            },
+            }
         };
         let mut applied = false;
         let exit = watch_once(

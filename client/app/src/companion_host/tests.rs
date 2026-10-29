@@ -87,6 +87,37 @@ fn reading_or_opening_a_draft_never_confirms_an_effect() {
     assert!(state.record.as_ref().unwrap().consent.battery);
 }
 #[test]
+fn restored_installation_cannot_restart_collection_from_saved_server_consent() {
+    let owner = Companion::detached();
+    let (scope, fence) = {
+        let mut state = owner.0.state.lock().unwrap();
+        state.active = true;
+        state.identity = Some(Identity {
+            account: AccountId::parse("synthetic-account").unwrap(),
+            session: SessionId::parse("synthetic-session").unwrap(),
+        });
+        (state.scope, state.fence)
+    };
+    assert!(owner.accept_received(
+        scope,
+        fence,
+        worker::Received::Recovered(context(), Box::new(record())),
+        false
+    ));
+    let mut state = owner.0.state.lock().unwrap();
+    assert_eq!(state.gate, Gate::UserStopped);
+    assert!(state.record.as_ref().unwrap().consent.battery);
+    state.requested = false;
+    assert!(
+        state
+            .plan(Instant::now() + Duration::from_secs(600))
+            .is_none()
+    );
+    state.need_read();
+    assert!(state.accept(context(), record(), false));
+    assert_eq!(state.gate, Gate::UserStopped);
+}
+#[test]
 fn withdrawal_stops_locally_before_confirmation_and_old_callback_cannot_enable_it() {
     let mut state = ready();
     let old = state.generation;
@@ -210,4 +241,17 @@ fn wall_clock_gap_expires_values_even_if_monotonic_deadline_has_not_elapsed() {
     assert!(state.record.as_ref().unwrap().latest.as_option().is_none());
     assert_eq!(state.gate, Gate::NeedsRead);
     assert!(matches!(state.plan(Instant::now()), Some(Job::Read)));
+}
+
+#[test]
+fn suspension_cancels_telemetry_without_withdrawing_independent_notification_metadata() {
+    let mut state = State::default();
+    let collection = state.cancel.clone();
+    let notification = state.notification_cancel.clone();
+    state.foreground(false);
+    assert!(collection.is_cancelled());
+    assert!(!notification.is_cancelled());
+    assert!(state.plan(Instant::now()).is_none());
+    state.clear();
+    assert!(notification.is_cancelled());
 }

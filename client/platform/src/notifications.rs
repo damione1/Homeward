@@ -2,14 +2,35 @@
 //! presentation receipt. No permissions are requested by construction/query.
 use std::time::{Duration, SystemTime};
 
+#[cfg(target_os = "android")]
+mod android;
+#[cfg(target_os = "android")]
+pub use android::{destroyed, initialize};
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
 mod macos_delegate;
+mod reception;
 mod scope;
-pub use scope::{ForegroundEvidence, MAX_SCOPE_FRESHNESS, PresentationScope};
+pub use reception::{RECEPTION_IDLE_LIMIT, ReceptionLease, ReceptionStatus};
+pub use scope::{ForegroundEvidence, MAX_SCOPE_FRESHNESS, OpenIntentHandler, PresentationScope};
 
 pub const MAX_LIFETIME: Duration = Duration::from_secs(3600);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Backend {
+    MacOs,
+    Android,
+    Unavailable,
+}
+pub const fn backend() -> Backend {
+    #[cfg(target_os = "macos")]
+    return Backend::MacOs;
+    #[cfg(target_os = "android")]
+    return Backend::Android;
+    #[cfg(not(any(target_os = "macos", target_os = "android")))]
+    Backend::Unavailable
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PresentationId(String);
@@ -81,13 +102,23 @@ pub enum Submission {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeliveryEvidence {
     PresentInOsCenter,
+    RegisteredWithOs,
     NotObserved,
     Unknown,
 }
 impl DeliveryEvidence {
+    /// Registration can include queued/snoozed Android records. It cannot
+    /// produce the stronger center-presentation receipt.
+    pub fn attests_center(self) -> bool {
+        match self {
+            Self::PresentInOsCenter => true,
+            Self::RegisteredWithOs | Self::NotObserved | Self::Unknown => false,
+        }
+    }
     pub fn label(self) -> &'static str {
         match self {
             Self::PresentInOsCenter => "Remise attestée au centre de notifications OS",
+            Self::RegisteredWithOs => "Enregistrée auprès de l’OS ; affichage non attesté",
             Self::NotObserved => "Remise non observée",
             Self::Unknown => "Remise inconnue",
         }
@@ -195,7 +226,7 @@ pub fn settings() -> Result<Settings, Error> {
     #[cfg(target_os = "macos")]
     return macos::settings();
     #[cfg(target_os = "android")]
-    return Err(Error::PendingQualification);
+    return android::settings();
     #[cfg(not(any(target_os = "macos", target_os = "android")))]
     Err(Error::Unsupported)
 }
@@ -204,7 +235,7 @@ pub fn request_authorization() -> Result<Settings, Error> {
     #[cfg(target_os = "macos")]
     return macos::request_authorization();
     #[cfg(target_os = "android")]
-    return Err(Error::PendingQualification);
+    return android::request_authorization();
     #[cfg(not(any(target_os = "macos", target_os = "android")))]
     Err(Error::Unsupported)
 }
@@ -212,7 +243,7 @@ pub fn delivery_evidence(id: &PresentationId) -> Result<DeliveryEvidence, Error>
     #[cfg(target_os = "macos")]
     return macos::delivery_evidence(id);
     #[cfg(target_os = "android")]
-    return Err(Error::PendingQualification);
+    return android::delivery_evidence(id);
     #[cfg(not(any(target_os = "macos", target_os = "android")))]
     Err(Error::Unsupported)
 }
@@ -222,7 +253,7 @@ pub fn remove(id: &PresentationId) -> Result<(), Error> {
     #[cfg(target_os = "macos")]
     return macos::remove(id);
     #[cfg(target_os = "android")]
-    return Err(Error::PendingQualification);
+    return android::remove(id);
     #[cfg(not(any(target_os = "macos", target_os = "android")))]
     Err(Error::Unsupported)
 }
@@ -318,6 +349,13 @@ mod tests {
             )
             .is_err()
         );
+    }
+    #[test]
+    fn os_registration_never_attests_visible_center_presentation() {
+        assert!(!DeliveryEvidence::RegisteredWithOs.attests_center());
+        assert!(!DeliveryEvidence::NotObserved.attests_center());
+        assert!(!DeliveryEvidence::Unknown.attests_center());
+        assert!(DeliveryEvidence::PresentInOsCenter.attests_center());
     }
     #[test]
     fn os_permission_and_surface_setting_are_separate_from_submission() {

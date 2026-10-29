@@ -57,6 +57,8 @@ enum Source {
   SOURCE_MAC_OS_NETWORK_CONFIGURATION = 2;
   SOURCE_NATIVE_LIFECYCLE = 3;
   SOURCE_NONE = 4;
+  SOURCE_ANDROID_BATTERY_MANAGER = 5;
+  SOURCE_ANDROID_CONNECTIVITY_MANAGER = 6;
 }
 message Capability {
   Feature feature = 1;
@@ -65,7 +67,7 @@ message Capability {
   Source source = 4;
 }
 // Descriptive model/OS version only; never a serial, hostname, SSID, MAC
-// address, location or credential. Android reports unqualified capabilities.
+// address, location or credential. Each platform reports only implemented capabilities.
 message DeviceDescription {
   Platform platform = 1;
   string model = 2;

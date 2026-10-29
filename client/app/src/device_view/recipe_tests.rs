@@ -147,7 +147,7 @@ fn native_back_resolves_the_source_node_after_a_visible_sibling_changes_its_ui_t
     };
     use std::{cell::RefCell, rc::Rc};
     i_slint_backend_testing::init_no_event_loop();
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_access_stage(crate::ProAccessStage::Connected);
     window.set_show_endpoint(false);
     crate::cache_view::bind(&window);
@@ -276,7 +276,7 @@ fn pending_native_focus_cannot_outlive_navigation_user_focus_clear_or_its_source
         FocusInterruption::NewDefinition,
         FocusInterruption::HiddenOrigin,
     ] {
-        let window = crate::HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         window.set_access_stage(crate::ProAccessStage::Connected);
         window.set_show_endpoint(false);
         crate::cache_view::bind(&window);
@@ -389,7 +389,7 @@ fn pending_native_focus_cannot_outlive_navigation_user_focus_clear_or_its_source
 fn native_history_restores_scroll_and_keeps_the_source_header_visible() {
     use slint::ComponentHandle;
     i_slint_backend_testing::init_no_event_loop();
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window
         .window()
         .set_size(slint::LogicalSize::new(1100., 700.));
@@ -478,7 +478,7 @@ fn dismissing_a_confirmation_restores_its_exact_source_without_replaying_the_com
     };
     use std::{cell::Cell, rc::Rc};
     i_slint_backend_testing::init_no_event_loop();
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_access_stage(crate::ProAccessStage::Connected);
     window.set_show_endpoint(false);
     crate::cache_view::bind(&window);
@@ -579,7 +579,7 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
         .unwrap()
         .recipes = Some(popup_recipe);
     request.dashboard = LayoutState::Ready(Arc::new(layout.clone()));
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_access_stage(crate::ProAccessStage::Connected);
     window.set_show_endpoint(false);
     crate::cache_view::bind(&window);
@@ -713,7 +713,7 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
         .recipes
         .clone();
     request.dashboard = LayoutState::Ready(Arc::new(layout.clone()));
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_access_stage(crate::ProAccessStage::Connected);
     window.set_show_endpoint(false);
     crate::cache_view::bind(&window);
@@ -831,7 +831,7 @@ fn popup_native_tabs_keep_helper_editors_and_nested_selector_popups_inside_the_m
     use std::{cell::Cell, rc::Rc};
     i_slint_backend_testing::init_no_event_loop();
     for kind in [HelperKind::Text, HelperKind::Select] {
-        let window = crate::HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         window.set_access_stage(crate::ProAccessStage::Connected);
         window.set_show_endpoint(false);
         crate::cache_view::bind(&window);
@@ -956,7 +956,7 @@ fn native_page_without_a_room_path_uses_its_exact_source_identity() {
     use home_client_model::dashboard::{DashboardId, Destination, Presentation};
     use slint::ComponentHandle;
     i_slint_backend_testing::init_no_event_loop();
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     crate::cache_view::bind(&window);
     let (mut request, entity, store) = fixture(Intention::MoreInfo(entity_id()), None);
     let mut layout = request.dashboard.layout().unwrap().clone();
@@ -1022,7 +1022,7 @@ fn popup_detail_and_back_keep_separate_models_and_never_open_a_device_command() 
     use home_client_model::dashboard::{DashboardId, Destination, Presentation};
     use slint::{ComponentHandle, Model};
     i_slint_backend_testing::init_no_event_loop();
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_access_stage(crate::ProAccessStage::Connected);
     window.set_show_endpoint(false);
     crate::cache_view::bind(&window);
@@ -1116,7 +1116,7 @@ fn a_pointer_press_from_an_old_prompt_cannot_confirm_its_replacement() {
     };
     use std::{cell::Cell, rc::Rc};
     i_slint_backend_testing::init_no_event_loop();
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_view_loaded(true);
     let (request, mut entity, store) = fixture(
         Intention::Command {
@@ -1511,7 +1511,7 @@ fn native_confirmation_consumes_one_exact_intention_and_never_replays_an_old_id(
     use slint::ComponentHandle;
     use std::{cell::RefCell, rc::Rc};
     i_slint_backend_testing::init_no_event_loop();
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_view_loaded(true);
     let (request, mut entity, store) = fixture(
         Intention::Command {
@@ -1565,7 +1565,7 @@ fn native_confirmation_consumes_one_exact_intention_and_never_replays_an_old_id(
 fn permission_loss_or_private_clear_closes_a_native_confirmation_without_submission() {
     use std::{cell::Cell, rc::Rc};
     i_slint_backend_testing::init_no_event_loop();
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_view_loaded(true);
     let (request, mut entity, store) = fixture(
         Intention::Command {
@@ -1679,7 +1679,7 @@ fn cross_dashboard_pages_and_popups_return_to_the_exact_source_binding_without_c
     use std::{cell::RefCell, rc::Rc};
     i_slint_backend_testing::init_no_event_loop();
     for presentation in [Presentation::Page, Presentation::Popup] {
-        let window = crate::HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         window.set_access_stage(crate::ProAccessStage::Connected);
         window.set_show_endpoint(false);
         crate::cache_view::bind(&window);
@@ -1794,7 +1794,7 @@ fn cross_dashboard_refusals_never_mutate_the_route_or_selection() {
         CatalogueRefusal::ChangedSource,
         CatalogueRefusal::ForeignToken,
     ] {
-        let window = crate::HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         let (mut request, entity, store, choices, target) = cross_dashboard_fixture();
         let source = request.dashboard.shared_layout().unwrap();
         let mut destination = Destination {
@@ -1860,7 +1860,7 @@ fn a_new_catalogue_token_invalidates_prepared_gestures_and_cross_dashboard_histo
     use home_client_model::dashboard::{DashboardId, Destination, Presentation};
     use slint::ComponentHandle;
     i_slint_backend_testing::init_no_event_loop();
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_access_stage(crate::ProAccessStage::Connected);
     window.set_show_endpoint(false);
     crate::cache_view::bind(&window);
@@ -1936,7 +1936,7 @@ fn cross_dashboard_back_restores_the_sources_search_context() {
     use home_client_model::dashboard::{DashboardId, Destination, Presentation};
     use slint::ComponentHandle;
     i_slint_backend_testing::init_no_event_loop();
-    let window = crate::HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_access_stage(crate::ProAccessStage::Connected);
     window.set_show_endpoint(false);
     crate::cache_view::bind(&window);

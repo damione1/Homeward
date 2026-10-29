@@ -17,6 +17,10 @@ func AdmitCoreViewWire(message proto.Message) error {
 		if request != nil && knownFieldsOnly(request.ProtoReflect()) {
 			return nil
 		}
+	case *statev1.ReleaseViewRequest:
+		if request != nil && knownFieldsOnly(request.ProtoReflect()) {
+			return nil
+		}
 	case *statev1.WatchViewRequest:
 		if request != nil && request.Filter != nil && knownFieldsOnly(request.ProtoReflect()) {
 			return nil

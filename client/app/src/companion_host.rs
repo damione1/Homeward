@@ -37,6 +37,11 @@ pub(crate) struct NotificationParent {
     pub installation: wire::Installation,
     pub cancellation: CancellationToken,
 }
+#[derive(Clone, Copy)]
+pub(crate) enum NotificationPresence {
+    Visible,
+    ForegroundService,
+}
 #[derive(Clone)]
 pub(crate) struct Companion(Arc<Inner>);
 struct Inner {
@@ -45,6 +50,7 @@ struct Inner {
     window: Option<slint::Weak<HomewardWindow>>,
     source: Arc<dyn native::Source>,
     session: Mutex<Option<(u64, SessionCoordinator)>>,
+    registrations: Mutex<Option<Arc<crate::registration_store::Registrations>>>,
 }
 impl Companion {
     #[cfg(test)]
@@ -58,7 +64,18 @@ impl Companion {
             window,
             source,
             session: Mutex::new(None),
+            registrations: Mutex::new(None),
         }))
+    }
+    pub(crate) fn set_registrations(
+        &self,
+        store: Option<Arc<crate::registration_store::Registrations>>,
+    ) {
+        *self
+            .0
+            .registrations
+            .lock()
+            .expect("companion registration store") = store;
     }
     fn authenticated(&self, state: &State) -> bool {
         self.0
@@ -74,13 +91,35 @@ impl Companion {
             })
     }
     pub(crate) fn notification_parent(&self) -> Option<NotificationParent> {
+        self.notification_parent_for(NotificationPresence::Visible)
+    }
+    /// Installation metadata only: the notification owner must hold a live OS
+    /// foreground-service lease and re-read this installation over TLS. This
+    /// does not authorize companion collection while the UI is suspended.
+    pub(crate) fn notification_parent_for(
+        &self,
+        presence: NotificationPresence,
+    ) -> Option<NotificationParent> {
         let state = self.0.state.lock().expect("companion notification parent");
+        let session_live = match presence {
+            NotificationPresence::Visible => self.authenticated(&state),
+            NotificationPresence::ForegroundService => self
+                .0
+                .session
+                .lock()
+                .expect("companion notification metadata session")
+                .as_ref()
+                .is_some_and(|(scope, session)| {
+                    let phase = *session.subscribe().borrow();
+                    *scope == state.scope && matches!(phase.phase, Phase::Ready | Phase::Refreshing)
+                }),
+        };
         if !state.active
-            || !state.foreground
+            || (!state.foreground && matches!(presence, NotificationPresence::Visible))
             || matches!(&state.draft, Some(Draft::Revoke { .. }))
             || state.notification_retired
             || state.notification_cancel.is_cancelled()
-            || !self.authenticated(&state)
+            || !session_live
         {
             return None;
         }

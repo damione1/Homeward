@@ -3878,6 +3878,190 @@ impl ::buffa::ExtensionSet for ReadPageResponse {
         &mut self.__buffa_unknown_fields
     }
 }
+/// Discard only the authenticated actor's pagination storage after consumption
+/// or cancellation. This does not revoke a ViewCursor or affect device state.
+#[derive(Clone, PartialEq, Default)]
+pub struct ReleaseViewRequest {
+    /// Field 1: `snapshot_token`
+    pub snapshot_token: ::buffa::alloc::string::String,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ReleaseViewRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ReleaseViewRequest")
+            .field("snapshot_token", &self.snapshot_token)
+            .finish()
+    }
+}
+impl ReleaseViewRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.ReleaseViewRequest";
+}
+::buffa::impl_default_instance!(ReleaseViewRequest);
+impl ::buffa::MessageName for ReleaseViewRequest {
+    const PACKAGE: &'static str = "home.state.v1";
+    const NAME: &'static str = "ReleaseViewRequest";
+    const FULL_NAME: &'static str = "home.state.v1.ReleaseViewRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.ReleaseViewRequest";
+}
+impl ::buffa::Message for ReleaseViewRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.snapshot_token.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.snapshot_token) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.snapshot_token.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.snapshot_token, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.snapshot_token, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.snapshot_token.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ReleaseViewRequest {
+    const PROTO_FQN: &'static str = "home.state.v1.ReleaseViewRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+/// Unknown, expired and foreign tokens are indistinguishable no-ops. Releasing
+/// again is safe; it never opens a view or authorizes a command.
+#[derive(Clone, PartialEq, Default)]
+pub struct ReleaseViewResponse {
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ReleaseViewResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ReleaseViewResponse").finish()
+    }
+}
+impl ReleaseViewResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.ReleaseViewResponse";
+}
+::buffa::impl_default_instance!(ReleaseViewResponse);
+impl ::buffa::MessageName for ReleaseViewResponse {
+    const PACKAGE: &'static str = "home.state.v1";
+    const NAME: &'static str = "ReleaseViewResponse";
+    const FULL_NAME: &'static str = "home.state.v1.ReleaseViewResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.ReleaseViewResponse";
+}
+impl ::buffa::Message for ReleaseViewResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ReleaseViewResponse {
+    const PROTO_FQN: &'static str = "home.state.v1.ReleaseViewResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct WatchViewRequest {
     /// Field 1: `cursor`
@@ -10824,6 +11008,460 @@ pub mod __buffa {
             type View<'a> = ReadPageResponseView<'a>;
             type ViewHandle = ReadPageResponseOwnedView;
         }
+        /// Discard only the authenticated actor's pagination storage after consumption
+        /// or cancellation. This does not revoke a ViewCursor or affect device state.
+        #[derive(Clone, Debug, Default)]
+        pub struct ReleaseViewRequestView<'a> {
+            /// Field 1: `snapshot_token`
+            pub snapshot_token: &'a str,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ReleaseViewRequestView<'a> {
+            type Owned = super::super::ReleaseViewRequest;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.snapshot_token = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ReleaseViewRequest,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ReleaseViewRequest,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ReleaseViewRequest {
+                    snapshot_token: self.snapshot_token.to_string(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ReleaseViewRequestView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.snapshot_token.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.snapshot_token)
+                                as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.snapshot_token.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.snapshot_token, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ReleaseViewRequestView<'a> {
+            const PACKAGE: &'static str = "home.state.v1";
+            const NAME: &'static str = "ReleaseViewRequest";
+            const FULL_NAME: &'static str = "home.state.v1.ReleaseViewRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.ReleaseViewRequest";
+        }
+        ::buffa::impl_default_view_instance!(ReleaseViewRequestView);
+        ::buffa::impl_view_reborrow!(ReleaseViewRequestView);
+        /** Self-contained, `'static` owned view of a `ReleaseViewRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ReleaseViewRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ReleaseViewRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ReleaseViewRequestOwnedView(
+            ::buffa::OwnedView<ReleaseViewRequestView<'static>>,
+        );
+        impl ReleaseViewRequestOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReleaseViewRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReleaseViewRequestOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ReleaseViewRequest,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReleaseViewRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ReleaseViewRequestView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ReleaseViewRequestView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ReleaseViewRequest {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `snapshot_token`
+            #[must_use]
+            pub fn snapshot_token(&self) -> &'_ str {
+                self.0.reborrow().snapshot_token
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<ReleaseViewRequestView<'static>>>
+        for ReleaseViewRequestOwnedView {
+            fn from(inner: ::buffa::OwnedView<ReleaseViewRequestView<'static>>) -> Self {
+                ReleaseViewRequestOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ReleaseViewRequestOwnedView>
+        for ::buffa::OwnedView<ReleaseViewRequestView<'static>> {
+            fn from(wrapper: ReleaseViewRequestOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<ReleaseViewRequestView<'static>>>
+        for ReleaseViewRequestOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ReleaseViewRequestView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ReleaseViewRequest {
+            type View<'a> = ReleaseViewRequestView<'a>;
+            type ViewHandle = ReleaseViewRequestOwnedView;
+        }
+        /// Unknown, expired and foreign tokens are indistinguishable no-ops. Releasing
+        /// again is safe; it never opens a view or authorizes a command.
+        #[derive(Clone, Debug, Default)]
+        pub struct ReleaseViewResponseView<'a> {
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ReleaseViewResponseView<'a> {
+            type Owned = super::super::ReleaseViewResponse;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ReleaseViewResponse,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ReleaseViewResponse,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ReleaseViewResponse {
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ReleaseViewResponseView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ReleaseViewResponseView<'a> {
+            const PACKAGE: &'static str = "home.state.v1";
+            const NAME: &'static str = "ReleaseViewResponse";
+            const FULL_NAME: &'static str = "home.state.v1.ReleaseViewResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.ReleaseViewResponse";
+        }
+        ::buffa::impl_default_view_instance!(ReleaseViewResponseView);
+        ::buffa::impl_view_reborrow!(ReleaseViewResponseView);
+        /** Self-contained, `'static` owned view of a `ReleaseViewResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ReleaseViewResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ReleaseViewResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ReleaseViewResponseOwnedView(
+            ::buffa::OwnedView<ReleaseViewResponseView<'static>>,
+        );
+        impl ReleaseViewResponseOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReleaseViewResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReleaseViewResponseOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ReleaseViewResponse,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ReleaseViewResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ReleaseViewResponseView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ReleaseViewResponseView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ReleaseViewResponse {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<ReleaseViewResponseView<'static>>>
+        for ReleaseViewResponseOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<ReleaseViewResponseView<'static>>,
+            ) -> Self {
+                ReleaseViewResponseOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ReleaseViewResponseOwnedView>
+        for ::buffa::OwnedView<ReleaseViewResponseView<'static>> {
+            fn from(wrapper: ReleaseViewResponseOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<ReleaseViewResponseView<'static>>>
+        for ReleaseViewResponseOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ReleaseViewResponseView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ReleaseViewResponse {
+            type View<'a> = ReleaseViewResponseView<'a>;
+            type ViewHandle = ReleaseViewResponseOwnedView;
+        }
         #[derive(Clone, Debug, Default)]
         pub struct WatchViewRequestView<'a> {
             /// Field 1: `cursor`
@@ -12643,6 +13281,14 @@ pub use self::__buffa::view::ReadPageRequestOwnedView;
 pub use self::__buffa::view::ReadPageResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ReadPageResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReleaseViewRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReleaseViewRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReleaseViewResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReleaseViewResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::WatchViewRequestView;
 #[doc(inline)]

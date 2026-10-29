@@ -8,6 +8,7 @@ pub mod history;
 pub mod lists;
 mod owner;
 mod projection;
+mod snapshot_cleanup;
 mod snapshot_reader;
 mod stream_reader;
 mod watch;

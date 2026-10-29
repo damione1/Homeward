@@ -46,6 +46,7 @@ struct Inner {
     window: Option<slint::Weak<HomewardWindow>>,
     source: Arc<dyn native::Source>,
     session: Mutex<Option<(u64, SessionCoordinator)>>,
+    registrations: Mutex<Option<Arc<crate::registration_store::Registrations>>>,
 }
 pub(crate) enum NavigationTarget {
     Home,
@@ -72,13 +73,18 @@ fn nonce() -> Result<String, worker::Error> {
 }
 impl Notifications {
     fn new(window: Option<slint::Weak<HomewardWindow>>, source: Arc<dyn native::Source>) -> Self {
+        let state = State {
+            background_supported: source.background_supported(),
+            ..Default::default()
+        };
         Self(Arc::new(Inner {
-            state: Mutex::new(State::default()),
+            state: Mutex::new(state),
             changed: Notify::new(),
             projection_queued: AtomicBool::new(false),
             window,
             source,
             session: Mutex::new(None),
+            registrations: Mutex::new(None),
         }))
     }
     #[cfg(test)]
@@ -132,13 +138,21 @@ impl Notifications {
         let mut state = self.0.state.lock().expect("notification foreground");
         if state.foreground != foreground {
             state.foreground = foreground;
-            state.interrupt();
+            if state.background_running() {
+                state.interrupt_reads();
+            } else {
+                state.interrupt();
+            }
             state.intent = None;
-            state.requested = foreground;
+            state.requested = state.can_receive();
             state.resolution_attempted = false;
             if !foreground {
                 state.entries.clear();
-                state.stage = Stage::Suspended;
+                state.stage = if state.background_running() {
+                    Stage::Ready
+                } else {
+                    Stage::Suspended
+                };
             }
             self.post(&state);
         }
@@ -190,6 +204,8 @@ impl Notifications {
     }
     pub fn take_navigation(&self, generation: i32) -> Option<NavigationTarget> {
         let mut state = self.0.state.lock().expect("notification navigation grant");
+        #[cfg(debug_assertions)]
+        eprintln!("homeward: notification grant UI callback");
         if state
             .grant
             .as_ref()
@@ -204,20 +220,32 @@ impl Notifications {
         if grant.parent_stop.is_cancelled() || state.validated != Some(grant.native_generation) {
             return None;
         }
-        admit::bind_open(
+        admit::bind_open_elapsed(
             &grant.response,
             state.context.as_ref()?,
             state.destination.as_ref()?,
             &grant.message,
-            &now(),
+            grant.requested_at.elapsed(),
         )
         .ok()?;
-        match grant.response.authorized_target.resource.as_ref()? {
-            wire::target::Resource::Home(_) => Some(NavigationTarget::Home),
-            wire::target::Resource::Entity(id) => {
-                Some(NavigationTarget::Entity(id.value.parse().ok()?))
-            }
-        }
+        let target = match grant.response.authorized_target.resource.as_ref()? {
+            wire::target::Resource::Home(_) => NavigationTarget::Home,
+            wire::target::Resource::Entity(id) => NavigationTarget::Entity(id.value.parse().ok()?),
+        };
+        // A pause or lost read response must not consume the short-lived native
+        // intention. Clear it only when a freshly bound grant reaches the UI.
+        state.finish_native_open(&admit::DeliveryId::parse(&grant.message.id.value).ok()?);
+        Some(target)
+    }
+    pub(crate) fn set_registrations(
+        &self,
+        store: Option<Arc<crate::registration_store::Registrations>>,
+    ) {
+        *self
+            .0
+            .registrations
+            .lock()
+            .expect("notification registration store") = store;
     }
     pub async fn run(
         &self,
@@ -237,13 +265,34 @@ impl Notifications {
         let mut observed = None;
         let mut tasks = JoinSet::new();
         loop {
-            let parent_binding = parent.notification_parent();
+            let presence = if self
+                .0
+                .state
+                .lock()
+                .expect("notification service presence")
+                .background_running()
+            {
+                crate::companion_host::NotificationPresence::ForegroundService
+            } else {
+                crate::companion_host::NotificationPresence::Visible
+            };
+            let parent_binding = match presence {
+                crate::companion_host::NotificationPresence::Visible => {
+                    parent.notification_parent()
+                }
+                crate::companion_host::NotificationPresence::ForegroundService => {
+                    parent.notification_parent_for(presence)
+                }
+            };
             let work = {
                 let mut state = self.0.state.lock().expect("notification loop");
                 if state.scope != scope {
                     break;
                 }
                 let phase = *phases.borrow();
+                if state.reconcile_background() {
+                    self.post(&state);
+                }
                 if observed != Some(phase.generation) {
                     observed = Some(phase.generation);
                     state.interrupt();
@@ -264,7 +313,7 @@ impl Notifications {
                     state.requested = state.visible;
                     self.post(&state);
                 }
-                if state.active && state.foreground {
+                if state.active && state.can_receive() {
                     if parent_binding.as_ref().is_some_and(|parent| {
                         state.destination.as_ref().is_some_and(|destination| {
                             destination.installation_id != parent.installation.id
@@ -279,6 +328,7 @@ impl Notifications {
                         state.pending = None;
                         state.intent = None;
                         state.local_stopped = true;
+                        state.stop_background();
                         state.requested = state.visible;
                     }
                     if state
@@ -289,8 +339,11 @@ impl Notifications {
                         state.stop_native();
                     }
                     if parent_binding.is_none()
-                        && (state.native.is_some() || !state.entries.is_empty())
+                        && (state.native.is_some()
+                            || state.background.is_some()
+                            || !state.entries.is_empty())
                     {
+                        state.stop_background();
                         state.stop_native();
                         state.entries.clear();
                         state.grant = None;

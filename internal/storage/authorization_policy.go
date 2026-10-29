@@ -259,8 +259,11 @@ func scanAuthorizationPolicy(row pgx.Row) (AuthorizationPolicySnapshot, error) {
 // authenticated service, which also rechecks administrative rights in SQL.
 func (s *Store) AuthorizationPolicy(ctx context.Context, target contracts.AccountID) (AuthorizationPolicySnapshot, error) {
 	text, err := sqlAccountID(target)
-	if err != nil || accountContextError(ctx) != nil || s == nil || s.pool == nil {
+	if err != nil || s == nil || s.pool == nil {
 		return AuthorizationPolicySnapshot{}, ErrAccountInvalid
+	}
+	if err := accountContextError(ctx); err != nil {
+		return AuthorizationPolicySnapshot{}, err
 	}
 	return scanAuthorizationPolicy(s.pool.QueryRow(ctx, `SELECT `+authorizationPolicyColumns+authorizationPolicyJoin+` WHERE a.id=$1`, text))
 }

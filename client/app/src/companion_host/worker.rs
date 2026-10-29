@@ -7,9 +7,10 @@ enum Error {
     Invalid,
     Unsupported,
 }
-enum Received {
+pub(super) enum Received {
     Descriptor(wire::Context),
     Record(wire::Context, Box<wire::Installation>),
+    Recovered(wire::Context, Box<wire::Installation>),
 }
 
 impl Companion {
@@ -61,6 +62,64 @@ impl Companion {
             response=api.describe_companion(wire::DescribeCompanionRequest::default(),lease.token(),Duration::from_secs(5),stop)=>response.map_err(Error::Transport)?};
             admit::admit_response(admit::Response::Describe(&response))
                 .map_err(|_| Error::Invalid)?;
+            let registrations = self
+                .0
+                .registrations
+                .lock()
+                .expect("companion recovery store")
+                .clone();
+            if let Some(registrations) = registrations {
+                let context = (*response.context).clone();
+                let nonce = registrations
+                    .lookup(
+                        crate::registration_store::Kind::Companion,
+                        crate::registration_store::Subject {
+                            account: lease.account_id(),
+                            session: lease.session_id(),
+                            epoch: &context.epoch,
+                            parent: None,
+                        },
+                    )
+                    .await
+                    .map_err(|_| Error::Invalid)?;
+                if let Some(nonce) = nonce {
+                    let request = wire::GetInstallationRequest {
+                        selector: Some(
+                            wire::get_installation_request::Selector::RegistrationRequestId(
+                                nonce.clone(),
+                            ),
+                        ),
+                        ..Default::default()
+                    };
+                    admit::admit_request(admit::Request::Get(&request))
+                        .map_err(|_| Error::Invalid)?;
+                    let recovered = tokio::select! {biased; ()=lease.cancellation.cancelled()=>return Err(Error::Cancelled),
+                    value=api.get_installation(request,lease.token(),Duration::from_secs(5),stop)=>value };
+                    match recovered {
+                        Ok(value) => {
+                            admit::admit_response(admit::Response::Get(&value))
+                                .map_err(|_| Error::Invalid)?;
+                            admit::bind_native(
+                                &value.installation,
+                                lease.account_id(),
+                                lease.session_id(),
+                            )
+                            .map_err(|_| Error::Invalid)?;
+                            if value.context.as_option() != Some(&context)
+                                || value.installation.registration_request_id != nonce
+                            {
+                                return Err(Error::Invalid);
+                            }
+                            return Ok(Received::Recovered(
+                                context,
+                                Box::new((*value.installation).clone()),
+                            ));
+                        }
+                        Err(error) if error.kind() == FailureKind::Rpc(RpcCode::NotFound) => {}
+                        Err(error) => return Err(Error::Transport(error)),
+                    }
+                }
+            }
             Ok(Received::Descriptor((*response.context).clone()))
         }
     }
@@ -84,11 +143,18 @@ impl Companion {
             Write::Revoke(r) => call!(revoke_installation, r, Revoke, Revoke),
         }
     }
-    fn accept_received(&self, scope: u64, fence: u64, value: Received, resolving: bool) -> bool {
+    pub(super) fn accept_received(
+        &self,
+        scope: u64,
+        fence: u64,
+        value: Received,
+        resolving: bool,
+    ) -> bool {
         let mut state = self.0.state.lock().expect("companion response");
         if state.scope != scope || state.fence != fence || !state.active || !state.foreground {
             return false;
         }
+        let recovered = matches!(&value, Received::Recovered(..));
         match value {
             Received::Descriptor(context) => {
                 // Discovery is a read; it never grants collection or creates an
@@ -103,7 +169,11 @@ impl Companion {
                 state.stage = Stage::Unregistered;
                 state.running = false;
             }
-            Received::Record(context, record) => {
+            Received::Record(context, record) | Received::Recovered(context, record) => {
+                if recovered {
+                    state.gate = Gate::UserStopped;
+                    state.notice = "Installation restaurée. La collecte reste arrêtée jusqu’à confirmation du consentement.".into();
+                }
                 if !state.accept(context, *record, resolving) {
                     state.invalid();
                     self.post(&state);
@@ -277,6 +347,32 @@ impl Companion {
         };
         if !self.current(scope, fence, session, lease) {
             return Err(Error::Cancelled);
+        }
+        if let Write::Register(request) = &prepared.request {
+            let registrations = self
+                .0
+                .registrations
+                .lock()
+                .expect("companion registration persistence")
+                .clone();
+            if let Some(registrations) = registrations {
+                registrations
+                    .remember(
+                        crate::registration_store::Kind::Companion,
+                        crate::registration_store::Subject {
+                            account: lease.account_id(),
+                            session: lease.session_id(),
+                            epoch: &request.expected.epoch,
+                            parent: None,
+                        },
+                        &request.request_id,
+                    )
+                    .await
+                    .map_err(|_| Error::Invalid)?;
+                if !self.current(scope, fence, session, lease) || stop.is_cancelled() {
+                    return Err(Error::Cancelled);
+                }
+            }
         }
         {
             let mut state = self.0.state.lock().expect("companion submission");

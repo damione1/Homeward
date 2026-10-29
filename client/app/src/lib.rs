@@ -2,6 +2,13 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 slint::include_modules!();
 
+/// Every product/probe window owns one initialized Kit validation engine.
+pub(crate) fn create_window() -> Result<HomewardWindow, slint::PlatformError> {
+    let window = HomewardWindow::new()?;
+    slint_kit::init_form_validation!(crate, window);
+    Ok(window)
+}
+
 pub mod administration;
 mod administration_host;
 mod cache_view;
@@ -38,6 +45,7 @@ mod notification_host;
 mod preferences;
 mod profile;
 mod raster;
+mod registration_store;
 mod session_host;
 mod video_host;
 
@@ -61,10 +69,14 @@ pub fn run() -> Result<(), slint::PlatformError> {
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
     let context = home_client_platform::NativeStoreContext::new(&app);
+    let _ = home_client_platform::notifications::initialize(&app);
     let lifecycle = session_host::LifecycleBridge::new();
     let events = lifecycle.clone();
     slint::android::init_with_event_listener(app, move |event| {
         use slint::android::android_activity::{MainEvent, PollEvent};
+        if matches!(event, PollEvent::Main(MainEvent::Destroy)) {
+            home_client_platform::notifications::destroyed();
+        }
         if matches!(
             event,
             PollEvent::Main(

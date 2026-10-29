@@ -26,7 +26,7 @@ if _version_not_supported:
 
 
 class StateServiceStub(object):
-    """Schema only. HTTP/Connect serving and client transport belong to later tickets.
+    """Authorized state reads and pagination cleanup; no device command dispatch.
     """
 
     def __init__(self, channel):
@@ -45,6 +45,11 @@ class StateServiceStub(object):
                 request_serializer=home_dot_state_dot_v1_dot_state__pb2.ReadPageRequest.SerializeToString,
                 response_deserializer=home_dot_state_dot_v1_dot_state__pb2.ReadPageResponse.FromString,
                 _registered_method=True)
+        self.ReleaseView = channel.unary_unary(
+                '/home.state.v1.StateService/ReleaseView',
+                request_serializer=home_dot_state_dot_v1_dot_state__pb2.ReleaseViewRequest.SerializeToString,
+                response_deserializer=home_dot_state_dot_v1_dot_state__pb2.ReleaseViewResponse.FromString,
+                _registered_method=True)
         self.WatchView = channel.unary_stream(
                 '/home.state.v1.StateService/WatchView',
                 request_serializer=home_dot_state_dot_v1_dot_state__pb2.WatchViewRequest.SerializeToString,
@@ -53,7 +58,7 @@ class StateServiceStub(object):
 
 
 class StateServiceServicer(object):
-    """Schema only. HTTP/Connect serving and client transport belong to later tickets.
+    """Authorized state reads and pagination cleanup; no device command dispatch.
     """
 
     def OpenView(self, request, context):
@@ -63,6 +68,12 @@ class StateServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def ReadPage(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ReleaseView(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -87,6 +98,11 @@ def add_StateServiceServicer_to_server(servicer, server):
                     request_deserializer=home_dot_state_dot_v1_dot_state__pb2.ReadPageRequest.FromString,
                     response_serializer=home_dot_state_dot_v1_dot_state__pb2.ReadPageResponse.SerializeToString,
             ),
+            'ReleaseView': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReleaseView,
+                    request_deserializer=home_dot_state_dot_v1_dot_state__pb2.ReleaseViewRequest.FromString,
+                    response_serializer=home_dot_state_dot_v1_dot_state__pb2.ReleaseViewResponse.SerializeToString,
+            ),
             'WatchView': grpc.unary_stream_rpc_method_handler(
                     servicer.WatchView,
                     request_deserializer=home_dot_state_dot_v1_dot_state__pb2.WatchViewRequest.FromString,
@@ -101,7 +117,7 @@ def add_StateServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class StateService(object):
-    """Schema only. HTTP/Connect serving and client transport belong to later tickets.
+    """Authorized state reads and pagination cleanup; no device command dispatch.
     """
 
     @staticmethod
@@ -148,6 +164,33 @@ class StateService(object):
             '/home.state.v1.StateService/ReadPage',
             home_dot_state_dot_v1_dot_state__pb2.ReadPageRequest.SerializeToString,
             home_dot_state_dot_v1_dot_state__pb2.ReadPageResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReleaseView(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/home.state.v1.StateService/ReleaseView',
+            home_dot_state_dot_v1_dot_state__pb2.ReleaseViewRequest.SerializeToString,
+            home_dot_state_dot_v1_dot_state__pb2.ReleaseViewResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -143,8 +143,20 @@ func nhf021Profile(platform wire.Platform, c *wire.Capability) bool {
 			return false
 		}
 	case wire.Platform_PLATFORM_ANDROID:
-		if c.Feature != wire.Feature_FEATURE_FOCUS {
+		switch c.Feature {
+		case wire.Feature_FEATURE_BATTERY_LEVEL, wire.Feature_FEATURE_BATTERY_STATE, wire.Feature_FEATURE_CHARGING:
+			availability, source = wire.Availability_AVAILABILITY_AVAILABLE, wire.Source_SOURCE_ANDROID_BATTERY_MANAGER
+		case wire.Feature_FEATURE_CONNECTIVITY:
+			availability, source = wire.Availability_AVAILABILITY_PARTIAL, wire.Source_SOURCE_ANDROID_CONNECTIVITY_MANAGER
+		case wire.Feature_FEATURE_ACTIVITY:
+			availability, source = wire.Availability_AVAILABILITY_PARTIAL, wire.Source_SOURCE_NATIVE_LIFECYCLE
+		case wire.Feature_FEATURE_FOCUS:
+		case wire.Feature_FEATURE_DO_NOT_DISTURB, wire.Feature_FEATURE_KIOSK, wire.Feature_FEATURE_SCREEN_SAVER,
+			wire.Feature_FEATURE_BRIGHTNESS, wire.Feature_FEATURE_VOLUME, wire.Feature_FEATURE_LOCATION,
+			wire.Feature_FEATURE_CAMERA_MOTION, wire.Feature_FEATURE_NOTIFICATIONS:
 			availability = wire.Availability_AVAILABILITY_PENDING_QUALIFICATION
+		default:
+			return false
 		}
 	default:
 		return false

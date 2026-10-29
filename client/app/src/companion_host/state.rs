@@ -238,6 +238,9 @@ impl State {
     pub fn interrupt(&mut self) {
         self.notification_cancel.cancel();
         self.notification_cancel = CancellationToken::new();
+        self.interrupt_collection();
+    }
+    fn interrupt_collection(&mut self) {
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
         self.fence = self.fence.saturating_add(1);
@@ -321,7 +324,10 @@ impl State {
             return;
         }
         self.foreground = value;
-        self.interrupt();
+        // Visibility cancels collection, not the separately authorized
+        // foreground message service. Ordinary notifications still require
+        // visible-parent admission and close their own scope on suspension.
+        self.interrupt_collection();
         self.draft = None;
         self.purge_sample();
         if self.gate != Gate::UserStopped {

@@ -1,0 +1,5 @@
+{
+  "synthetic_only": true,
+  "meter_alias": "sensor.chambre_eugenie_hilo_energy",
+  "action_alias": "light.kitchen_main_lights"
+}

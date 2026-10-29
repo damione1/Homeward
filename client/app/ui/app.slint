@@ -1,3 +1,4 @@
+export { KitFormValidation, HtmlInputKind, NumberInputFormat, KitInputConstraints, KitValidationResult, KitValidityState } from "@kit/kit.slint";
 import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitUrlField,
     KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess,
     KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
@@ -724,11 +725,10 @@ export component HomewardWindow inherits Window {
                 VerticalLayout {
                     spacing: 12px;
                     back-button := KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: "Retour"; activated => { if (root.page == ViewPage.room) { root.room-view = RoomView.cards; root.content-focus(); } else { root.go-back(); } } }
-                    Text { visible: root.cache-rows.length == 0; text: root.search-query == "" ? "Aucune observation associée. Affichez votre maison pour charger les états autorisés." : "Aucun résultat pour cette recherche.";
-                        color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
                     table := KitDataTable {
                         interactive: root.background-interactive;
                         theme: root.theme; control-size: comfortable; label: "États de l’installation";
+                        empty-label: root.search-query == "" ? "Aucune observation disponible." : "Aucun résultat pour cette recherche.";
                         rows: root.cache-rows; active-index: root.cache-active-index; generation: root.cache-generation;
                         vertical-stretch: 1;
                         columns: [

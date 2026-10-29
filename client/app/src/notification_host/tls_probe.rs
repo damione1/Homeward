@@ -78,6 +78,10 @@ impl Default for Injected {
     }
 }
 impl native::Source for Injected {
+    fn backend(&self) -> os::Backend {
+        // The synthetic companion fixture declares macOS, on every test host.
+        os::Backend::MacOs
+    }
     fn settings(&self, request: bool) -> Result<os::Settings, os::Error> {
         if request {
             self.requests.fetch_add(1, Ordering::SeqCst);

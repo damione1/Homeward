@@ -37,6 +37,7 @@ enum PermissionSource {
   PERMISSION_SOURCE_BUNDLE_REQUIRED = 2;
   PERMISSION_SOURCE_ANDROID_PENDING_QUALIFICATION = 3;
   PERMISSION_SOURCE_UNSUPPORTED = 4;
+  PERMISSION_SOURCE_ANDROID_NOTIFICATION_MANAGER = 5;
 }
 message PermissionSnapshot {
   Permission permission = 1;
@@ -234,6 +235,10 @@ message ResolveOpenResponse {
   DeliveryId delivery_id = 3;
   Target authorized_target = 4;
   google.protobuf.Timestamp valid_until = 5;
+  // Server clock origin for the at-most-five-second grant. Clients measure
+  // elapsed time from the fresh request using a monotonic clock; independent
+  // device wall clocks must neither extend nor reject this short lease.
+  google.protobuf.Timestamp issued_at = 6;
 }
 message RevokeDestinationRequest {
   home.companion.v1.Context expected_context = 1;

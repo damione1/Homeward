@@ -485,6 +485,8 @@ pub enum Source {
     SOURCE_MAC_OS_NETWORK_CONFIGURATION = 2i32,
     SOURCE_NATIVE_LIFECYCLE = 3i32,
     SOURCE_NONE = 4i32,
+    SOURCE_ANDROID_BATTERY_MANAGER = 5i32,
+    SOURCE_ANDROID_CONNECTIVITY_MANAGER = 6i32,
 }
 impl Source {
     ///Idiomatic alias for [`Self::SOURCE_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -502,6 +504,12 @@ impl Source {
     ///Idiomatic alias for [`Self::SOURCE_NONE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const None: Self = Self::SOURCE_NONE;
+    ///Idiomatic alias for [`Self::SOURCE_ANDROID_BATTERY_MANAGER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AndroidBatteryManager: Self = Self::SOURCE_ANDROID_BATTERY_MANAGER;
+    ///Idiomatic alias for [`Self::SOURCE_ANDROID_CONNECTIVITY_MANAGER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AndroidConnectivityManager: Self = Self::SOURCE_ANDROID_CONNECTIVITY_MANAGER;
 }
 impl ::core::default::Default for Source {
     fn default() -> Self {
@@ -518,6 +526,10 @@ impl ::buffa::Enumeration for Source {
             }
             3i32 => ::core::option::Option::Some(Self::SOURCE_NATIVE_LIFECYCLE),
             4i32 => ::core::option::Option::Some(Self::SOURCE_NONE),
+            5i32 => ::core::option::Option::Some(Self::SOURCE_ANDROID_BATTERY_MANAGER),
+            6i32 => {
+                ::core::option::Option::Some(Self::SOURCE_ANDROID_CONNECTIVITY_MANAGER)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -533,6 +545,10 @@ impl ::buffa::Enumeration for Source {
             }
             Self::SOURCE_NATIVE_LIFECYCLE => "SOURCE_NATIVE_LIFECYCLE",
             Self::SOURCE_NONE => "SOURCE_NONE",
+            Self::SOURCE_ANDROID_BATTERY_MANAGER => "SOURCE_ANDROID_BATTERY_MANAGER",
+            Self::SOURCE_ANDROID_CONNECTIVITY_MANAGER => {
+                "SOURCE_ANDROID_CONNECTIVITY_MANAGER"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -550,6 +566,12 @@ impl ::buffa::Enumeration for Source {
                 ::core::option::Option::Some(Self::SOURCE_NATIVE_LIFECYCLE)
             }
             "SOURCE_NONE" => ::core::option::Option::Some(Self::SOURCE_NONE),
+            "SOURCE_ANDROID_BATTERY_MANAGER" => {
+                ::core::option::Option::Some(Self::SOURCE_ANDROID_BATTERY_MANAGER)
+            }
+            "SOURCE_ANDROID_CONNECTIVITY_MANAGER" => {
+                ::core::option::Option::Some(Self::SOURCE_ANDROID_CONNECTIVITY_MANAGER)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -560,6 +582,8 @@ impl ::buffa::Enumeration for Source {
             Self::SOURCE_MAC_OS_NETWORK_CONFIGURATION,
             Self::SOURCE_NATIVE_LIFECYCLE,
             Self::SOURCE_NONE,
+            Self::SOURCE_ANDROID_BATTERY_MANAGER,
+            Self::SOURCE_ANDROID_CONNECTIVITY_MANAGER,
         ]
     }
 }
@@ -1203,7 +1227,7 @@ impl ::buffa::ExtensionSet for Capability {
     }
 }
 /// Descriptive model/OS version only; never a serial, hostname, SSID, MAC
-/// address, location or credential. Android reports unqualified capabilities.
+/// address, location or credential. Each platform reports only implemented capabilities.
 #[derive(Clone, PartialEq, Default)]
 pub struct DeviceDescription {
     /// Field 1: `platform`
@@ -5222,7 +5246,7 @@ pub mod __buffa {
             type ViewHandle = CapabilityOwnedView;
         }
         /// Descriptive model/OS version only; never a serial, hostname, SSID, MAC
-        /// address, location or credential. Android reports unqualified capabilities.
+        /// address, location or credential. Each platform reports only implemented capabilities.
         #[derive(Clone, Debug, Default)]
         pub struct DeviceDescriptionView<'a> {
             /// Field 1: `platform`

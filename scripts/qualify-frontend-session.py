@@ -37,6 +37,7 @@ Platform = TRANSPORT['Platform']
 PlatformSelection = TRANSPORT['PlatformSelection']
 device = TRANSPORT['device']
 PACKAGE = 'ca.homeward.frontend.dev'
+ACTIVITY = ANDROID_INPUT['ACTIVITY_NAME']
 
 
 class FixtureMode(Enum):
@@ -49,6 +50,8 @@ class FixtureMode(Enum):
 class FixtureKind(Enum):
     SESSION = 'session'
     CACHE = 'cache'
+    WORKLOAD = 'workload'
+    WORKLOAD_ACTIONS = 'workload-actions'
 
 
 class UIProfile(Enum):
@@ -80,6 +83,11 @@ class NativeAction(Enum):
     SIGN_OUT = 'sign-out'
     SCROLL_END = 'scroll-end'
     CHECK_ROW = 'check-row'
+    NAVIGATE = 'navigate'
+
+
+class NativeNavigationSection(Enum):
+    INVENTORY = 'Inventaire'
 
 
 class AppStep(Enum):
@@ -137,7 +145,7 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKin
             assert profile is UIProfile.CACHE
             env.update(HOMEWARD_NHF003_FIXTURE=str(control), HOMEWARD_NHF003_MODE=mode.value)
             test = 'TestNHF003SessionServer'
-        case FixtureKind.CACHE:
+        case FixtureKind.CACHE | FixtureKind.WORKLOAD | FixtureKind.WORKLOAD_ACTIONS:
             assert mode is FixtureMode.PASSWORD
             env.update(HOMEWARD_NHF004_FIXTURE=str(control), HOMEWARD_NHF004_APP='true', HOMEWARD_FRONTEND_UI_PROFILE=profile.value)
             test = 'TestNHF004CacheServer'
@@ -146,11 +154,17 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKin
                 dashboard.mkdir(mode=0o700)
                 shutil.copyfile(ROOT / 'qualification/frontend/dashboards/home.yaml', dashboard / 'dashboard.yaml')
                 env['HOMEWARD_NHF005_DASHBOARD'] = str(dashboard / 'dashboard.yaml')
+            if kind in (FixtureKind.WORKLOAD, FixtureKind.WORKLOAD_ACTIONS):
+                assert profile is UIProfile.HOME
+                source = directory/'workload-source.json'
+                name = 'actions.json' if kind is FixtureKind.WORKLOAD_ACTIONS else 'source.json'
+                shutil.copyfile(ROOT/'qualification/frontend/workload'/name,source)
+                env['HOMEWARD_NHF023_WORKLOAD_SOURCE'] = str(source)
     with (directory / 'server.log').open('wb') as log:
         server = subprocess.Popen([str(server_binary), '-test.run=^' + test + '$', '-test.v', '-test.timeout=8m'], cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
         try:
             ready = control / 'ready.json'
-            deadline = time.monotonic() + 60
+            deadline = time.monotonic() + (240 if kind in (FixtureKind.WORKLOAD, FixtureKind.WORKLOAD_ACTIONS) else 60)
             while not ready.exists():
                 if server.poll() is not None or time.monotonic() >= deadline:
                     raise RuntimeError('Synthetic native fixture did not become ready: ' + str(directory))
@@ -159,7 +173,7 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKin
             origin = urlsplit(private['origin'])
             if private['mode'] != 'synthetic-only' or origin.scheme != 'https' or origin.hostname != '127.0.0.1' or not origin.port:
                 raise RuntimeError('Refuse a non-synthetic or non-loopback fixture')
-            if kind is FixtureKind.CACHE and (private['entity_count'] != profile.entity_count() or private['ui_profile'] != profile.value):
+            if kind in (FixtureKind.CACHE,FixtureKind.WORKLOAD,FixtureKind.WORKLOAD_ACTIONS) and (private['entity_count'] != profile.entity_count() or private['ui_profile'] != profile.value):
                 raise RuntimeError('Native UI fixture profile/count mismatch')
             yield private, control
         finally:
@@ -172,7 +186,8 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKin
         if server.returncode != 0:
             raise RuntimeError('Synthetic native server failed to join cleanly')
         report = json.loads((control / 'result.json').read_text())
-        if not report['server_joined'] or report['command_driver_entries'] != 0:
+        expected_drivers = 1 if kind is FixtureKind.WORKLOAD_ACTIONS else 0
+        if not report['server_joined'] or report['command_driver_entries'] != expected_drivers:
             raise RuntimeError('Synthetic fixture violated its shutdown/read-only invariant')
 
 
@@ -305,12 +320,13 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                         return subprocess.run([str(helper), str(action)], capture_output=True, text=True, timeout=5)
                     def accessible(command, **fields):
                         return subprocess.run([str(helper), '-'], input=json.dumps({'pid': child.pid, 'command': command.value, 'syntheticOnly': True, **fields}), capture_output=True, text=True, timeout=20)
-                    def wait_native(label, editors=None):
+                    def wait_native(label, editors=None, contains=False):
                         deadline = time.monotonic() + 10
                         while True:
                             response = accessible(NativeAction.TREE)
                             rows = json.loads(response.stdout) if response.returncode == 0 else []
-                            found = any(label in (row['title'], row['description'], row['text']) for row in rows)
+                            found = any(any(label in str(row[key]) if contains else label == row[key]
+                                            for key in ['title','description','text']) for row in rows)
                             fields_ready = editors is None or sum(row['role'] == 'AXTextField' for row in rows) == editors
                             if found and fields_ready:
                                 return
@@ -333,7 +349,7 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                         assert info['accessibility_trusted'] and info['post_events_allowed']
                         time.sleep(.5)
                         if step is AppStep.RESTORE_READ_LOGOUT:
-                            wait_native('Afficher ma maison')
+                            wait_native('États à jour', contains=True)
                         else:
                             wait_native('Se connecter', editors=2)
                         snapshot(step.value)
@@ -347,8 +363,9 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                                 snapshot('authenticated')
                             case AppStep.RESTORE_READ_LOGOUT:
                                 assert present()
-                                assert accessible(NativeAction.READ).returncode == 0
-                                time.sleep(1)
+                                # Startup restores the OS session and obtains a
+                                # fresh authorized view without a second click.
+                                assert accessible(NativeAction.NAVIGATE, section=NativeNavigationSection.INVENTORY.value).returncode == 0
                                 snapshot('protected-read')
                                 if kind is FixtureKind.CACHE:
                                     scroll = accessible(NativeAction.SCROLL_END, expectedRowLabel=private['expected_last_alias'])
@@ -469,8 +486,8 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                 device_clock = device('shell', 'date', '+%s.%N').stdout.strip()
                 write(directory / 'clock.json', {'host_before_ns': before, 'device_epoch_seconds': device_clock, 'host_after_ns': time.time_ns()})
                 for step in [AppStep.LOGIN, AppStep.RESTORE_READ_LOGOUT, AppStep.STORE_FAILURE, AppStep.SIGNED_OUT]:
-                    device('shell', 'am', 'start', '-n', PACKAGE + '/android.app.NativeActivity')
-                    ui.find('Afficher ma maison', match=contains) if step is AppStep.RESTORE_READ_LOGOUT else ui.find('Identifiant')
+                    device('shell', 'am', 'start', '-n', PACKAGE + '/' + ACTIVITY)
+                    ui.find('États à jour', match=contains) if step is AppStep.RESTORE_READ_LOGOUT else ui.find('Identifiant')
                     snapshot(step.value)
                     match step:
                         case AppStep.LOGIN:
@@ -487,7 +504,6 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                             snapshot('authenticated')
                         case AppStep.RESTORE_READ_LOGOUT:
                             assert len(records()) == 1
-                            ui.tap('Afficher ma maison', match=contains)
                             if kind is FixtureKind.CACHE:
                                 ui.find('850 entités', match=contains)
                             ui.tap('Inventaire')
@@ -513,7 +529,7 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                                 before_pid = device('shell', 'pidof', PACKAGE).stdout.strip()
                                 device('shell', 'input', 'keyevent', '3')
                                 time.sleep(.7)
-                                device('shell', 'am', 'start', '--activity-reorder-to-front', '-n', PACKAGE + '/android.app.NativeActivity')
+                                device('shell', 'am', 'start', '--activity-reorder-to-front', '-n', PACKAGE + '/' + ACTIVITY)
                                 time.sleep(2)
                                 assert device('shell', 'pidof', PACKAGE).stdout.strip() == before_pid, 'foreground restarted instead of resuming the owned app'
                                 snapshot('resumed-read', CacheImageExpectation.READY if kind is FixtureKind.CACHE else None)

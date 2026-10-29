@@ -1,11 +1,12 @@
 import { KitTheme, KitThemes, KitCard, KitCardHeader, KitButton, KitWrap, KitNotificationCenter, NotificationRow, ControlSize } from "@kit/kit.slint";
-export enum NotificationAction { refresh, register, permission, enable, disable, revoke, confirm, cancel }
+export enum NotificationAction { refresh, register, permission, enable, disable, revoke, confirm, cancel, start-background, stop-background }
 export enum NotificationRowAction { open, read, dismiss }
 export struct NotificationPresentation {
-    generation: int, status: string, permission: string, notice: string,
+    generation: int, status: string, permission: string, notice: string, permission-action-label: string,
     busy: bool, registered: bool, native-enabled: bool, can-register: bool,
     can-enable: bool, can-permission: bool, can-revoke: bool,
     confirming: bool, confirmation: string,
+    background-status: string, can-start-background: bool, can-stop-background: bool,
 }
 export component HomewardNotifications inherits KitCard {
     accessible-role:groupbox;
@@ -19,11 +20,14 @@ export component HomewardNotifications inherits KitCard {
     if root.view.registered: Text { text:root.view.native-enabled ? "Présentation native activée" : "Présentation native arrêtée"; color:root.theme.text-primary; font-size:14px * root.theme.text-scale; wrap:word-wrap; }
     Text { text:root.view.permission; color:root.theme.text-primary; font-size:14px * root.theme.text-scale; wrap:word-wrap; }
     Text { text:root.view.notice; color:root.theme.text-secondary; font-size:14px * root.theme.text-scale; wrap:word-wrap; }
+    if root.view.background-status != "": Text { text:root.view.background-status; color:root.theme.text-primary; font-size:14px * root.theme.text-scale; wrap:word-wrap; }
     KitWrap {
         KitButton { theme:root.theme; control-size:comfortable; text:"Actualiser"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.refresh);} }
         if root.view.can-register: KitButton { theme:root.theme; control-size:comfortable; text:"Inscrire cette installation"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.register);} }
-        if root.view.can-permission: KitButton { theme:root.theme; control-size:comfortable; text:"Demander l’autorisation macOS"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.permission);} }
+        if root.view.can-permission: KitButton { theme:root.theme; control-size:comfortable; text:root.view.permission-action-label; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.permission);} }
         if root.view.can-enable: KitButton { theme:root.theme; control-size:comfortable; text:"Activer les notifications natives"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.enable);} }
+        if root.view.can-start-background: KitButton { theme:root.theme; control-size:comfortable; text:"Recevoir en arrière-plan"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.start-background);} }
+        if root.view.can-stop-background: KitButton { theme:root.theme; control-size:comfortable; text:"Arrêter l’arrière-plan"; disabled:!root.interactive; activated=>{root.action(root.view.generation,NotificationAction.stop-background);} }
         if root.view.registered: KitButton { theme:root.theme; control-size:comfortable; text:"Arrêter la présentation"; disabled:!root.interactive; activated=>{root.action(root.view.generation,NotificationAction.disable);} }
         if root.view.can-revoke: KitButton { theme:root.theme; control-size:comfortable; text:"Révoquer la destination"; disabled:!root.interactive || root.view.busy || root.view.confirming; activated=>{root.action(root.view.generation,NotificationAction.revoke);} }
     }

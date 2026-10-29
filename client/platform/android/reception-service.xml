@@ -1,0 +1,8 @@
+<service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:name="ca.homeward.platform.HomewardReceptionService"
+    android:exported="false"
+    android:stopWithTask="true"
+    android:foregroundServiceType="specialUse">
+    <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="User-started local home-automation message reception over authenticated TLS, with a persistent stop notification. No Google Play Services, boot restart, location collection or device actuation." />
+</service>

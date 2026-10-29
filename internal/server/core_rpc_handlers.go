@@ -116,9 +116,11 @@ func (h *coreRPCHandler) OpenView(ctx context.Context, request *connect.Request[
 	}
 	wire, err := view.EncodePage(page)
 	if err != nil {
+		_ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken)
 		return nil, coreRPCError(ctx, err)
 	}
 	if err := ctx.Err(); err != nil {
+		_ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken)
 		return nil, coreRPCError(ctx, err)
 	}
 	return connect.NewResponse(wire), nil
@@ -144,6 +146,20 @@ func (h *coreRPCHandler) ReadPage(ctx context.Context, request *connect.Request[
 		return nil, coreRPCError(ctx, err)
 	}
 	return connect.NewResponse(&statev1.ReadPageResponse{Page: wire}), nil
+}
+
+func (h *coreRPCHandler) ReleaseView(ctx context.Context, request *connect.Request[statev1.ReleaseViewRequest]) (*connect.Response[statev1.ReleaseViewResponse], error) {
+	actor, err := coreRPCActor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if h == nil || h.views == nil || request == nil || request.Msg == nil || contracts.AdmitCoreViewWire(request.Msg) != nil || !corePageToken(request.Msg.SnapshotToken) {
+		return nil, coreRPCError(ctx, view.ErrInvalidInput)
+	}
+	if err := h.views.ReleaseView(ctx, actor, request.Msg.SnapshotToken); err != nil {
+		return nil, coreRPCError(ctx, err)
+	}
+	return connect.NewResponse(&statev1.ReleaseViewResponse{}), nil
 }
 
 func (h *coreRPCHandler) WatchView(ctx context.Context, request *connect.Request[statev1.WatchViewRequest], stream *connect.ServerStream[statev1.WatchViewResponse]) error {
