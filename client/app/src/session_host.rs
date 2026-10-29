@@ -1423,7 +1423,7 @@ pub(crate) fn run_with_lifecycle(
         .map_err(|_| {
             slint::PlatformError::Other("Le moteur de connexion n’a pas pu démarrer.".into())
         })?;
-    let window = HomewardWindow::new()?;
+    let window = crate::create_window()?;
     let initial_preferences = match services.directory() {
         Ok(directory) => match Preferences::load(&directory) {
             Ok(value) => value,

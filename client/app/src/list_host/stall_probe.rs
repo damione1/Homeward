@@ -381,7 +381,7 @@ fn real_tls_ui_stall_keeps_latest_projection_and_task_confirmation() -> Result<(
     let fixture: Fixture =
         serde_json::from_slice(&std::fs::read(std::env::var("HOMEWARD_NHF023_READY")?)?)?;
     i_slint_backend_testing::init_integration_test_with_system_time();
-    let window = HomewardWindow::new()?;
+    let window = crate::create_window()?;
     cache_view::bind(&window);
     let lists = Lists::bind(&window);
     let runtime = tokio::runtime::Builder::new_multi_thread()

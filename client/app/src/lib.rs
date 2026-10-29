@@ -2,6 +2,13 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 slint::include_modules!();
 
+/// Every product/probe window owns one initialized Kit validation engine.
+pub(crate) fn create_window() -> Result<HomewardWindow, slint::PlatformError> {
+    let window = HomewardWindow::new()?;
+    slint_kit::init_form_validation!(crate, window);
+    Ok(window)
+}
+
 pub mod administration;
 mod administration_host;
 mod cache_view;

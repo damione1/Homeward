@@ -546,7 +546,7 @@ mod tests {
         use i_slint_backend_testing::ElementQuery;
         use slint::{ComponentHandle, Model, ModelRc, VecModel};
         i_slint_backend_testing::init_no_event_loop();
-        let window = crate::HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         crate::cache_view::bind(&window);
         window.set_access_stage(ProAccessStage::Connected);
         window.set_endpoint_ready(true);

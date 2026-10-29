@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn native_filter_callbacks_cancel_old_period_and_navigation_removes_private_context() {
     i_slint_backend_testing::init_no_event_loop();
-    let window = HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     let owner = History::bind(&window);
     owner.0.state.lock().unwrap().active = true;
     owner.choose(Some("synthetic-history".parse().unwrap()));

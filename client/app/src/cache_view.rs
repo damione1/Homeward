@@ -1205,7 +1205,7 @@ mod tests {
             platform::{Key, PointerEventButton, WindowEvent},
         };
         i_slint_backend_testing::init_no_event_loop();
-        let window = HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest {
             dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
             ..Default::default()
@@ -1280,7 +1280,7 @@ mod tests {
     fn route_changes_reject_stale_projections_and_private_clear_drops_every_new_surface() {
         use slint::ComponentHandle;
         i_slint_backend_testing::init_no_event_loop();
-        let window = HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest {
             dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
             ..Default::default()
@@ -1613,7 +1613,7 @@ mod tests {
         use home_wire_contract::home::dashboard::v1 as wire;
         use slint::ComponentHandle;
         i_slint_backend_testing::init_no_event_loop();
-        let window = HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         window.set_show_endpoint(false);
         window.set_access_stage(crate::ProAccessStage::Connected);
         let node =

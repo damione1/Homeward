@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn a_coalesced_active_projection_still_erases_all_header_drafts_after_a_private_reset() {
         i_slint_backend_testing::init_no_event_loop();
-        let window = HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         let mut state = crate::list_state::tests::ready();
         render(&window, Projection::new(&state));
         window.set_lists_create_draft("Private create draft".into());
@@ -295,7 +295,7 @@ mod tests {
     #[test]
     fn changing_the_selected_list_drops_header_values_without_losing_a_keyed_task_draft() {
         i_slint_backend_testing::init_no_event_loop();
-        let window = HomewardWindow::new().unwrap();
+        let window = crate::create_window().unwrap();
         let mut state = crate::list_state::tests::ready();
         state
             .edit(

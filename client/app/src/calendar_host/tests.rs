@@ -145,7 +145,7 @@ fn remote_and_calculated_sources_never_create_mutations_even_with_allowed_access
 #[test]
 fn coalescing_a_private_reset_with_a_fresh_same_calendar_capture_erases_editor_buffers() {
     i_slint_backend_testing::init_no_event_loop();
-    let window = HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     let session = session();
     let mut state = State::default();
     ready(&mut state, &session);
@@ -175,7 +175,7 @@ fn coalescing_a_private_reset_with_a_fresh_same_calendar_capture_erases_editor_b
 #[test]
 fn missing_authority_proof_clears_scalar_editor_fields_as_well_as_the_projection() {
     i_slint_backend_testing::init_no_event_loop();
-    let window = HomewardWindow::new().unwrap();
+    let window = crate::create_window().unwrap();
     window.set_calendars_edit_summary("Private stale summary".into());
     window.set_calendars_edit_zone("Private old zone".into());
     let session = session();
