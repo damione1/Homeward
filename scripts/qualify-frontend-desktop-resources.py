@@ -36,6 +36,13 @@ class Command(Enum):
     NAVIGATE = 'navigate'
     KEY = 'key'
     RESIZE = 'resize'
+    SEARCH = 'search'
+    CANVAS = 'canvas'
+    FILL_HISTORY_RANGE = 'fill-history-range'
+    TOGGLE_CHECK = 'toggle-check'
+
+class CanvasGesture(Enum):
+    INSPECT = 'inspect'
 
 class NativeKey(Enum):
     TAB = 'tab'
@@ -45,6 +52,7 @@ class NativeKey(Enum):
     END = 'end'
     ENTER = 'enter'
     ESCAPE = 'escape'
+    SHIFT_RIGHT = 'shift-right'
 
 class KeyboardStage(Enum):
     SEARCH = 'keyboard-search-tab-backtab'
@@ -58,6 +66,7 @@ class NavigationSection(Enum):
     HOME = 'Accueil'
     INVENTORY = 'Inventaire'
     SETTINGS = 'Préférences'
+    LISTS = 'Listes'
 
 class QualificationScope(Enum):
     FULL = 'full'
@@ -70,6 +79,7 @@ class QualificationScope(Enum):
     STARTUP = 'startup'
     STARTUP_WITHDRAWN = 'startup-withdrawn'
     KEYBOARD = 'keyboard'
+    MULTI_DOMAIN = 'multi-domain'
     def __str__(self): return self.value
     def cycle_count(self):
         match self:
@@ -83,6 +93,7 @@ class QualificationScope(Enum):
             case QualificationScope.STARTUP: return 0
             case QualificationScope.STARTUP_WITHDRAWN: return 0
             case QualificationScope.KEYBOARD: return 0
+            case QualificationScope.MULTI_DOMAIN: return 0
         raise AssertionError('Unhandled qualification scope')
 
 class RecoveryAction(Enum):
@@ -91,6 +102,8 @@ class RecoveryAction(Enum):
     RESTART = 'restart'
     DENY = 'deny'
     ALLOW = 'allow'
+    LOAD = 'load'
+    SNAPSHOT = 'snapshot'
 
 class LatencyStatus(Enum):
     MEASURED = 'MEASURED'
@@ -189,7 +202,8 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
     owned_preferences_digest = None
     namespace = None
     try:
-        with SESSION['fixture'](proof/'desktop',server,kind=SESSION['FixtureKind'].CACHE,profile=SESSION['UIProfile'].HOME) as (private,control):
+        fixture_kind = SESSION['FixtureKind'].WORKLOAD if scope is QualificationScope.MULTI_DOMAIN else SESSION['FixtureKind'].CACHE
+        with SESSION['fixture'](proof/'desktop',server,kind=fixture_kind,profile=SESSION['UIProfile'].HOME) as (private,control):
             namespace = SESSION['namespace'](private)
             found=subprocess.run(['security','find-generic-password','-s','ca.homeward.session.v1','-a',namespace],capture_output=True,timeout=10)
             if found.returncode != 44:
@@ -262,7 +276,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                     capture('styled-preferences-before-home')
                     native(Command.NAVIGATE,section=NavigationSection.HOME.value); wait('Ma maison')
                 capture('home-before-cycles')
-                baseline=idle_window() if scope not in (QualificationScope.IME,QualificationScope.VOICEOVER,QualificationScope.RECOVERY,QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN,QualificationScope.KEYBOARD) else None
+                baseline=idle_window() if scope not in (QualificationScope.IME,QualificationScope.VOICEOVER,QualificationScope.RECOVERY,QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN,QualificationScope.KEYBOARD,QualificationScope.MULTI_DOMAIN) else None
                 write(proof/'baseline-resources.json',baseline)
                 cycles=[]
                 for cycle in range(1,scope.cycle_count()+1):
@@ -291,6 +305,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                 recovery = None
                 startup = None
                 keyboard = None
+                workload_result = None
                 if scope is QualificationScope.KEYBOARD:
                     def key(value):
                         if not isinstance(value,NativeKey): raise TypeError('Typed native key required')
@@ -357,7 +372,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                         detail_back_restores_row_focus=True,compact_drawer_escape_restores_opener=True,
                         physical_android=False,all_module_keyboard_qualified=False,screen_reader_qualified=False)
                     write(proof/'keyboard.json',keyboard)
-                if scope in (QualificationScope.RECOVERY,QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN):
+                if scope in (QualificationScope.RECOVERY,QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN,QualificationScope.MULTI_DOMAIN):
                     checkpoints = []
                     sequence = 0
                     def control_recovery(action):
@@ -379,10 +394,83 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                         if result['sequence']!=sequence or result['action']!=action.value:
                             raise RuntimeError('Out of order recovery acknowledgement')
                         write(proof/f'recovery-ack-{sequence:02d}.json',result)
+                        return result
                     def checkpoint(name):
                         capture(name)
                         checkpoints.append(dict(name=name,resources=sample()))
                         write(proof/(name+'.json'),checkpoints[-1])
+                if scope is QualificationScope.MULTI_DOMAIN:
+                    work=private['workload']
+                    if work['point_count']!=20000 or work['item_count']!=10000: raise RuntimeError('Wrong composite workload')
+                    def reveal(label,role=None):
+                        for _ in range(30):
+                            rows=tree(); bounds=native(Command.INFO)['bounds']
+                            candidates=[row for row in rows if (role is None or row['role']==role) and label in (row['title'],row['description'],row['text']) and row['width']>5 and row['height']>5]
+                            if candidates:
+                                row=candidates[0]
+                                if bounds['Y']+35 < row['y']+row['height']/2 < bounds['Y']+bounds['Height']-35: return row
+                                delta=300 if row['y']<bounds['Y']+35 else -300
+                            else: delta=-300
+                            # Scroll the page gutter, outside nested task lists.
+                            catalogs=[row for row in rows if row['role']=='AXList' and row['title']=='Listes synchronisées']
+                            x=catalogs[0]['x']-8 if catalogs else None
+                            if x is None: native(Command.SCROLL,delta=delta)
+                            else: native(Command.SCROLL,delta=delta,x=x,y=bounds['Y']+bounds['Height']/2)
+                        capture('workload-reveal-failure')
+                        raise RuntimeError('Composite workload control not visible: '+label)
+                    native(Command.SEARCH,query=work['meter_alias'])
+                    wait(work['meter_alias']); native(Command.TAP,label=work['meter_alias'])
+                    wait('Retour aux éléments')
+                    native(Command.FILL_HISTORY_RANGE,rangeStart=work['start'],rangeEnd=work['end'])
+                    reveal('Afficher / relire',role='AXButton'); native(Command.TAP,label='Afficher / relire')
+                    wait('20000 points source',timeout=90)
+                    canvas_prefix='Historique · consommation et coûts serveur · '
+                    canvas=next((value for row in tree() if row['role']=='AXGroup' for value in (row['title'],row['description']) if value.startswith(canvas_prefix)),None)
+                    if canvas is None: raise RuntimeError('Composite workload chart missing')
+                    reveal(canvas); checkpoint('workload-history-ready')
+                    started=control_recovery(RecoveryAction.LOAD)
+                    if started['workload']!={'item_count':10000,'completed_items':0,'list_revision':10001}: raise RuntimeError('Unexpected initial task state')
+                    if not (control/'load-started.json').is_file() or (control/'load-done.json').exists(): raise RuntimeError('Actual state load did not start')
+                    native(Command.CANVAS,label=canvas,canvasGesture=CanvasGesture.INSPECT.value,fraction=.95)
+                    native(Command.KEY,key=NativeKey.HOME.value); wait('0 kWh · disponible')
+                    native(Command.KEY,key=NativeKey.END.value); wait('19.999 kWh · disponible')
+                    native(Command.KEY,key=NativeKey.SHIFT_RIGHT.value); native(Command.KEY,key=NativeKey.ESCAPE.value)
+                    checkpoint('workload-history-during-state-load')
+                    if (control/'load-done.json').exists(): raise RuntimeError('Chart interaction missed actual load')
+                    native(Command.SEARCH,query='')
+                    native(Command.NAVIGATE,section=NavigationSection.LISTS.value)
+                    wait('Liste synthétique de charge')
+                    candidates=[row for row in tree() if row['role'] in ('AXRow','AXCell','AXStaticText') and row['title'].startswith('Liste synthétique de charge,')]
+                    if len(candidates)!=1: raise RuntimeError('One synthetic workload list expected')
+                    reveal(candidates[0]['title']); native(Command.TAP,label=candidates[0]['title'])
+                    wait('10000 éléments',timeout=60)
+                    reveal('Tâche synthétique 00001',role='AXCheckBox')
+                    native(Command.TOGGLE_CHECK,label='Tâche synthétique 00001')
+                    wait('Modification confirmée par le serveur')
+                    admitted=control_recovery(RecoveryAction.SNAPSHOT)
+                    if admitted['workload']!={'item_count':10000,'completed_items':1,'list_revision':10002}: raise RuntimeError('Task CAS confirmation missing or duplicated')
+                    checkpoint('workload-task-confirmed-during-state-load')
+                    reveal('Modifier',role='AXButton'); native(Command.TAP,label='Modifier')
+                    native(Command.KEY,key=NativeKey.END.value); wait('Tâche synthétique 10000')
+                    reveal('Tâche synthétique 10000')
+                    rows=tree()
+                    exposed=sum(row['role'] in ('AXRow','AXCell','AXStaticText') and any(value.startswith('Tâche synthétique ') for value in (row['title'],row['description'],row['text'])) for row in rows)
+                    if exposed>40: raise RuntimeError('Composite long-list AX exposure exceeded existing bound')
+                    checkpoint('workload-last-task-during-state-load')
+                    if (control/'load-done.json').exists(): raise RuntimeError('Task interaction missed actual load')
+                    deadline=time.monotonic()+70
+                    while not (control/'load-done.json').is_file():
+                        if app.poll() is not None or time.monotonic()>=deadline: raise RuntimeError('Composite state load did not finish')
+                        time.sleep(.1)
+                    load=json.loads((control/'load-done.json').read_text())
+                    if load['updates']!=1000 or not 49<=load['elapsed_seconds']<=70: raise RuntimeError('Composite 20Hz load not proved')
+                    final=control_recovery(RecoveryAction.SNAPSHOT)
+                    if final['workload']!=admitted['workload']: raise RuntimeError('Confirmed task changed or replayed after continued load')
+                    workload_result=dict(history_source_points=20000,task_count=10000,exposed_task_rows=exposed,
+                        one_task_cas_confirmed_under_state_load=True,confirmation_preserved_after_load=True,
+                        initial=started['workload'],confirmed=admitted['workload'],final=final['workload'],checkpoints=checkpoints,
+                        device_action_confirmations_qualified=False,ui_stall_qualified=False,physical_android=False)
+                    write(proof/'workload.json',workload_result)
                 if scope in (QualificationScope.STARTUP,QualificationScope.STARTUP_WITHDRAWN):
                     native(Command.CLOSE)
                     if app.wait(timeout=15)!=0: raise RuntimeError('Pre-startup application did not close normally')
@@ -602,6 +690,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
             native_recovery=recovery,
             native_startup=startup,
             native_keyboard=keyboard,
+            native_workload=workload_result,
             provisional_input_target_met_on_this_host=latency['p95_ms']<=80 if latency else None,
             cold_cached_view_startup_seconds=None,all_nhf023_acceptance_closed=False))
         print('DESKTOP_RESOURCES_PASS '+str(proof),flush=True)

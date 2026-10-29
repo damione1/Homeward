@@ -11,9 +11,12 @@ enum Command: String, Decodable {
     case gestureBegin = "gesture-begin"
     case canvas
     case navigate
+    case fillHistoryRange = "fill-history-range"
+    case search
+    case toggleCheck = "toggle-check"
     case fillLogin = "fill-login", read, signOut = "sign-out", scrollEnd = "scroll-end", checkRow = "check-row"
 }
-enum NavigationSection: String, Decodable { case home = "Accueil", inventory = "Inventaire", settings = "Préférences" }
+enum NavigationSection: String, Decodable { case home = "Accueil", inventory = "Inventaire", settings = "Préférences", lists = "Listes" }
 enum NativeGesture: String, Decodable {
     case tap, hold, doubleTap = "double-tap"
 }
@@ -37,6 +40,8 @@ struct Input: Decodable {
     let gesture: NativeGesture?
     let canvasGesture: CanvasGesture?; let endFraction: Double?
     let section: NavigationSection?
+    let rangeStart: String?; let rangeEnd: String?
+    let query: String?
 }
 enum ProbeFailure: Error {
     case invalidInput, missingWindow, accessibilityUnavailable
@@ -65,7 +70,7 @@ func descendants(_ root: AXUIElement) -> [AXUIElement] {
 func action(_ window: AXUIElement, _ label: String) -> AXUIElement? {
     descendants(window).first { item in
         let role = attribute(item, kAXRoleAttribute as CFString) as? String ?? ""
-        return ["AXButton", "AXPopUpButton", "AXComboBox", "AXRow", "AXCell", "AXMenuItem", "AXRadioButton", "AXTextField", "AXStaticText"].contains(role)
+        return ["AXButton", "AXCheckBox", "AXPopUpButton", "AXComboBox", "AXRow", "AXCell", "AXMenuItem", "AXRadioButton", "AXTextField", "AXStaticText"].contains(role)
             && [kAXTitleAttribute, kAXDescriptionAttribute].contains { attribute(item, $0 as CFString) as? String == label }
     }
 }
@@ -317,7 +322,7 @@ do {
         guard let native = ownedWindow(input.pid), let bounds = native[kCGWindowBounds as String] as? [String: Any] else { throw ProbeFailure.missingWindow }
         let data = try JSONSerialization.data(withJSONObject: ["pid": input.pid, "window_id": native[kCGWindowNumber as String] ?? 0, "bounds": bounds, "accessibility_trusted": AXIsProcessTrusted(), "post_events_allowed": CGPreflightPostEventAccess()], options: [.sortedKeys])
         print(String(decoding: data, as: UTF8.self))
-    case .click, .close, .minimize, .restore, .focus, .fillLogin, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree, .press, .release, .gesture, .gestureBegin, .canvas, .navigate:
+    case .click, .close, .minimize, .restore, .focus, .fillLogin, .fillHistoryRange, .search, .toggleCheck, .read, .signOut, .scrollEnd, .checkRow, .tap, .resize, .key, .scroll, .tree, .press, .release, .gesture, .gestureBegin, .canvas, .navigate:
         guard AXIsProcessTrusted(), let windows = attribute(application, kAXWindowsAttribute as CFString) as? [AXUIElement], let window = windows.first else { throw ProbeFailure.accessibilityUnavailable }
         if case .restore = input.command {
             guard AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse) == .success else { throw ProbeFailure.restoreRejected }
@@ -428,6 +433,48 @@ do {
                         "width": bounds?.width ?? 0, "height": bounds?.height ?? 0]
             }
             print(String(decoding: try JSONSerialization.data(withJSONObject: rows, options: [.sortedKeys]), as: UTF8.self))
+        case .search:
+            guard fromStdin, input.syntheticOnly == true, let query = input.query,
+                  query.count <= 255, !query.contains("\n"), !query.contains("\r") else { throw ProbeFailure.invalidInput }
+            try tap(window, "Rechercher dans ma maison")
+            try sendKey(input.pid, .selectAll)
+            for text in query.isEmpty ? [""] : query.map({ String($0) }) {
+                for down in [true, false] {
+                    guard let event = CGEvent(keyboardEventSource: nil, virtualKey: text.isEmpty ? 51 : 0, keyDown: down) else { throw ProbeFailure.invalidInput }
+                    if !text.isEmpty {
+                        let units = Array(text.utf16)
+                        units.withUnsafeBufferPointer { buffer in
+                            event.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: buffer.baseAddress!)
+                        }
+                    }
+                    event.post(tap: .cghidEventTap)
+                    Thread.sleep(forTimeInterval: 0.005)
+                }
+            }
+        case .toggleCheck:
+            guard fromStdin, input.syntheticOnly == true, let label = input.label,
+                  !label.isEmpty, label.count <= 1024,
+                  let checkbox = descendants(window).first(where: {
+                      attribute($0, kAXRoleAttribute as CFString) as? String == "AXCheckBox"
+                          && attribute($0, kAXTitleAttribute as CFString) as? String == label
+                  }), attribute(checkbox, kAXEnabledAttribute as CFString) as? Bool == true else { throw ProbeFailure.invalidInput }
+            let box = try geometry(checkbox)
+            try tap(window, label, at: CGPoint(x: box.midX, y: box.midY))
+        case .fillHistoryRange:
+            guard fromStdin, input.syntheticOnly == true,
+                  let start = input.rangeStart, let end = input.rangeEnd,
+                  start.count <= 64, end.count <= 64 else { throw ProbeFailure.invalidInput }
+            let formatter = ISO8601DateFormatter()
+            guard let first = formatter.date(from: start), let last = formatter.date(from: end),
+                  first < last, last.timeIntervalSince(first) <= 24 * 3600 else { throw ProbeFailure.invalidInput }
+            // A fixed pair of read-query fields, never arbitrary editors or
+            // credentials. Values are written over native accessibility stdin.
+            for (label, value) in [("Début UTC (RFC3339)", start), ("Fin UTC exclusive (RFC3339)", end)] {
+                guard let editor = descendants(window).first(where: {
+                    attribute($0, kAXRoleAttribute as CFString) as? String == kAXTextFieldRole as String
+                        && attribute($0, kAXTitleAttribute as CFString) as? String == label
+                }), AXUIElementSetAttributeValue(editor, kAXValueAttribute as CFString, value as CFString) == .success else { throw ProbeFailure.invalidInput }
+            }
         case .fillLogin:
             // Write only fixture values supplied over stdin; never read an
             // editor's value or store the synthetic password in an action file.

@@ -43,6 +43,7 @@ const (
 	nhf004Allow    nhf004Action = "allow"
 	nhf004Withdraw nhf004Action = "withdraw"
 	nhf004Restart  nhf004Action = "restart"
+	nhf004Snapshot nhf004Action = "snapshot"
 )
 
 func (a *nhf004Action) UnmarshalJSON(raw []byte) error {
@@ -52,7 +53,7 @@ func (a *nhf004Action) UnmarshalJSON(raw []byte) error {
 	}
 	value := nhf004Action(input)
 	switch value {
-	case nhf004Advance, nhf004Load, nhf004Burst, nhf004Outage, nhf004Restore, nhf004Deny, nhf004Allow, nhf004Withdraw, nhf004Restart:
+	case nhf004Advance, nhf004Load, nhf004Burst, nhf004Outage, nhf004Restore, nhf004Deny, nhf004Allow, nhf004Withdraw, nhf004Restart, nhf004Snapshot:
 		*a = value
 		return nil
 	default:
@@ -87,6 +88,10 @@ func TestNHF004CacheServer(t *testing.T) {
 		if err != nil {
 			t.Fatal("invalid opt-in application mode:", err)
 		}
+	}
+	workload, err := nhf023ReadWorkload(os.Getenv("HOMEWARD_NHF023_WORKLOAD_SOURCE"))
+	if err != nil || workload != nil && (uiProfile != nhf005HomeUI || !appMode) {
+		t.Fatal("opt-in synthetic application workload required", err)
 	}
 	if err := os.Mkdir(out, 0700); err != nil {
 		t.Fatal(err)
@@ -128,17 +133,29 @@ func TestNHF004CacheServer(t *testing.T) {
 	instance, _ := domain.ParseIntegrationInstanceID("nhf004-synthetic-only")
 	keys := make([]integrations.SourceKey, len(aliases.Entities))
 	candidates := make([]integrations.Candidate, len(keys))
+	meterIndex := -1
 	for i := range keys {
 		var err error
 		keys[i], err = integrations.NewSourceKey(fmt.Sprintf("fixture-%03d", i), "relay")
 		if err != nil {
 			t.Fatal(err)
 		}
-		candidates[i], err = integrations.NewCandidate(keys[i], uiProfile.capabilities(aliases.Entities[i].ID, i))
+		if workload.isMeter(aliases.Entities[i].ID) {
+			if meterIndex >= 0 {
+				t.Fatal("workload source alias is ambiguous")
+			}
+			meterIndex = i
+		}
+		candidates[i], err = integrations.NewCandidate(keys[i], workload.capabilities(uiProfile, aliases.Entities[i].ID, i))
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
+	if workload != nil && meterIndex < 0 {
+		t.Fatal("workload meter must belong to the admitted synthetic manifest")
+	}
+	var fixtureStore *storage.Store
+	var fixtureRuntime *observationRuntime
 	var host *integrations.Manager
 	var activation *configactivation.Owner
 	var source *integrations.Session
@@ -157,7 +174,7 @@ func TestNHF004CacheServer(t *testing.T) {
 	}
 	publish := func(index int, sequence *uint64) {
 		t.Helper()
-		observation, err := uiProfile.observation(aliases.Entities[index].ID, sequence, time.Now().UTC())
+		observation, err := workload.observation(uiProfile, aliases.Entities[index].ID, sequence, time.Now().UTC())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -196,8 +213,9 @@ func TestNHF004CacheServer(t *testing.T) {
 				}
 				return nil
 			},
-			Configure: func(_ context.Context, actual *integrations.Manager, _ *storage.Store) error {
+			Configure: func(_ context.Context, actual *integrations.Manager, currentStore *storage.Store) error {
 				host = actual
+				fixtureStore = currentStore
 				return nil
 			},
 			ConfigureActivation: func(_ context.Context, actual *configactivation.Owner) error {
@@ -234,11 +252,25 @@ func TestNHF004CacheServer(t *testing.T) {
 		serverCancel = nil
 	}
 	defer func() {
+		var workloadStats map[string]any
+		if workload != nil {
+			if _, err := workload.list.Value(); err == nil {
+				readCtx, readCancel := context.WithTimeout(context.Background(), 2*time.Second)
+				workloadStats, err = workload.statistics(readCtx, fixtureStore)
+				readCancel()
+				if err != nil {
+					t.Error("final workload statistics", err)
+				}
+			}
+		}
 		if proxy != nil {
 			proxy.close()
 		}
 		stopServer()
 		result := map[string]any{"published": published, "servers_started": started, "servers_joined": joined, "server_joined": started == joined, "command_driver_entries": drivers, "connections_remaining": connections}
+		if workloadStats != nil {
+			result["workload"] = workloadStats
+		}
 		if proxy != nil {
 			result["start_login_calls"] = proxy.login.Load()
 			result["refresh_calls"] = proxy.refresh.Load()
@@ -268,14 +300,18 @@ func TestNHF004CacheServer(t *testing.T) {
 		done = make(chan error, 1)
 		ready := make(chan net.Addr, 1)
 		go func() {
-			done <- RunWithStartupFactory(serverCtx, settings.startup, func(listenCtx context.Context, kind, _ string) (net.Listener, error) {
+			dependencies := runDependencies{}
+			if workload != nil {
+				dependencies.observeRuntime = func(actual *observationRuntime) { fixtureRuntime = actual }
+			}
+			done <- runWithDependencies(serverCtx, settings.startup, func(listenCtx context.Context, kind, _ string) (net.Listener, error) {
 				listener, err := (&net.ListenConfig{}).Listen(listenCtx, kind, address)
 				if err != nil {
 					return nil, err
 				}
 				network = &nhf002Network{Listener: listener, connections: make(map[*nhf002Connection]struct{})}
 				return network, nil
-			}, func(a net.Addr) { ready <- a }, factory)
+			}, func(a net.Addr) { ready <- a }, factory, dependencies)
 		}()
 		select {
 		case actual := <-ready:
@@ -342,11 +378,18 @@ func TestNHF004CacheServer(t *testing.T) {
 		if allow && dashboard != nil {
 			policy += "  - scope: {family: dashboards, operation: read}\n    objects: {dashboards: {own: {}}}\n"
 		}
+		if allow && workload != nil {
+			policy += "  - scope: {family: history, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n" + nha162All
+		}
 		if _, err := policies.ReplacePolicy(ctx, nha141BearerRequest(&authv1.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(policy), Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, tokens.AccessToken)); err != nil {
 			t.Fatal("policy CAS:", err)
 		}
 	}
 	setPolicy(true)
+	if workload != nil {
+		workload.seedMeter(t, ctx, source, bindings[meterIndex], fixtureRuntime)
+		workload.seedList(t, ctx, fixtureStore, client, base, tokens.AccessToken)
+	}
 	if dashboard != nil {
 		api := dashboardv1connect.NewDashboardServiceClient(client, base)
 		response, err := api.GetDashboard(ctx, nha141BearerRequest(&dashboardv1.GetDashboardRequest{Id: &dashboardv1.DashboardId{Value: nhf005DashboardID}}, tokens.AccessToken))
@@ -380,6 +423,12 @@ func TestNHF004CacheServer(t *testing.T) {
 		clientOrigin = proxy.server.URL
 	}
 	readyData := map[string]any{"mode": "synthetic-only", "origin": clientOrigin, "ca_pem": string(certificate), "login_name": login, "password": password, "first_entity": first, "entity_count": len(keys)}
+	if workload != nil {
+		alias, _ := workload.meter.Value()
+		id, _ := workload.list.Value()
+		readyData["workload"] = map[string]any{"meter_alias": alias, "list_id": id, "point_count": nhf023PointCount, "item_count": nhf023ItemCount,
+			"start": time.Now().UTC().Add(-10 * time.Minute).Format(time.RFC3339), "end": time.Now().UTC().Add(5 * time.Minute).Format(time.RFC3339)}
+	}
 	if appMode {
 		readyData["ui_profile"] = uiProfile.label()
 		// Derive UI assertions from the real paginated view, not by reproducing
@@ -482,9 +531,20 @@ func TestNHF004CacheServer(t *testing.T) {
 			case nhf004Restart:
 				stopServer()
 				startServer()
+			case nhf004Snapshot:
+				// The acknowledgement below captures only this fixture's own
+				// task state; it cannot dispatch a device action.
 			}
 			lastCommand = command.Sequence
-			write(fmt.Sprintf("ack-%02d.json", lastCommand), map[string]any{"sequence": lastCommand, "published": published, "action": command.Action})
+			ack := map[string]any{"sequence": lastCommand, "published": published, "action": command.Action}
+			if workload != nil {
+				stats, err := workload.statistics(ctx, fixtureStore)
+				if err != nil {
+					t.Fatal("workload checkpoint", err)
+				}
+				ack["workload"] = stats
+			}
+			write(fmt.Sprintf("ack-%02d.json", lastCommand), ack)
 		}
 	}
 }
