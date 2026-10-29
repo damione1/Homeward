@@ -51,6 +51,7 @@ class FixtureKind(Enum):
     SESSION = 'session'
     CACHE = 'cache'
     WORKLOAD = 'workload'
+    WORKLOAD_ACTIONS = 'workload-actions'
 
 
 class UIProfile(Enum):
@@ -144,7 +145,7 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKin
             assert profile is UIProfile.CACHE
             env.update(HOMEWARD_NHF003_FIXTURE=str(control), HOMEWARD_NHF003_MODE=mode.value)
             test = 'TestNHF003SessionServer'
-        case FixtureKind.CACHE | FixtureKind.WORKLOAD:
+        case FixtureKind.CACHE | FixtureKind.WORKLOAD | FixtureKind.WORKLOAD_ACTIONS:
             assert mode is FixtureMode.PASSWORD
             env.update(HOMEWARD_NHF004_FIXTURE=str(control), HOMEWARD_NHF004_APP='true', HOMEWARD_FRONTEND_UI_PROFILE=profile.value)
             test = 'TestNHF004CacheServer'
@@ -153,16 +154,17 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKin
                 dashboard.mkdir(mode=0o700)
                 shutil.copyfile(ROOT / 'qualification/frontend/dashboards/home.yaml', dashboard / 'dashboard.yaml')
                 env['HOMEWARD_NHF005_DASHBOARD'] = str(dashboard / 'dashboard.yaml')
-            if kind is FixtureKind.WORKLOAD:
+            if kind in (FixtureKind.WORKLOAD, FixtureKind.WORKLOAD_ACTIONS):
                 assert profile is UIProfile.HOME
                 source = directory/'workload-source.json'
-                shutil.copyfile(ROOT/'qualification/frontend/workload/source.json',source)
+                name = 'actions.json' if kind is FixtureKind.WORKLOAD_ACTIONS else 'source.json'
+                shutil.copyfile(ROOT/'qualification/frontend/workload'/name,source)
                 env['HOMEWARD_NHF023_WORKLOAD_SOURCE'] = str(source)
     with (directory / 'server.log').open('wb') as log:
         server = subprocess.Popen([str(server_binary), '-test.run=^' + test + '$', '-test.v', '-test.timeout=8m'], cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
         try:
             ready = control / 'ready.json'
-            deadline = time.monotonic() + (240 if kind is FixtureKind.WORKLOAD else 60)
+            deadline = time.monotonic() + (240 if kind in (FixtureKind.WORKLOAD, FixtureKind.WORKLOAD_ACTIONS) else 60)
             while not ready.exists():
                 if server.poll() is not None or time.monotonic() >= deadline:
                     raise RuntimeError('Synthetic native fixture did not become ready: ' + str(directory))
@@ -171,7 +173,7 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKin
             origin = urlsplit(private['origin'])
             if private['mode'] != 'synthetic-only' or origin.scheme != 'https' or origin.hostname != '127.0.0.1' or not origin.port:
                 raise RuntimeError('Refuse a non-synthetic or non-loopback fixture')
-            if kind in (FixtureKind.CACHE,FixtureKind.WORKLOAD) and (private['entity_count'] != profile.entity_count() or private['ui_profile'] != profile.value):
+            if kind in (FixtureKind.CACHE,FixtureKind.WORKLOAD,FixtureKind.WORKLOAD_ACTIONS) and (private['entity_count'] != profile.entity_count() or private['ui_profile'] != profile.value):
                 raise RuntimeError('Native UI fixture profile/count mismatch')
             yield private, control
         finally:
@@ -184,7 +186,8 @@ def fixture(directory, server_binary, mode=FixtureMode.PASSWORD, kind=FixtureKin
         if server.returncode != 0:
             raise RuntimeError('Synthetic native server failed to join cleanly')
         report = json.loads((control / 'result.json').read_text())
-        if not report['server_joined'] or report['command_driver_entries'] != 0:
+        expected_drivers = 1 if kind is FixtureKind.WORKLOAD_ACTIONS else 0
+        if not report['server_joined'] or report['command_driver_entries'] != expected_drivers:
             raise RuntimeError('Synthetic fixture violated its shutdown/read-only invariant')
 
 

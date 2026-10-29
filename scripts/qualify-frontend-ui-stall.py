@@ -29,7 +29,7 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def qualify(retained_server,retained_client):
+def qualify(retained_server,retained_client,with_command):
     if not os.environ.get('CARGO_TARGET_DIR') or not os.environ.get('GOCACHE'):
         raise RuntimeError('Run inside frontend.py run --cargo')
     config = json.loads((ROOT/'frontend.local.json').read_text())
@@ -60,7 +60,8 @@ def qualify(retained_server,retained_client):
     (proof/'build.json').write_text(json.dumps(build,indent=2)+'\n')
     report=None
     commands=[]
-    with SESSION['fixture'](proof/'server',server,kind=SESSION['FixtureKind'].WORKLOAD,
+    kind = SESSION['FixtureKind'].WORKLOAD_ACTIONS if with_command else SESSION['FixtureKind'].WORKLOAD
+    with SESSION['fixture'](proof/'server',server,kind=kind,
                             profile=SESSION['UIProfile'].HOME) as (_,control):
         with (proof/'client.log').open('w') as log:
             child=subprocess.Popen([str(client),'--exact',TEST,'--ignored','--nocapture','--test-threads=1'],
@@ -107,11 +108,17 @@ def qualify(retained_server,retained_client):
         load=json.loads((control/'load-done.json').read_text())
         if load['updates']!=1000 or not 49<=load['elapsed_seconds']<=70: raise RuntimeError('20Hz workload not proved')
     final=json.loads((control/'result.json').read_text())
-    if final['command_driver_entries']!=0 or final['action_rpc_calls']!=0 or final['connections_remaining']!=0 or not final['server_joined']:
+    expected_drivers = 1 if with_command else 0
+    if final['command_driver_entries']!=expected_drivers or final['connections_remaining']!=0 or not final['server_joined']:
         raise RuntimeError('Isolated fixture cleanup/safety failed')
+    if with_command:
+        if final.get('fake_driver_calls')!=1 or final.get('real_device_writes')!=0 or final['action_rpc_calls']<1 or not report['device_actions'] or not report['terminal_notice_after_thaw']:
+            raise RuntimeError('Exact fake command confirmation missing/replayed')
+    elif final['action_rpc_calls']!=0 or report['device_actions']:
+        raise RuntimeError('Unexpected command in read-only fixture')
     if final['workload']!=dict(item_count=10000,completed_items=1,list_revision=10002): raise RuntimeError('Task write replayed or lost')
     result=dict(status='PASS_SLINT_ADAPTER_UI_STALL_SCOPE_ONLY',report=report,load=load,server=final,build=build,
-                scope='Real Rust TLS/cache/list owners and Slint test-loop adapters; UI-only stall, headless, programmatic intent; no native frame, physical input, device action or tablet budget.',
+                scope='Real Rust TLS/cache/list owners and Slint test-loop adapters; optional real ActionController with a command-bound fake protocol receipt. UI-only stall, headless, programmatic intent; no native frame, physical input, physical device action or tablet budget.',
                 native_rendering=False,physical_tablet=False,all_nhf023_acceptance_closed=False)
     (proof/'result.json').write_text(json.dumps(result,indent=2)+'\n')
     print('UI_STALL_PASS '+str(proof),flush=True)
@@ -121,5 +128,6 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--server-binary',type=Path)
     parser.add_argument('--client-binary',type=Path)
+    parser.add_argument('--with-command',action='store_true',help='Explicitly opt in to one transport-free fake switch command')
     args=parser.parse_args()
-    qualify(args.server_binary,args.client_binary)
+    qualify(args.server_binary,args.client_binary,args.with_command)

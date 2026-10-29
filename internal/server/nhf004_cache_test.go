@@ -134,6 +134,7 @@ func TestNHF004CacheServer(t *testing.T) {
 	keys := make([]integrations.SourceKey, len(aliases.Entities))
 	candidates := make([]integrations.Candidate, len(keys))
 	meterIndex := -1
+	actionIndex := -1
 	for i := range keys {
 		var err error
 		keys[i], err = integrations.NewSourceKey(fmt.Sprintf("fixture-%03d", i), "relay")
@@ -146,6 +147,12 @@ func TestNHF004CacheServer(t *testing.T) {
 			}
 			meterIndex = i
 		}
+		if workload.isAction(aliases.Entities[i].ID) {
+			if actionIndex >= 0 || uiProfile.sampleKind(aliases.Entities[i].ID) != nhf005SwitchSample {
+				t.Fatal("one synthetic switch action target required")
+			}
+			actionIndex = i
+		}
 		candidates[i], err = integrations.NewCandidate(keys[i], workload.capabilities(uiProfile, aliases.Entities[i].ID, i))
 		if err != nil {
 			t.Fatal(err)
@@ -153,6 +160,9 @@ func TestNHF004CacheServer(t *testing.T) {
 	}
 	if workload != nil && meterIndex < 0 {
 		t.Fatal("workload meter must belong to the admitted synthetic manifest")
+	}
+	if workload != nil && workload.action != nil && actionIndex < 0 {
+		t.Fatal("workload action must belong to admitted synthetic manifest")
 	}
 	var fixtureStore *storage.Store
 	var fixtureRuntime *observationRuntime
@@ -268,6 +278,12 @@ func TestNHF004CacheServer(t *testing.T) {
 		}
 		stopServer()
 		result := map[string]any{"published": published, "servers_started": started, "servers_joined": joined, "server_joined": started == joined, "command_driver_entries": drivers, "connections_remaining": connections}
+		expectedDrivers := uint64(0)
+		if workload != nil && workload.driver != nil {
+			expectedDrivers = uint64(started)
+			result["fake_driver_calls"] = workload.driver.calls.Load()
+			result["real_device_writes"] = 0
+		}
 		if workloadStats != nil {
 			result["workload"] = workloadStats
 		}
@@ -289,7 +305,7 @@ func TestNHF004CacheServer(t *testing.T) {
 			result["dashboard_watch_calls"] = dashboard.watches.Load()
 		}
 		write("result.json", result)
-		if started != joined || connections != 0 || drivers != 0 {
+		if started != joined || connections != 0 || drivers != expectedDrivers {
 			t.Error("server ownership or physical-driver invariant failed")
 		}
 	}()
@@ -342,6 +358,16 @@ func TestNHF004CacheServer(t *testing.T) {
 		for i := range bindings {
 			publish(i, nil)
 		}
+		if actionIndex >= 0 {
+			_, entity, err := bindings[actionIndex].IDs()
+			if err != nil {
+				t.Fatal(err)
+			}
+			workload.driver = &nhf023CommandDriver{entity: entity}
+			if err := host.AttachCommandDriver(source, workload.driver); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	startServer()
 	const login, password = "NHF004 isolated account", "NHF004 synthetic local password"
@@ -380,6 +406,12 @@ func TestNHF004CacheServer(t *testing.T) {
 		}
 		if allow && workload != nil {
 			policy += "  - scope: {family: history, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n" + nha162All
+		}
+		if allow && actionIndex >= 0 {
+			entity, _ := workload.driver.entity.Value()
+			for _, operation := range []string{"read", "write"} {
+				policy += fmt.Sprintf("  - scope: {family: actions, operation: %s}\n    objects: {entities: {explicit: [{entity_id: %q, capabilities: {explicit: [{schema_id: core.switch.v1, endpoint: relay}]}}]}}\n", operation, entity)
+			}
 		}
 		if _, err := policies.ReplacePolicy(ctx, nha141BearerRequest(&authv1.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(policy), Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, tokens.AccessToken)); err != nil {
 			t.Fatal("policy CAS:", err)
@@ -428,6 +460,10 @@ func TestNHF004CacheServer(t *testing.T) {
 		id, _ := workload.list.Value()
 		readyData["workload"] = map[string]any{"meter_alias": alias, "list_id": id, "point_count": nhf023PointCount, "item_count": nhf023ItemCount,
 			"start": time.Now().UTC().Add(-10 * time.Minute).Format(time.RFC3339), "end": time.Now().UTC().Add(5 * time.Minute).Format(time.RFC3339)}
+		if actionIndex >= 0 {
+			entity, _ := workload.driver.entity.Value()
+			readyData["workload"].(map[string]any)["action_entity"] = entity
+		}
 	}
 	if appMode {
 		readyData["ui_profile"] = uiProfile.label()

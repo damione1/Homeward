@@ -11,10 +11,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
+	actionswire "github.com/damione1/Homeward/gen/home/actions/v1"
 	listswire "github.com/damione1/Homeward/gen/home/lists/v1"
 	"github.com/damione1/Homeward/gen/home/lists/v1/listsv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
@@ -28,8 +30,40 @@ const nhf023ItemCount = 10000
 const nhf023PointCount = 20000
 
 type nhf023Workload struct {
-	meter domain.HAAlias
-	list  domain.ListID
+	meter  domain.HAAlias
+	list   domain.ListID
+	action *domain.HAAlias
+	driver *nhf023CommandDriver
+}
+
+// This opt-in driver has no transport or credentials. Only one admitted
+// synthetic switch can receive a command-bound protocol receipt.
+type nhf023CommandDriver struct {
+	entity domain.EntityID
+	calls  atomic.Uint64
+}
+
+func (d *nhf023CommandDriver) Dispatch(_ context.Context, command integrations.AdmittedCommand) error {
+	id, entity, err := command.RouteIdentity()
+	if err != nil {
+		return err
+	}
+	request, err := command.Request()
+	if err != nil {
+		return err
+	}
+	if !command.ReadyForTransport() || entity != d.entity || request.CapabilitySchemaId != contracts.SwitchSchema || request.Endpoint != "relay" {
+		return integrations.ErrCommandAuthorizationDenied
+	}
+	argument, ok := request.GetArguments().GetArguments().(*actionswire.ActionArgs_SetSwitch)
+	if !ok || argument.SetSwitch == nil || !argument.SetSwitch.On {
+		return integrations.ErrCommandAuthorizationDenied
+	}
+	d.calls.Add(1)
+	if err := command.Acknowledge(); err != nil {
+		return err
+	}
+	return command.ConfirmProtocol(nhf009ProtocolReceipt{command: id})
 }
 
 func nhf023ReadWorkload(path string) (*nhf023Workload, error) {
@@ -49,8 +83,9 @@ func nhf023ReadWorkload(path string) (*nhf023Workload, error) {
 		return nil, errors.New("bounded regular synthetic workload source required")
 	}
 	var source struct {
-		SyntheticOnly bool   `json:"synthetic_only"`
-		MeterAlias    string `json:"meter_alias"`
+		SyntheticOnly bool    `json:"synthetic_only"`
+		MeterAlias    string  `json:"meter_alias"`
+		ActionAlias   *string `json:"action_alias"`
 	}
 	decoder := json.NewDecoder(io.LimitReader(file, 4097))
 	decoder.DisallowUnknownFields()
@@ -64,7 +99,26 @@ func nhf023ReadWorkload(path string) (*nhf023Workload, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &nhf023Workload{meter: alias}, nil
+	w := &nhf023Workload{meter: alias}
+	if source.ActionAlias != nil {
+		action, err := domain.ParseHAAlias(*source.ActionAlias)
+		if err != nil {
+			return nil, err
+		}
+		if action == alias {
+			return nil, errors.New("workload action must differ from meter")
+		}
+		w.action = &action
+	}
+	return w, nil
+}
+
+func (w *nhf023Workload) isAction(alias string) bool {
+	if w == nil || w.action == nil {
+		return false
+	}
+	value, err := w.action.Value()
+	return err == nil && alias == value
 }
 
 func (w *nhf023Workload) isMeter(alias string) bool {
@@ -200,6 +254,7 @@ func TestNHF023WorkloadSourceAdmission(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "source.json")
 	for _, raw := range []string{`{}`, `{"synthetic_only":false,"meter_alias":"sensor.test"}`, `{"synthetic_only":true,"meter_alias":"bad"}`,
+		`{"synthetic_only":true,"meter_alias":"sensor.test","action_alias":"bad"}`, `{"synthetic_only":true,"meter_alias":"sensor.test","action_alias":"sensor.test"}`,
 		`{"synthetic_only":true,"meter_alias":"sensor.test","unknown":true}`, `{"synthetic_only":true,"meter_alias":"sensor.test"} {}`, string(bytes.Repeat([]byte("x"), 4097))} {
 		if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
 			t.Fatal(err)
@@ -212,7 +267,14 @@ func TestNHF023WorkloadSourceAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	value, err := nhf023ReadWorkload(path)
-	if err != nil || !value.isMeter("sensor.test") || value.isMeter("sensor.other") {
+	if err != nil || !value.isMeter("sensor.test") || value.isMeter("sensor.other") || value.action != nil || value.driver != nil {
 		t.Fatal("typed source admission", err)
+	}
+	if err := os.WriteFile(path, []byte(`{"synthetic_only":true,"meter_alias":"sensor.test","action_alias":"switch.test"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	value, err = nhf023ReadWorkload(path)
+	if err != nil || !value.isAction("switch.test") || value.isAction("switch.other") || value.driver != nil {
+		t.Fatal("explicit typed fake action opt-in", err)
 	}
 }
