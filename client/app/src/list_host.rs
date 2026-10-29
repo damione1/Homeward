@@ -3,6 +3,8 @@
 mod projection;
 mod recovery;
 #[cfg(test)]
+mod stall_probe;
+#[cfg(test)]
 mod tls_probe;
 use crate::{
     HomewardWindow, NavigationStep, ProTaskAction,

@@ -88,9 +88,7 @@ func (a *sessionAuth) authenticateAccessHeaders(ctx context.Context, header http
 	default:
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
-	if err := guard.refreshAuthorization(ctx); err != nil {
-		guard.quarantine()
-		guard.cancelLeases(ctx, nil)
+	if err := guard.refreshForAuthentication(ctx); err != nil {
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
 	principal, err := authorization.NativePrincipal(owner.Account, owner.Session)
@@ -129,6 +127,23 @@ func (a *sessionAuth) authenticateAccessHeaders(ctx context.Context, header http
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
 	return actor, leaseCtx, func() { timer.Stop(); lease.release() }, nil
+}
+
+// Admission only reads the current policy. Keep this boundary distinct from
+// publication after a mutation whose SQL commit might already have happened.
+func (g *sessionGuard) refreshForAuthentication(ctx context.Context) error {
+	if err := g.refreshAuthorization(ctx); err != nil {
+		// No write was attempted at this admission boundary. A canceled read
+		// rejects only its own request, without revoking unrelated live leases.
+		// Integrity, publication and genuine source errors still fail closed.
+		if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+			return err
+		}
+		g.quarantine()
+		g.cancelLeases(ctx, nil)
+		return err
+	}
+	return nil
 }
 
 func (a *sessionAuth) Authorize(ctx context.Context, actor domain.ActorID, route RouteKey) error {
