@@ -21,7 +21,9 @@ import tarfile
 import tomllib
 import zipfile
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent
+if ROOT.name == 'scripts':
+    ROOT = ROOT.parent
 
 
 class Source(Enum):
@@ -344,14 +346,14 @@ def build_apps(stage, selection):
     if selection is not Platform.ANDROID:
         tool_versions['macos_sdk']=execute(['xcrun','--show-sdk-version']).strip()
     if selection is not Platform.MACOS:
-        tool_versions['cargo_apk']=execute(['cargo','apk','--version']).strip()
+        tool_versions['cargo_apk']=execute(['cargo','apk','--version'],home).strip()
         java_version=subprocess.run([str(Path(env['JAVA_HOME']) / 'bin/javac'),'-version'],capture_output=True,text=True,check=True)
         tool_versions['javac']=(java_version.stdout+java_version.stderr).strip()
         for name, path in [('android_build_tools',Path(env['ANDROID_HOME']) / 'build-tools/35.0.0/source.properties'),
                            ('android_ndk',Path(env['ANDROID_NDK_ROOT']) / 'source.properties')]:
             tool_versions[name]=next(line.split('=',1)[1].strip() for line in path.read_text().splitlines() if line.startswith('Pkg.Revision'))
     result = dict(status='BUILDING',source_record='../source-record.json',distribution='local-evaluation-only',
-                  rustc=execute(['rustc','-Vv']).strip(),cargo=execute(['cargo','-V']).strip(),
+                  rustc=execute(['rustc','-Vv'],home).strip(),cargo=execute(['cargo','-V'],home).strip(),
                   tool_versions=tool_versions,
                   sources={name:{key:value[key] for key in ('revision','tree')} for name,value in record['sources'].items()},
                   component_versions=[dict(name=package['name'],version=package['version']) for package in metadata['packages'] if package['name'] in ('slint','slint-kit','slint-kit-pro','connectrpc')],
