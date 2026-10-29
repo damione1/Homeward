@@ -18,6 +18,8 @@ import time
 REPO = Path(__file__).resolve().parents[1]
 LOCAL = REPO / 'frontend.local.json'
 LIMIT = 60_000_000_000
+# Damien's delivery guidance makes60GB an indicative target. The host reserve
+# remains enforced so a qualification cannot saturate the shared disk.
 # The shared host's latest reserve supersedes the original 40 GiB floor.
 MIN_FREE = 50_000_000_000
 MONITOR_INTERVAL_SECONDS = 2
@@ -67,7 +69,7 @@ def inventory(roots):
 
 
 def policy(used, free, reserve):
-    return 0 <= used and 0 <= free and 0 <= reserve and used + reserve <= LIMIT and free - reserve >= MIN_FREE
+    return 0 <= used and 0 <= free and 0 <= reserve and free - reserve >= MIN_FREE
 
 
 def measure(config, reserve=0):
@@ -77,6 +79,7 @@ def measure(config, reserve=0):
     fs = os.statvfs(REPO)
     free = fs.f_bavail * fs.f_frsize
     result = {'utc_unix': time.time(), 'frontend_bytes': used, 'limit_bytes': LIMIT,
+              'frontend_target_met': used + reserve <= LIMIT, 'limit_is_advisory': True,
               'free_bytes': free, 'min_free_bytes': MIN_FREE, 'reserve_bytes': reserve,
               'within_policy': policy(used, free, reserve)}
     print(json.dumps(result), flush=True)

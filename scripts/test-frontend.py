@@ -26,17 +26,18 @@ class StorageGuardTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 frontend.stop_owned_process(process)
 
-    def test_combined_growth_and_free_space_reserve(self):
+    def test_advisory_target_keeps_the_host_free_space_reserve_enforced(self):
         self.assertTrue(frontend.policy(frontend.LIMIT - 100, frontend.MIN_FREE + 100, 100))
-        self.assertFalse(frontend.policy(frontend.LIMIT - 99, frontend.MIN_FREE + 100, 100))
+        self.assertTrue(frontend.policy(frontend.LIMIT + 1, frontend.MIN_FREE + 100, 100))
         self.assertFalse(frontend.policy(0, frontend.MIN_FREE + 99, 100))
         self.assertFalse(frontend.policy(0, frontend.MIN_FREE, -1))
 
-    def test_linker_growth_is_refused_before_the_hard_limit(self):
+    def test_linker_reservation_may_exceed_the_target_but_cannot_exhaust_host_space(self):
         used = frontend.LIMIT - 1_000_000_000
         free = frontend.MIN_FREE + 5_000_000_000
         self.assertTrue(frontend.policy(used, free, 512 * 1024**2))
-        self.assertFalse(frontend.policy(used, free, frontend.RUNNING_RESERVE_BYTES))
+        self.assertTrue(frontend.policy(used, free, frontend.RUNNING_RESERVE_BYTES))
+        self.assertFalse(frontend.policy(used, frontend.MIN_FREE + 1_000_000_000, frontend.RUNNING_RESERVE_BYTES))
 
     def test_unreadable_subtree_refuses_measurement(self):
         def denied(_root, **options):
