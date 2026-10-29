@@ -1,7 +1,7 @@
 """Native desktop release resources and 100 actual minimize/restore cycles.
 
 Run through frontend.py run --cargo. Isolated Go-race TLS/core and OS input only.
-No video, physical-tablet, cold-cache startup or input-to-present verdict.
+No video or physical-tablet verdict. Optional macOS compositor latency scope.
 """
 import argparse
 import contextlib
@@ -37,12 +37,20 @@ class Command(Enum):
 class QualificationScope(Enum):
     FULL = 'full'
     SHUTDOWN = 'shutdown'
+    LATENCY = 'latency'
+    LATENCY_LOAD = 'latency-load'
     def __str__(self): return self.value
     def cycle_count(self):
         match self:
             case QualificationScope.FULL: return 100
             case QualificationScope.SHUTDOWN: return 0
+            case QualificationScope.LATENCY: return 0
+            case QualificationScope.LATENCY_LOAD: return 0
         raise AssertionError('Unhandled qualification scope')
+
+class LatencyStatus(Enum):
+    MEASURED = 'MEASURED'
+    OVERFLOW = 'CAPTURE_OVERFLOW_NO_VERDICT'
 
 class BuildProfile(Enum):
     DEBUG = 'debug'
@@ -74,6 +82,11 @@ def qualify(profile, retained_server, scope):
     helper = proof / 'native-ui'
     modules = Path(CONFIG['frontend_cache']) / 'session-spike/swift-modules'
     run(['xcrun','swiftc','-module-cache-path',modules,ROOT/'qualification/frontend/native-ui.swift','-o',helper])
+    latency_helper = None
+    if scope in (QualificationScope.LATENCY, QualificationScope.LATENCY_LOAD):
+        latency_helper = proof / 'native-latency'
+        run(['xcrun','swiftc','-O','-parse-as-library','-module-cache-path',modules,
+             ROOT/'qualification/frontend/native-latency.swift','-o',latency_helper])
     bundle = proof / 'Homeward Resources.app/Contents'
     (bundle / 'MacOS').mkdir(parents=True)
     binary = bundle / 'MacOS/homeward-desktop'
@@ -81,7 +94,8 @@ def qualify(profile, retained_server, scope):
     with (bundle/'Info.plist').open('wb') as output:
         plistlib.dump(dict(CFBundleExecutable=binary.name,CFBundleIdentifier=SESSION['PACKAGE'],CFBundleName='Homeward Resources',CFBundlePackageType='APPL',NSHighResolutionCapable=True),output)
     write = SESSION['write']
-    write(proof/'build.json',dict(binary=str(binary),server=str(server),helper=str(helper),profile=profile.value,binaries={str(p.relative_to(proof)):SESSION['digest'](p) for p in [binary,server,helper]}))
+    artifacts = [binary,server,helper] + ([latency_helper] if latency_helper else [])
+    write(proof/'build.json',dict(binary=str(binary),server=str(server),helper=str(helper),profile=profile.value,binaries={str(p.relative_to(proof)):SESSION['digest'](p) for p in artifacts}))
     write(proof/'machine.json',dict(os=platform.platform(),architecture=platform.machine(),model=subprocess.check_output(['sysctl','-n','hw.model'],text=True).strip(),ram_bytes=int(subprocess.check_output(['sysctl','-n','hw.memsize'],text=True)),cpu=subprocess.check_output(['sysctl','-n','machdep.cpu.brand_string'],text=True).strip(),physical_android=False))
     product = Path.home()/'Library/Application Support/Homeward'
     public, preferences = product/'endpoint.json', product/'interface.json'
@@ -176,6 +190,7 @@ def qualify(profile, retained_server, scope):
                 capture('home-after-'+str(len(cycles))+'-cycles')
                 load = None
                 loaded = None
+                latency = None
                 if scope is QualificationScope.FULL:
                     # StateService load is real and lasts50s. Navigate an observed
                     # server-configured room and back while the update stream runs.
@@ -206,6 +221,40 @@ def qualify(profile, retained_server, scope):
                     native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
                     capture('inventory-after-load')
                     write(proof/'after-load-resources.json',loaded)
+                if scope is QualificationScope.LATENCY_LOAD:
+                    command=control/'command.writing'
+                    write(command,dict(sequence=1,action=SESSION['CacheAction'].LOAD.value)); command.replace(control/'command.json')
+                    deadline=time.monotonic()+10
+                    while not (control/'load-started.json').is_file():
+                        if app.poll() is not None or time.monotonic()>=deadline: raise RuntimeError('Actual server load did not start')
+                        time.sleep(.05)
+                    started=json.loads((control/'load-started.json').read_text())
+                    if started!={'updates':1000,'interval_milliseconds':50} or (control/'load-done.json').exists():
+                        raise RuntimeError('Expected ongoing20Hz server load missing')
+                    write(proof/'load-started-before-latency.json',started)
+                if scope in (QualificationScope.LATENCY, QualificationScope.LATENCY_LOAD):
+                    try:
+                        with (proof/'latency-stdout.json').open('w') as output, (proof/'latency-stderr.log').open('w') as errors:
+                            run([latency_helper],input=json.dumps(dict(pid=app.pid,syntheticOnly=True,outputDirectory=str(proof/'latency'))),
+                                text=True,stdout=output,stderr=errors,timeout=60)
+                        latency=json.loads((proof/'latency/result.json').read_text())
+                        if LatencyStatus(latency['status']) is not LatencyStatus.MEASURED or latency['samples']!=60 or latency['capture_overflow']!=0:
+                            raise RuntimeError('Compositor latency scope did not produce an admitted measurement')
+                        capture('home-after-latency')
+                    except BaseException:
+                        capture('latency-failure-before-fixture-close')
+                        raise
+                if scope is QualificationScope.LATENCY_LOAD:
+                    if (control/'load-done.json').exists(): raise RuntimeError('Latency proof overran the actual load window')
+                    write(proof/'load-still-running-after-latency.json',dict(load_done=False))
+                    deadline=time.monotonic()+70
+                    while not (control/'load-done.json').is_file():
+                        if app.poll() is not None or time.monotonic()>=deadline: raise RuntimeError('Actual20Hz load did not finish')
+                        time.sleep(.25)
+                    load=json.loads((control/'load-done.json').read_text())
+                    if load['updates']!=1000 or not 49<=load['elapsed_seconds']<=70: raise RuntimeError('Expected20Hz load missing')
+                    write(proof/'load.json',load)
+                    capture('home-after-latency-load')
                 native(Command.TAP,label='Préférences'); wait('À votre mesure')
                 capture('preferences-before-shutdown')
                 # Settings now contains companion, notifications and account
@@ -228,10 +277,12 @@ def qualify(profile, retained_server, scope):
             raise RuntimeError('Fresh reads, pagination cleanup and read-only shutdown not proved')
         write(proof/'result.json',dict(status='PASS_PENDING_VISUAL_INSPECTION',profile=profile.value,qualification_scope=scope.value,actual_native_cycles=len(cycles),entity_count=private['entity_count'],load=load,baseline=baseline,after_cycles=after,after_load=loaded,cycles=cycles,server=report,children_joined=True,
             cases=[dict(platform='macos',native_rendering=True,children_joined=True)],
-            scope=f'Native macOS {profile.value}, {scope.value} scope, isolated Go-race TLS; load and cycles only when explicitly recorded; no physical tablet or input-to-present result',
+            scope=f'Native macOS {profile.value}, {scope.value} scope, isolated Go-race TLS; load, cycles and compositor latency only when explicitly recorded; no physical tablet result',
             provisional_rss_target_met_on_this_host=after['mean_rss_bytes']<=180*1024*1024,
             rss_change_after_warmup_bytes=(statistics.mean(row['resources']['rss_bytes'] for row in cycles[-10:])-statistics.mean(row['resources']['rss_bytes'] for row in cycles[9:19])) if cycles else None,
-            physical_tablet=False,input_to_present_p95_ms=None,cold_cached_view_startup_seconds=None,all_nhf023_acceptance_closed=False))
+            physical_tablet=False,input_to_present_p95_ms=latency['p95_ms'] if latency else None,compositor_latency=latency,
+            provisional_input_target_met_on_this_host=latency['p95_ms']<=80 if latency else None,
+            cold_cached_view_startup_seconds=None,all_nhf023_acceptance_closed=False))
         print('DESKTOP_RESOURCES_PASS '+str(proof),flush=True)
     except BaseException as error:
         failure=dict(status='FAILED',error_type=type(error).__name__,error=str(error),cycles_completed=len(cycles) if 'cycles' in locals() else 0)

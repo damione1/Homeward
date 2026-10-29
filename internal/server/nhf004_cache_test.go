@@ -454,6 +454,7 @@ func TestNHF004CacheServer(t *testing.T) {
 					t.Fatal("load can be started only once")
 				}
 				remaining, loadStarted = 1000, time.Now()
+				write("load-started.json", map[string]any{"updates": 1000, "interval_milliseconds": 50})
 			case nhf004Burst:
 				for range 17000 {
 					published++
