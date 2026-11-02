@@ -203,8 +203,9 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
         request.dashboard.layout(),
         &request,
         &hidden,
+        None,
     )
-    .rows(&slint::VecModel::default());
+    .rows(&slint::VecModel::default(), &crate::IconGlyph::default());
     assert_eq!(
         rendered.len(),
         3,
@@ -345,6 +346,27 @@ fn room_cards_follow_server_order_and_reordering_withdraws_a_captured_gesture() 
     assert_eq!(after.rows[1].title.as_str(), second.current_alias);
     assert_ne!(before.rows[0].generation, after.rows[0].generation);
     assert!(!(captured.guard)());
+}
+#[test]
+fn detail_uses_the_exact_server_capability_name_and_keeps_alias_as_fallback() {
+    let mut request = request();
+    let mut entity = light(&request);
+    request.detail = Some(entity.entity_id.parse().unwrap());
+    entity.capabilities[0].display_name = "Reading light".into();
+    let store = DeviceStore::default();
+    let named = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity.clone()])),
+        &request,
+    );
+    assert_eq!(named.rows[0].title.as_str(), "Reading light");
+    entity.capabilities[0].display_name = "  ".into();
+    let fallback = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity.clone()])),
+        &request,
+    );
+    assert_eq!(fallback.rows[0].title.as_str(), entity.current_alias);
 }
 #[test]
 fn observations_preserve_the_gesture_but_permission_capability_or_config_changes_withdraw_it() {
@@ -1120,8 +1142,8 @@ fn choice_tokens_cannot_retarget_modes_and_absent_observations_are_removed() {
         )
         .rows
         .remove(0);
-    assert!(row.readings.contains("Climatisation"));
-    assert!(row.readings.contains("Au repos"));
+    assert!(row.readings.contains("Cool"));
+    assert!(row.readings.contains("Idle"));
     assert!(row.readings.contains("Inactive"));
     let intent = store.choose(row.token, row.generation, 0, 0).unwrap();
     let prepared = store
@@ -1145,8 +1167,8 @@ fn choice_tokens_cannot_retarget_modes_and_absent_observations_are_removed() {
         .rows
         .remove(0);
     assert_eq!(row.generation, next.generation);
-    assert!(!next.readings.contains("Climatisation"));
-    assert!(!next.readings.contains("Au repos"));
+    assert!(!next.readings.contains("Cool"));
+    assert!(!next.readings.contains("Idle"));
     assert!(!next.readings.contains("Inactive"));
     assert_eq!(next.values[0].lower, "");
     if let Some(registry::capability_description::Constraints::Climate(value)) =

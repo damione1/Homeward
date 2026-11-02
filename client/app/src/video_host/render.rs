@@ -22,55 +22,55 @@ pub(super) fn clear(window: &HomewardWindow) {
 }
 pub(super) fn state(value: &Playback) -> (ProVideoState, &'static str, bool) {
     match value {
-        Playback::Idle => (ProVideoState::Idle, "Vidéo arrêtée", false),
+        Playback::Idle => (ProVideoState::Idle, "Video stopped", false),
         Playback::Connecting => (
             ProVideoState::Connecting,
-            "Ouverture d’une session vidéo autorisée…",
+            "Opening an authorized video session…",
             true,
         ),
         Playback::Playing(_) => (
             ProVideoState::Playing,
-            "Lecture native autorisée · sans audio",
+            "Native playback authorized · no audio",
             true,
         ),
         Playback::Paused(PauseReason::User) => (
             ProVideoState::Paused,
-            "Vidéo en pause · reprendre ouvre une nouvelle session",
+            "Video paused · resuming opens a new session",
             true,
         ),
         Playback::Paused(PauseReason::OutsideViewport) => (
             ProVideoState::Paused,
-            "Vidéo arrêtée hors écran · reprendre pour relancer",
+            "Video stopped offscreen · resume to restart",
             true,
         ),
         Playback::Expired => (
             ProVideoState::Expired,
-            "Session vidéo expirée · relancer pour autoriser une nouvelle lecture",
+            "Video session expired · restart to authorize a new reading",
             true,
         ),
         Playback::Revoked => (
             ProVideoState::Revoked,
-            "Accès retiré · image vidéo effacée",
+            "Access removed · video image cleared",
             true,
         ),
         Playback::Offline => (
             ProVideoState::Offline,
-            "Connexion interrompue · lecture arrêtée",
+            "Connection interrupted · reading stopped",
             true,
         ),
         Playback::Unavailable => (
             ProVideoState::Unavailable,
-            "Vidéo temporairement indisponible · utiliser l’instantané",
+            "Video temporarily unavailable · use the snapshot",
             true,
         ),
         Playback::Unsupported => (
             ProVideoState::Unsupported,
-            "Vidéo ou décodeur natif indisponible · utiliser l’instantané",
+            "Video or native decoder unavailable · use the snapshot",
             true,
         ),
         Playback::Invalid => (
             ProVideoState::Invalid,
-            "Flux vidéo non admis · lecture arrêtée",
+            "Video stream rejected · playback stopped",
             true,
         ),
     }
@@ -94,8 +94,8 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         source: selection.camera.source.into(),
         identity: selection.camera.id.entity().as_str().into(),
         provenance: match selection.camera.provenance {
-            Provenance::Synthetic => "MOCK ISOLÉ · vidéo synthétique · aucun appareil réel",
-            Provenance::Observed => "Source autorisée · vidéo sans audio",
+            Provenance::Synthetic => "ISOLATED MOCK · synthetic video · no real devices",
+            Provenance::Observed => "Authorized source · video without audio",
         }
         .into(),
         state: phase,
@@ -107,12 +107,12 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         Playback::Playing(frame) => {
             if frame.deadline <= Instant::now() {
                 video.state = ProVideoState::Expired;
-                video.state_label = "Session vidéo expirée · image retirée".into();
+                video.state_label = "Video session expired · image removed".into();
             } else {
                 video.picture = slint::Image::from_rgba8(frame.pixels.clone());
                 let millis = frame.presentation_micros / 1000;
                 video.position_label = format!(
-                    "{:02}:{:02}.{:03} · sans audio",
+                    "{:02}:{:02}.{:03} · no audio",
                     millis / 60_000,
                     (millis / 1000) % 60,
                     millis % 1000

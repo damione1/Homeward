@@ -34,7 +34,7 @@ pub(super) struct Row {
 }
 fn integration_type(value: &str) -> &str {
     if value.is_empty() {
-        "Configuration opaque · type non déclaré"
+        "Opaque configuration · type not declared"
     } else {
         value
     }
@@ -45,39 +45,39 @@ pub(super) fn fact(key: impl Into<String>) -> Target {
 fn name<E: Enumeration>(value: EnumValue<E>) -> String {
     match value {
         EnumValue::Known(value) => value.proto_name().into(),
-        EnumValue::Unknown(_) => "Non pris en charge".into(),
+        EnumValue::Unknown(_) => "Unsupported".into(),
     }
 }
 pub(super) fn at(value: &buffa_types::google::protobuf::Timestamp) -> String {
     chrono::DateTime::from_timestamp(value.seconds, value.nanos as u32)
         .map(|date| date.format("%Y-%m-%d %H:%M UTC").to_string())
-        .unwrap_or_else(|| "Date non fournie".into())
+        .unwrap_or_else(|| "Date not provided".into())
 }
 fn role(value: EnumValue<auth::AccountRole>) -> &'static str {
     match value {
-        EnumValue::Known(auth::AccountRole::Admin) => "Administrateur",
-        EnumValue::Known(auth::AccountRole::User) => "Utilisateur",
+        EnumValue::Known(auth::AccountRole::Admin) => "Administrator",
+        EnumValue::Known(auth::AccountRole::User) => "User",
         EnumValue::Known(auth::AccountRole::Unspecified) | EnumValue::Unknown(_) => {
-            "Rôle non pris en charge"
+            "Unsupported role"
         }
     }
 }
 fn gauge(value: &obs::GaugeMeasurement) -> String {
     match &value.result {
         Some(obs::gauge_measurement::Result::Value(value)) => value.to_string(),
-        Some(obs::gauge_measurement::Result::NotMeasured(_)) => "Non mesuré".into(),
-        Some(obs::gauge_measurement::Result::Unavailable(_)) => "Indisponible".into(),
-        None => "Non fourni".into(),
+        Some(obs::gauge_measurement::Result::NotMeasured(_)) => "Not measured".into(),
+        Some(obs::gauge_measurement::Result::Unavailable(_)) => "Unavailable".into(),
+        None => "Not provided".into(),
     }
 }
 
 fn counter(value: &obs::CounterMeasurement) -> String {
     match &value.result {
         Some(obs::counter_measurement::Result::Exact(value)) => value.to_string(),
-        Some(obs::counter_measurement::Result::Saturated(_)) => "Compteur saturé".into(),
-        Some(obs::counter_measurement::Result::NotMeasured(_)) => "Non mesuré".into(),
-        Some(obs::counter_measurement::Result::Unavailable(_)) => "Indisponible".into(),
-        None => "Non fourni".into(),
+        Some(obs::counter_measurement::Result::Saturated(_)) => "Counter full".into(),
+        Some(obs::counter_measurement::Result::NotMeasured(_)) => "Not measured".into(),
+        Some(obs::counter_measurement::Result::Unavailable(_)) => "Unavailable".into(),
+        None => "Not provided".into(),
     }
 }
 fn lag(value: &obs::LagMeasurement) -> String {
@@ -85,10 +85,10 @@ fn lag(value: &obs::LagMeasurement) -> String {
         Some(obs::lag_measurement::Result::SameEpochPositions(value)) => {
             format!("{value} positions")
         }
-        Some(obs::lag_measurement::Result::Invalidated(_)) => "Invalidé".into(),
-        Some(obs::lag_measurement::Result::EpochMismatch(_)) => "Epoch différent".into(),
-        Some(obs::lag_measurement::Result::Unavailable(_)) => "Indisponible".into(),
-        None => "Non fourni".into(),
+        Some(obs::lag_measurement::Result::Invalidated(_)) => "Invalidated".into(),
+        Some(obs::lag_measurement::Result::EpochMismatch(_)) => "Different epoch".into(),
+        Some(obs::lag_measurement::Result::Unavailable(_)) => "Unavailable".into(),
+        None => "Not provided".into(),
     }
 }
 fn position(value: &obs::PositionMeasurement) -> String {
@@ -96,8 +96,8 @@ fn position(value: &obs::PositionMeasurement) -> String {
         Some(obs::position_measurement::Result::Value(value)) => {
             format!("{} / {}", hex(&value.epoch), value.sequence)
         }
-        Some(obs::position_measurement::Result::Unavailable(_)) => "Indisponible".into(),
-        None => "Non fourni".into(),
+        Some(obs::position_measurement::Result::Unavailable(_)) => "Unavailable".into(),
+        None => "Not provided".into(),
     }
 }
 pub(super) fn hex(bytes: &[u8]) -> String {
@@ -130,23 +130,23 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
         Payload::Personal { profile } => {
             push(
                 fact("identity/account"),
-                "Compte de la session".into(),
+                "Session Account".into(),
                 identity.account.as_str().into(),
             );
             push(
                 fact("identity/session"),
-                "Session native".into(),
+                "Native Session".into(),
                 identity.session.as_str().into(),
             );
             if let Some(profile) = profile {
                 push(
                     fact("identity/name"),
-                    "Nom d'affichage".into(),
+                    "Display Name".into(),
                     profile.display_name.clone(),
                 );
                 push(
                     fact("identity/role"),
-                    "Rôle fourni par le serveur".into(),
+                    "Server-Provided Role".into(),
                     role(profile.role).into(),
                 );
             }
@@ -170,15 +170,15 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
                 push(
                     Target::Session(SessionId::try_from(&*value.id).expect("admitted session")),
                     if value.id.value == identity.session.as_str() {
-                        "Session courante".into()
+                        "Current Session".into()
                     } else {
                         value.id.value.clone()
                     },
                     format!(
-                        "Expiration {}{}",
+                        "Expires {}{}",
                         at(&value.expires_at),
                         if value.revoked_at.is_set() {
-                            " · Révoquée"
+                            " · Revoked"
                         } else {
                             ""
                         }
@@ -192,25 +192,25 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
                     Target::Factor(
                         FactorCredentialId::try_from(&*value.id).expect("admitted factor"),
                     ),
-                    "Clé de sécurité".into(),
-                    format!("{} · créée {}", value.id.value, at(&value.created_at)),
+                    "Security Key".into(),
+                    format!("{} · created {}", value.id.value, at(&value.created_at)),
                 );
             }
         }
         Payload::MfaPolicy(value) => {
             push(
                 fact("mfa/required"),
-                "Second facteur administrateur".into(),
+                "Administrator Second Factor".into(),
                 if value.require_admin_factor {
-                    "Obligatoire"
+                    "Required"
                 } else {
-                    "Facultatif"
+                    "Optional"
                 }
                 .into(),
             );
             push(
                 fact("mfa/version"),
-                "Révision de la politique".into(),
+                "Policy Revision".into(),
                 value.version.revision.to_string(),
             );
         }
@@ -220,10 +220,10 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
                     Target::Key(McpKeyId::try_from(&*value.id).expect("admitted MCP key")),
                     value.client_name.clone(),
                     format!(
-                        "Expiration {}{}",
+                        "Expires {}{}",
                         at(&value.expires_at),
                         if value.revoked_at.is_set() {
-                            " · Révoquée"
+                            " · Revoked"
                         } else {
                             ""
                         }
@@ -239,14 +239,14 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
                     ),
                     value.login_name.clone(),
                     format!(
-                        "{} · {} · expiration {}",
+                        "{} · {} · expires {}",
                         role(value.role),
                         if value.revoked_at.is_set() {
-                            "Révoquée"
+                            "Revoked"
                         } else if value.accepted_at.is_set() {
-                            "Acceptée"
+                            "Accepted"
                         } else {
-                            "En attente"
+                            "Pending"
                         },
                         at(&value.expires_at)
                     ),
@@ -256,18 +256,16 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
         Payload::Policy { account, response } => {
             let detail = match &response.result {
                 Some(auth::get_policy_response::Result::Present(value)) => format!(
-                    "Révision {} · mise à jour {}",
+                    "Revision {} · updated {}",
                     value.version.revision,
                     at(&value.updated_at)
                 ),
-                Some(auth::get_policy_response::Result::Absent(_)) => {
-                    "Aucune politique définie".into()
-                }
-                None => "Réponse non fournie".into(),
+                Some(auth::get_policy_response::Result::Absent(_)) => "No policy defined".into(),
+                None => "Response not provided".into(),
             };
             push(
                 fact(format!("policy/{}", account.as_str())),
-                "Politique du compte".into(),
+                "Account Policy".into(),
                 detail,
             );
         }
@@ -289,7 +287,7 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             if value.response.instances.is_empty() {
                 push(
                     fact("integrations/catalog"),
-                    "Types disponibles".into(),
+                    "Available Types".into(),
                     value
                         .types
                         .iter()
@@ -303,20 +301,20 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             let row = &value.response.instance;
             push(
                 fact("integration/type"),
-                "Type d'intégration".into(),
+                "Integration Type".into(),
                 integration_type(&row.type_id).into(),
             );
             push(
                 fact("integration/state"),
-                "État demandé".into(),
+                "Requested State".into(),
                 name(row.desired_state),
             );
             push(
                 fact("integration/schema"),
-                "Schéma public".into(),
+                "Public Schema".into(),
                 match &value.kind {
                     Ok(kind) => kind.schema_version.clone(),
-                    Err(_) => "Schéma indisponible".into(),
+                    Err(_) => "Schema unavailable".into(),
                 },
             );
             match &value.health {
@@ -326,65 +324,65 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
                             name(report.status)
                         }
                         Some(obs::integration_report_presence::Result::NoReport(_)) => {
-                            "Aucun rapport".into()
+                            "No report".into()
                         }
-                        None => "Non fourni".into(),
+                        None => "Not provided".into(),
                     };
                     let phase = match &health.supervision.result {
                         Some(obs::integration_supervision::Result::Supervised(value)) => {
                             name(value.phase)
                         }
                         Some(obs::integration_supervision::Result::NotSupervised(_)) => {
-                            "Non supervisé".into()
+                            "Not supervised".into()
                         }
-                        None => "Non fourni".into(),
+                        None => "Not provided".into(),
                     };
-                    push(fact("integration/health"), "Santé déclarée".into(), report);
+                    push(fact("integration/health"), "Reported Health".into(), report);
                     push(fact("integration/supervision"), "Supervision".into(), phase);
                 }
                 Err(_) => push(
                     fact("integration/health"),
-                    "Santé déclarée".into(),
-                    "Service de santé indisponible".into(),
+                    "Reported Health".into(),
+                    "Health service unavailable".into(),
                 ),
             }
         }
         Payload::Health(value) => {
             push(
                 fact("health/server"),
-                "Serveur".into(),
+                "Server".into(),
                 match value.health.server.readiness {
-                    EnumValue::Known(obs::ServerReadiness::Ready) => "Prêt",
-                    EnumValue::Known(obs::ServerReadiness::Starting) => "Démarrage",
-                    EnumValue::Known(obs::ServerReadiness::Draining) => "Arrêt en cours",
-                    EnumValue::Known(obs::ServerReadiness::CoreUnavailable) => "Indisponible",
+                    EnumValue::Known(obs::ServerReadiness::Ready) => "Ready",
+                    EnumValue::Known(obs::ServerReadiness::Starting) => "Starting",
+                    EnumValue::Known(obs::ServerReadiness::Draining) => "Stopping",
+                    EnumValue::Known(obs::ServerReadiness::CoreUnavailable) => "Unavailable",
                     EnumValue::Known(obs::ServerReadiness::Unspecified) | EnumValue::Unknown(_) => {
-                        "Non fourni"
+                        "Not provided"
                     }
                 }
                 .into(),
             );
             push(
                 fact("health/durable"),
-                "Stockage durable".into(),
+                "Persistent Storage".into(),
                 name(value.health.durable.availability),
             );
             push(
                 fact("health/recorder"),
-                "Enregistreur".into(),
+                "Recorder".into(),
                 match &value.health.recorder.result {
                     Some(obs::recorder_health::Result::Observed(value)) => {
                         format!("{} · {}", name(value.phase), name(value.state))
                     }
-                    Some(obs::recorder_health::Result::NotInstalled(_)) => "Non installé".into(),
-                    Some(obs::recorder_health::Result::Unavailable(_)) => "Indisponible".into(),
-                    None => "Non fourni".into(),
+                    Some(obs::recorder_health::Result::NotInstalled(_)) => "Not installed".into(),
+                    Some(obs::recorder_health::Result::Unavailable(_)) => "Unavailable".into(),
+                    None => "Not provided".into(),
                 },
             );
             for pilot in &value.health.pilots {
                 push(
                     fact(format!("health/pilot/{}", name(pilot.phase))),
-                    format!("Intégrations · {}", name(pilot.phase)),
+                    format!("Integrations · {}", name(pilot.phase)),
                     pilot.instances.to_string(),
                 );
             }
@@ -412,18 +410,18 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             }
             Some(obs::query_runtime_logs_response::Result::CursorEvicted(value)) => push(
                 fact("logs/evicted"),
-                "Historique du journal tronqué".into(),
-                format!("Première séquence conservée : {}", value.retained_from),
+                "Log history truncated".into(),
+                format!("First retained sequence: {}", value.retained_from),
             ),
             Some(obs::query_runtime_logs_response::Result::StaleCursor(_)) => push(
                 fact("logs/stale"),
-                "Capture expirée".into(),
-                "Rechargez la première page du journal.".into(),
+                "Snapshot expired".into(),
+                "Reload the first log page.".into(),
             ),
             Some(obs::query_runtime_logs_response::Result::Unavailable(_)) => push(
                 fact("logs/unavailable"),
-                "Journal indisponible".into(),
-                "Réessayez avec une nouvelle lecture.".into(),
+                "Log unavailable".into(),
+                "Try again with a new reading.".into(),
             ),
             None => (),
         },
@@ -436,14 +434,14 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
                             format!("{} · {}", at(&value.occurred_at), name(value.outcome)),
                         ),
                         Some(obs::audit_row::Result::SecretAccess(value)) => (
-                            "Accès à un secret refusé".into(),
+                            "Secret access denied".into(),
                             format!("{} · {}", at(&value.occurred_at), name(value.reason)),
                         ),
                         Some(obs::audit_row::Result::StoredMetadataInvalid(_)) => (
-                            "Métadonnées historiques invalides".into(),
-                            "Valeurs non exposées".into(),
+                            "Invalid historical metadata".into(),
+                            "Values Not Exposed".into(),
                         ),
-                        None => ("Entrée non fournie".into(), String::new()),
+                        None => ("Entry not provided".into(), String::new()),
                     };
                     push(
                         fact(format!("audit/{}/{}", name(value.source), row.id)),
@@ -455,13 +453,13 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             }
             Some(obs::query_audits_response::Result::StaleCursor(_)) => push(
                 fact("audits/stale"),
-                "Capture expirée".into(),
-                "Rechargez la première page des audits.".into(),
+                "Snapshot expired".into(),
+                "Reload the first audit page.".into(),
             ),
             Some(obs::query_audits_response::Result::Unavailable(_)) => push(
                 fact("audits/unavailable"),
-                "Audits indisponibles".into(),
-                "Réessayez avec une nouvelle lecture.".into(),
+                "Audits unavailable".into(),
+                "Try again with a new reading.".into(),
             ),
             None => (),
         },
@@ -476,43 +474,43 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
         match &queue.result {
             Some(obs::queue_aggregate::Result::Installed(value)) => {
                 for (key, label, value) in [
-                    ("queues", "Files actives", gauge(&value.active_queues)),
-                    ("queued", "Entrées en attente", gauge(&value.queued_entries)),
-                    (
-                        "capacity",
-                        "Capacité en entrées",
-                        gauge(&value.capacity_entries),
-                    ),
-                    ("degraded", "Files dégradées", gauge(&value.degraded_queues)),
+                    ("queues", "Active Queues", gauge(&value.active_queues)),
+                    ("queued", "Pending entries", gauge(&value.queued_entries)),
+                    ("capacity", "Entry Capacity", gauge(&value.capacity_entries)),
+                    ("degraded", "Queues degraded", gauge(&value.degraded_queues)),
                     (
                         "bytes",
-                        "Octets comptabilisés en attente",
+                        "Pending Accounted Bytes",
                         gauge(&value.queued_accounted_bytes),
                     ),
                     (
                         "capacity-bytes",
-                        "Capacité comptabilisée en octets",
+                        "Capacity measured in bytes",
                         gauge(&value.capacity_accounted_bytes),
                     ),
                     (
                         "inflight",
-                        "Entrées en cours",
+                        "Entries in progress",
                         gauge(&value.in_flight_entries),
                     ),
                     (
                         "pending",
-                        "Commandes admises en attente",
+                        "Accepted commands pending",
                         gauge(&value.pending_entries),
                     ),
-                    ("rejected", "Refus cumulés", counter(&value.rejected_total)),
+                    (
+                        "rejected",
+                        "Total Rejections",
+                        counter(&value.rejected_total),
+                    ),
                     (
                         "lost",
-                        "Livraisons perdues cumulées",
+                        "Total Lost Deliveries",
                         counter(&value.lost_deliveries_total),
                     ),
                     (
                         "coalesced",
-                        "Regroupements cumulés",
+                        "Total Coalesced Entries",
                         counter(&value.coalesced_total),
                     ),
                 ] {
@@ -524,10 +522,10 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
                 }
             }
             Some(obs::queue_aggregate::Result::NotInstalled(_)) => {
-                metric(format!("queue/{group}"), group, "Non installé".into())
+                metric(format!("queue/{group}"), group, "Not installed".into())
             }
             Some(obs::queue_aggregate::Result::Unavailable(_)) => {
-                metric(format!("queue/{group}"), group, "Indisponible".into())
+                metric(format!("queue/{group}"), group, "Unavailable".into())
             }
             None => (),
         }
@@ -536,77 +534,69 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
         let group = name(row.queue_class);
         let value = match &row.result {
             Some(obs::queue_lag::Result::Installed(value)) => lag(value),
-            Some(obs::queue_lag::Result::NotInstalled(_)) => "Non installé".into(),
-            Some(obs::queue_lag::Result::Unavailable(_)) => "Indisponible".into(),
-            None => "Non fourni".into(),
+            Some(obs::queue_lag::Result::NotInstalled(_)) => "Not installed".into(),
+            Some(obs::queue_lag::Result::Unavailable(_)) => "Unavailable".into(),
+            None => "Not provided".into(),
         };
         metric(
             format!("lag/{group}"),
-            format!("{group} · retard en positions"),
+            format!("{group} · position lag"),
             value,
         );
     }
     match &value.recorder.result {
         Some(obs::recorder_metrics::Result::Installed(value)) => {
             for (key, label, value) in [
-                ("queued-bytes", "Octets en file", gauge(&value.queued_bytes)),
+                ("queued-bytes", "Queued Bytes", gauge(&value.queued_bytes)),
                 (
                     "pending-bytes",
-                    "Octets en attente",
+                    "Pending Bytes",
                     gauge(&value.pending_bytes),
                 ),
                 (
                     "capacity-bytes",
-                    "Capacité totale en octets",
+                    "Total Capacity in Bytes",
                     gauge(&value.total_capacity_bytes),
                 ),
                 (
                     "queue-capacity",
-                    "Capacité de file en octets",
+                    "Queue Capacity in Bytes",
                     gauge(&value.queue_capacity_bytes),
                 ),
-                ("queued", "Entrées en file", gauge(&value.queued_entries)),
-                (
-                    "retries",
-                    "Reprises cumulées",
-                    counter(&value.retries_total),
-                ),
+                ("queued", "Queued entries", gauge(&value.queued_entries)),
+                ("retries", "Total Resumes", counter(&value.retries_total)),
                 (
                     "lost",
-                    "Entrées perdues cumulées",
+                    "Total Lost Entries",
                     counter(&value.lost_entries_total),
                 ),
                 (
                     "excluded",
-                    "Exclusions par politique",
+                    "Policy Exclusions",
                     counter(&value.policy_excluded_total),
                 ),
                 ("checkpoint", "Checkpoint", position(&value.checkpoint)),
-                ("tail", "Fin de journal", position(&value.tail)),
-                (
-                    "lag",
-                    "Retard en positions",
-                    lag(&value.recorder_lag_positions),
-                ),
+                ("tail", "End of Log", position(&value.tail)),
+                ("lag", "Position Lag", lag(&value.recorder_lag_positions)),
             ] {
                 metric(
                     format!("recorder/{key}"),
-                    format!("Enregistreur · {label}"),
+                    format!("Recorder · {label}"),
                     value,
                 );
             }
             for gap in &value.committed_gaps {
                 let reason = name(gap.reason);
                 for (key, label, value) in [
-                    ("rows", "Trous confirmés", counter(&gap.rows_total)),
+                    ("rows", "Confirmed Gaps", counter(&gap.rows_total)),
                     (
                         "known-lost",
-                        "Borne inférieure connue des pertes",
+                        "Known lower bound of losses",
                         counter(&gap.known_lost_lower_bound_total),
                     ),
                     (
                         "unknown",
-                        "Trous sans décompte connu",
+                        "Gaps Without Known Counts",
                         counter(&gap.rows_without_known_count_total),
                     ),
                 ] {
@@ -618,33 +608,29 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
                 }
             }
         }
-        Some(obs::recorder_metrics::Result::NotInstalled(_)) => metric(
-            "recorder".into(),
-            "Enregistreur".into(),
-            "Non installé".into(),
-        ),
-        Some(obs::recorder_metrics::Result::Unavailable(_)) => metric(
-            "recorder".into(),
-            "Enregistreur".into(),
-            "Indisponible".into(),
-        ),
+        Some(obs::recorder_metrics::Result::NotInstalled(_)) => {
+            metric("recorder".into(), "Recorder".into(), "Not installed".into())
+        }
+        Some(obs::recorder_metrics::Result::Unavailable(_)) => {
+            metric("recorder".into(), "Recorder".into(), "Unavailable".into())
+        }
         None => (),
     }
     metric(
         "actions/progress".into(),
-        "Actions indéterminées · progression".into(),
+        "Uncertain actions · progress".into(),
         counter(&value.actions.progress_indeterminate_total),
     );
     metric(
         "actions/recovered".into(),
-        "Actions indéterminées · récupérations durables".into(),
+        "Uncertain actions · persistent recovery records".into(),
         counter(&value.actions.durable_recovered_indeterminate_total),
     );
     for row in &value.actions.first_attempts {
         let ledger = name(row.ledger);
         metric(
             format!("actions/first/{ledger}"),
-            format!("Premières tentatives indéterminées · {ledger}"),
+            format!("Initial uncertain attempts · {ledger}"),
             counter(&row.indeterminate_total),
         );
     }
@@ -652,16 +638,16 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
         Some(obs::run_metrics::Result::Installed(value)) => {
             metric(
                 "runs/preparing".into(),
-                "Exécutions en préparation".into(),
+                "Runs being prepared".into(),
                 gauge(&value.preparing),
             );
             for kind in &value.kinds {
                 let group = name(kind.kind);
                 for (key, label, value) in [
-                    ("active", "Actives", gauge(&kind.active)),
-                    ("pending", "En attente", gauge(&kind.pending)),
-                    ("cancelled", "Annulées", counter(&kind.cancelled_total)),
-                    ("superseded", "Remplacées", counter(&kind.superseded_total)),
+                    ("active", "Active", gauge(&kind.active)),
+                    ("pending", "Pending", gauge(&kind.pending)),
+                    ("cancelled", "Cancelled", counter(&kind.cancelled_total)),
+                    ("superseded", "Replaced", counter(&kind.superseded_total)),
                 ] {
                     metric(
                         format!("runs/{group}/{key}"),
@@ -672,88 +658,72 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
             }
         }
         Some(obs::run_metrics::Result::NotInstalled(_)) => {
-            metric("runs".into(), "Exécutions".into(), "Non installé".into())
+            metric("runs".into(), "Runs".into(), "Not installed".into())
         }
         Some(obs::run_metrics::Result::Unavailable(_)) => {
-            metric("runs".into(), "Exécutions".into(), "Indisponible".into())
+            metric("runs".into(), "Runs".into(), "Unavailable".into())
         }
         None => (),
     }
     for (key, label, value) in [
-        (
-            "rows",
-            "Lignes conservées",
-            gauge(&value.journal.retained_rows),
-        ),
+        ("rows", "Retained Rows", gauge(&value.journal.retained_rows)),
         (
             "bytes",
-            "Octets comptabilisés",
+            "Accounted Bytes",
             gauge(&value.journal.charged_bytes),
         ),
         (
             "evicted",
-            "Évictions cumulées",
+            "Total Evictions",
             counter(&value.journal.evicted_total),
         ),
     ] {
-        metric(
-            format!("journal/{key}"),
-            format!("Journal · {label}"),
-            value,
-        );
+        metric(format!("journal/{key}"), format!("Log · {label}"), value);
     }
     for cut in &value.cuts {
         let owner = name(cut.owner);
         metric(
             format!("cut/{owner}"),
-            format!("Capture indépendante · {owner}"),
+            format!("Independent snapshot · {owner}"),
             at(&cut.captured_at),
         );
     }
 }
 fn log_message(value: EnumValue<obs::LogCode>) -> &'static str {
     match value {
-        EnumValue::Known(obs::LogCode::ProcessConfigReadFailed) => {
-            "Lecture de configuration refusée"
-        }
-        EnumValue::Known(obs::LogCode::ProcessConfigAdmissionFailed) => "Configuration non admise",
-        EnumValue::Known(obs::LogCode::ProcessRuntimeStartFailed) => {
-            "Démarrage du serveur impossible"
-        }
-        EnumValue::Known(obs::LogCode::ProcessRuntimeFailed) => "Arrêt du runtime sur erreur",
-        EnumValue::Known(obs::LogCode::ProcessReady) => "Serveur prêt",
-        EnumValue::Known(obs::LogCode::ProcessStopped) => "Serveur arrêté",
+        EnumValue::Known(obs::LogCode::ProcessConfigReadFailed) => "Configuration reading denied",
+        EnumValue::Known(obs::LogCode::ProcessConfigAdmissionFailed) => "Configuration rejected",
+        EnumValue::Known(obs::LogCode::ProcessRuntimeStartFailed) => "Unable to start server",
+        EnumValue::Known(obs::LogCode::ProcessRuntimeFailed) => "Runtime stopped on error",
+        EnumValue::Known(obs::LogCode::ProcessReady) => "Server ready",
+        EnumValue::Known(obs::LogCode::ProcessStopped) => "Server stopped",
         EnumValue::Known(obs::LogCode::TransportInternalDiagnostic) => {
-            "Diagnostic interne du transport"
+            "Internal transport diagnostic"
         }
-        EnumValue::Known(obs::LogCode::MqttUnknownDiscovery) => "Découverte MQTT inconnue",
-        EnumValue::Known(obs::LogCode::MqttInvalidDiscovery) => "Découverte MQTT invalide",
-        EnumValue::Known(obs::LogCode::MqttUnconfiguredSource) => "Source MQTT non configurée",
-        EnumValue::Known(obs::LogCode::MqttUnsupportedEffect) => "Effet MQTT non pris en charge",
-        EnumValue::Known(obs::LogCode::MqttUnsupportedColorMode) => {
-            "Mode couleur MQTT non pris en charge"
-        }
-        EnumValue::Known(obs::LogCode::MqttInvalidState) => "État MQTT invalide",
-        EnumValue::Known(obs::LogCode::MqttInvalidAvailability) => "Disponibilité MQTT invalide",
-        EnumValue::Known(obs::LogCode::MqttRetirementFailed) => "Retrait MQTT impossible",
-        EnumValue::Known(obs::LogCode::MqttSnapshotOverflow) => "Capture MQTT saturée",
+        EnumValue::Known(obs::LogCode::MqttUnknownDiscovery) => "Unknown MQTT discovery",
+        EnumValue::Known(obs::LogCode::MqttInvalidDiscovery) => "Invalid MQTT discovery",
+        EnumValue::Known(obs::LogCode::MqttUnconfiguredSource) => "MQTT source not configured",
+        EnumValue::Known(obs::LogCode::MqttUnsupportedEffect) => "Unsupported MQTT effect",
+        EnumValue::Known(obs::LogCode::MqttUnsupportedColorMode) => "Unsupported MQTT color mode",
+        EnumValue::Known(obs::LogCode::MqttInvalidState) => "Invalid MQTT state",
+        EnumValue::Known(obs::LogCode::MqttInvalidAvailability) => "Invalid MQTT availability",
+        EnumValue::Known(obs::LogCode::MqttRetirementFailed) => "Unable to remove MQTT entry",
+        EnumValue::Known(obs::LogCode::MqttSnapshotOverflow) => "MQTT snapshot full",
         EnumValue::Known(obs::LogCode::MqttUnconfiguredActionAnchor) => {
-            "Cible d'action MQTT non configurée"
+            "MQTT action target not configured"
         }
-        EnumValue::Known(obs::LogCode::MqttAmbiguousActionDevice) => "Cible d'action MQTT ambiguë",
-        EnumValue::Known(obs::LogCode::MqttActionOverflow) => "File d'actions MQTT saturée",
-        EnumValue::Known(obs::LogCode::MqttInvalidAction) => "Action MQTT invalide",
-        EnumValue::Known(obs::LogCode::PilotStarting) => "Démarrage d'intégration",
-        EnumValue::Known(obs::LogCode::PilotRunning) => "Intégration en cours d'exécution",
-        EnumValue::Known(obs::LogCode::PilotRetrying) => "Reprise d'intégration",
-        EnumValue::Known(obs::LogCode::PilotDegraded) => "Intégration dégradée",
-        EnumValue::Known(obs::LogCode::PilotStopped) => "Intégration arrêtée",
-        EnumValue::Known(obs::LogCode::PilotJoinTimeout) => "Délai d'arrêt d'intégration dépassé",
-        EnumValue::Known(obs::LogCode::PilotTaskCapacity) => "Capacité de tâches atteinte",
-        EnumValue::Known(obs::LogCode::PilotFactoryFailed) => "Création d'intégration impossible",
-        EnumValue::Known(obs::LogCode::Unspecified) | EnumValue::Unknown(_) => {
-            "Événement non pris en charge"
-        }
+        EnumValue::Known(obs::LogCode::MqttAmbiguousActionDevice) => "Ambiguous MQTT action target",
+        EnumValue::Known(obs::LogCode::MqttActionOverflow) => "MQTT action queue full",
+        EnumValue::Known(obs::LogCode::MqttInvalidAction) => "Invalid MQTT action",
+        EnumValue::Known(obs::LogCode::PilotStarting) => "Starting Integration",
+        EnumValue::Known(obs::LogCode::PilotRunning) => "Integration running",
+        EnumValue::Known(obs::LogCode::PilotRetrying) => "Integration Recovery",
+        EnumValue::Known(obs::LogCode::PilotDegraded) => "Integration degraded",
+        EnumValue::Known(obs::LogCode::PilotStopped) => "Integration stopped",
+        EnumValue::Known(obs::LogCode::PilotJoinTimeout) => "Integration stop timed out",
+        EnumValue::Known(obs::LogCode::PilotTaskCapacity) => "Task capacity reached",
+        EnumValue::Known(obs::LogCode::PilotFactoryFailed) => "Unable to create integration",
+        EnumValue::Known(obs::LogCode::Unspecified) | EnumValue::Unknown(_) => "Unsupported event",
     }
 }
 
@@ -802,14 +772,14 @@ fn stage(value: &Stage) -> ProAdminStage {
 }
 fn status(value: &Stage) -> &'static str {
     match value {
-        Stage::Loading => "Chargement…",
-        Stage::Ready => "Lecture autorisée",
-        Stage::Empty => "Aucune entrée",
-        Stage::Denied => "Accès refusé",
-        Stage::Offline => "Connexion interrompue",
-        Stage::Unavailable => "Service indisponible",
-        Stage::Unsupported => "Réponse non prise en charge",
-        Stage::Invalid => "Réponse refusée",
+        Stage::Loading => "Loading…",
+        Stage::Ready => "Reading authorized",
+        Stage::Empty => "No entries",
+        Stage::Denied => "Access denied",
+        Stage::Offline => "Connection interrupted",
+        Stage::Unavailable => "Service unavailable",
+        Stage::Unsupported => "Unsupported response",
+        Stage::Invalid => "Response rejected",
     }
 }
 pub(super) struct Projection {
@@ -851,8 +821,8 @@ impl Projection {
         if let Some(target) = &state.selected
             && let Some(row) = state.rows.iter().find(|row| &row.target == target)
         {
-            fields.push(("Élément".into(), row.title.clone(), false));
-            fields.push(("Détails".into(), row.detail.clone(), false));
+            fields.push(("Item".into(), row.title.clone(), false));
+            fields.push(("Details".into(), row.detail.clone(), false));
         }
         if let Some(payload) = state
             .private
@@ -860,8 +830,8 @@ impl Projection {
             .and_then(|pane| pane.content.as_ref())
         {
             match payload{
-                Payload::Policy{response,..}=>if let Some(auth::get_policy_response::Result::Present(value))=&response.result{fields.push(("Source de la politique".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted policy UTF-8"),true));},
-                Payload::Integration(value)=>if let Some(home_wire_contract::home::integrationadmin::v1::integration_instance::Configuration::Editable(value))=&value.response.instance.configuration{fields.push(("Paramètres publics".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted integration UTF-8"),true));for reference in &value.secrets{fields.push((format!("Référence · {}",reference.field),reference.name.clone(),false));}},
+                Payload::Policy{response,..}=>if let Some(auth::get_policy_response::Result::Present(value))=&response.result{fields.push(("Policy Source".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted policy UTF-8"),true));},
+                Payload::Integration(value)=>if let Some(home_wire_contract::home::integrationadmin::v1::integration_instance::Configuration::Editable(value))=&value.response.instance.configuration{fields.push(("Public Settings".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted integration UTF-8"),true));for reference in &value.secrets{fields.push((format!("Reference · {}",reference.field),reference.name.clone(),false));}},
                 Payload::Personal{..}|Payload::Sessions(_)|Payload::Factors(_)|Payload::MfaPolicy(_)|Payload::Keys(_)|Payload::Accounts(_)|Payload::Invitations(_)|Payload::Integrations(_)|Payload::Health(_)|Payload::Metrics(_)|Payload::Logs(_)|Payload::Audits(_)|Payload::Configuration(_)|Payload::Logic(_)=>(),
             }
         }
@@ -963,9 +933,9 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     window.set_admin_status(status(&value.stage).into());
     window.set_admin_notice(
         if value.section == Section::Factors {
-            "L'enrôlement matériel n'est pas pris en charge sur cet appareil."
+            "Hardware enrollment is unsupported on this device."
         } else if value.section == Section::Logic {
-            "Serveur synthétique uniquement. Aucune routine ni action sur un appareil réel. La simulation de source est distincte de l’exécution."
+            "Synthetic server only. No routine or action on a real device. Source simulation is separate from execution."
         } else {
             ""
         }
@@ -993,12 +963,12 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     window.set_admin_columns(ModelRc::new(VecModel::from(vec![
         TableColumn {
             token: 1,
-            label: "Élément".into(),
+            label: "Item".into(),
             ..Default::default()
         },
         TableColumn {
             token: 2,
-            label: "État et détails".into(),
+            label: "State and Details".into(),
             ..Default::default()
         },
     ])));
@@ -1031,7 +1001,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     )));
     let mut actions = vec![ProAdminActionRow {
         action: ProAdminAction::Refresh,
-        label: "Recharger".into(),
+        label: "Reload".into(),
         enabled: true,
         destructive: false,
     }];
@@ -1045,7 +1015,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     if value.next {
         actions.push(ProAdminActionRow {
             action: ProAdminAction::More,
-            label: "Page suivante".into(),
+            label: "Next Page".into(),
             enabled: true,
             destructive: false,
         });
@@ -1059,7 +1029,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             .map(|(index, (label, value, multiline))| ProAdminField {
                 token: i32::try_from(index + 1).expect("bounded fields"),
                 label: label.into(),
-                description: "Donnée fournie par le serveur".into(),
+                description: "Data provided by the server".into(),
                 value: value.into(),
                 kind: if multiline {
                     ProAdminFieldKind::Multiline
@@ -1072,14 +1042,14 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     )));
     window.set_admin_editor_actions(ModelRc::new(VecModel::from(vec![ProAdminActionRow {
         action: ProAdminAction::Cancel,
-        label: "Fermer les détails".into(),
+        label: "Close Details".into(),
         enabled: true,
         destructive: false,
     }])));
     window.set_admin_editor_visible(value.editor.is_some());
     window.set_admin_editable(false);
     window.set_admin_choices(ModelRc::default());
-    window.set_admin_editor_title(format!("Détails · {}", value.section.label()).into());
+    window.set_admin_editor_title(format!("Details · {}", value.section.label()).into());
     window.set_admin_editor_notice("".into());
     if let Some(editor) = value.editor {
         window.set_admin_selected_token(1);
@@ -1093,13 +1063,13 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                 vec![
                     ProAdminActionRow {
                         action: ProAdminAction::Save,
-                        label: "Confirmer".into(),
+                        label: "Confirm".into(),
                         enabled: editor.submittable,
                         destructive: editor.destructive,
                     },
                     ProAdminActionRow {
                         action: ProAdminAction::Cancel,
-                        label: "Annuler".into(),
+                        label: "Cancel".into(),
                         enabled: true,
                         destructive: false,
                     },
@@ -1109,27 +1079,27 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     }
     if let Some((kind, secret)) = value.secret {
         let label = match kind {
-            crate::administration::SecretKind::Invitation => "Jeton d’invitation",
-            crate::administration::SecretKind::McpKey => "Secret de la clé MCP",
-            crate::administration::SecretKind::RecoveryCodes => "Codes de secours",
+            crate::administration::SecretKind::Invitation => "Invitation Token",
+            crate::administration::SecretKind::McpKey => "MCP Key Secret",
+            crate::administration::SecretKind::RecoveryCodes => "Recovery Codes",
         };
         window.set_admin_selected_token(1);
         window.set_admin_editor_visible(true);
         window.set_admin_editable(false);
         window.set_admin_choices(ModelRc::default());
         window.set_admin_editor_title(label.into());
-        window.set_admin_editor_notice("Conservez ce secret maintenant. Après fermeture, il ne sera plus affiché et ne pourra pas être relu depuis le serveur.".into());
+        window.set_admin_editor_notice("Keep this secret now. After closing, it will no longer be shown and cannot be read again from the server.".into());
         window.set_admin_fields(ModelRc::new(VecModel::from(vec![ProAdminField {
             token: 1,
             label: label.into(),
-            description: "Affichage ponctuel lié à cette session".into(),
+            description: "One-time display linked to this session".into(),
             value: secret.as_str().into(),
             kind: ProAdminFieldKind::Password,
             editable: false,
         }])));
         window.set_admin_editor_actions(ModelRc::new(VecModel::from(vec![ProAdminActionRow {
             action: ProAdminAction::CloseSecret,
-            label: "J’ai conservé le secret · fermer".into(),
+            label: "I Saved the Secret · Close".into(),
             enabled: true,
             destructive: false,
         }])));
@@ -1150,7 +1120,7 @@ mod presence_tests {
             ..Default::default()
         };
         assert_eq!(gauge(&zero), "0");
-        assert_eq!(gauge(&unmeasured), "Non mesuré");
-        assert_eq!(gauge(&obs::GaugeMeasurement::default()), "Non fourni");
+        assert_eq!(gauge(&unmeasured), "Not measured");
+        assert_eq!(gauge(&obs::GaugeMeasurement::default()), "Not provided");
     }
 }

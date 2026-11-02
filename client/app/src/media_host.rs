@@ -506,8 +506,7 @@ impl Media {
                     Err(_) => {
                         if state.generation == pending.generation {
                             state.notice =
-                                "Commande non envoyée : contexte changé ou contrôleur occupé."
-                                    .into();
+                                "Command not sent: context changed or controller busy.".into();
                         }
                     }
                 }

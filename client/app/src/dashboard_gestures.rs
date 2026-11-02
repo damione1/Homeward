@@ -98,12 +98,12 @@ pub(crate) fn bind(
                     };
                     window.set_recipe_confirmation_id(serial);
                     window.set_recipe_confirmation_title(if prepared.title.is_empty() {
-                        "Confirmer l’interaction".into()
+                        "Confirm Interaction".into()
                     } else {
                         prepared.title.as_str().into()
                     });
                     window.set_recipe_confirmation_message(if message.is_empty() {
-                        "Confirmer cette interaction ?".into()
+                        "Confirm this interaction?".into()
                     } else {
                         message.as_str().into()
                     });

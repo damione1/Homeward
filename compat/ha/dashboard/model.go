@@ -8,12 +8,16 @@ import (
 	"errors"
 
 	"github.com/damione1/Homeward/compat/ha/parser"
+	"github.com/damione1/Homeward/contracts"
+	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
+	"google.golang.org/protobuf/proto"
 )
 
 const Profile = "homeward-dashboard-1"
 const RecipesProfile = "homeward-dashboard-2"
+const DashboardProfile = "homeward-dashboard-3"
 
 // CompilationProfile is selected explicitly by the serving adapter. Existing
 // callers retain the original profile; a new parser is never negotiated by name
@@ -24,6 +28,7 @@ const (
 	CompilationInvalid CompilationProfile = iota
 	CompilationBasic
 	CompilationRecipes
+	CompilationDashboard
 )
 
 func (p CompilationProfile) Name() string {
@@ -32,6 +37,8 @@ func (p CompilationProfile) Name() string {
 		return Profile
 	case CompilationRecipes:
 		return RecipesProfile
+	case CompilationDashboard:
+		return DashboardProfile
 	case CompilationInvalid:
 		return ""
 	}
@@ -156,10 +163,11 @@ const (
 	ElementRecipeCard
 	ElementChipGroup
 	ElementPopupCard
+	ElementWidgetCard
 )
 
 func validElement(k ElementKind) bool {
-	return k >= ElementSectionsView && k <= ElementPopupCard
+	return k >= ElementSectionsView && k <= ElementWidgetCard
 }
 
 type RecipeKind uint8
@@ -236,11 +244,16 @@ func (d Dimension) Count() (uint8, bool) {
 	return d.count, d.kind == DimensionCount
 }
 
+type ResponsiveSpan struct{ Columns, Span uint32 }
 type GridOptions struct {
+	responsiveSpans     []ResponsiveSpan
 	columns, rows       Dimension
 	hasColumns, hasRows bool
 }
 
+func (o GridOptions) ResponsiveSpans() []ResponsiveSpan {
+	return append([]ResponsiveSpan(nil), o.responsiveSpans...)
+}
 func (o GridOptions) Columns() (Dimension, bool) { return o.columns, o.hasColumns }
 func (o GridOptions) Rows() (Dimension, bool)    { return o.rows, o.hasRows }
 
@@ -317,20 +330,22 @@ const (
 	VisibilityHAUser
 	VisibilityAll
 	VisibilityAny
+	VisibilityScreen
 )
 
-func validVisibility(k VisibilityKind) bool { return k >= VisibilityFlag && k <= VisibilityAny }
+func validVisibility(k VisibilityKind) bool { return k >= VisibilityFlag && k <= VisibilityScreen }
 
 type Visibility struct {
-	kind     VisibilityKind
-	status   Status
-	location Location
-	flag     bool
-	entity   domain.HAAlias
-	state    string
-	stateNot bool
-	users    []string
-	children []Visibility
+	kind                     VisibilityKind
+	status                   Status
+	location                 Location
+	flag                     bool
+	entity                   domain.HAAlias
+	state                    string
+	stateNot                 bool
+	users                    []string
+	children                 []Visibility
+	viewportMin, viewportMax uint32
 }
 
 func (v Visibility) Kind() VisibilityKind { return v.kind }
@@ -342,6 +357,9 @@ func (v Visibility) Entity() (domain.HAAlias, bool) {
 }
 func (v Visibility) State() (string, bool, bool) {
 	return v.state, v.stateNot, v.kind == VisibilityState && v.status == StatusSupported
+}
+func (v Visibility) Viewport() (uint32, uint32, bool) {
+	return v.viewportMin, v.viewportMax, v.kind == VisibilityScreen && v.status == StatusSupported
 }
 func (v Visibility) HAUsers() []string { return append([]string(nil), v.users...) }
 func (v Visibility) Children() []Visibility {
@@ -359,34 +377,39 @@ func (v Visibility) clone() Visibility {
 }
 
 type Card struct {
-	recipe       RecipeKind
-	variant      string
-	secondary    string
-	anchor       PopupAnchor
-	features     []Feature
-	kind         ElementKind
-	status       Status
-	location     Location
-	entity       domain.HAAlias
-	hasEntity    bool
-	name         string
-	hasName      bool
-	heading      string
-	title        string
-	hasTitle     bool
-	icon         string
-	vertical     bool
-	hasVertical  bool
-	hideState    bool
-	hasHideState bool
-	style        HeadingStyle
-	grid         GridOptions
-	columns      uint8
-	square       bool
-	hasSquare    bool
-	children     []Card
-	actions      []Action
-	visibility   []Visibility
+	controlPresentation     wire.NativeControlPresentation
+	widget                  *wire.NativeWidget
+	widgetAction            string
+	widgetNavigation        string
+	minimumColumnWidth, gap uint32
+	recipe                  RecipeKind
+	variant                 string
+	secondary               string
+	anchor                  PopupAnchor
+	features                []Feature
+	kind                    ElementKind
+	status                  Status
+	location                Location
+	entity                  domain.HAAlias
+	hasEntity               bool
+	name                    string
+	hasName                 bool
+	heading                 string
+	title                   string
+	hasTitle                bool
+	icon                    string
+	vertical                bool
+	hasVertical             bool
+	hideState               bool
+	hasHideState            bool
+	style                   HeadingStyle
+	grid                    GridOptions
+	columns                 uint8
+	square                  bool
+	hasSquare               bool
+	children                []Card
+	actions                 []Action
+	visibility              []Visibility
 }
 
 func (c Card) Kind() ElementKind  { return c.kind }
@@ -441,6 +464,10 @@ func (c Card) Visibility() []Visibility {
 	return out
 }
 func (c Card) clone() Card {
+	c.grid.responsiveSpans = c.grid.ResponsiveSpans()
+	if c.widget != nil {
+		c.widget = proto.Clone(c.widget).(*wire.NativeWidget)
+	}
 	c.location = c.location.clone()
 	c.children = c.Children()
 	c.actions = c.Actions()
@@ -450,13 +477,14 @@ func (c Card) clone() Card {
 }
 
 type Section struct {
-	kind       ElementKind
-	status     Status
-	location   Location
-	columnSpan uint8
-	rowSpan    uint8
-	cards      []Card
-	visibility []Visibility
+	minimumColumnWidth, gap uint32
+	kind                    ElementKind
+	status                  Status
+	location                Location
+	columnSpan              uint8
+	rowSpan                 uint8
+	cards                   []Card
+	visibility              []Visibility
 }
 
 func (s Section) Kind() ElementKind         { return s.kind }
@@ -486,15 +514,16 @@ func (s Section) clone() Section {
 }
 
 type View struct {
-	kind       ElementKind
-	status     Status
-	location   Location
-	path       string
-	title      string
-	icon       string
-	maxColumns uint8
-	sections   []Section
-	visibility []Visibility
+	minimumColumnWidth, gap uint32
+	kind                    ElementKind
+	status                  Status
+	location                Location
+	path                    string
+	title                   string
+	icon                    string
+	maxColumns              uint8
+	sections                []Section
+	visibility              []Visibility
 }
 
 func (v View) Kind() ElementKind  { return v.kind }
@@ -558,11 +587,11 @@ func (r Requirements) clone() Requirements {
 type ClientSupport struct{ requirements Requirements }
 
 func NewClientSupport(version uint8, elements []ElementKind, actions []ActionKind, visibility []VisibilityKind) (ClientSupport, error) {
-	if version != 1 && version != 2 {
+	if version != 1 && version != 2 && version != 3 {
 		return ClientSupport{}, ErrInvalidInput
 	}
 	for _, kind := range elements {
-		if !validElement(kind) || (version == 1 && kind > ElementHorizontalStackCard) {
+		if !validElement(kind) || (version == 1 && kind > ElementHorizontalStackCard) || (version < 3 && kind == ElementWidgetCard) {
 			return ClientSupport{}, ErrInvalidInput
 		}
 	}
@@ -572,7 +601,7 @@ func NewClientSupport(version uint8, elements []ElementKind, actions []ActionKin
 		}
 	}
 	for _, kind := range visibility {
-		if !validVisibility(kind) || (version == 1 && kind > VisibilityHAUser) {
+		if !validVisibility(kind) || (version == 1 && kind > VisibilityHAUser) || (version < 3 && kind == VisibilityScreen) {
 			return ClientSupport{}, ErrInvalidInput
 		}
 	}
@@ -580,7 +609,7 @@ func NewClientSupport(version uint8, elements []ElementKind, actions []ActionKin
 }
 
 func (r Requirements) SupportedBy(client ClientSupport) bool {
-	if (r.version != 1 && r.version != 2) || client.requirements.version != r.version {
+	if (r.version != 1 && r.version != 2 && r.version != 3) || client.requirements.version != r.version {
 		return false
 	}
 	for _, kind := range r.elements {
@@ -611,6 +640,7 @@ func contains[T comparable](items []T, item T) bool {
 }
 
 type Definition struct {
+	owner        contracts.AccountID
 	source       Source
 	profile      string
 	views        []View
@@ -618,6 +648,10 @@ type Definition struct {
 	digest       [sha256.Size]byte
 }
 
+func (d Definition) Owner() (contracts.AccountID, bool) {
+	_, err := d.owner.Value()
+	return d.owner, err == nil
+}
 func (d Definition) Source() Source             { return d.source }
 func (d Definition) Profile() string            { return d.profile }
 func (d Definition) SHA256() [sha256.Size]byte  { return d.digest }

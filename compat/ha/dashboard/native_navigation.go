@@ -49,7 +49,7 @@ func NewNavigationIndex(definitions []Definition) (NavigationIndex, error) {
 		return NavigationIndex{}, ErrInvalidInput
 	}
 	for _, definition := range definitions {
-		if !definition.source.valid() || (definition.profile != Profile && definition.profile != RecipesProfile) || ids[definition.source.id] || urls[definition.source.urlPath] {
+		if !definition.source.valid() || (definition.profile != Profile && definition.profile != RecipesProfile && definition.profile != DashboardProfile) || ids[definition.source.id] || urls[definition.source.urlPath] {
 			return NavigationIndex{}, ErrInvalidInput
 		}
 		ids[definition.source.id], urls[definition.source.urlPath] = true, true

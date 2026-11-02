@@ -262,7 +262,7 @@ async fn run(fixture: Fixture) -> Result<()> {
     assert_eq!(projected.native_devices.len(), 4);
     let mut kinds = Vec::new();
     for row in projected.native_devices.values() {
-        kinds.push(row.ui(None).environment_kind);
+        kinds.push(row.ui(None, &crate::IconGlyph::default()).environment_kind);
     }
     assert!(kinds.contains(&crate::ProEnvironmentKind::Weather));
     assert!(kinds.contains(&crate::ProEnvironmentKind::Solar));
@@ -327,7 +327,7 @@ async fn run(fixture: Fixture) -> Result<()> {
     let solar = absent_projection
         .native_devices
         .values()
-        .map(|row| row.ui(None))
+        .map(|row| row.ui(None, &crate::IconGlyph::default()))
         .find(|row| row.environment_kind == crate::ProEnvironmentKind::Solar)
         .ok_or("solar card missing after absent event")?;
     assert!(

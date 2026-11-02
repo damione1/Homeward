@@ -3,6 +3,7 @@ package dashboard
 import (
 	"github.com/damione1/Homeward/compat/ha/parser"
 	"github.com/damione1/Homeward/internal/domain"
+	"strings"
 )
 
 func parseCardKind(text string) ElementKind {
@@ -23,6 +24,10 @@ func parseCardKind(text string) ElementKind {
 func (c *compiler) card(node parser.Node, depth int) Card {
 	c.cards++
 	card := Card{status: StatusSupported, location: locate(node)}
+	if c.profile == CompilationDashboard {
+		card.minimumColumnWidth = 280
+		card.gap = 20
+	}
 	if c.cards > maxCards || depth > maxCardDepth {
 		c.overflow = true
 		card.status = StatusUnsupported
@@ -40,9 +45,12 @@ func (c *compiler) card(node parser.Node, depth int) Card {
 		card.status = StatusUnsupported
 		return card
 	}
+	if c.profile == CompilationDashboard && strings.HasPrefix(typeText, "custom:homeward-") {
+		return c.widgetCard(node, typeText)
+	}
 	card.kind = parseCardKind(typeText)
 	card.variant = typeText
-	if c.profile == CompilationRecipes {
+	if c.profile >= CompilationRecipes {
 		if card.kind == ElementInvalid {
 			return c.recipeCard(node, typeText, depth)
 		}
@@ -64,6 +72,29 @@ func (c *compiler) card(node parser.Node, depth int) Card {
 			continue
 		}
 		switch entry.Key {
+		case "minimum_column_width", "gap":
+			if c.profile != CompilationDashboard {
+				c.unknown(entry, "container option outside profile")
+				blocked = true
+				continue
+			}
+			minimum := uint32(0)
+			if entry.Key == "minimum_column_width" {
+				minimum = 1
+			}
+			maximum := uint32(4096)
+			if entry.Key == "gap" {
+				maximum = 256
+			}
+			value, ok := boundedUint(entry.Value, minimum, maximum)
+			if !ok {
+				blocked = true
+				c.unsupported(CodeInvalidValue, entry.Value, "invalid container metric")
+			} else if entry.Key == "gap" {
+				card.gap = value
+			} else {
+				card.minimumColumnWidth = value
+			}
 		case "grid_options":
 			options, invalid := c.gridOptions(entry.Value)
 			card.grid = options
@@ -253,7 +284,7 @@ func (c *compiler) card(node parser.Node, depth int) Card {
 			}
 			double, hasDouble = entry.Value, true
 		default:
-			if c.profile == CompilationRecipes {
+			if c.profile >= CompilationRecipes {
 				if handled, invalid := c.cardExtension(&card, entry); handled {
 					blocked = blocked || invalid
 					continue
@@ -304,6 +335,28 @@ func (c *compiler) gridOptions(node parser.Node) (GridOptions, bool) {
 	invalid := false
 	for _, entry := range node.Entries() {
 		switch entry.Key {
+		case "responsive_spans":
+			if c.profile != CompilationDashboard || entry.Value.Kind() != parser.KindSequence || len(entry.Value.Items()) > 12 {
+				c.unsupported(CodeInvalidValue, entry.Value, "invalid responsive spans")
+				invalid = true
+				continue
+			}
+			seen := map[uint32]bool{}
+			for _, item := range entry.Value.Items() {
+				columns, a := widgetNumber(item, "columns", 1, 12)
+				span, b := widgetNumber(item, "span", 1, 12)
+				closed := item.Kind() == parser.KindMapping
+				for _, part := range item.Entries() {
+					closed = closed && (part.Key == "columns" || part.Key == "span")
+				}
+				if !a || !b || span > columns || seen[columns] || !closed {
+					c.unsupported(CodeInvalidValue, item, "invalid or duplicate responsive span")
+					invalid = true
+					continue
+				}
+				seen[columns] = true
+				options.responsiveSpans = append(options.responsiveSpans, ResponsiveSpan{columns, span})
+			}
 		case "columns":
 			value, ok := gridDimension(entry.Value, "full")
 			if !ok {

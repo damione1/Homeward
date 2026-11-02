@@ -61,6 +61,7 @@ struct Pending {
     id: u64,
     kind: WriteKind,
     item: Option<ItemKey>,
+    added_text: Option<String>,
 }
 pub(crate) struct Prepared {
     pub mutation: PreparedListMutation,
@@ -84,6 +85,7 @@ pub(crate) struct State {
     pub drafts: BTreeMap<ItemKey, Draft>,
     pub notice: &'static str,
     pub read_notice: &'static str,
+    pub confirmed_add: Option<(u64, String)>,
     pub item_tokens: Arc<Vec<i32>>,
     pub catalog_tokens: Arc<Vec<i32>>,
     tokens: BTreeMap<ItemKey, i32>,
@@ -112,6 +114,7 @@ impl Default for State {
             drafts: BTreeMap::new(),
             notice: "",
             read_notice: "",
+            confirmed_add: None,
             item_tokens: Arc::new(Vec::new()),
             catalog_tokens: Arc::new(Vec::new()),
             tokens: BTreeMap::new(),
@@ -148,6 +151,7 @@ impl State {
         self.catalog_tokens = Arc::new(Vec::new());
         self.notice = "";
         self.read_notice = "";
+        self.confirmed_add = None;
         self.reload_draft = false;
         self.resume_list = None;
         // Exhaustion closes admission rather than reusing an old context.
@@ -183,9 +187,9 @@ impl State {
         self.clear();
         self.resume_list = selected;
         self.notice = if uncertain {
-            "Flux réinitialisé pendant une modification : résultat inconnu. Les données privées ont été retirées ; aucune écriture n’est rejouée."
+            "Stream reset during a change: outcome unknown. Private data was removed; no writes will be replayed."
         } else {
-            "Flux réinitialisé : les données et brouillons ont été retirés pour vérifier les autorisations. Aucune écriture n’est rejouée."
+            "Stream reset: data and drafts were removed to verify permissions. No writes will be replayed."
         };
     }
     pub fn admits(&self, context: u64, id: u64) -> bool {
@@ -268,6 +272,7 @@ impl State {
             .ok_or(Refusal::Stale)?;
         self.context = self.context.checked_add(1).ok_or(Refusal::Capacity)?;
         self.selected_list = Some(id);
+        self.confirmed_add = None;
         self.selected_item = None;
         self.items = None;
         self.tokens.clear();
@@ -367,6 +372,14 @@ impl State {
             .copied()
             .unwrap_or(0)
     }
+    pub fn matches_list_scope(&self, token: i32, generation: i32) -> bool {
+        token != 0
+            && token == self.selected_list_token()
+            && generation == self.generation
+            && self.active
+            && self.foreground
+            && self.context != 0
+    }
     pub fn select_item(&mut self, token: i32, generation: i32) -> Result<(), Refusal> {
         self.ready(generation)?;
         let snapshot = self.items.as_ref().ok_or(Refusal::Stale)?;
@@ -417,7 +430,7 @@ impl State {
         }
         draft.base = base;
         draft.phase = DraftPhase::Editing;
-        self.notice = "Brouillon conservé sur la révision relue. Enregistrez pour proposer cette modification.";
+        self.notice = "Draft retained on the refreshed revision. Save to submit this change.";
         Ok(())
     }
     pub fn reload(&mut self, generation: i32) -> Result<(), Refusal> {
@@ -468,6 +481,18 @@ impl State {
             self.selected_target()
                 .map(|(_, target)| target)
                 .ok_or(Refusal::Stale)
+        };
+        let added_text = match &write {
+            Write::Add(summary) => Some(summary.clone()),
+            Write::Create(_)
+            | Write::Rename(_)
+            | Write::DeleteList
+            | Write::Save
+            | Write::Complete(_)
+            | Write::DeleteItem
+            | Write::MoveFirst
+            | Write::MoveUp
+            | Write::MoveDown => None,
         };
         let (kind, intent) = match write {
             Write::Create(name) if self.catalog_phase == Freshness::Online => {
@@ -575,8 +600,9 @@ impl State {
             id: self.next_write,
             kind,
             item: self.selected_item.clone(),
+            added_text,
         });
-        self.notice = "Modification en attente du serveur.";
+        self.notice = "Change awaiting the server.";
         Ok(Prepared {
             mutation,
             context: self.context,
@@ -595,7 +621,10 @@ impl State {
         let pending = self.pending.take().expect("checked pending write");
         match outcome {
             ListWriteOutcome::Committed(_) => {
-                self.notice = "Modification confirmée par le serveur ; actualisation des listes.";
+                self.notice = "Saved.";
+                if let Some(text) = pending.added_text {
+                    self.confirmed_add = Some((id, text));
+                }
                 if matches!(pending.kind, WriteKind::Save | WriteKind::DeleteItem)
                     && let Some(item) = pending.item
                 {
@@ -612,7 +641,7 @@ impl State {
                 }
             }
             ListWriteOutcome::Conflict => {
-                self.notice = "Conflit : relisez la version serveur, puis choisissez explicitement de conserver votre brouillon.";
+                self.notice = "Conflict: reload the server version, then explicitly choose whether to keep your draft.";
                 if let Some(key) = pending.item
                     && let Some(draft) = self.drafts.get_mut(&key)
                 {
@@ -620,7 +649,7 @@ impl State {
                 }
             }
             ListWriteOutcome::CommitUnknown(_) => {
-                self.notice = "Résultat inconnu. L’écriture ne sera pas renvoyée. Rechargez la version serveur.";
+                self.notice = "Outcome unknown. The write will not be resubmitted. Reload the server version.";
                 if let Some(key) = pending.item
                     && let Some(draft) = self.drafts.get_mut(&key)
                 {
@@ -629,15 +658,13 @@ impl State {
             }
             ListWriteOutcome::CommittedResponseWithheld | ListWriteOutcome::AuthorityTerminated => {
                 self.clear();
-                self.notice = "L’accès a changé. Les données privées ont été retirées ; aucune écriture n’est rejouée.";
+                self.notice =
+                    "Access changed. Private data was removed; no writes will be replayed.";
             }
             ListWriteOutcome::Rejected(_) => {
-                self.notice =
-                    "Modification refusée par le serveur. Aucune sauvegarde n’est annoncée."
+                self.notice = "Change rejected by the server. It has not been reported as saved."
             }
-            ListWriteOutcome::NotSent(_) => {
-                self.notice = "Modification non envoyée : le contexte a changé."
-            }
+            ListWriteOutcome::NotSent(_) => self.notice = "Change not sent: the context changed.",
         }
     }
 }

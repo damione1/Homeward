@@ -1,28 +1,53 @@
-import { KitTheme } from "@kit/kit.slint";
+import { KitTheme, KitThemes } from "@kit/kit.slint";
 
-// Product skin only. The base kit's themes remain independent.
+// Measured from the Homeward reference. Content uses opaque surfaces; the
+// independently maintained dark palette preserves the same semantic roles.
 export global HomewardSkin {
     public pure function theme(dark: bool, opaque: bool, scale: float, reduced: bool) -> KitTheme {
+        let base = dark ? KitThemes.dark : KitThemes.light;
         return {
-            canvas: dark ? #111216 : #f2f3f6,
-            surface: dark ? (opaque ? #202126 : #202126ee) : (opaque ? #ffffff : #ffffffee),
-            surface-raised: dark ? #292b32 : #ffffff,
-            text-primary: dark ? #f5f6f8 : #191b21,
-            text-secondary: dark ? #b9bdc8 : #555b68,
-            accent: dark ? #f5f6f8 : #191b21,
-            on-accent: dark ? #191b21 : #ffffff,
-            danger: dark ? #ff9b9b : #b42332,
-            success: dark ? #93dbb3 : #236849,
-            warning: dark ? #f6d285 : #825a0b,
-            border-subtle: dark ? #454852 : #d1d4dc,
-            focus-ring: dark ? #a9bcff : #3659c9,
-            hover: dark ? #34363f : #e7e9ef,
-            pressed: dark ? #424550 : #d9dce6,
-            disabled-fill: dark ? #292b32 : #e6e8ed,
-            disabled-text: dark ? #a1a5b0 : #696f7c,
-            scrim: #090b1370,
-            reduced-motion: reduced,
-            text-scale: scale
+            canvas: dark ? #17181c : #f3f4f6,
+            surface: dark ? (opaque ? #24262d : #24262df5) : (opaque ? #ffffff : #fffffff5),
+            surface-raised: dark ? #30323b : #f7f7f9,
+            text-primary: dark ? #f2f3f7 : #17181c,
+            text-secondary: dark ? #b8bdca : #5e626b,
+            placeholder: dark ? #a3a8b6 : #69707c,
+            accent: dark ? #b8afff : #5a4fcf,
+            on-accent: dark ? #211a51 : #ffffff,
+            accent-hover: dark ? #c8c1ff : #4b3fb8,
+            accent-pressed: dark ? #a79af7 : #3d319c,
+            accent-subtle: dark ? #34304d : #eceafb,
+            selection: dark ? #4d437c : #dedaf8,
+            on-selection: dark ? #ffffff : #2f2690,
+            danger: dark ? #ffadb4 : #b42332,
+            danger-hover: base.danger-hover, danger-pressed: base.danger-pressed,
+            danger-subtle: dark ? #492b34 : #fce5e8,
+            success: dark ? #8dddb6 : #1d6b49,
+            success-subtle: dark ? #263e35 : #dff3e9,
+            warning: dark ? #f2d98d : #7a5600,
+            warning-subtle: dark ? #413b29 : #fcf1cf,
+            information: dark ? #9dc9f5 : #1f5e99,
+            information-subtle: dark ? #28394b : #e0eefa,
+            border-subtle: dark ? #383c47 : #f0f1f4,
+            border-strong: dark ? #818797 : #89909b,
+            hover: dark ? #30333e : #eceef3,
+            pressed: dark ? #3a3d49 : #e1e4ec,
+            disabled-fill: dark ? #292c35 : #edeef2,
+            disabled-text: dark ? #a2a8b6 : #69707c,
+            scrim: #17181c47,
+            shape: { radius-control: 14px, radius-container: 22px, radius-overlay: 30px,
+                radius-pill: base.shape.radius-pill, border-width: 1px,
+                border-width-strong: 1px, icon-stroke: 1.75 },
+            elevation: base.elevation,
+            focus: { style: base.focus.style, width: base.focus.width,
+                offset: base.focus.offset, color: dark ? #c6bdff : #5a4fcf,
+                invalid-color: base.focus.invalid-color },
+            typography: base.typography,
+            spacing: { unit: 4px, compact: base.spacing.compact,
+                medium: base.spacing.medium,
+                comfortable: { height: 48px, padding-inline: 16px, padding-block: 12px } },
+            motion: base.motion, icons: base.icons,
+            reduced-motion: reduced, text-scale: scale
         };
     }
 }

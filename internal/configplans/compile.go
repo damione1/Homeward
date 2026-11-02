@@ -289,7 +289,7 @@ func compile(candidate Candidate, manifest registry.Manifest) (image, Diagnostic
 		if e != nil {
 			return image{}, InvalidSchema
 		}
-		compiled, e := dashboard.Restore(source, candidate.files)
+		compiled, e := dashboard.RestoreConfigured(source, candidate.files)
 		if e != nil || compiled.Status() != dashboard.StatusSupported {
 			return image{}, UnsupportedSource
 		}
@@ -554,9 +554,13 @@ func dashboardReferences(def dashboard.Definition, manifest registry.Manifest, r
 		refs[name] = true
 		return true
 	}
-	visibility := func(values []dashboard.Visibility) bool {
+	var visibility func([]dashboard.Visibility) bool
+	visibility = func(values []dashboard.Visibility) bool {
 		for _, v := range values {
 			if alias, ok := v.Entity(); ok && !check(alias) {
+				return false
+			}
+			if !visibility(v.Children()) {
 				return false
 			}
 		}
@@ -564,6 +568,11 @@ func dashboardReferences(def dashboard.Definition, manifest registry.Manifest, r
 	}
 	var card func(dashboard.Card) bool
 	card = func(value dashboard.Card) bool {
+		for _, alias := range value.WidgetEntities() {
+			if !check(alias) {
+				return false
+			}
+		}
 		if alias, ok := value.Entity(); ok && !check(alias) {
 			return false
 		}

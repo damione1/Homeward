@@ -33,22 +33,22 @@ impl ProfileZone {
     }
     pub fn timestamp(self, value: Option<&Timestamp>) -> String {
         match value.and_then(instant) {
-            None => "Date non fournie ou non prise en charge".into(),
+            None => "Date missing or unsupported".into(),
             Some(at) => match self {
                 Self::Known(zone) => {
                     let local = zone.local(at);
                     format!("{} {} {}", local.date(), local.clock(), local.offset())
                 }
-                Self::Missing => "Fuseau du profil non fourni".into(),
-                Self::Unsupported => "Fuseau du profil non pris en charge".into(),
+                Self::Missing => "Profile time zone missing".into(),
+                Self::Unsupported => "Profile time zone unsupported".into(),
             },
         }
     }
     fn label(self) -> String {
         match self {
-            Self::Known(zone) => format!("Fuseau du profil · {}", zone.name()),
-            Self::Missing => "Fuseau du profil non fourni".into(),
-            Self::Unsupported => "Fuseau du profil non pris en charge".into(),
+            Self::Known(zone) => format!("Profile time zone · {}", zone.name()),
+            Self::Missing => "Profile time zone missing".into(),
+            Self::Unsupported => "Profile time zone unsupported".into(),
         }
     }
     pub fn clock(self, now: UtcInstant) -> (String, String) {
@@ -60,8 +60,23 @@ impl ProfileZone {
                     format!("{} · {} · {}", local.date(), zone.name(), local.offset()),
                 )
             }
-            Self::Missing => ("—".into(), "Fuseau du profil non fourni".into()),
-            Self::Unsupported => ("—".into(), "Fuseau du profil non pris en charge".into()),
+            Self::Missing => ("—".into(), "Profile time zone missing".into()),
+            Self::Unsupported => ("—".into(), "Profile time zone unsupported".into()),
+        }
+    }
+    pub fn greeting(self, now: UtcInstant) -> &'static str {
+        match self {
+            Self::Known(zone) => {
+                let hour = zone.local(now).hour();
+                if (5..12).contains(&hour) {
+                    "Good Morning"
+                } else if (12..18).contains(&hour) {
+                    "Good Afternoon"
+                } else {
+                    "Good Evening"
+                }
+            }
+            Self::Missing | Self::Unsupported => "Welcome",
         }
     }
 }
@@ -78,21 +93,21 @@ fn instant(at: &Timestamp) -> Option<UtcInstant> {
 }
 fn age(at: Option<&Timestamp>, now: UtcInstant) -> String {
     match at.and_then(instant).map(|at| at.age_at(now)) {
-        None => "Âge non fourni".into(),
-        Some(Age::Current) => "À l’instant".into(),
+        None => "Age not provided".into(),
+        Some(Age::Current) => "Just Now".into(),
         Some(Age::Elapsed(seconds)) => {
             let seconds = seconds.get();
             if seconds < 60 {
-                format!("Il y a {seconds} s")
+                format!("{seconds} s ago")
             } else if seconds < 3600 {
-                format!("Il y a {} min", seconds / 60)
+                format!("{} min ago", seconds / 60)
             } else if seconds < 86400 {
-                format!("Il y a {} h", seconds / 3600)
+                format!("{} h ago", seconds / 3600)
             } else {
-                format!("Il y a {} j", seconds / 86400)
+                format!("{} d ago", seconds / 86400)
             }
         }
-        Some(Age::ClockAhead) => "Date future · vérifier l’horloge".into(),
+        Some(Age::ClockAhead) => "Future date · check the clock".into(),
     }
 }
 pub(crate) fn observed_age(
@@ -102,16 +117,16 @@ pub(crate) fn observed_age(
 ) -> String {
     match observation {
         Some(value) if value.observed_at.is_set() => format!(
-            "Observé {} · {}",
+            "Observed {} · {}",
             age(value.observed_at.as_option(), now),
             zone.timestamp(value.observed_at.as_option())
         ),
         Some(value) if value.received_at.is_set() => format!(
-            "Reçu {} · {}",
+            "Received {} · {}",
             age(value.received_at.as_option(), now),
             zone.timestamp(value.received_at.as_option())
         ),
-        Some(_) | None => "Date d’observation non fournie".into(),
+        Some(_) | None => "Observation date not provided".into(),
     }
 }
 fn fact(label: &str, value: String) -> ProEnvironmentFact {
@@ -172,7 +187,7 @@ impl Presentation {
                     condition: value.condition.as_str().into(),
                     facts: nested(&value.facts, previous.map(|v| &v.weather.facts)),
                     forecast: nested(&value.forecast, previous.map(|v| &v.weather.forecast)),
-                    forecast_heading: "Prévisions".into(),
+                    forecast_heading: "Forecast".into(),
                     forecast_status: value.forecast_status.as_str().into(),
                     provenance: value.provenance.as_str().into(),
                     notice: value.notice.as_str().into(),
@@ -208,32 +223,29 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
             .temperature
             .as_option()
             .map(environment_text::temperature)
-            .unwrap_or_else(|| "Température non fournie".into()),
+            .unwrap_or_else(|| "Temperature not provided".into()),
         condition: value
             .condition
             .map(environment_text::condition_label)
-            .unwrap_or("Conditions non fournies")
+            .unwrap_or("Conditions not provided")
             .into(),
         provenance: if value.source_label.is_empty() {
-            "Source non fournie".into()
+            "Source not provided".into()
         } else {
             format!("Source · {}", bounded(&value.source_label))
         },
         ..Default::default()
     };
     if !value.__buffa_unknown_fields.is_empty() {
-        row.notice = format!(
-            "{} · Certains champs météo ne sont pas pris en charge",
-            row.notice
-        );
+        row.notice = format!("{} · Some weather fields are unsupported", row.notice);
     }
     if let Some(humidity) = value.humidity_percent {
         row.facts.push(fact(
-            "Humidité",
+            "Humidity",
             if humidity.is_finite() && (0.0..=100.0).contains(&humidity) {
                 format!("{} %", number(humidity))
             } else {
-                "Valeur non prise en charge".into()
+                "Unsupported value".into()
             },
         ));
     }
@@ -245,7 +257,7 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
                 EnumValue::Known(env::SpeedUnit::MilesPerHour) => "mph",
                 EnumValue::Known(env::SpeedUnit::Knots) => "kn",
                 EnumValue::Known(env::SpeedUnit::Unspecified) | EnumValue::Unknown(_) => {
-                    "unité non prise en charge"
+                    "unsupported unit"
                 }
             };
             format!(
@@ -256,16 +268,16 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
                     .unwrap_or_default()
             )
         } else {
-            "Vent non pris en charge".into()
+            "Unsupported wind value".into()
         };
-        row.facts.push(fact("Vent", text));
+        row.facts.push(fact("Wind", text));
     }
     let Some(forecast) = value.forecast.as_option() else {
-        row.forecast_status = "Prévisions non fournies".into();
+        row.forecast_status = "Forecast not provided".into();
         return row;
     };
     if !admit::forecast_structure(forecast) {
-        row.forecast_status = "Prévisions non prises en charge".into();
+        row.forecast_status = "Unsupported forecast".into();
         return row;
     }
     let expired = forecast
@@ -274,11 +286,11 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
         .and_then(instant)
         .is_some_and(|until| until <= now);
     row.forecast_status = format!(
-        "{} · Émises {} · Valables jusqu’au {}",
+        "{} · Issued {} · Valid until {}",
         if expired {
-            "Périmées"
+            "Outdated"
         } else {
-            "Prévisions datées"
+            "Dated forecast"
         },
         age(forecast.issued_at.as_option(), now),
         zone.timestamp(forecast.valid_until.as_option())
@@ -297,9 +309,9 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
         let mut precipitation = Vec::new();
         if let Some(v) = period.precipitation_probability_percent {
             precipitation.push(if v.is_finite() && (0.0..=100.0).contains(&v) {
-                format!("Probabilité {} %", number(v))
+                format!("Probability {} %", number(v))
             } else {
-                "Probabilité non prise en charge".into()
+                "Unsupported probability".into()
             });
         }
         if let Some(v) = period.precipitation.as_option() {
@@ -313,7 +325,7 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
             precipitation.push(match (admit::precipitation(v), unit, v.amount) {
                 (true, Some(unit), Some(amount)) => format!("{} {unit}", number(amount)),
                 (false, _, _) | (true, None, _) | (true, Some(_), None) => {
-                    "Précipitations non prises en charge".into()
+                    "Unsupported precipitation".into()
                 }
             });
         }
@@ -325,14 +337,14 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
             )
             .into(),
             temperature: if temperatures.is_empty() {
-                "Température non fournie".into()
+                "Temperature not provided".into()
             } else {
                 temperatures.join(" · ").into()
             },
             condition: period
                 .condition
                 .map(environment_text::condition_label)
-                .unwrap_or("Conditions non fournies")
+                .unwrap_or("Conditions not provided")
                 .into(),
             precipitation: precipitation.join(" · ").into(),
         });
@@ -342,13 +354,13 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
 
 fn event_label(event: solar::SolarEventKind) -> &'static str {
     match event {
-        solar::SolarEventKind::Dawn => "Aube",
-        solar::SolarEventKind::Dusk => "Crépuscule",
-        solar::SolarEventKind::Midnight => "Minuit solaire",
-        solar::SolarEventKind::Noon => "Midi solaire",
-        solar::SolarEventKind::Rising => "Lever",
-        solar::SolarEventKind::Setting => "Coucher",
-        solar::SolarEventKind::Unspecified => "Événement non pris en charge",
+        solar::SolarEventKind::Dawn => "Dawn",
+        solar::SolarEventKind::Dusk => "Twilight",
+        solar::SolarEventKind::Midnight => "Solar Midnight",
+        solar::SolarEventKind::Noon => "Solar Noon",
+        solar::SolarEventKind::Rising => "Sunrise",
+        solar::SolarEventKind::Setting => "Sunset",
+        solar::SolarEventKind::Unspecified => "Unsupported event",
     }
 }
 fn occurrence(value: Option<&solar::SolarOccurrence>, zone: ProfileZone) -> String {
@@ -360,16 +372,16 @@ fn occurrence(value: Option<&solar::SolarOccurrence>, zone: ProfileZone) -> Stri
         Some(Occurrence::At(at)) => zone.timestamp(Some(at)),
         Some(Occurrence::Absent(reason)) => match reason {
             EnumValue::Known(solar::SolarAbsenceReason::NoEventWithinSearchHorizon) => {
-                "Absent dans l’horizon de recherche".into()
+                "Not found within the search range".into()
             }
             EnumValue::Known(solar::SolarAbsenceReason::NoTransitOnDate) => {
-                "Absent à cette date".into()
+                "Not found on this date".into()
             }
             EnumValue::Known(solar::SolarAbsenceReason::Unspecified) | EnumValue::Unknown(_) => {
-                "Absence non prise en charge".into()
+                "Unsupported absence value".into()
             }
         },
-        None => "Événement non fourni".into(),
+        None => "Event not provided".into(),
     }
 }
 pub(crate) fn project(
@@ -401,7 +413,7 @@ pub(crate) fn project(
                 | state::observed_state::Value::PresenceDetails(_),
             )
             | None => Weather {
-                temperature: "Météo non fournie ou non prise en charge".into(),
+                temperature: "Weather missing or unsupported".into(),
                 ..Default::default()
             },
         }),
@@ -418,12 +430,12 @@ pub(crate) fn project(
                     },
                     summary: environment_text::presence(value).into(),
                     detail: match value.confidence {
-                        EnumValue::Known(env::PresenceConfidence::Unknown) => "Confiance inconnue",
-                        EnumValue::Known(env::PresenceConfidence::Low) => "Confiance faible",
-                        EnumValue::Known(env::PresenceConfidence::Medium) => "Confiance moyenne",
-                        EnumValue::Known(env::PresenceConfidence::High) => "Confiance élevée",
+                        EnumValue::Known(env::PresenceConfidence::Unknown) => "Confidence unknown",
+                        EnumValue::Known(env::PresenceConfidence::Low) => "Low confidence",
+                        EnumValue::Known(env::PresenceConfidence::Medium) => "Medium confidence",
+                        EnumValue::Known(env::PresenceConfidence::High) => "High confidence",
                         EnumValue::Known(env::PresenceConfidence::Unspecified)
-                        | EnumValue::Unknown(_) => "Confiance non prise en charge",
+                        | EnumValue::Unknown(_) => "Unsupported confidence value",
                     }
                     .into(),
                     provenance: format!("Source · {}", bounded(&value.source_label)).into(),
@@ -448,7 +460,7 @@ pub(crate) fn project(
             )
             | None => ProPresenceData {
                 status: ProPresenceStatus::Unsupported,
-                summary: "Présence non fournie ou non prise en charge".into(),
+                summary: "Presence missing or unsupported".into(),
                 ..Default::default()
             },
         }),
@@ -471,10 +483,10 @@ pub(crate) fn project(
                         && home_wire_contract::solar_contract::admit_solar_value(value).is_ok() =>
                 {
                     row.position = match value.horizon {
-                        EnumValue::Known(solar::SolarHorizon::Above) => "Au-dessus de l’horizon",
-                        EnumValue::Known(solar::SolarHorizon::Below) => "Sous l’horizon",
+                        EnumValue::Known(solar::SolarHorizon::Above) => "Above the horizon",
+                        EnumValue::Known(solar::SolarHorizon::Below) => "Below the horizon",
                         EnumValue::Known(solar::SolarHorizon::Unspecified)
-                        | EnumValue::Unknown(_) => "Horizon non pris en charge",
+                        | EnumValue::Unknown(_) => "Unsupported horizon",
                     }
                     .into();
                     for (kind, at) in [
@@ -523,9 +535,7 @@ pub(crate) fn project(
                     | state::observed_state::Value::Presence(_)
                     | state::observed_state::Value::PresenceDetails(_),
                 )
-                | None => {
-                    row.notice = "Événements solaires non fournis ou non pris en charge".into()
-                }
+                | None => row.notice = "Solar events missing or unsupported".into(),
             }
             Presentation::Solar(row)
         }
@@ -581,7 +591,7 @@ mod tests {
             },
             ProLayoutNode {
                 kind: ProLayoutKind::Device,
-                device: row.ui(None),
+                device: row.ui(None, &crate::IconGlyph::default()),
                 ..Default::default()
             },
         ]));
@@ -601,7 +611,7 @@ mod tests {
         });
         let previous = nodes.row_data(1).unwrap();
         let next = ProLayoutNode {
-            device: row.ui(Some(&previous.device)),
+            device: row.ui(Some(&previous.device), &crate::IconGlyph::default()),
             ..previous.clone()
         };
         if previous != next {
@@ -635,6 +645,16 @@ mod tests {
     }
     fn toronto() -> ProfileZone {
         ProfileZone::Known("America/Toronto".parse().unwrap())
+    }
+
+    #[test]
+    fn greeting_uses_the_profile_timezone_and_keeps_missing_profiles_neutral() {
+        let morning = instant(&at("2026-11-01T13:00:00Z")).unwrap();
+        let evening = instant(&at("2026-11-01T23:00:00Z")).unwrap();
+        assert_eq!(toronto().greeting(morning), "Good Morning");
+        assert_eq!(toronto().greeting(evening), "Good Evening");
+        assert_eq!(ProfileZone::Missing.greeting(morning), "Welcome");
+        assert_eq!(ProfileZone::Unsupported.greeting(evening), "Welcome");
     }
 
     #[test]
@@ -673,15 +693,15 @@ mod tests {
         let now = instant(&at("2026-11-01T08:00:00Z")).unwrap();
         let row = weather(&value, toronto(), now);
         assert_eq!(row.temperature, "0 °C");
-        assert_eq!(row.condition, "Pluie");
+        assert_eq!(row.condition, "Rain");
         assert_eq!(row.facts[0].value, "0 %");
-        assert!(row.forecast_status.contains("Périmées") && row.forecast_status.contains("4 h"));
+        assert!(row.forecast_status.contains("Outdated") && row.forecast_status.contains("4 h"));
         assert_eq!(row.forecast.len(), 1);
         let period = &row.forecast[0];
         assert!(period.period.contains("01:30 -04:00") && period.period.contains("01:30 -05:00"));
-        assert_eq!(period.temperature, "Température non prise en charge");
-        assert_eq!(period.condition, "Pluie");
-        assert_eq!(period.precipitation, "Probabilité 0 %");
+        assert_eq!(period.temperature, "Unsupported temperature");
+        assert_eq!(period.condition, "Rain");
+        assert_eq!(period.precipitation, "Probability 0 %");
         let paris = weather(
             &value,
             ProfileZone::Known("Europe/Paris".parse().unwrap()),
@@ -698,7 +718,7 @@ mod tests {
         let refused = weather(&malformed, toronto(), now);
         assert!(refused.forecast.is_empty());
         assert_eq!(refused.temperature, "0 °C");
-        assert!(refused.forecast_status.contains("non prises en charge"));
+        assert!(refused.forecast_status.contains("Unsupported"));
     }
 
     #[test]
@@ -719,7 +739,7 @@ mod tests {
         assert!(
             ProfileZone::Unsupported
                 .timestamp(Some(&at))
-                .contains("non pris en charge")
+                .contains("unsupported")
         );
         let event = solar::SolarEventValue {
             event: solar::SolarEventKind::Rising.into(),
@@ -745,7 +765,7 @@ mod tests {
             panic!("solar projection");
         };
         assert_eq!(row.events.len(), 1);
-        assert_eq!(row.events[0].value, "Absent dans l’horizon de recherche");
+        assert_eq!(row.events[0].value, "Not found within the search range");
         let Presentation::Solar(mismatched) = project(
             ObservationKind::SolarEvent(solar::SolarEventKind::Setting),
             Some(&observed),

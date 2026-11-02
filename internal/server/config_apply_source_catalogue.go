@@ -208,8 +208,16 @@ func sourceSemanticSupports(catalog *contracts.CapabilityCatalog, descriptions [
 			*wireregistry.CapabilityDescription_Solar,
 			*wireregistry.CapabilityDescription_SolarEvent:
 			set[ir.SupportObserveState] = struct{}{}
-		case *wireregistry.CapabilityDescription_Extension:
-			// No extension-to-HA semantic conversion is declared.
+		case *wireregistry.CapabilityDescription_Extension,
+			*wireregistry.CapabilityDescription_Cover,
+			*wireregistry.CapabilityDescription_Lock,
+			*wireregistry.CapabilityDescription_Alarm,
+			*wireregistry.CapabilityDescription_Weather,
+			*wireregistry.CapabilityDescription_Presence,
+			*wireregistry.CapabilityDescription_PresenceDetails:
+			// These admitted references can appear beside a configured
+			// dashboard. No HA IR observation/action conversion is declared;
+			// native dashboard rendering and controls use their typed APIs.
 		default:
 			return nil, ir.ErrInvalidCatalogue
 		}

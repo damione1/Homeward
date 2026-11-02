@@ -12,8 +12,9 @@ pub struct DashboardTransport {
 impl DashboardTransport {
     fn support() -> wire::ClientLayoutSupport {
         wire::ClientLayoutSupport {
-            profile: home_client_model::dashboard::Profile::Recipes.name().into(),
-            version: home_client_model::dashboard::Profile::Recipes.layout_version(),
+            profile: home_client_model::dashboard::Profile::Widgets.name().into(),
+            version: home_client_model::dashboard::Profile::Widgets.layout_version(),
+            screen_visibility: true,
             kinds: [
                 wire::LayoutKind::View,
                 wire::LayoutKind::Section,
@@ -26,6 +27,7 @@ impl DashboardTransport {
                 wire::LayoutKind::Heading,
                 wire::LayoutKind::Tile,
                 wire::LayoutKind::Unsupported,
+                wire::LayoutKind::Widget,
             ]
             .into_iter()
             .map(Into::into)

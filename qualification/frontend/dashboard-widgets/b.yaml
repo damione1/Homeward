@@ -1,0 +1,49 @@
+homeward:
+  profile: homeward-dashboard-3
+  owner: OWNER_ACCOUNT_ID
+  url_path: configuration
+views:
+- type: sections
+  path: home
+  title: Maison configurée B
+  max_columns: 2
+  minimum_column_width: 320
+  gap: 24
+  sections:
+  - type: grid
+    column_span: 2
+    cards:
+    - type: custom:homeward-tasks
+      title: Épicerie uniquement B
+      list_id: LIST_B_ID
+      limit: 2
+    - type: custom:homeward-security
+      title: Bloc conditionnel
+      entities: [binary_sensor.arc_soundbar_microphone]
+      visibility: [{condition: state, entity: binary_sensor.arc_soundbar_microphone, state: 'on'}]
+    - type: custom:homeward-thermostat
+      title: Confort configuré
+      entity: climate.chambre_eugenie
+      current_temperature: {entity: climate.chambre_eugenie, field: current_temperature_celsius}
+      target_temperature: {entity: climate.chambre_eugenie, field: setpoint_celsius}
+      grid_options:
+        responsive_spans: [{columns: 2, span: 2}]
+    - type: custom:homeward-room
+      title: Pièce du serveur B
+      room_id: room-b
+      action: /configuration/rooms
+      action_label: Ouvrir la pièce
+      temperature: {entity: climate.chambre_eugenie, field: current_temperature_celsius}
+      activity_entities: [light.basement_lights]
+      active_states: ['on']
+    - type: custom:homeward-navigation
+      title: Navigation du serveur
+      destination: /configuration/rooms
+- type: sections
+  path: rooms
+  title: Pièces configurées
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Destination configurée

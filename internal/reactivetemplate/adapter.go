@@ -14,6 +14,10 @@ import (
 
 var ErrInvalidProjection = errors.New("reactive template: invalid projection")
 
+// These admitted native contracts have no declared HA scalar/attribute mapping.
+// Keep their registry identity, without inventing a value or a quality report.
+var errNoHAProjection = errors.New("reactive template: native observation has no HA projection")
+
 // ReadViewFromSnapshot uses only the captured SQL registry and current Host
 // states. An old display value never stands in for a missing current value.
 func ReadViewFromSnapshot(snapshot sequencer.Snapshot, groups []bundle.Group) (template.ReadView, error) {
@@ -50,6 +54,14 @@ func ReadViewFromSnapshot(snapshot sequencer.Snapshot, groups []bundle.Group) (t
 		var attrs []template.Binding
 		if current, ok := state.CurrentValue(); ok {
 			rendered, fields, err := formatCurrent(current)
+			if errors.Is(err, errNoHAProjection) {
+				source, sourceErr := template.NewUnobservedReadSource(entity, aliases)
+				if sourceErr != nil {
+					return template.ReadView{}, sourceErr
+				}
+				sources = append(sources, source)
+				continue
+			}
 			if err != nil {
 				return template.ReadView{}, err
 			}
@@ -305,6 +317,8 @@ func formatCurrent(value domain.StateValue) (string, []template.Binding, error) 
 			attrs = append(attrs, template.Binding{Name: "hvac_action", Value: attr})
 		}
 		return text, attrs, nil
+	case domain.ValueCover, domain.ValueLock, domain.ValueAlarm, domain.ValueWeather, domain.ValuePresence, domain.ValuePresenceDetails:
+		return "", nil, errNoHAProjection
 	case domain.ValueUnspecified:
 		return "", nil, ErrInvalidProjection
 	default:

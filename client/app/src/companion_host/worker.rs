@@ -172,7 +172,7 @@ impl Companion {
             Received::Record(context, record) | Received::Recovered(context, record) => {
                 if recovered {
                     state.gate = Gate::UserStopped;
-                    state.notice = "Installation restaurée. La collecte reste arrêtée jusqu’à confirmation du consentement.".into();
+                    state.notice = "Installation restored. Collection stays stopped until consent is confirmed.".into();
                 }
                 if !state.accept(context, *record, resolving) {
                     state.invalid();
@@ -474,8 +474,7 @@ impl Companion {
                         state.stage = Stage::Unsupported;
                         state.gate = Gate::UserStopped;
                         state.notice =
-                            "Les services natifs nécessaires ne sont pas disponibles sur cet OS."
-                                .into();
+                            "Required native services are unavailable on this OS.".into();
                     }
                     Error::Cancelled => {
                         if state.pending.is_some() {
@@ -495,7 +494,7 @@ impl Companion {
                             state.record = None;
                             state.stage = Stage::Unregistered;
                             state.gate = Gate::UserStopped;
-                            state.notice="Aucune inscription trouvée pour cette tentative. Aucune nouvelle inscription n’est envoyée automatiquement.".into();
+                            state.notice="No registration found for this attempt. A new registration will not be sent automatically.".into();
                         } else if state.pending.is_some() {
                             state.stage = Stage::Uncertain;
                             state.need_read();
@@ -503,7 +502,7 @@ impl Companion {
                             // fails, remain stopped until an explicit refresh.
                             state.requested =
                                 state.pending.as_ref().is_some_and(|p| !p.resolution_read);
-                            state.notice="Réponse incertaine : lecture de résolution, sans renvoi de mutation.".into();
+                            state.notice="Response uncertain: checking the result by reading, without resubmitting the mutation.".into();
                         } else {
                             state.need_read();
                             state.stage = match error.kind() {
@@ -524,7 +523,7 @@ impl Companion {
                                 | FailureKind::Cancelled
                                 | FailureKind::Rpc(_) => Stage::Offline,
                             };
-                            state.notice="Collecte arrêtée. Actualisez pour revérifier l’autorisation ; aucun échantillon n’est mis en attente.".into();
+                            state.notice="Collection stopped. Refresh to check authorization again; no samples are queued.".into();
                         }
                     }
                 }

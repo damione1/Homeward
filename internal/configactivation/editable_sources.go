@@ -142,6 +142,7 @@ func CompileSourceGroups(groups []SourceGroup, manifest registry.Manifest, catal
 	})
 	result := SourceCompilation{dashboards: map[authorization.DashboardID]dashboard.Definition{}}
 	seen := map[string]bool{}
+	dashboardURLs := map[string]bool{}
 	var scripts []ir.ScriptID
 	totalFiles, totalBytes := 0, 0
 	for _, group := range ordered {
@@ -188,13 +189,20 @@ func CompileSourceGroups(groups []SourceGroup, manifest registry.Manifest, catal
 			if err != nil {
 				return SourceCompilation{}, ErrInvalidStartup
 			}
-			compiled, err := dashboard.Restore(source, group.files)
+			compiled, err := dashboard.RestoreConfigured(source, group.files)
 			if err != nil || compiled.Status() != dashboard.StatusSupported {
 				return SourceCompilation{}, ErrInvalidStartup
 			}
 			definition, present := compiled.Definition()
 			if !present || !dashboardReferencesWithinManifest(definition, manifest) {
 				return SourceCompilation{}, ErrInvalidStartup
+			}
+			if definition.Profile() == dashboard.DashboardProfile {
+				path := definition.Source().URLPath()
+				if dashboardURLs[path] {
+					return SourceCompilation{}, ErrInvalidStartup
+				}
+				dashboardURLs[path] = true
 			}
 			result.dashboards[id] = definition
 		case storage.ConfigDocumentKindAutomationSource:
@@ -352,9 +360,13 @@ func compiledSourceGroupsHash(base [32]byte, groups []SourceGroup) [32]byte {
 
 func dashboardReferencesWithinManifest(definition dashboard.Definition, manifest registry.Manifest) bool {
 	admit := func(alias domain.HAAlias) bool { _, present := manifest.SourceFor(alias); return present }
-	visibility := func(values []dashboard.Visibility) bool {
+	var visibility func([]dashboard.Visibility) bool
+	visibility = func(values []dashboard.Visibility) bool {
 		for _, value := range values {
 			if alias, present := value.Entity(); present && !admit(alias) {
+				return false
+			}
+			if !visibility(value.Children()) {
 				return false
 			}
 		}
@@ -362,6 +374,11 @@ func dashboardReferencesWithinManifest(definition dashboard.Definition, manifest
 	}
 	var card func(dashboard.Card) bool
 	card = func(value dashboard.Card) bool {
+		for _, alias := range value.WidgetEntities() {
+			if !admit(alias) {
+				return false
+			}
+		}
 		if alias, present := value.Entity(); present && !admit(alias) {
 			return false
 		}

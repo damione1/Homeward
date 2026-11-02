@@ -20,12 +20,13 @@ const (
 )
 
 type compiler struct {
-	profile    CompilationProfile
-	result     Result
-	cards      int
-	sections   int
-	conditions int
-	overflow   bool
+	profile                         CompilationProfile
+	result                          Result
+	cards                           int
+	sections                        int
+	conditions                      int
+	overflow                        bool
+	widgetBindings, resourceWidgets int
 }
 
 // Import reads the entry and includes once through the shared confined loader.
@@ -113,8 +114,18 @@ func CompileWithProfile(source Source, doc *parser.Document, profile Compilation
 	for _, entry := range root.Entries() {
 		switch entry.Key {
 		case "views":
+		case "homeward":
+			if profile != CompilationDashboard {
+				c.unknown(entry, "dashboard property outside profile")
+				rootBlocked = true
+				continue
+			}
+			if !compileDashboardMetadata(entry.Value, &definition) {
+				c.fatal(CodeInvalidValue, entry.Value, "invalid native dashboard metadata")
+				return c.result, nil
+			}
 		case "kiosk_mode":
-			if profile == CompilationRecipes {
+			if profile >= CompilationRecipes {
 				c.unsupported(CodeUnsupportedProperty, entry.Value, "HA kiosk presentation policy is not applied to native authorization or navigation")
 			} else {
 				c.unknown(entry, "dashboard property outside profile")
@@ -155,9 +166,15 @@ func CompileWithProfile(source Source, doc *parser.Document, profile Compilation
 		c.fatal(CodeInvalidValue, root, "dashboard projection budget exceeded")
 		return c.result, nil
 	}
+	if profile == CompilationDashboard {
+		if _, ok := definition.Owner(); !ok {
+			c.fatal(CodeMissingField, root, "homeward owner metadata required")
+			return c.result, nil
+		}
+	}
 	definition.requirements = collectRequirements(definition.views)
-	if profile == CompilationRecipes {
-		definition.requirements.version = 2
+	if profile >= CompilationRecipes {
+		definition.requirements.version = uint8(profile)
 	}
 	c.result.definition = definition
 	c.result.hasDefinition = true

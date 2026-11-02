@@ -122,20 +122,20 @@ impl Workflow {
             Some(Current::Definition { definition, .. }) => vec![
                 action(
                     ProAdminAction::Create,
-                    "Exécuter · synthétique",
+                    "Run · Synthetic",
                     definition.can_run,
                     true,
                 ),
                 action(
                     ProAdminAction::Simulate,
-                    "Simuler une source fournie…",
+                    "Simulate a Provided Source…",
                     definition.can_simulate,
                     false,
                 ),
             ],
             Some(Current::Run { run, .. }) => vec![action(
                 ProAdminAction::Remove,
-                "Annuler les étapes futures…",
+                "Cancel Future Steps…",
                 run.can_cancel,
                 true,
             )],
@@ -205,7 +205,7 @@ impl Workflow {
         self.draft = Some(Draft {
             operation,
             stage: Stage::Draft,
-            notice: "Confirmez cette intention explicite. Une seule tentative sera envoyée au serveur synthétique.",
+            notice: "Confirm this explicit action. Only one attempt will be sent to the synthetic server.",
         });
         true
     }
@@ -261,9 +261,9 @@ impl Workflow {
         self.active = Some(permit);
         draft.stage = Stage::Pending;
         draft.notice = if resolve {
-            "Lecture du run uniquement. Aucune exécution ni annulation renvoyée."
+            "Reading the run only. No execution or cancellation is resubmitted."
         } else {
-            "Tentative en cours. Une interruption laissera son issue incertaine."
+            "Attempt in progress. An interruption will leave its outcome uncertain."
         };
         true
     }
@@ -283,30 +283,30 @@ impl Workflow {
             Ok(Reply::Started(run)) => {
                 draft.stage = Stage::Resolved;
                 draft.notice = if run.status == wire::RunStatus::Failed {
-                    "Run refusé ou échoué selon le serveur. Aucun effet physique validé."
+                    "The server reports this run as rejected or failed. No physical effect was validated."
                 } else {
-                    "Run synthétique enregistré. Aucun effet physique validé. Fermez puis relisez le catalogue ou les runs."
+                    "Synthetic run recorded. No physical effect was validated. Close and reload the catalogue or runs."
                 };
             }
             Ok(Reply::Canceled(run)) => {
                 draft.stage = Stage::Resolved;
                 draft.notice = if run.status == wire::RunStatus::Canceled {
-                    "Étapes futures arrêtées. Les effets déjà dispatchés ne sont pas inversés."
+                    "Future steps stopped. Effects already dispatched are not reversed."
                 } else {
-                    "Run déjà terminal selon le serveur. Aucun effet déjà dispatché n’est inversé."
+                    "The server reports this run as terminal. Effects already dispatched are not reversed."
                 };
             }
             Ok(Reply::Resolved(run)) => {
                 draft.stage = Stage::Resolved;
                 draft.notice = match &draft.operation {
                     Operation::Start { .. } => {
-                        "Run retrouvé par la tentative d’origine, sans réexécution. Fermez puis relisez ses détails."
+                        "Run found through the original attempt, without re-execution. Close and reload its details."
                     }
                     Operation::Cancel { .. } => {
                         if run.status == wire::RunStatus::Canceled {
-                            "Run relu annulé. Cette lecture ne prouve pas l’attribution de l’annulation à notre tentative."
+                            "The reloaded run is cancelled. This reading does not prove our attempt caused the cancellation."
                         } else {
-                            "État du run relu. Aucune annulation renvoyée ; cette lecture n’établit pas l’issue de notre tentative."
+                            "Run state reloaded. No cancellation was resubmitted; this reading does not establish the outcome of our attempt."
                         }
                     }
                 };
@@ -322,7 +322,7 @@ impl Workflow {
                 RpcCode::InvalidArgument | RpcCode::FailedPrecondition | RpcCode::Unimplemented,
             ))) if !result.resolve => {
                 draft.stage = Stage::Rejected;
-                draft.notice = "Tentative refusée par le serveur. Fermez et relisez les références avant une nouvelle confirmation.";
+                draft.notice = "Attempt rejected by the server. Close and reload references before confirming again.";
             }
             Err(
                 ReadError::Transport(_)
@@ -331,16 +331,16 @@ impl Workflow {
                 | ReadError::Cancelled,
             ) => {
                 draft.stage = Stage::Uncertain;
-                draft.notice = "Issue incertaine ou run non retrouvé. Aucune répétition automatique. Résoudre relit uniquement le run de cette tentative.";
+                draft.notice = "Outcome uncertain or run not found. No automatic retry. Resolve only rereads this attempt’s run.";
             }
         }
         false
     }
     pub fn title(&self) -> &'static str {
         match self.draft.as_ref().map(|value| &value.operation) {
-            Some(Operation::Start { .. }) => "Exécution synthétique · confirmation",
-            Some(Operation::Cancel { .. }) => "Annulation des étapes futures · confirmation",
-            None => "Logique",
+            Some(Operation::Start { .. }) => "Synthetic Execution · Confirmation",
+            Some(Operation::Cancel { .. }) => "Cancel Future Steps · Confirmation",
+            None => "Logic",
         }
     }
     pub fn notice(&self) -> &'static str {
@@ -358,19 +358,19 @@ impl Workflow {
         vec![
             action(
                 ProAdminAction::Save,
-                "Confirmer une seule tentative",
+                "Confirm One Attempt",
                 draft.stage == Stage::Draft,
                 true,
             ),
             action(
                 ProAdminAction::Resolve,
-                "Résoudre par lecture uniquement",
+                "Resolve by Reading Only",
                 draft.stage == Stage::Uncertain,
                 false,
             ),
             action(
                 ProAdminAction::Cancel,
-                "Fermer",
+                "Close",
                 draft.stage != Stage::Pending,
                 false,
             ),
@@ -402,7 +402,7 @@ impl Workflow {
             } => (
                 context,
                 format!(
-                    "Run {} · définition {} · version {}",
+                    "Run {} · definition {} · version {}",
                     run.id, run.definition.id, run.definition.version.revision
                 ),
                 request,
@@ -411,26 +411,26 @@ impl Workflow {
         vec![
             ProAdminField {
                 token: 1,
-                label: "Cible capturée".into(),
-                description: "Référence serveur exacte ; aucune routine réelle exécutée".into(),
+                label: "Captured Target".into(),
+                description: "Exact server reference; no real routine executed".into(),
                 value: identity.into(),
                 kind: ProAdminFieldKind::Plain,
                 editable: false,
             },
             ProAdminField {
                 token: 2,
-                label: "Tentative explicite".into(),
-                description: "Une réponse perdue est résolue par lecture de cet identifiant".into(),
+                label: "Explicit Attempt".into(),
+                description: "A lost response is resolved by reading this identifier".into(),
                 value: request.as_str().into(),
                 kind: ProAdminFieldKind::Plain,
                 editable: false,
             },
             ProAdminField {
                 token: 3,
-                label: "Contexte capturé".into(),
-                description: "Un changement d’epoch exige une nouvelle lecture".into(),
+                label: "Captured Context".into(),
+                description: "An epoch change requires a new reading".into(),
                 value: format!(
-                    "{} · catalogue {} · génération {}",
+                    "{} · catalogue {} · generation {}",
                     context.epoch, context.catalogue, context.generation
                 )
                 .into(),

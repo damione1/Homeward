@@ -1,15 +1,18 @@
-import { KitDialogSurface, KitDialogPanel, KitButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy } from "@kit/kit.slint";
+import { KitDialogSurface, KitDialogPanel, KitButton, KitIconButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy } from "@kit/kit.slint";
 import { ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProRecipeGesture } from "@kit-pro/kit-pro.slint";
 import { HomewardDashboard } from "native-dashboard.slint";
 
 export component HomewardPopup inherits KitDialogSurface {
     in property <int> generation;
     in property <string> title;
+    in property <bool> detail;
+    in property <bool> can-back;
+    callback back(int);
     in property <[ProLayoutNode]> nodes;
     in property <bool> commands-enabled;
     in property <string> action-feedback;
     callback close(int,CloseReason);
-    pure callback arrange([ProLayoutInput],int,int) -> [ProLayoutCell];
+    pure callback responsive-arrange([ProLayoutInput],int,int,length) -> [ProLayoutCell];
     callback power(int,int,ProPowerIntent);
     callback edit(int,int,int,ProValueIntent);
     callback choose(int,int,int);
@@ -18,6 +21,17 @@ export component HomewardPopup inherits KitDialogSurface {
     callback details(int,int);
     callback gesture(int,int,ProRecipeGesture);
     in property <FocusRequest> recipe-focus;
+    in property <FocusRequest> widget-focus;
+    in property <FocusRequest> widget-item-focus;
+    callback widget-activate(int,int);
+    callback task-complete(int,int,int,int,bool);
+    callback agenda-select(int,int,int,int);
+    callback observation-open(int,int,int,int);
+    callback observation-focus-observed(int,int,int,int,bool);
+    callback widget-focus-observed(int,int,bool);
+    callback widget-focus-applied(int,int,int);
+    callback widget-focus-revealed(int,int,length,length);
+
     callback recipe-focus-applied(int,int,int);
     callback recipe-focus-observed(int,int,bool);
     callback recipe-focus-revealed(int,int,length,length);
@@ -27,7 +41,6 @@ export component HomewardPopup inherits KitDialogSurface {
     public function reveal-focus(top: length, bottom: length) { scroll.reveal(top - scroll.absolute-position.y - scroll.content-y,bottom - scroll.absolute-position.y - scroll.content-y); }
     private property <int> armed-generation;
     private property <bool> opened: root.state.open;
-    dismiss-on-backdrop: false;
     tab-policy: DialogTabPolicy.native;
     public function take-focus() { if (root.state.open && root.state.topmost) { close-button.take-focus(); } }
     changed generation => { close-button.cancel-press(); }
@@ -35,33 +48,57 @@ export component HomewardPopup inherits KitDialogSurface {
     dismiss(reason) => { root.close(root.generation, reason); }
     KitDialogPanel {
         theme: root.theme; accessible-name: root.title;
-        width: max(0px, min(root.width - 32px, 1120px));
-        height: max(0px, min(root.height - 32px, 760px * root.theme.text-scale));
+        width: max(0px, min(root.width - 32px, root.detail ? 480px : 840px));
+        height: max(0px, min(root.height * 0.88, root.detail ? 680px : 704px));
         x: (root.width - self.width) / 2; y: (root.height - self.height) / 2;
         VerticalLayout {
             padding: 16px; spacing: 12px;
-            close-button := KitButton {
-                theme: root.theme; text: "Fermer"; control-size: ControlSize.comfortable;
-                disabled: !root.state.open || !root.state.topmost || root.state.busy;
-                activation-started => { root.armed-generation = root.generation; }
-                activated => { if (root.armed-generation == root.generation) { root.close(root.armed-generation, CloseReason.programmatic); } }
+            HorizontalLayout {
+                spacing: 8px;
+                if root.can-back: KitIconButton {
+                    theme: root.theme; glyph: root.theme.icons.chevron-left;
+                    accessible-name: "Back"; control-size: ControlSize.comfortable;
+                    disabled: !root.state.open || !root.state.topmost || root.state.busy;
+                    private property <int> pressed-generation;
+                    activation-started => { self.pressed-generation = root.generation; }
+                    activated => { if (self.pressed-generation == root.generation) { root.back(self.pressed-generation); } }
+                }
+                Text { min-width: 0px; text: root.title; color: root.theme.text-primary;
+                    font-size: 22px * root.theme.text-scale; font-weight: 600;
+                    wrap: word-wrap; horizontal-stretch: 1; vertical-alignment: center; }
+                close-button := KitIconButton {
+                    theme: root.theme; glyph: root.theme.icons.close;
+                    accessible-name: "Close " + root.title; control-size: ControlSize.comfortable;
+                    disabled: !root.state.open || !root.state.topmost || root.state.busy;
+                    activation-started => { root.armed-generation = root.generation; }
+                    activated => { if (root.armed-generation == root.generation) { root.close(root.armed-generation, CloseReason.programmatic); } }
+                }
             }
             scroll := KitScrollArea {
                 vertical-stretch: 1;
                 scrolled => { root.scroll-interacted(); }
-                Text { text: root.title; color: root.theme.text-primary; font-size: 22px * root.theme.text-scale; font-weight: 600; wrap: word-wrap; }
-                if root.nodes.length == 0: Text { text: "Cet élément n’est pas disponible dans la vue actuelle."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
-                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Commande"; message: root.action-feedback; }
+                if root.nodes.length == 0: Text { text: "This item is unavailable in the current view."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
+                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; }
                 if root.nodes.length > 0: HomewardDashboard {
                     recipe-focus: root.recipe-focus;
+                    widget-focus: root.widget-focus; widget-item-focus: root.widget-item-focus;
+                    widget-activate(t,g) => { root.widget-activate(t,g); }
+                    task-complete(t,g,i,ig,v) => { if (root.commands-enabled) { root.task-complete(t,g,i,ig,v); } }
+                    agenda-select(t,g,i,ig) => { root.agenda-select(t,g,i,ig); }
+                    observation-open(t,g,i,ig) => { root.observation-open(t,g,i,ig); }
+                    observation-focus-observed(t,g,i,ig,f) => { root.observation-focus-observed(t,g,i,ig,f); }
+                    widget-focus-observed(t,g,f) => { root.widget-focus-observed(t,g,f); }
+                    widget-focus-applied(t,g,r) => { root.widget-focus-applied(t,g,r); }
+                    widget-focus-revealed(t,g,top,bottom) => { root.widget-focus-revealed(t,g,top,bottom); }
+
                     recipe-focus-applied(token,generation,serial) => { root.recipe-focus-applied(token,generation,serial); }
                     recipe-focus-observed(token,generation,focused) => { root.recipe-focus-observed(token,generation,focused); }
                     recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
-                    theme: root.theme; viewport-width: scroll.visible-width;
+                    theme: root.theme; viewport-width: scroll.visible-width; screen-width: root.width;
                     nodes: root.nodes; node-index: 0;
                     interactive: root.state.open && root.state.topmost && !root.state.busy;
                     commands-enabled: root.commands-enabled;
-                    arrange(inputs,columns,base) => { return root.arrange(inputs,columns,base); }
+                    responsive-arrange(inputs,columns,base,screen) => { return root.responsive-arrange(inputs,columns,base,screen); }
                     power(token,generation,intent) => { root.power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.choose(token,generation,choice); }

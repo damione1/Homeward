@@ -99,15 +99,15 @@ fn resolution(value: &Resolution) -> (ZonedTimePresentation, String) {
     match value {
         Resolution::Unresolved => (
             ZonedTimePresentation::Unresolved,
-            "Résoudre cette heure auprès du serveur.".into(),
+            "Resolve this local time with the server.".into(),
         ),
         Resolution::Accepted(instant) => (
             ZonedTimePresentation::Unique,
-            format!("Instant reçu du serveur conservé : {instant}"),
+            format!("Server-provided instant retained: {instant}"),
         ),
         Resolution::Unique(candidate) => (
             ZonedTimePresentation::Unique,
-            format!("Instant validé : {}", candidate.instant),
+            format!("Validated instant: {}", candidate.instant),
         ),
         Resolution::Ambiguous {
             candidates,
@@ -116,22 +116,19 @@ fn resolution(value: &Resolution) -> (ZonedTimePresentation, String) {
             ZonedTimePresentation::Ambiguous,
             match selected {
                 Some(index) => candidates.get(*index).map_or_else(
-                    || "Choix non valide.".into(),
-                    |candidate| format!("Occurrence choisie : {}", candidate.instant),
+                    || "Invalid selection.".into(),
+                    |candidate| format!("Selected occurrence: {}", candidate.instant),
                 ),
-                None => {
-                    "Cette heure existe deux fois. Choisissez explicitement une occurrence.".into()
-                }
+                None => "This local time occurs twice. Choose one occurrence explicitly.".into(),
             },
         ),
         Resolution::Nonexistent => (
             ZonedTimePresentation::Nonexistent,
-            "Cette heure n’existe pas dans ce fuseau. Aucune normalisation n’a été appliquée."
-                .into(),
+            "This local time does not exist in this time zone. It has not been adjusted.".into(),
         ),
         Resolution::InvalidZone => (
             ZonedTimePresentation::InvalidZone,
-            "Fuseau refusé par le serveur.".into(),
+            "Time zone rejected by the server.".into(),
         ),
     }
 }
@@ -160,12 +157,12 @@ fn editor(value: &Projection) -> CalendarDraftView {
         description: draft.original.description.clone().into(),
         location: draft.original.location.clone().into(),
         exceptions: format!(
-            "Récurrence {} · {} exception(s), {} exclusion(s) conservée(s)",
+            "Recurrence {} · {} exception(s), {} exclusion(s) retained",
             draft
                 .original
                 .recurrence_rule
                 .as_deref()
-                .unwrap_or("absente"),
+                .unwrap_or("missing"),
             draft.original.exceptions.len(),
             draft.original.exclusions.len()
         )
@@ -220,7 +217,7 @@ impl Model for Rows {
         let (day, time, kind) = match &row.span.value {
             Some(wire::span::Value::Dates(span)) => (
                 span.start.as_str(),
-                format!("{} – {} (fin exclue)", span.start, span.end_exclusive),
+                format!("{} – {} (end exclusive)", span.start, span.end_exclusive),
                 ProAgendaTemporalKind::AllDay,
             ),
             Some(wire::span::Value::Times(span)) => (
@@ -267,35 +264,39 @@ impl Model for Rows {
 fn source(calendar: &wire::Calendar) -> String {
     use buffa::EnumValue;
     let origin = match calendar.origin {
-        EnumValue::Known(wire::Origin::Local) => "Calendrier local",
-        EnumValue::Known(wire::Origin::RemoteIcs) => "Source distante · lecture seule",
-        EnumValue::Known(wire::Origin::Calculated) => "Source calculée · lecture seule",
-        EnumValue::Known(wire::Origin::Unspecified) | EnumValue::Unknown(_) => "Source non admise",
+        EnumValue::Known(wire::Origin::Local) => "Local Calendar",
+        EnumValue::Known(wire::Origin::RemoteIcs) => "Remote source · read-only",
+        EnumValue::Known(wire::Origin::Calculated) => "Calculated source · read-only",
+        EnumValue::Known(wire::Origin::Unspecified) | EnumValue::Unknown(_) => "Source rejected",
     };
     let provenance = match calendar.provenance {
-        EnumValue::Known(wire::DataProvenance::Synthetic) => " · MOCK ISOLÉ",
-        EnumValue::Known(wire::DataProvenance::Observed) => " · source observée",
+        EnumValue::Known(wire::DataProvenance::Synthetic) => " · ISOLATED MOCK",
+        EnumValue::Known(wire::DataProvenance::Observed) => " · observed source",
         EnumValue::Known(wire::DataProvenance::Unspecified) | EnumValue::Unknown(_) => {
-            " · provenance non établie"
+            " · source not verified"
         }
     };
     format!("{origin}{provenance}")
 }
+fn snapshot_fresh(snapshot: &CalendarReadSnapshot) -> bool {
+    snapshot.freshness() == home_client_cache::calendars::CalendarFreshness::Fresh
+        && snapshot.expiry_bounds().all(|until| {
+            chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
+                std::time::SystemTime::from(until.with_timezone(&chrono::Utc))
+                    > std::time::SystemTime::now()
+            })
+        })
+}
 fn quality(snapshot: &CalendarReadSnapshot) -> &'static str {
     use home_client_cache::calendars::CalendarFreshness;
     match snapshot.freshness() {
-        CalendarFreshness::Unavailable => "Données indisponibles",
-        CalendarFreshness::Stale => "Données périmées",
+        CalendarFreshness::Unavailable => "Data unavailable",
+        CalendarFreshness::Stale => "Outdated data",
         CalendarFreshness::Fresh => {
-            if snapshot.expiry_bounds().all(|until| {
-                chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
-                    std::time::SystemTime::from(until.with_timezone(&chrono::Utc))
-                        > std::time::SystemTime::now()
-                })
-            }) {
-                "Données fraîches"
+            if snapshot_fresh(snapshot) {
+                "Up to date"
             } else {
-                "Données périmées"
+                "Outdated data"
             }
         }
     }
@@ -343,7 +344,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             title: calendar
                 .name
                 .as_deref()
-                .unwrap_or("Calendrier à créer")
+                .unwrap_or("Calendar to Create")
                 .into(),
             excerpt: source(calendar).into(),
             selected: admit::calendar_id(&calendar.id).as_ref() == value.selected.as_ref(),
@@ -437,7 +438,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     }
     let title = current
         .and_then(|calendar| calendar.name.as_deref())
-        .unwrap_or("Agenda");
+        .unwrap_or("Calendar");
     if previous.privacy_generation != value.privacy_generation
         || previous.calendar_token != calendar_token
         || !value.active
@@ -455,13 +456,13 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         .map_or(-1, |index| index as i32);
     let notice = if value.status == Status::Offline || value.notice.is_empty() {
         match value.status {
-            Status::Loading => "Lecture des calendriers…",
+            Status::Loading => "Reading calendars…",
             Status::Ready => "",
-            Status::Offline => "Hors ligne · copie datée · écritures suspendues",
-            Status::Denied => "Accès retiré",
-            Status::Unsupported => "Interface calendrier indisponible",
-            Status::Invalid => "Données calendrier non admises",
-            Status::TooLarge => "Réduisez la plage calendrier.",
+            Status::Offline => "Offline · dated copy · writes suspended",
+            Status::Denied => "Access removed",
+            Status::Unsupported => "Calendar interface unavailable",
+            Status::Invalid => "Calendar data rejected",
+            Status::TooLarge => "Shorten the calendar range.",
         }
     } else {
         &value.notice
@@ -488,13 +489,13 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                     value
                         .snapshot
                         .as_ref()
-                        .map_or("Lecture en cours", |snapshot| quality(snapshot))
+                        .map_or("Loading", |snapshot| quality(snapshot))
                 )
             })
             .into(),
         revision: current
             .map_or_else(String::new, |calendar| {
-                format!("Révision {}", calendar.revision.number)
+                format!("Revision {}", calendar.revision.number)
             })
             .into(),
         cached_at: value
@@ -502,7 +503,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             .as_ref()
             .map_or_else(String::new, |snapshot| {
                 format!(
-                    "Lu {}",
+                    "Read {}",
                     chrono::DateTime::<chrono::Utc>::from(snapshot.fetched_at()).to_rfc3339()
                 )
             })
@@ -543,4 +544,137 @@ fn draft_values(window: &HomewardWindow, editor: &CalendarDraftView) {
     window.set_calendars_edit_start_time(editor.start_time.clone());
     window.set_calendars_edit_end_time(editor.end_time.clone());
     window.set_calendars_edit_zone(editor.zone.clone());
+}
+
+/// Publish one exact configured source into its own dashboard delegate. A
+/// missing, stale or unavailable source is never represented as an empty agenda.
+pub(super) fn render_widget(
+    window: &HomewardWindow,
+    value: Projection,
+    target: &crate::dashboard_widget_host::AgendaTarget,
+) {
+    let current_session = value.source.is_some_and(|generation| {
+        value
+            .session
+            .as_ref()
+            .is_some_and(|session| session.is_current(generation))
+    });
+    let snapshot = value.snapshot.as_ref().filter(|snapshot| {
+        current_session
+            && value.active
+            && admit::calendar_id(&snapshot.calendar().id).as_ref() == Some(&target.calendar)
+    });
+    let present = snapshot
+        .is_some_and(|snapshot| snapshot.calendar().revision.presence == wire::Presence::Present);
+    let fresh = snapshot.is_some_and(|snapshot| snapshot_fresh(snapshot));
+    let ready = current_session
+        && value.active
+        && value.ready
+        && value.status == Status::Ready
+        && present
+        && fresh;
+    let status = if !value.notice.is_empty() {
+        value.notice.clone()
+    } else if !current_session {
+        "Calendar source unavailable".into()
+    } else if value.ready && !present {
+        "Configured calendar not found".into()
+    } else if value.ready && !fresh {
+        "Calendar data outdated or unavailable".into()
+    } else {
+        match value.status {
+            Status::Loading => "Reading calendar…",
+            Status::Ready => "",
+            Status::Offline => "Offline · dated copy",
+            Status::Denied => "Calendar access removed",
+            Status::Unsupported => "Calendar interface unavailable",
+            Status::Invalid => "Calendar data rejected",
+            Status::TooLarge => "Calendar range too large",
+        }
+        .into()
+    };
+    let rows = snapshot.map_or_else(ModelRc::default, |snapshot| {
+        ModelRc::new(WidgetRows {
+            snapshot: snapshot.clone(),
+            indices: value.indices.into_iter().take(target.limit).collect(),
+            generation: value.generation,
+            zone: target.zone,
+            notify: ModelNotify::default(),
+        })
+    });
+    crate::cache_view::publish_widget_agenda(
+        window,
+        target.token,
+        target.generation,
+        rows,
+        ready,
+        status,
+    );
+}
+struct WidgetRows {
+    snapshot: Arc<CalendarReadSnapshot>,
+    indices: Vec<usize>,
+    generation: i32,
+    zone: home_client_model::local_time::DisplayTimeZone,
+    notify: ModelNotify,
+}
+fn widget_local(
+    value: &str,
+    zone: home_client_model::local_time::DisplayTimeZone,
+) -> Option<home_client_model::local_time::LocalTime> {
+    let instant = chrono::DateTime::parse_from_rfc3339(value).ok()?;
+    let instant = home_client_model::local_time::UtcInstant::new(
+        instant.timestamp(),
+        instant.timestamp_subsec_nanos() as i32,
+    )
+    .ok()?;
+    Some(zone.local(instant))
+}
+impl Model for WidgetRows {
+    type Data = ProAgendaRow;
+    fn row_count(&self) -> usize {
+        self.indices.len()
+    }
+    fn row_data(&self, index: usize) -> Option<Self::Data> {
+        let actual = *self.indices.get(index)?;
+        let row = self.snapshot.occurrences().get(actual)?;
+        let (day, time, kind) = match &row.span.value {
+            Some(wire::span::Value::Dates(span)) => (
+                span.start.clone(),
+                "All Day".to_owned(),
+                ProAgendaTemporalKind::AllDay,
+            ),
+            Some(wire::span::Value::Times(span)) => {
+                let start = widget_local(&span.start_instant, self.zone)?;
+                let end = widget_local(&span.end_instant, self.zone)?;
+                (
+                    start.date(),
+                    format!(
+                        "{} – {} · {} ({})",
+                        start.clock(),
+                        end.clock(),
+                        self.zone.name(),
+                        start.offset()
+                    ),
+                    ProAgendaTemporalKind::Timed,
+                )
+            }
+            None => return None,
+        };
+        Some(ProAgendaRow {
+            token: i32::try_from(actual).ok()?.checked_add(1)?,
+            generation: self.generation,
+            date: date(&day),
+            day_label: day.into(),
+            time_label: time.into(),
+            title: row.summary.clone().into(),
+            detail: row.location.clone().into(),
+            kind,
+            phase: ProAgendaPhase::Ready,
+            ..Default::default()
+        })
+    }
+    fn model_tracker(&self) -> &dyn ModelTracker {
+        &self.notify
+    }
 }

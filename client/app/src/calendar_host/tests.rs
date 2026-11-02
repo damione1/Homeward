@@ -265,3 +265,60 @@ fn a_confirmed_receipt_blocks_older_captures_and_refreshes_catalog_metadata() {
         Some("Authoritative renamed calendar")
     );
 }
+
+fn widget_target() -> crate::dashboard_widget_host::AgendaTarget {
+    crate::dashboard_widget_host::AgendaTarget {
+        token: 17,
+        generation: 19,
+        calendar: CalendarId::new("exact-calendar-second".parse().unwrap()),
+        zone: "America/Toronto".parse().unwrap(),
+        window_seconds: 7200,
+        limit: 3,
+    }
+}
+#[test]
+fn widget_calendar_window_preserves_server_duration_and_zone_across_a_fold() {
+    let target = widget_target();
+    let now = chrono::DateTime::parse_from_rfc3339("2026-11-01T05:30:00Z")
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+    let query = state::widget_query(&target, now).unwrap();
+    assert_eq!(query.id.entity_id, "exact-calendar-second");
+    assert_eq!(query.page_size, 3);
+    assert_eq!(query.window.zone, "America/Toronto");
+    let Some(wire::window::Bounds::Times(span)) = &query.window.bounds else {
+        panic!("absolute configured window")
+    };
+    assert_eq!(span.start_instant, "2026-11-01T05:30:00Z");
+    assert_eq!(span.end_instant, "2026-11-01T07:30:00Z");
+    assert_eq!(span.zone, "America/Toronto");
+    assert!(admit::admit_query(&query).is_ok());
+    let mut invalid = target;
+    invalid.window_seconds = 31_622_401;
+    assert!(state::widget_query(&invalid, now).is_none());
+}
+#[test]
+fn widget_calendar_never_selects_first_catalogue_or_substitutes_missing_source() {
+    let target = widget_target();
+    let owner = Calendars::for_widget(None, target.clone());
+    {
+        let state = owner.0.state.lock().unwrap();
+        assert_eq!(state.selected.as_ref(), Some(&target.calendar));
+        assert!(state.catalog.is_empty());
+        assert!(!state.catalog_needed);
+        assert_eq!(state.query().unwrap().id.entity_id, "exact-calendar-second");
+        assert!(!state.ready);
+    }
+    let context = owner.0.state.lock().unwrap().context;
+    owner.failed(context, Status::Unsupported);
+    {
+        let mut state = owner.0.state.lock().unwrap();
+        assert_eq!(state.status, Status::Unsupported);
+        assert!(state.snapshot.is_none());
+        assert!(!state.ready);
+        owner.pin_widget(&mut state);
+        assert_eq!(state.selected.as_ref(), Some(&target.calendar));
+        assert!(!state.catalog_needed);
+        assert!(state.snapshot.is_none());
+    }
+}

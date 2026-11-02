@@ -16,7 +16,7 @@ fn on_off(value: bool) -> &'static str {
     if value { "on" } else { "off" }
 }
 
-fn fresh(entity: &state::ViewEntity) -> Option<&state::ObservedState> {
+pub(crate) fn fresh(entity: &state::ViewEntity) -> Option<&state::ObservedState> {
     if !entity.__buffa_unknown_fields.is_empty() {
         return None;
     }
@@ -63,7 +63,7 @@ pub(crate) fn power(entity: &state::ViewEntity) -> Option<bool> {
         Value::Weather(_) | Value::Presence(_) | Value::PresenceDetails(_) => None,
     }
 }
-fn literal(entity: &state::ViewEntity) -> Option<&str> {
+pub(crate) fn literal(entity: &state::ViewEntity) -> Option<&str> {
     let observation = fresh(entity)?;
     use state::observed_state::Value;
     let value = match observation.value.as_ref()? {
@@ -255,7 +255,7 @@ fn project_nodes(
 fn unavailable(node: &Node) -> Node {
     let mut node = node.clone();
     node.diagnostic.clear();
-    node.inert("Condition de visibilité non disponible dans la vue autorisée à jour.");
+    node.inert("Visibility condition unavailable in the current authorized view.");
     node.children.clear();
     node
 }
@@ -429,7 +429,7 @@ mod tests {
         let grid = unavailable.last().unwrap();
         assert_eq!(grid.kind, Kind::Unsupported);
         assert!(grid.entity.is_none() && grid.recipes.is_none() && grid.children.is_empty());
-        assert!(grid.diagnostic.contains("visibilité"));
+        assert!(grid.diagnostic.contains("Visibility"));
         let popup = project_nodes(&native, &popup, &BTreeMap::new());
         assert_eq!(popup.len(), 1);
         assert!(popup[0].children.is_empty() && popup[0].recipes.is_none());

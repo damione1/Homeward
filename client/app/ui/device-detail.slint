@@ -1,0 +1,64 @@
+import { KitTheme } from "@kit/kit.slint";
+import { ProDeviceRow, ProDeviceKind, ProThermostatDetail, ProFanDetail, ProDimmerDetail, ProEntityTile, ProPowerIntent, ProValueIntent } from "@kit-pro/kit-pro.slint";
+
+// Selection and exact field identity come from the host. Large controls belong
+// to the equipment detail, while ordinary dashboard entities stay compact.
+export component HomewardDeviceDetail inherits VerticalLayout {
+    in property <KitTheme> theme;
+    in property <length> viewport-width;
+    in property <[ProDeviceRow]> devices;
+    in property <bool> interactive;
+    in property <bool> commands-ready;
+    callback edit(int,int,int,ProValueIntent);
+    callback choose(int,int,int);
+    callback power(int,int,ProPowerIntent);
+    callback brightness(int,int,float);
+    callback stop-tracking(int,int);
+    alignment: start; spacing: 12px;
+    for device in root.devices: VerticalLayout {
+        alignment: start; spacing: 8px;
+        if device.kind == ProDeviceKind.climate && device.has-primary-value: VerticalLayout {
+          for field in device.values: VerticalLayout {
+           if field.token == device.primary-value-token: ProThermostatDetail {
+            width: min(root.viewport-width,480px);
+            theme: root.theme; context: {token: device.token,generation: device.generation};
+            device: device; field: field; interactive: root.interactive; commands-enabled: root.commands-ready;
+            current-label: "Current temperature"; setpoint-label: "Setpoint"; apply-label: "Apply";
+            increment-label: "Increase"; decrement-label: "Decrease";
+            edit(t,g,f,intent) => { root.edit(t,g,f,intent); }
+            choose(t,g,c) => { root.choose(t,g,c); }
+        }
+          }
+        }
+        if device.kind == ProDeviceKind.fan: ProFanDetail {
+            width: min(root.viewport-width,480px); theme: root.theme;
+            context: {token: device.token,generation: device.generation}; device: device;
+            show-title: false; interactive: root.interactive; commands-enabled: root.commands-ready;
+            edit(t,g,f,intent) => { root.edit(t,g,f,intent); }
+            choose(t,g,c) => { root.choose(t,g,c); }
+            power-requested(t,g,intent) => { root.power(t,g,intent); }
+        }
+        if device.kind == ProDeviceKind.light && device.can-brightness: ProDimmerDetail {
+            width: min(root.viewport-width,480px); theme: root.theme;
+            context: {token: device.token,generation: device.generation}; device: device;
+            show-title: false; interactive: root.interactive; commands-enabled: root.commands-ready;
+            edit(t,g,f,intent) => { root.edit(t,g,f,intent); }
+            brightness-requested(t,g,value) => { root.brightness(t,g,value); }
+            power-requested(t,g,intent) => { root.power(t,g,intent); }
+        }
+        if device.kind != ProDeviceKind.fan && !(device.kind == ProDeviceKind.light && device.can-brightness) && (device.kind != ProDeviceKind.climate || !device.has-primary-value): ProEntityTile {
+            width: min(root.viewport-width,640px);
+            theme: root.theme; device: device; show-details: false;
+            interactive: root.interactive; commands-enabled: root.commands-ready;
+            on-label: "Turn On"; off-label: "Turn Off"; brightness-label: "Brightness";
+            unknown-access-label: "Control permission unknown"; denied-label: "Read-only";
+            stop-label: "Stop Tracking"; details-label: "Details";
+            apply-label: "Apply"; increment-label: "Increase"; decrement-label: "Decrease";
+            edit(t,g,f,intent) => { root.edit(t,g,f,intent); }
+            choose(t,g,c) => { root.choose(t,g,c); }
+            power-requested(t,g,intent) => { root.power(t,g,intent); }
+            brightness-requested(t,g,value) => { root.brightness(t,g,value); }
+            stop-tracking(t,g) => { root.stop-tracking(t,g); }
+        }
+    }
+}

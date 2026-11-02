@@ -24,10 +24,14 @@ mod dashboard_catalogue;
 mod dashboard_focus;
 mod dashboard_gestures;
 mod dashboard_host;
+mod dashboard_icons;
 mod dashboard_layout;
 mod dashboard_presentation;
 mod dashboard_selection;
 mod dashboard_visibility;
+mod dashboard_widget_host;
+mod dashboard_widget_reading;
+mod dashboard_widgets;
 mod device_view;
 #[cfg(test)]
 mod environment_probe;

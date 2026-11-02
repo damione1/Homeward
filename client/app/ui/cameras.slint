@@ -64,14 +64,14 @@ export component HomewardCameras inherits Rectangle {
         triggered=>{root.expire(root.data.generation);}
     }
     page:=KitScrollArea {
-        width:parent.width;height:parent.height;content-width:self.visible-width;
+        width:parent.width;height:parent.height;
         VerticalLayout {
             width:page.visible-width;padding:16px;spacing:16px;
             Text {text:root.data.notice;color:root.theme.text-secondary;font-size:14px*root.theme.text-scale;wrap:word-wrap;}
-            KitButton {theme:root.theme;text:"Relire les caméras";disabled:!root.interactive;control-size:ControlSize.comfortable;activated=>{root.reload-catalog(root.data.generation);}}
+            KitButton {theme:root.theme;text:"Refresh Cameras";disabled:!root.interactive;control-size:ControlSize.comfortable;activated=>{root.reload-catalog(root.data.generation);}}
             catalog:=KitContentList {
                 theme:root.theme;items:root.data.catalog;generation:root.data.generation;
-                label:"Caméras autorisées";empty-label:"Aucune caméra à afficher";preferred-height:180px;min-height:120px;
+                label:"Authorized Cameras";empty-label:"No cameras to display";preferred-height:180px;min-height:120px;
                 active-index:root.data.selected ? root.data.camera.token - 1 : -1;
                 activate(t,g)=>{root.choose(t,g);}
                 navigate(step)=>{root.catalog-navigate(step);}
@@ -80,8 +80,8 @@ export component HomewardCameras inherits Rectangle {
                 visible:root.data.selected && !root.video.visible;theme:root.theme;camera:root.data.camera;
                 interactive:root.interactive;picture-visible:root.preview-visible;
                 snapshot-selected:root.data.snapshot-selected;
-                refresh-label:"Recharger l’aperçu";snapshot-label:"Afficher l’instantané";
-                video-enabled:true;video-label:"Ouvrir la vidéo";
+                refresh-label:"Reload Preview";snapshot-label:"Show Snapshot";
+                video-enabled:true;video-label:"Open Video";
                 reload(t,g)=>{root.reload(t,g);}snapshot(t,g)=>{root.snapshot(t,g);}
                 video(t,g)=>{root.reveal-video=true;root.open-video(t,g);}
             }
@@ -89,12 +89,12 @@ export component HomewardCameras inherits Rectangle {
                 visible:root.data.selected && root.video.visible;theme:root.theme;video:root.video.video;
                 interactive:root.interactive;picture-visible:root.video-visible;
                 play-enabled:root.video.play-enabled;pause-enabled:root.video.pause-enabled;
-                play-label:"Relancer la vidéo";pause-label:"Mettre en pause";snapshot-label:"Revenir à l’instantané";
+                play-label:"Restart Video";pause-label:"Pause";snapshot-label:"Return to Snapshot";
                 action(t,g,a)=>{root.video-action(t,g,a);if(a==ProVideoAction.play){root.reveal-video=true;}if(a==ProVideoAction.snapshot){page.content-y=0px;catalog.take-focus();}}
             }
             ProCameraEvents {
                 visible:root.data.selected;theme:root.theme;rows:root.data.events;
-                interactive:root.interactive;title:"Événements de la caméra";empty-label:"Aucun événement dans la capture";
+                interactive:root.interactive;title:"Camera Events";empty-label:"No events in this snapshot";
                 min-height:320px;preferred-height:560px*root.theme.text-scale;
                 active-index:root.data.event-index;
                 select(t,g)=>{root.event(t,g);}navigate(step)=>{root.navigate(step);}

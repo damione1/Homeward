@@ -419,7 +419,7 @@ impl Run<'_> {
                 state.local_stopped = true;
                 state.stop_native();
                 state.notice =
-                    "Le reçu n’est pas confirmé. Aucun renvoi ni présentation automatique.".into();
+                    "The receipt is unconfirmed. It will not be resubmitted or shown automatically.".into();
             }
         } else {
             let value = call!(
@@ -442,7 +442,7 @@ impl Run<'_> {
                 state.pending = None;
                 state.local_stopped = true;
                 state.stop_native();
-                state.notice="L’opération n’est pas confirmée. Aucun renvoi automatique ; choisissez une nouvelle action si nécessaire.".into();
+                state.notice="The operation is unconfirmed. It will not be resubmitted automatically; choose a new action if needed.".into();
             }
         }
         Ok(())
@@ -1195,7 +1195,8 @@ impl Notifications {
                                     }
                                 }
                                 state.notice =
-                                    "Message expiré ou retiré ; aucun reçu renvoyé.".into();
+                                    "Message expired or removed; no receipt was resubmitted."
+                                        .into();
                                 state.requested = false;
                                 state.stage = Stage::Ready;
                             } else if error.kind() == FailureKind::Rpc(RpcCode::NotFound)
@@ -1206,12 +1207,12 @@ impl Notifications {
                                 state.stage = Stage::Unregistered;
                                 state.local_stopped = true;
                                 state.notice =
-                                    "Aucune inscription retrouvée. Aucun renvoi automatique."
+                                    "No registration found. It will not be resubmitted automatically."
                                         .into();
                             } else {
                                 state.stage = Stage::Uncertain;
                                 state.requested = !state.resolution_attempted;
-                                state.notice="Résultat incertain : résolution par lecture, sans renvoi de mutation.".into();
+                                state.notice="Outcome uncertain: checking by reading, without resubmitting the mutation.".into();
                             }
                         } else {
                             state.entries.clear();

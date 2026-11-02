@@ -1,9 +1,8 @@
-import { KitWrap, KitTheme } from "@kit/kit.slint";
+import { KitWrap } from "@kit/kit.slint";
 import { ProDeviceCard, ProDeviceRow, ProPowerIntent, ProValueIntent } from "@kit-pro/kit-pro.slint";
 // Product composition and French labels. Every card's behavior lives in Pro;
 // server identities, permission checks and execution remain in Rust.
 export component HomewardDevices inherits KitWrap {
-    in property <KitTheme> theme;
     in property <length> viewport-width;
     in property <[ProDeviceRow]> devices;
     in property <bool> interactive;
@@ -22,10 +21,10 @@ export component HomewardDevices inherits KitWrap {
         theme: root.theme; device: device;
         show-details: root.show-details;
         interactive: root.interactive; commands-enabled: root.commands-ready;
-        on-label: "Allumer"; off-label: "Éteindre"; brightness-label: "Luminosité";
-        unknown-access-label: "Droit de commande inconnu"; denied-label: "Lecture seule";
-        stop-label: "Arrêter le suivi"; details-label: "Détails";
-        apply-label: "Appliquer"; increment-label: "Augmenter"; decrement-label: "Diminuer";
+        on-label: "Turn On"; off-label: "Turn Off"; brightness-label: "Brightness";
+        unknown-access-label: "Control permission unknown"; denied-label: "Read-only";
+        stop-label: "Stop Tracking"; details-label: "Details";
+        apply-label: "Apply"; increment-label: "Increase"; decrement-label: "Decrease";
         edit(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
         choose(token,generation,choice) => { root.choose(token,generation,choice); }
         power-requested(token,generation,intent) => { root.power(token,generation,intent); }

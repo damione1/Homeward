@@ -51,17 +51,17 @@ impl Field {
     }
     fn label(self) -> &'static str {
         match self {
-            Self::Family => "Famille de source",
-            Self::Identity => "Identité logique",
-            Self::Entry => "Fichier d’entrée",
-            Self::Path => "Chemin logique du fichier sélectionné",
-            Self::Source => "Octets exacts fournis",
-            Self::Files => "Fichiers du candidat",
-            Self::Plan => "Aperçu du serveur",
-            Self::Base => "Base de comparaison du plan",
-            Self::Changes => "Changements annoncés",
-            Self::Diagnostics => "Diagnostics du plan",
-            Self::Captured => "Références capturées",
+            Self::Family => "Source Family",
+            Self::Identity => "Logical Identity",
+            Self::Entry => "Entry File",
+            Self::Path => "Selected File’s Logical Path",
+            Self::Source => "Exact Bytes Provided",
+            Self::Files => "Candidate Files",
+            Self::Plan => "Server Preview",
+            Self::Base => "Plan Comparison Baseline",
+            Self::Changes => "Reported Changes",
+            Self::Diagnostics => "Plan Diagnostics",
+            Self::Captured => "Captured References",
         }
     }
 }
@@ -120,7 +120,7 @@ impl Editor {
             next_file: Some(2),
             plan: None,
             stale: false,
-            notice: "Fournissez vos fichiers exacts. Construire ou revalider un aperçu n’active aucune configuration.",
+            notice: "Provide your exact files. Building or revalidating a preview activates no configuration.",
         }
     }
     pub fn observe(&mut self, current: &Capture) {
@@ -129,7 +129,7 @@ impl Editor {
             || self.captured.workspace() != current.workspace()
         {
             self.stale = true;
-            self.notice = "Les références ont changé. Le candidat est conservé ; relisez et résolvez explicitement avant une future activation.";
+            self.notice = "References changed. The candidate is retained; reload and resolve explicitly before a future activation.";
         }
     }
     pub fn resolve(&mut self, current: Capture) {
@@ -138,8 +138,7 @@ impl Editor {
         self.captured = current;
         self.stale = false;
         self.plan = None;
-        self.notice =
-            "Références relues explicitement. Construisez un nouvel aperçu pour ces fichiers.";
+        self.notice = "References explicitly reloaded. Build a new preview for these files.";
     }
     pub fn notice(&self) -> &'static str {
         self.notice
@@ -166,8 +165,7 @@ impl Editor {
     fn invalidate(&mut self) {
         self.simulation.clear();
         self.plan = None;
-        self.notice =
-            "Candidat modifié ; l’aperçu précédent a été retiré. Aucun fichier n’a été envoyé.";
+        self.notice = "Candidate changed; the previous preview was removed. No file was sent.";
     }
     pub fn edit(&mut self, token: i32, text: String) {
         if !self.mutable() {
@@ -179,7 +177,7 @@ impl Editor {
         }
         if let Some(field) = simulation::Field::admit(token) {
             self.simulation.edit(field, text);
-            self.notice = "Paramètres de simulation modifiés ; le rapport précédent a été retiré. Aucun appareil n’a été interrogé.";
+            self.notice = "Simulation settings changed; the previous report was removed. No device was queried.";
             return;
         }
         let text = Zeroizing::new(text);
@@ -219,7 +217,7 @@ impl Editor {
                     .map(|file| file.source.len())
                     .sum();
                 if text.len() > MAX_BYTES - other_bytes {
-                    self.notice = "Le candidat dépasse la limite totale de 1 Mio ; la saisie précédente est conservée.";
+                    self.notice = "The candidate exceeds the 1 MiB total limit; the previous input is retained.";
                     return;
                 }
                 self.files
@@ -297,22 +295,23 @@ impl Editor {
                     .and_then(|candidate| self.simulation.request(&candidate));
                 match request {
                     Ok(request) => {
-                        self.notice = "Simulation en cours avec vos états synthétiques ; aucune commande physique.";
+                        self.notice =
+                            "Simulating with your synthetic states; no physical commands.";
                         return Some(Operation::Simulate(request));
                     }
                     Err(_) => {
-                        self.notice = "Simulation non envoyée : vérifiez la famille logique, les fichiers, l’horloge, les événements et les doubles JSON.";
+                        self.notice = "Simulation not sent: check the logic family, files, clock, events and JSON test doubles.";
                         return None;
                     }
                 }
             }
             ProAdminAction::AddFile => {
                 if self.files.len() >= 64 {
-                    self.notice = "Le candidat est limité à 64 fichiers.";
+                    self.notice = "The candidate is limited to 64 files.";
                     return None;
                 }
                 let Some(next) = self.next_file else {
-                    self.notice = "Impossible d’ouvrir un autre fichier dans ce formulaire.";
+                    self.notice = "Cannot open another file in this form.";
                     return None;
                 };
                 self.next_file = next.checked_add(1);
@@ -337,11 +336,11 @@ impl Editor {
             }
             ProAdminAction::Preview | ProAdminAction::Revalidate => {
                 let Ok(candidate) = self.candidate() else {
-                    self.notice = "Complétez l’identité, l’entrée et chaque fichier ; chemins uniques, entrée présente, total maximal 1 Mio.";
+                    self.notice = "Complete the identity, entry point and every file; paths must be unique, the entry point must exist, and the total must not exceed 1 MiB.";
                     return None;
                 };
                 if action == ProAdminAction::Preview {
-                    self.notice = "Construction de l’aperçu ; aucune activation.";
+                    self.notice = "Building preview; nothing will be activated.";
                     return Some(Operation::Build(candidate.build_request()));
                 }
                 let Some(plan) = &self.plan else {
@@ -350,7 +349,7 @@ impl Editor {
                 if plan.receipt.is_empty() {
                     return None;
                 }
-                self.notice = "Revalidation de l’aperçu ; aucune activation.";
+                self.notice = "Revalidating preview; nothing will be activated.";
                 return Some(Operation::Revalidate(wire::RevalidatePlanRequest {
                     candidate: candidate.to_wire().into(),
                     receipt: plan.receipt.clone(),
@@ -376,13 +375,13 @@ impl Editor {
         }
         self.notice = match plan.state {
             EnumValue::Known(wire::PlanState::Admitted) => {
-                "Aperçu admis. Son reçu est diagnostique ; aucune configuration n’est activée."
+                "Preview accepted. Its receipt is diagnostic only; no configuration is activated."
             }
             EnumValue::Known(wire::PlanState::Rejected) => {
-                "Candidat rejeté. Consultez les diagnostics ; aucune activation."
+                "Candidate rejected. Review the diagnostics; nothing was activated."
             }
             EnumValue::Known(wire::PlanState::Stale) => {
-                "Aperçu périmé. Relisez les références et construisez un nouvel aperçu."
+                "Preview outdated. Reload the references and build a new preview."
             }
             EnumValue::Known(wire::PlanState::Unspecified) | EnumValue::Unknown(_) => {
                 self.failed();
@@ -394,18 +393,18 @@ impl Editor {
     }
     pub fn failed(&mut self) {
         self.plan = None;
-        self.notice = "Aperçu indisponible ou non pris en charge. Le candidat reste privé ; aucune activation n’a été tentée.";
+        self.notice = "Preview unavailable or unsupported. The candidate stays private; no activation was attempted.";
     }
     pub fn simulation_failed(&mut self) {
         self.simulation.clear();
-        self.notice = "Simulation indisponible ou non prise en charge. L’aperçu reste distinct ; aucune activation n’a été tentée.";
+        self.notice = "Simulation unavailable or unsupported. The preview remains separate; no activation was attempted.";
     }
     pub fn accept_simulation(
         &mut self,
         response: home_wire_contract::home::configurationsimulation::v1::SimulatePlanResponse,
     ) {
         if self.simulation.accept(response) {
-            self.notice = "Rapport de simulation reçu. Les intentions sont synthétiques ; aucune configuration publiée ni aucun appareil validé.";
+            self.notice = "Simulation report received. Actions are synthetic; no configuration was published and no device was validated.";
         } else {
             self.simulation_failed();
         }
@@ -428,40 +427,40 @@ impl Editor {
     pub fn actions(&self, available: bool) -> Vec<ProAdminActionRow> {
         let valid = available && self.input_complete();
         [
-            (ProAdminAction::Preview, "Construire l’aperçu", valid),
+            (ProAdminAction::Preview, "Build Preview", valid),
             (
                 ProAdminAction::Refresh,
-                "Lire les références du fichier",
+                "Read File References",
                 available && self.family != SourceFamily::Operational,
             ),
             (
                 ProAdminAction::Restore,
-                "Charger l’historique pour un retour",
+                "Load History for Restore",
                 available,
             ),
             (
                 ProAdminAction::More,
-                "Page historique suivante",
+                "Next History Page",
                 available && self.history_more().is_some(),
             ),
             (
                 ProAdminAction::Apply,
-                "Confirmer l’application de ce candidat",
+                "Confirm Applying This Candidate",
                 available && self.can_apply(),
             ),
             (
                 ProAdminAction::Rollback,
-                "Confirmer le retour historique sélectionné",
+                "Confirm Selected Historical Restore",
                 available && self.can_rollback(),
             ),
             (
                 ProAdminAction::Simulate,
-                "Simuler avec les doubles fournis",
+                "Simulate With Provided Test Doubles",
                 valid && self.family.simulatable(),
             ),
             (
                 ProAdminAction::Revalidate,
-                "Revalider l’aperçu",
+                "Revalidate Preview",
                 valid
                     && self
                         .plan
@@ -470,25 +469,25 @@ impl Editor {
             ),
             (
                 ProAdminAction::AddFile,
-                "Ajouter un fichier",
+                "Add File",
                 available && self.mutable() && self.files.len() < 64,
             ),
             (
                 ProAdminAction::RemoveFile,
-                "Retirer ce fichier",
+                "Remove This File",
                 available && self.mutable() && self.files.len() > 1,
             ),
             (
                 ProAdminAction::NextFile,
-                "Fichier suivant",
+                "Next File",
                 available && self.files.len() > 1,
             ),
             (
                 ProAdminAction::Resolve,
-                "Relire et résoudre les références",
+                "Reload and Resolve References",
                 available,
             ),
-            (ProAdminAction::Cancel, "Fermer", true),
+            (ProAdminAction::Cancel, "Close", true),
         ]
         .into_iter()
         .map(|(action, label, enabled)| ProAdminActionRow {
@@ -511,7 +510,7 @@ impl Editor {
                     .iter()
                     .map(|file| {
                         format!(
-                            "{}{} · {} octets",
+                            "{}{} · {} bytes",
                             if file.key == self.selected {
                                 "→ "
                             } else {
@@ -530,16 +529,16 @@ impl Editor {
             field(
                 Field::Captured,
                 format!(
-                    "SQL {} · {}\nActif {} · {}\nWorkspace : {}\n{}",
+                    "SQL {} · {}\nActive {} · {}\nWorkspace: {}\n{}",
                     self.captured.sql().revision(),
                     render::hex(self.captured.sql().source().bytes()),
                     self.captured.active().revision(),
                     render::hex(self.captured.active().manifest().bytes()),
                     super::workspace_label(self.captured.workspace()),
                     if self.stale {
-                        "Capture à résoudre"
+                        "Snapshot to Resolve"
                     } else {
-                        "Capture initiale ou explicitement résolue"
+                        "Initial or explicitly resolved snapshot"
                     }
                 ),
                 false,
@@ -547,34 +546,34 @@ impl Editor {
         ];
         if let Some(plan) = &self.plan {
             let state = match plan.state {
-                EnumValue::Known(wire::PlanState::Admitted) => "Admis",
-                EnumValue::Known(wire::PlanState::Rejected) => "Rejeté",
-                EnumValue::Known(wire::PlanState::Stale) => "Périmé",
+                EnumValue::Known(wire::PlanState::Admitted) => "Accepted",
+                EnumValue::Known(wire::PlanState::Rejected) => "Rejected",
+                EnumValue::Known(wire::PlanState::Stale) => "Outdated",
                 EnumValue::Known(wire::PlanState::Unspecified) | EnumValue::Unknown(_) => {
-                    "Non pris en charge"
+                    "Unsupported"
                 }
             };
-            fields.push(field(Field::Plan,format!("{} · {}\nAuteur {}\nFamille {} · identité {}\nPortée : {}\nSource {}\nSémantique {}\nGénération {} · {}\nWorkspace du plan {}\nReçu diagnostique : {}\nCet aperçu ne prouve aucun enregistrement ni publication",state,plan.schema_version,plan.author,self.family.label(),plan.identity,effect(plan.effect),render::hex(&plan.source_sha256),plan.semantic_sha256.as_ref().map_or_else(||"absente".into(),|value|render::hex(value)),plan.generation_revision,render::hex(&plan.manifest_sha256),render::hex(&plan.observed_workspace_sha256),if plan.receipt.is_empty(){"absent"}else{"fourni par le serveur"}),false));
+            fields.push(field(Field::Plan,format!("{} · {}\nAuthor {}\nFamily {} · identity {}\nScope: {}\nSource {}\nSemantics {}\nGeneration {} · {}\nPlan workspace {}\nDiagnostic receipt: {}\nThis preview proves neither saving nor publication",state,plan.schema_version,plan.author,self.family.label(),plan.identity,effect(plan.effect),render::hex(&plan.source_sha256),plan.semantic_sha256.as_ref().map_or_else(||"missing".into(),|value|render::hex(value)),plan.generation_revision,render::hex(&plan.manifest_sha256),render::hex(&plan.observed_workspace_sha256),if plan.receipt.is_empty(){"missing"}else{"provided by the server"}),false));
             let kind = match plan.base.kind {
-                EnumValue::Known(wire::BaseKind::ActiveSql) => "Version SQL active",
-                EnumValue::Known(wire::BaseKind::ImmutableReference) => "Référence immuable",
-                EnumValue::Known(wire::BaseKind::NoActiveDocument) => "Aucun document actif",
+                EnumValue::Known(wire::BaseKind::ActiveSql) => "Active SQL Version",
+                EnumValue::Known(wire::BaseKind::ImmutableReference) => "Immutable Reference",
+                EnumValue::Known(wire::BaseKind::NoActiveDocument) => "No active document",
                 EnumValue::Known(wire::BaseKind::Unspecified) | EnumValue::Unknown(_) => {
-                    "Non prise en charge"
+                    "Unsupported"
                 }
             };
             fields.push(field(
                 Field::Base,
                 format!(
-                    "{}\nRévision {}\nHash {}",
+                    "{}\nRevision {}\nHash {}",
                     kind,
                     plan.base
                         .revision
-                        .map_or_else(|| "absente".into(), |value| value.to_string()),
+                        .map_or_else(|| "missing".into(), |value| value.to_string()),
                     plan.base
                         .source_sha256
                         .as_ref()
-                        .map_or_else(|| "absent".into(), |value| render::hex(value))
+                        .map_or_else(|| "missing".into(), |value| render::hex(value))
                 ),
                 false,
             ));
@@ -584,13 +583,13 @@ impl Editor {
                     .iter()
                     .map(|change| {
                         format!(
-                            "{} · {} · {} · références +{} / -{}",
+                            "{} · {} · {} · references +{} / -{}",
                             match change.operation {
-                                EnumValue::Known(wire::ChangeOperation::Added) => "Ajout",
-                                EnumValue::Known(wire::ChangeOperation::Removed) => "Retrait",
-                                EnumValue::Known(wire::ChangeOperation::Replaced) => "Remplacement",
+                                EnumValue::Known(wire::ChangeOperation::Added) => "Added",
+                                EnumValue::Known(wire::ChangeOperation::Removed) => "Removed",
+                                EnumValue::Known(wire::ChangeOperation::Replaced) => "Replaced",
                                 EnumValue::Known(wire::ChangeOperation::Unspecified)
-                                | EnumValue::Unknown(_) => "Non pris en charge",
+                                | EnumValue::Unknown(_) => "Unsupported",
                             },
                             change.field,
                             effect(change.effect),
@@ -607,19 +606,19 @@ impl Editor {
                 plan.diagnostics
                     .iter()
                     .map(|code| match code {
-                        EnumValue::Known(wire::DiagnosticCode::InvalidSchema) => "Schéma invalide",
+                        EnumValue::Known(wire::DiagnosticCode::InvalidSchema) => "Invalid schema",
                         EnumValue::Known(wire::DiagnosticCode::ExcludedReference) => {
-                            "Référence exclue"
+                            "Excluded Reference"
                         }
                         EnumValue::Known(wire::DiagnosticCode::UnsupportedSource) => {
-                            "Source non prise en charge"
+                            "Unsupported source"
                         }
-                        EnumValue::Known(wire::DiagnosticCode::Capacity) => "Capacité dépassée",
+                        EnumValue::Known(wire::DiagnosticCode::Capacity) => "Capacity exceeded",
                         EnumValue::Known(wire::DiagnosticCode::BaseUnavailable) => {
-                            "Base indisponible"
+                            "Baseline unavailable"
                         }
                         EnumValue::Known(wire::DiagnosticCode::Unspecified)
-                        | EnumValue::Unknown(_) => "Diagnostic non pris en charge",
+                        | EnumValue::Unknown(_) => "Unsupported diagnostic",
                     })
                     .collect::<Vec<_>>()
                     .join("\n"),
@@ -650,42 +649,40 @@ impl Editor {
 }
 fn effect(value: EnumValue<wire::Effect>) -> &'static str {
     match value {
-        EnumValue::Known(wire::Effect::None) => "Aucun changement",
+        EnumValue::Known(wire::Effect::None) => "No changes",
         EnumValue::Known(wire::Effect::Dashboard) => "Dashboard",
-        EnumValue::Known(wire::Effect::Configuration) => "Configuration du serveur",
-        EnumValue::Known(wire::Effect::HumanRights) => "Droits humains",
-        EnumValue::Known(wire::Effect::TechnicalOwnership) => "Propriété technique",
-        EnumValue::Known(wire::Effect::RunTargets) => "Cibles d’exécution logique",
-        EnumValue::Known(wire::Effect::Unspecified) | EnumValue::Unknown(_) => {
-            "Portée non prise en charge"
-        }
+        EnumValue::Known(wire::Effect::Configuration) => "Server Configuration",
+        EnumValue::Known(wire::Effect::HumanRights) => "User Permissions",
+        EnumValue::Known(wire::Effect::TechnicalOwnership) => "Technical Ownership",
+        EnumValue::Known(wire::Effect::RunTargets) => "Logic Execution Targets",
+        EnumValue::Known(wire::Effect::Unspecified) | EnumValue::Unknown(_) => "Unsupported scope",
     }
 }
 fn field(field: Field, value: String, editable: bool) -> ProAdminField {
     let (kind, description) = match field {
         Field::Source => (
             ProAdminFieldKind::Multiline,
-            "Octets fournis explicitement ; jamais reconstruits depuis les métadonnées",
+            "Explicitly provided bytes; never reconstructed from metadata",
         ),
         Field::Identity | Field::Entry | Field::Path => (
             ProAdminFieldKind::Plain,
-            "Valeur fournie explicitement pour ce candidat",
+            "Value Explicitly Provided for This Candidate",
         ),
         Field::Family => (
             ProAdminFieldKind::Plain,
-            "Compilateur existant sélectionné pour ce candidat",
+            "Existing compiler selected for this candidate",
         ),
         Field::Files => (
             ProAdminFieldKind::Multiline,
-            "Fichiers fournis pour ce candidat, limités à 64 et 1 Mio au total",
+            "Files provided for this candidate, limited to 64 files and 1 MiB total",
         ),
         Field::Plan | Field::Base | Field::Changes | Field::Diagnostics => (
             ProAdminFieldKind::Multiline,
-            "Résultat diagnostique fourni par le serveur ; aucune autorisation d’activer",
+            "Server-provided diagnostic result; does not authorize activation",
         ),
         Field::Captured => (
             ProAdminFieldKind::Multiline,
-            "Références SQL, manifeste actif et fichiers observés distinctes",
+            "Separate SQL references, active manifest and observed files",
         ),
     };
     ProAdminField {

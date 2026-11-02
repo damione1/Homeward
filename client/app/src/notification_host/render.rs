@@ -34,63 +34,63 @@ fn permission(v: &wire::PermissionSnapshot) -> String {
     };
     if let Some(platform) = platform {
         let permission = match v.permission {
-            EnumValue::Known(wire::Permission::NotRequested) => "non demandée",
-            EnumValue::Known(wire::Permission::Denied) => {
-                "refusée · modifiable dans les réglages du système"
-            }
-            EnumValue::Known(wire::Permission::Authorized) => "accordée",
+            EnumValue::Known(wire::Permission::NotRequested) => "not requested",
+            EnumValue::Known(wire::Permission::Denied) => "denied · change it in system settings",
+            EnumValue::Known(wire::Permission::Authorized) => "granted",
             EnumValue::Known(wire::Permission::Provisional) => "provisoire",
             EnumValue::Known(wire::Permission::Ephemeral) => "temporaire",
             EnumValue::Known(wire::Permission::Unknown | wire::Permission::Unspecified)
-            | EnumValue::Unknown(_) => "inconnue",
+            | EnumValue::Unknown(_) => "unknown",
         };
         return format!(
-            "Autorisation {platform} {permission} · Bannières : {} · Centre OS : {}",
+            "{platform} permission {permission} · Banners: {} · System notification center: {}",
             setting(v.alerts),
             setting(v.notification_center)
         );
     }
     match v.source {
-        EnumValue::Known(wire::PermissionSource::BundleRequired) => "Ouvrez l’application macOS installée pour recevoir des notifications natives.",
-        EnumValue::Known(wire::PermissionSource::AndroidPendingQualification) => "Android/Fire : réception en arrière-plan à qualifier, sans Google Play Services obligatoire.",
-        EnumValue::Known(wire::PermissionSource::Unsupported) => "Permissions OS indisponibles ; l’inbox reste distincte de l’affichage natif.",
-        EnumValue::Known(wire::PermissionSource::Unspecified | wire::PermissionSource::MacOsUserNotifications | wire::PermissionSource::AndroidNotificationManager) | EnumValue::Unknown(_) => "Permission non admise",
+        EnumValue::Known(wire::PermissionSource::BundleRequired) => "Open the installed macOS app to receive native notifications.",
+        EnumValue::Known(wire::PermissionSource::AndroidPendingQualification) => "Android/Fire: background reception has not been qualified; Google Play Services is not required.",
+        EnumValue::Known(wire::PermissionSource::Unsupported) => "OS permissions unavailable; the inbox is separate from native notification display.",
+        EnumValue::Known(wire::PermissionSource::Unspecified | wire::PermissionSource::MacOsUserNotifications | wire::PermissionSource::AndroidNotificationManager) | EnumValue::Unknown(_) => "Permission rejected",
     }.into()
 }
 
 fn setting(value: EnumValue<wire::Setting>) -> &'static str {
     match value {
-        EnumValue::Known(wire::Setting::Enabled) => "activé",
-        EnumValue::Known(wire::Setting::Disabled) => "désactivé",
-        EnumValue::Known(wire::Setting::Unsupported) => "non disponible",
+        EnumValue::Known(wire::Setting::Enabled) => "enabled",
+        EnumValue::Known(wire::Setting::Disabled) => "disabled",
+        EnumValue::Known(wire::Setting::Unsupported) => "unavailable",
         EnumValue::Known(wire::Setting::Unknown | wire::Setting::Unspecified)
-        | EnumValue::Unknown(_) => "inconnu",
+        | EnumValue::Unknown(_) => "unknown",
     }
 }
 fn transport(value: &wire::Delivery) -> &'static str {
     match value.transport_acceptance {
-        EnumValue::Known(wire::TransportAcceptance::AcceptedForegroundLan) => "Transport accepté",
-        EnumValue::Known(wire::TransportAcceptance::ProviderRejected) => "Refus du fournisseur",
-        EnumValue::Known(wire::TransportAcceptance::Unavailable) => "Transport indisponible",
+        EnumValue::Known(wire::TransportAcceptance::AcceptedForegroundLan) => "Transport accepted",
+        EnumValue::Known(wire::TransportAcceptance::ProviderRejected) => "Provider rejection",
+        EnumValue::Known(wire::TransportAcceptance::Unavailable) => "Transport unavailable",
         EnumValue::Known(wire::TransportAcceptance::Unspecified) | EnumValue::Unknown(_) => {
-            "Transport non admis"
+            "Transport rejected"
         }
     }
 }
 fn presentation(value: &wire::Delivery) -> &'static str {
     match value.presentation {
-        EnumValue::Known(wire::Presentation::NotAttempted) => "Présentation non tentée",
+        EnumValue::Known(wire::Presentation::NotAttempted) => "Presentation not attempted",
         EnumValue::Known(wire::Presentation::OsAccepted) => {
-            "Demande acceptée par l’OS · affichage non attesté"
+            "Request accepted by the OS · display not verified"
         }
-        EnumValue::Known(wire::Presentation::PresentInOsCenter) => "Remise attestée au centre OS",
+        EnumValue::Known(wire::Presentation::PresentInOsCenter) => {
+            "Delivery to the system notification center verified"
+        }
         EnumValue::Known(wire::Presentation::OutcomeUnknown) => {
-            "Résultat OS inconnu · aucun renvoi"
+            "OS result unknown · no resubmission"
         }
-        EnumValue::Known(wire::Presentation::PermissionDenied) => "Permission refusée",
-        EnumValue::Known(wire::Presentation::Unavailable) => "Présentation indisponible",
+        EnumValue::Known(wire::Presentation::PermissionDenied) => "Permission denied",
+        EnumValue::Known(wire::Presentation::Unavailable) => "Presentation unavailable",
         EnumValue::Known(wire::Presentation::Unspecified) | EnumValue::Unknown(_) => {
-            "Présentation non admise"
+            "Presentation rejected"
         }
     }
 }
@@ -112,9 +112,9 @@ pub(super) fn project(state: &State) -> Projection {
         .filter_map(|entry| {
             let key = state.row_key(&admit::DeliveryId::parse(&entry.id.value).ok()?)?;
             let received = if entry.reception == wire::Reception::Received {
-                "Reçu"
+                "Received"
             } else {
-                "Réception à acquitter"
+                "Receipt awaiting acknowledgment"
             };
             let foreground = state
                 .native
@@ -128,10 +128,10 @@ pub(super) fn project(state: &State) -> Projection {
             let foreground = match foreground {
                 os::ForegroundEvidence::NotObserved => "",
                 os::ForegroundEvidence::AllowedByDelegate => {
-                    "\nPrésentation au premier plan demandée"
+                    "\nForeground notification presentation requested"
                 }
                 os::ForegroundEvidence::SuppressedByDelegate => {
-                    "\nPrésentation au premier plan suspendue"
+                    "\nForeground notification presentation paused"
                 }
             };
             Some(Row {
@@ -152,17 +152,16 @@ pub(super) fn project(state: &State) -> Projection {
         view: NotificationPresentation {
             generation: state.generation,
             status: if state.background_running() && matches!(state.stage, Stage::Ready) {
-                "Réception locale avec service Android actif · serveur de développement isolé"
-                    .into()
+                "Local reception with Android service active · isolated development server".into()
             } else {
                 state.stage.label().into()
             },
             permission: permission(&state.permission).into(),
             notice: if state.notice.is_empty() {
                 if state.background_supported {
-                    "Les messages sont propres à cette installation. Réception au premier plan, ou avec le service activé séparément. Aucune réception permanente en arrière-plan n’est garantie.".into()
+                    "Messages are specific to this installation. Receive them in the foreground or through the separately enabled service. Continuous background reception is not guaranteed.".into()
                 } else {
-                    "Les messages sont propres à cette installation. La réception locale nécessite l’application au premier plan ; aucune réception permanente en arrière-plan n’est garantie.".into()
+                    "Messages are specific to this installation. Local reception requires the app in the foreground; continuous background reception is not guaranteed.".into()
                 }
             } else {
                 state.notice.as_str().into()
@@ -185,9 +184,9 @@ pub(super) fn project(state: &State) -> Projection {
                         .as_ref()
                         .is_some_and(|d| !d.native_delivery)),
             permission_action_label: match os::backend() {
-                os::Backend::MacOs => "Demander l’autorisation macOS",
-                os::Backend::Android => "Configurer les notifications Android",
-                os::Backend::Unavailable => "Notifications indisponibles",
+                os::Backend::MacOs => "Request macOS Permission",
+                os::Backend::Android => "Configure Android Notifications",
+                os::Backend::Unavailable => "Notifications unavailable",
             }
             .into(),
             can_permission: free
@@ -210,9 +209,9 @@ pub(super) fn project(state: &State) -> Projection {
                 "".into()
             } else {
                 match state.background.as_ref().map(|v| v.source.status()) {
-                    None | Some(os::ReceptionStatus::Stopped) => "Arrière-plan arrêté · activation explicite nécessaire".into(),
-                    Some(os::ReceptionStatus::Starting) => "Démarrage du service système…".into(),
-                    Some(os::ReceptionStatus::Running) => "Arrière-plan actif · notification système avec arrêt · réseau et batterie utilisés. Doze/Fire peut retarder ou arrêter la réception. Aucun redémarrage automatique.".into(),
+                    None | Some(os::ReceptionStatus::Stopped) => "Background reception stopped · enable it explicitly to resume".into(),
+                    Some(os::ReceptionStatus::Starting) => "Starting the system service…".into(),
+                    Some(os::ReceptionStatus::Running) => "Background reception active · stop it from the system notification · uses network and battery. Doze/Fire may delay or stop reception. It will not restart automatically.".into(),
                 }
             },
             can_start_background: free
@@ -241,5 +240,6 @@ pub(super) fn apply(window: &HomewardWindow, projection: Projection) {
         })
         .collect::<Vec<_>>();
     window.set_notification_view(projection.view);
+    window.set_notification_has_unread(rows.iter().any(|row| !row.read));
     window.set_notification_rows(ModelRc::new(VecModel::from(rows)));
 }

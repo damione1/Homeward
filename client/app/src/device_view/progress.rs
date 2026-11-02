@@ -6,20 +6,20 @@ type Presentation = (Phase, &'static str, &'static str);
 fn contract_error(error: &wire::ContractError) -> &'static str {
     match error.code {
         EnumValue::Known(wire::ErrorCode::InvalidArgument) => {
-            "La valeur demandée a été refusée avant admission."
+            "The requested value was rejected before admission."
         }
         EnumValue::Known(wire::ErrorCode::UnsupportedCapability) => {
-            "Cette fonction n’est plus commandable."
+            "This capability can no longer be controlled."
         }
         EnumValue::Known(wire::ErrorCode::StaleEpoch) => {
-            "Le serveur a redémarré. Reprenez le geste sur la nouvelle vue."
+            "The server restarted. Repeat the gesture in the new view."
         }
         EnumValue::Known(wire::ErrorCode::StaleConfiguration) => {
-            "La configuration a changé. Reprenez le geste sur la nouvelle vue."
+            "The configuration changed. Repeat the gesture in the new view."
         }
-        EnumValue::Known(wire::ErrorCode::PermissionDenied) => "Votre autorisation a été retirée.",
+        EnumValue::Known(wire::ErrorCode::PermissionDenied) => "Your authorization was removed.",
         EnumValue::Known(wire::ErrorCode::Unspecified) | EnumValue::Unknown(_) => {
-            "Le refus n’est pas reconnu par cette version."
+            "This version does not recognize the rejection."
         }
     }
 }
@@ -34,29 +34,29 @@ pub(crate) fn presentation(snapshot: Option<&ActionSnapshot>) -> Presentation {
             EnumValue::Known(wire::ActionStatus::Confirmed) => {
                 return (
                     Phase::Confirmed,
-                    "Effet confirmé",
-                    "Confirmation reçue du serveur ; l’observation reste affichée séparément.",
+                    "Effect confirmed",
+                    "Server confirmation received; the observed state remains separate.",
                 );
             }
             EnumValue::Known(wire::ActionStatus::Failed) => {
                 return (
                     Phase::Failed,
-                    "Échec de la commande",
-                    "Le suivi serveur signale un échec. L’observation reste inchangée.",
+                    "Command failed",
+                    "Server tracking reports a failure. The observed state is unchanged.",
                 );
             }
             EnumValue::Known(wire::ActionStatus::Cancelled) => {
                 return (
                     Phase::Cancelled,
-                    "Commande annulée",
-                    "Le serveur a terminé cette action comme annulée.",
+                    "Command cancelled",
+                    "The server ended this action as cancelled.",
                 );
             }
             EnumValue::Known(wire::ActionStatus::Indeterminate) => {
                 return (
                     Phase::Indeterminate,
-                    "Résultat indéterminé",
-                    "La commande a pu être exécutée. Aucune nouvelle soumission automatique.",
+                    "Couldn’t confirm the result",
+                    "The command may have executed. It will not be submitted again automatically.",
                 );
             }
             EnumValue::Known(
@@ -67,8 +67,8 @@ pub(crate) fn presentation(snapshot: Option<&ActionSnapshot>) -> Presentation {
             EnumValue::Known(wire::ActionStatus::Unspecified) | EnumValue::Unknown(_) => {
                 return (
                     Phase::Unavailable,
-                    "Progression non reconnue",
-                    "Cette version ne peut pas interpréter le suivi reçu.",
+                    "Unrecognized progress",
+                    "This version cannot interpret the received command status.",
                 );
             }
         }
@@ -77,22 +77,22 @@ pub(crate) fn presentation(snapshot: Option<&ActionSnapshot>) -> Presentation {
         LiveState::Stopped => {
             return (
                 Phase::Stopped,
-                "Suivi arrêté sur cet appareil",
-                "Cela n’annule pas une commande déjà admise par le serveur.",
+                "Tracking stopped on this device",
+                "This does not cancel a command the server has already accepted.",
             );
         }
         LiveState::Unavailable => {
             return (
                 Phase::Unavailable,
-                "Suivi en direct indisponible",
-                "Le résultat durable est conservé. Aucun effet physique supplémentaire n’est déduit.",
+                "Live tracking unavailable",
+                "The saved result is retained. No additional physical effect is inferred.",
             );
         }
         LiveState::Interrupted => {
             return (
                 Phase::Interrupted,
-                "Suivi interrompu",
-                "Relecture de la même commande ; aucune nouvelle soumission.",
+                "Tracking interrupted",
+                "Checking the same command again; no new submission.",
             );
         }
         LiveState::NotRequested | LiveState::Available => {}
@@ -101,24 +101,24 @@ pub(crate) fn presentation(snapshot: Option<&ActionSnapshot>) -> Presentation {
         && response.status == wire::ActionStatus::Failed
         && let Some(error) = response.error.as_option()
     {
-        return (Phase::Refused, "Non admise", contract_error(error));
+        return (Phase::Refused, "Rejected", contract_error(error));
     }
     if let Some(point) = &action.progress {
         let detail = if action.submission == SubmissionState::Uncertain {
-            "Réponse initiale perdue ; la même commande a été retrouvée."
+            "Initial response lost; the same command was found."
         } else {
-            "L’état observé reste indépendant de cette commande."
+            "The observed state remains independent of this command."
         };
         return match point.status {
             EnumValue::Known(wire::ActionStatus::Accepted) => {
-                (Phase::Accepted, "Commande admise", detail)
+                (Phase::Accepted, "Command accepted", detail)
             }
             EnumValue::Known(wire::ActionStatus::Dispatched) => {
-                (Phase::Dispatched, "Commande transmise", detail)
+                (Phase::Dispatched, "Command forwarded", detail)
             }
             EnumValue::Known(wire::ActionStatus::Acknowledged) => (
                 Phase::Acknowledged,
-                "Acquittée · confirmation en attente",
+                "Acknowledged · waiting for confirmation",
                 detail,
             ),
             EnumValue::Known(
@@ -130,36 +130,36 @@ pub(crate) fn presentation(snapshot: Option<&ActionSnapshot>) -> Presentation {
             )
             | EnumValue::Unknown(_) => (
                 Phase::Unavailable,
-                "Suivi indisponible",
-                "Aucune confirmation supplémentaire n’est déduite.",
+                "Tracking unavailable",
+                "No additional confirmation is inferred.",
             ),
         };
     }
     match action.submission {
         SubmissionState::Prepared => (
             Phase::Preparing,
-            "Vérification de la commande",
-            "L’intention sera abandonnée si la vue ou vos droits changent.",
+            "Checking Command",
+            "The action will be discarded if the view or your permissions change.",
         ),
         SubmissionState::InFlight => (
             Phase::Sending,
-            "Envoi en cours",
-            "Une seule soumission de cette intention.",
+            "Sending",
+            "This action is submitted only once.",
         ),
         SubmissionState::Replied => (
             Phase::Accepted,
-            "Réponse reçue · suivi en cours",
-            "La réponse de soumission ne confirme pas l’effet physique.",
+            "Response received · tracking",
+            "The submission response does not confirm the physical effect.",
         ),
         SubmissionState::Uncertain => (
             Phase::Uncertain,
-            "Soumission incertaine",
-            "Consultation de la même commande ; aucun renvoi automatique.",
+            "Submission uncertain",
+            "Checking the same command; it will not be resubmitted automatically.",
         ),
         SubmissionState::NotSent => (
             Phase::Refused,
-            "Non envoyée",
-            "Le contexte du geste n’était plus valide avant l’envoi.",
+            "Not sent",
+            "The gesture context was no longer valid before submission.",
         ),
     }
 }

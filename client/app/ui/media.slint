@@ -10,6 +10,10 @@ export component HomewardMedia inherits VerticalLayout {
     in property <bool> editable;
     in property <bool> has-data;
     in property <ProMediaPresentation> media;
+    in property <bool> progress-known;
+    in property <float> progress;
+    in property <string> position-label;
+    in property <string> duration-label;
     in property <[ProMediaAction]> actions;
     in property <[ProMediaOption]> options;
     in property <[ProDeviceValue]> values;
@@ -28,7 +32,9 @@ export component HomewardMedia inherits VerticalLayout {
     if root.has-data: ProMediaPlayer {
         theme: root.theme; media: root.media; actions: root.actions; options: root.options; values: root.values;
         editable: root.editable && root.interactive;
-        apply-label: "Appliquer"; increment-label: "Augmenter"; decrement-label: "Diminuer";
+        progress-known: root.progress-known; progress: root.progress;
+        position-label: root.position-label; duration-label: root.duration-label;
+        apply-label: "Apply"; increment-label: "Increase"; decrement-label: "Decrease";
         operation-requested(token,generation,operation) => { root.operation(token,generation,operation); }
         option-requested(token,generation,kind,option) => { root.option(token,generation,kind,option); }
         value-edited(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
@@ -38,7 +44,7 @@ export component HomewardMedia inherits VerticalLayout {
     }
     if root.notice != "": Text { text: root.notice; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: char-wrap; }
     KitButton {
-        theme: root.theme; text: "Relire le média"; disabled: !root.interactive;
+        theme: root.theme; text: "Refresh Media"; disabled: !root.interactive;
         activated => { root.reload(root.generation); }
     }
     // Expiry does not wait for an in-flight network read or a polling interval.

@@ -1,0 +1,11 @@
+[
+  {"slot":"A","alias":"todo.brico","name":"Liste serveur A","items":[
+    {"uid":"shared-uid","summary":"Pommes de la liste A"},
+    {"uid":"second-a","summary":"Hors limite A"}
+  ]},
+  {"slot":"B","alias":"todo.grosseries","name":"Liste serveur B","items":[
+    {"uid":"shared-uid","summary":"Lait de la liste B"},
+    {"uid":"second-b","summary":"Pain de la liste B"},
+    {"uid":"third-b","summary":"Hors limite B"}
+  ]}
+]

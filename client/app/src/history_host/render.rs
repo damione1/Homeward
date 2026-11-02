@@ -40,12 +40,12 @@ impl Projection {
             home_client_session::Generation,
         )>,
     ) -> Self {
-        let mut value = Self { guard, generation: state.generation,status: state.status,description: "Période UTC, fin exclusive. Observations : 7 jours maximum ; agrégats : heures UTC entières, 500 heures maximum. Choisissez une statistique puis Afficher / relire.".into(),notice: String::new(),unit: String::new(),group: String::new(),inspection: String::new(),frame: state.frame.clone(),accent: state.accent,cursor: None,range: state.range,start: String::new(),end: String::new() };
+        let mut value = Self { guard, generation: state.generation,status: state.status,description: "UTC range, end exclusive. Observations: up to 7 days; aggregates: whole UTC hours, up to 500 hours. Choose a statistic, then Show / Refresh.".into(),notice: String::new(),unit: String::new(),group: String::new(),inspection: String::new(),frame: state.frame.clone(),accent: state.accent,cursor: None,range: state.range,start: String::new(),end: String::new() };
         if let Some(data) = &state.data {
             value.start = utc(&data.snapshot.query.period().start);
             value.end = utc(&data.snapshot.query.period().end);
             value.description = format!(
-                "{} · [{} ; {}) UTC · {} points source, {} sans valeur numérique pour cette statistique. Aucun total recalculé.",
+                "{} · [{}; {}) UTC · {} source points, {} without a numeric value for this statistic. No total recalculated.",
                 data.statistic.label(),
                 value.start,
                 value.end,
@@ -54,13 +54,13 @@ impl Projection {
             );
             if let Some(scope) = scope(data) {
                 value.description.push_str(&format!(
-                    " Lecture au {} ; rétention depuis {}.",
+                    " Read at {}; retained since {}.",
                     utc(&scope.as_of),
                     utc(&scope.retention_cutoff)
                 ));
                 if let Some(prefix) = scope.not_retained_prefix.as_option() {
                     value.notice.push_str(&format!(
-                        "Préfixe hors rétention [{} ; {}). ",
+                        "Prefix outside retention [{}; {}). ",
                         utc(&prefix.start),
                         utc(&prefix.end)
                     ));
@@ -69,19 +69,19 @@ impl Projection {
             if matches!(data.snapshot.content, Content::NotRetained(_)) {
                 value
                     .notice
-                    .push_str("Période hors rétention : aucune valeur fabriquée.");
+                    .push_str("Range outside retention: no values are fabricated.");
             } else if data.incomplete_coverage {
                 value.notice.push_str(
-                    "Couverture incomplète : ces observations ne prouvent pas un total fiable. ",
+                    "Incomplete coverage: these observations do not establish a reliable total. ",
                 );
             } else {
                 value
                     .notice
-                    .push_str("Couverture complète sous la politique Recorder du serveur. ");
+                    .push_str("Complete coverage under the server’s Recorder policy. ");
             }
             if data.unknown_utc {
                 value.notice.push_str(
-                    "Trous logiques sans bornes UTC : aucun emplacement ou durée n’est déduit. ",
+                    "Logical gaps without UTC bounds: no position or duration is inferred. ",
                 );
             }
             if let Some(group) = data.groups.get(state.group) {
@@ -93,7 +93,7 @@ impl Projection {
                     quality(&group.quality)
                 );
                 value.unit = format!(
-                    "Unité source {} · canonique {} · {} · {} · précision {} · échelle {} · décalage {}. Tracé approximatif ; inspection = valeur source exacte.",
+                    "Source unit {} · canonical {} · {} · {} · precision {} · scale {} · offset {}. Approximate chart; inspection = exact source value.",
                     group.descriptor.unit,
                     group.descriptor.canonical_unit,
                     aggregation(group.descriptor.aggregation),
@@ -125,7 +125,7 @@ pub(super) fn utc(time: &buffa_types::google::protobuf::Timestamp) -> String {
         .ok()
         .and_then(|n| chrono::DateTime::from_timestamp(time.seconds, n))
         .map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true))
-        .unwrap_or_else(|| "UTC non renseignée".into())
+        .unwrap_or_else(|| "UTC not provided".into())
 }
 pub(super) fn utc_seconds(seconds: i64) -> String {
     utc(&buffa_types::google::protobuf::Timestamp {
@@ -211,7 +211,7 @@ fn inspection(data: &Data, group_index: usize, index: usize) -> String {
                 .state
                 .observed_at
                 .as_option()
-                .map_or_else(|| "non fournie".into(), utc);
+                .map_or_else(|| "not provided".into(), utc);
             let epoch = point
                 .position
                 .epoch
@@ -219,7 +219,7 @@ fn inspection(data: &Data, group_index: usize, index: usize) -> String {
                 .map(|v| format!("{v:02x}"))
                 .collect::<String>();
             format!(
-                "{text} {} · {} · reçu {} · capture source {source} · session source {} · position {epoch}/{} · observation {} / {}",
+                "{text} {} · {} · received {} · source snapshot {source} · source session {} · position {epoch}/{} · observation {} / {}",
                 group.descriptor.unit,
                 quality(&group.quality),
                 utc(&point.state.received_at),
@@ -232,7 +232,7 @@ fn inspection(data: &Data, group_index: usize, index: usize) -> String {
         (Content::Retained(Pages::Hourly(pages)), SourceRef::Aggregate { page, point }) => {
             let point = &pages[page].points[point];
             format!(
-                "{} = {text} {} · {} · bucket [{} ; {}) · durée serveur {} ns · reset {:?} · causes {:?}",
+                "{} = {text} {} · {} · bucket [{}; {}) · server duration {} ns · reset {:?} · causes {:?}",
                 data.statistic.label(),
                 group.descriptor.unit,
                 quality(&group.quality),
@@ -252,20 +252,20 @@ fn quality(value: &state::Quality) -> String {
     use buffa::EnumValue::{Known, Unknown};
     let availability = match value.availability {
         Known(state::Availability::Available) => "disponible",
-        Known(state::Availability::Unknown) => "disponibilité inconnue",
+        Known(state::Availability::Unknown) => "availability unknown",
         Known(state::Availability::Unavailable) => "indisponible",
-        Known(state::Availability::Unspecified) | Unknown(_) => "disponibilité non précisée",
+        Known(state::Availability::Unspecified) | Unknown(_) => "availability unspecified",
     };
     let freshness = match value.freshness {
-        Known(state::Freshness::Fresh) => "fraîche",
-        Known(state::Freshness::Stale) => "ancienne",
-        Known(state::Freshness::Unspecified) | Unknown(_) => "fraîcheur non précisée",
+        Known(state::Freshness::Fresh) => "fresh",
+        Known(state::Freshness::Stale) => "outdated",
+        Known(state::Freshness::Unspecified) | Unknown(_) => "freshness unspecified",
     };
     let provenance = match value.provenance {
-        Known(state::Provenance::Observed) => "observée",
-        Known(state::Provenance::Restored) => "restaurée",
-        Known(state::Provenance::Estimated) => "estimée",
-        Known(state::Provenance::Unspecified) | Unknown(_) => "provenance non précisée",
+        Known(state::Provenance::Observed) => "observed",
+        Known(state::Provenance::Restored) => "restored",
+        Known(state::Provenance::Estimated) => "estimated",
+        Known(state::Provenance::Unspecified) | Unknown(_) => "source unspecified",
     };
     format!("{availability} · {freshness} · {provenance}")
 }
@@ -275,10 +275,10 @@ fn aggregation(
     use buffa::EnumValue::{Known, Unknown};
     use home_wire_contract::home::registry::v1::MeasurementAggregation as A;
     match value {
-        Known(A::Current) => "valeur courante",
-        Known(A::Sum) => "somme serveur",
-        Known(A::Mean) => "moyenne serveur",
-        Known(A::Unspecified) | Unknown(_) => "agrégation non précisée",
+        Known(A::Current) => "current value",
+        Known(A::Sum) => "server sum",
+        Known(A::Mean) => "server mean",
+        Known(A::Unspecified) | Unknown(_) => "aggregation unspecified",
     }
 }
 fn semantic(
@@ -288,9 +288,9 @@ fn semantic(
     use home_wire_contract::home::registry::v1::MeasurementSemantic as S;
     match value {
         Known(S::Measurement) => "mesure",
-        Known(S::Total) => "compteur cumulatif",
-        Known(S::TotalIncreasing) => "compteur croissant",
-        Known(S::Unspecified) | Unknown(_) => "interprétation non précisée",
+        Known(S::Total) => "cumulative counter",
+        Known(S::TotalIncreasing) => "increasing counter",
+        Known(S::Unspecified) | Unknown(_) => "interpretation unspecified",
     }
 }
 fn axis(value: f64) -> String {
@@ -316,8 +316,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         window.set_history_presentation(HistoryPresentation {
             generation: value.generation,
             phase: ProChartPhase::Error,
-            state_label: "Session modifiée : les données ont été retirées. Relisez explicitement."
-                .into(),
+            state_label: "Session changed: data was removed. Reload explicitly.".into(),
             ..Default::default()
         });
         return;
@@ -325,39 +324,35 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     let (phase, label) = match value.status {
         Status::Draft => (
             ProChartPhase::Empty,
-            "Appliquez la période pour lire l’historique.",
+            "Apply the date range to read history.",
         ),
-        Status::Loading => (ProChartPhase::Loading, "Lecture des pages du serveur…"),
-        Status::Preparing => (ProChartPhase::Loading, "Préparation du graphique…"),
+        Status::Loading => (ProChartPhase::Loading, "Reading server pages…"),
+        Status::Preparing => (ProChartPhase::Loading, "Preparing chart…"),
         Status::Ready => (ProChartPhase::Ready, ""),
         Status::Empty => (
             ProChartPhase::Empty,
-            "Aucune valeur numérique pour cette statistique ; aucune valeur zéro n’est ajoutée.",
+            "No numeric value for this statistic; no zero value is added.",
         ),
-        Status::NotRetained => (ProChartPhase::Empty, "Période hors rétention."),
+        Status::NotRetained => (ProChartPhase::Empty, "Range outside retention."),
         Status::Failed(reason) => (
             ProChartPhase::Error,
             match reason {
                 Failure::Query => {
-                    "Période refusée. Utilisez UTC, une fin après le début et une fenêtre ≤7 jours brute ou ≤500 heures entières pour les agrégats."
+                    "Range rejected. Use UTC, an end after the start, and a window of ≤7 days for raw data or ≤500 whole hours for aggregates."
                 }
                 Failure::Stale => {
-                    "Pagination expirée ou modifiée. Cliquez Afficher / relire pour recommencer ; les pages partielles ont été retirées."
+                    "Pagination expired or changed. Click Show / Refresh to start again; partial pages were removed."
                 }
                 Failure::Capacity => {
-                    "Limite de lecture ou de rendu atteinte. Réduisez la période puis relisez explicitement."
+                    "Read or display limit reached. Shorten the period, then reload explicitly."
                 }
-                Failure::Denied => {
-                    "Lecture d’historique non autorisée. Les données ont été retirées."
-                }
-                Failure::Transport => {
-                    "Serveur indisponible. Relisez explicitement après rétablissement."
-                }
+                Failure::Denied => "History access denied. Data was removed.",
+                Failure::Transport => "Server unavailable. Reload explicitly after it recovers.",
                 Failure::Contract => {
-                    "Réponse incohérente : aucune page partielle n’est affichée. Relisez explicitement."
+                    "Inconsistent response: no partial page is displayed. Reload explicitly."
                 }
                 Failure::Projection => {
-                    "Ces données ne peuvent pas être représentées sans perte. Réduisez la période ou changez de statistique."
+                    "This data cannot be displayed without loss. Shorten the period or choose another statistic."
                 }
             },
         ),
@@ -399,7 +394,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             presentation.series =
                 slint::ModelRc::new(slint::VecModel::from(vec![ProChartSeries {
                     token: 1,
-                    label: "Valeurs originales".into(),
+                    label: "Original values".into(),
                     active: true,
                     color: slint::Color::from_rgb_u8(
                         value.accent[0],

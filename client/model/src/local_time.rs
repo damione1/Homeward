@@ -1,5 +1,5 @@
 //! Profile-based display of absolute timestamps. No location or system timezone.
-use chrono::{DateTime, FixedOffset, Offset, Utc};
+use chrono::{DateTime, FixedOffset, Offset, Timelike, Utc};
 use chrono_tz::Tz;
 use std::{fmt, num::NonZeroU64, str::FromStr};
 
@@ -103,6 +103,10 @@ impl LocalTime {
 
     pub fn clock(self) -> String {
         self.value.format("%H:%M").to_string()
+    }
+
+    pub fn hour(self) -> u32 {
+        self.value.hour()
     }
 
     /// The offset disambiguates repeated local times during the autumn fold.

@@ -34,7 +34,7 @@ impl Command {
     }
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Policy(_) => "Modifier les droits",
+            Self::Policy(_) => "Edit Permissions",
             Self::Integration(value) => value.label(),
         }
     }
@@ -138,7 +138,7 @@ fn field(token: Field, label: &str, value: &str, multiline: bool, editable: bool
     ProAdminField {
         token: token as i32,
         label: label.into(),
-        description: "Source et préconditions fournies par le serveur".into(),
+        description: "Server-Provided Source and Preconditions".into(),
         value: value.into(),
         kind: if multiline {
             ProAdminFieldKind::Multiline

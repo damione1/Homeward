@@ -1,8 +1,11 @@
 import { KitTheme } from "@kit/kit.slint";
 import { ProLayoutBoard, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent } from "@kit-pro/kit-pro.slint";
 export component HomewardDashboard inherits ProLayoutBoard {
-    apply-label: "Appliquer"; increment-label: "Augmenter"; decrement-label: "Diminuer";
-    details-label: "Détails"; on-label: "Allumer"; off-label: "Éteindre";
-    brightness-label: "Luminosité"; stop-label: "Arrêter le suivi";
-    denied-label: "Lecture seule"; unknown-access-label: "Droit de commande inconnu";
+    responsive-layout: true;
+    current-temperature-label: "Current temperature"; setpoint-label: "Setpoint";
+    clock-size: 44px; temperature-size: 28px; section-size: 15px;
+    apply-label: "Apply"; increment-label: "Increase"; decrement-label: "Decrease";
+    details-label: "Details"; on-label: "Turn On"; off-label: "Turn Off";
+    brightness-label: "Brightness"; stop-label: "Stop Tracking";
+    denied-label: "Read-only"; unknown-access-label: "Control permission unknown";
 }

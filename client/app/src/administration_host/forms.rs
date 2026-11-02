@@ -40,11 +40,11 @@ impl Field {
     }
     fn label(self) -> &'static str {
         match self {
-            Self::Login => "Identifiant de connexion",
-            Self::Name => "Nom affiché",
-            Self::Password => "Mot de passe initial",
-            Self::ClientName => "Nom du client MCP",
-            Self::Days => "Validité en jours",
+            Self::Login => "Login Username",
+            Self::Name => "Display Name",
+            Self::Password => "Initial Password",
+            Self::ClientName => "MCP Client Name",
+            Self::Days => "Validity in Days",
         }
     }
     fn limit(self) -> usize {
@@ -143,17 +143,17 @@ impl Command {
     pub fn label(&self) -> &'static str {
         match self {
             Self::Advanced(value) => value.label(),
-            Self::Create => "Créer un compte",
-            Self::Update(_) => "Modifier le compte",
-            Self::Delete(_) => "Supprimer le compte",
-            Self::Invite => "Créer une invitation",
-            Self::RevokeInvitation(_) => "Révoquer l’invitation",
-            Self::CreateMcp => "Créer une clé MCP",
-            Self::RevokeMcp(_) => "Révoquer la clé MCP",
-            Self::RevokeSession(_) => "Révoquer cette session",
-            Self::RemoveFactor(_) => "Retirer ce facteur",
-            Self::RecoveryCodes(_) => "Remplacer les codes de secours",
-            Self::MfaPolicy(_) => "Modifier la politique MFA",
+            Self::Create => "Create Account",
+            Self::Update(_) => "Edit Account",
+            Self::Delete(_) => "Delete Account",
+            Self::Invite => "Create Invitation",
+            Self::RevokeInvitation(_) => "Revoke Invitation",
+            Self::CreateMcp => "Create MCP Key",
+            Self::RevokeMcp(_) => "Revoke MCP Key",
+            Self::RevokeSession(_) => "Revoke This Session",
+            Self::RemoveFactor(_) => "Remove This Factor",
+            Self::RecoveryCodes(_) => "Replace Recovery Codes",
+            Self::MfaPolicy(_) => "Edit MFA Policy",
         }
     }
     pub fn destructive(&self) -> bool {
@@ -391,7 +391,7 @@ impl Draft {
             require_admin_factor: false,
             advanced: None,
             state: MutationState::Draft,
-            notice: "Rien n’est envoyé avant votre confirmation. Les droits sont appliqués par le serveur.",
+            notice: "Nothing will be sent before your confirmation. The server enforces permissions.",
         };
         if let Command::Update(account) = &value.command {
             value.login = Zeroizing::new(account.login_name.clone());
@@ -403,24 +403,25 @@ impl Draft {
             };
         }
         if value.command.destructive() {
-            value.notice = "Cette révocation ou suppression doit être confirmée. Le serveur protège les invariants d’accès.";
+            value.notice =
+                "This revocation or deletion must be confirmed. The server enforces access rules.";
         }
         if matches!(value.command, Command::CreateMcp) {
             value.days = Zeroizing::new("30".into());
-            value.notice = "Sélectionnez les permissions maximales de cette clé. Elles n’ajoutent aucun droit à votre compte. Le secret sera affiché une seule fois.";
+            value.notice = "Select the maximum permissions for this key. They grant no additional rights to your account. The secret will be shown only once.";
         }
         if let Command::MfaPolicy(policy) = &value.command {
             value.require_admin_factor = policy.require_admin_factor;
-            value.notice = "La politique utilise la version exacte du serveur. Un changement peut révoquer les sessions et demander une nouvelle authentification.";
+            value.notice = "The policy uses the server’s exact version. A change may revoke sessions and require signing in again.";
         }
         if matches!(value.command, Command::RecoveryCodes(_)) {
-            value.notice = "Les anciens codes seront invalidés et vos sessions révoquées. Les nouveaux codes seront affichés une seule fois après confirmation.";
+            value.notice = "Previous codes will be invalidated and your sessions revoked. New codes will be shown only once after confirmation.";
         }
         if let Command::Advanced(command) = &value.command {
             match advanced::Draft::open(command) {
                 Ok(draft) => {
                     value.advanced = Some(Box::new(draft));
-                    value.notice = "Les préconditions exactes du serveur sont conservées. Les choix rapides de droits remplacent toutes les règles du brouillon ; rien n’est enregistré sans confirmation.";
+                    value.notice = "The server’s exact preconditions are retained. Quick permission choices replace every rule in the draft; nothing is saved without confirmation.";
                 }
                 Err(message) => {
                     value.state = MutationState::Rejected;
@@ -450,7 +451,7 @@ impl Draft {
     }
     fn modified(&mut self) {
         self.state = MutationState::Draft;
-        self.notice = "Brouillon modifié ; rien n’est envoyé avant confirmation.";
+        self.notice = "Draft changed; nothing will be sent before confirmation.";
     }
     pub fn edit(&mut self, token: i32, value: String) {
         if !self.editable() {
@@ -470,7 +471,7 @@ impl Draft {
             return;
         }
         if value.len() > field.limit() || value.contains('\0') {
-            self.notice = "La valeur dépasse la limite autorisée.";
+            self.notice = "The value exceeds the allowed limit.";
             return;
         }
         let value = Zeroizing::new(value);
@@ -572,12 +573,12 @@ impl Draft {
                 token: field as i32,
                 label: field.label().into(),
                 description: match field {
-                    Field::Password => "Le mot de passe n’est jamais relu depuis le serveur.",
+                    Field::Password => "The password is never read back from the server.",
                     Field::Days => {
                         if matches!(self.command, Command::CreateMcp) {
-                            "De 1 à 365 jours."
+                            "From 1 to 365 days."
                         } else {
-                            "De 1 à 30 jours."
+                            "From 1 to 30 days."
                         }
                     }
                     Field::Login | Field::Name | Field::ClientName => "",
@@ -601,14 +602,10 @@ impl Draft {
         if self.command.role_choices() {
             result.extend(
                 [
-                    (
-                        Choice::User,
-                        "Utilisateur",
-                        self.role == auth::AccountRole::User,
-                    ),
+                    (Choice::User, "User", self.role == auth::AccountRole::User),
                     (
                         Choice::Admin,
-                        "Administrateur",
+                        "Administrator",
                         self.role == auth::AccountRole::Admin,
                     ),
                 ]
@@ -626,12 +623,12 @@ impl Draft {
                 [
                     (
                         Choice::Active,
-                        "Compte actif",
+                        "Account active",
                         self.status == auth::AccountStatus::Active,
                     ),
                     (
                         Choice::Disabled,
-                        "Compte désactivé",
+                        "Account disabled",
                         self.status == auth::AccountStatus::Disabled,
                     ),
                 ]
@@ -658,12 +655,12 @@ impl Draft {
                 [
                     (
                         Choice::RequireMfa,
-                        "Facteur obligatoire pour les administrateurs",
+                        "Second factor required for administrators",
                         self.require_admin_factor,
                     ),
                     (
                         Choice::OptionalMfa,
-                        "Facteur administrateur facultatif",
+                        "Administrator second factor optional",
                         !self.require_admin_factor,
                     ),
                 ]
@@ -686,7 +683,7 @@ impl Draft {
             return match draft.submit() {
                 Ok(operation) => {
                     self.state = MutationState::InFlight;
-                    self.notice = "Enregistrement en cours…";
+                    self.notice = "Saving…";
                     Some(Operation::Advanced(Box::new(operation)))
                 }
                 Err(message) => {
@@ -704,7 +701,7 @@ impl Draft {
             || self.login.contains(['\r', '\n'])
             || self.client_name.contains(['\r', '\n'])
         {
-            self.notice = "La valeur contient un retour à la ligne interdit.";
+            self.notice = "The value contains a forbidden line break.";
             return None;
         }
         let days = if matches!(self.command, Command::Invite | Command::CreateMcp) {
@@ -714,11 +711,11 @@ impl Draft {
                 365
             };
             let Ok(days) = self.days.parse::<i64>() else {
-                self.notice = "Saisissez une validité en jours entiers.";
+                self.notice = "Enter a validity period in whole days.";
                 return None;
             };
             if !(1..=maximum).contains(&days) {
-                self.notice = "La validité est hors de la plage autorisée.";
+                self.notice = "The validity period is outside the allowed range.";
                 return None;
             }
             days
@@ -729,7 +726,7 @@ impl Draft {
             Command::Advanced(_) => return None,
             Command::Create => {
                 if self.login.trim().is_empty() || self.password.is_empty() {
-                    self.notice = "Renseignez l’identifiant et le mot de passe initial.";
+                    self.notice = "Enter the username and initial password.";
                     return None;
                 }
                 Operation::Create(auth::CreateAccountRequest {
@@ -757,7 +754,7 @@ impl Draft {
             }),
             Command::Invite => {
                 if self.login.trim().is_empty() {
-                    self.notice = "Renseignez l’identifiant du compte invité.";
+                    self.notice = "Enter the invited account’s username.";
                     return None;
                 }
                 Operation::Invite(auth::CreateInvitationRequest {
@@ -784,8 +781,7 @@ impl Draft {
             }
             Command::CreateMcp => {
                 if self.client_name.trim().is_empty() || self.scopes.is_empty() {
-                    self.notice =
-                        "Renseignez le client et sélectionnez au moins une permission maximale.";
+                    self.notice = "Enter the client and select at least one maximum permission.";
                     return None;
                 }
                 let request = auth::CreateMcpKeyRequest {
@@ -800,7 +796,7 @@ impl Draft {
                     ..Default::default()
                 };
                 if auth_contract::admit_mcp_create_request(&request).is_err() {
-                    self.notice = "Le plafond de permissions ou la validité est invalide.";
+                    self.notice = "The permission limit or validity period is invalid.";
                     return None;
                 }
                 Operation::CreateMcp(request)
@@ -852,32 +848,28 @@ impl Draft {
             }
         };
         self.state = MutationState::InFlight;
-        self.notice = "Enregistrement en cours…";
+        self.notice = "Saving…";
         Some(operation)
     }
     pub fn complete(&mut self, state: MutationState) {
         self.state = state;
         self.password = Zeroizing::new(String::new());
         self.notice = match state {
-            MutationState::Published => "Enregistrement confirmé par le serveur.",
+            MutationState::Published => "Save confirmed by the server.",
             MutationState::Rejected => {
-                "Le serveur a refusé la modification. Corrigez le brouillon avant de confirmer à nouveau."
+                "The server rejected the change. Correct the draft before confirming again."
             }
-            MutationState::Conflict => {
-                "Les données ont changé. Rechargez-les avant de préparer une nouvelle modification."
-            }
+            MutationState::Conflict => "Data changed. Reload it before preparing another change.",
             MutationState::Uncertain => {
-                "Résultat inconnu : aucune nouvelle tentative automatique. Rechargez la liste pour vérifier le résultat."
+                "Outcome unknown: no automatic retry. Reload the list to check the result."
             }
             MutationState::Reconciling => {
-                "Modification enregistrée. Le rapprochement du runtime est en cours ; rechargez l’état sans renvoyer l’écriture."
+                "Change saved. Runtime reconciliation is in progress; reload the state without resubmitting the write."
             }
             MutationState::RestartRequired => {
-                "Modification enregistrée. Un redémarrage du serveur est nécessaire pour l’appliquer ; ne renvoyez pas l’écriture."
+                "Change saved. A server restart is required to apply it; do not resubmit the write."
             }
-            MutationState::Draft | MutationState::InFlight => {
-                "Rechargez les données avant de poursuivre."
-            }
+            MutationState::Draft | MutationState::InFlight => "Reload the data before continuing.",
         };
     }
 }

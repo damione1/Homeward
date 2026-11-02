@@ -2,14 +2,14 @@
 //! keeps the inventory virtualized at 64 rows. Configured dashboard forests
 //! are separately bounded by their negotiated profile.
 use crate::{
-    HomewardWindow, IconKind, ProObservationRow, ProRoomRow, TableRow,
+    HomewardWindow, KitGlyphs, ProObservationRow, ProRoomRow, TableRow,
     dashboard::{self, Icon, Layout, ProjectionRequest},
 };
 use buffa::EnumValue;
 use home_client_cache::{CacheEvent, CachePhase, CachedView, ProjectionGeneration, Viewport};
 use home_client_model::EntityId;
 use home_wire_contract::home::{helpers::v1 as helpers, state::v1 as state};
-use slint::{Model, ModelNotify, ModelRc, ModelTracker, SharedString};
+use slint::{ComponentHandle, Model, ModelNotify, ModelRc, ModelTracker, SharedString};
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
@@ -127,13 +127,13 @@ pub(crate) fn project_devices(
                 .take(viewport.count())
                 .map(|(index, (id, entity))| {
                     let title = if entity.current_alias.is_empty() {
-                        "Élément sans nom".into()
+                        "Unnamed Item".into()
                     } else {
                         bounded(&entity.current_alias)
                     };
                     let (value, quality) = match entity.state.as_option() {
                         Some(observation) => (value_text(observation), quality_text(observation)),
-                        None => ("Aucune observation".into(), "Non renseignée".into()),
+                        None => ("No observation".into(), "Not provided".into()),
                     };
                     Row {
                         id: Some(id.clone()),
@@ -169,7 +169,7 @@ pub(crate) fn project_devices(
                     let value = entity
                         .and_then(|entity| entity.state.as_option())
                         .map(summary_text)
-                        .unwrap_or_else(|| "Aucune observation".into());
+                        .unwrap_or_else(|| "No observation".into());
                     Observation {
                         token: dashboard::OBSERVATION_TOKEN_BASE + index as i32,
                         label: item.label.clone(),
@@ -179,9 +179,7 @@ pub(crate) fn project_devices(
                         description: entity
                             .and_then(|entity| entity.state.as_option())
                             .map(quality_text)
-                            .unwrap_or_else(|| {
-                                "Aucune observation autorisée pour cet élément.".into()
-                            }),
+                            .unwrap_or_else(|| "No authorized observation for this item.".into()),
                     }
                 })
                 .collect()
@@ -203,12 +201,12 @@ pub(crate) fn project_devices(
                             chrono::DateTime::from_timestamp(at.seconds, at.nanos as u32)
                         })
                         .map(|at| at.to_rfc3339())
-                        .unwrap_or_else(|| "Date non renseignée".into()),
+                        .unwrap_or_else(|| "Date not provided".into()),
                 ),
                 None => (
-                    "Aucune observation".into(),
-                    "Non renseignée".into(),
-                    "Date non renseignée".into(),
+                    "No observation".into(),
+                    "Not provided".into(),
+                    "Date not provided".into(),
                 ),
             };
             [
@@ -221,7 +219,7 @@ pub(crate) fn project_devices(
     let profile_zone =
         crate::environment_view::ProfileZone::from_profile(view.and_then(|v| v.display_profile()));
     let devices = devices.project(phase, view, request);
-    let board = crate::dashboard_presentation::Board::project(layout, request, &devices);
+    let board = crate::dashboard_presentation::Board::project(layout, request, &devices, view);
     CacheProjection {
         history_entity: if phase == CachePhase::Live && detail.is_some() {
             request.detail.clone()
@@ -252,7 +250,7 @@ pub(crate) fn project_devices(
 }
 
 fn on_off(value: bool) -> &'static str {
-    if value { "Allumé" } else { "Éteint" }
+    if value { "On" } else { "Off" }
 }
 pub(crate) fn bounded(text: &str) -> String {
     match text.char_indices().nth(256) {
@@ -264,7 +262,7 @@ pub(crate) fn number(value: f64) -> String {
     if value.is_finite() {
         value.to_string()
     } else {
-        "Valeur non prise en charge".into()
+        "Unsupported value".into()
     }
 }
 fn helper_text(value: &helpers::HelperValue) -> String {
@@ -275,7 +273,7 @@ fn helper_text(value: &helpers::HelperValue) -> String {
         Some(Value::Counter(value)) => value.to_string(),
         Some(Value::SelectedOption(value) | Value::Text(value)) => {
             if value.is_empty() {
-                "Texte vide".into()
+                "Empty text".into()
             } else {
                 bounded(value)
             }
@@ -289,10 +287,10 @@ fn helper_text(value: &helpers::HelperValue) -> String {
                 "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
                 date.year, date.month, date.day, time.hour, time.minute, time.second
             ),
-            (None, _) | (_, None) => "Date ou heure absente".into(),
+            (None, _) | (_, None) => "Date or time missing".into(),
         },
-        Some(Value::ButtonPressedAt(_)) => "Activation observée".into(),
-        None => "Valeur absente".into(),
+        Some(Value::ButtonPressedAt(_)) => "Activation observed".into(),
+        None => "Value not provided".into(),
     }
 }
 
@@ -326,7 +324,7 @@ fn summary_text(observation: &state::ObservedState) -> String {
 
 pub(crate) fn value_text(observation: &state::ObservedState) -> String {
     if !observation.__buffa_unknown_fields.is_empty() {
-        return "Valeur non prise en charge".into();
+        return "Unsupported value".into();
     }
     use state::observed_state::Value;
     match observation.value.as_ref() {
@@ -360,19 +358,19 @@ pub(crate) fn value_text(observation: &state::ObservedState) -> String {
                 parts.push(value);
             }
             if parts.is_empty() {
-                "Valeur absente".into()
+                "Value not provided".into()
             } else {
                 parts.join(" · ")
             }
         }
         Some(Value::Fan(value)) => match value.speed {
-            EnumValue::Known(state::FanSpeed::Unspecified) => "Vitesse absente",
-            EnumValue::Known(state::FanSpeed::Off) => "Arrêté",
-            EnumValue::Known(state::FanSpeed::Low) => "Vitesse faible",
-            EnumValue::Known(state::FanSpeed::Medium) => "Vitesse moyenne",
-            EnumValue::Known(state::FanSpeed::MediumHigh) => "Vitesse moyenne haute",
-            EnumValue::Known(state::FanSpeed::High) => "Vitesse haute",
-            EnumValue::Unknown(_) => "Vitesse non reconnue",
+            EnumValue::Known(state::FanSpeed::Unspecified) => "Speed not provided",
+            EnumValue::Known(state::FanSpeed::Off) => "Off",
+            EnumValue::Known(state::FanSpeed::Low) => "Low",
+            EnumValue::Known(state::FanSpeed::Medium) => "Medium",
+            EnumValue::Known(state::FanSpeed::MediumHigh) => "Medium high",
+            EnumValue::Known(state::FanSpeed::High) => "High",
+            EnumValue::Unknown(_) => "Unsupported speed",
         }
         .into(),
         Some(Value::Climate(value)) => {
@@ -382,7 +380,7 @@ pub(crate) fn value_text(observation: &state::ObservedState) -> String {
             }
             match value.setpoint.as_ref() {
                 Some(state::climate_value::Setpoint::SetpointCelsius(value)) => {
-                    parts.push(format!("Cible {} °C", number(*value)))
+                    parts.push(format!("Setpoint {} °C", number(*value)))
                 }
                 Some(state::climate_value::Setpoint::SetpointRangeCelsius(range)) => {
                     if let Some(low) = range.low_celsius {
@@ -398,17 +396,10 @@ pub(crate) fn value_text(observation: &state::ObservedState) -> String {
                 parts.push(format!("{} %", number(humidity)));
             }
             if let Some(active) = value.fan_active {
-                parts.push(
-                    if active {
-                        "Ventilation active"
-                    } else {
-                        "Ventilation inactive"
-                    }
-                    .into(),
-                );
+                parts.push(if active { "Fan active" } else { "Fan inactive" }.into());
             }
             if parts.is_empty() {
-                "Observation climatique reçue".into()
+                "Climate observation received".into()
             } else {
                 parts.join(" · ")
             }
@@ -420,16 +411,16 @@ pub(crate) fn value_text(observation: &state::ObservedState) -> String {
         Some(Value::Solar(value)) => {
             let mut parts = Vec::new();
             if let Some(elevation) = value.elevation_degrees {
-                parts.push(format!("Élévation {}°", number(elevation)));
+                parts.push(format!("Elevation {}°", number(elevation)));
             }
             if let Some(azimuth) = value.azimuth_degrees {
-                parts.push(format!("Azimut {}°", number(azimuth)));
+                parts.push(format!("Azimuth {}°", number(azimuth)));
             }
             if let Some(rising) = value.rising {
-                parts.push(if rising { "Ascendant" } else { "Descendant" }.into());
+                parts.push(if rising { "Rising" } else { "Falling" }.into());
             }
             if parts.is_empty() {
-                "Observation solaire reçue".into()
+                "Solar observation received".into()
             } else {
                 parts.join(" · ")
             }
@@ -440,18 +431,18 @@ pub(crate) fn value_text(observation: &state::ObservedState) -> String {
             .and_then(|value| value.occurrence.as_ref())
         {
             Some(home_wire_contract::home::solar::v1::solar_occurrence::Occurrence::At(_)) => {
-                "Événement calculé"
+                "Calculated event"
             }
             Some(home_wire_contract::home::solar::v1::solar_occurrence::Occurrence::Absent(_)) => {
-                "Événement absent du calcul"
+                "Event missing from calculation"
             }
-            None => "Événement non renseigné",
+            None => "Event not provided",
         }
         .into(),
         None => if observation.__buffa_unknown_fields.is_empty() {
-            "Valeur absente"
+            "Value not provided"
         } else {
-            "Valeur non prise en charge"
+            "Unsupported value"
         }
         .into(),
     }
@@ -459,30 +450,30 @@ pub(crate) fn value_text(observation: &state::ObservedState) -> String {
 
 pub(crate) fn quality_text(observation: &state::ObservedState) -> String {
     let Some(quality) = observation.quality.as_option() else {
-        return "Qualité absente".into();
+        return "Quality missing".into();
     };
     if !quality.__buffa_unknown_fields.is_empty() {
-        return "Qualité non prise en charge".into();
+        return "Unsupported quality".into();
     }
     let availability = match quality.availability {
-        EnumValue::Known(state::Availability::Unspecified) => "Disponibilité absente",
-        EnumValue::Known(state::Availability::Available) => "Disponible",
-        EnumValue::Known(state::Availability::Unknown) => "État inconnu",
-        EnumValue::Known(state::Availability::Unavailable) => "Indisponible",
-        EnumValue::Unknown(_) => "Disponibilité non reconnue",
+        EnumValue::Known(state::Availability::Unspecified) => "Availability missing",
+        EnumValue::Known(state::Availability::Available) => "Available",
+        EnumValue::Known(state::Availability::Unknown) => "State unknown",
+        EnumValue::Known(state::Availability::Unavailable) => "Unavailable",
+        EnumValue::Unknown(_) => "Availability unrecognized",
     };
     let freshness = match quality.freshness {
-        EnumValue::Known(state::Freshness::Unspecified) => "Fraîcheur absente",
-        EnumValue::Known(state::Freshness::Fresh) => "À jour",
-        EnumValue::Known(state::Freshness::Stale) => "Daté",
-        EnumValue::Unknown(_) => "Fraîcheur non reconnue",
+        EnumValue::Known(state::Freshness::Unspecified) => "Freshness missing",
+        EnumValue::Known(state::Freshness::Fresh) => "Up to date",
+        EnumValue::Known(state::Freshness::Stale) => "Dated",
+        EnumValue::Unknown(_) => "Freshness unrecognized",
     };
     let provenance = match quality.provenance {
-        EnumValue::Known(state::Provenance::Unspecified) => "Origine absente",
-        EnumValue::Known(state::Provenance::Observed) => "Observé",
-        EnumValue::Known(state::Provenance::Restored) => "Restauré",
-        EnumValue::Known(state::Provenance::Estimated) => "Estimé",
-        EnumValue::Unknown(_) => "Origine non reconnue",
+        EnumValue::Known(state::Provenance::Unspecified) => "Origin not provided",
+        EnumValue::Known(state::Provenance::Observed) => "Observed",
+        EnumValue::Known(state::Provenance::Restored) => "Restored",
+        EnumValue::Known(state::Provenance::Estimated) => "Estimated",
+        EnumValue::Unknown(_) => "Unsupported origin",
     };
     format!("{availability} · {freshness} · {provenance}")
 }
@@ -507,8 +498,18 @@ pub(crate) struct CacheRows {
     observations: std::rc::Rc<slint::VecModel<ProObservationRow>>,
     devices: std::rc::Rc<slint::VecModel<crate::ProDeviceRow>>,
     home_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
+    rooms_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
     room_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
     popup_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
+    widget_bindings: RefCell<Vec<crate::dashboard_widgets::Binding>>,
+    widget_focus_serial: Cell<i32>,
+    widget_focus_mapping: RefCell<Option<(crate::FocusRequest, i32)>>,
+    focused_widget_item: RefCell<
+        Option<(
+            crate::dashboard_layout::NodeId,
+            crate::dashboard_widgets::Field,
+        )>,
+    >,
 }
 fn table_row(row: &Row, _offline: bool) -> TableRow {
     TableRow {
@@ -615,8 +616,12 @@ impl CacheRows {
         self.observations.set_vec(Vec::new());
         self.devices.set_vec(Vec::new());
         self.home_layout_nodes.set_vec(Vec::new());
+        self.rooms_layout_nodes.set_vec(Vec::new());
         self.room_layout_nodes.set_vec(Vec::new());
         self.popup_layout_nodes.set_vec(Vec::new());
+        self.widget_bindings.borrow_mut().clear();
+        *self.focused_widget_item.borrow_mut() = None;
+        *self.widget_focus_mapping.borrow_mut() = None;
     }
     pub(crate) fn resolve(&self, token: i32, generation: i32, revision: i32) -> Option<EntityId> {
         if generation != self.serial.get() || self.state.borrow().revision != revision {
@@ -676,10 +681,163 @@ pub(crate) fn bind(window: &HomewardWindow) {
     window.set_home_observations(ModelRc::from(model.observations.clone()));
     window.set_device_cards(ModelRc::from(model.devices.clone()));
     window.set_home_layout_nodes(ModelRc::from(model.home_layout_nodes.clone()));
+    window.set_rooms_layout_nodes(ModelRc::from(model.rooms_layout_nodes.clone()));
     window.set_room_layout_nodes(ModelRc::from(model.room_layout_nodes.clone()));
     window.set_popup_layout_nodes(ModelRc::from(model.popup_layout_nodes.clone()));
     crate::dashboard_presentation::bind(window);
     window.set_cache_rows(ModelRc::from(model));
+    let weak = window.as_weak();
+    window.on_dashboard_focus_first(move || {
+        let Some(window) = weak.upgrade() else {
+            return false;
+        };
+        for binding in widget_bindings(&window) {
+            let Some((_, _, node)) = widget_row(&window, binding.token, binding.generation) else {
+                continue;
+            };
+            if !node.widget.can_open {
+                continue;
+            }
+            if !matches!(
+                node.widget.kind,
+                crate::ProDashboardWidgetKind::Room | crate::ProDashboardWidgetKind::Observations
+            ) && node.widget.action_label.is_empty()
+            {
+                continue;
+            }
+            let item = if node.widget.kind == crate::ProDashboardWidgetKind::Observations {
+                let Some(item) = node.widget.observations.iter().find(|item| item.available) else {
+                    continue;
+                };
+                Some(item)
+            } else {
+                None
+            };
+            window.invoke_native_focus_cancelled();
+            let rows = window.get_cache_rows();
+            let Some(rows) = rows.as_any().downcast_ref::<CacheRows>() else {
+                return false;
+            };
+            let request = next_widget_focus_request(rows);
+            *rows.widget_focus_mapping.borrow_mut() = None;
+            window.set_widget_item_focus(
+                item.map(|item| crate::FocusRequest {
+                    present: true,
+                    token: item.token,
+                    generation: item.generation,
+                    request,
+                })
+                .unwrap_or_default(),
+            );
+            window.set_widget_focus(crate::FocusRequest {
+                present: true,
+                token: binding.token,
+                generation: binding.generation,
+                request,
+            });
+            return true;
+        }
+        false
+    });
+    let weak = window.as_weak();
+    window.on_dashboard_widget_activate(move |token, generation| {
+        if let Some(window) = weak.upgrade() {
+            activate_widget(&window, token, generation);
+        }
+    });
+    let weak = window.as_weak();
+    window.on_dashboard_observation_open(move |token, generation, item, item_generation| {
+        let Some(window) = weak.upgrade() else {
+            return;
+        };
+        let Some((_, _, node)) = widget_row(&window, token, generation) else {
+            return;
+        };
+        if item_generation == generation
+            && node
+                .widget
+                .observations
+                .iter()
+                .any(|row| row.token == item && row.generation == item_generation && row.available)
+        {
+            activate_widget(&window, token, generation);
+        }
+    });
+    let weak = window.as_weak();
+    window.on_dashboard_widget_focus_requested(move || {
+        if let Some(window) = weak.upgrade() {
+            refresh_widget_focus(&window);
+        }
+    });
+    let weak = window.as_weak();
+    window.on_dashboard_widget_focus(move |token, generation, focused| {
+        if let Some(window) = weak.upgrade()
+            && let Some((_, _, node)) = widget_row(&window, token, generation)
+        {
+            window.invoke_recipe_focus_observed(node.recipe.token, node.recipe.generation, focused);
+        }
+    });
+    let weak = window.as_weak();
+    window.on_dashboard_widget_focus_applied(move |token, generation, request| {
+        if let Some(window) = weak.upgrade()
+            && let Some((_, _, node)) = widget_row(&window, token, generation)
+        {
+            let widget_request = window.get_widget_focus();
+            let original = window.get_recipe_focus();
+            if widget_request.present
+                && widget_request.token == token
+                && widget_request.generation == generation
+                && widget_request.request == request
+                && original.present
+                && original.token == node.recipe.token
+                && original.generation == node.recipe.generation
+            {
+                window.invoke_recipe_focus_applied(
+                    node.recipe.token,
+                    node.recipe.generation,
+                    original.request,
+                );
+            }
+        }
+    });
+    let weak = window.as_weak();
+    window.on_dashboard_widget_focus_revealed(move |token, generation, top, bottom| {
+        if let Some(window) = weak.upgrade()
+            && let Some((_, _, node)) = widget_row(&window, token, generation)
+        {
+            window.invoke_recipe_focus_revealed(
+                node.recipe.token,
+                node.recipe.generation,
+                top,
+                bottom,
+            );
+        }
+    });
+    let weak = window.as_weak();
+    window.on_dashboard_observation_focus(
+        move |token, generation, item, item_generation, focused| {
+            let Some(window) = weak.upgrade() else {
+                return;
+            };
+            if !focused || item_generation != generation {
+                return;
+            }
+            let rows = window.get_cache_rows();
+            let Some(rows) = rows.as_any().downcast_ref::<CacheRows>() else {
+                return;
+            };
+            if let Some(binding) = widget_bindings(&window)
+                .into_iter()
+                .find(|binding| binding.token == token && binding.generation == generation)
+                && let crate::dashboard_widgets::Content::Observations { items } =
+                    binding.config.content
+                && let Ok(index) = usize::try_from(item)
+                && let Some(item) = items.get(index)
+            {
+                *rows.focused_widget_item.borrow_mut() = Some((binding.node, item.field.clone()));
+            }
+        },
+    );
 }
 impl Model for CacheRows {
     type Data = TableRow;
@@ -701,7 +859,7 @@ impl Model for CacheRows {
                         &Row {
                             id: None,
                             index,
-                            cells: ["Chargement…".into(), String::new(), String::new()],
+                            cells: ["Loading…".into(), String::new(), String::new()],
                         },
                         true,
                     )
@@ -738,10 +896,11 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_media_notice("".into());
     window.set_view_loaded(false);
     window.set_commands_ready(false);
+    window.set_has_configured_layout(false);
     window.set_action_feedback("".into());
-    window.set_dashboard_title("Accueil".into());
+    window.set_dashboard_title("Home".into());
     window.set_dashboard_synthetic(false);
-    window.set_dashboard_status("Dashboard indisponible".into());
+    window.set_dashboard_status("Dashboard unavailable".into());
     window.set_home_focus(crate::FocusRequest::default());
     window.invoke_native_route_changed();
     let model = window.get_cache_rows();
@@ -753,6 +912,7 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     } else {
         window.set_device_cards(Default::default());
         window.set_home_layout_nodes(Default::default());
+        window.set_rooms_layout_nodes(Default::default());
         window.set_room_layout_nodes(Default::default());
         window.set_popup_layout_nodes(Default::default());
     }
@@ -768,6 +928,9 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_read_status("".into());
     window.set_cache_error("".into());
     window.invoke_recipe_context_changed();
+    window.invoke_dashboard_widgets_changed();
+    window.set_widget_focus(Default::default());
+    window.set_widget_item_focus(Default::default());
     refresh_clock(window);
 }
 
@@ -778,9 +941,24 @@ pub(crate) fn refresh_clock(window: &HomewardWindow) {
         .downcast_ref::<CacheRows>()
         .map(|model| model.profile_zone.get())
         .unwrap_or_default();
-    let (clock, date) = zone.clock(crate::environment_view::now());
+    let now = crate::environment_view::now();
+    let (clock, date) = zone.clock(now);
+    window.set_greeting(zone.greeting(now).into());
     window.set_local_clock(clock.into());
     window.set_local_date(date.into());
+    for binding in widget_bindings(window) {
+        if let crate::dashboard_widgets::Content::ClockWeather { zone, .. } = binding.config.content
+            && let Some((model, index, mut row)) =
+                widget_row(window, binding.token, binding.generation)
+        {
+            let (clock, date) = crate::dashboard_widget_reading::clock(zone, now);
+            if row.widget.clock != clock.as_str() || row.widget.date != date.as_str() {
+                row.widget.clock = clock.into();
+                row.widget.date = date.into();
+                model.set_row_data(index, row);
+            }
+        }
+    }
 }
 
 pub(crate) fn render(
@@ -800,13 +978,23 @@ pub(crate) fn render(
         return;
     }
     let revision = projection.revision;
+    if projection.phase == CachePhase::Live && projection.home.captured {
+        // A coherent admitted recovery supersedes its transient read warning.
+        // Device/list command outcomes remain independently owned.
+        window.set_cache_error("".into());
+    }
     let home = &projection.home;
     window.set_view_loaded(home.captured);
     window.set_dashboard_status(home.status.as_str().into());
+    window.set_has_configured_layout(
+        home.layout
+            .as_ref()
+            .is_some_and(|layout| layout.native.is_some()),
+    );
     window.set_dashboard_title(
         home.layout
             .as_ref()
-            .map_or("Accueil", |layout| layout.title.as_str())
+            .map_or("Home", |layout| layout.title.as_str())
             .into(),
     );
     window.set_dashboard_synthetic(
@@ -826,8 +1014,8 @@ pub(crate) fn render(
                     token: index as i32 + dashboard::ROOM_TOKEN_BASE,
                     generation: 0,
                     title: room.label.as_str().into(),
-                    subtitle: format!("{} éléments observés", home.room_counts[index]).into(),
-                    icon: IconKind::Home,
+                    subtitle: format!("{} observed items", home.room_counts[index]).into(),
+                    icon: window.global::<KitGlyphs>().invoke_home(),
                 })
                 .collect::<Vec<_>>()
         })
@@ -838,8 +1026,8 @@ pub(crate) fn render(
         window.set_detail_quality(quality.as_str().into());
         window.set_detail_date(date.as_str().into());
     } else {
-        window.set_detail_title("Détail indisponible".into());
-        window.set_detail_value("Aucune observation autorisée pour cet élément.".into());
+        window.set_detail_title("Detail unavailable".into());
+        window.set_detail_value("No authorized observation for this item.".into());
         window.set_detail_quality("".into());
         window.set_detail_date("".into());
     }
@@ -858,12 +1046,13 @@ pub(crate) fn render(
             value: item.value.as_str().into(),
             description: item.description.as_str().into(),
             icon: match item.icon {
-                Icon::Home => IconKind::Home,
-                Icon::Information => IconKind::Information,
-                Icon::Clock => IconKind::Clock,
-                Icon::Grid => IconKind::Grid,
+                Icon::Home => window.global::<KitGlyphs>().invoke_home(),
+                Icon::Information => window.global::<KitGlyphs>().invoke_information(),
+                Icon::Clock => window.global::<KitGlyphs>().invoke_clock(),
+                Icon::Grid => window.global::<KitGlyphs>().invoke_grid(),
             },
             available: item.id.is_some(),
+            active: false,
         })
         .collect::<Vec<_>>();
     let total = projection.total;
@@ -874,37 +1063,84 @@ pub(crate) fn render(
     let model = window.get_cache_rows();
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
         window.set_commands_ready(projection.devices.ready);
-        match projection.board.target() {
-            crate::dashboard_presentation::BoardTarget::Clear => {
-                sync(&model.home_layout_nodes, Vec::new());
-                sync(&model.room_layout_nodes, Vec::new());
-                sync(&model.popup_layout_nodes, Vec::new());
-            }
-            crate::dashboard_presentation::BoardTarget::Retain => {}
-            crate::dashboard_presentation::BoardTarget::Home => sync(
-                &model.home_layout_nodes,
-                projection.board.rows(&model.home_layout_nodes),
-            ),
-            crate::dashboard_presentation::BoardTarget::Room => sync(
-                &model.room_layout_nodes,
-                projection.board.rows(&model.room_layout_nodes),
-            ),
-            crate::dashboard_presentation::BoardTarget::Popup => sync(
-                &model.popup_layout_nodes,
-                projection.board.rows(&model.popup_layout_nodes),
-            ),
-        }
         sync(
             &model.devices,
             std::mem::take(&mut projection.devices.rows)
                 .iter()
                 .enumerate()
-                .map(|(index, row)| row.ui(model.devices.row_data(index).as_ref()))
+                .map(|(index, row)| {
+                    row.ui(
+                        model.devices.row_data(index).as_ref(),
+                        &window.global::<KitGlyphs>().invoke_information(),
+                    )
+                })
                 .collect(),
         );
+        let board = std::mem::take(&mut projection.board);
+        let before_generation = model.serial.get();
         model.apply(generation, projection);
+        if !matches!(
+            board.target(),
+            crate::dashboard_presentation::BoardTarget::Retain
+        ) {
+            let incoming = board.bindings(0);
+            let previous = model.widget_bindings.borrow();
+            let same = incoming.len() == previous.len()
+                && incoming
+                    .iter()
+                    .zip(previous.iter())
+                    .all(|(a, b)| a.token == b.token && a.node == b.node && a.config == b.config);
+            // Visibility can remove a node without changing the source document.
+            // A shifted row must not inherit another widget's pending gesture or
+            // resource-reader generation merely because its index is reused.
+            if !same && model.serial.get() == before_generation {
+                model.serial.set(
+                    before_generation
+                        .checked_add(1)
+                        .expect("widget identity generation exhausted"),
+                );
+            }
+        }
         window.set_cache_generation(model.serial.get());
         window.set_home_generation(model.home_serial.get());
+        let widget_generation = model.serial.get();
+        let rendered = |previous: &slint::VecModel<crate::ProLayoutNode>| {
+            board.rows_with_generation(
+                previous,
+                &window.global::<KitGlyphs>().invoke_information(),
+                widget_generation,
+            )
+        };
+        match board.target() {
+            crate::dashboard_presentation::BoardTarget::Clear => {
+                sync(&model.home_layout_nodes, Vec::new());
+                sync(&model.rooms_layout_nodes, Vec::new());
+                sync(&model.room_layout_nodes, Vec::new());
+                sync(&model.popup_layout_nodes, Vec::new());
+                model.widget_bindings.borrow_mut().clear();
+            }
+            crate::dashboard_presentation::BoardTarget::Retain => {}
+            crate::dashboard_presentation::BoardTarget::Home => {
+                let home = rendered(&model.home_layout_nodes);
+                sync(
+                    &model.rooms_layout_nodes,
+                    board.room_directory_rows(home.clone()),
+                );
+                sync(&model.home_layout_nodes, home);
+                *model.widget_bindings.borrow_mut() = board.bindings(widget_generation);
+            }
+            crate::dashboard_presentation::BoardTarget::Room => {
+                sync(&model.room_layout_nodes, rendered(&model.room_layout_nodes));
+                *model.widget_bindings.borrow_mut() = board.bindings(widget_generation);
+            }
+            crate::dashboard_presentation::BoardTarget::Popup => {
+                sync(
+                    &model.popup_layout_nodes,
+                    rendered(&model.popup_layout_nodes),
+                );
+                *model.widget_bindings.borrow_mut() = board.bindings(widget_generation);
+            }
+        }
         let observations = observations
             .into_iter()
             .map(|mut row| {
@@ -922,6 +1158,8 @@ pub(crate) fn render(
         sync(&model.rooms, rooms);
         sync(&model.observations, observations);
     }
+    window.invoke_dashboard_widgets_changed();
+    refresh_widget_focus(window);
     window.invoke_recipe_context_changed();
     window.invoke_native_layout_published(revision);
     refresh_clock(window);
@@ -944,28 +1182,250 @@ pub(crate) fn clear_native_target(
     }
 }
 
+/// Only the active, coherent configured board can own resource readers.
+pub(crate) fn widget_bindings(window: &HomewardWindow) -> Vec<crate::dashboard_widgets::Binding> {
+    if !window.get_view_loaded()
+        || window.get_access_stage() != crate::ProAccessStage::Connected
+        || window.get_show_endpoint()
+    {
+        return Vec::new();
+    }
+    let base = if window.get_native_popup().open {
+        300_000
+    } else {
+        match window.get_page() {
+            crate::ViewPage::Home | crate::ViewPage::Rooms => 100_000,
+            crate::ViewPage::Room if window.get_room_view() == crate::RoomView::Cards => 200_000,
+            crate::ViewPage::Room => return Vec::new(),
+            crate::ViewPage::Inventory
+            | crate::ViewPage::Detail
+            | crate::ViewPage::Lists
+            | crate::ViewPage::Calendars
+            | crate::ViewPage::Cameras
+            | crate::ViewPage::Settings => return Vec::new(),
+        }
+    };
+    let rows = window.get_cache_rows();
+    let Some(rows) = rows.as_any().downcast_ref::<CacheRows>() else {
+        return Vec::new();
+    };
+    rows.widget_bindings
+        .borrow()
+        .iter()
+        .filter(|binding| {
+            (window.get_page() != crate::ViewPage::Rooms
+                || window.get_native_popup().open
+                || matches!(
+                    binding.config.content,
+                    crate::dashboard_widgets::Content::Room { .. }
+                ))
+                && binding.token >= base
+                && binding.token < base + 100_000
+                && binding.generation == rows.serial.get()
+        })
+        .cloned()
+        .collect()
+}
+fn widget_row(
+    window: &HomewardWindow,
+    token: i32,
+    generation: i32,
+) -> Option<(
+    std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
+    usize,
+    crate::ProLayoutNode,
+)> {
+    if !widget_bindings(window)
+        .iter()
+        .any(|binding| binding.token == token && binding.generation == generation)
+    {
+        return None;
+    }
+    let rows = window.get_cache_rows();
+    let rows = rows.as_any().downcast_ref::<CacheRows>()?;
+    let (model, index) = match token {
+        100_000..200_000 => (rows.home_layout_nodes.clone(), token - 100_000),
+        200_000..300_000 => (rows.room_layout_nodes.clone(), token - 200_000),
+        300_000..400_000 => (rows.popup_layout_nodes.clone(), token - 300_000),
+        _ => return None,
+    };
+    let index = usize::try_from(index).ok()?;
+    let row = model.row_data(index)?;
+    if row.token != token
+        || row.generation != generation
+        || row.kind != crate::ProLayoutKind::Widget
+    {
+        return None;
+    }
+    Some((model, index, row))
+}
+fn activate_widget(window: &HomewardWindow, token: i32, generation: i32) {
+    if window.get_navigation_drawer().open || window.get_recipe_confirmation().open {
+        return;
+    }
+    let popup = window.get_native_popup();
+    if popup.open && (!popup.topmost || popup.busy) {
+        return;
+    }
+    let Some((_, _, node)) = widget_row(window, token, generation) else {
+        return;
+    };
+    if !node.widget.can_open {
+        return;
+    }
+    window.invoke_recipe_gesture(
+        node.recipe.token,
+        node.recipe.generation,
+        crate::ProRecipeGesture::Tap,
+    );
+}
+fn next_widget_focus_request(rows: &CacheRows) -> i32 {
+    let request = rows
+        .widget_focus_serial
+        .get()
+        .checked_add(1)
+        .expect("widget focus request exhausted");
+    rows.widget_focus_serial.set(request);
+    request
+}
+fn refresh_widget_focus(window: &HomewardWindow) {
+    let requested = window.get_recipe_focus();
+    let rows = window.get_cache_rows();
+    let Some(rows) = rows.as_any().downcast_ref::<CacheRows>() else {
+        return;
+    };
+    let mut focus = crate::FocusRequest::default();
+    let mut item_focus = crate::FocusRequest::default();
+    if requested.present {
+        for binding in widget_bindings(window) {
+            let Some((_, _, node)) = widget_row(window, binding.token, binding.generation) else {
+                continue;
+            };
+            if node.recipe.token != requested.token
+                || node.recipe.generation != requested.generation
+                || !node.widget.can_open
+            {
+                continue;
+            }
+            let mapped = rows
+                .widget_focus_mapping
+                .borrow()
+                .as_ref()
+                .filter(|(original, _)| original == &requested)
+                .map(|(_, serial)| *serial);
+            let serial = mapped.unwrap_or_else(|| next_widget_focus_request(rows));
+            *rows.widget_focus_mapping.borrow_mut() = Some((requested.clone(), serial));
+            focus = crate::FocusRequest {
+                present: true,
+                token: binding.token,
+                generation: binding.generation,
+                request: serial,
+            };
+            if let crate::dashboard_widgets::Content::Observations { items } =
+                &binding.config.content
+            {
+                let saved = rows.focused_widget_item.borrow();
+                let selected = saved
+                    .as_ref()
+                    .filter(|(id, _)| id == &binding.node)
+                    .and_then(|(_, field)| items.iter().position(|item| &item.field == field));
+                let selected = selected
+                    .filter(|index| {
+                        node.widget
+                            .observations
+                            .row_data(*index)
+                            .is_some_and(|row| row.available)
+                    })
+                    .or_else(|| {
+                        node.widget
+                            .observations
+                            .iter()
+                            .position(|item| item.available)
+                    });
+                if let Some(index) = selected
+                    .and_then(|index| node.widget.observations.row_data(index))
+                    .filter(|item| item.available)
+                {
+                    item_focus = crate::FocusRequest {
+                        token: index.token,
+                        generation: index.generation,
+                        present: true,
+                        request: serial,
+                    };
+                }
+            }
+            break;
+        }
+    }
+    if !focus.present {
+        *rows.widget_focus_mapping.borrow_mut() = None;
+    }
+    window.set_widget_item_focus(item_focus);
+    window.set_widget_focus(focus);
+}
+pub(crate) fn publish_widget_tasks(
+    window: &HomewardWindow,
+    token: i32,
+    generation: i32,
+    tasks: ModelRc<crate::ProTaskRow>,
+    access: crate::ProTaskAccess,
+    ready: bool,
+    status: String,
+) {
+    let Some((model, index, mut row)) = widget_row(window, token, generation) else {
+        return;
+    };
+    if row.widget.kind != crate::ProDashboardWidgetKind::Tasks {
+        return;
+    }
+    row.widget.tasks = tasks;
+    row.widget.task_access = access;
+    row.widget.data_ready = ready;
+    row.widget.status = status.into();
+    model.set_row_data(index, row);
+}
+pub(crate) fn publish_widget_agenda(
+    window: &HomewardWindow,
+    token: i32,
+    generation: i32,
+    agenda: ModelRc<crate::ProAgendaRow>,
+    ready: bool,
+    status: String,
+) {
+    let Some((model, index, mut row)) = widget_row(window, token, generation) else {
+        return;
+    };
+    if row.widget.kind != crate::ProDashboardWidgetKind::Agenda {
+        return;
+    }
+    row.widget.agenda = agenda;
+    row.widget.data_ready = ready;
+    row.widget.status = status.into();
+    model.set_row_data(index, row);
+}
+
 fn cache_status(phase: CachePhase, total: usize) -> String {
     let label = match phase {
         CachePhase::Idle => "",
-        CachePhase::Loading => "Chargement des états…",
+        CachePhase::Loading => "Loading states…",
         CachePhase::Live => {
             if total == 0 {
-                "Aucun élément autorisé dans cette vue."
+                "No authorized items in this view."
             } else {
-                "États à jour"
+                "States up to date"
             }
         }
-        CachePhase::Offline => "Hors ligne · dernières données reçues",
-        CachePhase::Resyncing => "Actualisation de la vue autorisée…",
-        CachePhase::Suspended => "Lecture suspendue",
-        CachePhase::Blocked => "Lecture indisponible · réessayez ou reconnectez-vous",
-        CachePhase::Invalid => "La réponse du serveur ne permet pas d’afficher une vue cohérente.",
+        CachePhase::Offline => "Offline · latest received data",
+        CachePhase::Resyncing => "Refreshing the authorized view…",
+        CachePhase::Suspended => "Reading suspended",
+        CachePhase::Blocked => "Reading unavailable · retry or sign in again",
+        CachePhase::Invalid => "The server response cannot produce a coherent view.",
         CachePhase::Closed => "",
     };
     if total > 0 {
         format!(
             "{label} · {total} {}",
-            if total == 1 { "entité" } else { "entités" }
+            if total == 1 { "entity" } else { "entities" }
         )
     } else {
         label.into()
@@ -974,15 +1434,15 @@ fn cache_status(phase: CachePhase, total: usize) -> String {
 
 pub(crate) fn event_message(event: CacheEvent) -> &'static str {
     match event {
-        CacheEvent::Transport(_) => "Dernier incident : la lecture réseau a été interrompue.",
+        CacheEvent::Transport(_) => "Previous incident: network reading was interrupted.",
         CacheEvent::Session(_) => {
-            "Dernier incident : la session ne permet plus de poursuivre la lecture."
+            "Previous incident: the session could no longer continue reading."
         }
         CacheEvent::Contract(_) => {
-            "Dernier incident : une réponse ne respecte pas le contrat de lecture."
+            "Previous incident: a response did not meet the reading contract."
         }
-        CacheEvent::Resync(_) => "La vue a été invalidée ; une capture complète est nécessaire.",
-        CacheEvent::StreamEnded => "Dernier incident : le flux de lecture a été fermé.",
+        CacheEvent::Resync(_) => "A full view refresh was requested.",
+        CacheEvent::StreamEnded => "Previous incident: the reading stream was closed.",
     }
 }
 
@@ -1065,7 +1525,7 @@ mod tests {
         assert_eq!(loaded.cells.row_data(0).unwrap().as_str(), "Élément 128");
         assert!(!loaded.disabled);
         let unloaded = model.row_data(500).unwrap();
-        assert_eq!(unloaded.cells.row_data(0).unwrap().as_str(), "Chargement…");
+        assert_eq!(unloaded.cells.row_data(0).unwrap().as_str(), "Loading…");
         assert!(unloaded.disabled);
         assert!(model.row_data(850).is_none());
         model.apply(
@@ -1114,6 +1574,614 @@ mod tests {
         })
     }
 
+    fn widget_node(content: crate::dashboard_widgets::Content) -> crate::dashboard_layout::Node {
+        let mut native = crate::dashboard_layout::NativeLayout::try_from(
+            &crate::dashboard_layout::tests::extended_forest(),
+        )
+        .unwrap();
+        let mut node = native
+            .nodes
+            .remove(&crate::dashboard_layout::NodeId::parse("tile").unwrap())
+            .unwrap();
+        node.kind = crate::dashboard_layout::Kind::Widget;
+        node.title = "Titre fourni par le serveur".into();
+        node.entity = None;
+        node.features.clear();
+        node.recipe_kind = None;
+        node.recipes = None;
+        node.widget = Some(crate::dashboard_widgets::Widget {
+            content,
+            action: None,
+            action_label: String::new(),
+            empty_label: String::new(),
+        });
+        node
+    }
+    #[test]
+    fn configured_rooms_directory_keeps_exact_widget_owner_and_rejects_stale_activation() {
+        use crate::dashboard_layout::{Kind, NativeLayout, NodeId};
+        use crate::dashboard_widgets::Content;
+        use home_client_model::dashboard::{Destination, Gesture, Presentation};
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        bind(&window);
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_show_endpoint(false);
+        window.set_page(crate::ViewPage::Rooms);
+        let destination = Destination {
+            dashboard: home_client_model::dashboard::DashboardId::parse("exact-dashboard").unwrap(),
+            node: NodeId::parse("exact-configured-popup").unwrap(),
+            presentation: Presentation::Popup,
+        };
+        let mut room = widget_node(Content::Room {
+            room: dashboard::RoomId::parse("exact-room-id").unwrap(),
+            temperature: None,
+            activity: Vec::new(),
+            active_states: Vec::new(),
+        });
+        room.id = NodeId::parse("configured-room-widget").unwrap();
+        room.widget.as_mut().unwrap().action = Some(destination.clone());
+        let mut root = room.clone();
+        root.id = NodeId::parse("configured-home").unwrap();
+        root.kind = Kind::View;
+        root.widget = None;
+        root.children = vec![room.id.clone()];
+        let mut layout = dashboard::fixture();
+        layout.rooms.clear();
+        layout.native = Some(NativeLayout {
+            version: 3,
+            views: vec![root.id.clone()],
+            nodes: [root.clone(), room.clone()]
+                .into_iter()
+                .map(|node| (node.id.clone(), node))
+                .collect(),
+        });
+        let request = ProjectionRequest {
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone())),
+            ..Default::default()
+        };
+        let devices = crate::device_view::DeviceProjection {
+            native_nodes: vec![root, room.clone()],
+            recipes: [(
+                room.id.clone(),
+                crate::device_view::RecipePresentation {
+                    token: 71,
+                    generation: 83,
+                    gestures: [(Gesture::Tap, crate::device_view::GestureAccess::Local)].into(),
+                    unavailable: false,
+                },
+            )]
+            .into(),
+            ..Default::default()
+        };
+        let observed = home_view();
+        let mut projection = project_request(
+            CachePhase::Live,
+            Some(&observed),
+            Viewport::default(),
+            &request,
+        );
+        projection.board = crate::dashboard_presentation::Board::project(
+            Some(&layout),
+            &request,
+            &devices,
+            Some(&observed),
+        );
+        render(
+            &window,
+            ProjectionMailbox::<()>::new().generation(),
+            projection,
+        );
+        assert_eq!(
+            window.get_home_rooms().row_count(),
+            0,
+            "configured directory must work without the legacy overview catalogue"
+        );
+        let directory = window.get_rooms_layout_nodes();
+        let input = directory.row_data(0).unwrap().children.row_data(0).unwrap();
+        let leaf = directory.row_data(input.index as usize).unwrap();
+        let original = window
+            .get_home_layout_nodes()
+            .row_data(input.index as usize)
+            .unwrap();
+        assert_eq!(leaf.token, original.token);
+        assert_eq!(leaf.generation, original.generation);
+        assert_eq!(
+            widget_bindings(&window)[0].config.destination(),
+            Some(&destination)
+        );
+        let actions = std::rc::Rc::new(RefCell::new(Vec::new()));
+        let captured = actions.clone();
+        window.on_recipe_gesture(move |token, generation, gesture| {
+            captured.borrow_mut().push((token, generation, gesture))
+        });
+        window.invoke_dashboard_widget_activate(leaf.token, leaf.generation);
+        assert_eq!(
+            actions.borrow().as_slice(),
+            &[(71, 83, crate::ProRecipeGesture::Tap)]
+        );
+        clear_state(&window, false);
+        window.invoke_dashboard_widget_activate(leaf.token, leaf.generation);
+        assert_eq!(
+            actions.borrow().len(),
+            1,
+            "cleared/replaced directory must reject the previously held owner"
+        );
+        assert_eq!(window.get_rooms_layout_nodes().row_count(), 0);
+    }
+    #[test]
+    fn configured_room_temperature_never_falls_back_to_another_observed_entity() {
+        use crate::dashboard_widgets::{Content, Field, FieldKey};
+        let climate = |index: usize| {
+            let id = format!("temperature-{index}");
+            state::ViewEntity {
+                entity_id: id.clone(),
+                current_alias: format!("Thermostat {index}"),
+                state: state::ObservedState {
+                    entity: home_wire_contract::home::registry::v1::EntityRef {
+                        reference: Some(
+                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityId(
+                                id,
+                            ),
+                        ),
+                        ..Default::default()
+                    }
+                    .into(),
+                    revision: 1,
+                    quality: state::Quality {
+                        availability: state::Availability::Available.into(),
+                        freshness: state::Freshness::Fresh.into(),
+                        provenance: state::Provenance::Observed.into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    value: Some(state::observed_state::Value::Climate(Box::new(
+                        state::ClimateValue {
+                            current_temperature_celsius: Some(if index == 0 { 99. } else { 0. }),
+                            ..Default::default()
+                        },
+                    ))),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }
+        };
+        let layout = dashboard::fixture();
+        let node = widget_node(Content::Room {
+            room: layout.rooms[0].id.clone(),
+            temperature: Some(Field {
+                entity: "temperature-1".parse().unwrap(),
+                key: FieldKey::CurrentTemperature,
+            }),
+            activity: Vec::new(),
+            active_states: Vec::new(),
+        });
+        let full = view_with(2, climate);
+        let reading =
+            crate::dashboard_widget_reading::Reading::project(&node, &layout, Some(&full));
+        assert_eq!(
+            reading.value, "0 °C",
+            "zero is an observed value, and the configured second entity wins over the first"
+        );
+        let restricted = view_with(1, climate);
+        let absent =
+            crate::dashboard_widget_reading::Reading::project(&node, &layout, Some(&restricted));
+        assert_eq!(
+            absent.value, "—",
+            "missing configured source must not select the remaining thermostat"
+        );
+        let stale = view_with(2, |index| {
+            let mut entity = climate(index);
+            if index == 1 {
+                entity
+                    .state
+                    .as_option_mut()
+                    .unwrap()
+                    .quality
+                    .as_option_mut()
+                    .unwrap()
+                    .freshness = state::Freshness::Stale.into();
+            }
+            entity
+        });
+        let unavailable =
+            crate::dashboard_widget_reading::Reading::project(&node, &layout, Some(&stale));
+        assert_eq!(
+            unavailable.value, "—",
+            "a retained stale source is not a current reading and does not select the fresh alternative"
+        );
+    }
+    #[test]
+    fn security_summaries_follow_exact_entity_order_without_capability_rows() {
+        use crate::dashboard_widgets::Content;
+        let layout = dashboard::fixture();
+        let node = widget_node(Content::Security {
+            entities: vec!["security-1".parse().unwrap(), "security-0".parse().unwrap()],
+        });
+        let source = |index: usize, stale: bool| {
+            let id = format!("security-{index}");
+            state::ViewEntity {
+                entity_id: id.clone(),
+                current_alias: format!("Source {index}"),
+                state: state::ObservedState {
+                    entity: home_wire_contract::home::registry::v1::EntityRef {
+                        reference: Some(
+                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityId(
+                                id,
+                            ),
+                        ),
+                        ..Default::default()
+                    }
+                    .into(),
+                    revision: 1,
+                    quality: state::Quality {
+                        availability: state::Availability::Available.into(),
+                        freshness: if stale {
+                            state::Freshness::Stale
+                        } else {
+                            state::Freshness::Fresh
+                        }
+                        .into(),
+                        provenance: state::Provenance::Observed.into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    value: Some(state::observed_state::Value::SwitchOn(index == 1)),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }
+        };
+        let full = view_with(2, |index| source(index, false));
+        let reading =
+            crate::dashboard_widget_reading::Reading::project(&node, &layout, Some(&full));
+        assert_eq!(reading.security.len(), 2);
+        assert_eq!(reading.security[0].title, "Source 1");
+        assert_eq!(reading.security[0].value, "On");
+        assert_eq!(reading.security[1].title, "Source 0");
+        assert_eq!(reading.security[1].value, "Off");
+        let field = crate::dashboard_widgets::Field {
+            entity: "security-1".parse().unwrap(),
+            key: crate::dashboard_widgets::FieldKey::State,
+        };
+        assert_eq!(field.reading(Some(&full)).as_deref(), Some("on"));
+        assert_eq!(
+            crate::dashboard_visibility::literal(full.get(&field.entity).unwrap()),
+            Some("on"),
+            "the configured state field retains its exact literal"
+        );
+        let light = view_with(1, |index| {
+            let mut entity = source(index, false);
+            entity.state.as_option_mut().unwrap().value = Some(
+                state::observed_state::Value::Light(Box::new(state::LightValue {
+                    on: Some(true),
+                    brightness_percent: Some(42.),
+                    ..Default::default()
+                })),
+            );
+            entity
+        });
+        let field = crate::dashboard_widgets::Field {
+            entity: "security-0".parse().unwrap(),
+            key: crate::dashboard_widgets::FieldKey::State,
+        };
+        assert_eq!(
+            field.reading(Some(&light)).as_deref(),
+            Some("on"),
+            "a state binding must not include unselected brightness or other value properties"
+        );
+        assert!(
+            reading
+                .security
+                .iter()
+                .all(|row| !row.can_power && row.values.is_empty())
+        );
+        let stale = view_with(2, |index| source(index, index == 1));
+        let reading =
+            crate::dashboard_widget_reading::Reading::project(&node, &layout, Some(&stale));
+        assert_eq!(reading.security[0].title, "Source 1");
+        assert_eq!(
+            reading.security[0].value, "—",
+            "a stale source must not borrow another entity's value"
+        );
+        assert_eq!(reading.security[1].value, "Off");
+    }
+    #[test]
+    fn widget_thermostat_uses_the_canonical_field_and_preserves_observed_values_during_drafts() {
+        use crate::dashboard_widgets::{Content, Field, FieldKey};
+        let entity: EntityId = "climate.configured".parse().unwrap();
+        let node = widget_node(Content::Thermostat {
+            detailed: false,
+            summary_only: false,
+            entity: entity.clone(),
+            current: Field {
+                entity: entity.clone(),
+                key: FieldKey::CurrentTemperature,
+            },
+            target: Field {
+                entity,
+                key: FieldKey::Setpoint,
+            },
+        });
+        let reading = crate::dashboard_widget_reading::Reading {
+            value: "0".into(),
+            target: Some("21".into()),
+            ..Default::default()
+        };
+        let mut row = crate::device_view::presentation::CardRow {
+            kind: crate::ProDeviceKind::Climate,
+            field_keys: [("setpoint_celsius", 7)].into(),
+            values: vec![
+                crate::ProDeviceValue {
+                    token: 3,
+                    kind: crate::ProValueKind::Numeric,
+                    lower: "99".into(),
+                    ..Default::default()
+                },
+                crate::ProDeviceValue {
+                    token: 7,
+                    kind: crate::ProValueKind::Numeric,
+                    mode: crate::ProValueMode::Single,
+                    lower: "21".into(),
+                    can_step: true,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let ui = |row: &crate::device_view::presentation::CardRow| {
+            reading.ui(
+                &node,
+                Some(row),
+                None,
+                (100_001, 4),
+                &Default::default(),
+                false,
+            )
+        };
+        assert_eq!(
+            ui(&row).field.token,
+            7,
+            "the first numeric field is not a selector"
+        );
+        assert!(ui(&row).field.can_step);
+        row.values[1].lower = "22".into();
+        let draft = ui(&row);
+        assert_eq!(draft.thermostat.value, "0");
+        assert_eq!(draft.field.lower, "21");
+        assert!(!draft.field.can_step);
+        row.values[1].lower = "21".into();
+        row.values[1].error = "Brouillon refusé".into();
+        assert!(!ui(&row).field.can_step);
+        row.field_keys.clear();
+        assert!(
+            !ui(&row).field.can_step,
+            "no other field substitutes for a missing canonical binding"
+        );
+    }
+    #[test]
+    fn an_empty_server_layout_is_valid_and_does_not_create_dashboard_widgets() {
+        let mut wire = dashboard::fixture_wire();
+        wire.metadata.as_option_mut().unwrap().profile =
+            home_client_model::dashboard::Profile::Widgets.name().into();
+        wire.native_layout = home_wire_contract::home::dashboard::v1::NativeLayout {
+            version: 3,
+            ..Default::default()
+        }
+        .into();
+        let layout = Layout::try_from(&wire).unwrap();
+        let native = layout.native.as_ref().unwrap();
+        assert!(native.nodes.is_empty());
+        let board = crate::dashboard_presentation::Board::project(
+            Some(&layout),
+            &ProjectionRequest::default(),
+            &Default::default(),
+            None,
+        );
+        assert!(board.bindings(9).is_empty());
+        assert!(
+            board
+                .rows_with_generation(&Default::default(), &Default::default(), 9)
+                .is_empty()
+        );
+    }
+    #[test]
+    fn conditional_nodes_cannot_reassign_a_held_widget_identity_when_source_indices_shift() {
+        use crate::dashboard_layout::{Kind, NativeLayout, NodeId};
+        use crate::dashboard_widgets::Content;
+        use home_client_model::dashboard::{Comparison, Predicate, Recipes};
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        bind(&window);
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_show_endpoint(false);
+        let make_clock = || {
+            widget_node(Content::ClockWeather {
+                zone: "UTC".parse().unwrap(),
+                weather: None,
+            })
+        };
+        let mut conditional = make_clock();
+        conditional.id = NodeId::parse("conditional").unwrap();
+        conditional.recipes = Some(Recipes {
+            interactions: BTreeMap::new(),
+            visibility: Some(Predicate::State {
+                entity: "condition".parse().unwrap(),
+                expected: "on".into(),
+                comparison: Comparison::Equal,
+            }),
+        });
+        let mut remaining = make_clock();
+        remaining.id = NodeId::parse("remaining").unwrap();
+        let mut section = make_clock();
+        section.id = NodeId::parse("section").unwrap();
+        section.kind = Kind::Section;
+        section.widget = None;
+        section.children = vec![conditional.id.clone(), remaining.id.clone()];
+        let mut root = section.clone();
+        root.id = NodeId::parse("view").unwrap();
+        root.kind = Kind::View;
+        root.children = vec![section.id.clone()];
+        let mut layout = dashboard::fixture();
+        layout.native = Some(NativeLayout {
+            version: 3,
+            views: vec![root.id.clone()],
+            nodes: [root, section, conditional, remaining]
+                .into_iter()
+                .map(|node| (node.id.clone(), node))
+                .collect(),
+        });
+        let request = ProjectionRequest {
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(layout)),
+            ..Default::default()
+        };
+        let observed = |on: bool, revision: u64| {
+            view_with(1, |_| state::ViewEntity {
+                entity_id: "condition".into(),
+                current_alias: "Condition du serveur".into(),
+                state: state::ObservedState {
+                    entity: home_wire_contract::home::registry::v1::EntityRef {
+                        reference: Some(
+                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityId(
+                                "condition".into(),
+                            ),
+                        ),
+                        ..Default::default()
+                    }
+                    .into(),
+                    revision,
+                    quality: state::Quality {
+                        availability: state::Availability::Available.into(),
+                        freshness: state::Freshness::Fresh.into(),
+                        provenance: state::Provenance::Observed.into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    value: Some(state::observed_state::Value::SwitchOn(on)),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            })
+        };
+        let generation = ProjectionMailbox::<()>::new().generation();
+        render(
+            &window,
+            generation,
+            project_request(
+                CachePhase::Live,
+                Some(&observed(true, 1)),
+                Viewport::default(),
+                &request,
+            ),
+        );
+        let before = widget_bindings(&window);
+        assert_eq!(before.len(), 2);
+        let held = before
+            .iter()
+            .find(|binding| binding.node.as_str() == "remaining")
+            .unwrap()
+            .clone();
+        render(
+            &window,
+            generation,
+            project_request(
+                CachePhase::Live,
+                Some(&observed(false, 2)),
+                Viewport::default(),
+                &request,
+            ),
+        );
+        let after = widget_bindings(&window);
+        assert_eq!(after.len(), 1);
+        assert_eq!(after[0].node.as_str(), "remaining");
+        assert_ne!(
+            after[0].generation, held.generation,
+            "a visibility change that reuses indices must invalidate old intents and reader publications"
+        );
+        assert!(widget_row(&window, held.token, held.generation).is_none());
+        let stable = after[0].generation;
+        render(
+            &window,
+            generation,
+            project_request(
+                CachePhase::Live,
+                Some(&observed(false, 3)),
+                Viewport::default(),
+                &request,
+            ),
+        );
+        assert_eq!(
+            widget_bindings(&window)[0].generation,
+            stable,
+            "an observation-only update must preserve the configured widget owner"
+        );
+    }
+    #[test]
+    fn resetting_a_focus_property_or_private_models_never_reuses_a_widget_request_serial() {
+        let rows = CacheRows::default();
+        let first = next_widget_focus_request(&rows);
+        *rows.widget_focus_mapping.borrow_mut() = Some((
+            crate::FocusRequest {
+                present: true,
+                request: 1,
+                token: 9,
+                generation: 2,
+            },
+            first,
+        ));
+        rows.clear();
+        assert!(rows.widget_focus_mapping.borrow().is_none());
+        assert!(
+            next_widget_focus_request(&rows) > first,
+            "an ack/reset must not make a later restoration look already applied"
+        );
+    }
+    #[test]
+    fn only_a_current_live_view_clears_a_transient_read_warning() {
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        bind(&window);
+        let view = home_view();
+        let request = ProjectionRequest::default();
+        let generation = ProjectionMailbox::<()>::new().generation();
+        window.set_cache_error("Read interrupted".into());
+        window.set_action_feedback("Could not confirm this command".into());
+        render(
+            &window,
+            generation,
+            project_request(
+                CachePhase::Offline,
+                Some(&view),
+                Viewport::default(),
+                &request,
+            ),
+        );
+        assert_eq!(window.get_cache_error().as_str(), "Read interrupted");
+        let stale = ProjectionRequest {
+            revision: 1,
+            ..Default::default()
+        };
+        render(
+            &window,
+            generation,
+            project_request(CachePhase::Live, Some(&view), Viewport::default(), &stale),
+        );
+        assert_eq!(window.get_cache_error().as_str(), "Read interrupted");
+        render(
+            &window,
+            generation,
+            project_request(CachePhase::Live, Some(&view), Viewport::default(), &request),
+        );
+        assert!(window.get_cache_error().is_empty());
+        assert_eq!(
+            window.get_action_feedback().as_str(),
+            "Could not confirm this command"
+        );
+    }
+
     #[test]
     fn an_empty_local_search_does_not_claim_that_authorized_entities_disappeared() {
         i_slint_backend_testing::init_no_event_loop();
@@ -1136,7 +2204,7 @@ mod tests {
         assert_eq!(window.get_cache_rows().row_count(), 0);
         assert_eq!(
             window.get_read_status().as_str(),
-            format!("États à jour · {} entités", view.len())
+            format!("States up to date · {} entities", view.len())
         );
     }
 
@@ -1162,7 +2230,7 @@ mod tests {
         assert_eq!(projection.home.room_counts, [1, 1]);
         let detail = projection.home.detail.unwrap();
         assert_eq!(detail[0], "light.synthetic_workbench_main");
-        assert_eq!(detail[1], "Éteint");
+        assert_eq!(detail[1], "Off");
         assert_eq!(detail[3], "1970-01-01T00:00:10+00:00");
         let weather = projection
             .home
@@ -1171,7 +2239,7 @@ mod tests {
             .find(|item| item.token == dashboard::OBSERVATION_TOKEN_BASE + 1)
             .unwrap();
         assert!(weather.id.is_none());
-        assert_eq!(weather.value, "Aucune observation");
+        assert_eq!(weather.value, "No observation");
     }
 
     #[test]
@@ -1190,7 +2258,7 @@ mod tests {
             "a pending query cannot activate the previous result"
         );
         let mut updated = project(CachePhase::Live, Some(&view), Viewport::default());
-        updated.rows[0].cells[1] = "Allumé".into();
+        updated.rows[0].cells[1] = "On".into();
         model.apply(generation, updated);
         assert_eq!(
             model.serial.get(),
@@ -1254,9 +2322,7 @@ mod tests {
         window.invoke_room_open(dashboard::ROOM_TOKEN_BASE, window.get_home_generation());
         let button = ElementQuery::from_root(&window)
             .match_inherits("KitButton")
-            .match_predicate(|item| {
-                item.accessible_label().as_deref() == Some("Liste complète des éléments")
-            })
+            .match_predicate(|item| item.accessible_label().as_deref() == Some("All Items"))
             .find_first()
             .unwrap();
         let p = button.absolute_position();
@@ -1326,14 +2392,18 @@ mod tests {
             project(CachePhase::Live, Some(&view), Viewport::default()),
         );
         let persistent = window.get_home_rooms();
+        // The room catalogue is an application page. Home contains only the
+        // configured forest and must not synthesize these catalogue tiles.
+        window.invoke_quick_navigation(crate::ViewPage::Rooms);
+        assert_eq!(window.get_page(), crate::ViewPage::Rooms);
         window.invoke_room_open(i32::MIN, 1);
-        assert_eq!(window.get_page(), crate::ViewPage::Home);
+        assert_eq!(window.get_page(), crate::ViewPage::Rooms);
         window.invoke_room_open(dashboard::ROOM_TOKEN_BASE, 99);
-        assert_eq!(window.get_page(), crate::ViewPage::Home);
+        assert_eq!(window.get_page(), crate::ViewPage::Rooms);
         window.invoke_room_open(dashboard::ROOM_TOKEN_BASE, window.get_home_generation());
         assert_eq!(window.get_page(), crate::ViewPage::Room);
         assert!(window.invoke_system_back());
-        assert_eq!(window.get_page(), crate::ViewPage::Home);
+        assert_eq!(window.get_page(), crate::ViewPage::Rooms);
         assert_eq!(window.get_home_focus().token, dashboard::ROOM_TOKEN_BASE);
         assert_eq!(
             window.get_home_focus().generation,
@@ -1356,10 +2426,10 @@ mod tests {
             "Back must restore a live keyboard target, not only a focus request value"
         );
         assert!(window.invoke_system_back());
-        assert!(!window.invoke_system_back());
-        window.invoke_choose_room();
         assert_eq!(window.get_page(), crate::ViewPage::Rooms);
-        window.invoke_go_back();
+        // Content focus selects a visible catalogue item, with the same live
+        // keyboard behavior as restoring a room opener.
+        window.invoke_content_focus();
         slint::platform::update_timers_and_animations();
         for event in [
             slint::platform::WindowEvent::KeyPressed {
@@ -1373,10 +2443,13 @@ mod tests {
         }
         assert_eq!(
             window.get_page(),
-            crate::ViewPage::Rooms,
-            "the workspace selector is also a registered restore target"
+            crate::ViewPage::Room,
+            "catalogue content focus must target an actual visible room"
         );
         window.invoke_go_back();
+        assert!(window.invoke_system_back());
+        assert_eq!(window.get_page(), crate::ViewPage::Home);
+        assert!(!window.invoke_system_back());
         let current = request.lock().unwrap().clone();
         render(
             &window,
@@ -1433,7 +2506,7 @@ mod tests {
                 },
             ),
         );
-        assert!(window.get_read_status().starts_with("Lecture indisponible"));
+        assert!(window.get_read_status().starts_with("Reading unavailable"));
         assert_eq!(window.get_cache_rows().row_count(), 0);
         assert!(!window.get_view_loaded());
         assert_eq!(window.get_home_observations().row_count(), 0);
@@ -1533,28 +2606,25 @@ mod tests {
             value: Some(Value::SwitchOn(false)),
             ..Default::default()
         };
-        assert_eq!(value_text(&observation), "Éteint");
+        assert_eq!(value_text(&observation), "Off");
         observation.value = Some(Value::Light(Box::new(state::LightValue {
             on: Some(false),
             color_temp_mireds: Some(334),
             ..Default::default()
         })));
-        assert_eq!(
-            value_text(&observation),
-            "Éteint · ≈ 2994.012 K · 334 mireds"
-        );
+        assert_eq!(value_text(&observation), "Off · ≈ 2994.012 K · 334 mireds");
         for color_temp_mireds in [None, Some(0), Some(1001)] {
             observation.value = Some(Value::Light(Box::new(state::LightValue {
                 color_temp_mireds,
                 ..Default::default()
             })));
-            assert_eq!(value_text(&observation), "Valeur absente");
+            assert_eq!(value_text(&observation), "Value not provided");
         }
         observation.value = Some(Value::SwitchOn(false));
         let mut extended = observation.encode_to_vec();
         extended.extend_from_slice(&[0x9a, 0x06, 0x02, 0x08, 0x01]);
         let extended = state::ObservedState::decode_from_slice(&extended).unwrap();
-        assert_eq!(value_text(&extended), "Valeur non prise en charge");
+        assert_eq!(value_text(&extended), "Unsupported value");
         observation.value = Some(Value::Measurement(Box::new(state::Measurement {
             value: 0.0,
             unit: "W".into(),
@@ -1573,18 +2643,18 @@ mod tests {
             brightness_percent: Some(0.0),
             ..Default::default()
         })));
-        assert_eq!(value_text(&observation), "Éteint · 0 %");
+        assert_eq!(value_text(&observation), "Off · 0 %");
         observation.value = Some(Value::Light(Box::new(state::LightValue {
             on: Some(false),
             ..Default::default()
         })));
-        assert_eq!(value_text(&observation), "Éteint");
+        assert_eq!(value_text(&observation), "Off");
         observation.value = None;
-        assert_eq!(value_text(&observation), "Valeur absente");
+        assert_eq!(value_text(&observation), "Value not provided");
         let mut bytes = observation.encode_to_vec();
         bytes.extend_from_slice(&[0x9a, 0x06, 0x02, 0x08, 0x01]);
         let future = state::ObservedState::decode_from_slice(&bytes).unwrap();
-        assert_eq!(value_text(&future), "Valeur non prise en charge");
+        assert_eq!(value_text(&future), "Unsupported value");
         let climate = state::ObservedState {
             value: Some(Value::Climate(Box::new(state::ClimateValue {
                 current_temperature_celsius: Some(21.5),
@@ -1596,7 +2666,7 @@ mod tests {
         let mut future_climate = climate.encode_to_vec();
         future_climate.extend_from_slice(&[0x9a, 0x06, 0x02, 0x08, 0x01]);
         let future_climate = state::ObservedState::decode_from_slice(&future_climate).unwrap();
-        assert_eq!(summary_text(&future_climate), "Valeur non prise en charge");
+        assert_eq!(summary_text(&future_climate), "Unsupported value");
     }
 
     #[test]
@@ -1611,12 +2681,12 @@ mod tests {
             .into(),
             ..Default::default()
         };
-        assert_eq!(quality_text(&observation), "Disponible · Daté · Restauré");
+        assert_eq!(quality_text(&observation), "Available · Dated · Restored");
         observation.quality.as_option_mut().unwrap().provenance =
             state::Provenance::Estimated.into();
-        assert_eq!(quality_text(&observation), "Disponible · Daté · Estimé");
+        assert_eq!(quality_text(&observation), "Available · Dated · Estimated");
         observation.quality.as_option_mut().unwrap().availability = EnumValue::Unknown(99);
-        assert!(quality_text(&observation).starts_with("Disponibilité non reconnue"));
+        assert!(quality_text(&observation).starts_with("Availability unrecognized"));
         let text = "🪟".repeat(4096);
         let clipped = helper_text(&helpers::HelperValue {
             value: Some(helpers::helper_value::Value::Text(text)),
@@ -1629,11 +2699,11 @@ mod tests {
                 value: Some(helpers::helper_value::Value::Text(String::new())),
                 ..Default::default()
             }),
-            "Texte vide"
+            "Empty text"
         );
         assert_eq!(
             helper_text(&helpers::HelperValue::default()),
-            "Valeur absente"
+            "Value not provided"
         );
     }
     #[test]
