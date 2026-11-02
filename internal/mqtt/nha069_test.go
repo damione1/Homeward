@@ -570,8 +570,10 @@ func TestNHA069AvailabilityLatestDefaultAndMalformedUTF8(t *testing.T) {
 		t.Fatalf("initial availability %v", a)
 	}
 	r.send("zigbee2mqtt/avty/a", "online", ObservationLive)
-	if _, ok := r.state(key).CriticalValue(); !ok {
-		t.Fatal("latest a=online not available")
+	_, quality, _, _, _, _ = r.state(key).Components()
+	a, freshness, provenance, _ := quality.Components()
+	if a != domain.AvailabilityAvailable || freshness != domain.FreshnessStale || provenance != domain.ProvenanceObserved {
+		t.Fatal("latest a=online lost saved state or renewed its freshness")
 	}
 	r.send("zigbee2mqtt/avty/b", "offline", ObservationLive)
 	_, quality, _, _, _, _ = r.state(key).Components()

@@ -83,9 +83,9 @@ func discoveryDescription(c discoveryComponent, mode Mode, commands []TopicFilte
 				break
 			}
 		}
-		if !allowed {
-			return nil, errDiscoveryProfile
-		}
+		// An explicit command allowlist limits writes, not native observation.
+		// Keep other configured devices visible with read-only capabilities.
+		canCommand = allowed
 	}
 	display := c.name
 	if display == "" {

@@ -18,6 +18,10 @@ type triggerEdgeHandler struct {
 	nextSeq uint64
 }
 
+func (h *triggerEdgeHandler) z2mReadReady(read z2mRead) bool {
+	return h != nil && h.mapper != nil && h.mapper.z2mReadReady(read)
+}
+
 func (h *triggerEdgeHandler) Observe(ctx context.Context, host integrations.SessionHost, observation Observation) error {
 	if h == nil || h.mapper == nil || ctx == nil || missingInterface(host) {
 		return ErrTriggerEdgeAdmission

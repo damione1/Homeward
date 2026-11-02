@@ -40,7 +40,7 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	runtime := m.entities[entity]
-	if runtime == nil || !runtime.profile.hasCommand {
+	if runtime == nil || !runtime.profile.hasCommand || !p.Pilot.allowedCommand(runtime.profile.commandTopic) {
 		return integrations.ErrCommandRouteUnavailable
 	}
 	profile := runtime.profile
