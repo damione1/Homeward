@@ -9,7 +9,7 @@ import (
 )
 
 func TestDashboardUXSourceRetainsCompactRoomsAndExactDetailDestinations(t *testing.T) {
-	source, err := os.ReadFile("../../../qualification/frontend/dashboard-widgets/ux-showcase.yaml")
+	source, err := os.ReadFile("../../../examples/dashboards/demo.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestDashboardUXSourceRetainsCompactRoomsAndExactDetailDestinations(t *testi
 		if len(visibleRooms) != 9 {
 			t.Fatalf("width %d has %d visible rooms", width, len(visibleRooms))
 		}
-		if width < 1024 && (len(devices) < 2 || devices[0] != "ux:alarm_control_panel.alarm" || devices[1] != "ux:cover.konnected_52362c_garage_door") {
+		if width < 1024 && (len(devices) < 2 || devices[0] != "ux:alarm_control_panel.demo_alarm" || devices[1] != "ux:cover.demo_garage_door") {
 			t.Fatalf("width %d lost immediate alarm/garage entries: %v", width, devices)
 		}
 	}

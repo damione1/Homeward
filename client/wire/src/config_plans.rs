@@ -155,7 +155,8 @@ fn base(value: &wire::Base) -> bool {
 fn field(value: &str) -> bool {
     matches!(
         value,
-        "ecobee"
+        "sonos"
+            | "ecobee"
             | "disabled_integrations"
             | "remote_calendar"
             | "external_worker_bindings"
@@ -230,7 +231,8 @@ fn plan(value: &wire::Plan) -> bool {
     for change in &value.changes {
         if !change.__buffa_unknown_fields.is_empty()
             || !field(&change.field)
-            || ((change.field == "ecobee"
+            || ((change.field == "sonos"
+                || change.field == "ecobee"
                 || change.field == "remote_calendar"
                 || change.field == "disabled_integrations")
                 && family != wire::SourceFamily::Operational)
@@ -553,115 +555,119 @@ mod ecobee_tests {
     use super::*;
 
     #[test]
-    fn nha053_ecobee_response_refuses_private_settings_and_cross_family_effect() {
-        let plan = wire::Plan {
-            state: wire::PlanState::Admitted.into(),
-            author: "server-admitted-admin".into(),
-            family: wire::SourceFamily::Operational.into(),
-            identity: "operational.main".into(),
-            schema_version: "homeward.operational/1".into(),
-            source_sha256: vec![1; 32],
-            semantic_sha256: Some(vec![2; 32]),
-            base: wire::Base {
-                kind: wire::BaseKind::NoActiveDocument.into(),
-                ..Default::default()
-            }
-            .into(),
-            generation_revision: 1,
-            manifest_sha256: vec![3; 32],
-            observed_workspace_sha256: vec![4; 32],
-            effect: wire::Effect::Configuration.into(),
-            changes: vec![wire::Change {
+    fn native_integration_response_refuses_private_settings_and_cross_family_effect() {
+        for native_field in ["ecobee", "sonos"] {
+            let plan = wire::Plan {
+                state: wire::PlanState::Admitted.into(),
+                author: "server-admitted-admin".into(),
+                family: wire::SourceFamily::Operational.into(),
+                identity: "operational.main".into(),
+                schema_version: "homeward.operational/1".into(),
+                source_sha256: vec![1; 32],
+                semantic_sha256: Some(vec![2; 32]),
+                base: wire::Base {
+                    kind: wire::BaseKind::NoActiveDocument.into(),
+                    ..Default::default()
+                }
+                .into(),
+                generation_revision: 1,
+                manifest_sha256: vec![3; 32],
+                observed_workspace_sha256: vec![4; 32],
                 effect: wire::Effect::Configuration.into(),
-                operation: wire::ChangeOperation::Added.into(),
-                field: "ecobee".into(),
-                references_added: 1,
-                ..Default::default()
-            }],
-            receipt: "a".repeat(80),
-            ..Default::default()
-        };
-        let mut response = wire::BuildPlanResponse {
-            plan: plan.into(),
-            ..Default::default()
-        };
-        assert!(admit_plan_response(PlanResponse::Build(&response)).is_ok());
-        let baseline = response.plan.as_option().unwrap().clone();
-        for (family, schema, effect) in [
-            (
-                wire::SourceFamily::DeclarativeV1,
-                "ha-declarative-1",
-                wire::Effect::Configuration,
-            ),
-            (
-                wire::SourceFamily::DeclarativeV2,
-                "ha-declarative-2",
-                wire::Effect::Configuration,
-            ),
-            (
-                wire::SourceFamily::Authorization,
-                "homeward.authorization/1",
-                wire::Effect::HumanRights,
-            ),
-            (
-                wire::SourceFamily::Ownership,
-                "homeward.heating-ownership/1",
-                wire::Effect::TechnicalOwnership,
-            ),
-            (
-                wire::SourceFamily::Dashboard,
-                "homeward-dashboard-1",
-                wire::Effect::Dashboard,
-            ),
-            (
-                wire::SourceFamily::Automation,
-                "ha-logic-1",
-                wire::Effect::RunTargets,
-            ),
-            (
-                wire::SourceFamily::Script,
-                "ha-logic-1",
-                wire::Effect::RunTargets,
-            ),
-            (
-                wire::SourceFamily::Scene,
-                "ha-scene-1",
-                wire::Effect::RunTargets,
-            ),
-        ] {
-            let mut candidate = baseline.clone();
-            candidate.family = family.into();
-            candidate.schema_version = schema.into();
-            candidate.effect = effect.into();
-            candidate.changes[0].effect = effect.into();
-            let other = wire::BuildPlanResponse {
-                plan: candidate.into(),
+                changes: vec![wire::Change {
+                    effect: wire::Effect::Configuration.into(),
+                    operation: wire::ChangeOperation::Added.into(),
+                    field: native_field.into(),
+                    references_added: 1,
+                    ..Default::default()
+                }],
+                receipt: "a".repeat(80),
                 ..Default::default()
             };
-            assert!(admit_plan_response(PlanResponse::Build(&other)).is_err());
-        }
+            let mut response = wire::BuildPlanResponse {
+                plan: plan.into(),
+                ..Default::default()
+            };
+            assert!(admit_plan_response(PlanResponse::Build(&response)).is_ok());
+            let baseline = response.plan.as_option().unwrap().clone();
+            for (family, schema, effect) in [
+                (
+                    wire::SourceFamily::DeclarativeV1,
+                    "ha-declarative-1",
+                    wire::Effect::Configuration,
+                ),
+                (
+                    wire::SourceFamily::DeclarativeV2,
+                    "ha-declarative-2",
+                    wire::Effect::Configuration,
+                ),
+                (
+                    wire::SourceFamily::Authorization,
+                    "homeward.authorization/1",
+                    wire::Effect::HumanRights,
+                ),
+                (
+                    wire::SourceFamily::Ownership,
+                    "homeward.heating-ownership/1",
+                    wire::Effect::TechnicalOwnership,
+                ),
+                (
+                    wire::SourceFamily::Dashboard,
+                    "homeward-dashboard-1",
+                    wire::Effect::Dashboard,
+                ),
+                (
+                    wire::SourceFamily::Automation,
+                    "ha-logic-1",
+                    wire::Effect::RunTargets,
+                ),
+                (
+                    wire::SourceFamily::Script,
+                    "ha-logic-1",
+                    wire::Effect::RunTargets,
+                ),
+                (
+                    wire::SourceFamily::Scene,
+                    "ha-scene-1",
+                    wire::Effect::RunTargets,
+                ),
+            ] {
+                let mut candidate = baseline.clone();
+                candidate.family = family.into();
+                candidate.schema_version = schema.into();
+                candidate.effect = effect.into();
+                candidate.changes[0].effect = effect.into();
+                let other = wire::BuildPlanResponse {
+                    plan: candidate.into(),
+                    ..Default::default()
+                };
+                assert!(admit_plan_response(PlanResponse::Build(&other)).is_err());
+            }
 
-        response.plan.as_option_mut().unwrap().changes[0].field = "ecobee.credential_secret".into();
-        assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        response.plan.as_option_mut().unwrap().changes[0].field = "ecobee.address".into();
-        assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        let plan = response.plan.as_option_mut().unwrap();
-        plan.changes[0].field = "ecobee".into();
-        plan.changes[0].effect = wire::Effect::Dashboard.into();
-        plan.effect = wire::Effect::Dashboard.into();
-        assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        let plan = response.plan.as_option_mut().unwrap();
-        plan.family = wire::SourceFamily::Dashboard.into();
-        plan.identity = "dashboard.preview".into();
-        plan.schema_version = "homeward-dashboard-1".into();
-        assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        let plan = response.plan.as_option_mut().unwrap();
-        plan.family = wire::SourceFamily::Operational.into();
-        plan.identity = "operational.main".into();
-        plan.schema_version = "homeward.operational/1".into();
-        plan.changes[0].effect = wire::Effect::Configuration.into();
-        plan.effect = wire::Effect::Configuration.into();
-        plan.application_available = true;
-        assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
+            response.plan.as_option_mut().unwrap().changes[0].field =
+                "ecobee.credential_secret".into();
+            assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
+            response.plan.as_option_mut().unwrap().changes[0].field =
+                format!("{native_field}.address");
+            assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
+            let plan = response.plan.as_option_mut().unwrap();
+            plan.changes[0].field = native_field.into();
+            plan.changes[0].effect = wire::Effect::Dashboard.into();
+            plan.effect = wire::Effect::Dashboard.into();
+            assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
+            let plan = response.plan.as_option_mut().unwrap();
+            plan.family = wire::SourceFamily::Dashboard.into();
+            plan.identity = "dashboard.preview".into();
+            plan.schema_version = "homeward-dashboard-1".into();
+            assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
+            let plan = response.plan.as_option_mut().unwrap();
+            plan.family = wire::SourceFamily::Operational.into();
+            plan.identity = "operational.main".into();
+            plan.schema_version = "homeward.operational/1".into();
+            plan.changes[0].effect = wire::Effect::Configuration.into();
+            plan.effect = wire::Effect::Configuration.into();
+            plan.application_available = true;
+            assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
+        }
     }
 }

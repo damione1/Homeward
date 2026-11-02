@@ -339,7 +339,7 @@ func (p *Pilot) readCycle(ctx context.Context) (cycleSnapshot, error) {
 			}
 			response, err := p.fetch(ctx, "/api/device/"+binding.deviceID+"/attribute", url.Values{"attributes": []string{attributes}})
 			if err != nil {
-				if errors.Is(err, ErrUnsupportedAttribute) {
+				if errors.Is(err, ErrUnsupportedAttribute) || errors.Is(err, ErrDeviceUnavailable) {
 					snapshot.degraded = true
 					continue
 				}

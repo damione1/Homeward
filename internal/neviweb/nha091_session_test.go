@@ -143,6 +143,45 @@ func newNHA091SessionRig(t *testing.T, handler http.HandlerFunc) nha091SessionRi
 
 type nha091Generation struct{}
 
+func TestNeviwebSessionWithoutCookiesReadsUsingVerifiedSessionID(t *testing.T) {
+	rig := newNHA091SessionRig(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/login" {
+			if r.Method != http.MethodPost {
+				t.Error("login is not POST")
+			}
+			_, _ = w.Write([]byte(`{"session":"session-without-cookies","account":{"id":123}}`))
+			return
+		}
+		if r.Header.Get("Session-Id") != "session-without-cookies" || r.Header.Get("Cookie") != "" {
+			t.Error("session-only observation carried wrong authentication")
+		}
+		_, _ = w.Write([]byte(`{}`))
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	value, err := InitialSessionValue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = rig.secrets.RotateCredential(ctx, rig.settings.session, value); err != nil {
+		t.Fatal(err)
+	}
+	for _, handle := range []storage.SecretHandle{rig.settings.username, rig.settings.password} {
+		v, _ := storage.NewSecretValue([]byte("fixture-credential"))
+		if err := rig.secrets.RotateCredential(ctx, handle, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := rig.pilot.session(ctx, rig.session, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rig.pilot.adoptSession(s)
+	if _, err = rig.pilot.fetch(ctx, "/session-only-probe", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (nha091Generation) WithCurrent(ctx context.Context, fn func(uint64) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -360,6 +399,12 @@ func TestNHA091QualifiedSecondCycleReplacesSameHostDescriptions(t *testing.T) {
 }
 
 func TestNHA091MissingDeviceDoesNotBlockOtherReadings(t *testing.T) {
+	for _, code := range []string{"DVCATTRNSPTD", "DVCUNVLB"} {
+		t.Run(code, func(t *testing.T) { testNeviwebMissingDeviceDoesNotBlockOtherReadings(t, code) })
+	}
+}
+
+func testNeviwebMissingDeviceDoesNotBlockOtherReadings(t *testing.T, code string) {
 	var listings, missingReads, unsupportedReads, badQuery atomic.Int32
 	rig := newNHA091SessionRig(t, func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/attribute") {
@@ -396,7 +441,7 @@ func TestNHA091MissingDeviceDoesNotBlockOtherReadings(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/attribute") && strings.Contains(r.URL.Path, "device-02"):
 			unsupportedReads.Add(1)
 			if listings.Load() == 1 {
-				_, _ = w.Write([]byte(`{"error":{"code":"DVCATTRNSPTD"}}`))
+				_, _ = fmt.Fprintf(w, `{"error":{"code":%q}}`, code)
 			} else {
 				_, _ = w.Write([]byte(`{"roomTemperature":{"value":20},"roomSetpoint":21,"roomSetpointMin":5,"roomSetpointMax":30,"systemMode":"heat"}`))
 			}

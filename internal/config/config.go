@@ -19,6 +19,7 @@ import (
 	"github.com/damione1/Homeward/internal/neviweb"
 	"github.com/damione1/Homeward/internal/recorder"
 	"github.com/damione1/Homeward/internal/solar"
+	"github.com/damione1/Homeward/internal/sonos"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/workday"
 	"github.com/damione1/Homeward/internal/worker"
@@ -39,6 +40,7 @@ type Config struct {
 	mqtt                *mqtt.Settings
 	neviweb             *neviweb.Settings
 	ecobee              *ecobee.Settings
+	sonos               *sonos.Settings
 	hilo                *hilo.Settings
 	workers             []worker.Config
 	energy              []EnergyBinding
@@ -68,6 +70,7 @@ type rawConfig struct {
 	MQTT                    *mqtt.Input             `yaml:"mqtt"`
 	Neviweb                 *neviweb.Input          `yaml:"neviweb"`
 	Ecobee                  *ecobee.Input           `yaml:"ecobee"`
+	Sonos                   *sonos.Input            `yaml:"sonos"`
 	Hilo                    *hilo.Input             `yaml:"hilo"`
 	Energy                  []energyInput           `yaml:"energy"`
 	DerivedPower            yaml.Node               `yaml:"derived_power"`
@@ -119,6 +122,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 	}
 	launch.mqtt, launch.neviweb, launch.hilo = operational.mqtt, operational.neviweb, operational.hilo
 	launch.ecobee = operational.ecobee
+	launch.sonos = operational.sonos
 	launch.workers, launch.energy, launch.derivedPower = operational.workers, operational.energy, operational.derivedPower
 	launch.solar, launch.workday = operational.solar, operational.workday
 	launch.remoteCalendar = operational.remoteCalendar
@@ -239,6 +243,13 @@ func parseOperational(raw rawConfig) (Config, error) {
 			return Config{}, fmt.Errorf("configuration: %w", err)
 		}
 		result.ecobee = &settings
+	}
+	if raw.Sonos != nil {
+		settings, err := sonos.ParseSettings(*raw.Sonos)
+		if err != nil {
+			return Config{}, ErrInvalidYAML
+		}
+		result.sonos = &settings
 	}
 	if raw.Neviweb != nil {
 		settings, err := neviweb.ParseSettings(*raw.Neviweb)

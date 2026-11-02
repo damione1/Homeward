@@ -25,6 +25,7 @@ import (
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/solar"
+	"github.com/damione1/Homeward/internal/sonos"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/workday"
 	"github.com/damione1/Homeward/internal/worker"
@@ -35,6 +36,7 @@ import (
 // activation owner. Constructors below only prepare the delivered factories;
 // no pilot, client, process, Host discovery or credential mutation starts here.
 type configuredOperationalCompiler struct {
+	sonosRuntime    *sonos.Runtime
 	remoteCalendar  *remoteCalendarRuntime
 	manifest        registry.Manifest
 	repository      *registry.Repository
@@ -259,6 +261,18 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 			}
 		}
 	}
+	newSonos, hasNewSonos := next.SonosSettings()
+	if hasNewSonos {
+		instance, err := newSonos.Instance()
+		if err != nil {
+			return configactivation.OperationalImage{}, err
+		}
+		for _, player := range newSonos.Players() {
+			if err := addBinding(instance, player.SourceKey(), player.Alias); err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+		}
+	}
 	newEcobee, hasNewEcobee := next.EcobeeSettings()
 	if hasNewEcobee {
 		revision, ok := c.manifest.Revision()
@@ -473,6 +487,24 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 		if err != nil {
 			return configactivation.OperationalImage{}, err
 		}
+	}
+	oldSonos, hadSonos := old.SonosSettings()
+	oldSonosID, _ := oldSonos.Instance()
+	newSonosID, _ := newSonos.Instance()
+	if hadSonos != hasNewSonos || !reflect.DeepEqual(oldSonos, newSonos) || forced[oldSonosID] || forced[newSonosID] {
+		var spec *integrations.PilotSpec
+		if hasNewSonos {
+			factory, err := c.sonosRuntime.Factory(newSonos)
+			if err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+			value, err := integrations.NewPilotSpec(newSonosID, factory)
+			if err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+			spec = &value
+		}
+		replace(oldSonosID, hadSonos, spec)
 	}
 	oldEcobee, hadEcobee := old.EcobeeSettings()
 	oldEcobeeID, _ := oldEcobee.Instance()

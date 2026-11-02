@@ -30,6 +30,7 @@ import (
 	"github.com/damione1/Homeward/internal/recorder"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
+	"github.com/damione1/Homeward/internal/sonos"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/view"
 	"github.com/damione1/Homeward/internal/workday"
@@ -54,6 +55,7 @@ func (unconfiguredIdentity) Resolve(context.Context, domain.IntegrationInstanceI
 // drains the command service. Run also joins its job scheduler before closing
 // PostgreSQL, using the same shutdown budget for both owners.
 type RuntimePlan struct {
+	sonosRuntime *sonos.Runtime
 	// Optional trusted profile source; absent by default, never the host zone.
 	DisplayProfiles view.DisplayProfileSource
 	remoteCalendar  *remoteCalendarRuntime
@@ -284,8 +286,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		solarSettings, solarEnabled := c.SolarSettings()
 		workdaySettings, workdayEnabled := c.WorkdaySettings()
 		ecobeeSettings, ecobeeEnabled := c.EcobeeSettings()
+		sonosSettings, sonosEnabled := c.SonosSettings()
 		_, remoteEnabled := c.RemoteCalendarSettings()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled || remoteEnabled || ecobeeEnabled {
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled || remoteEnabled || ecobeeEnabled || sonosEnabled {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
@@ -298,6 +301,13 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 				cloud = append(cloud, neviwebComposition{settings: neviwebSettings, catalog: catalog, ownership: &ownership})
 			}
 			plan, err = defaultConfiguredRuntimePlanWithManifest(scopeManifest, mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
+			if err != nil {
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+			}
+			plan.sonosRuntime, err = sonos.NewRuntime()
+			if err == nil && sonosEnabled {
+				err = addConfiguredSonos(&plan, sonosSettings)
+			}
 			if err != nil {
 				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 			}
@@ -743,6 +753,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		}
 		if coreErr == nil {
 			coreErr = registerDashboardRoutes(plan.Public, activation, sessions.authority, sequence)
+		}
+		if coreErr == nil {
+			coreErr = registerSonosRoutes(plan.Public, plan.sonosRuntime, activation, sessions.authority)
 		}
 		if coreErr == nil {
 			coreErr = registerMCPReads(plan.Public, publicSettings.MCPEnabled(), core, documents, sessions, observed)

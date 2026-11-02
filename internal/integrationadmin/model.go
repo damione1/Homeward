@@ -28,6 +28,7 @@ type descriptor struct {
 }
 
 var descriptors = []descriptor{
+	{id: "sonos", fields: []string{"instance", "players"}, capabilities: []string{"sonos.media.v1"}, shape: "object"},
 	{id: "mqtt", fields: []string{"profile", "broker", "instance", "mode", "subscriptions", "command_topics", "transition_lights", "will"}, secrets: []string{"username_secret", "password_secret"}, capabilities: []string{contracts.BinarySchema, contracts.SwitchSchema, contracts.MeasurementSchema, contracts.LightSchema}, shape: "object"},
 	{id: "ecobee", fields: []string{"instance", "address", "accessory_id"}, secrets: []string{"credential_secret"}, capabilities: []string{contracts.ClimateSchema}, shape: "object"},
 	{id: "neviweb", fields: []string{"instance", "base_url", "account_id", "network_id", "poll_seconds", "daily_limit", "external_reserve", "day_zone", "bindings"}, secrets: []string{"username_secret", "password_secret", "session_secret"}, capabilities: []string{contracts.ClimateSchema, contracts.SwitchSchema, contracts.MeasurementSchema, contracts.BinarySchema}, shape: "object"},
