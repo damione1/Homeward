@@ -16,9 +16,9 @@ Development documentation is maintained in the project's Obsidian vault.
 
 ## Native development evaluation
 
-The frontend consumes Slint Kit 0.5.0 and a local Slint Kit Pro checkout. Configure
+The frontend consumes Slint Kit 0.5.1 and a local Slint Kit Pro checkout. Configure
 both matching kit checkouts before Cargo loads the workspace (absolute paths may
-point anywhere). Keep the free kit on the `v0.5.0` revision, or on a branch that
+point anywhere). Keep the free kit on the `v0.5.1` revision, or on a branch that
 contains the local corrections being evaluated; its runtime and build crates must
 resolve to the same version and source tree.
 
