@@ -138,7 +138,7 @@ impl TryFrom<&wire::Dashboard> for Layout {
         // substitute for configured gestures, visibility or popup ownership.
         match profile {
             Profile::Basic => {}
-            Profile::Recipes => {
+            Profile::Recipes | Profile::Widgets => {
                 if value.native_layout.as_option().is_none() {
                     return Err(LayoutFailure::Unsupported);
                 }
@@ -218,6 +218,28 @@ impl TryFrom<&wire::Dashboard> for Layout {
                 EnumValue::Known(wire::NativeIcon::Information) => Icon::Information,
                 EnumValue::Known(wire::NativeIcon::Clock) => Icon::Clock,
                 EnumValue::Known(wire::NativeIcon::Grid) => Icon::Grid,
+                EnumValue::Known(
+                    wire::NativeIcon::Sofa
+                    | wire::NativeIcon::Kitchen
+                    | wire::NativeIcon::Bed
+                    | wire::NativeIcon::Light
+                    | wire::NativeIcon::Fan
+                    | wire::NativeIcon::Thermostat
+                    | wire::NativeIcon::Music
+                    | wire::NativeIcon::Garage
+                    | wire::NativeIcon::Lock
+                    | wire::NativeIcon::Shield
+                    | wire::NativeIcon::Water
+                    | wire::NativeIcon::Sun
+                    | wire::NativeIcon::Tree
+                    | wire::NativeIcon::Office
+                    | wire::NativeIcon::Bath
+                    | wire::NativeIcon::Child
+                    | wire::NativeIcon::Shopping
+                    | wire::NativeIcon::Scene
+                    | wire::NativeIcon::Battery
+                    | wire::NativeIcon::Power,
+                ) => Icon::Information,
                 EnumValue::Known(wire::NativeIcon::Unspecified) | EnumValue::Unknown(_) => {
                     return Err(LayoutFailure::Unsupported);
                 }
@@ -273,7 +295,7 @@ impl LayoutState {
             if !text.is_empty() && text.len() <= 256 && !text.chars().any(char::is_control) {
                 text.to_owned()
             } else {
-                "non précisé".into()
+                "unspecified".into()
             }
         };
         let profile = label(
@@ -292,17 +314,20 @@ impl LayoutState {
             .native_overview
             .as_option()
             .map_or(0, |overview| overview.version);
-        Self::Unsupported(format!("Profil de dashboard non pris en charge : {profile} · version {version} · source {source}").into())
+        Self::Unsupported(
+            format!(
+                "Unsupported dashboard profile: {profile} · version {version} · source {source}"
+            )
+            .into(),
+        )
     }
     pub fn message(&self) -> &str {
         match self {
-            Self::Loading => "Chargement du dashboard depuis le serveur…",
-            Self::Unavailable => "Le serveur ne fournit pas de dashboard autorisé.",
-            Self::Invalid => {
-                "La définition du dashboard ne peut pas être affichée par cette version."
-            }
+            Self::Loading => "Loading the dashboard from the server…",
+            Self::Unavailable => "The server provides no authorized dashboard.",
+            Self::Invalid => "This version cannot display the dashboard definition.",
             Self::Unsupported(message) => message,
-            Self::Ready(_) => "Synchronisation du dashboard et des observations…",
+            Self::Ready(_) => "Syncing the dashboard and observations…",
         }
     }
     pub fn layout(&self) -> Option<&Layout> {

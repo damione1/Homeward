@@ -121,11 +121,11 @@ pub enum Dirty {
 impl Dirty {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Clean => "Fichiers validés",
-            Self::Unvalidated => "Modifications non validées",
-            Self::Rejected => "Modifications refusées",
-            Self::Reconciling => "Rapprochement en cours",
-            Self::Unavailable => "État des fichiers indisponible",
+            Self::Clean => "Validated Files",
+            Self::Unvalidated => "Unvalidated Changes",
+            Self::Rejected => "Changes Rejected",
+            Self::Reconciling => "Reconciling",
+            Self::Unavailable => "File Status Unavailable",
         }
     }
 }
@@ -137,8 +137,8 @@ pub enum UnobservedReason {
 impl UnobservedReason {
     pub fn label(self) -> &'static str {
         match self {
-            Self::NoPhysicalLocator => "Non observé : aucun emplacement physique",
-            Self::SourceUnavailable => "Non observé : source indisponible",
+            Self::NoPhysicalLocator => "Not observed: no physical location",
+            Self::SourceUnavailable => "Not observed: source unavailable",
         }
     }
 }
@@ -290,12 +290,12 @@ pub enum Outcome {
 impl Outcome {
     pub fn label(self) -> &'static str {
         match self {
-            Self::RejectedBeforeCommit => "Refusée avant enregistrement",
-            Self::NotCommitted => "Non enregistrée",
-            Self::CommitUnknown => "Résultat de l’enregistrement inconnu",
-            Self::CommittedReconciling => "Enregistrée · publication en cours",
-            Self::RestartRequired => "Redémarrage nécessaire",
-            Self::Published => "Publiée",
+            Self::RejectedBeforeCommit => "Rejected Before Saving",
+            Self::NotCommitted => "Not Saved",
+            Self::CommitUnknown => "Save Outcome Unknown",
+            Self::CommittedReconciling => "Saved · publishing",
+            Self::RestartRequired => "Restart Required",
+            Self::Published => "Published",
         }
     }
 }

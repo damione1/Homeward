@@ -58,22 +58,22 @@ impl Section {
     ];
     pub fn label(self) -> &'static str {
         match self {
-            Self::Account => "Mon compte",
+            Self::Account => "My Account",
             Self::Sessions => "Sessions",
-            Self::Factors => "Sécurité",
-            Self::MfaPolicy => "Politique MFA",
-            Self::McpKeys => "Clés MCP",
-            Self::Accounts => "Comptes",
+            Self::Factors => "Security",
+            Self::MfaPolicy => "MFA Policy",
+            Self::McpKeys => "MCP Keys",
+            Self::Accounts => "Accounts",
             Self::Invitations => "Invitations",
-            Self::Policies => "Droits",
-            Self::Integrations => "Intégrations",
+            Self::Policies => "Permissions",
+            Self::Integrations => "Integrations",
             Self::Configuration => "Configuration",
-            Self::Logic => "Logique et traces",
-            Self::Health => "Santé",
-            Self::Metrics => "Métriques",
-            Self::Logs => "Journaux",
-            Self::Audits => "Audits des accès",
-            Self::SecretAudits => "Audits des secrets",
+            Self::Logic => "Logic and Traces",
+            Self::Health => "Health",
+            Self::Metrics => "Metrics",
+            Self::Logs => "Logs",
+            Self::Audits => "Access Audits",
+            Self::SecretAudits => "Secret Audits",
         }
     }
     pub fn audit_source(self) -> Option<home_wire_contract::home::observability::v1::AuditSource> {

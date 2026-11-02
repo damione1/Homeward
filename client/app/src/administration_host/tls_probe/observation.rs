@@ -73,7 +73,7 @@ async fn bounded_logs(owner: &Administration, root: &Path) {
             && state
                 .rows
                 .iter()
-                .any(|row| row.title == "Historique du journal tronqué")
+                .any(|row| row.title == "Log history truncated")
     })
     .await;
     assert!(matches!(
@@ -129,7 +129,7 @@ async fn bounded_audits(owner: &Administration, section_value: Section) {
         owner.retired(&state);
     }
     until(owner, "stale audit cursor is visible", |state| {
-        ready(state) && state.rows.iter().any(|row| row.title == "Capture expirée")
+        ready(state) && state.rows.iter().any(|row| row.title == "Snapshot expired")
     })
     .await;
     owner.action(0, generation(owner), ProAdminAction::Refresh);

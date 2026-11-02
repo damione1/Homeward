@@ -500,7 +500,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	if err := host.AttachObservation(observed.cells, observed.journal); err != nil {
 		return closeRemotePreparedRuntime(remoteRuntime, host, nil, store, err, nil, recording, nil, sessions.mfa)
 	}
-	observed.host, observed.authority = host, sessions.authority
+	observed.host, observed.authority, observed.identity = host, sessions.authority, plan.Identity
 	if err := host.AttachObservationHealth(observed.health); err != nil {
 		return closeRemotePreparedRuntime(remoteRuntime, host, nil, store, err, nil, recording, nil, sessions.mfa)
 	}
@@ -740,6 +740,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		core, coreErr := prepareCoreRPC(ctx, sessions, sequence, plan.Identity, activation, commands, plan.DisplayProfiles)
 		if coreErr == nil {
 			coreErr = registerCoreRPCRoutes(plan.Public, core)
+		}
+		if coreErr == nil {
+			coreErr = registerDashboardRoutes(plan.Public, activation, sessions.authority, sequence)
 		}
 		if coreErr == nil {
 			coreErr = registerMCPReads(plan.Public, publicSettings.MCPEnabled(), core, documents, sessions, observed)

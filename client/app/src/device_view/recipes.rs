@@ -559,14 +559,11 @@ impl DeviceStore {
         let description = match &interaction.intent {
             BoundIntent::None | BoundIntent::Unavailable(_) => String::new(),
             BoundIntent::MoreInfo(entity) => format!(
-                "Afficher les détails · {}",
-                snapshot
-                    .labels
-                    .get(entity)
-                    .map_or("Élément", String::as_str)
+                "Show Details · {}",
+                snapshot.labels.get(entity).map_or("Item", String::as_str)
             ),
             BoundIntent::Navigate(destination) => format!(
-                "Ouvrir · {}",
+                "Open · {}",
                 layout
                     .native
                     .as_ref()
@@ -587,13 +584,13 @@ impl DeviceStore {
                 });
                 let verb = match kind {
                     CommandKind::Toggle => match power {
-                        Some(Power::On) => "Allumer",
-                        Some(Power::Off) => "Éteindre",
-                        None => "Basculer",
+                        Some(Power::On) => "Turn On",
+                        Some(Power::Off) => "Turn Off",
+                        None => "Toggle",
                     },
-                    CommandKind::TurnOn => "Allumer",
-                    CommandKind::TurnOff => "Éteindre",
-                    CommandKind::Activate => "Activer",
+                    CommandKind::TurnOn => "Turn On",
+                    CommandKind::TurnOff => "Turn Off",
+                    CommandKind::Activate => "Enable",
                     CommandKind::CoverOpen => crate::control_text::cover_operation(
                         home_wire_contract::home::controls::v1::CoverOperation::Open,
                     )
@@ -630,10 +627,7 @@ impl DeviceStore {
                 let entity = snapshot.fence.slots[token.0 as usize].target.entity();
                 format!(
                     "{verb} · {}",
-                    snapshot
-                        .labels
-                        .get(entity)
-                        .map_or("Élément", String::as_str)
+                    snapshot.labels.get(entity).map_or("Item", String::as_str)
                 )
             }
         };

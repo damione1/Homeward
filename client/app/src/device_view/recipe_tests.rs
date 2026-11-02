@@ -340,7 +340,10 @@ fn pending_native_focus_cannot_outlive_navigation_user_focus_clear_or_its_source
             }
             FocusInterruption::UserPointer => {
                 i_slint_backend_testing::ElementQuery::from_root(&window)
-                    .match_inherits("KitSearchField")
+                    .match_inherits("KitIconButton")
+                    .match_predicate(|element| {
+                        element.accessible_label().as_deref() == Some("Search My Home")
+                    })
                     .find_first()
                     .unwrap()
                     .mock_single_click(slint::platform::PointerEventButton::Left);
@@ -598,7 +601,7 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
         assert!(selected.present);
         let rows = window.get_navigation_rows();
         let row = rows.iter().find(|row| row.token == selected.token).unwrap();
-        assert_eq!(row.label.as_str(), "Accueil");
+        assert_eq!(row.label.as_str(), "Home");
         assert_eq!(window.get_page(), crate::ViewPage::Home);
     };
     assert_home_selected();
@@ -782,10 +785,12 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
     key(Key::Tab);
     key(Key::Return);
     assert_eq!(details.get(), 1);
-    key(Key::Tab); // Details -> Close -> header, without leaving the modal.
+    key(Key::Tab); // Details -> Back -> Close -> header, all inside the modal.
+    key(Key::Tab);
     key(Key::Tab);
     key(Key::Return);
     assert_eq!(recipes.get(), 2);
+    key(Key::Backtab);
     key(Key::Backtab);
     key(Key::Backtab);
     key(Key::Return);
@@ -800,6 +805,7 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
     key(Key::Tab);
     key(Key::Return);
     assert_eq!(details.get(), 3);
+    key(Key::Tab);
     key(Key::Tab);
     key(Key::Tab);
     key(Key::Return);
@@ -1144,7 +1150,7 @@ fn a_pointer_press_from_an_old_prompt_cannot_confirm_its_replacement() {
     slint::platform::update_timers_and_animations();
     let confirm = ElementQuery::from_root(&window)
         .match_inherits("KitButton")
-        .match_predicate(|item| item.accessible_label().as_deref() == Some("Confirmer"))
+        .match_predicate(|item| item.accessible_label().as_deref() == Some("Confirm"))
         .find_first()
         .unwrap();
     let origin = confirm.absolute_position();
@@ -1209,7 +1215,7 @@ fn physical_toggle_is_resolved_once_and_ordinary_observations_preserve_the_bindi
     let captured = prepare(&store, &before);
     assert_eq!(captured.confirmation.as_deref(), Some(""));
     assert!(physical_on(&captured));
-    assert!(captured.description.starts_with("Allumer ·"));
+    assert!(captured.description.starts_with("Turn On ·"));
     set_power(&mut entity, true);
     entity.state.as_option_mut().unwrap().revision += 1;
     let refreshed = project(&store, &request, &entity);
@@ -1538,12 +1544,12 @@ fn native_confirmation_consumes_one_exact_intention_and_never_replays_an_old_id(
     assert!(window.get_recipe_confirmation().open);
     assert_eq!(
         window.get_recipe_confirmation_message(),
-        "Confirmer cette interaction ?"
+        "Confirm this interaction?"
     );
     assert!(
         window
             .get_recipe_confirmation_description()
-            .starts_with("Allumer ·")
+            .starts_with("Turn On ·")
     );
     let id = window.get_recipe_confirmation_id();
     window.invoke_recipe_confirm(id + 1);
@@ -1926,7 +1932,7 @@ fn a_new_catalogue_token_invalidates_prepared_gestures_and_cross_dashboard_histo
     );
     assert_eq!(choices.snapshot().1.selected, Some(target.id.clone()));
     assert_eq!(window.get_page(), crate::ViewPage::Home);
-    assert!(window.get_action_feedback().contains("catalogue courant"));
+    assert!(window.get_action_feedback().contains("current catalogue"));
     assert!(store.0.lock().unwrap().actions.is_empty());
     window.hide().unwrap();
 }

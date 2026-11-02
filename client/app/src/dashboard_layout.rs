@@ -23,6 +23,7 @@ pub(crate) enum Kind {
     ChipGroup,
     Heading,
     Tile,
+    Widget,
     Unsupported,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,12 +69,14 @@ pub(crate) struct Node {
     pub id: NodeId,
     pub route: Option<crate::dashboard::RoomId>,
     pub kind: Kind,
+    pub icon: wire::NativeIcon,
     pub source: Source,
     pub title: String,
     pub secondary: String,
     pub recipe_kind: Option<RecipeKind>,
     pub recipes: Option<Recipes>,
     pub features: Vec<FeatureKind>,
+    pub summary_only: bool,
     pub entity: Option<EntityId>,
     pub children: Vec<NodeId>,
     pub diagnostic: String,
@@ -84,11 +87,23 @@ pub(crate) struct Node {
     pub vertical: Option<bool>,
     pub hide_state: Option<bool>,
     pub heading_style: HeadingStyle,
+    pub widget: Option<crate::dashboard_widgets::Widget>,
+    pub minimum_column_width: Option<u32>,
+    pub gap: Option<u32>,
+    pub responsive_spans: Vec<(u8, u8)>,
+    pub viewport_min_width: i32,
+    pub viewport_max_width: i32,
 }
 impl Node {
     pub fn device_card(&self) -> bool {
         match self.kind {
             Kind::Tile => true,
+            Kind::Widget => self.widget.as_ref().is_some_and(|widget| {
+                matches!(
+                    widget.content,
+                    crate::dashboard_widgets::Content::Thermostat { .. }
+                )
+            }),
             Kind::Recipe => match self.recipe_kind {
                 Some(RecipeKind::Select | RecipeKind::Alarm | RecipeKind::Entity) => true,
                 Some(
@@ -163,6 +178,7 @@ fn kind(value: EnumValue<wire::LayoutKind>) -> Kind {
         EnumValue::Known(wire::LayoutKind::HorizontalStack) => Kind::HorizontalStack,
         EnumValue::Known(wire::LayoutKind::Heading) => Kind::Heading,
         EnumValue::Known(wire::LayoutKind::Tile) => Kind::Tile,
+        EnumValue::Known(wire::LayoutKind::Widget) => Kind::Widget,
         EnumValue::Known(wire::LayoutKind::Recipe) => Kind::Recipe,
         EnumValue::Known(wire::LayoutKind::VerticalStack) => Kind::VerticalStack,
         EnumValue::Known(wire::LayoutKind::Popup) => Kind::Popup,
@@ -237,6 +253,7 @@ fn recipe_shape(node: &Node) -> bool {
         | Kind::VerticalStack
         | Kind::Heading
         | Kind::Tile => node.recipe_kind.is_none(),
+        Kind::Widget => node.recipe_kind.is_none() && node.widget.is_some(),
         Kind::Unsupported => true,
     }
 }
@@ -248,6 +265,7 @@ impl Kind {
             | Self::VerticalStack
             | Self::Heading
             | Self::Tile
+            | Self::Widget
             | Self::Recipe
             | Self::Popup
             | Self::ChipGroup
@@ -265,7 +283,7 @@ impl Kind {
             | Self::Popup => child.card(),
             Self::ChipGroup => child == Self::Recipe || child == Self::Unsupported,
             Self::Unsupported => true,
-            Self::Heading | Self::Tile | Self::Recipe => false,
+            Self::Heading | Self::Tile | Self::Recipe | Self::Widget => false,
         }
     }
 }
@@ -275,7 +293,10 @@ impl Node {
         self.entity = None;
         self.recipes = None;
         self.features.clear();
+        self.viewport_min_width = 0;
+        self.viewport_max_width = 0;
         self.recipe_kind = None;
+        self.widget = None;
         if self.diagnostic.is_empty() {
             self.diagnostic = diagnostic.into();
         }
@@ -315,17 +336,31 @@ impl TryFrom<&wire::NativeLayout> for NativeLayout {
         if value.nodes.len() > MAX_NODES || value.views.len() > 128 {
             return Err(LayoutFailure::Budget);
         }
+        if value.version == 3
+            && value.views.is_empty()
+            && value.nodes.is_empty()
+            && value.__buffa_unknown_fields.is_empty()
+        {
+            return Ok(Self {
+                version: 3,
+                views: Vec::new(),
+                nodes: BTreeMap::new(),
+            });
+        }
         if value.views.is_empty() || value.nodes.is_empty() {
             return Err(LayoutFailure::Invalid);
         }
         let profile = match value.version {
             1 => Some(Profile::Basic),
             2 => Some(Profile::Recipes),
+            3 => Some(Profile::Widgets),
             _ => None,
         };
         let future = profile.is_none() || !value.__buffa_unknown_fields.is_empty();
         let mut nodes = BTreeMap::new();
         let mut child_count = 0usize;
+        let mut widget_bindings = 0usize;
+        let mut resource_widgets = 0usize;
         for node in &value.nodes {
             let id = identity(&node.id)?;
             let source = node.source.as_option().ok_or(LayoutFailure::Invalid)?;
@@ -352,6 +387,10 @@ impl TryFrom<&wire::NativeLayout> for NativeLayout {
                     Some(crate::dashboard::RoomId::parse(&node.route)?)
                 },
                 kind: kind(node.kind),
+                icon: match node.icon {
+                    EnumValue::Known(icon) => icon,
+                    EnumValue::Unknown(_) => wire::NativeIcon::Unspecified,
+                },
                 source: Source {
                     file: source.file.clone(),
                     line: source.line,
@@ -364,6 +403,7 @@ impl TryFrom<&wire::NativeLayout> for NativeLayout {
                 recipe_kind: None,
                 recipes: None,
                 features: Vec::new(),
+                summary_only: node.control_presentation == wire::NativeControlPresentation::Summary,
                 entity: None,
                 children: node
                     .children
@@ -378,6 +418,12 @@ impl TryFrom<&wire::NativeLayout> for NativeLayout {
                 vertical: node.vertical,
                 hide_state: node.hide_state,
                 heading_style: HeadingStyle::Default,
+                widget: None,
+                minimum_column_width: None,
+                gap: None,
+                responsive_spans: Vec::new(),
+                viewport_min_width: 0,
+                viewport_max_width: 0,
             };
             let columns = if node.columns == 0 {
                 Some(None)
@@ -413,8 +459,18 @@ impl TryFrom<&wire::NativeLayout> for NativeLayout {
                 }
             }
             if future
+                || matches!(node.control_presentation, EnumValue::Unknown(_))
+                || (profile != Some(Profile::Widgets) && parsed.summary_only)
+                || matches!(node.icon, EnumValue::Unknown(_))
                 || !node.__buffa_unknown_fields.is_empty()
                 || !source.__buffa_unknown_fields.is_empty()
+                || (profile != Some(Profile::Widgets)
+                    && (node.widget.as_option().is_some()
+                        || node.minimum_column_width != 0
+                        || node.gap != 0
+                        || !node.responsive_spans.is_empty()
+                        || node.screen_visibility.as_option().is_some()
+                        || parsed.kind == Kind::Widget))
                 || (profile == Some(Profile::Basic)
                     && (node.recipes.as_option().is_some()
                         || node.recipe_kind
@@ -428,7 +484,9 @@ impl TryFrom<&wire::NativeLayout> for NativeLayout {
             {
                 parsed.kind = Kind::Unsupported;
             }
-            if profile == Some(Profile::Recipes) && parsed.kind != Kind::Unsupported {
+            if matches!(profile, Some(Profile::Recipes | Profile::Widgets))
+                && parsed.kind != Kind::Unsupported
+            {
                 match recipe_kind(node.recipe_kind) {
                     Ok(kind) => parsed.recipe_kind = kind,
                     Err(()) => parsed.kind = Kind::Unsupported,
@@ -455,6 +513,111 @@ impl TryFrom<&wire::NativeLayout> for NativeLayout {
                     }
                 }
             }
+            if profile == Some(Profile::Widgets) && parsed.kind != Kind::Unsupported {
+                if node.minimum_column_width > 4096
+                    || node.gap > 256
+                    || node.responsive_spans.len() > 12
+                {
+                    return Err(LayoutFailure::Budget);
+                }
+                if let Some(screen) = node.screen_visibility.as_option() {
+                    if !screen.__buffa_unknown_fields.is_empty()
+                        || screen.min_width > 65535
+                        || screen.max_width > 65535
+                        || (screen.max_width != 0 && screen.min_width > screen.max_width)
+                    {
+                        parsed.kind = Kind::Unsupported;
+                    } else {
+                        parsed.viewport_min_width = screen.min_width as i32;
+                        parsed.viewport_max_width = screen.max_width as i32;
+                    }
+                }
+                parsed.minimum_column_width =
+                    (node.minimum_column_width > 0).then_some(node.minimum_column_width);
+                parsed.gap = Some(node.gap);
+                let mut columns = BTreeSet::new();
+                for rule in &node.responsive_spans {
+                    if !rule.__buffa_unknown_fields.is_empty() {
+                        return Err(LayoutFailure::Unsupported);
+                    }
+                    if !(1..=12).contains(&rule.columns)
+                        || !(1..=rule.columns).contains(&rule.span)
+                        || !columns.insert(rule.columns)
+                    {
+                        return Err(LayoutFailure::Invalid);
+                    }
+                    parsed
+                        .responsive_spans
+                        .push((rule.columns as u8, rule.span as u8));
+                }
+                if parsed.kind == Kind::Widget {
+                    if !parsed.children.is_empty() || !node.entity_id.is_empty() {
+                        return Err(LayoutFailure::Invalid);
+                    }
+                    match node
+                        .widget
+                        .as_option()
+                        .map(crate::dashboard_widgets::Widget::try_from)
+                    {
+                        Some(Ok(widget)) => {
+                            widget_bindings =
+                                widget_bindings.saturating_add(widget.binding_count());
+                            if matches!(
+                                widget.content,
+                                crate::dashboard_widgets::Content::Agenda { .. }
+                                    | crate::dashboard_widgets::Content::Tasks { .. }
+                            ) {
+                                resource_widgets += 1;
+                            }
+                            if widget_bindings > 4096 || resource_widgets > 32 {
+                                return Err(LayoutFailure::Budget);
+                            }
+                            if let crate::dashboard_widgets::Content::Thermostat {
+                                entity, ..
+                            } = &widget.content
+                            {
+                                parsed.entity = Some(entity.clone());
+                            }
+                            if let Some(destination) = widget.destination() {
+                                use home_client_model::dashboard::{
+                                    Gesture, Intention, Interaction,
+                                };
+                                let interaction = Interaction {
+                                    intention: Intention::Navigate(destination.clone()),
+                                    confirmation: None,
+                                    source: parsed.source.clone(),
+                                };
+                                let recipes = parsed.recipes.get_or_insert_with(|| Recipes {
+                                    interactions: BTreeMap::new(),
+                                    visibility: None,
+                                });
+                                if recipes
+                                    .interactions
+                                    .get(&Gesture::Tap)
+                                    .is_some_and(|existing| {
+                                        existing.intention != interaction.intention
+                                            || existing.confirmation != interaction.confirmation
+                                    })
+                                {
+                                    parsed.kind = Kind::Unsupported;
+                                } else {
+                                    recipes
+                                        .interactions
+                                        .entry(Gesture::Tap)
+                                        .or_insert(interaction);
+                                }
+                            }
+                            parsed.widget = Some(widget);
+                        }
+                        Some(Err(LayoutFailure::Budget)) => return Err(LayoutFailure::Budget),
+                        Some(Err(LayoutFailure::Invalid | LayoutFailure::Unsupported)) | None => {
+                            parsed.kind = Kind::Unsupported
+                        }
+                    }
+                } else if node.widget.as_option().is_some() {
+                    parsed.kind = Kind::Unsupported;
+                }
+            }
             if parsed.kind == Kind::Tile
                 || (parsed.kind == Kind::Recipe && !node.entity_id.is_empty())
             {
@@ -476,9 +639,9 @@ impl TryFrom<&wire::NativeLayout> for NativeLayout {
             }
             if parsed.kind == Kind::Unsupported {
                 parsed.inert(if future {
-                    "Version du layout non prise en charge."
+                    "Unsupported layout version."
                 } else {
-                    "Élément ou propriété non pris en charge."
+                    "Unsupported item or property."
                 });
             }
             if nodes.insert(id, parsed).is_some() {
@@ -512,8 +675,8 @@ impl TryFrom<&wire::NativeLayout> for NativeLayout {
                 return Err(LayoutFailure::Invalid);
             }
             if blocked {
-                node.inert("Élément inactif : parent non pris en charge.");
-                node.diagnostic = "Élément inactif : parent non pris en charge.".into();
+                node.inert("Item inactive: unsupported parent.");
+                node.diagnostic = "Item inactive: unsupported parent.".into();
             }
             for child in node.children.iter().rev() {
                 work.push((
@@ -633,6 +796,52 @@ pub(crate) mod tests {
         assert_eq!(node.source.file, "synthetic.yaml");
     }
     #[test]
+    fn screen_bounds_are_presentation_data_and_invalid_or_legacy_bounds_are_inert() {
+        use buffa::Message;
+        let mut wire = forest();
+        wire.version = 3;
+        wire.nodes[3].screen_visibility = wire::NativeScreenVisibility {
+            min_width: 768,
+            max_width: 1199,
+            ..Default::default()
+        }
+        .into();
+        let parsed = NativeLayout::try_from(&wire).unwrap();
+        let tile = get(&parsed, "tile");
+        assert_eq!(
+            (tile.viewport_min_width, tile.viewport_max_width),
+            (768, 1199)
+        );
+        assert_eq!(tile.kind, Kind::Tile);
+        assert!(tile.entity.is_some());
+        for condition in [
+            wire::NativeScreenVisibility {
+                min_width: 1200,
+                max_width: 767,
+                ..Default::default()
+            },
+            wire::NativeScreenVisibility {
+                min_width: 65536,
+                ..Default::default()
+            },
+            wire::NativeScreenVisibility::decode_from_slice(&[24, 1]).unwrap(),
+        ] {
+            wire.nodes[3].screen_visibility = condition.into();
+            let parsed = NativeLayout::try_from(&wire).unwrap();
+            let tile = get(&parsed, "tile");
+            assert_inert(tile);
+            assert_eq!((tile.viewport_min_width, tile.viewport_max_width), (0, 0));
+        }
+        wire.version = 1;
+        wire.nodes[3].screen_visibility = wire::NativeScreenVisibility {
+            max_width: 767,
+            ..Default::default()
+        }
+        .into();
+        assert_inert(get(&NativeLayout::try_from(&wire).unwrap(), "tile"));
+    }
+
+    #[test]
     fn extended_forest_preserves_text_recipes_and_explicit_empty_confirmation() {
         let wire = extended_forest();
         let parsed = NativeLayout::try_from(&wire).unwrap();
@@ -674,7 +883,7 @@ pub(crate) mod tests {
             .iter()
             .position(|node| node.id == "recipe")
             .unwrap();
-        let mut cases = vec![base; 8];
+        let mut cases = vec![base; 9];
         cases[0].nodes[recipe_index].recipe_kind = wire::NativeRecipeKind::BubblePopup.into();
         cases[1].nodes[recipe_index].recipe_kind = wire::NativeRecipeKind::Select.into();
         cases[2].nodes[recipe_index].recipe_kind = wire::NativeRecipeKind::Alarm.into();
@@ -687,6 +896,7 @@ pub(crate) mod tests {
             .as_option_mut()
             .unwrap()
             .version = 99;
+        cases[8].nodes[recipe_index].control_presentation = EnumValue::Unknown(99);
         for wire in cases {
             let parsed = NativeLayout::try_from(&wire).unwrap();
             assert_inert(get(&parsed, "recipe"));

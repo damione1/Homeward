@@ -36,6 +36,7 @@ struct Inner {
     session: Mutex<Option<SessionCoordinator>>,
     window: Option<slint::Weak<HomewardWindow>>,
     retry: AtomicBool,
+    widget: Option<crate::dashboard_widget_host::AgendaTarget>,
 }
 fn boundary(value: ProAgendaBoundary) -> Boundary {
     match value {
@@ -45,6 +46,12 @@ fn boundary(value: ProAgendaBoundary) -> Boundary {
 }
 impl Calendars {
     fn new(window: Option<slint::Weak<HomewardWindow>>) -> Self {
+        Self::with_widget(window, None)
+    }
+    fn with_widget(
+        window: Option<slint::Weak<HomewardWindow>>,
+        widget: Option<crate::dashboard_widget_host::AgendaTarget>,
+    ) -> Self {
         Self(Arc::new(Inner {
             state: Mutex::new(State::default()),
             changed: Notify::new(),
@@ -52,11 +59,71 @@ impl Calendars {
             session: Mutex::new(None),
             window,
             retry: AtomicBool::new(false),
+            widget,
         }))
     }
     #[cfg(test)]
     pub fn detached() -> Self {
         Self::new(None)
+    }
+    pub(crate) fn for_widget(
+        window: Option<slint::Weak<HomewardWindow>>,
+        target: crate::dashboard_widget_host::AgendaTarget,
+    ) -> Self {
+        let owner = Self::with_widget(window, Some(target));
+        {
+            let mut state = owner.0.state.lock().expect("calendar state");
+            owner.pin_widget(&mut state);
+        }
+        owner
+    }
+    fn pin_widget(&self, state: &mut State) {
+        if let Some(target) = &self.0.widget {
+            state.interactive = true;
+            state.catalog_needed = false;
+            state.zone = target.zone.name().into();
+            state.selected = Some(target.calendar.clone());
+            if state.query_override.is_none() {
+                state.query_override = state::widget_query(target, chrono::Utc::now());
+            }
+        }
+    }
+    pub(crate) fn widget_can_select(&self, token: i32, generation: i32) -> bool {
+        let state = self.0.state.lock().expect("calendar state");
+        let session = self.0.session.lock().expect("calendar session");
+        let current = state.source.is_some_and(|generation| {
+            session
+                .as_ref()
+                .is_some_and(|session| session.is_current(generation))
+        });
+        current
+            && state.active
+            && state.ready
+            && state.interactive
+            && state.status == Status::Ready
+            && self.0.widget.as_ref().is_some_and(|target| {
+                let fresh = state.snapshot.as_ref().is_some_and(|snapshot| {
+                    snapshot.freshness() == home_client_cache::calendars::CalendarFreshness::Fresh
+                        && snapshot.expiry_bounds().all(|until| {
+                            chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
+                                std::time::SystemTime::from(until.with_timezone(&chrono::Utc))
+                                    > std::time::SystemTime::now()
+                            })
+                        })
+                });
+                fresh
+                    && generation == state.generation
+                    && state
+                        .row_indices()
+                        .into_iter()
+                        .take(target.limit)
+                        .any(|index| {
+                            i32::try_from(index)
+                                .ok()
+                                .and_then(|index| index.checked_add(1))
+                                == Some(token)
+                        })
+            })
     }
     pub fn bind(window: &HomewardWindow) -> Self {
         let this = Self::new(Some(window.as_weak()));
@@ -73,7 +140,7 @@ impl Calendars {
         let owner = this.clone();
         window.on_calendars_edit(move |token, generation, field, value| {
             let limit=match field{ProAgendaField::Summary=>admit::MAX_EVENT_SUMMARY_BYTES,ProAgendaField::Description=>admit::MAX_EVENT_DESCRIPTION_BYTES,ProAgendaField::Location=>admit::MAX_EVENT_LOCATION_BYTES};
-            if value.len()>limit||value.contains('\0'){owner.reject_edit(token,generation,"Texte trop long ou caractère non autorisé ; le brouillon précédent est conservé.");return;}
+            if value.len()>limit||value.contains('\0'){owner.reject_edit(token,generation,"Text too long or contains a forbidden character; the previous draft is retained.");return;}
             owner.edit(token, generation, |draft| {
                 draft.edit(
                     match field {
@@ -88,7 +155,7 @@ impl Calendars {
         let owner = this.clone();
         window.on_calendars_date(move |t, g, b, v| {
             if v.len() > 10 {
-                owner.reject_edit(t, g, "Saisissez une date civile au format AAAA-MM-JJ.");
+                owner.reject_edit(t, g, "Enter a calendar date in YYYY-MM-DD format.");
                 return;
             }
             owner.edit(t, g, |draft| draft.date(boundary(b), v.into()))
@@ -99,7 +166,7 @@ impl Calendars {
                 owner.reject_edit(
                     t,
                     g,
-                    "Date, heure ou fuseau hors limites ; le brouillon précédent est conservé.",
+                    "Date, time or time zone outside the allowed range; the previous draft is retained.",
                 );
                 return;
             }
@@ -120,8 +187,7 @@ impl Calendars {
                 state.enqueue(Job::Resolve(b, request));
             } else {
                 state.notice =
-                    "Date, heure ou fuseau incomplet ; aucune requête de résolution envoyée."
-                        .into();
+                    "Date, time or time zone incomplete; no resolution request was sent.".into();
             }
             owner.publish(&state);
             owner.0.changed.notify_one();
@@ -248,8 +314,12 @@ impl Calendars {
             .publish(self.0.mailbox.generation(), projection)
             && let Some(window) = &self.0.window
         {
+            let target = self.0.widget.clone();
             let _ = window.upgrade_in_event_loop(move |window| {
-                ticket.deliver(|_, value| render::render(&window, value));
+                ticket.deliver(|_, value| match target {
+                    Some(target) => render::render_widget(&window, value, &target),
+                    None => render::render(&window, value),
+                });
             });
         }
     }
@@ -430,7 +500,7 @@ impl Calendars {
                         .as_deref()
                         .is_none_or(|end| end.parse::<CivilDate>().is_err())
                 {
-                    state.notice = "Dates civiles invalides ; aucune lecture envoyée.".into();
+                    state.notice = "Invalid calendar dates; no reading request was sent.".into();
                 } else {
                     let (old_start, old_end, old_zone) =
                         (state.start.clone(), state.end.clone(), state.zone.clone());
@@ -455,7 +525,7 @@ impl Calendars {
                         state.end = old_end;
                         state.zone = old_zone;
                         state.notice =
-                            "Plage invalide (366 jours maximum) ou fuseau manquant.".into();
+                            "Invalid range (maximum 366 days) or missing time zone.".into();
                     }
                 }
             }
@@ -510,10 +580,7 @@ impl Calendars {
                     Ok(prepared) => {
                         state.enqueue(Job::Write(prepared));
                     }
-                    Err(_) => {
-                        state.notice =
-                            "Modification de calendrier invalide ou source en lecture seule.".into()
-                    }
+                    Err(_) => state.notice = "Invalid calendar change or read-only source.".into(),
                 }
             }
         }
@@ -591,9 +658,7 @@ impl Calendars {
                         state.enqueue(Job::Write(prepared));
                     }
                     Err(_) => {
-                        state.notice =
-                            "Événement invalide ou source en lecture seule ; rien n’a été envoyé."
-                                .into()
+                        state.notice = "Invalid event or read-only source; nothing was sent.".into()
                     }
                 }
             }

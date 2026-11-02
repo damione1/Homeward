@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/damione1/Homeward/compat/ha/parser"
+	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
 	"github.com/damione1/Homeward/internal/domain"
 )
 
@@ -37,6 +38,10 @@ func staticText(node parser.Node, limit int) (string, bool) {
 
 func (c *compiler) recipeCard(node parser.Node, variant string, depth int) Card {
 	card := Card{kind: ElementRecipeCard, recipe: parseRecipeKind(variant), variant: variant, status: StatusSupported, location: locate(node)}
+	if c.profile == CompilationDashboard {
+		card.minimumColumnWidth = 280
+		card.gap = 20
+	}
 	if variant == "vertical-stack" {
 		card.kind = ElementVerticalStackCard
 	}
@@ -175,6 +180,29 @@ func (c *compiler) recipeCard(node parser.Node, variant string, depth int) Card 
 			values, invalid := c.visibility(entry.Value)
 			card.visibility = append(card.visibility, values...)
 			blocked = blocked || invalid
+		case "minimum_column_width", "gap":
+			if c.profile != CompilationDashboard {
+				c.unknown(entry, "container option outside profile")
+				blocked = true
+				continue
+			}
+			minimum := uint32(0)
+			if entry.Key == "minimum_column_width" {
+				minimum = 1
+			}
+			maximum := uint32(4096)
+			if entry.Key == "gap" {
+				maximum = 256
+			}
+			value, ok := boundedUint(entry.Value, minimum, maximum)
+			if !ok {
+				c.unsupported(CodeInvalidValue, entry.Value, "invalid container metric")
+				blocked = true
+			} else if entry.Key == "gap" {
+				card.gap = value
+			} else {
+				card.minimumColumnWidth = value
+			}
 		case "grid_options":
 			options, invalid := c.gridOptions(entry.Value)
 			card.grid, blocked = options, blocked || invalid
@@ -255,6 +283,16 @@ func parseFeatureKind(value string) FeatureKind {
 
 func (c *compiler) cardExtension(card *Card, entry parser.Entry) (bool, bool) {
 	switch entry.Key {
+	case "presentation":
+		value, ok := scalarText(entry.Value)
+		if c.profile != CompilationDashboard || (card.kind != ElementTileCard && card.kind != ElementRecipeCard) || !ok || (value != "controls" && value != "summary") {
+			c.unsupported(CodeInvalidValue, entry.Value, "entity presentation must be controls or summary")
+			return true, true
+		}
+		if value == "summary" {
+			card.controlPresentation = wire.NativeControlPresentation_NATIVE_CONTROL_PRESENTATION_SUMMARY
+		}
+		return true, false
 	case "features":
 		if card.kind != ElementTileCard || entry.Value.Kind() != parser.KindSequence || len(entry.Value.Items()) > 16 {
 			c.unsupported(CodeInvalidValue, entry.Value, "features require a bounded tile feature list")

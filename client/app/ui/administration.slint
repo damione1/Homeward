@@ -3,7 +3,7 @@ import { ProAdminWorkspace, ProAdminEditor, ProAdminStage, ProAdminAction, ProAd
 export component HomewardAdministration inherits VerticalLayout {
     in property <KitTheme> theme: KitThemes.light;
     in property <string> title;
-    in property <string> description: "Compte, accès, configuration et état du serveur";
+    in property <string> description: "Account, access, configuration and server status";
     in property <string> status;
     in property <string> notice;
     in property <ProAdminStage> stage;
@@ -34,7 +34,7 @@ export component HomewardAdministration inherits VerticalLayout {
         theme: root.theme; title: root.title;
         description: root.description;
         stage: root.stage; status-label: root.status; notice: root.notice;
-        empty-label: "Aucune entrée pour cette vue";
+        empty-label: "No entries for this view";
         generation: root.generation; active-index: root.active-index;
         sections: root.sections; columns: root.columns; rows: root.rows; actions: root.actions;
         choose-section(t,g) => { root.choose-section(t,g); }
@@ -44,11 +44,11 @@ export component HomewardAdministration inherits VerticalLayout {
     }
     if root.editor-visible || root.fields.length > 0: ProAdminEditor {
         theme: root.theme; title: root.editor-title;
-        description: "Informations autorisées pour la session courante";
+        description: "Authorized information for the current session";
         token: root.selected-token; generation: root.generation;
         editable: root.editable; fields: root.fields; choices: root.choices; actions: root.editor-actions;
         notice: root.editor-notice;
-        reveal-label: "Afficher le mot de passe"; hide-label: "Masquer le mot de passe";
+        reveal-label: "Show Password"; hide-label: "Hide Password";
         edit(t,g,f,value) => { root.edit(t,g,f,value); }
         choose(t,g,f,option) => { root.choose(t,g,f,option); }
         action(t,g,a) => { root.editor-action(t,g,a); }

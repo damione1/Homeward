@@ -20,19 +20,19 @@ pub(super) enum Stage {
 impl Stage {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Disconnected => "Connectez-vous pour ouvrir les notifications",
-            Self::WaitingParent => "Inscrivez d’abord cette installation dans le compagnon",
-            Self::Unregistered => "Aucune destination inscrite",
-            Self::Ready => "Réception locale au premier plan · serveur de développement isolé",
-            Self::Busy => "Opération en cours",
-            Self::Uncertain => "Résultat incertain · résolution par lecture",
-            Self::Offline => "Réception suspendue · serveur indisponible",
-            Self::Denied => "Accès retiré",
-            Self::Unsupported => "Service non disponible sur ce serveur ou cet appareil",
-            Self::Expired => "Destination expirée",
-            Self::Revoked => "Destination révoquée",
-            Self::Invalid => "Réponse non admise · réception arrêtée",
-            Self::Suspended => "Application suspendue · aucune réception en arrière-plan",
+            Self::Disconnected => "Sign in to open notifications",
+            Self::WaitingParent => "Register this installation in the companion first",
+            Self::Unregistered => "No registered destination",
+            Self::Ready => "Local foreground reception · isolated development server",
+            Self::Busy => "Operation in progress",
+            Self::Uncertain => "Outcome uncertain · checking by reading",
+            Self::Offline => "Reception paused · server unavailable",
+            Self::Denied => "Access removed",
+            Self::Unsupported => "Service unavailable on this server or device",
+            Self::Expired => "Destination expired",
+            Self::Revoked => "Destination revoked",
+            Self::Invalid => "Response rejected · reception stopped",
+            Self::Suspended => "App suspended · no background reception",
         }
     }
 }
@@ -48,35 +48,33 @@ impl Draft {
     pub fn label(self) -> &'static str {
         match self {
             Self::Register => {
-                "Inscrire une destination privée pour cette installation et cette session ? La présentation native restera désactivée."
+                "Register a private destination for this installation and session? Native notification presentation will stay disabled."
             }
             Self::Permission => match os::backend() {
                 os::Backend::MacOs => {
-                    "Demander à macOS l’autorisation d’afficher des notifications ? Ce choix n’active pas la présentation dans Homeward."
+                    "Ask macOS for notification permission? This does not enable notification presentation in Homeward."
                 }
                 os::Backend::Android => {
-                    "Configurer le canal Android et demander l’autorisation si nécessaire ? Ce choix n’active pas la présentation dans Homeward."
+                    "Configure the Android notification channel and request permission if needed? This does not enable notification presentation in Homeward."
                 }
-                os::Backend::Unavailable => {
-                    "Les notifications natives ne sont pas disponibles sur cet appareil."
-                }
+                os::Backend::Unavailable => "Native notifications are unavailable on this device.",
             },
             Self::Enable => match os::backend() {
                 os::Backend::Android => {
-                    "Activer la présentation native des nouveaux messages encore valides ? La réception utilise Homeward au premier plan, ou le service Android activé séparément."
+                    "Show new notifications that are still valid? Receive them while Homeward is in the foreground, or through the separately enabled Android service."
                 }
                 os::Backend::MacOs => {
-                    "Activer la présentation native des nouveaux messages encore valides ? La réception nécessite Homeward au premier plan."
+                    "Show new notifications that are still valid? Homeward must remain in the foreground to receive them."
                 }
                 os::Backend::Unavailable => {
-                    "La présentation native n’est pas disponible sur cet appareil."
+                    "Native notification presentation is unavailable on this device."
                 }
             },
             Self::Revoke => {
-                "Révoquer cette destination et retirer son inbox ? La présentation locale est déjà arrêtée."
+                "Revoke this destination and remove its inbox? Local notification presentation is already stopped."
             }
             Self::Background => {
-                "Garder la réception locale active avec une notification système et un bouton d’arrêt ? Ce mode consomme du réseau et de la batterie. Android/Fire peut le retarder ou l’arrêter, notamment en Doze. Aucun redémarrage automatique après fermeture ou arrêt du système."
+                "Keep local reception active with a system notification and a Stop button? This uses network and battery. Android/Fire may delay or stop it, especially in Doze. It will not restart automatically after the app or system closes."
             }
         }
     }
@@ -296,7 +294,7 @@ impl State {
             self.stop_background();
             self.interrupt();
             self.requested = self.foreground;
-            self.notice = "Réception en arrière-plan arrêtée. Réactivez-la explicitement pour reprendre ; aucun démarrage automatique.".into();
+            self.notice = "Background reception stopped. Enable it explicitly to resume; it will not start automatically.".into();
             if !self.foreground {
                 self.entries.clear();
                 self.stage = Stage::Suspended;
@@ -494,7 +492,7 @@ impl State {
         self.entries.clear();
         self.row_keys.clear();
         self.stage = Stage::Invalid;
-        self.notice = "Réponse refusée ; aucune présentation ni ouverture autorisée.".into();
+        self.notice = "Response rejected; presentation and opening are not authorized.".into();
     }
     pub fn expire(&mut self) -> bool {
         let now = now();
@@ -536,7 +534,9 @@ impl State {
             self.stop_background();
             self.interrupt();
             self.requested = true;
-            self.notice = "Réception en arrière-plan arrêtée localement. La réception normale au premier plan reste distincte.".into();
+            self.notice =
+                "Background reception stopped locally. Normal foreground reception is separate."
+                    .into();
             return;
         }
         if self.running {

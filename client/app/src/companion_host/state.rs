@@ -43,10 +43,10 @@ impl Field {
     }
     pub fn label(self) -> &'static str {
         match self {
-            Self::Battery => "Batterie",
-            Self::Connectivity => "Réseau local",
-            Self::Activity => "Visibilité de l’application",
-            Self::Cadence => "Cadence",
+            Self::Battery => "Battery",
+            Self::Connectivity => "Local Network",
+            Self::Activity => "App Visibility",
+            Self::Cadence => "Update Interval",
         }
     }
 }
@@ -299,7 +299,7 @@ impl State {
             self.purge_sample();
             self.need_read();
             self.requested = true;
-            self.notice="Mesures périmées : nouvelle vérification, sans rattrapage ni départ géographique déduit.".into();
+            self.notice="Measurements outdated: checking again, without sending missed samples or inferring departure.".into();
         }
         expired
     }
@@ -313,7 +313,7 @@ impl State {
         self.interrupt();
         self.purge_sample();
         self.intent = None;
-        self.notice="Collecte arrêtée localement. Aucun nouvel échantillon n’est envoyé ; un consentement confirmé est nécessaire pour reprendre.".into();
+        self.notice="Collection stopped locally. No new samples will be sent; confirmed consent is required to resume.".into();
         if self.pending.is_some() {
             self.stage = Stage::Uncertain;
             self.requested = true;
@@ -337,7 +337,7 @@ impl State {
         if !value {
             self.stage = Stage::Suspended;
             self.notice =
-                "Application suspendue : mesures périmées, aucun rattrapage ne sera envoyé.".into();
+                "App suspended: measurements are outdated; missed samples will not be sent.".into();
         }
     }
     pub fn identity(&mut self, identity: Identity) -> bool {
@@ -601,10 +601,11 @@ impl State {
             if applied && self.privacy == pending.privacy {
                 self.gate = Gate::Open;
                 self.notice =
-                    "Opération confirmée par le serveur. Aucun renvoi de mutation.".into();
+                    "Operation confirmed by the server. The mutation will not be resubmitted."
+                        .into();
             } else {
                 self.gate = Gate::UserStopped;
-                self.notice="État relu ; la collecte reste arrêtée localement. Réexaminez le consentement avant de reprendre.".into();
+                self.notice="State reloaded; collection remains stopped locally. Review consent before resuming.".into();
             }
         } else if self.gate == Gate::NeedsRead {
             self.gate = Gate::Open;
@@ -660,6 +661,6 @@ impl State {
         self.gate = Gate::UserStopped;
         self.stage = Stage::Invalid;
         self.running = false;
-        self.notice = "La réponse n’a pas été admise. Aucun échantillon ne sera envoyé.".into();
+        self.notice = "The response was rejected. No sample will be sent.".into();
     }
 }

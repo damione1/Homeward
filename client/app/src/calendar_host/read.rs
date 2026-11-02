@@ -51,7 +51,7 @@ impl Calendars {
         }
         self.failed(context, status);
     }
-    fn failed(&self, context: u64, status: Status) {
+    pub(super) fn failed(&self, context: u64, status: Status) {
         let mut state = self.0.state.lock().expect("calendar state");
         if state.context != context {
             return;
@@ -76,11 +76,11 @@ impl Calendars {
         }
         state.status = status;
         let notice = match status {
-            Status::Denied => "Accès retiré : calendriers et brouillons effacés.",
-            Status::Unsupported => "Le serveur ne propose pas encore cette interface calendrier.",
-            Status::Invalid => "Réponse calendrier non admise ; données retirées.",
+            Status::Denied => "Access removed: calendars and drafts cleared.",
+            Status::Unsupported => "The server does not yet provide this calendar interface.",
+            Status::Invalid => "Calendar response rejected; data removed.",
             Status::TooLarge => {
-                "Cette plage dépasse la limite de présentation. Réduisez les dates pour la relire."
+                "This range exceeds the display limit. Shorten the date range and reload it."
             }
             // Read availability is projected from Status. Keep any independent
             // mutation warning so recovery cannot erase a conflict/unknown commit.
@@ -159,7 +159,7 @@ impl Calendars {
             state.reset_reads();
         }
         if state.catalog.is_empty() {
-            state.notice = "Aucun calendrier autorisé fourni par le serveur.".into();
+            state.notice = "The server provided no authorized calendars.".into();
         }
         self.publish(&state);
         self.0.changed.notify_one();
@@ -278,38 +278,38 @@ impl Calendars {
                         });
                         state.minimum_revision = Some(revision);
                         state.bump();
-                        state.notice = "Modification enregistrée ; relecture du serveur.".into();
+                        state.notice = "Change saved; reading the server again.".into();
                         None
                     }
                     CalendarWriteOutcome::Conflict => {
-                        state.notice="Conflit : le brouillon reste intact. Relisez ou résolvez explicitement avant d’enregistrer.".into();
+                        state.notice="Conflict: your draft is unchanged. Reload or explicitly resolve the conflict before saving.".into();
                         Some(EditPhase::Conflict)
                     }
                     CalendarWriteOutcome::CommitUnknown(_) => {
                         state.uncertain = true;
-                        state.notice="Résultat du commit inconnu · aucun renvoi automatique. Relisez explicitement avant une nouvelle intention.".into();
+                        state.notice="Save outcome unknown · no automatic resubmission. Reload explicitly before submitting another action.".into();
                         Some(EditPhase::Unknown)
                     }
                     CalendarWriteOutcome::CommittedResponseWithheld => {
                         state.clear_private();
                         state.status = Status::Denied;
                         state.notice =
-                            "Modification admise, réponse retirée après changement de droits."
-                                .into();
+                            "Change accepted; response withheld after permissions changed.".into();
                         Some(EditPhase::Withheld)
                     }
                     CalendarWriteOutcome::AuthorityTerminated => {
                         state.clear_private();
                         state.status = Status::Denied;
-                        state.notice = "Autorité retirée ; données privées effacées.".into();
+                        state.notice = "Authorization removed; private data cleared.".into();
                         None
                     }
                     CalendarWriteOutcome::NotSent(_) => {
-                        state.notice = "Intention non envoyée : le contexte a changé.".into();
+                        state.notice = "Action not sent: the context changed.".into();
                         Some(EditPhase::Ready)
                     }
                     CalendarWriteOutcome::Rejected(_) => {
-                        state.notice = "Modification refusée par le serveur ; aucun renvoi.".into();
+                        state.notice =
+                            "Change rejected by the server; it will not be resubmitted.".into();
                         Some(EditPhase::Ready)
                     }
                 };
@@ -376,7 +376,7 @@ impl Calendars {
                     .calendar()
                     .is_none_or(|calendar| calendar.revision != value.wire().calendar_revision)
                 {
-                    state.notice = "La révision du calendrier a changé ; relisez la plage.".into();
+                    state.notice = "The calendar revision changed; reload the range.".into();
                     state.reset_reads();
                 } else {
                     let current = Draft::from_server(&value);
@@ -397,9 +397,9 @@ impl Calendars {
                     };
                     state.bump();
                     state.notice = if state.draft.is_some() {
-                        "Révision de l’événement relue. Aucun enregistrement automatique."
+                        "Event revision reloaded. Nothing was saved automatically."
                     } else {
-                        "Cet événement est absent ou supprimé."
+                        "This event is missing or has been deleted."
                     }
                     .into();
                 }
@@ -432,8 +432,7 @@ impl Calendars {
                         if state.draft.as_mut().is_none_or(|draft| {
                             draft.resolve(boundary, &request, &response).is_err()
                         }) {
-                            state.notice =
-                                "Résolution temporelle refusée ou brouillon modifié.".into();
+                            state.notice = "Time resolution rejected or draft changed.".into();
                         }
                         self.publish(&state);
                     }
@@ -473,6 +472,7 @@ impl Calendars {
                     state.status = Status::Loading;
                     let _ = self.0.mailbox.invalidate();
                 }
+                self.pin_widget(&mut state);
                 let permitted = match state.status {
                     Status::Denied | Status::Unsupported | Status::Invalid | Status::TooLarge => {
                         false
@@ -554,7 +554,12 @@ impl Calendars {
                 change=phases.changed()=>{if change.is_err(){break;}},
                 ()=self.0.changed.notified()=>{},
                 _=tasks.join_next(),if !tasks.is_empty()=>{},
-                _=clock.tick()=>{let mut state=self.0.state.lock().expect("calendar state");if state.active&&state.status==Status::Offline{state.reset_reads();}self.publish(&state);},
+                _=clock.tick()=>{let mut state=self.0.state.lock().expect("calendar state");if state.active&&state.status==Status::Offline{state.reset_reads();}
+                    if state.active&&let Some(target)=&self.0.widget {
+                        let expired=state.query_override.as_ref().and_then(|query|query.window.as_option()).and_then(|window|match &window.bounds{Some(wire::window::Bounds::Times(span))=>chrono::DateTime::parse_from_rfc3339(&span.start_instant).ok(),Some(wire::window::Bounds::Dates(_))|None=>None}).is_none_or(|start|chrono::Utc::now().signed_duration_since(start).num_seconds()>=60);
+                        if expired {state.query_override=state::widget_query(target,chrono::Utc::now());state.reset_reads();}
+                    }
+                    self.publish(&state);},
             }
         }
         attempt.cancel();

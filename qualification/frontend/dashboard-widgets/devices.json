@@ -1,0 +1,40 @@
+[
+  {
+    "kind": "thermostat",
+    "alias": "climate.neviweb130_climate_sous_sol",
+    "title": "Office Heating",
+    "endpoint": "temperature",
+    "current": 21.5,
+    "target": 21
+  },
+  {
+    "kind": "thermostat",
+    "alias": "climate.chambre_eugenie",
+    "title": "Eugénie’s Heating",
+    "endpoint": "temperature",
+    "current": 16.5,
+    "target": 18
+  },
+  {
+    "kind": "light",
+    "alias": "light.basement_lights",
+    "title": "Basement Lights",
+    "endpoint": "lamp",
+    "on": true
+  },
+  {
+    "kind": "binary",
+    "alias": "binary_sensor.arc_soundbar_microphone",
+    "title": "Soundbar Microphone",
+    "endpoint": "condition",
+    "on": true
+  },
+  {
+    "kind": "weather",
+    "alias": "weather.maison",
+    "title": "Weather",
+    "endpoint": "weather",
+    "current": 9,
+    "condition": "clear"
+  }
+]

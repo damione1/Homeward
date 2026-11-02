@@ -25,7 +25,7 @@ pub(super) fn empty(generation: i32) -> Projection {
     Projection {
         generation,
         stage: ProAdminStage::Unavailable,
-        status: "Partage désactivé".into(),
+        status: "Sharing disabled".into(),
         notice: String::new(),
         rows: Vec::new(),
         selected: -1,
@@ -61,7 +61,7 @@ fn field(token: i32, label: &str, value: String) -> ProAdminField {
     }
 }
 fn enabled(value: bool) -> &'static str {
-    if value { "Partagé" } else { "Non partagé" }
+    if value { "Shared" } else { "Not shared" }
 }
 fn feature(value: EnumValue<wire::Feature>) -> &'static str {
     // Labels belong to the one native feature catalogue, not wire spellings.
@@ -70,52 +70,52 @@ fn feature(value: EnumValue<wire::Feature>) -> &'static str {
     mapped
         .iter()
         .position(|c| c.feature == value)
-        .map_or("Non pris en charge", |index| {
-            platform[index].feature.label()
-        })
+        .map_or("Unsupported", |index| platform[index].feature.label())
 }
 fn availability(value: EnumValue<wire::Availability>) -> &'static str {
     match value {
-        EnumValue::Known(wire::Availability::Available) => "Disponible",
-        EnumValue::Known(wire::Availability::Partial) => "Partiel",
-        EnumValue::Known(wire::Availability::Unsupported) => "Non pris en charge",
-        EnumValue::Known(wire::Availability::PendingQualification) => "À qualifier sur l’appareil",
-        EnumValue::Known(wire::Availability::Unspecified) | EnumValue::Unknown(_) => "Non admis",
+        EnumValue::Known(wire::Availability::Available) => "Available",
+        EnumValue::Known(wire::Availability::Partial) => "Partial",
+        EnumValue::Known(wire::Availability::Unsupported) => "Unsupported",
+        EnumValue::Known(wire::Availability::PendingQualification) => {
+            "Device qualification pending"
+        }
+        EnumValue::Known(wire::Availability::Unspecified) | EnumValue::Unknown(_) => "Rejected",
     }
 }
 fn permission(value: EnumValue<wire::Permission>) -> &'static str {
     match value {
-        EnumValue::Known(wire::Permission::NotRequired) => "Autorisation OS non requise",
-        EnumValue::Known(wire::Permission::NotRequested) => "Permission non demandée",
-        EnumValue::Known(wire::Permission::Granted) => "Permission accordée",
-        EnumValue::Known(wire::Permission::Denied) => "Permission refusée",
-        EnumValue::Known(wire::Permission::Restricted) => "Permission restreinte",
-        EnumValue::Known(wire::Permission::Unsupported) => "Permission non disponible",
+        EnumValue::Known(wire::Permission::NotRequired) => "OS permission not required",
+        EnumValue::Known(wire::Permission::NotRequested) => "Permission not requested",
+        EnumValue::Known(wire::Permission::Granted) => "Permission granted",
+        EnumValue::Known(wire::Permission::Denied) => "Permission denied",
+        EnumValue::Known(wire::Permission::Restricted) => "Permission restricted",
+        EnumValue::Known(wire::Permission::Unsupported) => "Permission unavailable",
         EnumValue::Known(wire::Permission::Unspecified) | EnumValue::Unknown(_) => {
-            "Permission non admise"
+            "Permission rejected"
         }
     }
 }
 fn source(value: EnumValue<wire::Source>) -> &'static str {
     match value {
-        EnumValue::Known(wire::Source::MacOsPowerSources) => "Batterie macOS",
-        EnumValue::Known(wire::Source::MacOsNetworkConfiguration) => "Route locale macOS",
-        EnumValue::Known(wire::Source::AndroidBatteryManager) => "Batterie Android",
-        EnumValue::Known(wire::Source::AndroidConnectivityManager) => "Route locale Android",
-        EnumValue::Known(wire::Source::NativeLifecycle) => "Visibilité de l’application",
-        EnumValue::Known(wire::Source::None) => "Aucune source qualifiée",
-        EnumValue::Known(wire::Source::Unspecified) | EnumValue::Unknown(_) => "Source non admise",
+        EnumValue::Known(wire::Source::MacOsPowerSources) => "macOS Battery",
+        EnumValue::Known(wire::Source::MacOsNetworkConfiguration) => "macOS Local Network",
+        EnumValue::Known(wire::Source::AndroidBatteryManager) => "Android Battery",
+        EnumValue::Known(wire::Source::AndroidConnectivityManager) => "Android Local Network",
+        EnumValue::Known(wire::Source::NativeLifecycle) => "App Visibility",
+        EnumValue::Known(wire::Source::None) => "No qualified source",
+        EnumValue::Known(wire::Source::Unspecified) | EnumValue::Unknown(_) => "Source rejected",
     }
 }
 fn absent(value: EnumValue<wire::NoData>) -> &'static str {
     match value {
-        EnumValue::Known(wire::NoData::Disabled) => "Non partagé",
-        EnumValue::Known(wire::NoData::Unsupported) => "Non pris en charge",
-        EnumValue::Known(wire::NoData::NoHardware) => "Sans batterie",
-        EnumValue::Known(wire::NoData::Unavailable) => "Mesure indisponible",
-        EnumValue::Known(wire::NoData::PermissionDenied) => "Refus de l’OS",
-        EnumValue::Known(wire::NoData::Stale) => "Mesure périmée",
-        EnumValue::Known(wire::NoData::Unspecified) | EnumValue::Unknown(_) => "Non admis",
+        EnumValue::Known(wire::NoData::Disabled) => "Not shared",
+        EnumValue::Known(wire::NoData::Unsupported) => "Unsupported",
+        EnumValue::Known(wire::NoData::NoHardware) => "No battery",
+        EnumValue::Known(wire::NoData::Unavailable) => "Measurement unavailable",
+        EnumValue::Known(wire::NoData::PermissionDenied) => "OS rejection",
+        EnumValue::Known(wire::NoData::Stale) => "Outdated measurement",
+        EnumValue::Known(wire::NoData::Unspecified) | EnumValue::Unknown(_) => "Rejected",
     }
 }
 fn observation(feature: EnumValue<wire::Feature>, snapshot: &wire::Snapshot) -> String {
@@ -129,48 +129,48 @@ fn observation(feature: EnumValue<wire::Feature>, snapshot: &wire::Snapshot) -> 
                     format!("{} %", b.percent)
                 } else {
                     match b.state {
-                        EnumValue::Known(wire::PowerState::Battery) => "Sur batterie",
-                        EnumValue::Known(wire::PowerState::Charging) => "En charge",
+                        EnumValue::Known(wire::PowerState::Battery) => "On battery",
+                        EnumValue::Known(wire::PowerState::Charging) => "Charging",
                         EnumValue::Known(wire::PowerState::ExternalPower) => {
-                            "Sur secteur, sans charge"
+                            "Plugged in, not charging"
                         }
-                        EnumValue::Known(wire::PowerState::Full) => "Batterie pleine",
+                        EnumValue::Known(wire::PowerState::Full) => "Battery full",
                         EnumValue::Known(wire::PowerState::Unspecified) | EnumValue::Unknown(_) => {
-                            "Non admis"
+                            "Rejected"
                         }
                     }
                     .into()
                 }
             }
-            None => "Aucune mesure".into(),
+            None => "No measurements".into(),
         },
         EnumValue::Known(wire::Feature::Connectivity) => match snapshot.connectivity.observation {
             Some(wire::connectivity_observation::Observation::NoData(n)) => absent(n).into(),
             Some(wire::connectivity_observation::Observation::Value(v)) => match v {
                 EnumValue::Known(wire::Connectivity::LocallyReachable) => {
-                    "Route locale joignable — Internet non vérifié"
+                    "Local network reachable — Internet not verified"
                 }
-                EnumValue::Known(wire::Connectivity::ConnectionRequired) => "Connexion requise",
-                EnumValue::Known(wire::Connectivity::NoLocalRoute) => "Aucune route locale",
+                EnumValue::Known(wire::Connectivity::ConnectionRequired) => "Sign-in required",
+                EnumValue::Known(wire::Connectivity::NoLocalRoute) => "No local network route",
                 EnumValue::Known(wire::Connectivity::Unspecified) | EnumValue::Unknown(_) => {
-                    "Non admis"
+                    "Rejected"
                 }
             }
             .into(),
-            None => "Aucune mesure".into(),
+            None => "No measurements".into(),
         },
         EnumValue::Known(wire::Feature::Activity) => match snapshot.activity.observation {
             Some(wire::activity_observation::Observation::NoData(n)) => absent(n).into(),
             Some(wire::activity_observation::Observation::Value(v)) => match v {
                 EnumValue::Known(wire::AppActivity::Foreground) => {
-                    "Application visible — présence humaine non déduite"
+                    "App visible — human presence is not inferred"
                 }
                 EnumValue::Known(wire::AppActivity::Unspecified) | EnumValue::Unknown(_) => {
-                    "Non admis"
+                    "Rejected"
                 }
             }
             .into(),
-            None => "Aucune mesure".into(),
+            None => "No measurements".into(),
         },
         EnumValue::Known(
             wire::Feature::Focus
@@ -184,7 +184,7 @@ fn observation(feature: EnumValue<wire::Feature>, snapshot: &wire::Snapshot) -> 
             | wire::Feature::Notifications
             | wire::Feature::Unspecified,
         )
-        | EnumValue::Unknown(_) => "Aucune collecte".into(),
+        | EnumValue::Unknown(_) => "No collection".into(),
     }
 }
 pub(super) fn project(state: &State) -> Projection {
@@ -204,60 +204,60 @@ pub(super) fn project(state: &State) -> Projection {
         Stage::Invalid => ProAdminStage::Invalid,
     };
     p.status = if state.running {
-        "Vérification en cours"
+        "Checking"
     } else {
         match state.stage {
-            Stage::Disconnected => "Déconnecté",
-            Stage::Loading => "Vérification du service",
-            Stage::Unregistered => "Aucune installation — partage désactivé",
+            Stage::Disconnected => "Disconnected",
+            Stage::Loading => "Checking Service",
+            Stage::Unregistered => "No installation — sharing disabled",
             Stage::Ready => {
                 if state.gate == Gate::UserStopped {
-                    "Collecte arrêtée localement"
+                    "Collection stopped locally"
                 } else {
-                    "Installation prête"
+                    "Installation ready"
                 }
             }
-            Stage::Busy => "Opération en cours",
-            Stage::Uncertain => "Résultat à vérifier",
-            Stage::Suspended => "Application suspendue",
-            Stage::Offline => "Hors ligne — collecte arrêtée",
-            Stage::Denied => "Accès retiré",
-            Stage::Revoked => "Installation révoquée",
-            Stage::Expired => "Installation expirée",
-            Stage::Unsupported => "Service non disponible",
-            Stage::Invalid => "Réponse non admise",
+            Stage::Busy => "Operation in progress",
+            Stage::Uncertain => "Result to Verify",
+            Stage::Suspended => "App suspended",
+            Stage::Offline => "Offline — collection stopped",
+            Stage::Denied => "Access removed",
+            Stage::Revoked => "Installation revoked",
+            Stage::Expired => "Installation expired",
+            Stage::Unsupported => "Service unavailable",
+            Stage::Invalid => "Response rejected",
         }
     }
     .into();
     p.notice = if state.context.is_some() {
-        "Serveur de démonstration. Partage privé de cette installation ; localisation et caméra non collectées. ".to_owned()+&state.notice
+        "Demo server. Private sharing for this installation; location and camera data are not collected. ".to_owned()+&state.notice
     } else {
         state.notice.clone()
     };
     let idle = !state.running && state.pending.is_none();
     p.actions = vec![
-        command(ProAdminAction::Refresh, "Actualiser", !state.running, false),
+        command(ProAdminAction::Refresh, "Refresh", !state.running, false),
         command(
             ProAdminAction::Create,
-            "Inscrire ce compagnon",
+            "Register This Companion",
             idle && state.record.is_none() && state.context.is_some(),
             false,
         ),
         command(
             ProAdminAction::Enable,
-            "Modifier le partage",
+            "Edit Sharing",
             idle && state.stage == Stage::Ready,
             false,
         ),
         command(
             ProAdminAction::Disable,
-            "Arrêter la collecte locale",
+            "Stop Local Collection",
             state.record.is_some(),
             false,
         ),
         command(
             ProAdminAction::Revoke,
-            "Révoquer l’installation",
+            "Revoke Installation",
             idle && state.stage == Stage::Ready,
             true,
         ),
@@ -280,7 +280,7 @@ pub(super) fn project(state: &State) -> Projection {
             .as_ref()
             .and_then(|r| r.latest.as_option())
             .map_or_else(
-                || "Aucune mesure retenue".into(),
+                || "No retained measurements".into(),
                 |s| {
                     let age = chrono::Utc::now()
                         .timestamp()
@@ -292,7 +292,7 @@ pub(super) fn project(state: &State) -> Projection {
                         .unwrap_or(60)
                         * 2;
                     if age < 0 || age as u64 >= maximum {
-                        "Mesure périmée".into()
+                        "Outdated measurement".into()
                     } else {
                         observation(capability.feature, s)
                     }
@@ -301,7 +301,7 @@ pub(super) fn project(state: &State) -> Projection {
         if index == state.selected {
             selected_detail = Some(ProAdminField {
                 token: 14,
-                label: "Mesure sélectionnée".into(),
+                label: "Selected Measurement".into(),
                 description: format!(
                     "{} · {} · {} · {}",
                     feature(capability.feature),
@@ -322,14 +322,14 @@ pub(super) fn project(state: &State) -> Projection {
         p.fields = vec![
             field(
                 10,
-                "Modèle et OS",
+                "Model and OS",
                 format!("{} · {}", record.device.model, record.device.os_version),
             ),
             field(
                 11,
-                "Consentement du serveur",
+                "Server Consent",
                 format!(
-                    "Batterie : {} · Réseau : {} · Activité : {}",
+                    "Battery: {} · Network: {} · Activity: {}",
                     enabled(record.consent.battery),
                     enabled(record.consent.connectivity),
                     enabled(record.consent.activity)
@@ -337,17 +337,17 @@ pub(super) fn project(state: &State) -> Projection {
             ),
             field(
                 12,
-                "Cadence",
+                "Update Interval",
                 format!(
-                    "{} secondes — aucun rattrapage hors ligne",
+                    "{} seconds — no offline catch-up",
                     admit::cadence_seconds(record.consent.cadence).unwrap_or(0)
                 ),
             ),
             field(
                 13,
-                "Coût de collecte sur cette session",
+                "Collection Cost for This Session",
                 format!(
-                    "{} échantillons · {} µs cumulées dans le collecteur ; consommation batterie non mesurée",
+                    "{} samples · {} µs total in the collector; battery usage not measured",
                     state.samples,
                     state.sample_time.as_micros()
                 ),
@@ -356,42 +356,42 @@ pub(super) fn project(state: &State) -> Projection {
         if let Some(detail) = selected_detail {
             p.fields.insert(0, detail);
         }
-        p.editor_title = "Informations de cette installation".into();
+        p.editor_title = "About This Installation".into();
     }
     if let Some(draft) = &state.draft {
         p.editor = true;
         p.fields.clear();
         p.editor_title = match draft {
-            Draft::Register(_) => "Confirmer l’inscription sans partage",
-            Draft::Consent { .. } => "Choisir le partage autorisé",
-            Draft::Revoke { .. } => "Confirmer la révocation",
+            Draft::Register(_) => "Confirm Registration Without Sharing",
+            Draft::Consent { .. } => "Choose Authorized Sharing",
+            Draft::Revoke { .. } => "Confirm Revocation",
         }
         .into();
         match draft {
-            Draft::Register(_)=>p.fields.push(field(10,"Ce qui sera créé","Une identité d’installation et d’appareil, liées à votre session. Tous les partages restent désactivés.".into())),
-            Draft::Revoke{..}=>p.fields.push(field(10,"Conséquence","Arrêt de publication et suppression des mesures retenues pour cette installation. Votre connexion reste ouverte.".into())),
+            Draft::Register(_)=>p.fields.push(field(10,"What Will Be Created","An installation and device identity linked to your session. All sharing stays disabled.".into())),
+            Draft::Revoke{..}=>p.fields.push(field(10,"Consequence","Stop publishing and remove retained measurements for this installation. Your session stays open.".into())),
             Draft::Consent{prior,desired,..}=>{
                 for (choice_field,feature,value) in [(state::Field::Battery,wire::Feature::BatteryLevel,desired.battery),(state::Field::Connectivity,wire::Feature::Connectivity,desired.connectivity),(state::Field::Activity,wire::Feature::Activity,desired.activity)] {
                     let token=choice_field as i32;let label=choice_field.label();
                     p.fields.push(field(token,label,enabled(value).into()));
                     for (option,on) in [(1,true),(2,false)] {
-                        p.choices.push(ProAdminChoice{token:option,field_token:token,label:format!("{} : {}",label,if on{"partager"}else{"ne pas partager"}).into(),selected:on==value,enabled:!state.running&&(!on||admit::can_collect(&prior.device,feature))});
+                        p.choices.push(ProAdminChoice{token:option,field_token:token,label:format!("{} : {}",label,if on{"partager"}else{"do not share"}).into(),selected:on==value,enabled:!state.running&&(!on||admit::can_collect(&prior.device,feature))});
                     }
                 }
-                p.fields.push(field(state::Field::Cadence as i32,state::Field::Cadence.label(),format!("{} secondes",admit::cadence_seconds(desired.cadence).unwrap_or(0))));
+                p.fields.push(field(state::Field::Cadence as i32,state::Field::Cadence.label(),format!("{} seconds",admit::cadence_seconds(desired.cadence).unwrap_or(0))));
                 for (token,cadence) in [(1,wire::Cadence::Seconds30),(2,wire::Cadence::Minute1),(3,wire::Cadence::Minutes5)] {
-                    p.choices.push(ProAdminChoice{token,field_token:state::Field::Cadence as i32,label:format!("Toutes les {} secondes",admit::cadence_seconds(cadence.into()).expect("known cadence")).into(),selected:desired.cadence==cadence,enabled:!state.running});
+                    p.choices.push(ProAdminChoice{token,field_token:state::Field::Cadence as i32,label:format!("Every {} seconds",admit::cadence_seconds(cadence.into()).expect("known cadence")).into(),selected:desired.cadence==cadence,enabled:!state.running});
                 }
             },
         }
         p.editor_actions = vec![
             command(
                 ProAdminAction::Save,
-                "Confirmer",
+                "Confirm",
                 !state.running,
                 matches!(draft, Draft::Revoke { .. }),
             ),
-            command(ProAdminAction::Cancel, "Annuler", !state.running, false),
+            command(ProAdminAction::Cancel, "Cancel", !state.running, false),
         ];
     }
     p
@@ -406,12 +406,12 @@ pub(super) fn apply(window: &HomewardWindow, p: Projection) {
     window.set_companion_columns(ModelRc::new(VecModel::from(vec![
         TableColumn {
             token: 1,
-            label: "Capacité".into(),
+            label: "Capacity".into(),
             ..Default::default()
         },
         TableColumn {
             token: 2,
-            label: "Dernière mesure".into(),
+            label: "Latest Measurement".into(),
             ..Default::default()
         },
     ])));

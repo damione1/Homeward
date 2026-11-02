@@ -50,6 +50,8 @@ func nativeLayoutKind(value ElementKind) (dashboardv1.LayoutKind, string) {
 		return dashboardv1.LayoutKind_LAYOUT_KIND_POPUP, "custom:bubble-card"
 	case ElementChipGroup:
 		return dashboardv1.LayoutKind_LAYOUT_KIND_CHIP_GROUP, "custom:mushroom-chips-card"
+	case ElementWidgetCard:
+		return dashboardv1.LayoutKind_LAYOUT_KIND_WIDGET, "widget"
 	case ElementInvalid:
 		return dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED, "unknown"
 	}
@@ -69,18 +71,18 @@ func ProjectNativeLayout(result Result, options LayoutProjection) (*dashboardv1.
 		return nil, ErrInvalidInput
 	}
 	layout := &dashboardv1.NativeLayout{Version: uint32(definition.Requirements().Version())}
-	if layout.Version != 1 && layout.Version != 2 {
+	if layout.Version != 1 && layout.Version != 2 && layout.Version != 3 {
 		return nil, ErrInvalidInput
 	}
 	navigation := options.Navigation
-	if navigation == nil && layout.Version == 2 {
+	if navigation == nil && layout.Version >= 2 {
 		index, err := NewNavigationIndex([]Definition{definition})
 		if err != nil {
 			return nil, err
 		}
 		navigation = &index
 	}
-	if layout.Version == 2 && !navigation.matches(definition) {
+	if layout.Version >= 2 && !navigation.matches(definition) {
 		return nil, ErrInvalidInput
 	}
 	allowed := map[dashboardv1.LayoutKind]bool{}
@@ -95,7 +97,8 @@ func ProjectNativeLayout(result Result, options LayoutProjection) (*dashboardv1.
 	} else if support != nil && ((support.Profile == definition.Profile() && support.Version == layout.Version) ||
 		// The recipe renderer includes the Basic vocabulary. A v2 client can
 		// consume a server's Basic tree without enabling recipes in that tree.
-		(definition.Profile() == Profile && layout.Version == 1 && support.Profile == RecipesProfile && support.Version == 2)) {
+		(definition.Profile() == Profile && layout.Version == 1 && support.Profile == RecipesProfile && support.Version == 2) ||
+		(support.Profile == DashboardProfile && support.Version == 3 && layout.Version <= 3)) {
 		for _, kind := range support.Kinds {
 			allowed[kind] = true
 		}
@@ -131,11 +134,20 @@ func ProjectNativeLayout(result Result, options LayoutProjection) (*dashboardv1.
 				}
 			}
 		}
+		if node.Kind != dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED {
+			screen, valid := nativeScreenVisibility(visibility)
+			if !valid || (screen != nil && (layout.Version != 3 || support == nil || !support.ScreenVisibility)) {
+				node.Kind = dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED
+				node.Diagnostic = "Screen visibility is unsupported by this client or has contradictory bounds."
+			} else {
+				node.ScreenVisibility = screen
+			}
+		}
 		layout.Nodes = append(layout.Nodes, node)
 		return node
 	}
 	applyRecipes := func(node *dashboardv1.LayoutNode, owner Location, actions []Action, visibility []Visibility, view Location) {
-		if layout.Version != 2 || node.Kind == dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED {
+		if layout.Version < 2 || node.Kind == dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED {
 			return
 		}
 		resolver := RecipeResolver{Entity: resolve}
@@ -162,6 +174,29 @@ func ProjectNativeLayout(result Result, options LayoutProjection) (*dashboardv1.
 				node.Source.Variant = card.Variant()
 			}
 			applyRecipes(node, card.Location(), card.Actions(), card.Visibility(), view)
+			if layout.Version >= 3 && card.icon != "" {
+				node.Icon = nativeCardIcon(card.icon)
+			}
+			node.MinimumColumnWidth, node.Gap = card.minimumColumnWidth, card.gap
+			node.ControlPresentation = card.controlPresentation
+			for _, span := range card.grid.responsiveSpans {
+				node.ResponsiveSpans = append(node.ResponsiveSpans, &dashboardv1.NativeResponsiveSpan{Columns: span.Columns, Span: span.Span})
+			}
+			if node.Kind == dashboardv1.LayoutKind_LAYOUT_KIND_WIDGET {
+				widget, ok := projectWidget(card, resolve, func(path string) (*dashboardv1.NativeDestination, bool) {
+					if navigation == nil {
+						return nil, false
+					}
+					return navigation.Resolve(definition.Source().ID(), view, path)
+				})
+				if !ok {
+					node.Kind = dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED
+					node.Recipes = nil
+					node.Diagnostic = "Liaison ou destination non disponible dans la vue autorisée."
+				} else {
+					node.Widget = widget
+				}
+			}
 			parent.Children = append(parent.Children, node.Id)
 			node.Title, _ = card.Name()
 			if card.Kind() == ElementHeadingCard {
@@ -189,7 +224,7 @@ func ProjectNativeLayout(result Result, options LayoutProjection) (*dashboardv1.
 					node.Diagnostic = "Entité non disponible dans la vue autorisée."
 				}
 			}
-			if layout.Version == 2 && node.Kind != dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED {
+			if layout.Version >= 2 && node.Kind != dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED {
 				node.RecipeKind = nativeRecipeKind(card.Recipe())
 				node.Secondary = card.Secondary()
 				for _, feature := range card.Features() {
@@ -222,6 +257,7 @@ func ProjectNativeLayout(result Result, options LayoutProjection) (*dashboardv1.
 		node := makeNode(view.Location().Path(), view.Kind(), view.Status(), view.Location(), view.Visibility(), false)
 		applyRecipes(node, view.Location(), nil, view.Visibility(), view.Location())
 		node.Title = view.Title()
+		node.MinimumColumnWidth, node.Gap = view.minimumColumnWidth, view.gap
 		node.Route = view.NativeRoute()
 		if columns, present := view.MaxColumns(); present {
 			node.Columns = uint32(columns)
@@ -231,6 +267,7 @@ func ProjectNativeLayout(result Result, options LayoutProjection) (*dashboardv1.
 			child := makeNode(section.Location().Path(), section.Kind(), section.Status(), section.Location(), section.Visibility(), node.Kind == dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED)
 			applyRecipes(child, section.Location(), nil, section.Visibility(), view.Location())
 			node.Children = append(node.Children, child.Id)
+			child.MinimumColumnWidth, child.Gap = section.minimumColumnWidth, section.gap
 			if count, present := section.ColumnSpan(); present {
 				child.ColumnSpan = &dashboardv1.LayoutDimension{Kind: dashboardv1.LayoutDimensionKind_LAYOUT_DIMENSION_KIND_COUNT, Count: uint32(count)}
 			}
@@ -259,7 +296,7 @@ func ProjectNativeLayout(result Result, options LayoutProjection) (*dashboardv1.
 			}
 		}
 	}
-	if len(layout.Nodes) > 128+256+2048 || len(layout.Views) == 0 {
+	if len(layout.Nodes) > 128+256+2048 || (len(layout.Views) == 0 && layout.Version < 3) {
 		return nil, ErrInvalidInput
 	}
 	return layout, nil

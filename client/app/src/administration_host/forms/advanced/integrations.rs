@@ -46,12 +46,12 @@ impl IntegrationCommand {
     }
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Create(_) => "Créer une intégration désactivée",
-            Self::Update(_) => "Modifier les paramètres publics",
-            Self::Delete(_) => "Supprimer l’intégration",
+            Self::Create(_) => "Create Disabled Integration",
+            Self::Update(_) => "Edit Public Settings",
+            Self::Delete(_) => "Delete Integration",
             Self::SetEnabled { state, .. } => match *state {
-                DesiredState::Enabled => "Activer l’intégration",
-                DesiredState::Disabled => "Désactiver l’intégration",
+                DesiredState::Enabled => "Enable Integration",
+                DesiredState::Disabled => "Disable Integration",
             },
         }
     }
@@ -82,18 +82,18 @@ impl IntegrationForm {
                 source: Zeroizing::new(String::new()),
                 references: Zeroizing::new(String::new()),
                 expected: administration::mutation_precondition(&value.response.document)
-                    .map_err(|_| "La version du workspace n’est pas disponible pour écrire.")?,
+                    .map_err(|_| "The workspace version is unavailable for writing.")?,
             }),
             IntegrationCommand::Update(value) => {
                 IntegrationDraft::open(&value.response.instance, &value.response.document)
                     .map(Self::Update)
-                    .map_err(|_| "Cette configuration est en lecture seule.")
+                    .map_err(|_| "This configuration is read-only.")
             }
             IntegrationCommand::Delete(value) => Ok(Self::Delete {
                 id: IntegrationId::parse(&value.response.instance.integration_instance_id)
-                    .map_err(|_| "Identité invalide.")?,
+                    .map_err(|_| "Invalid identity.")?,
                 expected: administration::mutation_precondition(&value.response.document)
-                    .map_err(|_| "La version du workspace n’est pas disponible pour écrire.")?,
+                    .map_err(|_| "The workspace version is unavailable for writing.")?,
             }),
             IntegrationCommand::SetEnabled { detail, state } => administration::prepare_enabled(
                 &detail.response.instance,
@@ -101,7 +101,7 @@ impl IntegrationForm {
                 state.wire(),
             )
             .map(Self::SetEnabled)
-            .map_err(|_| "La version du workspace n’est pas disponible pour écrire."),
+            .map_err(|_| "The workspace version is unavailable for writing."),
         }
     }
     pub fn fields(&self) -> Vec<ProAdminField> {
@@ -115,23 +115,11 @@ impl IntegrationForm {
                 ..
             } => {
                 let mut fields = vec![
-                    field(
-                        Field::Identity,
-                        "Identifiant de l’instance",
-                        id,
-                        false,
-                        true,
-                    ),
-                    field(
-                        Field::Fragment,
-                        "Paramètres publics YAML",
-                        source,
-                        true,
-                        true,
-                    ),
+                    field(Field::Identity, "Instance ID", id, false, true),
+                    field(Field::Fragment, "Public Settings YAML", source, true, true),
                     field(
                         Field::References,
-                        "Références de secrets · champ=nom",
+                        "Secret References · field=name",
                         references,
                         true,
                         true,
@@ -143,7 +131,7 @@ impl IntegrationForm {
                 {
                     fields.push(field(
                         Field::Schema,
-                        "Version du schéma",
+                        "Schema Version",
                         &kind.schema_version,
                         false,
                         false,
@@ -155,14 +143,14 @@ impl IntegrationForm {
                 let mut fields = vec![
                     field(
                         Field::Identity,
-                        "Instance concernée",
+                        "Affected Instance",
                         value.id().as_str(),
                         false,
                         false,
                     ),
                     field(
                         Field::Fragment,
-                        "Paramètres publics YAML",
+                        "Public Settings YAML",
                         value.yaml(),
                         true,
                         true,
@@ -171,7 +159,7 @@ impl IntegrationForm {
                 for reference in value.secret_references() {
                     fields.push(field(
                         Field::References,
-                        &format!("Référence conservée · {}", reference.field),
+                        &format!("Retained reference · {}", reference.field),
                         &reference.name,
                         false,
                         false,
@@ -181,14 +169,14 @@ impl IntegrationForm {
             }
             Self::Delete { id, .. } => vec![field(
                 Field::Identity,
-                "Instance à supprimer",
+                "Instance to Delete",
                 id.as_str(),
                 false,
                 false,
             )],
             Self::SetEnabled(request) => vec![field(
                 Field::Identity,
-                "Instance concernée",
+                "Affected Instance",
                 &request.integration_instance_id,
                 false,
                 false,
@@ -229,9 +217,7 @@ impl IntegrationForm {
             } => match field {
                 Field::Identity => {
                     if value.len() > 256 || value.contains(['\0', '\r', '\n']) {
-                        return Err(
-                            "L’identité doit être un identifiant valide de 256 octets au plus.",
-                        );
+                        return Err("The identity must be valid and at most 256 bytes.");
                     }
                     *id = value;
                 }
@@ -241,7 +227,7 @@ impl IntegrationForm {
                 }
                 Field::References => {
                     if value.len() > 16384 || value.contains('\0') {
-                        return Err("La liste de références est trop longue.");
+                        return Err("The reference list is too long.");
                     }
                     *references = Zeroizing::new(value);
                 }
@@ -251,7 +237,7 @@ impl IntegrationForm {
                 if field == Field::Fragment {
                     draft
                         .edit_yaml(&value)
-                        .map_err(|_| "Le fragment public est invalide ou n’est plus éditable.")?;
+                        .map_err(|_| "The public fragment is invalid or no longer editable.")?;
                 }
             }
             Self::Delete { .. } | Self::SetEnabled(_) => (),
@@ -272,7 +258,7 @@ impl IntegrationForm {
         {
             *selected = Some(IntegrationTypeId(
                 IntegrationId::parse(&types[index].type_id)
-                    .map_err(|_| "Type d’intégration invalide.")?,
+                    .map_err(|_| "Invalid integration type.")?,
             ));
         }
         Ok(())
@@ -290,15 +276,14 @@ impl IntegrationForm {
                 let kind = selected
                     .as_ref()
                     .and_then(|id| types.iter().find(|kind| kind.type_id == id.0.as_str()))
-                    .ok_or("Sélectionnez un type d’intégration fourni par le serveur.")?;
-                IntegrationId::parse(id)
-                    .map_err(|_| "Renseignez un identifiant d’instance valide.")?;
+                    .ok_or("Select a server-provided integration type.")?;
+                IntegrationId::parse(id).map_err(|_| "Enter a valid instance ID.")?;
                 fragment(source)?;
                 let mut fields = std::collections::BTreeSet::new();
                 let mut secrets = Vec::new();
                 for line in references.lines().filter(|line| !line.trim().is_empty()) {
                     let (field, name) = line.split_once('=').ok_or(
-                        "Chaque référence doit suivre le format champ=nom, sans valeur secrète.",
+                        "Each reference must use field=name format, without a secret value.",
                     )?;
                     let (field, name) = (field.trim(), name.trim());
                     if field.is_empty()
@@ -309,7 +294,7 @@ impl IntegrationForm {
                         || name.contains(['\r', '\n', '\0'])
                         || !fields.insert(field)
                     {
-                        return Err("Une référence est vide, répétée ou invalide.");
+                        return Err("A reference is empty, duplicated or invalid.");
                     }
                     secrets.push(integration::SecretReference {
                         field: field.into(),
@@ -335,15 +320,13 @@ impl IntegrationForm {
                 integration_admin_contract::admit_integration_admin_request(
                     IntegrationAdminRequest::Create(&request),
                 )
-                .map_err(
-                    |_| "Le fragment ou ses références ne respectent pas le contrat du serveur.",
-                )?;
+                .map_err(|_| "The fragment or its references do not meet the server contract.")?;
                 Ok(Operation::Create(request))
             }
             Self::Update(draft) => draft
                 .prepare_update()
                 .map(Operation::Update)
-                .map_err(|_| "Le fragment public ou ses références sont invalides."),
+                .map_err(|_| "The public fragment or its references are invalid."),
             Self::Delete { id, expected } => {
                 let request = integration::DeleteInstanceRequest {
                     integration_instance_id: id.as_str().into(),
@@ -353,7 +336,7 @@ impl IntegrationForm {
                 integration_admin_contract::admit_integration_admin_request(
                     IntegrationAdminRequest::Delete(&request),
                 )
-                .map_err(|_| "Préconditions de suppression invalides.")?;
+                .map_err(|_| "Invalid deletion preconditions.")?;
                 Ok(Operation::Delete(request))
             }
             Self::SetEnabled(request) => Ok(Operation::SetEnabled(request.clone())),
@@ -362,7 +345,7 @@ impl IntegrationForm {
 }
 fn fragment(value: &str) -> Result<(), &'static str> {
     if value.len() > administration::MAX_FRAGMENT_BYTES || value.contains('\0') {
-        Err("Le fragment public est limité à 64 Kio de texte UTF-8.")
+        Err("The public fragment is limited to 64 KiB of UTF-8 text.")
     } else {
         Ok(())
     }

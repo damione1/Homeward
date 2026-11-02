@@ -119,6 +119,10 @@ def sources(config, proof):
 
 def environment(config):
     base = Path(config['backend_cache'])
+    # Build caches can be retired between sessions. Native compilers require
+    # TMPDIR to exist even when Cargo recreates its own target directory.
+    for directory in ['go-build', 'go-tmp', 'workspace/target']:
+        (base / directory).mkdir(parents=True, exist_ok=True)
     ndk = Path(config['android_sdk']) / 'ndk/27.2.12479018'
     android_tools = ndk / 'toolchains/llvm/prebuilt/darwin-x86_64/bin'
     env = os.environ.copy()

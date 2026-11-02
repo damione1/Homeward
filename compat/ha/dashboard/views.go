@@ -33,6 +33,11 @@ func positiveCount(node parser.Node) (uint8, bool) {
 
 func (c *compiler) view(node parser.Node) View {
 	v := View{status: StatusSupported, location: locate(node)}
+	if c.profile == CompilationDashboard {
+		v.minimumColumnWidth = 280
+		v.gap = 20
+		v.maxColumns = 4
+	}
 	if node.Kind() != parser.KindMapping {
 		c.unsupported(CodeInvalidValue, node, "view must be a mapping")
 		v.status = StatusUnsupported
@@ -42,6 +47,29 @@ func (c *compiler) view(node parser.Node) View {
 	hasType, hasPath, hasTitle, hasSections := false, false, false, false
 	for _, entry := range node.Entries() {
 		switch entry.Key {
+		case "minimum_column_width", "gap":
+			if c.profile != CompilationDashboard {
+				c.unknown(entry, "container option outside profile")
+				blocked = true
+				continue
+			}
+			minimum := uint32(0)
+			if entry.Key == "minimum_column_width" {
+				minimum = 1
+			}
+			maximum := uint32(4096)
+			if entry.Key == "gap" {
+				maximum = 256
+			}
+			value, ok := boundedUint(entry.Value, minimum, maximum)
+			if !ok {
+				blocked = true
+				c.unsupported(CodeInvalidValue, entry.Value, "invalid container metric")
+			} else if entry.Key == "gap" {
+				v.gap = value
+			} else {
+				v.minimumColumnWidth = value
+			}
 		case "type":
 			hasType = true
 			if text, ok := scalarText(entry.Value); !ok || text != "sections" {
@@ -106,7 +134,7 @@ func (c *compiler) view(node parser.Node) View {
 				v.visibility = append(v.visibility, Visibility{kind: VisibilityFlag, status: StatusSupported, location: locate(entry.Value), flag: flag})
 			}
 		default:
-			if c.profile == CompilationRecipes {
+			if c.profile >= CompilationRecipes {
 				if handled, invalid := c.viewExtension(&v, entry); handled {
 					blocked = blocked || invalid
 					continue
@@ -116,7 +144,7 @@ func (c *compiler) view(node parser.Node) View {
 			blocked = true
 		}
 	}
-	if !hasType && c.profile == CompilationRecipes && hasSections {
+	if !hasType && c.profile >= CompilationRecipes && hasSections {
 		v.kind = ElementSectionsView
 		hasType = true
 	}
@@ -124,7 +152,7 @@ func (c *compiler) view(node parser.Node) View {
 		c.unsupported(CodeMissingField, node, "explicit sections view type is required")
 		blocked = true
 	}
-	if !hasPath && c.profile != CompilationRecipes {
+	if !hasPath && c.profile < CompilationRecipes {
 		c.unsupported(CodeMissingField, node, "stable view path is required")
 		blocked = true
 	}
@@ -145,6 +173,10 @@ func (c *compiler) view(node parser.Node) View {
 func (c *compiler) section(node parser.Node) Section {
 	c.sections++
 	s := Section{status: StatusSupported, location: locate(node)}
+	if c.profile == CompilationDashboard {
+		s.minimumColumnWidth = 280
+		s.gap = 20
+	}
 	if c.sections > maxSections {
 		c.overflow = true
 		s.status = StatusUnsupported
@@ -158,6 +190,29 @@ func (c *compiler) section(node parser.Node) Section {
 	blocked, hasType, hasCards := false, false, false
 	for _, entry := range node.Entries() {
 		switch entry.Key {
+		case "minimum_column_width", "gap":
+			if c.profile != CompilationDashboard {
+				c.unknown(entry, "container option outside profile")
+				blocked = true
+				continue
+			}
+			minimum := uint32(0)
+			if entry.Key == "minimum_column_width" {
+				minimum = 1
+			}
+			maximum := uint32(4096)
+			if entry.Key == "gap" {
+				maximum = 256
+			}
+			value, ok := boundedUint(entry.Value, minimum, maximum)
+			if !ok {
+				blocked = true
+				c.unsupported(CodeInvalidValue, entry.Value, "invalid container metric")
+			} else if entry.Key == "gap" {
+				s.gap = value
+			} else {
+				s.minimumColumnWidth = value
+			}
 		case "type":
 			hasType = true
 			if text, ok := scalarText(entry.Value); !ok || text != "grid" {

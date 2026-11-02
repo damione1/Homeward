@@ -19,7 +19,6 @@ const MODAL: FocusScopeId = FocusScopeId(1);
 enum Section {
     Home,
     Rooms,
-    Inventory,
     Lists,
     Calendars,
     Cameras,
@@ -28,20 +27,18 @@ enum Section {
 impl Section {
     fn label(self) -> &'static str {
         match self {
-            Self::Home => "Accueil",
-            Self::Rooms => "Pièces",
-            Self::Inventory => "Inventaire",
-            Self::Lists => "Listes",
-            Self::Calendars => "Agenda",
-            Self::Cameras => "Caméras",
-            Self::Settings => "Préférences",
+            Self::Home => "Home",
+            Self::Rooms => "Rooms",
+            Self::Lists => "Lists",
+            Self::Calendars => "Calendar",
+            Self::Cameras => "Cameras",
+            Self::Settings => "Settings",
         }
     }
     fn route(self) -> Route {
         match self {
             Self::Home => Route::Home,
             Self::Rooms => Route::Rooms,
-            Self::Inventory => Route::Inventory,
             Self::Lists => Route::Lists,
             Self::Calendars => Route::Calendars,
             Self::Cameras => Route::Cameras,
@@ -219,7 +216,8 @@ impl NativeNavigation {
         window.invoke_dashboard_catalogue_changed();
         crate::cache_view::clear_native_target(&window, presentation);
         if presentation == Presentation::Page {
-            select_section(&self.selection, Section::Rooms);
+            let section = self.state.borrow().section();
+            select_section(&self.selection, section);
         }
         changed(&window, &self.state, &*self.refresh, false);
         take_focus(
@@ -234,6 +232,30 @@ impl NativeNavigation {
     }
 }
 impl State {
+    // Keep configured dashboard drill-downs in their originating shell section.
+    // A source page or equipment details is not an inventory/Rooms selection.
+    fn section(&self) -> Section {
+        fn direct(route: &Route) -> Option<Section> {
+            match route {
+                Route::Home => Some(Section::Home),
+                Route::Rooms | Route::Room(_) => Some(Section::Rooms),
+                Route::Inventory => Some(Section::Settings),
+                Route::Lists => Some(Section::Lists),
+                Route::Calendars => Some(Section::Calendars),
+                Route::Cameras => Some(Section::Cameras),
+                Route::Settings => Some(Section::Settings),
+                Route::Native(_) | Route::Detail(_) => None,
+            }
+        }
+        direct(&self.route)
+            .or_else(|| {
+                self.history
+                    .iter()
+                    .rev()
+                    .find_map(|entry| direct(&entry.route))
+            })
+            .unwrap_or(Section::Home)
+    }
     fn restore_dashboard(
         &self,
         window: &HomewardWindow,
@@ -496,18 +518,18 @@ fn render(window: &HomewardWindow, state: &State) {
         &state.route
     };
     let (page, title) = match displayed {
-        Route::Home => (ViewPage::Home, "Accueil"),
-        Route::Rooms => (ViewPage::Rooms, "Mes pièces"),
-        Route::Inventory => (ViewPage::Inventory, "Inventaire"),
+        Route::Home => (ViewPage::Home, "Home"),
+        Route::Rooms => (ViewPage::Rooms, "My Rooms"),
+        Route::Inventory => (ViewPage::Inventory, "Inventory"),
         Route::Room(id) => (
             ViewPage::Room,
             request
                 .dashboard
                 .layout()
                 .and_then(|layout| layout.room(id))
-                .map_or("Pièce indisponible", |room| room.label.as_str()),
+                .map_or("Room unavailable", |room| room.label.as_str()),
         ),
-        Route::Detail(_) => (ViewPage::Detail, "Détail"),
+        Route::Detail(_) => (ViewPage::Detail, "Detail"),
         Route::Native(destination) => (
             ViewPage::Room,
             request
@@ -515,13 +537,34 @@ fn render(window: &HomewardWindow, state: &State) {
                 .layout()
                 .and_then(|layout| layout.native.as_ref())
                 .and_then(|native| native.nodes.get(&destination.node))
-                .map_or("Vue indisponible", |node| node.title.as_str()),
+                .map_or("View unavailable", |node| node.title.as_str()),
         ),
-        Route::Lists => (ViewPage::Lists, "Listes"),
-        Route::Calendars => (ViewPage::Calendars, "Agenda"),
-        Route::Cameras => (ViewPage::Cameras, "Caméras"),
-        Route::Settings => (ViewPage::Settings, "Préférences"),
+        Route::Lists => (ViewPage::Lists, "Lists"),
+        Route::Calendars => (ViewPage::Calendars, "Calendar"),
+        Route::Cameras => (ViewPage::Cameras, "Cameras"),
+        Route::Settings => (ViewPage::Settings, "Settings"),
     };
+    let background = state
+        .history
+        .iter()
+        .rev()
+        .find_map(|entry| match &entry.route {
+            Route::Home => Some(ViewPage::Home),
+            Route::Rooms => Some(ViewPage::Rooms),
+            Route::Inventory => Some(ViewPage::Inventory),
+            Route::Room(_) => Some(ViewPage::Room),
+            Route::Native(destination) if destination.presentation == Presentation::Page => {
+                Some(ViewPage::Room)
+            }
+            Route::Native(_)
+            | Route::Detail(_)
+            | Route::Lists
+            | Route::Calendars
+            | Route::Cameras
+            | Route::Settings => None,
+        })
+        .unwrap_or(ViewPage::Home);
+    window.set_detail_background_page(background);
     window.set_page(page);
     window.set_page_title(title.into());
     window.set_native_page(matches!(displayed, Route::Native(destination) if destination.presentation == Presentation::Page));
@@ -531,7 +574,7 @@ fn render(window: &HomewardWindow, state: &State) {
             .layout()
             .and_then(|layout| layout.native.as_ref())
             .and_then(|native| native.nodes.get(&destination.node))
-            .map_or("Pièce indisponible", |node| node.title.as_str())
+            .map_or("Room unavailable", |node| node.title.as_str())
             .into(),
         Route::Home
         | Route::Rooms
@@ -544,6 +587,29 @@ fn render(window: &HomewardWindow, state: &State) {
         | Route::Cameras
         | Route::Settings => "".into(),
     });
+    let detail_popup = if let Route::Native(destination) = &state.route {
+        request
+            .dashboard
+            .layout()
+            .and_then(|layout| layout.native.as_ref())
+            .and_then(|native| {
+                let node = native.nodes.get(&destination.node)?;
+                (node.children.len() == 1)
+                    .then(|| native.nodes.get(&node.children[0]))
+                    .flatten()
+            })
+            .and_then(|node| node.widget.as_ref())
+            .is_some_and(|widget| {
+                matches!(
+                    widget.content,
+                    crate::dashboard_widgets::Content::Thermostat { detailed: true, .. }
+                )
+            })
+    } else {
+        false
+    };
+    window.set_native_popup_detail(detail_popup);
+    window.set_native_popup_can_back(popup && !state.history.is_empty());
     window.set_native_popup_generation(request.revision);
     window.set_native_popup(DialogState {
         open: popup,
@@ -638,7 +704,6 @@ pub(crate) fn bind_devices(
         [
             Section::Home,
             Section::Rooms,
-            Section::Inventory,
             Section::Lists,
             Section::Calendars,
             Section::Cameras,
@@ -717,6 +782,45 @@ pub(crate) fn bind_devices(
     window.on_navigation_reopen(move || reopen.open());
     let target = selection.clone();
     window.on_navigation_activate(move |token, generation| target.activate(token, generation));
+    let (state, weak, run, selected) = (
+        shared.clone(),
+        window.as_weak(),
+        refresh.clone(),
+        selection.clone(),
+    );
+    window.on_quick_navigation(move |page| {
+        let section = match page {
+            ViewPage::Home => Section::Home,
+            ViewPage::Rooms => Section::Rooms,
+            ViewPage::Inventory => Section::Settings,
+            ViewPage::Lists => Section::Lists,
+            ViewPage::Calendars => Section::Calendars,
+            ViewPage::Cameras => Section::Cameras,
+            ViewPage::Settings => Section::Settings,
+            ViewPage::Room | ViewPage::Detail => return,
+        };
+        if let Some(window) = weak.upgrade() {
+            if window.get_access_stage() != crate::ProAccessStage::Connected
+                || window.get_show_endpoint()
+                || window.get_native_popup().open
+                || window.get_navigation_drawer().open
+                || window.get_recipe_confirmation().open
+            {
+                return;
+            }
+            state.borrow_mut().open(
+                &window,
+                if page == ViewPage::Inventory {
+                    Route::Inventory
+                } else {
+                    section.route()
+                },
+                Target::Shell(ProShellFocus::Content),
+            );
+            select_section(&selected, section);
+            changed(&window, &state, &*run, true);
+        }
+    });
     let target = selection.clone();
     window.on_navigation_typeahead(move |text| target.typeahead(text.as_str()));
     let target = selection.clone();
@@ -733,10 +837,23 @@ pub(crate) fn bind_devices(
     let (state, weak) = (shared.clone(), window.as_weak());
     window.on_content_focus(move || {
         if let Some(window) = weak.upgrade() {
+            let configured_rooms = matches!(state.borrow().route, Route::Rooms)
+                && window.get_rooms_layout_nodes().row_count() > 0;
+            if configured_rooms {
+                if !window.invoke_dashboard_focus_first() {
+                    take_focus(&window, &state, Target::Shell(ProShellFocus::Workspace));
+                }
+                return;
+            }
             let target = match &state.borrow().route {
-                Route::Home | Route::Rooms => {
+                Route::Home => Target::Body(BodyFocus::Read),
+                Route::Rooms => {
                     if window.get_view_loaded() {
-                        Target::Shell(ProShellFocus::Workspace)
+                        window
+                            .get_home_rooms()
+                            .row_data(0)
+                            .map(|room| Target::Home(room.token))
+                            .unwrap_or(Target::Shell(ProShellFocus::Workspace))
                     } else {
                         Target::Body(BodyFocus::Read)
                     }
@@ -878,7 +995,7 @@ pub(crate) fn bind_devices(
                 state.route = Route::Inventory;
                 state.history.clear();
             }
-            select_section(&selected, Section::Inventory);
+            select_section(&selected, Section::Settings);
             changed(&window, &state, &*run, true);
         }
     });
@@ -1032,7 +1149,7 @@ pub(crate) fn bind_devices(
                         } else {
                             state.history.clear();
                             state.route = Route::Home;
-                            window.set_action_feedback("Le dashboard d’origine n’est plus disponible dans le catalogue courant.".into());
+                            window.set_action_feedback("The original dashboard is no longer available in the current catalogue.".into());
                             (Target::Body(BodyFocus::Read), None)
                         }
                     }
@@ -1045,20 +1162,14 @@ pub(crate) fn bind_devices(
             window.invoke_dashboard_catalogue_changed();
             if let Route::Native(destination) = &state.borrow().route { crate::cache_view::clear_native_target(&window, destination.presentation); }
             changed(&window, &state, &*run, false);
-            select_section(
-                &selected,
-                match window.get_page() {
-                    ViewPage::Home => Section::Home,
-                    ViewPage::Rooms | ViewPage::Room => Section::Rooms,
-                    ViewPage::Inventory | ViewPage::Detail => Section::Inventory,
-                    ViewPage::Lists => Section::Lists,
-                    ViewPage::Calendars => Section::Calendars,
-                    ViewPage::Cameras => Section::Cameras,
-                    ViewPage::Settings => Section::Settings,
-                },
-            );
+            let section = state.borrow().section();
+            select_section(&selected, section);
             let opener = if matches!(&state.borrow().route, Route::Native(destination) if destination.presentation == Presentation::Popup) { Target::Body(BodyFocus::Popup) } else { opener };
-            take_focus(&window, &state, opener);
+            // The source node is resolved against the next published forest.
+            // Generic focus here can open Search and cancel that restoration.
+            if !saved_view.as_ref().is_some_and(|view| view.has_origin()) {
+                take_focus(&window, &state, opener);
+            }
             if let Some(view) = saved_view {
                 let revision = state.borrow().request.lock().expect("presentation request mutex poisoned").revision;
                 restore.restore(view, revision);
@@ -1075,8 +1186,8 @@ pub(crate) fn bind_devices(
         if let Some(window) = weak.upgrade() {
             state
                 .borrow_mut()
-                .open(&window, Route::Inventory, Target::Body(BodyFocus::Read));
-            select_section(&selected, Section::Inventory);
+                .open(&window, Route::Inventory, Target::Body(BodyFocus::Settings));
+            select_section(&selected, Section::Settings);
             changed(&window, &state, &*run, true);
             take_focus(&window, &state, Target::Body(BodyFocus::Inventory));
         }
@@ -1119,6 +1230,40 @@ pub(crate) fn bind_devices(
             );
             return true;
         }
+        // A platform fallback can arrive after native IME focus changes, so a
+        // page-local popup still gets first refusal without replaying Key.Back.
+        if window.invoke_dismiss_selection_popover() {
+            return true;
+        }
+        if window.get_page() == ViewPage::Home && window.get_dashboard_choice_state().open {
+            window.invoke_dashboard_choice_dismiss(CloseReason::SystemBack);
+            return true;
+        }
+        if matches!(
+            window.get_page(),
+            ViewPage::Home | ViewPage::Room | ViewPage::Detail
+        ) {
+            for device in window.get_device_cards().iter() {
+                if device.select_state.open
+                    && let Some(field) = device
+                        .values
+                        .iter()
+                        .find(|field| field.kind == crate::ProValueKind::Select)
+                {
+                    window.invoke_device_edit(
+                        device.token,
+                        device.generation,
+                        field.token,
+                        crate::ProValueIntent {
+                            event: crate::ProValueEvent::SelectDismiss,
+                            close_reason: CloseReason::SystemBack,
+                            ..Default::default()
+                        },
+                    );
+                    return true;
+                }
+            }
+        }
         if window.get_page() == ViewPage::Room && window.get_room_view() == crate::RoomView::List {
             window.set_room_view(crate::RoomView::Cards);
             take_focus(&window, &state, Target::Body(BodyFocus::Back));
@@ -1131,13 +1276,34 @@ pub(crate) fn bind_devices(
         true
     });
     let (state, weak) = (shared.clone(), window.as_weak());
-    window.on_native_popup_dismiss(move |generation, _reason| {
+    window.on_native_popup_dismiss(move |generation, reason| {
         let Some(window) = weak.upgrade() else { return; };
         let valid = {
             let state = state.borrow();
             let revision = state.request.lock().expect("presentation request mutex poisoned").revision;
             revision == generation
                 && matches!(&state.route, Route::Native(destination) if destination.presentation == Presentation::Popup)
+        };
+        if valid {
+            if matches!(reason, crate::CloseReason::Escape | crate::CloseReason::SystemBack) {
+                window.invoke_go_back();
+                return;
+            }
+            // One surface, one dismissal: Close leaves the whole popup trail.
+            // The separate Back control below restores exactly one saved view.
+            for _ in 0..64 {
+                if !matches!(&state.borrow().route, Route::Native(destination) if destination.presentation == Presentation::Popup) { break; }
+                window.invoke_go_back();
+            }
+        }
+    });
+    let (state, weak) = (shared.clone(), window.as_weak());
+    window.on_native_popup_back(move |generation| {
+        let Some(window) = weak.upgrade() else { return; };
+        let valid = {
+            let state = state.borrow();
+            let revision = state.request.lock().expect("presentation request mutex poisoned").revision;
+            revision == generation && matches!(&state.route, Route::Native(destination) if destination.presentation == Presentation::Popup)
         };
         if valid { window.invoke_go_back(); }
     });
@@ -1235,4 +1401,238 @@ pub(crate) fn bind_native_back(window: &HomewardWindow) {
             slint::CloseRequestResponse::HideWindow
         }
     });
+}
+
+#[cfg(test)]
+mod back_tests {
+    use super::*;
+    use i_slint_backend_testing::ElementQuery;
+    use slint::platform::PointerEventButton;
+    use std::sync::{Arc, Mutex};
+
+    fn window() -> HomewardWindow {
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        bind(
+            &window,
+            Arc::new(Mutex::new(ProjectionRequest::default())),
+            || {},
+        );
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_endpoint_ready(true);
+        window.set_show_endpoint(false);
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(1100., 1600.));
+        window
+    }
+
+    #[test]
+    fn inventory_is_a_settings_destination_and_back_returns_to_settings() {
+        let window = window();
+        let labels: Vec<_> = window
+            .get_navigation_rows()
+            .iter()
+            .map(|row| row.label.to_string())
+            .collect();
+        assert_eq!(
+            labels,
+            ["Home", "Rooms", "Lists", "Calendar", "Cameras", "Settings"]
+        );
+        window.invoke_quick_navigation(ViewPage::Settings);
+        window.invoke_show_inventory();
+        assert_eq!(window.get_page(), ViewPage::Inventory);
+        let selection = window.get_navigation_state();
+        let settings = window
+            .get_navigation_rows()
+            .iter()
+            .find(|row| row.label == "Settings")
+            .unwrap();
+        assert_eq!(selection.selected.token, settings.token);
+        window.invoke_go_back();
+        assert_eq!(window.get_page(), ViewPage::Settings);
+    }
+
+    #[test]
+    fn phone_room_header_keeps_back_title_and_close_inside_at_double_text() {
+        // Exercise the real popup component in isolation. The ordinary helper
+        // binds a Home route owner, whose focus observer correctly republishes
+        // that route and would discard manually injected popup fixture state.
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_endpoint_ready(true);
+        window.set_show_endpoint(false);
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(360., 740.));
+        window.set_large_text(true);
+        window.show().unwrap();
+        window.set_native_popup_title("Kitchen".into());
+        window.set_native_popup_generation(7);
+        window.set_native_popup_can_back(true);
+        let backs = Rc::new(std::cell::Cell::new(0));
+        let out = backs.clone();
+        window.on_native_popup_back(move |generation| {
+            assert_eq!(generation, 7);
+            out.set(out.get() + 1);
+        });
+        window.set_native_popup(crate::DialogState {
+            open: true,
+            topmost: true,
+            ..Default::default()
+        });
+        for _ in 0..3 {
+            slint::platform::update_timers_and_animations();
+            i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(1));
+        }
+        assert!(window.get_native_popup().open);
+        let popup = ElementQuery::from_root(&window)
+            .match_inherits("HomewardPopup")
+            .find_first()
+            .expect("the native popup component is mounted");
+        let control = |name: &str| {
+            let name = name.to_owned();
+            popup
+                .query_descendants()
+                .match_accessible_role(i_slint_backend_testing::AccessibleRole::Button)
+                .match_predicate(move |e| e.accessible_label().as_deref() == Some(name.as_str()))
+                .find_first()
+                .expect("the open popup exposes its named header action")
+        };
+        let back = control("Back");
+        let close = control("Close Kitchen");
+        for button in [&back, &close] {
+            let p = button.absolute_position();
+            let size = button.size();
+            assert!(
+                p.x >= 16. && p.x + size.width <= 344.,
+                "header action outside phone: {:?} {:?}",
+                p,
+                size
+            );
+            assert!(p.y >= 0. && p.y + size.height <= 740.);
+            assert!(size.width >= 48. && size.height >= 48.);
+        }
+        let title = popup
+            .query_descendants()
+            .match_type_name("Text")
+            .match_predicate(|e| e.accessible_label().as_deref() == Some("Kitchen"))
+            .find_first()
+            .expect("the popup header exposes the configured room title");
+        assert!(title.size().width > 0. && title.size().height > 0.);
+        assert!(title.absolute_position().x >= back.absolute_position().x + back.size().width + 7.);
+        assert!(
+            title.absolute_position().x + title.size().width <= close.absolute_position().x - 7.
+        );
+        back.mock_single_click(PointerEventButton::Left);
+        assert_eq!(backs.get(), 1);
+    }
+
+    #[test]
+    fn configured_rooms_content_focus_uses_the_configured_board_before_legacy_catalogue() {
+        let window = window();
+        let requested = Rc::new(std::cell::Cell::new(0));
+        let observed = requested.clone();
+        window.on_dashboard_focus_first(move || {
+            observed.set(observed.get() + 1);
+            true
+        });
+        window.set_rooms_layout_nodes(ModelRc::from([crate::ProLayoutNode::default()]));
+        window.invoke_quick_navigation(ViewPage::Rooms);
+        window.invoke_content_focus();
+        assert_eq!(requested.get(), 1);
+        window.set_rooms_layout_nodes(ModelRc::default());
+        window.invoke_content_focus();
+        assert_eq!(
+            requested.get(),
+            1,
+            "legacy Rooms keeps its existing focus path"
+        );
+    }
+
+    #[test]
+    fn native_back_fallback_closes_list_picker_before_leaving_lists() {
+        let window = window();
+        window.on_lists_filter_options(crate::list_host::filter_options);
+        window.on_lists_find_option(crate::list_host::find_option);
+        window.set_lists_generation(7);
+        window.set_lists_catalog_ready(true);
+        window.set_lists_options(ModelRc::from([OptionRow {
+            token: 18,
+            generation: 7,
+            label: "Synthetic groceries".into(),
+            ..Default::default()
+        }]));
+        window.invoke_quick_navigation(ViewPage::Lists);
+        window.show().unwrap();
+        let trigger = ElementQuery::from_root(&window)
+            .match_inherits("KitSelectTrigger")
+            .match_predicate(|item| item.accessible_label().as_deref() == Some("Choose a list"))
+            .find_first()
+            .unwrap();
+        trigger.mock_single_click(PointerEventButton::Left);
+        slint::platform::update_timers_and_animations();
+        let search_present = || {
+            ElementQuery::from_root(&window)
+                .match_inherits("TextInput")
+                .match_predicate(|item| {
+                    item.accessible_label().as_deref() == Some("Search options")
+                })
+                .find_first()
+                .is_some()
+        };
+        assert!(search_present(), "the real list selection popup is mounted");
+        assert!(
+            window.invoke_system_back(),
+            "fallback is consumed by the popup owner"
+        );
+        slint::platform::update_timers_and_animations();
+        assert_eq!(window.get_page(), ViewPage::Lists);
+        assert!(
+            !search_present(),
+            "Back closed the popup without replaying a key"
+        );
+        assert!(window.invoke_system_back());
+        assert_eq!(window.get_page(), ViewPage::Home);
+        window.hide().unwrap();
+    }
+
+    #[test]
+    fn native_back_fallback_closes_calendar_picker_before_leaving_calendars() {
+        let window = window();
+        window.set_calendars(crate::CalendarPresentation {
+            selected: true,
+            ready: true,
+            generation: 9,
+            title: "Synthetic calendar".into(),
+            ..Default::default()
+        });
+        window.invoke_quick_navigation(ViewPage::Calendars);
+        window.show().unwrap();
+        let button = ElementQuery::from_root(&window)
+            .match_inherits("KitButton")
+            .match_predicate(|item| item.accessible_label().as_deref() == Some("Open Calendar"))
+            .find_first()
+            .unwrap();
+        button.mock_single_click(PointerEventButton::Left);
+        slint::platform::update_timers_and_animations();
+        let calendar_present = || {
+            ElementQuery::from_root(&window)
+                .match_inherits("KitCalendar")
+                .find_first()
+                .is_some()
+        };
+        assert!(
+            calendar_present(),
+            "the real date selection popup is mounted"
+        );
+        assert!(window.invoke_system_back());
+        slint::platform::update_timers_and_animations();
+        assert_eq!(window.get_page(), ViewPage::Calendars);
+        assert!(!calendar_present());
+        assert!(window.invoke_system_back());
+        assert_eq!(window.get_page(), ViewPage::Home);
+        window.hide().unwrap();
+    }
 }

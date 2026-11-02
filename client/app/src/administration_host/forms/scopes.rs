@@ -57,24 +57,24 @@ impl ScopeChoice {
     }
     pub fn label(self) -> String {
         let family = match self.family {
-            auth::ScopeFamily::StateRegistry => "États et registre",
-            auth::ScopeFamily::History => "Historique",
-            auth::ScopeFamily::Media => "Médias",
-            auth::ScopeFamily::Location => "Localisation",
+            auth::ScopeFamily::StateRegistry => "States and Registry",
+            auth::ScopeFamily::History => "History",
+            auth::ScopeFamily::Media => "Media",
+            auth::ScopeFamily::Location => "Location",
             auth::ScopeFamily::Actions => "Actions",
             auth::ScopeFamily::Dashboards => "Dashboards",
-            auth::ScopeFamily::Calendars => "Calendriers",
-            auth::ScopeFamily::Lists => "Listes",
-            auth::ScopeFamily::Logic => "Logique",
-            auth::ScopeFamily::Integrations => "Intégrations",
+            auth::ScopeFamily::Calendars => "Calendars",
+            auth::ScopeFamily::Lists => "Lists",
+            auth::ScopeFamily::Logic => "Logic",
+            auth::ScopeFamily::Integrations => "Integrations",
             auth::ScopeFamily::GlobalConfiguration => "Configuration",
-            auth::ScopeFamily::Accounts => "Comptes",
-            auth::ScopeFamily::Backups => "Sauvegardes",
+            auth::ScopeFamily::Accounts => "Accounts",
+            auth::ScopeFamily::Backups => "Backups",
             auth::ScopeFamily::Unspecified => unreachable!("fixed scope choices"),
         };
         let operation = match self.operation {
-            auth::ScopeOperation::Read => "lecture",
-            auth::ScopeOperation::Write => "écriture",
+            auth::ScopeOperation::Read => "read",
+            auth::ScopeOperation::Write => "write",
             auth::ScopeOperation::Administer => "administration",
             auth::ScopeOperation::Unspecified => unreachable!("fixed operation choices"),
         };

@@ -219,15 +219,15 @@ impl Field {
     }
     fn label(self) -> &'static str {
         match self {
-            Self::Document => "Identité serveur du fichier sélectionné",
-            Self::Sql => "Précondition SQL du fichier",
-            Self::Workspace => "Précondition workspace du fichier",
-            Self::References => "Références indépendantes du fichier sélectionné",
-            Self::Generation => "Génération historique complète",
-            Self::Policy => "Version historique de politique",
-            Self::Page => "Historique à paginer",
-            Self::Outcome => "Issue de la tentative d’activation",
-            Self::Current => "Dernier actif décrit pour cette tentative",
+            Self::Document => "Selected File’s Server Identity",
+            Self::Sql => "File SQL Precondition",
+            Self::Workspace => "File Workspace Precondition",
+            Self::References => "Selected File’s Independent References",
+            Self::Generation => "Complete Historical Generation",
+            Self::Policy => "Historical Policy Version",
+            Self::Page => "History to Page Through",
+            Self::Outcome => "Activation Attempt Outcome",
+            Self::Current => "Latest active state reported for this attempt",
         }
     }
 }
@@ -334,7 +334,7 @@ impl Editor {
                         | ExpectationChoice::Observed,
                     ) => return true,
                 }
-                self.notice = "Absence attendue fournie explicitement ; le serveur vérifiera cette précondition avant toute écriture.";
+                self.notice = "Expected file absence explicitly provided; the server will check this precondition before writing.";
             }
             Field::Generation => {
                 let Some(value) = choice(&self.activation.history.generations, option) else {
@@ -374,7 +374,8 @@ impl Editor {
             DocumentId::parse(&file.reference.id),
             LogicalPath::parse(&file.path),
         ) else {
-            self.notice = "Fournissez l’identité serveur et le chemin logique du fichier avant de lire ses références.";
+            self.notice =
+                "Provide the server identity and logical file path before reading its references.";
             return None;
         };
         Some(Operation::References(ReferenceRead {
@@ -406,21 +407,22 @@ impl Editor {
         });
         if capture.active() != self.captured.active() {
             self.stale = true;
-            self.notice = "Le fichier a été lu dans une autre génération. Résolvez les références globales avant de confirmer.";
+            self.notice = "The file was read in another generation. Resolve the global references before confirming.";
         } else {
-            self.notice = "Références du fichier relues. Un workspace non observé reste non observé ; aucune absence n’est déduite.";
+            self.notice = "File references reloaded. An unobserved workspace remains unobserved; absence is not inferred.";
         }
     }
     pub fn references_failed(&mut self) {
         for file in &mut self.files {
             file.reference.stale();
         }
-        self.notice = "Références du fichier indisponibles. Aucune absence ni précondition fraîche n’est déduite de cet échec.";
+        self.notice = "File references unavailable. Neither absence nor a current precondition is inferred from this failure.";
     }
     pub(super) fn history_read(&mut self) -> Option<Operation> {
         let policy = if self.family == SourceFamily::Authorization {
             let Ok(id) = DocumentId::parse(&self.selected().reference.id) else {
-                self.notice = "Fournissez l’identité serveur de la politique dont les versions doivent être lues.";
+                self.notice =
+                    "Provide the server identity of the policy whose versions you want to read.";
                 return None;
             };
             Some(id)
@@ -480,13 +482,12 @@ impl Editor {
         if history.generation_next.is_none() && history.policy_next.is_some() {
             history.page = HistoryPage::Policy;
         }
-        self.notice = "Historique relu. Choisissez explicitement une référence complète ; le retour crée une nouvelle révision.";
+        self.notice = "History reloaded. Explicitly choose a complete reference; restoring creates a new revision.";
         true
     }
     pub fn history_failed(&mut self) {
         self.activation.history = History::default();
-        self.notice =
-            "Historique indisponible. Aucune sélection ni tentative de rollback n’est effectuée.";
+        self.notice = "History unavailable. No selection or rollback attempt was made.";
     }
     fn source_preconditions(&self) -> Option<Vec<wire::SourcePrecondition>> {
         if self.family == SourceFamily::Operational {
@@ -518,7 +519,7 @@ impl Editor {
             self.source_preconditions(),
             self.candidate(),
         ) else {
-            self.notice = "Application non envoyée : références globales et par fichier fraîches requises, sans écrasement automatique.";
+            self.notice = "Change not sent: current global and per-file references are required; nothing is overwritten automatically.";
             return None;
         };
         let Some(plan) = self
@@ -526,7 +527,7 @@ impl Editor {
             .as_ref()
             .filter(|plan| plan.state == super::wire::PlanState::Admitted)
         else {
-            self.notice = "Construisez un aperçu admis pour ce candidat inchangé avant de confirmer son application.";
+            self.notice = "Build an accepted preview for this unchanged candidate before confirming its application.";
             return None;
         };
         let request = wire::ApplyRequest {
@@ -541,8 +542,7 @@ impl Editor {
             .ok()?;
         self.activation.stage = EditStage::InFlight;
         self.activation.receipt = None;
-        self.notice =
-            "Application confirmée en cours ; une seule tentative, aucun rejeu automatique.";
+        self.notice = "Applying the confirmed change; one attempt only, with no automatic replay.";
         Some(Operation::Apply(Box::new(request)))
     }
     pub(super) fn prepare_rollback(&mut self) -> Option<Operation> {
@@ -551,7 +551,7 @@ impl Editor {
             self.source_preconditions(),
             self.activation.history.selected.clone(),
         ) else {
-            self.notice = "Retour non envoyé : sélection historique complète et préconditions fraîches requises.";
+            self.notice = "Restore not sent: a complete historical selection and current preconditions are required.";
             return None;
         };
         let mut request = wire::RollbackRequest {
@@ -583,7 +583,7 @@ impl Editor {
         .ok()?;
         self.activation.stage = EditStage::InFlight;
         self.activation.receipt = None;
-        self.notice = "Retour historique confirmé en cours ; une nouvelle révision sera créée, jamais un compteur reculé.";
+        self.notice = "Restoring the confirmed historical state; a new revision will be created, never a reversed counter.";
         Some(Operation::Rollback(Box::new(request)))
     }
     pub fn complete_activation(
@@ -605,16 +605,15 @@ impl Editor {
     }
     pub fn activation_conflict(&mut self) {
         self.activation.stage = EditStage::Conflict;
-        self.notice = "Conflit de références avant enregistrement. Relisez et résolvez explicitement ; aucune source n’est écrasée automatiquement.";
+        self.notice = "Reference conflict before saving. Reload and resolve explicitly; no source is overwritten automatically.";
     }
     pub fn activation_rejected(&mut self) {
         self.activation.stage = EditStage::Completed(Outcome::RejectedBeforeCommit);
-        self.notice =
-            "Activation refusée avant enregistrement. Une nouvelle confirmation sera nécessaire.";
+        self.notice = "Activation rejected before saving. A new confirmation will be required.";
     }
     pub fn activation_uncertain(&mut self) {
         self.activation.stage = EditStage::Uncertain;
-        self.notice = "Résultat de l’activation inconnu. Relisez sans rejouer, puis résolvez explicitement avant toute nouvelle confirmation.";
+        self.notice = "Activation outcome unknown. Reload without replaying, then resolve explicitly before any new confirmation.";
     }
     pub(super) fn can_apply(&self) -> bool {
         self.activation_anchor().is_some()
@@ -637,19 +636,18 @@ impl Editor {
             fields.push(field(Field::Document, reference.id.clone(), editable));
             fields.push(field(
                 Field::Sql,
-                "Précondition SQL à lire ou absence attendue à déclarer explicitement".into(),
+                "Read the SQL precondition or explicitly declare expected absence".into(),
                 false,
             ));
             fields.push(field(
                 Field::Workspace,
-                "Précondition workspace à observer ou absence attendue à déclarer explicitement"
-                    .into(),
+                "Observe the workspace precondition or explicitly declare expected absence".into(),
                 false,
             ));
             fields.push(field(
                 Field::References,
                 format!(
-                    "SQL : {}\nWorkspace : {}",
+                    "SQL: {}\nWorkspace: {}",
                     sql_label(&reference.sql),
                     workspace_label(&reference.workspace)
                 ),
@@ -657,18 +655,22 @@ impl Editor {
             ));
         }
         if !self.activation.history.generations.is_empty() {
-            fields.push(field(Field::Generation,"Une génération purgée n’est pas sélectionnable ; le retour crée une nouvelle révision.".into(),false));
+            fields.push(field(
+                Field::Generation,
+                "A purged generation cannot be selected; restoring creates a new revision.".into(),
+                false,
+            ));
         }
         if !self.activation.history.versions.is_empty() {
             fields.push(field(
                 Field::Policy,
                 format!(
-                    "Politique {} · une seule référence historique sélectionnée",
+                    "Policy {} · one historical reference selected",
                     self.activation
                         .history
                         .policy
                         .as_ref()
-                        .map_or("non fournie", DocumentId::as_str)
+                        .map_or("not provided", DocumentId::as_str)
                 ),
                 false,
             ));
@@ -678,7 +680,7 @@ impl Editor {
         {
             fields.push(field(
                 Field::Page,
-                "Choisissez l’historique pour la page suivante.".into(),
+                "Select history to open the next page.".into(),
                 false,
             ));
         }
@@ -686,11 +688,11 @@ impl Editor {
             fields.push(field(
                 Field::Outcome,
                 format!(
-                    "{}\nGénération annoncée {}\n{} diagnostics",
+                    "{}\nReported generation {}\n{} diagnostics",
                     receipt.outcome.label(),
                     receipt
                         .target_generation
-                        .map_or_else(|| "non fournie".into(), |value| value.to_string()),
+                        .map_or_else(|| "not provided".into(), |value| value.to_string()),
                     receipt.diagnostics.len()
                 ),
                 false,
@@ -715,35 +717,35 @@ impl Editor {
                 choice_row(
                     Field::Sql,
                     ExpectationChoice::Unobserved as i32,
-                    "SQL non observé — lire le serveur",
+                    "SQL not observed — read from server",
                     matches!(reference.sql, Observation::Unobserved),
                     available,
                 ),
                 choice_row(
                     Field::Sql,
                     ExpectationChoice::ExpectedAbsent as i32,
-                    "Attendre explicitement l’absence SQL",
+                    "Explicitly Expect SQL Absence",
                     matches!(reference.sql, Observation::Captured(Sql::ExpectedAbsent)),
                     available,
                 ),
                 choice_row(
                     Field::Sql,
                     ExpectationChoice::Observed as i32,
-                    "Version SQL lue sur le serveur",
+                    "SQL Version Read From Server",
                     matches!(reference.sql, Observation::Captured(Sql::Existing(_))),
                     false,
                 ),
                 choice_row(
                     Field::Workspace,
                     ExpectationChoice::Unobserved as i32,
-                    "Workspace non observé — lire le serveur",
+                    "Workspace not observed — read from server",
                     matches!(reference.workspace, Observation::Unobserved),
                     available,
                 ),
                 choice_row(
                     Field::Workspace,
                     ExpectationChoice::ExpectedAbsent as i32,
-                    "Attendre explicitement l’absence du fichier",
+                    "Explicitly Expect File Absence",
                     matches!(
                         reference.workspace,
                         Observation::Captured(Workspace::ExpectedAbsent)
@@ -753,7 +755,7 @@ impl Editor {
                 choice_row(
                     Field::Workspace,
                     ExpectationChoice::Observed as i32,
-                    "Observation du fichier fournie par le serveur",
+                    "Server-Provided File Observation",
                     matches!(
                         reference.workspace,
                         Observation::Captured(
@@ -765,16 +767,16 @@ impl Editor {
             ]);
         }
         for (index, value) in self.activation.history.generations.iter().enumerate() {
-            values.push(choice_row(Field::Generation,i32::try_from(index+1).expect("bounded history"),&format!("Génération {} · {}",value.generation.revision,if value.availability==document::GenerationAvailability::Complete {"complète"} else {"purgée en partie"}),matches!(&self.activation.history.selected,Some(Historical::Generation(selected)) if selected.revision()==value.generation.revision),available && value.availability==document::GenerationAvailability::Complete));
+            values.push(choice_row(Field::Generation,i32::try_from(index+1).expect("bounded history"),&format!("Generation {} · {}",value.generation.revision,if value.availability==document::GenerationAvailability::Complete {"complete"} else {"partially purged"}),matches!(&self.activation.history.selected,Some(Historical::Generation(selected)) if selected.revision()==value.generation.revision),available && value.availability==document::GenerationAvailability::Complete));
         }
         for (index, value) in self.activation.history.versions.iter().enumerate() {
-            values.push(choice_row(Field::Policy,i32::try_from(index+1).expect("bounded versions"),&format!("Version {} · {}",value.version.revision,if value.availability==document::VersionAvailability::Retained {"complète"} else {"purgée"}),matches!(&self.activation.history.selected,Some(Historical::Policy {version,..}) if version.revision()==value.version.revision),available && value.availability==document::VersionAvailability::Retained));
+            values.push(choice_row(Field::Policy,i32::try_from(index+1).expect("bounded versions"),&format!("Version {} · {}",value.version.revision,if value.availability==document::VersionAvailability::Retained {"complete"} else {"purged"}),matches!(&self.activation.history.selected,Some(Historical::Policy {version,..}) if version.revision()==value.version.revision),available && value.availability==document::VersionAvailability::Retained));
         }
         if self.activation.history.generation_next.is_some() {
             values.push(choice_row(
                 Field::Page,
                 HistoryPage::Generations as i32,
-                "Générations",
+                "Generations",
                 matches!(self.activation.history.page, HistoryPage::Generations),
                 available,
             ));
@@ -783,7 +785,7 @@ impl Editor {
             values.push(choice_row(
                 Field::Page,
                 HistoryPage::Policy as i32,
-                "Versions de politique",
+                "Policy Versions",
                 matches!(self.activation.history.page, HistoryPage::Policy),
                 available,
             ));
@@ -805,9 +807,9 @@ fn next(value: &document::PageContinuation) -> Option<String> {
 }
 fn sql_label(value: &Observation<Sql>) -> String {
     let (prefix, value) = match value {
-        Observation::Unobserved => return "non observé".into(),
+        Observation::Unobserved => return "not observed".into(),
         Observation::Captured(value) => ("", value),
-        Observation::Stale(value) => ("ancienne référence à relire · ", value),
+        Observation::Stale(value) => ("previous reference to reload · ", value),
     };
     format!(
         "{}{}",
@@ -818,15 +820,15 @@ fn sql_label(value: &Observation<Sql>) -> String {
                 value.revision(),
                 render::hex(value.source().bytes())
             ),
-            Sql::ExpectedAbsent => "absence attendue déclarée par vous, non une observation".into(),
+            Sql::ExpectedAbsent => "expected absence declared by you, not an observation".into(),
         }
     )
 }
 fn workspace_label(value: &Observation<Workspace>) -> String {
     let (prefix, value) = match value {
-        Observation::Unobserved => return "non observé".into(),
+        Observation::Unobserved => return "not observed".into(),
         Observation::Captured(value) => ("", value),
-        Observation::Stale(value) => ("ancienne référence à relire · ", value),
+        Observation::Stale(value) => ("previous reference to reload · ", value),
     };
     format!(
         "{}{}",
@@ -836,7 +838,7 @@ fn workspace_label(value: &Observation<Workspace>) -> String {
                 format!("{} · {}", dirty.label(), render::hex(hash.bytes())),
             Workspace::Unobserved(reason) => reason.label().into(),
             Workspace::ExpectedAbsent =>
-                "absence attendue déclarée par vous, non une observation".into(),
+                "expected absence declared by you, not an observation".into(),
         }
     )
 }
@@ -856,7 +858,7 @@ fn choice_row(
     }
 }
 fn field(field: Field, value: String, editable: bool) -> ProAdminField {
-    ProAdminField {token:field as i32,label:field.label().into(),description:"Référence SQL, fichier observé ou attente explicitement fournie ; le serveur vérifie le CAS avant l’écriture".into(),value:value.into(),kind:match field {Field::Document|Field::Sql|Field::Workspace|Field::Generation|Field::Policy|Field::Page=>ProAdminFieldKind::Plain,Field::References|Field::Outcome|Field::Current=>ProAdminFieldKind::Multiline},editable}
+    ProAdminField {token:field as i32,label:field.label().into(),description:"SQL reference, observed file or explicitly provided expectation; the server checks compare-and-swap before writing".into(),value:value.into(),kind:match field {Field::Document|Field::Sql|Field::Workspace|Field::Generation|Field::Policy|Field::Page=>ProAdminFieldKind::Plain,Field::References|Field::Outcome|Field::Current=>ProAdminFieldKind::Multiline},editable}
 }
 
 #[cfg(test)]

@@ -32,11 +32,11 @@ export component HomewardConfirmation inherits KitDialogSurface {
                 Text { text: root.message; color: root.theme.text-primary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
             }
             KitWrap {
-                cancel-button := KitButton { theme: root.theme; text: "Annuler"; control-size: ControlSize.comfortable;
+                cancel-button := KitButton { theme: root.theme; text: "Cancel"; control-size: ControlSize.comfortable;
                     disabled: !root.state.open || !root.state.topmost || root.state.busy;
                     activation-started => { root.armed-cancel = root.confirmation-id; }
                     activated => { if (root.armed-cancel == root.confirmation-id) { root.dismiss(CloseReason.programmatic); } } }
-                confirm-button := KitButton { theme: root.theme; text: "Confirmer"; control-size: ControlSize.comfortable;
+                confirm-button := KitButton { theme: root.theme; text: "Confirm"; control-size: ControlSize.comfortable;
                     disabled: !root.state.open || !root.state.topmost || root.state.busy;
                     activation-started => { root.armed-confirmation = root.confirmation-id; }
                     activated => { if (root.armed-confirmation == root.confirmation-id) { root.confirm(root.armed-confirmation); } } }

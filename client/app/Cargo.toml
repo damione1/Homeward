@@ -32,7 +32,7 @@ chrono = { version = "=0.4.45", default-features = false, features = ["clock"] }
 rustls-pemfile = "2"
 url = "2"
 png = "=0.18.1"
-slint-kit = "=0.3.1"
+slint-kit = "=0.5.0"
 slint-kit-pro = { path = "../../.tools/frontend-kits/pro/crates/kit-pro" }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
@@ -81,4 +81,6 @@ uses_cleartext_traffic = false
 [package.metadata.android.application.activity]
 name = "ca.homeward.platform.HomewardActivity"
 launch_mode = "singleTop"
-config_changes = "orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|uiMode"
+# Native configuration events handle font changes too. Recreating NativeActivity
+# for an accessibility text change can overlap the old secure-session owner.
+config_changes = "orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|uiMode|fontScale"

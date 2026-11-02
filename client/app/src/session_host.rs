@@ -166,6 +166,7 @@ pub(crate) struct LifecycleBridge {
     foreground_admission: Arc<Mutex<Option<ForegroundAdmission>>>,
     read_intent: Arc<Mutex<ReadIntent>>,
     lists: Arc<Mutex<Option<crate::list_host::Lists>>>,
+    dashboard_widgets: Arc<Mutex<Option<crate::dashboard_widget_host::Widgets>>>,
     history: Arc<Mutex<Option<crate::history_host::History>>>,
     media: Arc<Mutex<Option<crate::media_host::Media>>>,
     calendars: Arc<Mutex<Option<crate::calendar_host::Calendars>>>,
@@ -185,6 +186,7 @@ impl LifecycleBridge {
             foreground_admission: Arc::new(Mutex::new(None)),
             read_intent: Arc::new(Mutex::new(ReadIntent::NotRequested)),
             lists: Arc::new(Mutex::new(None)),
+            dashboard_widgets: Arc::new(Mutex::new(None)),
             history: Arc::new(Mutex::new(None)),
             media: Arc::new(Mutex::new(None)),
             calendars: Arc::new(Mutex::new(None)),
@@ -224,6 +226,14 @@ impl LifecycleBridge {
             .as_ref()
         {
             companion.foreground(state == Lifecycle::Foreground);
+        }
+        if let Some(widgets) = self
+            .dashboard_widgets
+            .lock()
+            .expect("lifecycle dashboard widgets")
+            .as_ref()
+        {
+            widgets.foreground(state == Lifecycle::Foreground);
         }
         if let Some(lists) = self.lists.lock().expect("lifecycle lists mutex").as_ref() {
             lists.foreground(state == Lifecycle::Foreground);
@@ -374,6 +384,7 @@ struct Ui {
     dashboard_choices: crate::dashboard_selection::Choices,
     devices: Arc<Mutex<Option<DeviceBinding>>>,
     lists: crate::list_host::Lists,
+    dashboard_widgets: crate::dashboard_widget_host::Widgets,
     history: crate::history_host::History,
     media: crate::media_host::Media,
     calendars: crate::calendar_host::Calendars,
@@ -411,6 +422,12 @@ impl Ui {
             let _ = binding.handle.viewport(*self.viewport.borrow());
         }
     }
+    fn abandon_native_step(&self, token: i32, generation: i32) {
+        if let Ok((binding, _)) = self.current_devices() {
+            binding.store.abandon_native_step(token, generation);
+        }
+        self.repaint_devices();
+    }
     fn invalidate_cache(&self) {
         *self.startup_read.lock().expect("startup read mutex") = StartupRead::Cancelled;
         self.companion.clear();
@@ -421,6 +438,7 @@ impl Ui {
         self.calendars.clear();
         self.cameras.clear();
         self.lists.clear();
+        self.dashboard_widgets.clear();
         if let Some(binding) = self.devices.lock().expect("device binding mutex").clone() {
             binding.store.clear_private();
         }
@@ -647,14 +665,14 @@ impl Ui {
 fn profile_message(error: ProfileFailure) -> &'static str {
     match error {
         ProfileFailure::InvalidEndpoint => {
-            "Indiquez une adresse HTTPS sans identifiants, chemin, paramètres ou fragment."
+            "Enter an HTTPS address without credentials, a path, parameters or a fragment."
         }
-        ProfileFailure::InvalidTrust => "Le certificat de confiance PEM est absent ou invalide.",
+        ProfileFailure::InvalidTrust => "The trusted PEM certificate is missing or invalid.",
         ProfileFailure::Unavailable => {
-            "La configuration du serveur ne peut pas être enregistrée sur cet appareil."
+            "The server configuration could not be saved on this device."
         }
         ProfileFailure::UnsupportedConfiguration => {
-            "La configuration enregistrée est inconnue ou endommagée. Renseignez à nouveau le serveur."
+            "The saved configuration is unknown or damaged. Enter the server details again."
         }
     }
 }
@@ -686,10 +704,9 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
     window.set_message_title("".into());
     window.set_message("".into());
     window.set_message_severity(AlertSeverity::Error);
-    window.set_session_title("Session sécurisée active".into());
+    window.set_session_title("Secure session active".into());
     window.set_session_description(
-        "Vos identifiants de session sont conservés dans le stockage sécurisé de cet appareil."
-            .into(),
+        "Your session credentials are kept in this device’s secure storage.".into(),
     );
     window.set_session_severity(AlertSeverity::Success);
     if !matches!(view.phase, Phase::Ready | Phase::Refreshing) {
@@ -719,68 +736,64 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
             window.set_user_draft("".into());
             window.set_access_stage(ProAccessStage::Identity);
             Some((
-                "Connexion nécessaire",
-                "Reconnectez-vous pour ouvrir une session. Un renouvellement incertain ne sera pas rejoué.",
+                "Sign-in required",
+                "Sign in again to open a session. An uncertain renewal will not be retried.",
             ))
         }
         Phase::CredentialRejected => {
             window.set_access_stage(ProAccessStage::Identity);
-            Some((
-                "Identifiants refusés",
-                "Vérifiez votre identifiant et votre mot de passe.",
-            ))
+            Some(("Credentials rejected", "Check your username and password."))
         }
         Phase::RateLimited => {
             window.set_access_stage(ProAccessStage::Identity);
             Some((
-                "Trop de tentatives",
-                "Attendez avant de réessayer. Aucun nouvel essai n’est lancé automatiquement.",
+                "Too many attempts",
+                "Wait before trying again. No retry will start automatically.",
             ))
         }
         Phase::NetworkUnavailable => {
             window.set_access_stage(ProAccessStage::Identity);
             Some((
-                "Connexion impossible",
-                "Le serveur est injoignable ou a refusé la connexion. Vérifiez l’adresse et la confiance TLS.",
+                "Unable to Sign In",
+                "The server is unreachable or rejected the connection. Check the address and TLS trust.",
             ))
         }
         Phase::StorageUnavailable => {
             window.set_access_stage(ProAccessStage::Identity);
             Some((
-                "Stockage sécurisé indisponible",
-                "La session ne peut pas être conservée de façon sûre. Aucune connexion sans stockage sécurisé n’est proposée.",
+                "Secure storage unavailable",
+                "The session cannot be stored securely. Sign-in without secure storage is unavailable.",
             ))
         }
         Phase::UnsupportedResponse => {
             window.set_access_stage(ProAccessStage::Identity);
             Some((
-                "Connexion interrompue",
-                "La réponse du serveur ou l’horloge de cet appareil ne permet pas de poursuivre.",
+                "Connection interrupted",
+                "The server response or this device’s clock prevents continuing.",
             ))
         }
         Phase::AuthorityUnavailable => {
             window.set_access_stage(ProAccessStage::Connected);
-            window.set_session_title("Session suspendue".into());
+            window.set_session_title("Session suspended".into());
             window.set_session_description(
-                "Les données restent masquées tant que le serveur ne peut pas vérifier vos droits."
-                    .into(),
+                "Data stays hidden until the server can verify your permissions.".into(),
             );
             window.set_session_severity(AlertSeverity::Warning);
             Some((
-                "Vérification des droits indisponible",
-                "Votre session est conservée. Vous pouvez tenter une nouvelle lecture.",
+                "Permission check unavailable",
+                "Your session is retained. You can try reading again.",
             ))
         }
         Phase::RightsChanged => {
             window.set_access_stage(ProAccessStage::Connected);
-            window.set_session_title("Droits actualisés".into());
+            window.set_session_title("Permissions refreshed".into());
             window.set_session_description(
-                "Une nouvelle lecture est nécessaire pour afficher les données autorisées.".into(),
+                "A new reading is required to show authorized data.".into(),
             );
             window.set_session_severity(AlertSeverity::Warning);
             Some((
-                "Droits modifiés",
-                "Les anciennes données ont été masquées. Rechargez une vue autorisée.",
+                "Permissions changed",
+                "Previous data was hidden. Reload an authorized view.",
             ))
         }
     };
@@ -812,6 +825,7 @@ async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, u
     ui.calendars.clear();
     ui.cameras.clear();
     ui.lists.clear();
+    ui.dashboard_widgets.clear();
     if let Some(previous) = profile.take() {
         {
             let mut binding = ui
@@ -958,6 +972,7 @@ async fn install_profile(
             .await;
     });
     ui.lists.clear();
+    ui.dashboard_widgets.clear();
     let (lists, list_session, list_transport, list_cancel) = (
         ui.lists.clone(),
         owner.clone(),
@@ -966,6 +981,23 @@ async fn install_profile(
     );
     tasks.spawn(async move {
         lists.run(list_session, list_transport, list_cancel).await;
+    });
+    let (widgets, widget_session, widget_lists, widget_calendars, widget_cancel) = (
+        ui.dashboard_widgets.clone(),
+        owner.clone(),
+        connection.lists(),
+        connection.calendars(),
+        cancel.clone(),
+    );
+    tasks.spawn(async move {
+        widgets
+            .run(
+                widget_session,
+                widget_lists,
+                widget_calendars,
+                widget_cancel,
+            )
+            .await;
     });
     let origin = endpoint.origin().to_owned();
     let certificates = endpoint.certificates().to_owned();
@@ -1026,10 +1058,10 @@ async fn install_profile(
             let notice = tokio::select!{biased; ()=notice_cancel.cancelled()=>break, notice=action_notices.recv()=>notice};
             let Some(notice) = notice else {break;};
             let message = match notice.kind {
-                NoticeKind::NotSent => Some("Commande non envoyée : le contexte du geste a changé."),
-                NoticeKind::SubmissionUncertain => Some("Réponse de soumission perdue. Consultation de la même commande, sans renvoi."),
-                NoticeKind::TrackingUnavailable => Some("Le suivi en direct de cette commande est indisponible."),
-                NoticeKind::TrackingInterrupted => Some("Le suivi est interrompu. La commande n’est pas renvoyée."),
+                NoticeKind::NotSent => Some("Command not sent: the gesture context changed."),
+                NoticeKind::SubmissionUncertain => Some("Submission response lost. Checking the same command without resubmitting it."),
+                NoticeKind::TrackingUnavailable => Some("Live tracking is unavailable for this command."),
+                NoticeKind::TrackingInterrupted => Some("Tracking was interrupted. The command will not be resubmitted."),
                 NoticeKind::SubmissionResult | NoticeKind::Terminal | NoticeKind::Stopped => None,
             };
             if let Some(message) = message {
@@ -1195,10 +1227,8 @@ async fn session_action(
             let _ = cache.invalidate();
             if let Ok(ServerRevocation::Uncertain) = owner.logout().await {
                 ui.post(epoch, |window| {
-                    window.set_message_title("Déconnecté sur cet appareil".into());
-                    window.set_message(
-                        "La révocation sur le serveur n’a pas pu être confirmée.".into(),
-                    );
+                    window.set_message_title("Signed out on this device".into());
+                    window.set_message("Server revocation could not be confirmed.".into());
                     window.set_message_severity(AlertSeverity::Warning);
                 });
             }
@@ -1247,12 +1277,12 @@ async fn accept_invitation(
         match outcome{
             crate::invitation::Outcome::Accepted{login}=>{
                 window.invoke_clear_invitation();window.set_user_draft(login.into());
-                window.set_message_title("Invitation acceptée".into());
-                window.set_message("Votre compte est prêt. Connectez-vous avec le mot de passe que vous venez de choisir.".into());
+                window.set_message_title("Invitation accepted".into());
+                window.set_message("Your account is ready. Sign in with the password you just chose.".into());
                 window.set_message_severity(AlertSeverity::Success);
             },
-            crate::invitation::Outcome::Rejected=>window.set_invitation_feedback("L’invitation a été refusée, est expirée ou a déjà été utilisée. Vérifiez le jeton avec votre administrateur.".into()),
-            crate::invitation::Outcome::Uncertain=>{window.set_invitation_uncertain(true);window.set_invitation_feedback("Le résultat n’a pas pu être confirmé. Aucune nouvelle tentative n’est envoyée. Revenez à la connexion et essayez les identifiants de votre compte avant de demander une autre invitation.".into());},
+            crate::invitation::Outcome::Rejected=>window.set_invitation_feedback("The invitation was rejected, expired or already used. Check the token with your administrator.".into()),
+            crate::invitation::Outcome::Uncertain=>{window.set_invitation_uncertain(true);window.set_invitation_feedback("The result could not be confirmed. No retry will be sent. Return to sign-in and try your account credentials before requesting another invitation.".into());},
             crate::invitation::Outcome::Cancelled=>(),
         }
     });
@@ -1272,22 +1302,19 @@ async fn worker(
     let epoch = ProfileEpoch(0);
     match services.directory() {
         Ok(directory) => match TrustedEndpoint::load(&directory) {
-            Ok(Some(endpoint)) => match install_profile(endpoint, epoch, &services, &ui, &mut tasks)
-                .await
-            {
-                Ok(value) => profile = Some(value),
-                Err(_) => ui.setup_error(
-                    epoch,
-                    "Le stockage sécurisé est indisponible ou déjà utilisé par une autre instance.",
-                ),
-            },
+            Ok(Some(endpoint)) => {
+                match install_profile(endpoint, epoch, &services, &ui, &mut tasks).await {
+                    Ok(value) => profile = Some(value),
+                    Err(_) => ui.setup_error(
+                        epoch,
+                        "Secure storage is unavailable or already used by another instance.",
+                    ),
+                }
+            }
             Ok(None) => {}
             Err(error) => ui.setup_error(epoch, profile_message(error)),
         },
-        Err(_) => ui.setup_error(
-            epoch,
-            "Les services sécurisés de cet appareil sont indisponibles.",
-        ),
+        Err(_) => ui.setup_error(epoch, "This device’s secure services are unavailable."),
     }
     let mut lifetime = tokio::time::interval(Duration::from_secs(1));
     lifetime.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -1298,13 +1325,13 @@ async fn worker(
                     if let Some(profile)=&profile && profile.epoch==epoch && ui.epoch.load(Ordering::SeqCst)==epoch.0 && *lifecycle.borrow()==Lifecycle::Foreground {
                         if tasks.len()<20 {
                             tasks.spawn(accept_invitation(value,profile.accounts.clone(),profile.owner.clone(),profile.cancel.clone(),ui.clone(),epoch));
-                        }else{ui.post(epoch,move|window|{if window.get_invitation_generation()==value.generation{window.set_invitation_busy(false);window.set_invitation_feedback("Une opération est déjà en cours. Réessayez dans un instant.".into());}});}
+                        }else{ui.post(epoch,move|window|{if window.get_invitation_generation()==value.generation{window.set_invitation_busy(false);window.set_invitation_feedback("An operation is already in progress. Try again shortly.".into());}});}
                     }
                 },
                 Some(Intent::Device { epoch, prepared }) => {
                     if let Some(profile)=&profile && profile.epoch==epoch && ui.epoch.load(Ordering::SeqCst)==epoch.0 {
                         let Prepared{target,request,guard,layout:_}=*prepared;
-                        match profile.actions.client().submit(request,guard) {
+                        match profile.actions.client().submit(request,guard.clone()) {
                             Ok(handle)=>{
                                 profile.devices.remember(target,handle);
                                 let _=profile.cache.handle().viewport(*ui.viewport.borrow());
@@ -1317,6 +1344,7 @@ async fn worker(
                                 ControllerError::IdentityUnavailable=>Refusal::Unavailable,
                             }),
                         }
+                        drop(guard);
                     }
                 }
                 Some(Intent::Configure { epoch, origin, certificates }) => {
@@ -1325,7 +1353,7 @@ async fn worker(
                     match TrustedEndpoint::parse(&origin, &certificates) {
                         Ok(endpoint) => match install_profile(endpoint, epoch, &services, &ui, &mut tasks).await {
                             Ok(value) => profile = Some(value),
-                            Err(_) => ui.setup_error(epoch, "Le stockage sécurisé est indisponible ou déjà utilisé par une autre instance."),
+                            Err(_) => ui.setup_error(epoch, "Secure storage is unavailable or already used by another instance."),
                         },
                         Err(error) => ui.setup_error(epoch, profile_message(error)),
                     }
@@ -1341,8 +1369,8 @@ async fn worker(
                                     tasks.spawn(session_action(action, profile.owner.clone(), profile.cache.handle(), ui.clone(), epoch));
                                 } else {
                                     ui.post(epoch, |window| {
-                                        window.set_message_title("Opération en attente".into());
-                                        window.set_message("Réessayez dans un instant.".into());
+                                        window.set_message_title("Operation pending".into());
+                                        window.set_message("Try again shortly.".into());
                                     });
                                 }
                             }
@@ -1366,9 +1394,9 @@ async fn worker(
                     // An older save cannot acknowledge a more recent edit.
                     if Preferences::current(&window) == value {
                         window.set_preferences_status(if saved {
-                            "Préférences enregistrées sur cet appareil."
+                            "Settings saved on this device."
                         } else {
-                            "Ces préférences sont actives, mais leur enregistrement a échoué."
+                            "These settings are active, but could not be saved."
                         }.into());
                     }
                 });
@@ -1421,16 +1449,14 @@ pub(crate) fn run_with_lifecycle(
         .enable_all()
         .build()
         .map_err(|_| {
-            slint::PlatformError::Other("Le moteur de connexion n’a pas pu démarrer.".into())
+            slint::PlatformError::Other("The connection service could not start.".into())
         })?;
     let window = crate::create_window()?;
     let initial_preferences = match services.directory() {
         Ok(directory) => match Preferences::load(&directory) {
             Ok(value) => value,
             Err(_) => {
-                window.set_preferences_status(
-                    "Les préférences enregistrées n’ont pas pu être chargées.".into(),
-                );
+                window.set_preferences_status("Saved settings could not be loaded.".into());
                 Preferences::default()
             }
         },
@@ -1447,7 +1473,7 @@ pub(crate) fn run_with_lifecycle(
         });
         preferences_tx.send_replace(Preferences::from_ui(dark, opaque, large, reduced));
         if let Some(window) = preferences_window.upgrade() {
-            window.set_preferences_status("Enregistrement…".into());
+            window.set_preferences_status("Saving…".into());
         }
     });
     *lifecycle
@@ -1473,6 +1499,11 @@ pub(crate) fn run_with_lifecycle(
     }
     cache_view::bind(&window);
     let lists = crate::list_host::Lists::bind(&window);
+    let dashboard_widgets = crate::dashboard_widget_host::Widgets::bind(&window);
+    *lifecycle
+        .dashboard_widgets
+        .lock()
+        .expect("lifecycle dashboard widgets") = Some(dashboard_widgets.clone());
     let history = crate::history_host::History::bind(&window);
     let media = crate::media_host::Media::bind(&window);
     let calendars = crate::calendar_host::Calendars::bind(&window);
@@ -1514,6 +1545,7 @@ pub(crate) fn run_with_lifecycle(
         dashboard_choices: crate::dashboard_selection::Choices::default(),
         devices: Arc::new(Mutex::new(None)),
         lists,
+        dashboard_widgets,
         history,
         media,
         calendars,
@@ -1703,7 +1735,7 @@ pub(crate) fn run_with_lifecycle(
             window.set_recovery_draft("".into());
             window.set_endpoint_ready(false);
             cache_view::clear(&window);
-            window.set_setup_message("Ouverture du stockage sécurisé…".into());
+            window.set_setup_message("Opening secure storage…".into());
         }
         if configure_sender
             .try_send(Intent::Configure {
@@ -1713,10 +1745,7 @@ pub(crate) fn run_with_lifecycle(
             })
             .is_err()
         {
-            configure_ui.setup_error(
-                epoch,
-                "Une opération est en cours. Réessayez dans un instant.",
-            );
+            configure_ui.setup_error(epoch, "An operation is in progress. Try again shortly.");
         }
     });
     let send = {
@@ -1736,9 +1765,14 @@ pub(crate) fn run_with_lifecycle(
                 }
                 let epoch = ProfileEpoch(ui.epoch.load(Ordering::SeqCst));
                 let requesting_read = matches!(&action, Action::Read(_));
+                let requesting_login = matches!(&action, Action::Login { .. });
                 if sender.try_send(Intent::Session { epoch, action }).is_err() {
-                    window.set_message_title("Opération en attente".into());
-                    window.set_message("Réessayez dans un instant.".into());
+                    window.set_message_title("Operation pending".into());
+                    window.set_message("Try again shortly.".into());
+                } else if requesting_login {
+                    // A successful explicit login owns one initial read. Admission
+                    // still waits for Ready/Refreshing and foreground access.
+                    *ui.startup_read.lock().expect("startup read mutex") = StartupRead::Pending;
                 } else if requesting_read {
                     ui.request_view(epoch);
                     // Move focus as part of this admitted user intention. A
@@ -1764,15 +1798,58 @@ pub(crate) fn run_with_lifecycle(
     let closed = invitation_cancel.clone();
     window.on_invitation_closed(move || closed.lock().expect("invitation cancellation").cancel());
     let (invitation_ui, invitation_sender) = (ui.clone(), sender.clone());
-    window.on_accept_invitation(move|generation,token,password,display_name|{
-        let Some(window)=invitation_ui.window.upgrade() else{return};
-        if !window.get_endpoint_ready()||!window.get_invitation_visible()||window.get_invitation_generation()!=generation||window.get_invitation_busy()||window.get_invitation_uncertain()||window.get_busy()||window.get_access_stage()!=ProAccessStage::Identity{return}
-        let request=crate::invitation::Request{token:Zeroizing::new(token.to_string()),password:Zeroizing::new(password.to_string()),display_name:display_name.to_string()};
-        if !request.valid(){window.set_invitation_feedback("Renseignez un jeton et un mot de passe valides ; le nom est limité à 256 caractères.".into());return}
-        let cancel={let mut pending=invitation_cancel.lock().expect("invitation cancellation");pending.cancel();*pending=CancellationToken::new();pending.clone()};
-        window.set_invitation_token_draft("".into());window.set_invitation_password_draft("".into());window.set_invitation_busy(true);window.set_invitation_feedback("Acceptation en cours…".into());
-        let epoch=ProfileEpoch(invitation_ui.epoch.load(Ordering::SeqCst));
-        if invitation_sender.try_send(Intent::Invitation{epoch,value:InvitationIntent{generation,request,cancel}}).is_err(){window.set_invitation_busy(false);window.set_invitation_feedback("Une opération est en attente. Ressaisissez les données pour réessayer.".into());}
+    window.on_accept_invitation(move |generation, token, password, display_name| {
+        let Some(window) = invitation_ui.window.upgrade() else {
+            return;
+        };
+        if !window.get_endpoint_ready()
+            || !window.get_invitation_visible()
+            || window.get_invitation_generation() != generation
+            || window.get_invitation_busy()
+            || window.get_invitation_uncertain()
+            || window.get_busy()
+            || window.get_access_stage() != ProAccessStage::Identity
+        {
+            return;
+        }
+        let request = crate::invitation::Request {
+            token: Zeroizing::new(token.to_string()),
+            password: Zeroizing::new(password.to_string()),
+            display_name: display_name.to_string(),
+        };
+        if !request.valid() {
+            window.set_invitation_feedback(
+                "Enter a valid token and password; the name is limited to 256 characters.".into(),
+            );
+            return;
+        }
+        let cancel = {
+            let mut pending = invitation_cancel.lock().expect("invitation cancellation");
+            pending.cancel();
+            *pending = CancellationToken::new();
+            pending.clone()
+        };
+        window.set_invitation_token_draft("".into());
+        window.set_invitation_password_draft("".into());
+        window.set_invitation_busy(true);
+        window.set_invitation_feedback("Accepting…".into());
+        let epoch = ProfileEpoch(invitation_ui.epoch.load(Ordering::SeqCst));
+        if invitation_sender
+            .try_send(Intent::Invitation {
+                epoch,
+                value: InvitationIntent {
+                    generation,
+                    request,
+                    cancel,
+                },
+            })
+            .is_err()
+        {
+            window.set_invitation_busy(false);
+            window.set_invitation_feedback(
+                "An operation is pending. Enter the data again to retry.".into(),
+            );
+        }
     });
     let (recover, weak) = (send.clone(), window.as_weak());
     window.on_verify_recovery(move |code| {
@@ -1795,13 +1872,17 @@ pub(crate) fn run_with_lifecycle(
                 })
                 .is_err()
             {
+                device_ui.abandon_native_step(token, generation);
                 device_ui.refuse(epoch, Refusal::Capacity);
             }
         }
-        Err(refusal) => device_ui.refuse(
-            ProfileEpoch(device_ui.epoch.load(Ordering::SeqCst)),
-            refusal,
-        ),
+        Err(refusal) => {
+            device_ui.abandon_native_step(token, generation);
+            device_ui.refuse(
+                ProfileEpoch(device_ui.epoch.load(Ordering::SeqCst)),
+                refusal,
+            );
+        }
     };
     let power = submit_device.clone();
     window.on_device_power(move |token, generation, intent| {
@@ -1950,6 +2031,7 @@ mod tests {
             dashboard_choices: crate::dashboard_selection::Choices::default(),
             devices: Arc::new(Mutex::new(None)),
             lists: crate::list_host::Lists::detached(),
+            dashboard_widgets: crate::dashboard_widget_host::Widgets::detached(),
             history: crate::history_host::History::detached(),
             media: crate::media_host::Media::detached(),
             calendars: crate::calendar_host::Calendars::detached(),
@@ -2048,6 +2130,7 @@ mod tests {
             dashboard_choices: crate::dashboard_selection::Choices::default(),
             devices: Arc::new(Mutex::new(None)),
             lists: crate::list_host::Lists::detached(),
+            dashboard_widgets: crate::dashboard_widget_host::Widgets::detached(),
             history: crate::history_host::History::detached(),
             media: crate::media_host::Media::detached(),
             calendars: crate::calendar_host::Calendars::detached(),

@@ -14,7 +14,7 @@ pub(crate) mod progress;
 mod recipes;
 mod selection;
 use crate::{
-    IconKind, ProControlAccess, ProDeviceKind,
+    ProControlAccess, ProDeviceKind,
     cache_view::{bounded, quality_text, value_text},
     dashboard::{Layout, ProjectionRequest},
 };
@@ -67,16 +67,12 @@ pub(crate) enum Refusal {
 impl Refusal {
     pub fn message(self) -> &'static str {
         match self {
-            Self::Stale => "Commande non envoyée : la vue a changé. Reprenez le geste.",
-            Self::ReadOnly => "Commande non envoyée : cette fonction est en lecture seule.",
-            Self::Unsupported => "Commande non envoyée : cette fonction n’est pas prise en charge.",
-            Self::InvalidValue => {
-                "Commande non envoyée : la valeur n’est pas valide pour cet appareil."
-            }
-            Self::Capacity => {
-                "Commande non envoyée : une opération est en cours. Réessayez dans un instant."
-            }
-            Self::Unavailable => "Commande non envoyée : le contrôleur est indisponible.",
+            Self::Stale => "Command not sent: the view changed. Repeat the gesture.",
+            Self::ReadOnly => "Command not sent: this capability is read-only.",
+            Self::Unsupported => "Command not sent: this capability is unsupported.",
+            Self::InvalidValue => "Command not sent: the value is invalid for this device.",
+            Self::Capacity => "Command not sent: an operation is in progress. Try again shortly.",
+            Self::Unavailable => "Command not sent: the controller is unavailable.",
         }
     }
 }
@@ -172,6 +168,7 @@ struct State {
     drafts: BTreeMap<(CardGeneration, i32), panel::Draft>,
     selections: BTreeMap<CardGeneration, selection::Selection>,
     recipe_bindings: recipes::Bindings,
+    native_steps: native::Steps,
 }
 #[derive(Clone)]
 pub(crate) struct DeviceStore(Arc<Mutex<State>>);
@@ -200,6 +197,7 @@ impl Default for DeviceStore {
             drafts: BTreeMap::new(),
             selections: BTreeMap::new(),
             recipe_bindings: recipes::Bindings::default(),
+            native_steps: native::Steps::default(),
         })))
     }
 }
@@ -234,6 +232,7 @@ fn selected<'a>(
                             }
                         })
                     }))
+                    .chain(node.widget.iter().flat_map(|widget| widget.entities()))
                     .map(move |id| (node, id))
             })
             .filter_map(|(node, id)| {
@@ -247,7 +246,9 @@ fn selected<'a>(
                     return None;
                 }
                 Some((
-                    if node.title.is_empty() {
+                    if node.title.is_empty()
+                        || (node.widget.is_some() && node.entity.as_ref() != Some(id))
+                    {
                         bounded(&entity.current_alias)
                     } else {
                         node.title.clone()
@@ -292,6 +293,7 @@ impl DeviceStore {
         state.context = None;
         state.recipe_bindings = recipes::Bindings::default();
         state.drafts.clear();
+        state.native_steps = native::Steps::default();
         state.selections.clear();
         state.serial = CardGeneration(state.serial.0.saturating_add(1));
         for (_, handle) in state.actions.drain(..) {
@@ -325,13 +327,18 @@ impl DeviceStore {
         let mut cards = Vec::new();
         let mut editors = Vec::new();
         let mut helper_selections = Vec::new();
+        let mut fresh_observations = Vec::new();
         let mut inputs = selection
             .into_iter()
             .flat_map(|(title, entity)| {
                 entity.capabilities.iter().filter_map(move |capability| {
                     CardInput::new(
                         ControlSource::General,
-                        title.clone(),
+                        if request.detail.is_some() && !capability.display_name.trim().is_empty() {
+                            bounded(&capability.display_name)
+                        } else {
+                            title.clone()
+                        },
                         entity,
                         capability,
                         Control::parse(capability),
@@ -416,6 +423,7 @@ impl DeviceStore {
             } else {
                 None
             };
+            fresh_observations.push(crate::dashboard_visibility::fresh(entity).is_some());
             let mut row = card(&title, entity, &control, access);
             if let Control::ReadOnly(kind) = &control {
                 let zone = crate::environment_view::ProfileZone::from_profile(
@@ -520,6 +528,13 @@ impl DeviceStore {
         state
             .selections
             .retain(|generation, _| generations.contains(generation));
+        state.native_steps.observed.clear();
+        state
+            .native_steps
+            .pending
+            .retain(|(generation, _), pending| {
+                generations.contains(generation) || pending.attached()
+            });
         let ready = state.context.as_ref().is_some_and(|context| context.live);
         for (index, row) in cards.iter_mut().enumerate() {
             row.token = index as i32;
@@ -530,10 +545,29 @@ impl DeviceStore {
                 .slots[index]
                 .clone();
             row.generation = slot.generation.0;
+            row.field_keys = editors[index]
+                .iter()
+                .enumerate()
+                .filter_map(|(index, (editor, _))| match editor {
+                    panel::Editor::Setpoint(_) => Some(("setpoint_celsius", index as i32)),
+                    panel::Editor::Range(_) => Some(("setpoint_range_celsius", index as i32)),
+                    panel::Editor::CoverPosition(_)
+                    | panel::Editor::Helper
+                    | panel::Editor::ColorTemperature => None,
+                })
+                .collect();
             row.values = editors[index]
                 .iter()
                 .enumerate()
                 .map(|(index, (editor, initial))| {
+                    native::observe_step(
+                        &mut state,
+                        &slot,
+                        index as i32,
+                        *editor,
+                        initial,
+                        ready && fresh_observations[row.token as usize],
+                    );
                     let draft = state
                         .drafts
                         .entry((slot.generation, index as i32))
@@ -544,6 +578,13 @@ impl DeviceStore {
                     editor.row(index as i32, draft, &slot.control)
                 })
                 .collect::<Vec<_>>();
+            // A retained compact-step lease remains authoritative after local
+            // tracking stops or delivery becomes indeterminate.
+            row.command_unavailable |= state
+                .native_steps
+                .pending
+                .values()
+                .any(|pending| pending.blocks_target(&slot.target));
             if let Control::Helper(helper) = &slot.control
                 && matches!(helper.kind(), helper::Kind::Select(_))
                 && !row.command_unavailable
@@ -649,11 +690,22 @@ impl DeviceStore {
                 .ok_or(Refusal::Unavailable)?
                 .edit(intent);
         }
+        if native::is_thermostat(
+            state.context.as_ref().expect("active context"),
+            slot,
+            editor,
+        ) {
+            return native::edit_step(&mut state, generation, field, editor, intent, &control);
+        }
         let draft = state
             .drafts
             .get_mut(&(CardGeneration(generation), field))
             .ok_or(Refusal::Stale)?;
         editor.edit(draft, intent, &control)
+    }
+    pub fn abandon_native_step(&self, token: i32, generation: i32) {
+        let mut state = self.0.lock().expect("device store mutex");
+        native::abandon_step(&mut state, token, generation);
     }
     pub fn choose(
         &self,
@@ -701,6 +753,7 @@ impl DeviceStore {
     }
     pub fn remember(&self, target: ActionTarget, handle: ActionHandle) {
         let mut state = self.0.lock().expect("device store mutex");
+        native::attach_step(&mut state, &target, handle.id());
         state.actions.retain(|(old, _)| old != &target);
         // At most 32 controller records can still be active. Retaining 64
         // presentation records permits eviction of a finished older record.
@@ -725,6 +778,7 @@ impl DeviceStore {
         intent: DeviceIntent,
     ) -> Result<Prepared, Refusal> {
         let state = self.0.lock().expect("device store mutex");
+        let step_lease = native::step_lease(&state, token, generation);
         let context = state
             .context
             .as_ref()
@@ -774,11 +828,14 @@ impl DeviceStore {
                 return false;
             };
             let state = shared.lock().expect("device store mutex");
-            state.context.as_ref().is_some_and(|current| {
-                current.live
-                    && current.revision == revision
-                    && current.slots.get(token as usize) == Some(&expected)
-            })
+            step_lease
+                .as_ref()
+                .is_none_or(|lease| lease.admitted(&state))
+                && state.context.as_ref().is_some_and(|current| {
+                    current.live
+                        && current.revision == revision
+                        && current.slots.get(token as usize) == Some(&expected)
+                })
         });
         Ok(Prepared {
             target,
@@ -832,15 +889,14 @@ fn card(
             .state
             .as_option()
             .map(value_text)
-            .unwrap_or_else(|| "Aucune observation".into())
+            .unwrap_or_else(|| "No observation".into())
             .into(),
         quality: entity
             .state
             .as_option()
             .map(quality_text)
-            .unwrap_or_else(|| "Qualité absente".into())
+            .unwrap_or_else(|| "Quality missing".into())
             .into(),
-        icon: IconKind::Information,
         kind: ProDeviceKind::Unsupported,
         access: match access {
             WriteAccess::Allowed => ProControlAccess::Allowed,
@@ -893,7 +949,7 @@ fn card(
             if let Some(state::observed_state::Value::SwitchOn(on)) =
                 observation.and_then(|state| state.value.as_ref())
             {
-                row.value = if *on { "Actif" } else { "Inactif" }.into();
+                row.value = if *on { "Active" } else { "Inactive" }.into();
             }
         }
         Control::Cover(_) => row.kind = ProDeviceKind::Cover,
@@ -902,7 +958,7 @@ fn card(
         Control::Measurement => row.kind = ProDeviceKind::Measurement,
         Control::Climate(_) => {
             row.kind = ProDeviceKind::Climate;
-            row.value = "Climat".into();
+            row.value = "Climate".into();
             row.readings = panel::readings(control, entity).into();
         }
         Control::Fan(fan) => {
@@ -933,17 +989,17 @@ fn card(
         Control::Helper(helper) => {
             row.kind = ProDeviceKind::Helper;
             if !helper.available() {
-                row.quality = format!("{} · Aucune cible autorisée", row.quality).into();
+                row.quality = format!("{} · No authorized target", row.quality).into();
             } else if helper::observation(entity).is_none() {
-                row.quality = format!("{} · Révision du helper indisponible", row.quality).into();
+                row.quality = format!("{} · Helper revision unavailable", row.quality).into();
             }
         }
         Control::ReadOnly(_) => {
             row.kind = ProDeviceKind::Observation;
-            row.quality = format!("{} · Lecture seule", row.quality).into();
+            row.quality = format!("{} · Read-only", row.quality).into();
         }
         Control::Unsupported => {
-            row.quality = format!("{} · Fonction non prise en charge", row.quality).into();
+            row.quality = format!("{} · Unsupported capability", row.quality).into();
         }
     }
     row.choices = panel::choice_rows(control);
@@ -955,8 +1011,8 @@ fn card(
         .as_option()
         .and_then(|state| state.received_at.as_option())
         .and_then(|at| chrono::DateTime::from_timestamp(at.seconds, at.nanos as u32))
-        .map(|at| format!("Reçu le {}", at.to_rfc3339()))
-        .unwrap_or_else(|| "Date non renseignée".into())
+        .map(|at| format!("Received on {}", at.to_rfc3339()))
+        .unwrap_or_else(|| "Date not provided".into())
         .into();
     row
 }

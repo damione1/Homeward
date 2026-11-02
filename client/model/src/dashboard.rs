@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub enum Profile {
     Basic,
     Recipes,
+    Widgets,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnsupportedProfile;
@@ -14,12 +15,14 @@ impl Profile {
         match self {
             Self::Basic => "homeward-dashboard-1",
             Self::Recipes => "homeward-dashboard-2",
+            Self::Widgets => "homeward-dashboard-3",
         }
     }
     pub const fn layout_version(self) -> u32 {
         match self {
             Self::Basic => 1,
             Self::Recipes => 2,
+            Self::Widgets => 3,
         }
     }
 }
@@ -29,6 +32,7 @@ impl TryFrom<&str> for Profile {
         match value {
             "homeward-dashboard-1" => Ok(Self::Basic),
             "homeward-dashboard-2" => Ok(Self::Recipes),
+            "homeward-dashboard-3" => Ok(Self::Widgets),
             _ => Err(UnsupportedProfile),
         }
     }

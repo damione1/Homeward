@@ -246,19 +246,19 @@ async fn inspect(owner: &Administration, context: &Context, run: &wire::Run) {
         state
             .rows
             .iter()
-            .any(|row| row.detail.contains("Source expurgée"))
+            .any(|row| row.detail.contains("Source redacted"))
     );
     assert!(
         state
             .rows
             .iter()
-            .any(|row| row.title.contains("Événements expurgés"))
+            .any(|row| row.title.contains("Redacted Events"))
     );
     assert!(
         state
             .rows
             .iter()
-            .any(|row| row.detail.contains("Acteur non enregistré"))
+            .any(|row| row.detail.contains("Actor not recorded"))
     );
 }
 async fn marker(root: &Path, name: &str) {

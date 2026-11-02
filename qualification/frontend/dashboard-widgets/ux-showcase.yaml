@@ -1,0 +1,3283 @@
+homeward:
+  profile: homeward-dashboard-3
+  owner: OWNER_ACCOUNT_ID
+  url_path: configured
+views:
+- type: sections
+  path: home
+  title: Home
+  max_columns: 3
+  minimum_column_width: 320
+  gap: 20
+  sections:
+  - type: grid
+    column_span: 3
+    minimum_column_width: 136
+    gap: 12
+    visibility:
+    - condition: screen
+      media_query: '(max-width: 599px)'
+    cards:
+    - type: grid
+      columns: 2
+      minimum_column_width: 136
+      gap: 8
+      grid_options:
+        columns: full
+      cards:
+      - type: tile
+        entity: alarm_control_panel.alarm
+        name: Alarm
+        icon: mdi:shield-home
+        presentation: summary
+        tap_action:
+          action: more-info
+        grid_options:
+          columns: 1
+      - type: tile
+        entity: cover.konnected_52362c_garage_door
+        name: Garage
+        icon: mdi:garage
+        presentation: summary
+        tap_action:
+          action: more-info
+        grid_options:
+          columns: 1
+  - type: grid
+    column_span: 3
+    minimum_column_width: 136
+    gap: 12
+    visibility:
+    - condition: screen
+      media_query: '(min-width: 600px) and (max-width: 1023px)'
+    cards:
+    - type: grid
+      columns: 4
+      minimum_column_width: 136
+      gap: 8
+      grid_options:
+        columns: full
+      cards:
+      - type: tile
+        entity: alarm_control_panel.alarm
+        name: Alarm
+        icon: mdi:shield-home
+        presentation: summary
+        tap_action:
+          action: more-info
+        grid_options:
+          columns: 1
+      - type: tile
+        entity: cover.konnected_52362c_garage_door
+        name: Garage
+        icon: mdi:garage
+        presentation: summary
+        tap_action:
+          action: more-info
+        grid_options:
+          columns: 1
+      - type: custom:homeward-thermostat
+        title: Home Climate
+        icon: mdi:thermometer
+        entity: climate.home
+        current_temperature:
+          entity: climate.home
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.home
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: 1
+        action: /configured/home#thermostat-home
+        action_label: Adjust
+      - type: tile
+        entity: fan.living_room_ceiling_fan
+        grid_options:
+          columns: 1
+        name: Ceiling Fan
+        features:
+        - type: fan-speed
+        tap_action:
+          action: more-info
+        presentation: summary
+        icon: mdi:fan
+  - type: grid
+    column_span: 3
+    minimum_column_width: 136
+    gap: 12
+    visibility:
+    - condition: screen
+      media_query: '(max-width: 1023px)'
+    cards:
+    - type: heading
+      heading: Rooms
+      grid_options:
+        columns: full
+    - type: grid
+      columns: 4
+      minimum_column_width: 136
+      gap: 8
+      grid_options:
+        columns: full
+      cards:
+      - type: custom:homeward-room
+        title: Living Room
+        icon: mdi:sofa
+        room_id: living-room
+        activity_entities:
+        - light.living_room_lights
+        active_states:
+        - 'on'
+        action: /configured/home#living-room
+        grid_options:
+          columns: 1
+        temperature:
+          entity: climate.neviweb130_climate_living_room
+          field: current_temperature_celsius
+      - type: custom:homeward-room
+        title: Kitchen
+        icon: mdi:knife
+        room_id: kitchen
+        activity_entities:
+        - light.kitchen_main_lights
+        active_states:
+        - 'on'
+        action: /configured/home#kitchen
+        grid_options:
+          columns: 1
+        temperature:
+          entity: climate.neviweb130_climate_plancher_cuisine
+          field: current_temperature_celsius
+      - type: custom:homeward-room
+        title: Dining Room
+        icon: mdi:table-chair
+        room_id: dining-room
+        activity_entities:
+        - light.dining_room_pendants
+        active_states:
+        - 'on'
+        action: /configured/home#dining-room
+        grid_options:
+          columns: 1
+        temperature:
+          entity: climate.neviweb130_climate_salle_a_manger
+          field: current_temperature_celsius
+      - type: custom:homeward-room
+        title: Master Bedroom
+        icon: mdi:bed-king-outline
+        room_id: master-bedroom
+        activity_entities:
+        - light.master_bedroom_table_lamps
+        active_states:
+        - 'on'
+        action: /configured/home#master-bedroom
+        grid_options:
+          columns: 1
+        temperature:
+          entity: climate.neviweb130_climate_chambre_principale
+          field: current_temperature_celsius
+      - type: custom:homeward-room
+        title: Eugénie’s Room
+        icon: mdi:baby-face
+        room_id: eugenie
+        activity_entities:
+        - light.eugenie_bedroom_light
+        active_states:
+        - 'on'
+        action: /configured/home#eugenie
+        grid_options:
+          columns: 1
+        temperature:
+          entity: climate.neviweb130_climate_chambre_eugenie
+          field: current_temperature_celsius
+      - type: custom:homeward-room
+        title: Bathroom
+        icon: mdi:shower
+        room_id: bathroom
+        activity_entities:
+        - climate.neviweb130_climate_salle_de_bain
+        active_states:
+        - heat
+        - cool
+        - auto
+        - heat_cool
+        action: /configured/home#bathroom
+        grid_options:
+          columns: 1
+        temperature:
+          entity: climate.neviweb130_climate_salle_de_bain
+          field: current_temperature_celsius
+      - type: custom:homeward-room
+        title: Office
+        icon: mdi:desk
+        room_id: office
+        activity_entities:
+        - light.basement_sitting_area_spot_lights
+        active_states:
+        - 'on'
+        action: /configured/home#office
+        grid_options:
+          columns: 1
+        temperature:
+          entity: climate.neviweb130_climate_sous_sol
+          field: current_temperature_celsius
+      - type: custom:homeward-room
+        title: Guest Bedroom
+        icon: mdi:bed-king
+        room_id: guest-bedroom
+        activity_entities:
+        - light.guest_bedroom_main_lights
+        active_states:
+        - 'on'
+        action: /configured/home#guest-bedroom
+        grid_options:
+          columns: 1
+        temperature:
+          entity: climate.neviweb130_climate_chambre_sous_sol
+          field: current_temperature_celsius
+      - type: custom:homeward-room
+        title: Outdoor
+        icon: mdi:tree
+        room_id: outdoor
+        activity_entities:
+        - light.switch_porch
+        active_states:
+        - 'on'
+        action: /configured/home#outdoor
+        grid_options:
+          columns: 1
+  - type: grid
+    column_span: 3
+    minimum_column_width: 136
+    gap: 12
+    visibility:
+    - condition: screen
+      media_query: '(max-width: 599px)'
+    cards:
+    - type: grid
+      columns: 2
+      minimum_column_width: 136
+      gap: 8
+      grid_options:
+        columns: full
+      cards:
+      - type: custom:homeward-thermostat
+        title: Home Climate
+        icon: mdi:thermometer
+        entity: climate.home
+        current_temperature:
+          entity: climate.home
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.home
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: 1
+        action: /configured/home#thermostat-home
+        action_label: Adjust
+      - type: tile
+        entity: fan.living_room_ceiling_fan
+        grid_options:
+          columns: 1
+        name: Ceiling Fan
+        features:
+        - type: fan-speed
+        tap_action:
+          action: more-info
+        presentation: summary
+        icon: mdi:fan
+  - type: grid
+    column_span: 3
+    minimum_column_width: 136
+    gap: 12
+    visibility:
+    - condition: screen
+      media_query: '(max-width: 1023px)'
+    cards:
+    - type: grid
+      columns: 4
+      minimum_column_width: 136
+      gap: 8
+      grid_options:
+        columns: full
+      cards:
+      - type: custom:homeward-navigation
+        title: Shopping List
+        icon: mdi:cart
+        destination: /configured/lists
+        grid_options:
+          columns: 1
+      - type: custom:homeward-navigation
+        title: Music
+        icon: mdi:music
+        destination: /configured/home#music
+        grid_options:
+          columns: 1
+      - type: custom:homeward-navigation
+        title: Security
+        icon: mdi:shield-home
+        destination: /configured/home#security
+        grid_options:
+          columns: 1
+      - type: custom:homeward-navigation
+        title: Climate
+        icon: mdi:thermometer
+        destination: /configured/home#climate-popup
+        grid_options:
+          columns: 1
+      - type: custom:homeward-navigation
+        title: Garage
+        icon: mdi:garage
+        destination: /configured/garage
+        grid_options:
+          columns: 1
+  - type: grid
+    column_span: 3
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: grid
+      columns: 4
+      minimum_column_width: 240
+      gap: 8
+      grid_options:
+        columns: full
+      cards:
+      - type: custom:homeward-observations
+        items:
+        - field:
+            entity: alarm_control_panel.alarm
+            field: value
+          label: Alarm
+          icon: mdi:shield-home
+          active_states:
+          - armed_home
+          - armed_away
+          - armed_night
+          - triggered
+        grid_options:
+          columns: 1
+      - type: custom:homeward-observations
+        items:
+        - field:
+            entity: weather.maison
+            field: value
+          label: Weather
+          icon: mdi:weather-sunny
+        grid_options:
+          columns: 1
+      - type: custom:homeward-observations
+        items:
+        - field:
+            entity: cover.konnected_52362c_garage_door
+            field: state
+          label: Garage
+          icon: mdi:garage
+          active_states:
+          - open
+          - opening
+        grid_options:
+          columns: 1
+      - type: custom:homeward-observations
+        items:
+        - field:
+            entity: binary_sensor.kitchen_sink_leak_sensor_water_leak
+            field: value
+          label: Kitchen Leak
+          icon: mdi:water-alert
+          active_states:
+          - 'on'
+        grid_options:
+          columns: 1
+      - type: custom:homeward-observations
+        items:
+        - field:
+            entity: binary_sensor.basement_leak_sensor_water_leak
+            field: value
+          label: Basement Leak
+          icon: mdi:water-alert
+          active_states:
+          - 'on'
+        grid_options:
+          columns: 1
+      - type: custom:homeward-observations
+        items:
+        - field:
+            entity: sensor.package_package_count
+            field: value
+          label: Packages
+          icon: mdi:package-variant
+        grid_options:
+          columns: 1
+      - type: custom:homeward-observations
+        items:
+        - field:
+            entity: input_boolean.washing_machine_running
+            field: value
+          label: Washer
+          icon: mdi:washing-machine
+          active_states:
+          - 'on'
+        grid_options:
+          columns: 1
+    visibility:
+    - condition: screen
+      media_query: '(min-width: 1024px)'
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Quick Controls
+      grid_options:
+        columns: full
+    - type: custom:homeward-clock-weather
+      timezone: America/Toronto
+      weather_entity: weather.maison
+      grid_options:
+        columns: full
+    - type: custom:homeward-thermostat
+      title: Home Climate
+      icon: mdi:thermometer
+      entity: climate.home
+      current_temperature:
+        entity: climate.home
+        field: current_temperature_celsius
+      target_temperature:
+        entity: climate.home
+        field: setpoint_celsius
+      presentation: summary
+      grid_options:
+        columns: full
+      action: /configured/home#thermostat-home
+      action_label: Adjust
+    - type: grid
+      columns: 2
+      minimum_column_width: 136
+      gap: 8
+      grid_options:
+        columns: full
+      cards:
+      - type: template
+        content: Turn off lights
+        secondary: Unavailable in this installation
+        icon: mdi:information-outline
+        tap_action:
+          action: none
+        grid_options:
+          columns: 1
+      - type: template
+        content: Good Morning
+        secondary: Unavailable in this installation
+        icon: mdi:information-outline
+        tap_action:
+          action: none
+        grid_options:
+          columns: 1
+    - type: tile
+      entity: fan.living_room_ceiling_fan
+      grid_options:
+        columns: full
+      name: Ceiling Fan
+      features:
+      - type: fan-speed
+      tap_action:
+        action: more-info
+      presentation: summary
+      icon: mdi:fan
+    visibility:
+    - condition: screen
+      media_query: '(min-width: 1024px)'
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 8
+    cards:
+    - type: heading
+      heading: Rooms
+      grid_options:
+        columns: full
+    - type: custom:homeward-room
+      title: Living Room
+      icon: mdi:sofa
+      room_id: living-room
+      activity_entities:
+      - light.living_room_lights
+      active_states:
+      - 'on'
+      action: /configured/home#living-room
+      grid_options:
+        columns: full
+      temperature:
+        entity: climate.neviweb130_climate_living_room
+        field: current_temperature_celsius
+    - type: custom:homeward-room
+      title: Kitchen
+      icon: mdi:knife
+      room_id: kitchen
+      activity_entities:
+      - light.kitchen_main_lights
+      active_states:
+      - 'on'
+      action: /configured/home#kitchen
+      grid_options:
+        columns: full
+      temperature:
+        entity: climate.neviweb130_climate_plancher_cuisine
+        field: current_temperature_celsius
+    - type: custom:homeward-room
+      title: Dining Room
+      icon: mdi:table-chair
+      room_id: dining-room
+      activity_entities:
+      - light.dining_room_pendants
+      active_states:
+      - 'on'
+      action: /configured/home#dining-room
+      grid_options:
+        columns: full
+      temperature:
+        entity: climate.neviweb130_climate_salle_a_manger
+        field: current_temperature_celsius
+    - type: custom:homeward-room
+      title: Master Bedroom
+      icon: mdi:bed-king-outline
+      room_id: master-bedroom
+      activity_entities:
+      - light.master_bedroom_table_lamps
+      active_states:
+      - 'on'
+      action: /configured/home#master-bedroom
+      grid_options:
+        columns: full
+      temperature:
+        entity: climate.neviweb130_climate_chambre_principale
+        field: current_temperature_celsius
+    - type: custom:homeward-room
+      title: Eugénie’s Room
+      icon: mdi:baby-face
+      room_id: eugenie
+      activity_entities:
+      - light.eugenie_bedroom_light
+      active_states:
+      - 'on'
+      action: /configured/home#eugenie
+      grid_options:
+        columns: full
+      temperature:
+        entity: climate.neviweb130_climate_chambre_eugenie
+        field: current_temperature_celsius
+    - type: custom:homeward-room
+      title: Bathroom
+      icon: mdi:shower
+      room_id: bathroom
+      activity_entities:
+      - climate.neviweb130_climate_salle_de_bain
+      active_states:
+      - heat
+      - cool
+      - auto
+      - heat_cool
+      action: /configured/home#bathroom
+      grid_options:
+        columns: full
+      temperature:
+        entity: climate.neviweb130_climate_salle_de_bain
+        field: current_temperature_celsius
+    - type: custom:homeward-room
+      title: Office
+      icon: mdi:desk
+      room_id: office
+      activity_entities:
+      - light.basement_sitting_area_spot_lights
+      active_states:
+      - 'on'
+      action: /configured/home#office
+      grid_options:
+        columns: full
+      temperature:
+        entity: climate.neviweb130_climate_sous_sol
+        field: current_temperature_celsius
+    - type: custom:homeward-room
+      title: Guest Bedroom
+      icon: mdi:bed-king
+      room_id: guest-bedroom
+      activity_entities:
+      - light.guest_bedroom_main_lights
+      active_states:
+      - 'on'
+      action: /configured/home#guest-bedroom
+      grid_options:
+        columns: full
+      temperature:
+        entity: climate.neviweb130_climate_chambre_sous_sol
+        field: current_temperature_celsius
+    - type: custom:homeward-room
+      title: Outdoor
+      icon: mdi:tree
+      room_id: outdoor
+      activity_entities:
+      - light.switch_porch
+      active_states:
+      - 'on'
+      action: /configured/home#outdoor
+      grid_options:
+        columns: full
+    visibility:
+    - condition: screen
+      media_query: '(min-width: 1024px)'
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Calendar
+      grid_options:
+        columns: full
+    - type: custom:homeward-agenda
+      title: Family
+      calendar_id: CALENDAR_FAMILY_ID
+      timezone: America/Toronto
+      window_seconds: 604800
+      limit: 3
+      empty_label: No events
+      grid_options:
+        columns: full
+    - type: custom:homeward-agenda
+      title: Shared Calendar
+      calendar_id: CALENDAR_FAMILLE_ID
+      timezone: America/Toronto
+      window_seconds: 604800
+      limit: 2
+      empty_label: No events
+      grid_options:
+        columns: full
+    - type: custom:homeward-agenda
+      title: Birthdays
+      calendar_id: CALENDAR_ANNIVERSAIRES_ID
+      timezone: America/Toronto
+      window_seconds: 604800
+      limit: 2
+      empty_label: No events
+      grid_options:
+        columns: full
+    - type: custom:homeward-tasks
+      title: Groceries
+      list_id: LIST_B_ID
+      limit: 4
+      empty_label: Your list is clear
+      grid_options:
+        columns: full
+      presentation: preview
+    - type: custom:homeward-navigation
+      title: Shopping List
+      icon: mdi:cart
+      destination: /configured/lists
+    visibility:
+    - condition: screen
+      media_query: '(min-width: 1024px)'
+  - type: grid
+    column_span: 3
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: grid
+      columns: 4
+      minimum_column_width: 180
+      gap: 8
+      grid_options:
+        columns: full
+      cards:
+      - type: custom:homeward-navigation
+        title: Music
+        icon: mdi:music
+        destination: /configured/home#music
+        grid_options:
+          columns: 1
+      - type: custom:homeward-navigation
+        title: Security
+        icon: mdi:shield-home
+        destination: /configured/home#security
+        grid_options:
+          columns: 1
+      - type: custom:homeward-navigation
+        title: Climate
+        icon: mdi:thermometer
+        destination: /configured/home#climate-popup
+        grid_options:
+          columns: 1
+      - type: custom:homeward-navigation
+        title: More
+        icon: mdi:view-grid
+        destination: /configured/home#more
+        grid_options:
+          columns: 1
+    visibility:
+    - condition: screen
+      media_query: '(min-width: 1024px)'
+  - type: grid
+    column_span: 3
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#living-room'
+      name: Living Room
+      icon: mdi:sofa
+      minimum_column_width: 320
+      gap: 16
+      cards:
+      - type: heading
+        heading: Scenes
+        grid_options:
+          columns: full
+      - type: grid
+        columns: 4
+        minimum_column_width: 120
+        gap: 8
+        grid_options:
+          columns: full
+        cards:
+        - type: template
+          content: Daylight
+          secondary: Unavailable in this installation
+          icon: mdi:information-outline
+          tap_action:
+            action: none
+          grid_options:
+            columns: 1
+        - type: template
+          content: Evening
+          secondary: Unavailable in this installation
+          icon: mdi:information-outline
+          tap_action:
+            action: none
+          grid_options:
+            columns: 1
+        - type: template
+          content: Cosy
+          secondary: Unavailable in this installation
+          icon: mdi:information-outline
+          tap_action:
+            action: none
+          grid_options:
+            columns: 1
+        - type: template
+          content: Night
+          secondary: Unavailable in this installation
+          icon: mdi:information-outline
+          tap_action:
+            action: none
+          grid_options:
+            columns: 1
+      - type: heading
+        heading: Lights
+        grid_options:
+          columns: full
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: light.living_room_lights
+          grid_options:
+            columns: 1
+          name: Main lights
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: light.living_room_stairs
+          grid_options:
+            columns: 1
+          name: Stairs
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: light.library_lamp
+          grid_options:
+            columns: 1
+          name: Library Lamp
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: light.table_lamp
+          grid_options:
+            columns: 1
+          name: Table Lamp
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: switch.design_lamp_relay
+          grid_options:
+            columns: 1
+          name: Design lamp
+          features:
+          - type: light-brightness
+          tap_action:
+            action: toggle
+          icon: mdi:power-plug
+      - type: heading
+        heading: Climate & Fan
+        grid_options:
+          columns: full
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: custom:homeward-thermostat
+          title: Living Room Heater
+          icon: mdi:thermometer
+          entity: climate.neviweb130_climate_living_room
+          current_temperature:
+            entity: climate.neviweb130_climate_living_room
+            field: current_temperature_celsius
+          target_temperature:
+            entity: climate.neviweb130_climate_living_room
+            field: setpoint_celsius
+          presentation: summary
+          grid_options:
+            columns: 1
+          action: /configured/home#thermostat-living-room
+          action_label: Adjust
+        - type: tile
+          entity: fan.living_room_ceiling_fan
+          grid_options:
+            columns: 1
+          name: Ceiling Fan
+          features:
+          - type: fan-speed
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:fan
+      - type: heading
+        heading: Media
+        grid_options:
+          columns: full
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: media_player.soundbar
+          grid_options:
+            columns: 1
+          name: Soundbar
+          tap_action:
+            action: more-info
+          icon: mdi:speaker
+          presentation: summary
+        - type: tile
+          entity: media_player.shield_2
+          grid_options:
+            columns: 1
+          name: Shield TV
+          tap_action:
+            action: more-info
+          icon: mdi:speaker
+          presentation: summary
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#kitchen'
+      name: Kitchen
+      icon: mdi:knife
+      minimum_column_width: 320
+      gap: 16
+      cards:
+      - type: heading
+        heading: Scenes
+        grid_options:
+          columns: full
+      - type: grid
+        columns: 3
+        minimum_column_width: 120
+        gap: 8
+        grid_options:
+          columns: full
+        cards:
+        - type: template
+          content: Cooking
+          secondary: Unavailable in this installation
+          icon: mdi:information-outline
+          tap_action:
+            action: none
+          grid_options:
+            columns: 1
+        - type: template
+          content: Cosy
+          secondary: Unavailable in this installation
+          icon: mdi:information-outline
+          tap_action:
+            action: none
+          grid_options:
+            columns: 1
+        - type: template
+          content: Night
+          secondary: Unavailable in this installation
+          icon: mdi:information-outline
+          tap_action:
+            action: none
+          grid_options:
+            columns: 1
+      - type: heading
+        heading: Lights
+        grid_options:
+          columns: full
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: light.kitchen_main_lights
+          grid_options:
+            columns: 1
+          name: Main lights
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: light.kitchen_lights
+          grid_options:
+            columns: 1
+          name: Countertop
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: light.kitchen_table_pendants
+          grid_options:
+            columns: 1
+          name: Pendants
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: light.kitchen_sink_light
+          grid_options:
+            columns: 1
+          name: Sink Light
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+      - type: heading
+        heading: Climate
+        grid_options:
+          columns: full
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: custom:homeward-thermostat
+          title: Heated Floor
+          icon: mdi:thermometer
+          entity: climate.neviweb130_climate_plancher_cuisine
+          current_temperature:
+            entity: climate.neviweb130_climate_plancher_cuisine
+            field: current_temperature_celsius
+          target_temperature:
+            entity: climate.neviweb130_climate_plancher_cuisine
+            field: setpoint_celsius
+          presentation: summary
+          grid_options:
+            columns: 1
+          action: /configured/home#thermostat-kitchen
+          action_label: Adjust
+      - type: heading
+        heading: Media
+        grid_options:
+          columns: full
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: media_player.kitchen
+          grid_options:
+            columns: 1
+          name: Kitchen Speaker
+          tap_action:
+            action: more-info
+          icon: mdi:speaker
+          presentation: summary
+      - type: heading
+        heading: Sensors
+        grid_options:
+          columns: full
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: binary_sensor.kitchen_sink_leak_sensor_water_leak
+          grid_options:
+            columns: 1
+          name: Sink Leak
+          icon: mdi:water-alert
+          tap_action:
+            action: more-info
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#dining-room'
+      name: Dining Room
+      icon: mdi:table-chair
+      minimum_column_width: 320
+      gap: 16
+      cards:
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: light.dining_room_pendants
+          grid_options:
+            columns: 1
+          name: Pendants
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: custom:homeward-thermostat
+          title: Dining Room
+          icon: mdi:thermometer
+          entity: climate.neviweb130_climate_salle_a_manger
+          current_temperature:
+            entity: climate.neviweb130_climate_salle_a_manger
+            field: current_temperature_celsius
+          target_temperature:
+            entity: climate.neviweb130_climate_salle_a_manger
+            field: setpoint_celsius
+          presentation: summary
+          grid_options:
+            columns: 1
+          action: /configured/home#thermostat-dining-room
+          action_label: Adjust
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#master-bedroom'
+      name: Master Bedroom
+      icon: mdi:bed-king-outline
+      minimum_column_width: 320
+      gap: 16
+      cards:
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: light.master_bedroom_table_lamps
+          grid_options:
+            columns: 1
+          name: Table Lamps
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: custom:homeward-thermostat
+          title: Master Bedroom
+          icon: mdi:thermometer
+          entity: climate.neviweb130_climate_chambre_principale
+          current_temperature:
+            entity: climate.neviweb130_climate_chambre_principale
+            field: current_temperature_celsius
+          target_temperature:
+            entity: climate.neviweb130_climate_chambre_principale
+            field: setpoint_celsius
+          presentation: summary
+          grid_options:
+            columns: 1
+          action: /configured/home#thermostat-master-bedroom
+          action_label: Adjust
+        - type: tile
+          entity: switch.eugenie_webcam_relay
+          grid_options:
+            columns: 1
+          name: Camera
+          icon: mdi:cctv
+          tap_action:
+            action: toggle
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#eugenie'
+      name: Eugénie’s Room
+      icon: mdi:baby-face
+      minimum_column_width: 320
+      gap: 16
+      cards:
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: light.eugenie_bedroom_light
+          grid_options:
+            columns: 1
+          name: Main lights
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: custom:homeward-thermostat
+          title: Eugénie’s Heating
+          icon: mdi:thermometer
+          entity: climate.neviweb130_climate_chambre_eugenie
+          current_temperature:
+            entity: climate.neviweb130_climate_chambre_eugenie
+            field: current_temperature_celsius
+          target_temperature:
+            entity: climate.neviweb130_climate_chambre_eugenie
+            field: setpoint_celsius
+          presentation: summary
+          grid_options:
+            columns: 1
+          action: /configured/home#thermostat-eugenie
+          action_label: Adjust
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#bathroom'
+      name: Bathroom
+      icon: mdi:shower
+      minimum_column_width: 320
+      gap: 16
+      cards:
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: custom:homeward-thermostat
+          title: Bathroom
+          icon: mdi:thermometer
+          entity: climate.neviweb130_climate_salle_de_bain
+          current_temperature:
+            entity: climate.neviweb130_climate_salle_de_bain
+            field: current_temperature_celsius
+          target_temperature:
+            entity: climate.neviweb130_climate_salle_de_bain
+            field: setpoint_celsius
+          presentation: summary
+          grid_options:
+            columns: 1
+          action: /configured/home#thermostat-bathroom
+          action_label: Adjust
+        - type: tile
+          entity: media_player.bathroom_speaker
+          grid_options:
+            columns: 1
+          name: Bathroom Speaker
+          tap_action:
+            action: more-info
+          icon: mdi:speaker
+          presentation: summary
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#office'
+      name: Office
+      icon: mdi:desk
+      minimum_column_width: 320
+      gap: 16
+      cards:
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: light.basement_sitting_area_spot_lights
+          grid_options:
+            columns: 1
+          name: Spot Lights
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: switch.vintage_lamp_relay
+          grid_options:
+            columns: 1
+          name: Desk lamp
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          icon: mdi:power-plug
+        - type: tile
+          entity: switch.basement_relay
+          grid_options:
+            columns: 1
+          name: TV lamp
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          icon: mdi:power-plug
+        - type: tile
+          entity: light.wled_desk
+          grid_options:
+            columns: 1
+          name: WLED Desk
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: custom:homeward-thermostat
+          title: Basement
+          icon: mdi:thermometer
+          entity: climate.neviweb130_climate_sous_sol
+          current_temperature:
+            entity: climate.neviweb130_climate_sous_sol
+            field: current_temperature_celsius
+          target_temperature:
+            entity: climate.neviweb130_climate_sous_sol
+            field: setpoint_celsius
+          presentation: summary
+          grid_options:
+            columns: 1
+          action: /configured/home#thermostat-office
+          action_label: Adjust
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#guest-bedroom'
+      name: Guest Bedroom
+      icon: mdi:bed-king
+      minimum_column_width: 320
+      gap: 16
+      cards:
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: light.guest_bedroom_main_lights
+          grid_options:
+            columns: 1
+          name: Main lights
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: light.bed_lamp_guest_bedroom
+          grid_options:
+            columns: 1
+          name: Bed Lamp
+          features:
+          - type: light-brightness
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: custom:homeward-thermostat
+          title: Guest Bedroom
+          icon: mdi:thermometer
+          entity: climate.neviweb130_climate_chambre_sous_sol
+          current_temperature:
+            entity: climate.neviweb130_climate_chambre_sous_sol
+            field: current_temperature_celsius
+          target_temperature:
+            entity: climate.neviweb130_climate_chambre_sous_sol
+            field: setpoint_celsius
+          presentation: summary
+          grid_options:
+            columns: 1
+          action: /configured/home#thermostat-guest-bedroom
+          action_label: Adjust
+        - type: tile
+          entity: media_player.guest_bedroom_tv_2
+          grid_options:
+            columns: 1
+          name: Guest TV
+          tap_action:
+            action: more-info
+          icon: mdi:speaker
+          presentation: summary
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#outdoor'
+      name: Outdoor
+      icon: mdi:tree
+      minimum_column_width: 320
+      gap: 16
+      cards:
+      - type: grid
+        columns: 3
+        minimum_column_width: 232
+        gap: 12
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: light.switch_porch
+          grid_options:
+            columns: 1
+          name: Front Lights
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: light.sw_side_entrance_light_switch_01_salon2
+          grid_options:
+            columns: 1
+          name: Side Entrance
+          tap_action:
+            action: more-info
+          presentation: summary
+          icon: mdi:lightbulb
+        - type: tile
+          entity: cover.konnected_52362c_garage_door
+          grid_options:
+            columns: 1
+          name: Garage Door
+          features:
+          - type: cover-open-close
+          tap_action:
+            action: more-info
+          icon: mdi:garage
+        - type: tile
+          entity: lock.konnected_52362c_lock
+          grid_options:
+            columns: 1
+          name: Garage Lock
+          tap_action:
+            action: more-info
+          icon: mdi:lock
+        - type: tile
+          entity: media_player.gazebo_speaker
+          grid_options:
+            columns: 1
+          tap_action:
+            action: more-info
+          icon: mdi:speaker
+          presentation: summary
+        - type: tile
+          entity: media_player.garage
+          grid_options:
+            columns: 1
+          tap_action:
+            action: more-info
+          icon: mdi:speaker
+          presentation: summary
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#music'
+      name: Music
+      icon: mdi:music
+      minimum_column_width: 320
+      gap: 12
+      cards:
+      - type: markdown
+        content: Audio grouping needs a media service.
+        grid_options:
+          columns: full
+      - type: template
+        content: Living Room 2
+        secondary: Unavailable in this installation
+        icon: mdi:information-outline
+        tap_action:
+          action: none
+        grid_options:
+          columns: full
+      - type: tile
+        entity: media_player.soundbar
+        grid_options:
+          columns: full
+        name: Soundbar
+        icon: mdi:speaker
+        tap_action:
+          action: more-info
+        presentation: summary
+      - type: tile
+        entity: media_player.kitchen
+        grid_options:
+          columns: full
+        name: Kitchen
+        icon: mdi:speaker
+        tap_action:
+          action: more-info
+        presentation: summary
+      - type: template
+        content: Bathroom
+        secondary: Unavailable in this installation
+        icon: mdi:information-outline
+        tap_action:
+          action: none
+        grid_options:
+          columns: full
+      - type: tile
+        entity: media_player.basement
+        grid_options:
+          columns: full
+        name: Basement
+        icon: mdi:speaker
+        tap_action:
+          action: more-info
+        presentation: summary
+      - type: tile
+        entity: media_player.porch_speaker
+        grid_options:
+          columns: full
+        name: Porch speaker
+        icon: mdi:speaker
+        tap_action:
+          action: more-info
+        presentation: summary
+      - type: tile
+        entity: media_player.gazebo_speaker
+        grid_options:
+          columns: full
+        name: Gazebo speaker
+        icon: mdi:speaker
+        tap_action:
+          action: more-info
+        presentation: summary
+      - type: tile
+        entity: media_player.bathroom_speaker
+        grid_options:
+          columns: full
+        name: Bathroom speaker
+        icon: mdi:speaker
+        tap_action:
+          action: more-info
+        presentation: summary
+      - type: tile
+        entity: media_player.garage
+        grid_options:
+          columns: full
+        name: Garage
+        icon: mdi:speaker
+        tap_action:
+          action: more-info
+        presentation: summary
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#security'
+      name: Security
+      icon: mdi:shield-home
+      minimum_column_width: 320
+      gap: 12
+      cards:
+      - type: tile
+        entity: alarm_control_panel.alarm
+        name: Alarm
+        icon: mdi:shield-home
+        presentation: summary
+        tap_action:
+          action: more-info
+        grid_options:
+          columns: 1
+      - type: grid
+        columns: 2
+        minimum_column_width: 220
+        gap: 8
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: camera.front_door
+          grid_options:
+            columns: 1
+          name: Porch
+          tap_action:
+            action: more-info
+        - type: tile
+          entity: camera.driveway
+          grid_options:
+            columns: 1
+          name: Driveway
+          tap_action:
+            action: more-info
+        - type: tile
+          entity: camera.backyard
+          grid_options:
+            columns: 1
+          name: Backyard
+          tap_action:
+            action: more-info
+        - type: tile
+          entity: camera.side_yard
+          grid_options:
+            columns: 1
+          name: Side
+          tap_action:
+            action: more-info
+      - type: tile
+        entity: binary_sensor.basement_leak_sensor_water_leak
+        grid_options:
+          columns: full
+        name: Basement Leak
+        icon: mdi:water-alert
+        tap_action:
+          action: more-info
+      - type: tile
+        entity: binary_sensor.kitchen_sink_leak_sensor_water_leak
+        grid_options:
+          columns: full
+        name: Kitchen Leak
+        icon: mdi:water-alert
+        tap_action:
+          action: more-info
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#climate-popup'
+      name: Climate
+      icon: mdi:thermometer
+      minimum_column_width: 320
+      gap: 12
+      cards:
+      - type: custom:homeward-thermostat
+        title: Home
+        icon: mdi:thermometer
+        entity: climate.home
+        current_temperature:
+          entity: climate.home
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.home
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: full
+        action: /configured/home#thermostat-home
+        action_label: Adjust
+      - type: custom:homeward-thermostat
+        title: Living Room
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_living_room
+        current_temperature:
+          entity: climate.neviweb130_climate_living_room
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_living_room
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: full
+        action: /configured/home#thermostat-living-room
+        action_label: Adjust
+      - type: custom:homeward-thermostat
+        title: Dining Room
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_salle_a_manger
+        current_temperature:
+          entity: climate.neviweb130_climate_salle_a_manger
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_salle_a_manger
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: full
+        action: /configured/home#thermostat-dining-room
+        action_label: Adjust
+      - type: custom:homeward-thermostat
+        title: Kitchen Floor
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_plancher_cuisine
+        current_temperature:
+          entity: climate.neviweb130_climate_plancher_cuisine
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_plancher_cuisine
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: full
+        action: /configured/home#thermostat-kitchen
+        action_label: Adjust
+      - type: custom:homeward-thermostat
+        title: Master Bedroom
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_chambre_principale
+        current_temperature:
+          entity: climate.neviweb130_climate_chambre_principale
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_chambre_principale
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: full
+        action: /configured/home#thermostat-master-bedroom
+        action_label: Adjust
+      - type: custom:homeward-thermostat
+        title: Eugénie’s Room
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_chambre_eugenie
+        current_temperature:
+          entity: climate.neviweb130_climate_chambre_eugenie
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_chambre_eugenie
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: full
+        action: /configured/home#thermostat-eugenie
+        action_label: Adjust
+      - type: custom:homeward-thermostat
+        title: Bathroom
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_salle_de_bain
+        current_temperature:
+          entity: climate.neviweb130_climate_salle_de_bain
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_salle_de_bain
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: full
+        action: /configured/home#thermostat-bathroom
+        action_label: Adjust
+      - type: custom:homeward-thermostat
+        title: Guest Bedroom
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_chambre_sous_sol
+        current_temperature:
+          entity: climate.neviweb130_climate_chambre_sous_sol
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_chambre_sous_sol
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: full
+        action: /configured/home#thermostat-guest-bedroom
+        action_label: Adjust
+      - type: custom:homeward-thermostat
+        title: Basement/Office
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_sous_sol
+        current_temperature:
+          entity: climate.neviweb130_climate_sous_sol
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_sous_sol
+          field: setpoint_celsius
+        presentation: summary
+        grid_options:
+          columns: full
+        action: /configured/home#thermostat-office
+        action_label: Adjust
+      - type: tile
+        entity: fan.living_room_ceiling_fan
+        grid_options:
+          columns: full
+        name: Ceiling Fan
+        features:
+        - type: fan-speed
+        tap_action:
+          action: more-info
+        presentation: summary
+        icon: mdi:fan
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#more'
+      name: More
+      icon: mdi:view-grid
+      minimum_column_width: 320
+      gap: 12
+      cards:
+      - type: custom:homeward-agenda
+        title: Family
+        calendar_id: CALENDAR_FAMILY_ID
+        timezone: America/Toronto
+        window_seconds: 604800
+        limit: 3
+        empty_label: No events
+        grid_options:
+          columns: full
+      - type: custom:homeward-agenda
+        title: Shared Calendar
+        calendar_id: CALENDAR_FAMILLE_ID
+        timezone: America/Toronto
+        window_seconds: 604800
+        limit: 2
+        empty_label: No events
+        grid_options:
+          columns: full
+      - type: custom:homeward-agenda
+        title: Birthdays
+        calendar_id: CALENDAR_ANNIVERSAIRES_ID
+        timezone: America/Toronto
+        window_seconds: 604800
+        limit: 2
+        empty_label: No events
+        grid_options:
+          columns: full
+      - type: custom:homeward-tasks
+        title: Shopping
+        list_id: LIST_SHOPPING_ID
+        limit: 4
+        empty_label: Your list is clear
+        grid_options:
+          columns: full
+        presentation: preview
+      - type: custom:homeward-tasks
+        title: Costco
+        list_id: LIST_COSTCO_ID
+        limit: 4
+        empty_label: Your list is clear
+        grid_options:
+          columns: full
+        presentation: preview
+      - type: custom:homeward-tasks
+        title: Groceries
+        list_id: LIST_B_ID
+        limit: 4
+        empty_label: Your list is clear
+        grid_options:
+          columns: full
+        presentation: preview
+      - type: custom:homeward-tasks
+        title: Hardware
+        list_id: LIST_A_ID
+        limit: 4
+        empty_label: Your list is clear
+        grid_options:
+          columns: full
+        presentation: preview
+      - type: tile
+        entity: switch.sprinklers_garden_sprinklers
+        grid_options:
+          columns: full
+        name: Garden Sprinklers
+        tap_action:
+          action: more-info
+        icon: mdi:power-plug
+      - type: grid
+        columns: 5
+        minimum_column_width: 120
+        gap: 8
+        grid_options:
+          columns: full
+        cards:
+        - type: tile
+          entity: switch.sprinklers_zone_1
+          grid_options:
+            columns: 1
+          name: Zone 1
+          tap_action:
+            action: more-info
+          icon: mdi:power-plug
+        - type: tile
+          entity: switch.sprinklers_zone_2
+          grid_options:
+            columns: 1
+          name: Zone 2
+          tap_action:
+            action: more-info
+          icon: mdi:power-plug
+        - type: tile
+          entity: switch.sprinklers_zone_3
+          grid_options:
+            columns: 1
+          name: Zone 3
+          tap_action:
+            action: more-info
+          icon: mdi:power-plug
+        - type: tile
+          entity: switch.sprinklers_zone_4
+          grid_options:
+            columns: 1
+          name: Zone 4
+          tap_action:
+            action: more-info
+          icon: mdi:power-plug
+        - type: tile
+          entity: switch.sprinklers_zone_5
+          grid_options:
+            columns: 1
+          name: Zone 5
+          tap_action:
+            action: more-info
+          icon: mdi:power-plug
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#thermostat-home'
+      name: Home Climate
+      icon: mdi:thermometer
+      minimum_column_width: 360
+      gap: 12
+      cards:
+      - type: custom:homeward-thermostat
+        title: Home Climate
+        icon: mdi:thermometer
+        entity: climate.home
+        current_temperature:
+          entity: climate.home
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.home
+          field: setpoint_celsius
+        presentation: detail
+        grid_options:
+          columns: full
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#thermostat-living-room'
+      name: Living Room Heater
+      icon: mdi:thermometer
+      minimum_column_width: 360
+      gap: 12
+      cards:
+      - type: custom:homeward-thermostat
+        title: Living Room Heater
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_living_room
+        current_temperature:
+          entity: climate.neviweb130_climate_living_room
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_living_room
+          field: setpoint_celsius
+        presentation: detail
+        grid_options:
+          columns: full
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#thermostat-dining-room'
+      name: Dining Room Heating
+      icon: mdi:thermometer
+      minimum_column_width: 360
+      gap: 12
+      cards:
+      - type: custom:homeward-thermostat
+        title: Dining Room Heating
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_salle_a_manger
+        current_temperature:
+          entity: climate.neviweb130_climate_salle_a_manger
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_salle_a_manger
+          field: setpoint_celsius
+        presentation: detail
+        grid_options:
+          columns: full
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#thermostat-kitchen'
+      name: Heated Floor
+      icon: mdi:thermometer
+      minimum_column_width: 360
+      gap: 12
+      cards:
+      - type: custom:homeward-thermostat
+        title: Heated Floor
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_plancher_cuisine
+        current_temperature:
+          entity: climate.neviweb130_climate_plancher_cuisine
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_plancher_cuisine
+          field: setpoint_celsius
+        presentation: detail
+        grid_options:
+          columns: full
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#thermostat-master-bedroom'
+      name: Master Bedroom
+      icon: mdi:thermometer
+      minimum_column_width: 360
+      gap: 12
+      cards:
+      - type: custom:homeward-thermostat
+        title: Master Bedroom
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_chambre_principale
+        current_temperature:
+          entity: climate.neviweb130_climate_chambre_principale
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_chambre_principale
+          field: setpoint_celsius
+        presentation: detail
+        grid_options:
+          columns: full
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#thermostat-eugenie'
+      name: Eugénie’s Room
+      icon: mdi:thermometer
+      minimum_column_width: 360
+      gap: 12
+      cards:
+      - type: custom:homeward-thermostat
+        title: Eugénie’s Room
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_chambre_eugenie
+        current_temperature:
+          entity: climate.neviweb130_climate_chambre_eugenie
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_chambre_eugenie
+          field: setpoint_celsius
+        presentation: detail
+        grid_options:
+          columns: full
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#thermostat-bathroom'
+      name: Bathroom
+      icon: mdi:thermometer
+      minimum_column_width: 360
+      gap: 12
+      cards:
+      - type: custom:homeward-thermostat
+        title: Bathroom
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_salle_de_bain
+        current_temperature:
+          entity: climate.neviweb130_climate_salle_de_bain
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_salle_de_bain
+          field: setpoint_celsius
+        presentation: detail
+        grid_options:
+          columns: full
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#thermostat-guest-bedroom'
+      name: Guest Bedroom
+      icon: mdi:thermometer
+      minimum_column_width: 360
+      gap: 12
+      cards:
+      - type: custom:homeward-thermostat
+        title: Guest Bedroom
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_chambre_sous_sol
+        current_temperature:
+          entity: climate.neviweb130_climate_chambre_sous_sol
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_chambre_sous_sol
+          field: setpoint_celsius
+        presentation: detail
+        grid_options:
+          columns: full
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#thermostat-office'
+      name: Basement/Office
+      icon: mdi:thermometer
+      minimum_column_width: 360
+      gap: 12
+      cards:
+      - type: custom:homeward-thermostat
+        title: Basement/Office
+        icon: mdi:thermometer
+        entity: climate.neviweb130_climate_sous_sol
+        current_temperature:
+          entity: climate.neviweb130_climate_sous_sol
+          field: current_temperature_celsius
+        target_temperature:
+          entity: climate.neviweb130_climate_sous_sol
+          field: setpoint_celsius
+        presentation: detail
+        grid_options:
+          columns: full
+- type: sections
+  path: check
+  title: At a glance
+  max_columns: 3
+  minimum_column_width: 320
+  gap: 20
+  sections:
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: 'Batteries '
+      grid_options:
+        columns: full
+      icon: mdi:battery
+    - type: tile
+      entity: sensor.basement_leak_sensor_battery
+      grid_options:
+        columns: full
+      name: 'Basement Leak Sensor '
+      tap_action:
+        action: more-info
+    - type: template
+      content: Garage Door
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: 'Damien’s office door '
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: tile
+      entity: sensor.kitchen_ikea_switch_battery
+      grid_options:
+        columns: full
+      name: Kitchen Switch
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: sensor.sonos_remote_kitchen_battery
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: sensor.bathroom_motion_battery
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: sensor.kitchen_sink_leak_sensor_battery
+      grid_options:
+        columns: full
+      name: Kitchen Sink Leak Sensor
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: sensor.desk_switch_battery
+      grid_options:
+        columns: full
+      name: Desk Remote
+      tap_action:
+        action: more-info
+    - type: template
+      content: Ecobee Bedroom Sensor
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: heading
+      heading: Phones
+      grid_options:
+        columns: full
+      icon: mdi:cellphone
+    - type: tile
+      entity: sensor.pixel_8_battery_level
+      grid_options:
+        columns: full
+      name: Damien’s phone
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: sensor.pixel_8_katarina_battery_level
+      grid_options:
+        columns: full
+      name: Katarina’s phone
+      tap_action:
+        action: more-info
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Leak
+      grid_options:
+        columns: full
+      icon: mdi:water-outline
+    - type: tile
+      entity: binary_sensor.basement_leak_sensor_water_leak
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: binary_sensor.kitchen_sink_leak_sensor_water_leak
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: UPS
+      grid_options:
+        columns: full
+    - type: template
+      content: UPS Battery Charge
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: UPS Input Voltage
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: tile
+      entity: sensor.ups_load
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: template
+      content: UPS Status
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: UPS Status Data
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Hilo
+      grid_options:
+        columns: full
+    - type: tile
+      entity: sensor.meter00_power
+      grid_options:
+        columns: full
+      name: Instant Consumption
+      icon: mdi:transmission-tower-export
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: sensor.defi_hilo
+      grid_options:
+        columns: full
+      name: Energy Challenge
+      icon: mdi:lightning-bolt
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: sensor.recompenses_hilo
+      grid_options:
+        columns: full
+      name: Rewards
+      icon: mdi:hand-coin
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: sensor.notifications_hilo
+      grid_options:
+        columns: full
+      name: Notification
+      icon: mdi:bell
+      tap_action:
+        action: more-info
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Options
+      grid_options:
+        columns: full
+      icon: mdi:wrench
+    - type: tile
+      entity: input_boolean.guests
+      grid_options:
+        columns: full
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: input_boolean.heating_season
+      grid_options:
+        columns: full
+      tap_action:
+        action: toggle
+    - type: template
+      content: Garage Door Contact
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: Presence Simulation
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: tile
+      entity: binary_sensor.bathroom_motion_occupancy
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: sensor.bathroom_motion_illuminance
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Bins
+      grid_options:
+        columns: full
+      icon: mdi:trash-can
+    - type: markdown
+      content: This module needs a supported server capability.
+      grid_options:
+        columns: full
+    - type: markdown
+      content: This module needs a supported server capability.
+      grid_options:
+        columns: full
+    - type: markdown
+      content: This module needs a supported server capability.
+      grid_options:
+        columns: full
+    - type: markdown
+      content: This module needs a supported server capability.
+      grid_options:
+        columns: full
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Fire Tablet
+      grid_options:
+        columns: full
+    - type: tile
+      entity: button.fire_tablet_bring_to_foreground
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: switch.fire_tablet_kiosk_lock
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+      icon: mdi:power-plug
+    - type: tile
+      entity: button.fire_tablet_load_start_url
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: switch.fire_tablet_maintenance_mode
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+      icon: mdi:power-plug
+    - type: tile
+      entity: switch.fire_tablet_motion_detection
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+      icon: mdi:power-plug
+    - type: tile
+      entity: button.fire_tablet_restart_browser
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: template
+      content: Restart Tablet
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: tile
+      entity: number.fire_tablet_screen_brightness
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: number.fire_tablet_screen_off_timer
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: number.fire_tablet_screensaver_brightness
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: number.fire_tablet_screensaver_timer
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: button.fire_tablet_send_to_background
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Fire Tablet
+      grid_options:
+        columns: full
+    - type: tile
+      entity: media_player.fire_tablet
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+      icon: mdi:speaker
+      presentation: summary
+    - type: tile
+      entity: switch.fire_tablet_screen
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+      icon: mdi:power-plug
+    - type: tile
+      entity: switch.fire_tablet_screensaver
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+      icon: mdi:power-plug
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Garage Door
+      grid_options:
+        columns: full
+    - type: tile
+      entity: sensor.konnected_52362c_garage_openings
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: template
+      content: Motion
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: tile
+      entity: binary_sensor.konnected_52362c_motor
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: binary_sensor.konnected_52362c_obstruction
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: binary_sensor.konnected_52362c_synced
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: binary_sensor.konnected_52362c_wall_button
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+- type: sections
+  path: climate
+  title: Climate
+  max_columns: 2
+  minimum_column_width: 320
+  gap: 20
+  sections:
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: custom:homeward-thermostat
+      title: Home Climate
+      icon: mdi:thermometer
+      entity: climate.home
+      current_temperature:
+        entity: climate.home
+        field: current_temperature_celsius
+      target_temperature:
+        entity: climate.home
+        field: setpoint_celsius
+      presentation: summary
+      grid_options:
+        columns: full
+      action: /configured/home#thermostat-home
+      action_label: Adjust
+    - type: custom:homeward-thermostat
+      title: Eugénie’s Room
+      icon: mdi:thermometer
+      entity: climate.neviweb130_climate_chambre_eugenie
+      current_temperature:
+        entity: climate.neviweb130_climate_chambre_eugenie
+        field: current_temperature_celsius
+      target_temperature:
+        entity: climate.neviweb130_climate_chambre_eugenie
+        field: setpoint_celsius
+      presentation: summary
+      grid_options:
+        columns: full
+      action: /configured/home#thermostat-eugenie
+      action_label: Adjust
+    - type: custom:homeward-thermostat
+      title: Dining Room
+      icon: mdi:thermometer
+      entity: climate.neviweb130_climate_salle_a_manger
+      current_temperature:
+        entity: climate.neviweb130_climate_salle_a_manger
+        field: current_temperature_celsius
+      target_temperature:
+        entity: climate.neviweb130_climate_salle_a_manger
+        field: setpoint_celsius
+      presentation: summary
+      grid_options:
+        columns: full
+      action: /configured/home#thermostat-dining-room
+      action_label: Adjust
+    - type: custom:homeward-thermostat
+      title: Heated floor
+      icon: mdi:thermometer
+      entity: climate.neviweb130_climate_plancher_cuisine
+      current_temperature:
+        entity: climate.neviweb130_climate_plancher_cuisine
+        field: current_temperature_celsius
+      target_temperature:
+        entity: climate.neviweb130_climate_plancher_cuisine
+        field: setpoint_celsius
+      presentation: summary
+      grid_options:
+        columns: full
+      action: /configured/home#thermostat-kitchen
+      action_label: Adjust
+    - type: custom:homeward-thermostat
+      title: Basement/Office
+      icon: mdi:thermometer
+      entity: climate.neviweb130_climate_sous_sol
+      current_temperature:
+        entity: climate.neviweb130_climate_sous_sol
+        field: current_temperature_celsius
+      target_temperature:
+        entity: climate.neviweb130_climate_sous_sol
+        field: setpoint_celsius
+      presentation: summary
+      grid_options:
+        columns: full
+      action: /configured/home#thermostat-office
+      action_label: Adjust
+    - type: custom:homeward-thermostat
+      title: Bathroom
+      icon: mdi:thermometer
+      entity: climate.neviweb130_climate_salle_de_bain
+      current_temperature:
+        entity: climate.neviweb130_climate_salle_de_bain
+        field: current_temperature_celsius
+      target_temperature:
+        entity: climate.neviweb130_climate_salle_de_bain
+        field: setpoint_celsius
+      presentation: summary
+      grid_options:
+        columns: full
+      action: /configured/home#thermostat-bathroom
+      action_label: Adjust
+    - type: custom:homeward-thermostat
+      title: Guest Bedroom
+      icon: mdi:thermometer
+      entity: climate.neviweb130_climate_chambre_sous_sol
+      current_temperature:
+        entity: climate.neviweb130_climate_chambre_sous_sol
+        field: current_temperature_celsius
+      target_temperature:
+        entity: climate.neviweb130_climate_chambre_sous_sol
+        field: setpoint_celsius
+      presentation: summary
+      grid_options:
+        columns: full
+      action: /configured/home#thermostat-guest-bedroom
+      action_label: Adjust
+    - type: custom:homeward-thermostat
+      title: Master Bedroom
+      icon: mdi:thermometer
+      entity: climate.neviweb130_climate_chambre_principale
+      current_temperature:
+        entity: climate.neviweb130_climate_chambre_principale
+        field: current_temperature_celsius
+      target_temperature:
+        entity: climate.neviweb130_climate_chambre_principale
+        field: setpoint_celsius
+      presentation: summary
+      grid_options:
+        columns: full
+      action: /configured/home#thermostat-master-bedroom
+      action_label: Adjust
+    - type: custom:homeward-thermostat
+      title: Living Room Heater
+      icon: mdi:thermometer
+      entity: climate.neviweb130_climate_living_room
+      current_temperature:
+        entity: climate.neviweb130_climate_living_room
+        field: current_temperature_celsius
+      target_temperature:
+        entity: climate.neviweb130_climate_living_room
+        field: setpoint_celsius
+      presentation: summary
+      grid_options:
+        columns: full
+      action: /configured/home#thermostat-living-room
+      action_label: Adjust
+- type: sections
+  path: scenes
+  title: Scenes
+  max_columns: 3
+  minimum_column_width: 320
+  gap: 20
+  sections:
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: House
+      grid_options:
+        columns: full
+      icon: mdi:home
+    - type: template
+      content: Turn off all lights
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: Turn off basement
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: Turn off main floor
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Living Room
+      grid_options:
+        columns: full
+      icon: mdi:sofa
+    - type: template
+      content: Daylight
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: In between
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: Cosy
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: Turn off
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Kitchen
+      grid_options:
+        columns: full
+      icon: mdi:knife
+    - type: template
+      content: Night Mode
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: Cozy Mode
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: Cooking Mode
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+- type: sections
+  path: garage
+  title: Garage
+  max_columns: 2
+  minimum_column_width: 320
+  gap: 20
+  sections:
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Garage Door
+      grid_options:
+        columns: full
+      icon: mdi:garage-variant
+    - type: tile
+      entity: cover.konnected_52362c_garage_door
+      grid_options:
+        columns: full
+      icon: mdi:garage
+      features:
+      - type: cover-open-close
+      - type: cover-position
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: light.konnected_52362c_garage_light
+      grid_options:
+        columns: full
+      name: Garage door light
+      icon: mdi:alarm-light
+      tap_action:
+        action: more-info
+      presentation: summary
+    - type: tile
+      entity: light.sw_side_entrance_light_switch_01_salon2
+      grid_options:
+        columns: full
+      name: 'Side light '
+      icon: mdi:coach-lamp
+      tap_action:
+        action: more-info
+      presentation: summary
+    - type: tile
+      entity: lock.konnected_52362c_lock
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+      icon: mdi:lock
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Music
+      grid_options:
+        columns: full
+    - type: tile
+      entity: media_player.garage
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+      icon: mdi:speaker
+      presentation: summary
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: tile
+      entity: camera.garage_high_resolution_channel
+      grid_options:
+        columns: full
+      name: Garage Camera
+      icon: mdi:cctv
+      tap_action:
+        action: more-info
+- type: sections
+  path: lists
+  title: Shopping Lists
+  max_columns: 3
+  minimum_column_width: 320
+  gap: 20
+  sections:
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: custom:homeward-tasks
+      title: 'Costco '
+      list_id: LIST_COSTCO_ID
+      limit: 1000
+      empty_label: Your list is clear
+      grid_options:
+        columns: full
+      presentation: shopping
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: custom:homeward-tasks
+      title: 'Walmart '
+      list_id: LIST_SHOPPING_ID
+      limit: 1000
+      empty_label: Your list is clear
+      grid_options:
+        columns: full
+      presentation: shopping
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: custom:homeward-tasks
+      title: Groceries
+      list_id: LIST_B_ID
+      limit: 1000
+      empty_label: Your list is clear
+      grid_options:
+        columns: full
+      presentation: shopping
+- type: sections
+  path: garden-sprinkler-system
+  title: Garden Sprinkler System
+  max_columns: 3
+  minimum_column_width: 320
+  gap: 20
+  sections:
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Lawn Germination
+      grid_options:
+        columns: full
+    - type: tile
+      entity: input_boolean.gazon_mode_germination
+      grid_options:
+        columns: full
+      name: Germination Mode
+      icon: mdi:sprout
+      features:
+      - type: toggle
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: input_datetime.gazon_date_de_semis
+      grid_options:
+        columns: full
+      name: Seeding Date
+      icon: mdi:calendar-sprout
+      tap_action:
+        action: more-info
+    - type: markdown
+      content: System status is unavailable.
+      grid_options:
+        columns: full
+    - type: template
+      content: Germination Watering
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: End of Cycle (Day 35)
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: Finish Now
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: template
+      content: New Seeding Today
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: System Controls
+      grid_options:
+        columns: full
+    - type: template
+      content: Normal Watering
+      secondary: Unavailable in this installation
+      icon: mdi:information-outline
+      tap_action:
+        action: none
+      grid_options:
+        columns: full
+    - type: tile
+      entity: switch.sprinklers_garden_sprinklers
+      grid_options:
+        columns: full
+      name: Full Cycle
+      icon: mdi:play-circle
+      features:
+      - type: toggle
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: switch.sprinklers_auto_advance
+      grid_options:
+        columns: full
+      name: Auto Advance
+      icon: mdi:skip-next-circle
+      features:
+      - type: toggle
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: number.sprinklers_sprinkler_multiplier
+      grid_options:
+        columns: full
+      name: Duration Multiplier
+      icon: mdi:multiplication
+      features:
+      - type: numeric-input
+      tap_action:
+        action: more-info
+    - type: heading
+      heading: System Overview
+      grid_options:
+        columns: full
+    - type: markdown
+      content: System status is unavailable.
+      grid_options:
+        columns: full
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Zone Controls
+      grid_options:
+        columns: full
+    - type: tile
+      entity: switch.sprinklers_zone_1
+      grid_options:
+        columns: full
+      name: Front Lawn
+      icon: mdi:sprinkler
+      features:
+      - type: toggle
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: number.sprinklers_zone_1_duration
+      grid_options:
+        columns: full
+      name: Zone 1 Duration
+      icon: mdi:timer-settings
+      features:
+      - type: numeric-input
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: switch.sprinklers_zone_2
+      grid_options:
+        columns: full
+      name: Front Beds and Left Side
+      icon: mdi:sprinkler
+      features:
+      - type: toggle
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: number.sprinklers_zone_2_duration
+      grid_options:
+        columns: full
+      name: Zone 2 Duration
+      icon: mdi:timer-settings
+      features:
+      - type: numeric-input
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: switch.sprinklers_zone_3
+      grid_options:
+        columns: full
+      name: Backyard
+      icon: mdi:sprinkler
+      features:
+      - type: toggle
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: number.sprinklers_zone_3_duration
+      grid_options:
+        columns: full
+      name: Zone 3 Duration
+      icon: mdi:timer-settings
+      features:
+      - type: numeric-input
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: switch.sprinklers_zone_4
+      grid_options:
+        columns: full
+      name: Behind the Pool
+      icon: mdi:sprinkler
+      features:
+      - type: toggle
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: number.sprinklers_zone_4_duration
+      grid_options:
+        columns: full
+      name: Zone 4 Duration
+      icon: mdi:timer-settings
+      features:
+      - type: numeric-input
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: switch.sprinklers_zone_5
+      grid_options:
+        columns: full
+      name: Right Side
+      icon: mdi:sprinkler
+      features:
+      - type: toggle
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: number.sprinklers_zone_5_duration
+      grid_options:
+        columns: full
+      name: Zone 5 Duration
+      icon: mdi:timer-settings
+      features:
+      - type: numeric-input
+      tap_action:
+        action: more-info
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Zone Activation
+      grid_options:
+        columns: full
+    - type: tile
+      entity: switch.sprinklers_enable_zone_1
+      grid_options:
+        columns: full
+      name: Include Zone 1 in Cycles
+      icon: mdi:checkbox-marked-circle
+      features:
+      - type: toggle
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: switch.sprinklers_enable_zone_2
+      grid_options:
+        columns: full
+      name: Include Zone 2 in Cycles
+      icon: mdi:checkbox-marked-circle
+      features:
+      - type: toggle
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: switch.sprinklers_enable_zone_3
+      grid_options:
+        columns: full
+      name: Include Zone 3 in Cycles
+      icon: mdi:checkbox-marked-circle
+      features:
+      - type: toggle
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: switch.sprinklers_enable_zone_4
+      grid_options:
+        columns: full
+      name: Include Zone 4 in Cycles
+      icon: mdi:checkbox-marked-circle
+      features:
+      - type: toggle
+      tap_action:
+        action: more-info
+    - type: tile
+      entity: switch.sprinklers_enable_zone_5
+      grid_options:
+        columns: full
+      name: Include Zone 5 in Cycles
+      icon: mdi:checkbox-marked-circle
+      features:
+      - type: toggle
+      tap_action:
+        action: more-info
+    - type: heading
+      heading: Quick Actions
+      grid_options:
+        columns: full
+    - type: button
+      name: Reset Multiplier
+      grid_options:
+        columns: full
+      icon: mdi:restore
+      tap_action:
+        action: none
+    - type: button
+      name: Emergency Stop All
+      grid_options:
+        columns: full
+      icon: mdi:stop-circle
+      tap_action:
+        action: none
+    - type: button
+      name: Enable All Zones
+      grid_options:
+        columns: full
+      icon: mdi:check-all
+      tap_action:
+        action: none
+- type: sections
+  path: backyard
+  title: Backyard
+  max_columns: 1
+  minimum_column_width: 320
+  gap: 20
+  sections:
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Backyard
+      grid_options:
+        columns: full
+      icon: mdi:palm-tree
+    - type: tile
+      entity: media_player.gazebo_speaker
+      grid_options:
+        columns: full
+      tap_action:
+        action: more-info
+      icon: mdi:speaker
+      presentation: summary
+    - type: tile
+      entity: switch.gazebo_lights
+      grid_options:
+        columns: full
+      icon: mdi:string-lights
+      tap_action:
+        action: toggle
+    - type: tile
+      entity: camera.backyard_low_resolution_channel
+      grid_options:
+        columns: full
+      name: Camera
+      icon: mdi:cctv
+      tap_action:
+        action: more-info
+  - type: grid
+    column_span: 1
+    minimum_column_width: 320
+    gap: 12
+    cards:
+    - type: heading
+      heading: Controls
+      grid_options:
+        columns: full
+    - type: tile
+      entity: switch.sprinklers_garden_sprinklers
+      grid_options:
+        columns: full
+      name: Irrigation
+      icon: mdi:sprinkler
+      tap_action:
+        action: navigate
+        navigation_path: /configured/garden-sprinkler-system

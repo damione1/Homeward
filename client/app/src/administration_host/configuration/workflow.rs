@@ -58,13 +58,13 @@ impl Field {
     }
     fn label(self) -> &'static str {
         match self {
-            Self::Source => "Source exacte fournie",
-            Self::Sql => "Version SQL capturée",
-            Self::Active => "Génération active capturée",
-            Self::Workspace => "Fichiers observés capturés",
-            Self::Outcome => "Issue de la tentative",
-            Self::CurrentActive => "Génération active relue",
-            Self::History => "Génération historique",
+            Self::Source => "Exact Source Provided",
+            Self::Sql => "Captured SQL Version",
+            Self::Active => "Captured Active Generation",
+            Self::Workspace => "Captured Observed Files",
+            Self::Outcome => "Attempt Outcome",
+            Self::CurrentActive => "Reloaded Active Generation",
+            Self::History => "Historical Generation",
         }
     }
 }
@@ -116,7 +116,8 @@ impl Draft {
             }
         }
         if self.stage() == EditStage::Conflict {
-            self.notice = "Les références ont changé. Relisez-les, puis résolvez explicitement avant de confirmer.";
+            self.notice =
+                "References changed. Reload them, then resolve explicitly before confirming.";
         }
     }
     fn mode(&self) -> Mode {
@@ -340,19 +341,19 @@ impl Workflow {
         vec![
             action(
                 ProAdminAction::Preview,
-                "Préparer un candidat et son aperçu",
+                "Prepare a Candidate and Its Preview",
                 self.synchronized && self.active.is_none(),
                 false,
             ),
             action(
                 ProAdminAction::Save,
-                "Fournir la source opérationnelle",
+                "Provide Operational Source",
                 enabled,
                 false,
             ),
             action(
                 ProAdminAction::Restore,
-                "Restaurer une génération",
+                "Restore a Generation",
                 enabled,
                 false,
             ),
@@ -421,10 +422,10 @@ impl Workflow {
             receipt: None,
             notice: match mode {
                 Mode::Write => {
-                    "Fournissez la source exacte. Les métadonnées protégées ne sont pas une source éditable."
+                    "Provide the exact source. Protected metadata is not an editable source."
                 }
                 Mode::Restore => {
-                    "Choisissez une génération complète. La restauration crée une nouvelle révision après confirmation."
+                    "Choose a complete generation. Restoring creates a new revision after confirmation."
                 }
             },
         }));
@@ -452,12 +453,12 @@ impl Workflow {
         }
         let text = Zeroizing::new(text);
         if text.len() > 1_048_576 {
-            draft.notice = "La source dépasse la limite de 1 Mio.";
+            draft.notice = "The source exceeds the 1 MiB limit.";
             return;
         }
         draft.text = text;
         draft.receipt = None;
-        draft.notice = "Source fournie explicitement ; rien n’est envoyé avant confirmation.";
+        draft.notice = "Source explicitly provided; nothing will be sent before confirmation.";
     }
     pub fn choose(&mut self, field: i32, option: i32) {
         if self.active.is_some() {
@@ -488,7 +489,7 @@ impl Workflow {
         };
         if let Edit::Restore { historical, .. } = &mut draft.edit {
             *historical = Some(value);
-            draft.notice = "Génération sélectionnée. La restauration n’est pas encore envoyée.";
+            draft.notice = "Generation selected. Restore has not been sent yet.";
         }
     }
     pub fn editor_action(&mut self, value: ProAdminAction) -> bool {
@@ -581,7 +582,7 @@ impl Workflow {
         let kind = match &mut draft.edit {
             Edit::Write(value) => {
                 let Ok(source) = UserSource::supplied(draft.text.as_bytes().to_vec()) else {
-                    draft.notice = "Fournissez une source non vide de 1 Mio maximum.";
+                    draft.notice = "Provide a nonempty source of at most 1 MiB.";
                     return;
                 };
                 if value.supply(source).is_err() {
@@ -590,8 +591,7 @@ impl Workflow {
                 match value.prepare_write(current) {
                     Ok(request) => JobKind::Write(request),
                     Err(_) => {
-                        draft.notice =
-                            "Les préconditions ont changé. Relisez et résolvez explicitement.";
+                        draft.notice = "Preconditions changed. Reload and resolve explicitly.";
                         return;
                     }
                 }
@@ -603,12 +603,11 @@ impl Workflow {
             } => {
                 if !anchor.matches(current) {
                     *stage = EditStage::Conflict;
-                    draft.notice =
-                        "Les préconditions ont changé. Relisez et résolvez explicitement.";
+                    draft.notice = "Preconditions changed. Reload and resolve explicitly.";
                     return;
                 }
                 let Some(historical) = historical else {
-                    draft.notice = "Sélectionnez une génération complète.";
+                    draft.notice = "Select a complete generation.";
                     return;
                 };
                 let request = wire::RestoreDocumentRequest {
@@ -629,7 +628,7 @@ impl Workflow {
                 JobKind::Restore(request)
             }
         };
-        draft.notice = "Tentative en cours ; aucune seconde écriture ne sera envoyée.";
+        draft.notice = "Attempt in progress; no second write will be sent.";
         if !self.queue(kind) {
             self.uncertain();
         }
@@ -640,7 +639,7 @@ impl Workflow {
                 Edit::Write(value) => value.uncertain(),
                 Edit::Restore { stage, .. } => *stage = EditStage::Uncertain,
             }
-            draft.notice = "Résultat inconnu. Relisez l’état sans renvoyer l’écriture, puis résolvez explicitement.";
+            draft.notice = "Outcome unknown. Reload the state without resubmitting the write, then resolve explicitly.";
         }
     }
     pub fn accept(&mut self, completion: Completion) -> bool {
@@ -722,14 +721,14 @@ impl Workflow {
                     if let Edit::Restore { historical, .. } = &mut draft.edit {
                         *historical = None;
                     }
-                    draft.notice = "Choisissez une génération complète avant de confirmer.";
+                    draft.notice = "Choose a complete generation before confirming.";
                 }
             }
             Ok(Reply::Read { purpose, capture }) => {
                 if self.snapshot_admission(&capture) != Ok(true) {
                     self.synchronized = false;
                     if let Some(draft) = &mut self.draft {
-                        draft.notice = "La relecture est plus ancienne ou contredit les références connues. Aucune résolution n’est appliquée ; relisez de nouveau.";
+                        draft.notice = "The new reading is older or contradicts known references. No resolution was applied; reload again.";
                     }
                     if let Some(planner) = &mut self.planner {
                         planner.failed();
@@ -761,7 +760,7 @@ impl Workflow {
                         draft.edit = edit;
                         draft.captured = current;
                         draft.receipt = None;
-                        draft.notice = "Références relues et résolution explicite. Une nouvelle confirmation reste nécessaire.";
+                        draft.notice = "References reloaded and explicitly resolved. A new confirmation is still required.";
                     }
                 }
             }
@@ -788,7 +787,7 @@ impl Workflow {
                 }
                 if let Some(draft) = &mut self.draft {
                     if completion.effect == Effect::Read {
-                        draft.notice = "Lecture indisponible. Les références et le résultat précédent ne sont pas modifiés.";
+                        draft.notice = "Reading unavailable. References and the previous result are unchanged.";
                         return false;
                     }
                     match error {
@@ -797,7 +796,7 @@ impl Workflow {
                                 Edit::Write(value) => value.conflict_before_commit(),
                                 Edit::Restore { stage, .. } => *stage = EditStage::Conflict,
                             }
-                            draft.notice = "Conflit de références. Relisez et résolvez sans écraser automatiquement.";
+                            draft.notice = "Reference conflict. Reload and resolve without automatic overwrite.";
                         }
                         Error::Rejected => {
                             match &mut draft.edit {
@@ -806,7 +805,7 @@ impl Workflow {
                                     *stage = EditStage::Completed(Outcome::RejectedBeforeCommit)
                                 }
                             }
-                            draft.notice = "Source refusée avant enregistrement. Relisez l’état avant une nouvelle confirmation.";
+                            draft.notice = "Source rejected before saving. Reload the state before confirming again.";
                         }
                         Error::Uncertain | Error::Invalid => self.uncertain(),
                         Error::Denied => unreachable!(),
@@ -818,11 +817,11 @@ impl Workflow {
     }
     pub fn title(&self) -> &'static str {
         if self.planner.is_some() {
-            return "Préparer un plan de configuration";
+            return "Prepare a Configuration Plan";
         }
         match self.draft.as_ref().map(|value| value.mode()) {
-            Some(Mode::Write) => "Source opérationnelle explicite",
-            Some(Mode::Restore) => "Restaurer une génération",
+            Some(Mode::Write) => "Explicit Operational Source",
+            Some(Mode::Restore) => "Restore a Generation",
             None => "Configuration",
         }
     }
@@ -837,7 +836,7 @@ impl Workflow {
                 .as_ref()
                 .is_some_and(|draft| draft.stage() == EditStage::Draft)
         {
-            return "Suivi de configuration non synchronisé. Aucune confirmation n’est admise avant une lecture et un abonnement valides.";
+            return "Configuration tracking is not synchronized. Confirmation requires a valid reading and subscription.";
         }
         self.draft.as_ref().map_or("", |value| value.notice)
     }
@@ -902,11 +901,11 @@ impl Workflow {
             fields.push(field(
                 Field::Outcome,
                 format!(
-                    "{} · génération annoncée {}",
+                    "{} · reported generation {}",
                     receipt.outcome.label(),
                     receipt
                         .target_generation
-                        .map_or_else(|| "non fournie".to_owned(), |value| value.to_string())
+                        .map_or_else(|| "not provided".to_owned(), |value| value.to_string())
                 ),
                 false,
             ));
@@ -943,12 +942,12 @@ impl Workflow {
                 token: i32::try_from(index + 1).expect("bounded history"),
                 field_token: Field::History as i32,
                 label: format!(
-                    "Génération {} · {}",
+                    "Generation {} · {}",
                     value.generation.revision,
                     if value.availability == wire::GenerationAvailability::Complete {
-                        "complète"
+                        "complete"
                     } else {
-                        "partiellement purgée"
+                        "partially purged"
                     }
                 )
                 .into(),
@@ -977,30 +976,30 @@ impl Workflow {
             action(
                 ProAdminAction::Save,
                 match draft.mode() {
-                    Mode::Write => "Confirmer l’écriture",
-                    Mode::Restore => "Confirmer la restauration",
+                    Mode::Write => "Confirm Write",
+                    Mode::Restore => "Confirm Restore",
                 },
                 ready,
                 true,
             ),
             action(
                 ProAdminAction::Refresh,
-                "Relire l’état sans écrire",
+                "Reload State Without Writing",
                 available,
                 false,
             ),
             action(
                 ProAdminAction::Resolve,
-                "Relire et préparer une nouvelle tentative",
+                "Reload and Prepare a New Attempt",
                 available,
                 false,
             ),
-            action(ProAdminAction::Cancel, "Fermer", true, false),
+            action(ProAdminAction::Cancel, "Close", true, false),
         ];
         if draft.next_history.is_some() {
             rows.push(action(
                 ProAdminAction::More,
-                "Générations suivantes",
+                "Next Generations",
                 available,
                 false,
             ));
@@ -1024,17 +1023,14 @@ fn action(
 fn field(field: Field, value: String, editable: bool) -> ProAdminField {
     let (description, kind) = match field {
         Field::Source => (
-            "Octets fournis par vous ; jamais reconstruits depuis les métadonnées",
+            "Bytes provided by you; never reconstructed from metadata",
             ProAdminFieldKind::Multiline,
         ),
         Field::Sql | Field::Active | Field::Workspace | Field::CurrentActive | Field::History => (
-            "Référence distincte fournie par le serveur",
+            "Separate server-provided reference",
             ProAdminFieldKind::Plain,
         ),
-        Field::Outcome => (
-            "Résultat communiqué pour cette tentative",
-            ProAdminFieldKind::Plain,
-        ),
+        Field::Outcome => ("Result Reported for This Attempt", ProAdminFieldKind::Plain),
     };
     ProAdminField {
         token: field as i32,
@@ -1498,7 +1494,7 @@ pub(super) mod tests {
             .find(|value| value.token == Field::Source as i32)
             .unwrap();
         assert!(!source.editable);
-        assert!(source.description.starts_with("Octets fournis par vous"));
+        assert!(source.description.starts_with("Bytes provided by you"));
         assert_eq!(
             &*workflow.draft.as_ref().unwrap().text,
             "# exact supplied bytes\n"

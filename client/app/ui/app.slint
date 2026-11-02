@@ -1,9 +1,9 @@
 export { KitFormValidation, HtmlInputKind, NumberInputFormat, KitInputConstraints, KitValidationResult, KitValidityState } from "@kit/kit.slint";
-import { KitButton, KitSelect, KitTheme, KitThemes, KitCard, KitCardHeader, KitUrlField,
+import { KitDialogSurface, KitDialogPanel, KitIconButton, KitButton, KitSelect, KitTheme, KitThemes, KitThemeContext, KitCard, KitCardHeader, KitUrlField,
     KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess,
     KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
-    KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest, IconKind } from "@kit/kit.slint";
-import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction } from "@kit-pro/kit-pro.slint";
+    KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest } from "@kit/kit.slint";
+import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro/kit-pro.slint";
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
 import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
@@ -12,7 +12,7 @@ import { NotificationRow } from "@kit/kit.slint";
 import { HomewardAdministration } from "administration.slint";
 import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField, ProAdminChoice } from "@kit-pro/kit-pro.slint";
 export { ProAdminFieldKind } from "@kit-pro/kit-pro.slint";
-export { TableColumn } from "@kit/kit.slint";
+export { IconGlyph, KitGlyphs, TableColumn } from "@kit/kit.slint";
 import { ProVideoAction } from "@kit-pro/kit-pro.slint";
 import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-pro/kit-pro.slint";
 import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro/kit-pro.slint";
@@ -21,8 +21,16 @@ import { HomewardHistory, HistoryPresentation, HistoryStatistic } from "history.
 import { HomewardMedia } from "media.slint";
 import { ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue } from "@kit-pro/kit-pro.slint";
 import { ProChartPhase, ProChartSeries, ProChartRangeGesture } from "@kit-pro/kit-pro.slint";
+import { KitGlyphs } from "@kit/kit.slint";
+import { LucideTime } from "@kit/icons/lucide/time.slint";
+import { LucideDevices } from "@kit/icons/lucide/devices.slint";
+import { LucideHome } from "@kit/icons/lucide/home.slint";
+import { LucideNavigation } from "@kit/icons/lucide/navigation.slint";
+export { LucideHome } from "@kit/icons/lucide/home.slint";
 import { HomewardSkin } from "skin.slint";
+import { ProDashboardWidget, ProDashboardWidgetKind, ProLayoutSpanRule, ProLayoutMetricsPolicy } from "@kit-pro/kit-pro.slint";
 import { HomewardDevices } from "device-cards.slint";
+import { HomewardDeviceDetail } from "device-detail.slint";
 import { HomewardDashboard } from "native-dashboard.slint";
 import { HomewardConfirmation } from "native-confirmation.slint";
 import { HomewardPopup } from "native-popup.slint";
@@ -32,12 +40,17 @@ export enum RoomView { cards, list }
 export enum BodyFocus { read, inventory, back, settings, lists, calendars, cameras, popup }
 
 export component HomewardWindow inherits Window {
-    title: "Homeward · Développement";
+    in property <string> window-title: "Homeward";
+    title: root.window-title;
     preferred-width: 1280px; preferred-height: 800px;
     min-width: 320px; min-height: 400px;
     background: root.theme.canvas;
     in-out property <bool> dark-mode;
-    in property <KitTheme> theme: HomewardSkin.theme(root.dark-mode, root.opaque-surfaces, max(root.large-text ? 2 : 1, root.default-font-size / 14px), root.reduced-motion);
+    in property <KitTheme> theme: HomewardSkin.theme(root.dark-mode, root.opaque-surfaces, max(root.large-text ? 2 : 1, 1rem / 14px), root.reduced-motion);
+    // The 0.5 context supplies defaults to application-composed children too.
+    // Keep it window-local and reactive to appearance and text-size changes.
+    init => { KitThemeContext.current = root.theme; }
+    changed theme => { KitThemeContext.current = root.theme; }
     in-out property <string> server-draft;
     in-out property <string> certificate-draft;
     in-out property <bool> show-endpoint: true;
@@ -55,7 +68,7 @@ export component HomewardWindow inherits Window {
     in property <string> cache-error;
     in property <[TableRow]> cache-rows;
     in-out property <int> cache-active-index: -1;
-    private property <length> cache-row-height: KitMetrics.control-height(ControlSize.medium, root.theme.text-scale) + 8px;
+    private property <length> cache-row-height: KitMetrics.control-height(root.theme, ControlSize.medium) + 8px;
     in property <string> session-title;
     in property <string> session-description;
     in property <AlertSeverity> session-severity: AlertSeverity.success;
@@ -109,7 +122,7 @@ export component HomewardWindow inherits Window {
     callback cameras-viewport(bool);
     callback cameras-navigate(NavigationStep);
     callback cameras-expire(int);
-    private property <bool> camera-interactive:root.background-interactive && root.page == ViewPage.cameras;
+    private property <bool> camera-interactive:root.content-interactive && root.page == ViewPage.cameras;
     changed camera-interactive=>{root.cameras-interactive(root.camera-interactive);}
     public function cameras-scroll-to(y:length) {cameras-pane.scroll-to(y);}
     out property <length> cameras-scroll-y:cameras-pane.scroll-y;
@@ -147,7 +160,7 @@ export component HomewardWindow inherits Window {
     public function calendars-focus-editor() { calendars-pane.focus-editor(); }
     public function calendars-scroll-to(y: length) { calendars-pane.scroll-to(y); }
     out property <length> calendars-scroll-y: calendars-pane.scroll-y;
-    private property <bool> calendar-interactive: root.background-interactive && root.page == ViewPage.calendars;
+    private property <bool> calendar-interactive: root.content-interactive && root.page == ViewPage.calendars;
     changed calendar-interactive => { root.calendars-interactive(root.calendar-interactive); }
 
     in-out property <bool> opaque-surfaces: true;
@@ -157,11 +170,16 @@ export component HomewardWindow inherits Window {
     in property <int> lists-generation;
     in-out property <int> lists-privacy-generation;
     in-out property <int> lists-list-token;
+    in-out property <string> lists-confirmed-add-id;
     in-out property <string> lists-create-draft;
     in-out property <string> lists-rename-draft;
     in-out property <string> lists-add-draft;
     in property <[ContentItem]> lists-catalog;
     in property <[ProTaskRow]> lists-tasks;
+    in property <[OptionRow]> lists-options;
+    in property <int> lists-option-index: -1;
+    in property <[ProTaskRow]> lists-grocery-rows;
+    in property <[ProGrocerySuggestion]> lists-suggestions;
     in property <bool> lists-catalog-ready;
     in property <bool> lists-write-ready;
     in property <bool> lists-busy;
@@ -178,10 +196,17 @@ export component HomewardWindow inherits Window {
     in-out property <string> lists-draft;
     out property <bool> lists-editor-focused: lists-pane.editor-focused;
     out property <length> lists-scroll-y: lists-pane.scroll-y;
+    pure callback lists-filter-options([OptionRow],string) -> [OptionRow];
+    pure callback lists-find-option([OptionRow],string) -> int;
     callback lists-choose(int,int);
     callback lists-select-task(int,int);
     callback lists-edit(int,int,string);
     callback lists-complete(int,int,bool);
+    callback lists-grocery-complete(int,int,int,int,bool);
+    callback lists-grocery-select(int,int,int,int);
+    callback lists-grocery-remove(int,int,int,int);
+    callback lists-grocery-quick-add(int,int,int,int);
+    callback lists-grocery-add(int,int,string);
     callback lists-action(int,int,ProTaskAction);
     callback lists-create(int,string);
     callback lists-rename(int,string);
@@ -192,8 +217,10 @@ export component HomewardWindow inherits Window {
     public function lists-focus-editor() { lists-pane.focus-editor(); }
     public function lists-scroll-to(y: length) { lists-pane.scroll-to(y); }
     in property <ViewPage> page: ViewPage.home;
-    in property <string> page-title: "Accueil";
-    in property <string> dashboard-title: "Accueil";
+    in property <string> page-title: "Home";
+    in property <ViewPage> detail-background-page: ViewPage.home;
+    private property <ViewPage> displayed-page: root.page == ViewPage.detail ? root.detail-background-page : root.page;
+    in property <string> dashboard-title: "Home";
     in property <string> dashboard-status;
     in property <bool> dashboard-synthetic;
     in property <[OptionRow]> dashboard-choices;
@@ -205,6 +232,8 @@ export component HomewardWindow inherits Window {
     callback dashboard-choice-step(NavigationStep);
     callback dashboard-choice-dismiss(CloseReason);
     callback dashboard-choice-typeahead(string);
+    in property <string> greeting: "Welcome";
+    callback quick-navigation(ViewPage);
     in property <string> local-clock;
     in property <string> local-date;
     in property <[OptionRow]> navigation-rows;
@@ -215,11 +244,15 @@ export component HomewardWindow inherits Window {
     in property <[ProObservationRow]> home-observations;
     in property <[ProDeviceRow]> device-cards;
     in property <[ProLayoutNode]> home-layout-nodes;
+    in property <[ProLayoutNode]> rooms-layout-nodes;
     in property <[ProLayoutNode]> room-layout-nodes;
     in property <[ProLayoutNode]> popup-layout-nodes;
     in property <DialogState> native-popup;
     in property <int> native-popup-generation;
     in property <string> native-popup-title;
+    in property <bool> native-popup-detail;
+    in property <bool> native-popup-can-back;
+    callback native-popup-back(int);
     in property <bool> native-page;
     callback native-popup-dismiss(int,CloseReason);
     callback recipe-gesture(int,int,ProRecipeGesture);
@@ -242,8 +275,9 @@ export component HomewardWindow inherits Window {
     in property <string> recipe-confirmation-title;
     in property <string> recipe-confirmation-message;
     in property <string> recipe-confirmation-description;
-    pure callback layout-arrange([ProLayoutInput],int,int) -> [ProLayoutCell];
+    pure callback layout-arrange([ProLayoutInput],int,int,length) -> [ProLayoutCell];
     in property <bool> commands-ready;
+    in property <bool> has-configured-layout;
     in property <string> action-feedback;
     in-out property <RoomView> room-view: RoomView.cards;
     changed projection-version => { root.room-view = RoomView.cards; }
@@ -259,6 +293,8 @@ export component HomewardWindow inherits Window {
     in property <int> home-generation;
     in property <bool> view-loaded;
     in property <string> detail-title;
+    private property <bool> show-detail-history;
+    changed detail-title => { root.show-detail-history = false; }
     in property <string> detail-value;
     in property <string> detail-quality;
     in property <string> detail-date;
@@ -281,6 +317,10 @@ export component HomewardWindow inherits Window {
     in property <bool> media-editable;
     in property <int> media-generation;
     in property <ProMediaPresentation> media-data;
+    in property <bool> media-progress-known;
+    in property <float> media-progress;
+    in property <string> media-position-label;
+    in property <string> media-duration-label;
     in property <[ProMediaAction]> media-actions;
     in property <[ProMediaOption]> media-options;
     in property <[ProDeviceValue]> media-values;
@@ -298,7 +338,7 @@ export component HomewardWindow inherits Window {
     callback media-expire-artwork(int);
     callback media-set-interactive(bool);
     callback media-private-cleared();
-    private property <bool> media-interactive: root.background-interactive && root.view-loaded && root.page == ViewPage.detail;
+    private property <bool> media-interactive: root.content-interactive && root.view-loaded && root.page == ViewPage.detail;
     changed media-interactive => { root.media-set-interactive(root.media-interactive); }
     in property <string> preferences-status;
     in property <int> companion-generation;
@@ -322,11 +362,12 @@ export component HomewardWindow inherits Window {
     callback companion-navigate(NavigationStep);
     in property <NotificationPresentation> notification-view;
     in property <[NotificationRow]> notification-rows;
+    in property <bool> notification-has-unread;
     callback notification-visible(bool);
     callback notification-action(int,NotificationAction);
     callback notification-row-action(int,int,NotificationRowAction);
     callback notification-target(int);
-    in property <string> admin-title: "Réglages du serveur";
+    in property <string> admin-title: "Server Settings";
     in property <string> admin-status;
     in property <string> admin-notice;
     in property <ProAdminStage> admin-stage: ProAdminStage.loading;
@@ -344,7 +385,7 @@ export component HomewardWindow inherits Window {
     in property <string> admin-editor-notice;
     in property <[ProAdminActionRow]> admin-actions;
     in property <[ProAdminActionRow]> admin-editor-actions;
-    private property <bool> admin-panel-visible: root.page == ViewPage.settings && root.access-stage == ProAccessStage.connected && root.background-interactive;
+    private property <bool> admin-panel-visible: root.page == ViewPage.settings && root.access-stage == ProAccessStage.connected && root.content-interactive;
     changed admin-panel-visible => { root.admin-visible(root.admin-panel-visible); root.companion-visible(root.admin-panel-visible); root.notification-visible(root.admin-panel-visible); }
     callback admin-visible(bool);
     callback admin-choose-section(int,int);
@@ -356,6 +397,7 @@ export component HomewardWindow inherits Window {
     callback admin-editor-action(int,int,ProAdminAction);
     private property <bool> connected: root.access-stage == ProAccessStage.connected;
     private property <bool> background-interactive: root.connected && !root.native-popup.open && !root.recipe-confirmation.open;
+    private property <bool> content-interactive: root.background-interactive && !root.navigation-drawer.open;
     callback private-view-cleared(bool);
     callback dashboard-changed();
     callback navigation-open();
@@ -379,10 +421,37 @@ export component HomewardWindow inherits Window {
     callback preferences-changed(bool,bool,bool,bool);
     callback system-back() -> bool;
     callback content-focus();
-    public function take-shell-focus(target: ProShellFocus) { if (root.connected && !root.show-endpoint) { shell.take-focus(target); } }
+    callback dashboard-widgets-changed();
+    callback dashboard-widget-activate(int,int);
+    callback dashboard-task-complete(int,int,int,int,bool);
+    callback dashboard-agenda-select(int,int,int,int);
+    callback dashboard-observation-open(int,int,int,int);
+    callback dashboard-widget-focus(int,int,bool);
+    callback dashboard-focus-first() -> bool;
+    callback dashboard-widget-focus-requested();
+    callback dashboard-widget-focus-applied(int,int,int);
+    callback dashboard-widget-focus-revealed(int,int,length,length);
+    callback dashboard-observation-focus(int,int,int,int,bool);
+    in property <FocusRequest> widget-focus;
+    in property <FocusRequest> widget-item-focus;
+    changed recipe-focus => { root.dashboard-widget-focus-requested(); }
+
+    changed page => { root.dashboard-widgets-changed(); }
+    changed room-view => { root.dashboard-widgets-changed(); }
+    changed native-popup => { root.dashboard-widgets-changed(); }
+    public function take-shell-focus(target: ProShellFocus) {
+        if (root.connected && !root.show-endpoint) {
+            shell.take-focus(target);
+        }
+    }
     public function take-body-focus(target: BodyFocus) {
         if (!root.connected || root.show-endpoint) { return; }
-        if (target == BodyFocus.read) { if (!root.view-loaded) { read-button.take-focus(); } else { shell.take-focus(ProShellFocus.workspace); } }
+        if (target == BodyFocus.read) {
+            if (!root.view-loaded) { read-button.take-focus(); }
+            else if (root.page == ViewPage.home) {
+                if (!root.dashboard-focus-first()) { shell.take-focus(ProShellFocus.search); }
+            } else { root.take-shell-focus(ProShellFocus.workspace); }
+        }
         else if (target == BodyFocus.inventory) { table.take-focus(); }
         else if (target == BodyFocus.back) { if (root.page == ViewPage.detail) { detail-back.take-focus(); } else if (root.page == ViewPage.room && root.room-view == RoomView.cards) { room-back.take-focus(); } else { back-button.take-focus(); } }
         else if (target == BodyFocus.lists) { lists-pane.take-focus(); }
@@ -390,6 +459,13 @@ export component HomewardWindow inherits Window {
         else if (target == BodyFocus.cameras) { cameras-pane.focus-catalog(); }
         else if (target == BodyFocus.settings) { theme-button.take-focus(); }
         else if (target == BodyFocus.popup) { popup-dialog.take-focus(); }
+    }
+    // Native Back may arrive without the popup's keyboard focus. Ask the
+    // currently displayed owner directly; never synthesize another key event.
+    public function dismiss-selection-popover() -> bool {
+        if (root.page == ViewPage.lists) { return lists-pane.dismiss-selection-popover(); }
+        if (root.page == ViewPage.calendars) { return calendars-pane.dismiss-selection-popover(); }
+        return false;
     }
     public function reset-list() { root.cache-active-index = 0; table.reveal-active(); }
     public function restore-board-scroll(home-offset: float, room-offset: float, popup-offset: float) {
@@ -400,6 +476,7 @@ export component HomewardWindow inherits Window {
     public function reveal-recipe(top: length, bottom: length) {
         if (root.recipe-confirmation.open) { return; }
         if (root.native-popup.open) { popup-dialog.reveal-focus(top,bottom); }
+        else if (root.page == ViewPage.rooms) { rooms-area.reveal(top - rooms-area.absolute-position.y - rooms-area.content-y,bottom - rooms-area.absolute-position.y - rooms-area.content-y); }
         else if (root.page == ViewPage.home) { home.reveal(top - home.absolute-position.y - home.content-y, bottom - home.absolute-position.y - home.content-y); }
         else if (root.page == ViewPage.room && root.room-view == RoomView.cards) { room-area.reveal(top - room-area.absolute-position.y - room-area.content-y, bottom - room-area.absolute-position.y - room-area.content-y); }
     }
@@ -420,52 +497,52 @@ export component HomewardWindow inherits Window {
         Text { text: "Homeward"; color: root.theme.text-primary; font-size: 30px * root.theme.text-scale; font-weight: 700; wrap: word-wrap; }
         if root.show-endpoint: KitCard {
             theme: root.theme;
-            KitCardHeader { theme: root.theme; title: "Votre serveur";
-                description: "Adresse HTTPS et certificat public de confiance fourni par votre administrateur."; }
-            KitUrlField { theme: root.theme; control-size: comfortable; label: "Adresse du serveur";
+            KitCardHeader { theme: root.theme; title: "Your Server";
+                description: "HTTPS address and trusted public certificate provided by your administrator."; }
+            KitUrlField { theme: root.theme; control-size: comfortable; label: "Server Address";
                 placeholder: "https://home.example.com"; text <=> root.server-draft; }
-            KitTextArea { theme: root.theme; control-size: comfortable; label: "Certificat de confiance (PEM)";
+            KitTextArea { theme: root.theme; control-size: comfortable; label: "Trusted Certificate (PEM)";
                 min-lines: 3; max-lines: 5; text <=> root.certificate-draft;
                 input-method-hints: { capitalization: CapitalizationMode.none, auto-correct: false, auto-complete: false }; }
             if root.setup-message != "": KitAlert {
-                theme: root.theme; title: "Connexion au serveur"; message: root.setup-message;
+                theme: root.theme; title: "Connect to Server"; message: root.setup-message;
             }
-            KitButton { theme: root.theme; control-size: comfortable; text: "Utiliser ce serveur"; control-width: ControlWidth.fill;
+            KitButton { theme: root.theme; control-size: comfortable; text: "Use This Server"; control-width: ControlWidth.fill;
                 disabled: root.server-draft == "" || root.certificate-draft == "";
                 activated => { root.connect-endpoint(root.server-draft, root.certificate-draft); } }
         }
         if root.endpoint-ready && !root.show-endpoint: KitStack {
             Text { text: root.endpoint-label; color: root.theme.text-secondary;
                 font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
-            Text { text: "Confiance SHA-256 : " + root.trust-fingerprint; color: root.theme.text-secondary;
+            Text { text: "SHA-256 Trust: " + root.trust-fingerprint; color: root.theme.text-secondary;
                 font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
             if root.recovery-receipt != "": KitCard {
                 theme: root.theme;
-                KitCardHeader { theme: root.theme; title: "Nouveaux codes de secours";
-                    description: "Conservez ces codes maintenant. Les anciens codes sont invalidés et une nouvelle connexion est nécessaire."; }
-                KitTextArea { theme: root.theme; control-size: comfortable; label: "Codes à conserver"; access: FieldAccess.read-only;
+                KitCardHeader { theme: root.theme; title: "New Recovery Codes";
+                    description: "Keep these codes now. Previous codes are invalid, and you must sign in again."; }
+                KitTextArea { theme: root.theme; control-size: comfortable; label: "Codes to Keep"; access: FieldAccess.read-only;
                     text: root.recovery-receipt; min-lines: 5; max-lines: 10; }
-                KitButton { theme: root.theme; control-size: comfortable; text: "J’ai conservé les codes · fermer";
+                KitButton { theme: root.theme; control-size: comfortable; text: "I Saved the Codes · Close";
                     activated => { root.close-recovery-receipt(); } }
             }
             if !root.invitation-visible && root.recovery-receipt == "": ProAccessPanel {
-                theme: root.theme; control-size: ControlSize.comfortable; stage: root.access-stage; title: "Bienvenue chez vous";
-                description: "Connectez-vous à votre installation.";
-                user-label: "Identifiant"; password-label: "Mot de passe"; submit-label: "Se connecter";
-                verification-title: "Vérification supplémentaire";
-                verification-help: "Ce compte demande un second facteur. Les clés FIDO2 ne sont pas encore prises en charge sur ce client.";
-                factor-label: "Clé de sécurité · non prise en charge";
-                recovery-choice-label: "Utiliser un code de secours";
-                recovery-label: "Code de secours"; recovery-submit-label: "Vérifier le code";
-                enrollment-title: "Enrôlement requis";
-                enrollment-help: "Une clé doit être enregistrée avant de poursuivre. Utilisez un client disposant d’un provider FIDO2 qualifié, puis recommencez la connexion ici.";
-                enroll-label: "Enrôlement indisponible sur ce client";
+                theme: root.theme; control-size: ControlSize.comfortable; stage: root.access-stage; title: "Welcome Home";
+                description: "Sign in to your installation.";
+                user-label: "Username"; password-label: "Password"; submit-label: "Sign In";
+                verification-title: "Additional Verification";
+                verification-help: "This account requires a second factor. FIDO2 security keys are not yet supported by this client.";
+                factor-label: "Security key · unsupported";
+                recovery-choice-label: "Use a Recovery Code";
+                recovery-label: "Recovery Code"; recovery-submit-label: "Verify Code";
+                enrollment-title: "Enrollment required";
+                enrollment-help: "A security key must be registered before continuing. Use a client with a qualified FIDO2 provider, then sign in here again.";
+                enroll-label: "Enrollment unavailable on this client";
                 connected-title: root.session-title;
                 connected-description: root.session-description;
                 connected-severity: root.session-severity;
-                sign-out-label: "Se déconnecter"; restart-label: "Recommencer";
-                show-label: "Afficher"; hide-label: "Masquer"; cancel-label: "Annuler";
-                busy-label: "Connexion en cours…"; busy: root.busy; can-recover: root.can-recover;
+                sign-out-label: "Sign Out"; restart-label: "Start Again";
+                show-label: "Show"; hide-label: "Hide"; cancel-label: "Cancel";
+                busy-label: "Signing in…"; busy: root.busy; can-recover: root.can-recover;
                 message-title: root.message-title; message: root.message; message-severity: root.message-severity;
                 user-draft <=> root.user-draft; password-draft <=> root.password-draft; recovery-draft <=> root.recovery-draft;
                 sign-in(user, password) => { root.sign-in(user, password); }
@@ -476,35 +553,35 @@ export component HomewardWindow inherits Window {
                 sign-out => { root.sign-out(); }
             }
             if root.access-stage == ProAccessStage.identity && !root.invitation-visible && root.recovery-receipt == "": KitButton {
-                theme: root.theme; control-size: comfortable; text: "J’ai une invitation";
+                theme: root.theme; control-size: comfortable; text: "I Have an Invitation";
                 disabled: root.busy || root.invitation-generation >= 2147483647;
                 activated => { root.clear-invitation(); root.password-draft = ""; root.recovery-draft = ""; root.invitation-visible = true; }
             }
             if root.invitation-visible: KitCard {
                 theme: root.theme;
-                KitCardHeader { theme: root.theme; title: "Accepter une invitation";
-                    description: "Utilisez le jeton fourni par votre administrateur. La connexion à votre compte se fait ensuite séparément."; }
-                KitTextField { theme: root.theme; control-size: comfortable; label: "Jeton d’invitation";
-                    purpose: TextPurpose.password; reveal-label: "Afficher le jeton"; hide-label: "Masquer le jeton";
+                KitCardHeader { theme: root.theme; title: "Accept Invitation";
+                    description: "Use the token provided by your administrator. Sign in to your account separately afterward."; }
+                KitTextField { theme: root.theme; control-size: comfortable; label: "Invitation Token";
+                    purpose: TextPurpose.password; reveal-label: "Show Token"; hide-label: "Hide Token";
                     access: root.invitation-busy || root.invitation-uncertain ? FieldAccess.read-only : FieldAccess.editable;
                     text <=> root.invitation-token-draft; }
-                KitTextField { theme: root.theme; control-size: comfortable; label: "Votre nom";
+                KitTextField { theme: root.theme; control-size: comfortable; label: "Your Name";
                     access: root.invitation-busy || root.invitation-uncertain ? FieldAccess.read-only : FieldAccess.editable;
                     text <=> root.invitation-name-draft; }
-                KitTextField { theme: root.theme; control-size: comfortable; label: "Votre mot de passe";
-                    purpose: TextPurpose.password; reveal-label: "Afficher le mot de passe"; hide-label: "Masquer le mot de passe";
+                KitTextField { theme: root.theme; control-size: comfortable; label: "Your Password";
+                    purpose: TextPurpose.password; reveal-label: "Show Password"; hide-label: "Hide Password";
                     access: root.invitation-busy || root.invitation-uncertain ? FieldAccess.read-only : FieldAccess.editable;
                     text <=> root.invitation-password-draft; }
                 if root.invitation-feedback != "": KitAlert { theme: root.theme; title: "Invitation"; message: root.invitation-feedback; }
                 KitWrap {
-                    KitButton { theme: root.theme; control-size: comfortable; text: root.invitation-busy ? "Acceptation en cours…" : "Accepter l’invitation";
+                    KitButton { theme: root.theme; control-size: comfortable; text: root.invitation-busy ? "Accepting…" : "Accept Invitation";
                         disabled: root.invitation-busy || root.invitation-uncertain || root.invitation-token-draft == "" || root.invitation-password-draft == "";
                         activated => { root.accept-invitation(root.invitation-generation,root.invitation-token-draft,root.invitation-password-draft,root.invitation-name-draft); } }
-                    KitButton { theme: root.theme; control-size: comfortable; text: "Retour à la connexion";
+                    KitButton { theme: root.theme; control-size: comfortable; text: "Back to Sign In";
                         activated => { root.clear-invitation(); } }
                 }
             }
-            KitButton { theme: root.theme; control-size: comfortable; text: "Changer de serveur";
+            KitButton { theme: root.theme; control-size: comfortable; text: "Change Server";
                 activated => { root.password-draft = ""; root.recovery-draft = ""; root.show-endpoint = true; } }
         }
 
@@ -513,12 +590,17 @@ export component HomewardWindow inherits Window {
         interactive: root.background-interactive;
         width: content.width; height: content.height;
         visible: root.connected && !root.show-endpoint;
-        theme: root.theme; product-name: "Homeward"; workspace-label: root.dashboard-title;
-        compact-breakpoint: 1100px;
-        page-title: root.page == ViewPage.home ? root.dashboard-title + " · " + root.local-clock : root.page-title;
-        status: root.read-status == "" ? root.session-title : root.read-status;
-        navigation-label: "Navigation"; close-label: "Fermer la navigation";
-        search-label: "Rechercher dans ma maison"; search-placeholder: "Rechercher un élément…"; clear-search-label: "Effacer la recherche";
+        theme: root.theme; product-name: "Homeward"; brand-glyph: LucideNavigation.compass(); workspace-label: root.dashboard-title;
+        floating-navigation: true; compact-breakpoint: 600px;
+        subtitle: root.page == ViewPage.home ? "" : root.local-date;
+        navigation-glyphs: [KitGlyphs.home(), LucideHome.door-open(), KitGlyphs.cart(), LucideTime.calendar-days(), LucideDevices.video(), KitGlyphs.settings()];
+        notification-label: "Notifications";
+        notification-unread: root.notification-has-unread;
+        notifications-requested => { root.quick-navigation(ViewPage.settings); }
+        page-title: root.page == ViewPage.home ? root.dashboard-title : root.page-title;
+        status: root.view-loaded ? "" : (root.read-status == "" ? root.session-title : root.read-status);
+        navigation-label: "Navigation"; close-label: "Close Navigation";
+        search-label: "Search My Home"; search-placeholder: "Search for an item…"; clear-search-label: "Clear Search";
         query <=> root.search-query;
         navigation-rows: root.navigation-rows; navigation-state: root.navigation-state; drawer-state: root.navigation-drawer;
         navigation-open => { root.navigation-open(); }
@@ -584,6 +666,9 @@ export component HomewardWindow inherits Window {
                 month-requested(direction) => { root.calendars-month(direction); }
             }
             lists-pane := HomewardLists {
+                list-token: root.lists-list-token; options: root.lists-options;
+                option-index: root.lists-option-index;
+                grocery-rows: root.lists-grocery-rows; suggestions: root.lists-suggestions;
                 width: viewport.width; height: viewport.height; visible: root.page == ViewPage.lists;
                 create-draft <=> root.lists-create-draft; rename-draft <=> root.lists-rename-draft; add-draft <=> root.lists-add-draft;
                 theme: root.theme; generation: root.lists-generation; catalog: root.lists-catalog; tasks: root.lists-tasks;
@@ -591,10 +676,17 @@ export component HomewardWindow inherits Window {
                 selected: root.lists-selected; title: root.lists-title; catalog-count: root.lists-catalog-count; item-count: root.lists-item-count;
                 notice: root.lists-notice; cached-at: root.lists-cached-at; access: root.lists-access;
                 task-selected: root.lists-task-selected; task-selection: root.lists-task-selection; active-index: root.lists-active-index; draft <=> root.lists-draft;
+                filter-options(rows,query) => { return root.lists-filter-options(rows,query); }
+                find-option(rows,prefix) => { return root.lists-find-option(rows,prefix); }
                 choose(t,g) => { root.lists-choose(t,g); }
                 select-task(t,g) => { root.lists-select-task(t,g); }
                 edit(t,g,v) => { root.lists-edit(t,g,v); }
                 complete(t,g,v) => { root.lists-complete(t,g,v); }
+                grocery-complete(lt,lg,t,g,v) => { root.lists-grocery-complete(lt,lg,t,g,v); }
+                grocery-select(lt,lg,t,g) => { root.lists-grocery-select(lt,lg,t,g); }
+                grocery-remove(lt,lg,t,g) => { root.lists-grocery-remove(lt,lg,t,g); }
+                grocery-quick-add(lt,lg,t,g) => { root.lists-grocery-quick-add(lt,lg,t,g); }
+                grocery-add(lt,lg,v) => { root.lists-grocery-add(lt,lg,v); }
                 action(t,g,a) => { root.lists-action(t,g,a); }
                 create(g,v) => { root.lists-create(g,v); }
                 rename(g,v) => { root.lists-rename(g,v); }
@@ -605,37 +697,47 @@ export component HomewardWindow inherits Window {
             }
             home := KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
-                visible: root.page == ViewPage.home;
+                visible: root.displayed-page == ViewPage.home;
                 scrolled => { root.native-focus-cancelled(); }
                 gap: root.view-loaded && root.dashboard-status == "" ? none : roomy;
                 Rectangle {
                     height: root.view-loaded && root.dashboard-status == "" ? 0px : read-button.preferred-height;
                     visible: !root.view-loaded || root.dashboard-status != "";
                     read-button := KitButton { x: 0px; y: 0px; width: min(parent.width, 250px * root.theme.text-scale);
-                        theme: root.theme; control-size: comfortable; control-width: ControlWidth.fill; disabled: root.busy || !root.background-interactive;
-                        text: "Afficher ma maison"; busy: root.busy; activated => { root.read-protected(); } }
+                        theme: root.theme; control-size: comfortable; control-width: ControlWidth.fill; disabled: root.busy || !root.content-interactive;
+                        text: "Show My Home"; busy: root.busy; activated => { root.read-protected(); } }
                 }
                 if root.dashboard-choices.length > 1: KitSelect {
                     theme: root.theme; rows: root.dashboard-choices; state: root.dashboard-choice-state;
-                    placeholder: "Choisir un dashboard"; control-size: comfortable;
-                    disabled: !root.background-interactive;
+                    placeholder: "Choose Dashboard"; control-size: comfortable;
+                    access: root.content-interactive ? FieldAccess.editable : FieldAccess.disabled;
                     open-requested => { root.dashboard-choice-open(); }
                     activate(token,generation) => { root.dashboard-choice-activate(token,generation); }
                     navigate(step) => { root.dashboard-choice-step(step); }
                     dismiss(reason) => { root.dashboard-choice-dismiss(reason); }
                     typeahead(text) => { root.dashboard-choice-typeahead(text); }
                 }
-                if root.dashboard-synthetic: KitAlert { theme: root.theme; title: "Serveur de test"; message: "Données synthétiques · aucun appareil réel"; severity: information; }
+                if root.dashboard-synthetic: KitAlert { theme: root.theme; title: "Test Server"; message: "Synthetic data · no real devices"; severity: information; }
                 if root.dashboard-status != "": KitAlert { theme: root.theme; title: "Dashboard"; message: root.dashboard-status; severity: information; }
                 if root.home-layout-nodes.length > 0: HomewardDashboard {
                     recipe-focus: root.recipe-focus;
+                    widget-focus: root.widget-focus; widget-item-focus: root.widget-item-focus;
+                    widget-activate(t,g) => { root.dashboard-widget-activate(t,g); }
+                    task-complete(t,g,i,ig,v) => { if (root.commands-ready) { root.dashboard-task-complete(t,g,i,ig,v); } }
+                    agenda-select(t,g,i,ig) => { root.dashboard-agenda-select(t,g,i,ig); }
+                    observation-open(t,g,i,ig) => { root.dashboard-observation-open(t,g,i,ig); }
+                    observation-focus-observed(t,g,i,ig,f) => { root.dashboard-observation-focus(t,g,i,ig,f); }
+                    widget-focus-observed(t,g,f) => { root.dashboard-widget-focus(t,g,f); }
+                    widget-focus-applied(t,g,r) => { root.dashboard-widget-focus-applied(t,g,r); }
+                    widget-focus-revealed(t,g,top,bottom) => { root.dashboard-widget-focus-revealed(t,g,top,bottom); }
+
                     recipe-focus-applied(token,generation,serial) => { root.recipe-focus-applied(token,generation,serial); }
                     recipe-focus-observed(token,generation,focused) => { root.recipe-focus-observed(token,generation,focused); }
                     recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
-                    theme: root.theme; viewport-width: viewport.width;
+                    theme: root.theme; viewport-width: home.visible-width; screen-width: root.width;
                     nodes: root.home-layout-nodes; node-index: 0;
-                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.home; commands-enabled: root.commands-ready;
-                    arrange(inputs,columns,base) => { return root.layout-arrange(inputs,columns,base); }
+                    interactive: root.content-interactive && root.page == ViewPage.home; commands-enabled: root.commands-ready;
+                    responsive-arrange(inputs,columns,base,screen) => { return root.layout-arrange(inputs,columns,base,screen); }
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -644,39 +746,33 @@ export component HomewardWindow inherits Window {
                     details(token,generation) => { root.device-details(token,generation); }
                     gesture(token,generation,gesture) => { root.recipe-gesture(token,generation,gesture); }
                 }
-                if root.home-layout-nodes.length == 0 && root.device-cards.length > 0: Text { text: "En un regard"; color: root.theme.text-primary; font-size: 20px * root.theme.text-scale; font-weight: 600; }
-                if root.home-layout-nodes.length == 0 && root.device-cards.length > 0: HomewardDevices {
-                    theme: root.theme; viewport-width: viewport.width; devices: root.device-cards;
-                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.home; commands-ready: root.commands-ready;
-                    power(token,generation,intent) => { root.device-power(token,generation,intent); }
-                    edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
-                    choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
-                    brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
-                    stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
-                    details(token,generation) => { root.device-details(token,generation); }
-                }
-                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Commande"; message: root.action-feedback; severity: information; }
-                ProHomeOverview {
-                    theme: root.theme; viewport-width: viewport.width; spacing: 12px;
-                    observations-title: root.device-cards.length == 0 ? "En un regard" : "Autres observations"; rooms-title: "Vos pièces";
-                    observations: root.home-layout-nodes.length > 0 ? [] : root.home-observations;
-                    rooms: root.home-rooms;
-                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.home;
-                    focus-request: root.home-focus;
-                    room-open(token,generation) => { root.room-open(token,generation); }
-                    observation-open(token,generation) => { root.observation-open(token,generation); }
-                    room-focus-observed(token,generation,focused) => { root.home-observed(token,generation,focused); }
-                    observation-focus-observed(token,generation,focused) => { root.home-observed(token,generation,focused); }
-                }
-                if root.cache-error != "": KitAlert { theme: root.theme; title: "Dernière lecture"; message: root.cache-error; severity: warning; }
+                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
+                if root.cache-error != "": KitAlert { theme: root.theme; title: "Last Reading"; message: root.cache-error; severity: warning; }
             }
-            KitScrollArea {
+            rooms-area := KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
-                visible: root.page == ViewPage.rooms;
-                ProHomeOverview {
-                    theme: root.theme; viewport-width: viewport.width; spacing: 12px;
-                    rooms-title: "Choisissez une pièce"; rooms: root.home-rooms;
-                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.rooms;
+                visible: root.displayed-page == ViewPage.rooms;
+                scrolled => { root.native-focus-cancelled(); }
+                if root.rooms-layout-nodes.length > 0: HomewardDashboard {
+                    theme: root.theme; viewport-width: rooms-area.visible-width; screen-width: root.width;
+                    nodes: root.rooms-layout-nodes; node-index: 0;
+                    interactive: root.content-interactive && root.page == ViewPage.rooms;
+                    commands-enabled: root.commands-ready;
+                    recipe-focus: root.recipe-focus; widget-focus: root.widget-focus;
+                    widget-item-focus: root.widget-item-focus;
+                    responsive-arrange(inputs,columns,base,screen) => { return root.layout-arrange(inputs,columns,base,screen); }
+                    widget-activate(t,g) => { root.dashboard-widget-activate(t,g); }
+                    widget-focus-observed(t,g,f) => { root.dashboard-widget-focus(t,g,f); }
+                    widget-focus-applied(t,g,r) => { root.dashboard-widget-focus-applied(t,g,r); }
+                    widget-focus-revealed(t,g,top,bottom) => { root.dashboard-widget-focus-revealed(t,g,top,bottom); }
+                    recipe-focus-applied(t,g,r) => { root.recipe-focus-applied(t,g,r); }
+                    recipe-focus-observed(t,g,f) => { root.recipe-focus-observed(t,g,f); }
+                    recipe-focus-revealed(t,g,top,bottom) => { root.recipe-focus-revealed(t,g,top,bottom); }
+                }
+                if root.rooms-layout-nodes.length == 0: ProHomeOverview {
+                    theme: root.theme; viewport-width: rooms-area.visible-width; spacing: 12px;
+                    rooms-title: "Choose a Room"; rooms: root.home-rooms;
+                    interactive: root.content-interactive && root.page == ViewPage.rooms;
                     focus-request: root.home-focus;
                     room-open(token,generation) => { root.room-open(token,generation); }
                     room-focus-observed(token,generation,focused) => { root.home-observed(token,generation,focused); }
@@ -684,21 +780,30 @@ export component HomewardWindow inherits Window {
             }
             room-area := KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
-                visible: root.page == ViewPage.room && root.room-view == RoomView.cards;
+                visible: root.displayed-page == ViewPage.room && root.room-view == RoomView.cards;
                 scrolled => { root.native-focus-cancelled(); }
-                room-back := KitButton { disabled: !root.background-interactive; theme: root.theme; text: "Retour"; control-size: comfortable; activated => { root.go-back(); } }
-                Text { text: "Commandes et observations autorisées"; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
-                if root.room-layout-nodes.length == 0 && root.device-cards.length == 0: Text { text: "Aucune carte disponible pour les fonctions de cette pièce. La liste complète reste accessible."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
-                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Commande"; message: root.action-feedback; severity: information; }
+                room-back := KitButton { control-width: ControlWidth.intrinsic; disabled: !root.connected; theme: root.theme; text: "Back"; control-size: comfortable; activated => { root.go-back(); } }
+                if root.room-layout-nodes.length == 0 && root.device-cards.length == 0: Text { text: "No cards are available for this room’s capabilities. The full list is still available."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
+                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
                 if root.room-layout-nodes.length > 0: HomewardDashboard {
                     recipe-focus: root.recipe-focus;
+                    widget-focus: root.widget-focus; widget-item-focus: root.widget-item-focus;
+                    widget-activate(t,g) => { root.dashboard-widget-activate(t,g); }
+                    task-complete(t,g,i,ig,v) => { if (root.commands-ready) { root.dashboard-task-complete(t,g,i,ig,v); } }
+                    agenda-select(t,g,i,ig) => { root.dashboard-agenda-select(t,g,i,ig); }
+                    observation-open(t,g,i,ig) => { root.dashboard-observation-open(t,g,i,ig); }
+                    observation-focus-observed(t,g,i,ig,f) => { root.dashboard-observation-focus(t,g,i,ig,f); }
+                    widget-focus-observed(t,g,f) => { root.dashboard-widget-focus(t,g,f); }
+                    widget-focus-applied(t,g,r) => { root.dashboard-widget-focus-applied(t,g,r); }
+                    widget-focus-revealed(t,g,top,bottom) => { root.dashboard-widget-focus-revealed(t,g,top,bottom); }
+
                     recipe-focus-applied(token,generation,serial) => { root.recipe-focus-applied(token,generation,serial); }
                     recipe-focus-observed(token,generation,focused) => { root.recipe-focus-observed(token,generation,focused); }
                     recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
-                    theme: root.theme; viewport-width: viewport.width;
+                    theme: root.theme; viewport-width: room-area.visible-width; screen-width: root.width;
                     nodes: root.room-layout-nodes; node-index: 0;
-                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-enabled: root.commands-ready;
-                    arrange(inputs,columns,base) => { return root.layout-arrange(inputs,columns,base); }
+                    interactive: root.content-interactive && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-enabled: root.commands-ready;
+                    responsive-arrange(inputs,columns,base,screen) => { return root.layout-arrange(inputs,columns,base,screen); }
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -707,9 +812,9 @@ export component HomewardWindow inherits Window {
                     details(token,generation) => { root.device-details(token,generation); }
                     gesture(token,generation,gesture) => { root.recipe-gesture(token,generation,gesture); }
                 }
-                if root.room-layout-nodes.length == 0: HomewardDevices {
+                if !root.has-configured-layout && root.room-layout-nodes.length == 0: HomewardDevices {
                     theme: root.theme; viewport-width: viewport.width; devices: root.device-cards;
-                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-ready: root.commands-ready;
+                    interactive: root.content-interactive && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-ready: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -717,26 +822,26 @@ export component HomewardWindow inherits Window {
                     stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
                     details(token,generation) => { root.device-details(token,generation); }
                 }
-                KitButton { disabled: !root.background-interactive; visible: !root.native-page; theme: root.theme; text: "Liste complète des éléments"; control-size: comfortable; activated => { root.room-view = RoomView.list; root.content-focus(); } }
+                KitButton { disabled: !root.content-interactive; visible: !root.native-page && root.page != ViewPage.detail; theme: root.theme; text: "All Items"; control-size: comfortable; activated => { root.room-view = RoomView.list; root.content-focus(); } }
             }
             inventory := Rectangle {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
-                visible: root.page == ViewPage.inventory || (root.page == ViewPage.room && root.room-view == RoomView.list);
+                visible: root.displayed-page == ViewPage.inventory || (root.displayed-page == ViewPage.room && root.room-view == RoomView.list);
                 VerticalLayout {
                     spacing: 12px;
-                    back-button := KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: "Retour"; activated => { if (root.page == ViewPage.room) { root.room-view = RoomView.cards; root.content-focus(); } else { root.go-back(); } } }
+                    back-button := KitButton { control-width: ControlWidth.intrinsic; disabled: !root.connected; theme: root.theme; control-size: comfortable; text: "Back"; activated => { if (root.page == ViewPage.room) { root.room-view = RoomView.cards; root.content-focus(); } else { root.go-back(); } } }
                     table := KitDataTable {
-                        interactive: root.background-interactive;
-                        theme: root.theme; control-size: comfortable; label: "États de l’installation";
-                        empty-label: root.search-query == "" ? "Aucune observation disponible." : "Aucun résultat pour cette recherche.";
+                        interactive: root.content-interactive;
+                        theme: root.theme; control-size: comfortable; label: "Installation States";
+                        empty-label: root.search-query == "" ? "No observations available." : "No results for this search.";
                         rows: root.cache-rows; active-index: root.cache-active-index; generation: root.cache-generation;
                         vertical-stretch: 1;
                         columns: [
-                            { token: 0, label: "Élément", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading },
-                            { token: 1, label: "État", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading },
-                            { token: 2, label: "Qualité", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading }
+                            { token: 0, label: "Item", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading },
+                            { token: 1, label: "State", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading },
+                            { token: 2, label: "Quality", sortable: false, sort: DataSortDirection.unsorted, alignment: DataAlignment.leading }
                         ];
-                        private property <length> projected-row-height: KitMetrics.control-height(ControlSize.comfortable, root.theme.text-scale) + 8px;
+                        private property <length> projected-row-height: KitMetrics.control-height(root.theme, ControlSize.comfortable) + 8px;
                         private property <int> first-visible: max(0, floor(-self.scroll-y / self.projected-row-height));
                         private property <int> visible-count: min(64, ceil(self.height / self.projected-row-height) + 16);
                         init => { root.cache-viewport(self.first-visible, self.visible-count); }
@@ -747,74 +852,33 @@ export component HomewardWindow inherits Window {
                     }
                 }
             }
-            KitScrollArea {
-                x: 0px; y: 0px; width: viewport.width; height: viewport.height;
-                visible: root.page == ViewPage.detail;
-                detail-back := KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: "Retour aux éléments"; activated => { root.go-back(); } }
-                KitCard { theme: root.theme;
-                    KitCardHeader { theme: root.theme; title: root.detail-title; description: "Observation reçue · consultation"; }
-                    Text { text: root.detail-value; color: root.theme.text-primary; font-size: 26px * root.theme.text-scale; wrap: word-wrap; }
-                    Text { text: root.detail-quality; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
-                    Text { text: root.detail-date; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
-                }
-                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Commande"; message: root.action-feedback; severity: information; }
-                HomewardDevices {
-                    theme: root.theme; viewport-width: viewport.width; devices: root.device-cards; show-details: false;
-                    interactive: root.connected && !root.recipe-confirmation.open && !root.native-popup.open && root.page == ViewPage.detail; commands-ready: root.commands-ready;
-                    power(token,generation,intent) => { root.device-power(token,generation,intent); }
-                    edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
-                    choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
-                    brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
-                    stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
-                }
-                if root.media-visible: HomewardMedia {
-                    theme: root.theme; generation: root.media-generation;
-                    interactive: root.media-interactive; editable: root.media-editable; has-data: root.media-has-data;
-                    media: root.media-data; actions: root.media-actions; options: root.media-options; values: root.media-values;
-                    group-title: root.media-group-title; coordinator: root.media-coordinator; members: root.media-members;
-                    notice: root.media-notice; artwork-remaining-ms: root.media-artwork-remaining-ms;
-                    operation(token,generation,operation) => { root.media-operation(token,generation,operation); }
-                    option(token,generation,kind,option) => { root.media-option(token,generation,kind,option); }
-                    edit(token,generation,field,intent) => { root.media-edit(token,generation,field,intent); }
-                    reload(generation) => { root.media-reload(generation); }
-                    expire-artwork(generation) => { root.media-expire-artwork(generation); }
-                }
-                HomewardHistory {
-                    theme: root.theme; interactive: root.background-interactive && root.view-loaded && root.page == ViewPage.detail;
-                    presentation: root.history-presentation;
-                    start <=> root.history-start; end <=> root.history-end; statistic <=> root.history-statistic;
-                    apply(start,end,stat) => { root.history-apply(start,end,stat); }
-                    draft-changed => { root.history-draft-changed(); }
-                    choose-statistic(stat) => { root.history-choose-statistic(stat); }
-                    group(step) => { root.history-group(step); }
-                    inspect(g,x) => { root.history-inspect(g,x); }
-                    navigate(g,step,extend) => { root.history-navigate(g,step,extend); }
-                    interval(g,gesture,x) => { root.history-interval(g,gesture,x); }
-                    viewport(w,h,bg,accent) => { root.history-viewport(w,h,bg,accent); }
-                }
-            }
             settings-pane := KitScrollArea {
                 x: 0px; y: 0px; width: viewport.width; height: viewport.height;
                 visible: root.page == ViewPage.settings;
                 KitCard { theme: root.theme;
-                    KitCardHeader { theme: root.theme; title: "À votre mesure"; description: "Préférences de cet appareil"; }
+                    KitCardHeader { theme: root.theme; title: "Make It Yours"; description: "Device Settings"; }
                     KitWrap {
-                        theme-button := KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.dark-mode ? "Thème clair" : "Thème sombre"; activated => { root.dark-mode = !root.dark-mode; root.preferences-edited(); } }
-                        KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.opaque-surfaces ? "Surfaces translucides" : "Surfaces opaques"; activated => { root.opaque-surfaces = !root.opaque-surfaces; root.preferences-edited(); } }
-                        KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.large-text ? "Texte standard" : "Texte à 200 %"; activated => { root.large-text = !root.large-text; root.preferences-edited(); } }
-                        KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: root.reduced-motion ? "Autoriser les animations" : "Réduire les animations"; activated => { root.reduced-motion = !root.reduced-motion; root.preferences-edited(); } }
+                        theme-button := KitButton { disabled: !root.content-interactive; theme: root.theme; control-size: comfortable; text: root.dark-mode ? "Light Theme" : "Dark Theme"; activated => { root.dark-mode = !root.dark-mode; root.preferences-edited(); } }
+                        KitButton { disabled: !root.content-interactive; theme: root.theme; control-size: comfortable; text: root.opaque-surfaces ? "Translucent Surfaces" : "Opaque Surfaces"; activated => { root.opaque-surfaces = !root.opaque-surfaces; root.preferences-edited(); } }
+                        KitButton { disabled: !root.content-interactive; theme: root.theme; control-size: comfortable; text: root.large-text ? "Standard Text" : "200 % Text"; activated => { root.large-text = !root.large-text; root.preferences-edited(); } }
+                        KitButton { disabled: !root.content-interactive; theme: root.theme; control-size: comfortable; text: root.reduced-motion ? "Allow Animations" : "Reduce Motion"; activated => { root.reduced-motion = !root.reduced-motion; root.preferences-edited(); } }
                     }
                     Text { text: root.preferences-status; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
                 }
+                KitCard { theme: root.theme;
+                    KitCardHeader { theme: root.theme; title: "Inventory"; description: "Inspect all equipment and installation states."; }
+                    KitButton { disabled: !root.content-interactive; theme: root.theme; control-size: comfortable; control-width: ControlWidth.intrinsic;
+                        text: "Open Inventory"; activated => { root.show-inventory(); } }
+                }
                 HomewardAdministration {
-                    theme: root.theme; title: "Ce compagnon"; description: "Partage privé des capacités de cet appareil";
+                    theme: root.theme; title: "This Companion"; description: "Private sharing of this device’s capabilities";
                     stage: root.companion-stage; status: root.companion-status; notice: root.companion-notice;
                     generation: root.companion-generation; active-index: root.companion-active-index;
                     columns: root.companion-columns; rows: root.companion-rows; actions: root.companion-actions;
                     fields: root.companion-fields; choices: root.companion-choices;
                     selected-token: 1; editor-visible: root.companion-editor-visible; editable: root.companion-editor-visible;
                     editor-title: root.companion-editor-title; editor-actions: root.companion-editor-actions;
-                    editor-notice: "Seules les données choisies et autorisées sont collectées. Un retrait coupe la collecte locale immédiatement.";
+                    editor-notice: "Only selected and authorized data is collected. Revoking access stops local collection immediately.";
                     action(t,g,a) => { root.companion-action(t,g,a); }
                     editor-action(t,g,a) => { root.companion-editor-action(t,g,a); }
                     choose(t,g,f,option) => { root.companion-choose(t,g,f,option); }
@@ -823,7 +887,7 @@ export component HomewardWindow inherits Window {
                 }
                 HomewardNotifications {
                     theme:root.theme; view:root.notification-view; rows:root.notification-rows;
-                    interactive:root.background-interactive;
+                    interactive:root.content-interactive;
                     action(g,a)=>{root.notification-action(g,a);}
                     row-action(t,g,a)=>{root.notification-row-action(t,g,a);}
                 }
@@ -846,27 +910,114 @@ export component HomewardWindow inherits Window {
                     KitCardHeader { theme: root.theme; title: root.session-title; description: root.session-description; }
                     Text { text: root.endpoint-label; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
                     KitWrap {
-                        KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: "Se déconnecter"; activated => { root.sign-out(); } }
-                        KitButton { disabled: !root.background-interactive; theme: root.theme; control-size: comfortable; text: "Changer de serveur"; activated => { root.cancel-access(); root.show-endpoint = true; } }
+                        KitButton { disabled: !root.content-interactive; theme: root.theme; control-size: comfortable; text: "Sign Out"; activated => { root.sign-out(); } }
+                        KitButton { disabled: !root.content-interactive; theme: root.theme; control-size: comfortable; text: "Change Server"; activated => { root.cancel-access(); root.show-endpoint = true; } }
                     }
                 }
             }
         }
     }
 }
+    KitDialogSurface {
+        width: root.width; height: root.height; theme: root.theme;
+        state: {open: root.page == ViewPage.detail && root.connected && !root.show-endpoint,topmost: !root.recipe-confirmation.open,busy:false};
+        tab-policy: native;
+        dismiss(reason) => { if (root.page == ViewPage.detail && root.connected) { root.go-back(); } }
+        KitDialogPanel {
+            theme: root.theme;
+            accessible-name: root.device-cards.length > 0 ? root.device-cards[0].title : root.detail-title;
+            width: max(0px,min(root.width - 32px,560px)); height: max(0px,min(root.height * 0.88,760px));
+            x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+            VerticalLayout {
+                padding: 20px; spacing: 8px;
+                HorizontalLayout {
+                    spacing: 12px;
+                    detail-back := KitIconButton { theme: root.theme; glyph: root.theme.icons.chevron-left; accessible-name: "Back"; control-size: comfortable; disabled: !root.connected;
+                        private property <int> route-generation;
+                        activation-started => { self.route-generation = root.projection-version; }
+                        activated => { if (self.route-generation == root.projection-version && root.page == ViewPage.detail) { root.go-back(); } }
+                    }
+                    Text { min-width: 0px; text: root.device-cards.length > 0 ? root.device-cards[0].title : root.detail-title; color: root.theme.text-primary; font-size: 22px * root.theme.text-scale; font-weight: 600; wrap: word-wrap; horizontal-stretch: 1; vertical-alignment: center; }
+                    KitIconButton { theme: root.theme; glyph: root.theme.icons.close; accessible-name: "Close Details"; control-size: comfortable; disabled: !root.connected;
+                        private property <int> route-generation;
+                        activation-started => { self.route-generation = root.projection-version; }
+                        activated => { if (self.route-generation == root.projection-version && root.page == ViewPage.detail) { root.go-back(); } }
+                    }
+                }
+                detail-scroll := KitScrollArea {
+                    vertical-stretch: 1;
+                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
+                if !root.media-has-data: HomewardDeviceDetail {
+                    theme: root.theme; viewport-width: detail-scroll.visible-width; devices: root.device-cards;
+                    interactive: root.content-interactive && root.page == ViewPage.detail; commands-ready: root.commands-ready;
+                    power(token,generation,intent) => { root.device-power(token,generation,intent); }
+                    edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
+                    choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
+                    brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
+                    stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
+                }
+                if root.media-visible && (root.media-has-data || root.show-detail-history): HomewardMedia {
+                    width: min(detail-scroll.visible-width,480px);
+                    theme: root.theme; generation: root.media-generation;
+                    interactive: root.media-interactive; editable: root.media-editable; has-data: root.media-has-data;
+                    media: root.media-data; actions: root.media-actions; options: root.media-options; values: root.media-values;
+                    progress-known: root.media-progress-known; progress: root.media-progress;
+                    position-label: root.media-position-label; duration-label: root.media-duration-label;
+                    group-title: root.media-group-title; coordinator: root.media-coordinator; members: root.media-members;
+                    notice: root.media-notice; artwork-remaining-ms: root.media-artwork-remaining-ms;
+                    operation(token,generation,operation) => { root.media-operation(token,generation,operation); }
+                    option(token,generation,kind,option) => { root.media-option(token,generation,kind,option); }
+                    edit(token,generation,field,intent) => { root.media-edit(token,generation,field,intent); }
+                    reload(generation) => { root.media-reload(generation); }
+                    expire-artwork(generation) => { root.media-expire-artwork(generation); }
+                }
+                KitButton { theme: root.theme; text: root.show-detail-history ? "Hide History and Diagnostics" : "History and Diagnostics"; disabled: !root.content-interactive; activated => { root.show-detail-history = !root.show-detail-history; } }
+                if root.show-detail-history: VerticalLayout {
+                    spacing: 8px;
+                    Text { text: root.detail-quality + " · " + root.detail-date; color: root.theme.text-secondary; font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
+                HomewardHistory {
+                    theme: root.theme; interactive: root.content-interactive && root.view-loaded && root.page == ViewPage.detail;
+                    presentation: root.history-presentation;
+                    start <=> root.history-start; end <=> root.history-end; statistic <=> root.history-statistic;
+                    apply(start,end,stat) => { root.history-apply(start,end,stat); }
+                    draft-changed => { root.history-draft-changed(); }
+                    choose-statistic(stat) => { root.history-choose-statistic(stat); }
+                    group(step) => { root.history-group(step); }
+                    inspect(g,x) => { root.history-inspect(g,x); }
+                    navigate(g,step,extend) => { root.history-navigate(g,step,extend); }
+                    interval(g,gesture,x) => { root.history-interval(g,gesture,x); }
+                    viewport(w,h,bg,accent) => { root.history-viewport(w,h,bg,accent); }
+                }
+                }
+                }
+            }
+        }
+    }
     popup-dialog := HomewardPopup {
         width: root.width; height: root.height; theme: root.theme;
         state: { open: root.native-popup.open, topmost: root.native-popup.topmost && !root.recipe-confirmation.open, busy: root.native-popup.busy };
         generation: root.native-popup-generation; title: root.native-popup-title;
+        detail: root.native-popup-detail; can-back: root.native-popup-can-back;
+        back(generation) => { root.native-popup-back(generation); }
         nodes: root.popup-layout-nodes; commands-enabled: root.commands-ready;
         action-feedback: root.action-feedback;
         recipe-focus: root.recipe-focus;
+                    widget-focus: root.widget-focus; widget-item-focus: root.widget-item-focus;
+                    widget-activate(t,g) => { root.dashboard-widget-activate(t,g); }
+                    task-complete(t,g,i,ig,v) => { if (root.commands-ready) { root.dashboard-task-complete(t,g,i,ig,v); } }
+                    agenda-select(t,g,i,ig) => { root.dashboard-agenda-select(t,g,i,ig); }
+                    observation-open(t,g,i,ig) => { root.dashboard-observation-open(t,g,i,ig); }
+                    observation-focus-observed(t,g,i,ig,f) => { root.dashboard-observation-focus(t,g,i,ig,f); }
+                    widget-focus-observed(t,g,f) => { root.dashboard-widget-focus(t,g,f); }
+                    widget-focus-applied(t,g,r) => { root.dashboard-widget-focus-applied(t,g,r); }
+                    widget-focus-revealed(t,g,top,bottom) => { root.dashboard-widget-focus-revealed(t,g,top,bottom); }
+
         recipe-focus-applied(token,generation,serial) => { root.recipe-focus-applied(token,generation,serial); }
         recipe-focus-observed(token,generation,focused) => { root.recipe-focus-observed(token,generation,focused); }
         recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
         scroll-interacted => { root.native-focus-cancelled(); }
         close(generation,reason) => { root.native-popup-dismiss(generation,reason); }
-        arrange(inputs,columns,base) => { return root.layout-arrange(inputs,columns,base); }
+        responsive-arrange(inputs,columns,base,screen) => { return root.layout-arrange(inputs,columns,base,screen); }
         power(token,generation,intent) => { root.device-power(token,generation,intent); }
         edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
         choose(token,generation,choice) => { root.device-choice(token,generation,choice); }

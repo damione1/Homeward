@@ -31,10 +31,10 @@ impl Preset {
     }
     fn label(self) -> &'static str {
         match self {
-            Self::None => "Remplacer par aucun droit configurable",
-            Self::ListsRead => "Remplacer par lecture des listes",
-            Self::ListsReadWrite => "Remplacer par lecture/écriture des listes",
-            Self::OwnDashboards => "Remplacer par lecture des dashboards personnels",
+            Self::None => "Replace With No Configurable Permissions",
+            Self::ListsRead => "Replace With List Read Access",
+            Self::ListsReadWrite => "Replace With List Read/Write Access",
+            Self::OwnDashboards => "Replace With Personal Dashboard Read Access",
         }
     }
     fn source(self, account: &AccountId) -> String {
@@ -60,30 +60,30 @@ impl Preset {
 impl PolicyDraft {
     pub fn open(command: &PolicyCommand) -> Result<Self, &'static str> {
         authorization_contract::admit_get_response(&command.response)
-            .map_err(|_| "La politique reçue n’est pas prise en charge.")?;
+            .map_err(|_| "The received policy is unsupported.")?;
         let (expected, source) = match &command.response.result {
             Some(auth::get_policy_response::Result::Present(value)) => {
                 if value.account_id.value != command.account.as_str() {
-                    return Err("La politique ne correspond pas au compte sélectionné.");
+                    return Err("The policy does not match the selected account.");
                 }
                 (
                     auth::replace_policy_request::Precondition::Expected(
                         value
                             .version
                             .as_option()
-                            .ok_or("Version absente.")?
+                            .ok_or("Version missing.")?
                             .clone()
                             .into(),
                     ),
                     String::from_utf8(value.yaml_source.clone())
-                        .map_err(|_| "La source n’est pas UTF-8.")?,
+                        .map_err(|_| "The source is not UTF-8.")?,
                 )
             }
             Some(auth::get_policy_response::Result::Absent(_)) => (
                 auth::replace_policy_request::Precondition::ExpectAbsent(Default::default()),
                 Preset::None.source(&command.account),
             ),
-            None => return Err("Politique absente de la réponse."),
+            None => return Err("Policy missing from response."),
         };
         Ok(Self {
             account: command.account.clone(),
@@ -95,14 +95,14 @@ impl PolicyDraft {
         vec![
             field(
                 Field::PolicySource,
-                "Politique de droits YAML",
+                "Permissions Policy YAML",
                 &self.source,
                 true,
                 true,
             ),
             field(
                 Field::Identity,
-                "Compte concerné",
+                "Affected Account",
                 self.account.as_str(),
                 false,
                 false,
@@ -132,7 +132,7 @@ impl PolicyDraft {
             return Ok(());
         }
         if value.len() > authorization_contract::MAX_SOURCE_BYTES || value.contains('\0') {
-            return Err("La politique est limitée à 1 Mio de texte UTF-8.");
+            return Err("The policy is limited to 1 MiB of UTF-8 text.");
         }
         self.source = Zeroizing::new(value);
         Ok(())
@@ -157,7 +157,7 @@ impl PolicyDraft {
             ..Default::default()
         };
         authorization_contract::admit_replace_request(&request)
-            .map_err(|_| "La source ou la version de politique est invalide.")?;
+            .map_err(|_| "The source or policy version is invalid.")?;
         Ok(Operation::Policy(request))
     }
 }

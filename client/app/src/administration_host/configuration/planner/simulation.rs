@@ -40,16 +40,16 @@ impl Field {
     }
     fn label(self) -> &'static str {
         match self {
-            Self::Now => "Instant virtuel (RFC3339)",
-            Self::TimeZone => "Fuseau horaire virtuel",
-            Self::Limit => "Limite virtuelle en millisecondes",
-            Self::Fixtures => "États et capacités synthétiques (JSON)",
-            Self::Events => "Types d’événements synthétiques, un par ligne",
-            Self::Report => "Résultat de simulation",
-            Self::Intents => "Intentions synthétiques",
-            Self::Nodes => "Trace d’exécution virtuelle",
-            Self::Diagnostics => "Diagnostics de simulation",
-            Self::Limitations => "Limites annoncées par le serveur",
+            Self::Now => "Virtual Instant (RFC3339)",
+            Self::TimeZone => "Virtual Time Zone",
+            Self::Limit => "Virtual Limit in Milliseconds",
+            Self::Fixtures => "Synthetic States and Capabilities (JSON)",
+            Self::Events => "Synthetic event types, one per line",
+            Self::Report => "Simulation Result",
+            Self::Intents => "Synthetic Actions",
+            Self::Nodes => "Virtual Execution Trace",
+            Self::Diagnostics => "Simulation Diagnostics",
+            Self::Limitations => "Server-Reported Limits",
         }
     }
 }
@@ -261,14 +261,14 @@ impl Simulation {
         ];
         if let Some(report) = &self.report {
             let status = match report.status {
-                EnumValue::Known(wire::Status::Completed) => "Terminée",
-                EnumValue::Known(wire::Status::Partial) => "Partielle",
-                EnumValue::Known(wire::Status::Failed) => "Échouée",
+                EnumValue::Known(wire::Status::Completed) => "Done",
+                EnumValue::Known(wire::Status::Partial) => "Partial",
+                EnumValue::Known(wire::Status::Failed) => "Failed",
                 EnumValue::Known(wire::Status::Unspecified) | EnumValue::Unknown(_) => {
-                    "Non prise en charge"
+                    "Unsupported"
                 }
             };
-            fields.push(field(Field::Report,format!("{} · {} ms virtuelles\nSimulation uniquement ; aucun appareil physique validé\n{} intentions · {} étapes · {} diagnostics",status,report.elapsed_millis,report.intents.len(),report.nodes.len(),report.diagnostics.len()),false));
+            fields.push(field(Field::Report,format!("{} · {} virtual ms\nSimulation only; no physical device validated\n{} actions · {} steps · {} diagnostics",status,report.elapsed_millis,report.intents.len(),report.nodes.len(),report.diagnostics.len()),false));
             fields.push(field(
                 Field::Intents,
                 report
@@ -281,11 +281,11 @@ impl Simulation {
                             parameters(intent.parameters.as_ref()),
                             match intent.outcome {
                                 EnumValue::Known(wire::IntentOutcome::Recorded) =>
-                                    "Enregistrée dans la simulation",
+                                    "Recorded in the simulation",
                                 EnumValue::Known(wire::IntentOutcome::Refused) =>
-                                    "Refus synthétique",
+                                    "Synthetic rejection",
                                 EnumValue::Known(wire::IntentOutcome::Unspecified)
-                                | EnumValue::Unknown(_) => "Non prise en charge",
+                                | EnumValue::Unknown(_) => "Unsupported",
                             },
                             super::render::at(&intent.at),
                             position(&intent.position)
@@ -302,7 +302,7 @@ impl Simulation {
                     .iter()
                     .map(|node| {
                         format!(
-                            "{} · {} · {}\n{}\nBranches {} · itérations {}",
+                            "{} · {} · {}\n{}\nBranches {} · iterations {}",
                             action(node.action),
                             stage(node.stage),
                             super::render::at(&node.at),
@@ -338,7 +338,7 @@ impl Simulation {
 }
 fn indexes(values: &[u32]) -> String {
     if values.is_empty() {
-        "non fournies".into()
+        "not provided".into()
     } else {
         values
             .iter()
@@ -348,7 +348,7 @@ fn indexes(values: &[u32]) -> String {
     }
 }
 fn power(on: bool) -> &'static str {
-    if on { "Marche" } else { "Arrêt" }
+    if on { "On" } else { "Off" }
 }
 fn parameter<T: std::fmt::Display>(
     values: &mut Vec<String>,
@@ -365,57 +365,57 @@ fn parameters(value: Option<&wire::intent::Parameters>) -> String {
     let kind = match value {
         Some(wire::intent::Parameters::Switch(value)) => {
             values.push(power(value.on).into());
-            "Interrupteur"
+            "Switch"
         }
         Some(wire::intent::Parameters::Light(value)) => {
             if let Some(on) = value.on {
                 values.push(power(on).into());
             }
-            parameter(&mut values, "Luminosité", value.brightness_percent, " %");
+            parameter(&mut values, "Brightness", value.brightness_percent, " %");
             parameter(
                 &mut values,
-                "Variation",
+                "Brightness Step",
                 value.brightness_step_percent,
                 " %",
             );
-            parameter(&mut values, "Luminosité", value.brightness_255, " / 255");
+            parameter(&mut values, "Brightness", value.brightness_255, " / 255");
             parameter(
                 &mut values,
-                "Température de couleur",
+                "Color Temperature",
                 value.color_temp_mireds,
                 " mired",
             );
             parameter(&mut values, "Transition", value.transition_seconds, " s");
-            "Lumière"
+            "Light"
         }
         Some(wire::intent::Parameters::Climate(value)) => {
-            parameter(&mut values, "Consigne", value.temperature_celsius, " °C");
+            parameter(&mut values, "Setpoint", value.temperature_celsius, " °C");
             if let Some(mode) = value.mode {
                 values.push(
                     match mode {
                         EnumValue::Known(mode) => crate::device_view::mode_label(mode),
-                        EnumValue::Unknown(_) => "Mode non pris en charge",
+                        EnumValue::Unknown(_) => "Unsupported mode",
                     }
                     .into(),
                 );
             }
-            parameter(&mut values, "Humidité", value.humidity_percent, " %");
-            parameter(&mut values, "Ventilation", value.fan_mode.as_deref(), "");
-            parameter(&mut values, "Préréglage", value.preset_mode.as_deref(), "");
-            "Climat"
+            parameter(&mut values, "Humidity", value.humidity_percent, " %");
+            parameter(&mut values, "Fan Mode", value.fan_mode.as_deref(), "");
+            parameter(&mut values, "Preset", value.preset_mode.as_deref(), "");
+            "Climate"
         }
         Some(wire::intent::Parameters::Fan(value)) => {
             values.push(power(value.on).into());
-            parameter(&mut values, "Vitesse", Some(value.percentage), " %");
-            "Ventilateur"
+            parameter(&mut values, "Speed", Some(value.percentage), " %");
+            "Fan"
         }
-        None => return "Paramètres absents".into(),
+        None => return "Parameters missing".into(),
     };
     format!(
         "{} : {}",
         kind,
         if values.is_empty() {
-            "Aucune valeur fournie".into()
+            "No value provided".into()
         } else {
             values.join(" · ")
         }
@@ -429,51 +429,49 @@ fn position(value: &wire::Position) -> String {
 }
 fn diagnostic(value: EnumValue<wire::DiagnosticCode>) -> &'static str {
     match value {
-        EnumValue::Known(wire::DiagnosticCode::UnsupportedExtension) => {
-            "Extension non prise en charge"
+        EnumValue::Known(wire::DiagnosticCode::UnsupportedExtension) => "Unsupported extension",
+        EnumValue::Known(wire::DiagnosticCode::UnsupportedConcurrency) => "Unsupported concurrency",
+        EnumValue::Known(wire::DiagnosticCode::UnsupportedWait) => "Unsupported wait state",
+        EnumValue::Known(wire::DiagnosticCode::InvalidSource) => "Invalid source",
+        EnumValue::Known(wire::DiagnosticCode::MissingFixture) => "Synthetic state missing",
+        EnumValue::Known(wire::DiagnosticCode::FixtureRefused) => {
+            "Action rejected by the test double"
         }
-        EnumValue::Known(wire::DiagnosticCode::UnsupportedConcurrency) => {
-            "Concurrence non prise en charge"
-        }
-        EnumValue::Known(wire::DiagnosticCode::UnsupportedWait) => "Attente non prise en charge",
-        EnumValue::Known(wire::DiagnosticCode::InvalidSource) => "Source invalide",
-        EnumValue::Known(wire::DiagnosticCode::MissingFixture) => "État synthétique manquant",
-        EnumValue::Known(wire::DiagnosticCode::FixtureRefused) => "Intention refusée par le double",
-        EnumValue::Known(wire::DiagnosticCode::ExecutionFailed) => "Exécution virtuelle échouée",
-        EnumValue::Known(wire::DiagnosticCode::CapacityExceeded) => "Capacité dépassée",
+        EnumValue::Known(wire::DiagnosticCode::ExecutionFailed) => "Virtual execution failed",
+        EnumValue::Known(wire::DiagnosticCode::CapacityExceeded) => "Capacity exceeded",
         EnumValue::Known(wire::DiagnosticCode::Unspecified) | EnumValue::Unknown(_) => {
-            "Diagnostic non pris en charge"
+            "Unsupported diagnostic"
         }
     }
 }
 fn action(value: EnumValue<wire::ActionKind>) -> &'static str {
     match value {
         EnumValue::Known(wire::ActionKind::Variables) => "Variables",
-        EnumValue::Known(wire::ActionKind::Sequence) => "Séquence",
-        EnumValue::Known(wire::ActionKind::Choose) => "Choix",
+        EnumValue::Known(wire::ActionKind::Sequence) => "Sequence",
+        EnumValue::Known(wire::ActionKind::Choose) => "Choose",
         EnumValue::Known(wire::ActionKind::If) => "Condition",
-        EnumValue::Known(wire::ActionKind::Repeat) => "Répétition",
-        EnumValue::Known(wire::ActionKind::Parallel) => "Branches parallèles",
-        EnumValue::Known(wire::ActionKind::Wait) => "Attente",
-        EnumValue::Known(wire::ActionKind::Stop) => "Arrêt",
-        EnumValue::Known(wire::ActionKind::Call) => "Appel",
-        EnumValue::Known(wire::ActionKind::Delay) => "Délai",
-        EnumValue::Known(wire::ActionKind::WaitTemplate) => "Attente d’expression",
+        EnumValue::Known(wire::ActionKind::Repeat) => "Repeat",
+        EnumValue::Known(wire::ActionKind::Parallel) => "Parallel Branches",
+        EnumValue::Known(wire::ActionKind::Wait) => "Wait",
+        EnumValue::Known(wire::ActionKind::Stop) => "Stop",
+        EnumValue::Known(wire::ActionKind::Call) => "Call",
+        EnumValue::Known(wire::ActionKind::Delay) => "Delay",
+        EnumValue::Known(wire::ActionKind::WaitTemplate) => "Waiting for expression",
         EnumValue::Known(wire::ActionKind::Unspecified) | EnumValue::Unknown(_) => {
-            "Étape non prise en charge"
+            "Unsupported step"
         }
     }
 }
 fn stage(value: EnumValue<wire::NodeStage>) -> &'static str {
     match value {
-        EnumValue::Known(wire::NodeStage::Entered) => "Démarrée",
-        EnumValue::Known(wire::NodeStage::Completed) => "Terminée",
-        EnumValue::Known(wire::NodeStage::Stopped) => "Arrêtée",
-        EnumValue::Known(wire::NodeStage::Cancelled) => "Annulée",
-        EnumValue::Known(wire::NodeStage::Failed) => "Échouée",
-        EnumValue::Known(wire::NodeStage::Waiting) => "En attente",
+        EnumValue::Known(wire::NodeStage::Entered) => "Started",
+        EnumValue::Known(wire::NodeStage::Completed) => "Done",
+        EnumValue::Known(wire::NodeStage::Stopped) => "Stopped",
+        EnumValue::Known(wire::NodeStage::Cancelled) => "Cancelled",
+        EnumValue::Known(wire::NodeStage::Failed) => "Failed",
+        EnumValue::Known(wire::NodeStage::Waiting) => "Pending",
         EnumValue::Known(wire::NodeStage::Unspecified) | EnumValue::Unknown(_) => {
-            "État non pris en charge"
+            "Unsupported state"
         }
     }
 }
@@ -481,20 +479,20 @@ fn field(field: Field, value: String, editable: bool) -> ProAdminField {
     let (kind, description) = match field {
         Field::Now | Field::TimeZone | Field::Limit => (
             ProAdminFieldKind::Plain,
-            "Horloge virtuelle ; aucune horloge d’appareil réel n’est modifiée",
+            "Virtual clock; no real device clock is changed",
         ),
         Field::Fixtures => (
             ProAdminFieldKind::Multiline,
-            "Tableau de doubles avec alias, état facultatif, attributs typés et capacités déclarées ; aucune lecture d’appareil réel",
+            "Array of test doubles with aliases, optional state, typed attributes and declared capabilities; no real device readings",
         ),
         Field::Events => (
             ProAdminFieldKind::Multiline,
-            "Événements fournis uniquement à la simulation",
+            "Events Provided Only to Simulation",
         ),
         Field::Report | Field::Intents | Field::Nodes | Field::Diagnostics | Field::Limitations => {
             (
                 ProAdminFieldKind::Multiline,
-                "Rapport du serveur ; aucune commande physique ni publication de configuration",
+                "Server report; no physical command or configuration publication",
             )
         }
     };

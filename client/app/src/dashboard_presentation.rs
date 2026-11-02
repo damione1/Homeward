@@ -1,7 +1,8 @@
 //! Product adapter from a validated server forest to injected Pro presentation.
 use crate::{
-    ProGestureAccess, ProLayoutCell, ProLayoutColumns, ProLayoutFlow, ProLayoutHeading,
-    ProLayoutInput, ProLayoutKind, ProLayoutNode, ProLayoutSpan, ProRecipeRow, ProRecipeStyle,
+    IconGlyph, ProGestureAccess, ProLayoutCell, ProLayoutColumns, ProLayoutFlow, ProLayoutHeading,
+    ProLayoutInput, ProLayoutKind, ProLayoutMetricsPolicy, ProLayoutNode, ProLayoutSpan,
+    ProLayoutSpanRule, ProRecipeRow, ProRecipeStyle,
 };
 use crate::{
     dashboard::{Layout, ProjectionRequest},
@@ -17,6 +18,7 @@ pub(crate) struct BoardNode {
     device: Option<crate::device_view::presentation::CardRow>,
     square: bool,
     recipe: Option<crate::device_view::RecipePresentation>,
+    widget: crate::dashboard_widget_reading::Reading,
 }
 #[derive(Clone, Copy, Default)]
 pub(crate) enum BoardTarget {
@@ -37,6 +39,7 @@ impl Board {
         layout: Option<&Layout>,
         request: &ProjectionRequest,
         devices: &DeviceProjection,
+        view: Option<&home_client_cache::CachedView>,
     ) -> Self {
         let Some(layout) = layout.filter(|layout| layout.native.is_some()) else {
             return Self::default();
@@ -93,6 +96,9 @@ impl Board {
                             .flatten()
                     });
                     BoardNode {
+                        widget: crate::dashboard_widget_reading::Reading::project(
+                            node, layout, view,
+                        ),
                         recipe: devices.recipes.get(&node.id).cloned(),
                         square: node.square.unwrap_or(false) || square_children.contains(&node.id),
                         data: node.clone(),
@@ -107,16 +113,110 @@ impl Board {
                 .collect(),
         }
     }
+    // A local directory changes arrangement only. Leaves retain their original
+    // indices, opaque widget owners and exact configured navigation recipes.
+    pub fn room_directory_rows(&self, mut rows: Vec<ProLayoutNode>) -> Vec<ProLayoutNode> {
+        if !matches!(self.target, BoardTarget::Home) || rows.is_empty() {
+            return Vec::new();
+        }
+        let mut pending = vec![(0usize, 0i32, 0i32)];
+        let mut seen = Vec::new();
+        let mut children = Vec::new();
+        while let Some((index, inherited_min, inherited_max)) = pending.pop() {
+            let node = &self.nodes[index];
+            let minimum = inherited_min.max(node.data.viewport_min_width);
+            let maximum = match (inherited_max, node.data.viewport_max_width) {
+                (0, bound) | (bound, 0) => bound,
+                (left, right) => left.min(right),
+            };
+            if maximum != 0 && minimum > maximum {
+                continue;
+            }
+            if let Some(widget) = &node.data.widget
+                && let crate::dashboard_widgets::Content::Room { room, .. } = &widget.content
+            {
+                let key = (room.clone(), widget.action.clone(), minimum, maximum);
+                if !seen.contains(&key) {
+                    seen.push(key);
+                    children.push(ProLayoutInput {
+                        index: index as i32,
+                        viewport_min_width: minimum,
+                        viewport_max_width: maximum,
+                        rows: 1,
+                        ..Default::default()
+                    });
+                }
+            }
+            pending.extend(
+                node.children
+                    .iter()
+                    .rev()
+                    .map(|child| (*child, minimum, maximum)),
+            );
+        }
+        if children.is_empty() {
+            return Vec::new();
+        }
+        rows[0] = ProLayoutNode {
+            kind: ProLayoutKind::Container,
+            flow: ProLayoutFlow::Grid,
+            columns: 4,
+            column_policy: ProLayoutColumns::Maximum,
+            minimum_column_width: 136.,
+            gap: 8.,
+            metrics_policy: ProLayoutMetricsPolicy::Configured,
+            children: slint::ModelRc::from(children.as_slice()),
+            ..Default::default()
+        };
+        rows
+    }
     pub fn target(&self) -> BoardTarget {
         self.target
     }
-    pub fn rows(&self, previous: &slint::VecModel<ProLayoutNode>) -> Vec<ProLayoutNode> {
+    fn token_base(&self) -> i32 {
+        match self.target {
+            BoardTarget::Home => 100_000,
+            BoardTarget::Room => 200_000,
+            BoardTarget::Popup => 300_000,
+            BoardTarget::Clear | BoardTarget::Retain => 0,
+        }
+    }
+    pub fn bindings(&self, generation: i32) -> Vec<crate::dashboard_widgets::Binding> {
+        self.nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(index, node)| {
+                Some(crate::dashboard_widgets::Binding {
+                    token: self.token_base() + index as i32,
+                    generation,
+                    node: node.data.id.clone(),
+                    config: node.data.widget.clone()?,
+                })
+            })
+            .collect()
+    }
+    #[cfg(test)]
+    pub fn rows(
+        &self,
+        previous: &slint::VecModel<ProLayoutNode>,
+        icon: &IconGlyph,
+    ) -> Vec<ProLayoutNode> {
+        self.rows_with_generation(previous, icon, 0)
+    }
+    pub fn rows_with_generation(
+        &self,
+        previous: &slint::VecModel<ProLayoutNode>,
+        icon: &IconGlyph,
+        generation: i32,
+    ) -> Vec<ProLayoutNode> {
         self.nodes
             .iter()
             .enumerate()
             .map(|(index, node)| {
                 let previous = previous.row_data(index);
                 let data = &node.data;
+                let selected_icon = crate::dashboard_icons::glyph(data.icon, icon);
+                let icon = &selected_icon;
                 let kind = match data.kind {
                     Kind::View
                     | Kind::Section
@@ -126,6 +226,7 @@ impl Board {
                     | Kind::Popup
                     | Kind::ChipGroup => ProLayoutKind::Container,
                     Kind::Heading => ProLayoutKind::Heading,
+                    Kind::Widget => ProLayoutKind::Widget,
                     Kind::Tile => {
                         if node.device.is_some() {
                             ProLayoutKind::Device
@@ -162,6 +263,7 @@ impl Board {
                     | Kind::Recipe
                     | Kind::Heading
                     | Kind::Tile
+                    | Kind::Widget
                     | Kind::Unsupported => ProLayoutFlow::Vertical,
                 };
                 let children = node
@@ -169,6 +271,25 @@ impl Board {
                     .iter()
                     .map(|index| {
                         let child = &self.nodes[*index].data;
+                        let spans = child
+                            .responsive_spans
+                            .iter()
+                            .map(|(columns, span)| ProLayoutSpanRule {
+                                columns: i32::from(*columns),
+                                span: i32::from(*span),
+                            })
+                            .collect::<Vec<_>>();
+                        let previous_spans = previous
+                            .as_ref()
+                            .and_then(|node| {
+                                node.children
+                                    .iter()
+                                    .find(|input| input.index == *index as i32)
+                            })
+                            .map(|input| input.spans);
+                        let spans = previous_spans
+                            .filter(|old| old.iter().eq(spans.iter().cloned()))
+                            .unwrap_or_else(|| slint::ModelRc::from(spans.as_slice()));
                         let (span, count) = match child.column_span {
                             None | Some(Dimension::Auto) => (ProLayoutSpan::Automatic, 0),
                             Some(Dimension::Full) => (ProLayoutSpan::Full, 0),
@@ -177,6 +298,8 @@ impl Board {
                             }
                         };
                         ProLayoutInput {
+                            viewport_min_width: child.viewport_min_width,
+                            viewport_max_width: child.viewport_max_width,
                             index: *index as i32,
                             column_span: span,
                             columns: count,
@@ -184,10 +307,12 @@ impl Board {
                                 Some(Dimension::Count(rows)) => i32::from(rows),
                                 None | Some(Dimension::Auto | Dimension::Full) => 1,
                             },
+                            spans,
                         }
                     })
                     .collect::<Vec<_>>();
                 let mut device = node.device.clone().unwrap_or_default();
+                device.summary_only = data.summary_only;
                 if !data.title.is_empty() {
                     device.title = data.title.as_str().into();
                 }
@@ -231,7 +356,7 @@ impl Board {
                         .as_ref()
                         .is_some_and(|recipe| recipe.unavailable)
                     {
-                        "Une interaction configurée est indisponible.".into()
+                        "A configured interaction is unavailable.".into()
                     } else {
                         Default::default()
                     },
@@ -267,9 +392,26 @@ impl Board {
                     previous_children,
                 );
                 ProLayoutNode {
+                    viewport_min_width: data.viewport_min_width,
+                    viewport_max_width: data.viewport_max_width,
+                    token: self.token_base() + index as i32,
+                    generation,
+                    widget: node.widget.ui(
+                        data,
+                        node.device.as_ref(),
+                        previous.as_ref(),
+                        (self.token_base() + index as i32, generation),
+                        icon,
+                        matches!(
+                            recipe.tap,
+                            ProGestureAccess::Enabled | ProGestureAccess::EnabledCommand
+                        ),
+                    ),
                     kind,
                     flow,
-                    title: if data.kind == Kind::View {
+                    title: if data.kind == Kind::View
+                        || (index == 0 && matches!(self.target, BoardTarget::Popup))
+                    {
                         ""
                     } else if kind == ProLayoutKind::Diagnostic && data.title.is_empty() {
                         data.source.variant.as_str()
@@ -278,16 +420,21 @@ impl Board {
                     }
                     .into(),
                     description: if kind == ProLayoutKind::Diagnostic
+                        && data.kind == Kind::Unsupported
+                    {
+                        "Control unavailable for this item."
+                    } else if kind == ProLayoutKind::Diagnostic
                         && data.entity.is_some()
                         && node.device.is_none()
                     {
-                        "Aucune observation autorisée pour cet élément."
+                        "No authorized observation for this item."
                     } else {
                         data.diagnostic.as_str()
                     }
                     .into(),
                     source: source.into(),
                     heading: match data.heading_style {
+                        HeadingStyle::Default if data.gap.is_some() => ProLayoutHeading::Section,
                         HeadingStyle::Default => ProLayoutHeading::Normal,
                         HeadingStyle::Title => ProLayoutHeading::Title,
                         HeadingStyle::Subtitle => ProLayoutHeading::Subtitle,
@@ -303,23 +450,35 @@ impl Board {
                         | Kind::Recipe
                         | Kind::Heading
                         | Kind::Tile
+                        | Kind::Widget
                         | Kind::Unsupported => ProLayoutColumns::Fixed,
                     },
                     span_base: if data.kind == Kind::Section { 12 } else { 0 },
+                    minimum_column_width: data.minimum_column_width.unwrap_or(280) as f32,
+                    gap: data.gap.unwrap_or(12) as f32,
+                    metrics_policy: if data.gap.is_some() || data.minimum_column_width.is_some() {
+                        ProLayoutMetricsPolicy::Configured
+                    } else {
+                        ProLayoutMetricsPolicy::Themed
+                    },
                     square: node.square,
                     vertical: data.vertical.unwrap_or(false),
                     hide_state: data.hide_state.unwrap_or(false),
                     children,
-                    device: device.ui(previous.as_ref().map(|node| &node.device)),
+                    device: device.ui(previous.as_ref().map(|node| &node.device), icon),
                     recipe,
-                    ..Default::default()
                 }
             })
             .collect()
     }
 }
 pub(crate) fn bind(window: &crate::HomewardWindow) {
-    slint_kit_pro::bind_layout_arranger!(window, on_layout_arrange, ProLayoutSpan, ProLayoutCell);
+    slint_kit_pro::bind_responsive_layout_arranger!(
+        window,
+        on_layout_arrange,
+        ProLayoutSpan,
+        ProLayoutCell
+    );
 }
 
 #[cfg(test)]
@@ -327,6 +486,97 @@ mod tests {
     use super::*;
     use crate::dashboard_layout::NodeId;
 
+    #[test]
+    fn rooms_directory_preserves_ancestor_screen_rules_and_deduplicates_exact_copies() {
+        use crate::dashboard_widgets::{Content, Widget};
+        use home_client_model::dashboard::{Destination, Presentation};
+        let mut native = crate::dashboard_layout::NativeLayout::try_from(
+            &crate::dashboard_layout::tests::extended_forest(),
+        )
+        .unwrap();
+        let template = native
+            .nodes
+            .remove(&NodeId::parse("tile").unwrap())
+            .unwrap();
+        let destination = Destination {
+            dashboard: home_client_model::dashboard::DashboardId::parse("configured").unwrap(),
+            node: NodeId::parse("popup").unwrap(),
+            presentation: Presentation::Popup,
+        };
+        let mut room = template.clone();
+        room.kind = Kind::Widget;
+        room.entity = None;
+        room.recipes = None;
+        room.features.clear();
+        room.widget = Some(Widget {
+            content: Content::Room {
+                room: crate::dashboard::RoomId::parse("same-room").unwrap(),
+                temperature: None,
+                activity: Vec::new(),
+                active_states: Vec::new(),
+            },
+            action: Some(destination),
+            action_label: String::new(),
+            empty_label: String::new(),
+        });
+        let mut duplicate = room.clone();
+        duplicate.id = NodeId::parse("copy").unwrap();
+        let mut mobile = room.clone();
+        mobile.id = NodeId::parse("mobile-copy").unwrap();
+        mobile.viewport_max_width = 599;
+        let mut section = template.clone();
+        section.id = NodeId::parse("desktop-section").unwrap();
+        section.kind = Kind::Section;
+        section.entity = None;
+        section.children = vec![room.id.clone(), duplicate.id.clone()];
+        section.viewport_min_width = 600;
+        let mut root = section.clone();
+        root.id = NodeId::parse("view").unwrap();
+        root.kind = Kind::View;
+        root.viewport_min_width = 0;
+        root.children = vec![section.id.clone(), mobile.id.clone()];
+        let mut layout = crate::dashboard::fixture();
+        layout.native = Some(crate::dashboard_layout::NativeLayout {
+            version: 3,
+            views: vec![root.id.clone()],
+            nodes: [
+                root.clone(),
+                section.clone(),
+                room.clone(),
+                duplicate.clone(),
+                mobile.clone(),
+            ]
+            .into_iter()
+            .map(|node| (node.id.clone(), node))
+            .collect(),
+        });
+        let devices = DeviceProjection {
+            native_nodes: vec![root, section, room, duplicate, mobile],
+            ..Default::default()
+        };
+        let board = Board::project(Some(&layout), &ProjectionRequest::default(), &devices, None);
+        let rows = board.rows(&Default::default(), &Default::default());
+        let directory = board.room_directory_rows(rows.clone());
+        let inputs = directory[0].children.iter().collect::<Vec<_>>();
+        assert_eq!(
+            inputs.len(),
+            2,
+            "same source room and destination is shown once per screen range"
+        );
+        assert_eq!(
+            (inputs[0].viewport_min_width, inputs[0].viewport_max_width),
+            (600, 0)
+        );
+        assert_eq!(
+            (inputs[1].viewport_min_width, inputs[1].viewport_max_width),
+            (0, 599)
+        );
+        for input in inputs {
+            let index = input.index as usize;
+            assert_eq!(directory[index].token, rows[index].token);
+            assert_eq!(directory[index].widget, rows[index].widget);
+        }
+    }
     #[test]
     fn observed_values_refresh_without_replacing_layout_models_and_real_cells_still_update() {
         let mut layout = crate::dashboard::fixture();
@@ -354,8 +604,8 @@ mod tests {
         devices
             .native_devices
             .insert(NodeId::parse("tile").unwrap(), devices.rows[0].clone());
-        let first_board = Board::project(Some(&layout), &request, &devices);
-        let first = first_board.rows(&slint::VecModel::default());
+        let first_board = Board::project(Some(&layout), &request, &devices, None);
+        let first = first_board.rows(&slint::VecModel::default(), &IconGlyph::default());
         let previous = slint::VecModel::from(first.clone());
         devices.rows[0].value = "New observation".into();
         devices
@@ -363,7 +613,8 @@ mod tests {
             .get_mut(&NodeId::parse("tile").unwrap())
             .unwrap()
             .value = "New observation".into();
-        let next = Board::project(Some(&layout), &request, &devices).rows(&previous);
+        let next = Board::project(Some(&layout), &request, &devices, None)
+            .rows(&previous, &IconGlyph::default());
         for (before, after) in first.iter().zip(&next) {
             if before.kind == ProLayoutKind::Container {
                 assert_eq!(
@@ -389,7 +640,8 @@ mod tests {
             .find(|node| node.id.as_str() == "tile")
             .unwrap()
             .column_span = Some(Dimension::Count(2));
-        let changed = Board::project(Some(&layout), &request, &devices).rows(&previous);
+        let changed = Board::project(Some(&layout), &request, &devices, None)
+            .rows(&previous, &IconGlyph::default());
         assert_eq!(changed[grid].children, first[grid].children);
         assert_eq!(
             changed[grid].children.row_data(0).unwrap().columns,
@@ -416,8 +668,8 @@ mod tests {
                 .collect(),
             ..Default::default()
         };
-        let board = Board::project(Some(&layout), &ProjectionRequest::default(), &devices);
-        let rows = board.rows(&slint::VecModel::default());
+        let board = Board::project(Some(&layout), &ProjectionRequest::default(), &devices, None);
+        let rows = board.rows(&slint::VecModel::default(), &IconGlyph::default());
         assert_eq!(rows.len(), 10);
         assert!(
             board

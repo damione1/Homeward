@@ -28,24 +28,24 @@ export component HomewardHistory inherits Rectangle {
     changed theme => { root.viewport(chart.plot-width,chart.plot-height,root.theme.canvas,root.theme.accent); }
     body := VerticalLayout {
         spacing: 12px;
-        KitTextField { theme: root.theme; label: "Début UTC (RFC3339)"; text <=> root.start; access: root.interactive ? FieldAccess.editable : FieldAccess.disabled; edited(text) => { root.draft-changed(); } }
-        KitTextField { theme: root.theme; label: "Fin UTC exclusive (RFC3339)"; text <=> root.end; access: root.interactive ? FieldAccess.editable : FieldAccess.disabled; edited(text) => { root.draft-changed(); } }
+        KitTextField { theme: root.theme; label: "Start UTC (RFC3339)"; text <=> root.start; access: root.interactive ? FieldAccess.editable : FieldAccess.disabled; edited(text) => { root.draft-changed(); } }
+        KitTextField { theme: root.theme; label: "End UTC Exclusive (RFC3339)"; text <=> root.end; access: root.interactive ? FieldAccess.editable : FieldAccess.disabled; edited(text) => { root.draft-changed(); } }
         KitWrap {
             KitButton { theme: root.theme; text: "Observations"; intent: root.statistic == HistoryStatistic.observation ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.observation); } }
-            KitButton { theme: root.theme; text: "Moyenne horaire"; intent: root.statistic == HistoryStatistic.mean ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.mean); } }
+            KitButton { theme: root.theme; text: "Hourly Average"; intent: root.statistic == HistoryStatistic.mean ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.mean); } }
             KitButton { theme: root.theme; text: "Minimum"; intent: root.statistic == HistoryStatistic.minimum ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.minimum); } }
             KitButton { theme: root.theme; text: "Maximum"; intent: root.statistic == HistoryStatistic.maximum ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.maximum); } }
             KitButton { theme: root.theme; text: "Contribution"; intent: root.statistic == HistoryStatistic.contribution ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.contribution); } }
-            KitButton { theme: root.theme; text: "Afficher / relire"; disabled: !root.interactive; activated => { root.apply(root.start,root.end,root.statistic); } }
+            KitButton { theme: root.theme; text: "Show / Refresh"; disabled: !root.interactive; activated => { root.apply(root.start,root.end,root.statistic); } }
         }
         Text { text: root.presentation.group-label; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
         KitWrap {
-            KitButton { theme: root.theme; text: "Groupe précédent"; disabled: !root.interactive || root.presentation.series.length == 0; activated => { root.group(NavigationStep.previous); } }
-            KitButton { theme: root.theme; text: "Groupe suivant"; disabled: !root.interactive || root.presentation.series.length == 0; activated => { root.group(NavigationStep.next); } }
+            KitButton { theme: root.theme; text: "Previous Group"; disabled: !root.interactive || root.presentation.series.length == 0; activated => { root.group(NavigationStep.previous); } }
+            KitButton { theme: root.theme; text: "Next Group"; disabled: !root.interactive || root.presentation.series.length == 0; activated => { root.group(NavigationStep.next); } }
         }
         chart := ProChart {
             theme: root.theme; generation: root.presentation.generation; phase: root.interactive ? root.presentation.phase : ProChartPhase.unsupported;
-            title: "Historique · consommation et coûts serveur";
+            title: "History · server usage and costs";
             notice: root.presentation.notice; description: root.presentation.description; unit: root.presentation.unit;
             state-label: root.presentation.state-label;
             series: root.presentation.series; plot-image: root.presentation.image;
@@ -55,8 +55,8 @@ export component HomewardHistory inherits Rectangle {
             inspection: root.presentation.inspection;
             cursor-visible: root.presentation.cursor-visible; cursor-position: root.presentation.cursor;
             range-visible: root.presentation.range-visible; range-start: root.presentation.range-start; range-end: root.presentation.range-end;
-            coverage-label: "Couverture logique décrite ci-dessus · les trous sans bornes UTC ne sont pas localisés sur l’axe";
-            keyboard-help: "Flèches : chaque observation originale, même simultanée · Début/Fin · Maj : sélectionner · Échap : annuler";
+            coverage-label: "Logical coverage described above · gaps without UTC bounds cannot be placed on the axis";
+            keyboard-help: "Arrows: each original observation, including simultaneous ones · Home/End · Shift: select · Escape: cancel";
             inspect(g,x) => { root.inspect(g,x); }
             navigate(g,step,extend) => { root.navigate(g,step,extend); }
             interval(g,gesture,x) => { root.interval(g,gesture,x); }

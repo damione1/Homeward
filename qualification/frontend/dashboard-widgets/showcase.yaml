@@ -1,0 +1,145 @@
+# Complete tablet composition. Replace the owner/list/calendar IDs through
+# trusted server configuration; every binding is explicit. These retained
+# aliases are served only by the isolated qualification driver in this example.
+homeward:
+  profile: homeward-dashboard-3
+  owner: OWNER_ACCOUNT_ID
+  url_path: configuration
+views:
+- type: sections
+  path: home
+  title: Ma maison
+  max_columns: 3
+  minimum_column_width: 300
+  gap: 20
+  sections:
+  - type: grid
+    column_span: 3
+    cards:
+    - type: custom:homeward-observations
+      grid_options: {columns: full}
+      items:
+      - field: {entity: light.basement_lights, field: value}
+        label: Lumières
+        active_states: ['on']
+      - field: {entity: binary_sensor.arc_soundbar_microphone, field: value}
+        label: Présence
+        active_states: ['on']
+  - type: grid
+    column_span: 1
+    gap: 16
+    cards:
+    - type: heading
+      heading: Vue d’ensemble
+    - type: custom:homeward-clock-weather
+      timezone: America/Toronto
+      weather_entity: weather.maison
+    - type: custom:homeward-thermostat
+      title: Chauffage
+      entity: climate.neviweb130_climate_sous_sol
+      current_temperature: {entity: climate.neviweb130_climate_sous_sol, field: current_temperature_celsius}
+      target_temperature: {entity: climate.neviweb130_climate_sous_sol, field: setpoint_celsius}
+    - type: custom:homeward-navigation
+      title: Voir les équipements
+      destination: /configuration/rooms
+  - type: grid
+    column_span: 2
+    gap: 16
+    cards:
+    - type: heading
+      heading: Pièces
+      grid_options: {columns: full}
+    - type: grid
+      columns: 3
+      square: false
+      minimum_column_width: 200
+      gap: 8
+      grid_options: {columns: full}
+      cards:
+      - type: custom:homeward-room
+        title: Salon
+        room_id: living
+        temperature: {entity: climate.neviweb130_climate_sous_sol, field: current_temperature_celsius}
+        activity_entities: [light.basement_lights]
+        active_states: ['on']
+        action: /configuration/rooms
+      - type: custom:homeward-room
+        title: Cuisine
+        room_id: kitchen
+        temperature: {entity: climate.chambre_eugenie, field: current_temperature_celsius}
+        activity_entities: [light.basement_lights]
+        active_states: ['on']
+        action: /configuration/rooms
+      - type: custom:homeward-room
+        title: Salle à manger
+        room_id: dining
+        action: /configuration/rooms
+      - type: custom:homeward-room
+        title: Chambre principale
+        room_id: primary-bedroom
+        temperature: {entity: climate.chambre_eugenie, field: current_temperature_celsius}
+        action: /configuration/rooms
+      - type: custom:homeward-room
+        title: Chambre d’Eugénie
+        room_id: second-bedroom
+        temperature: {entity: climate.chambre_eugenie, field: current_temperature_celsius}
+        action: /configuration/rooms
+      - type: custom:homeward-room
+        title: Salle de bain
+        room_id: bathroom
+        action: /configuration/rooms
+      - type: custom:homeward-room
+        title: Sous-sol
+        room_id: basement
+        temperature: {entity: climate.neviweb130_climate_sous_sol, field: current_temperature_celsius}
+        activity_entities: [light.basement_lights]
+        active_states: ['on']
+        action: /configuration/rooms
+      - type: custom:homeward-room
+        title: Chambre d’amis
+        room_id: guest-bedroom
+        action: /configuration/rooms
+      - type: custom:homeward-room
+        title: Extérieur
+        room_id: outdoors
+        action: /configuration/rooms
+  - type: grid
+    column_span: 1
+    cards:
+    - type: custom:homeward-agenda
+      title: Agenda
+      calendar_id: dashboard-config-calendar
+      timezone: America/Toronto
+      window_seconds: 86400
+      limit: 4
+      empty_label: Aucun événement disponible
+  - type: grid
+    column_span: 1
+    cards:
+    - type: custom:homeward-tasks
+      title: Épicerie
+      list_id: LIST_B_ID
+      limit: 4
+      empty_label: Rien à acheter
+  - type: grid
+    column_span: 1
+    cards:
+    - type: custom:homeward-security
+      title: Sécurité
+      entities: [binary_sensor.arc_soundbar_microphone]
+- type: sections
+  path: rooms
+  title: Pièces et équipements
+  max_columns: 2
+  sections:
+  - type: grid
+    cards:
+    - type: custom:homeward-navigation
+      title: Retour à ma maison
+      destination: /configuration/home
+    - type: tile
+      name: Chauffage du sous-sol
+      entity: climate.neviweb130_climate_sous_sol
+    - type: tile
+      name: Lumières
+      entity: light.basement_lights

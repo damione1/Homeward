@@ -239,13 +239,13 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
         Page::Documents(value) => {
             push(
                 navigate(Selection::Schemas),
-                "Schémas".into(),
-                "Formats et périmètre d’écriture exposés par le serveur".into(),
+                "Schemas".into(),
+                "Formats and write scope exposed by the server".into(),
             );
             push(
                 navigate(Selection::Generations),
-                "Générations".into(),
-                "Historique des publications et disponibilité de restauration".into(),
+                "Generations".into(),
+                "Publication History and Restore Availability".into(),
             );
             for value in &value.documents {
                 let id = DocumentId::parse(&value.id.value).expect("admitted document");
@@ -253,7 +253,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                     navigate(Selection::Document(id)),
                     value.id.value.clone(),
                     format!(
-                        "Version SQL {} · {}",
+                        "SQL version {} · {}",
                         value.version.revision, value.schema_version
                     ),
                 );
@@ -264,22 +264,22 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
             push(
                 navigate(Selection::Documents),
                 "Documents".into(),
-                "Revenir au catalogue".into(),
+                "Back to Catalogue".into(),
             );
             push(
                 navigate(Selection::Versions(value.id().clone())),
-                "Versions conservées".into(),
-                "Consulter l’historique de ce document".into(),
+                "Retained Versions".into(),
+                "View This Document’s History".into(),
             );
             push(
                 render::fact("configuration/sql"),
-                format!("Document SQL · version {}", value.sql().revision()),
+                format!("SQL document · version {}", value.sql().revision()),
                 render::hex(value.sql().source().bytes()),
             );
             push(
                 render::fact("configuration/active"),
                 format!(
-                    "Configuration active · génération {}",
+                    "Active configuration · generation {}",
                     value.active().revision()
                 ),
                 render::hex(value.active().manifest().bytes()),
@@ -288,22 +288,27 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                 Workspace::Observed { hash, dirty } => push(
                     render::fact("configuration/workspace"),
                     dirty.label().into(),
-                    format!("Fichiers observés · {}", render::hex(hash.bytes())),
+                    format!("Observed files · {}", render::hex(hash.bytes())),
                 ),
                 Workspace::Unobserved(reason) => push(
                     render::fact("configuration/workspace"),
-                    "Fichiers non observés".into(),
+                    "Unobserved Files".into(),
                     reason.label().into(),
                 ),
             }
-            push(render::fact("configuration/source"),"Source protégée".into(),"Ce document fournit des métadonnées. L’édition exige une source explicitement fournie.".into());
+            push(
+                render::fact("configuration/source"),
+                "Protected Source".into(),
+                "This document contains metadata. Editing requires an explicitly provided source."
+                    .into(),
+            );
             push(
                 render::fact("configuration/sql-active"),
-                "Utilisation du document SQL".into(),
+                "SQL Document Usage".into(),
                 if value.document().active {
-                    "Cette version participe à la génération active"
+                    "This version participates in the active generation"
                 } else {
-                    "Version enregistrée distincte de la génération active"
+                    "Saved version separate from the active generation"
                 }
                 .into(),
             );
@@ -311,25 +316,25 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
         Page::Versions { id, response } => {
             push(
                 navigate(Selection::Document(id.clone())),
-                "Document courant".into(),
+                "Current Document".into(),
                 id.as_str().into(),
             );
             for value in &response.versions {
                 let detail = match value.availability {
                     EnumValue::Known(wire::VersionAvailability::Retained) => format!(
-                        "Conservée · {} · {}",
+                        "Retained · {} · {}",
                         value.schema_version,
                         render::at(&value.updated_at)
                     ),
                     EnumValue::Known(wire::VersionAvailability::Purged) => {
-                        "Source purgée · aucune date ou version de schéma déduite".into()
+                        "Source purged · no date or schema version inferred".into()
                     }
                     EnumValue::Known(wire::VersionAvailability::Unspecified)
-                    | EnumValue::Unknown(_) => "Disponibilité non prise en charge".into(),
+                    | EnumValue::Unknown(_) => "Unsupported availability".into(),
                 };
                 push(
                     render::fact(format!("configuration/version/{}", value.version.revision)),
-                    format!("Version SQL {}", value.version.revision),
+                    format!("SQL version {}", value.version.revision),
                     format!("{detail}\n{}", render::hex(&value.version.source_sha256)),
                 );
             }
@@ -339,7 +344,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
             push(
                 navigate(Selection::Documents),
                 "Documents".into(),
-                "Revenir au catalogue".into(),
+                "Back to Catalogue".into(),
             );
             for (index, value) in value.schemas.iter().enumerate() {
                 push(
@@ -349,9 +354,9 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                         "{} · {}",
                         value.syntax_profile,
                         if value.editable_operational_workspace {
-                            "Source opérationnelle fournie explicitement"
+                            "Explicitly Provided Operational Source"
                         } else {
-                            "Autorité spécifique · pas d’écriture globale"
+                            "Specific authorization · no global writes"
                         }
                     ),
                 );
@@ -362,25 +367,23 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
             push(
                 navigate(Selection::Documents),
                 "Documents".into(),
-                "Revenir au catalogue".into(),
+                "Back to Catalogue".into(),
             );
             for value in &value.generations {
                 let availability = match value.availability {
-                    EnumValue::Known(wire::GenerationAvailability::Complete) => {
-                        "Historique complet"
-                    }
+                    EnumValue::Known(wire::GenerationAvailability::Complete) => "Complete History",
                     EnumValue::Known(wire::GenerationAvailability::PartiallyPurged) => {
-                        "Historique partiellement purgé"
+                        "History partially purged"
                     }
                     EnumValue::Known(wire::GenerationAvailability::Unspecified)
-                    | EnumValue::Unknown(_) => "Disponibilité non prise en charge",
+                    | EnumValue::Unknown(_) => "Unsupported availability",
                 };
                 push(
                     render::fact(format!(
                         "configuration/generation/{}",
                         value.generation.revision
                     )),
-                    format!("Génération {}", value.generation.revision),
+                    format!("Generation {}", value.generation.revision),
                     format!(
                         "{availability} · {}\n{}",
                         render::at(&value.created_at),

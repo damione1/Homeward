@@ -44,7 +44,7 @@ impl Projection {
             options: state.choices.clone(),
             notice: state.notice.clone(),
             action: if state.pending.is_some() {
-                "Vérification de la commande…".into()
+                "Checking command…".into()
             } else {
                 [label, detail]
                     .into_iter()
@@ -71,22 +71,22 @@ fn rows<T: Clone + PartialEq + 'static>(current: ModelRc<T>, values: Vec<T>) -> 
 }
 pub(super) fn refusal(value: Refusal) -> &'static str {
     match value {
-        Refusal::Contract => "La réponse du serveur n’est pas compatible.",
-        Refusal::Unsupported => "Cette action n’est pas déclarée pour ce lecteur.",
-        Refusal::Permission => "Commande non envoyée : droits ou capacités modifiés.",
-        Refusal::Invalid => "Saisissez un nombre positif sans exposant.",
-        Refusal::Precision => "Trop de décimales pour cette quantité.",
-        Refusal::Bounds => "La valeur dépasse les limites du lecteur.",
-        Refusal::Step => "La valeur ne respecte pas le pas du lecteur.",
+        Refusal::Contract => "The server response is incompatible.",
+        Refusal::Unsupported => "This action is not declared for this player.",
+        Refusal::Permission => "Command not sent: permissions or capabilities changed.",
+        Refusal::Invalid => "Enter a positive number without an exponent.",
+        Refusal::Precision => "Too many decimal places for this quantity.",
+        Refusal::Bounds => "The value exceeds the player’s limits.",
+        Refusal::Step => "The value does not match the player’s step.",
     }
 }
 fn operation(value: wire::Operation) -> Option<(ProMediaOperation, &'static str)> {
     match value {
-        wire::Operation::Play => Some((ProMediaOperation::Play, "Lire")),
-        wire::Operation::Pause => Some((ProMediaOperation::Pause, "Mettre en pause")),
-        wire::Operation::Stop => Some((ProMediaOperation::Stop, "Arrêter")),
-        wire::Operation::Previous => Some((ProMediaOperation::Previous, "Précédent")),
-        wire::Operation::Next => Some((ProMediaOperation::Next, "Suivant")),
+        wire::Operation::Play => Some((ProMediaOperation::Play, "Play")),
+        wire::Operation::Pause => Some((ProMediaOperation::Pause, "Pause")),
+        wire::Operation::Stop => Some((ProMediaOperation::Stop, "Stop")),
+        wire::Operation::Previous => Some((ProMediaOperation::Previous, "Previous")),
+        wire::Operation::Next => Some((ProMediaOperation::Next, "Next")),
         wire::Operation::Unspecified => None,
     }
 }
@@ -99,17 +99,14 @@ fn field(data: &Data, field: Field, draft: &Draft) -> Option<ProDeviceValue> {
     let reading = data
         .observed(field)
         .map(|v| format!("{} {suffix}", v.text()))
-        .unwrap_or_else(|| "non fournie".into());
+        .unwrap_or_else(|| "not provided".into());
     Some(ProDeviceValue {
         token: field.token(),
         kind: ProValueKind::Numeric,
         mode: ProValueMode::Single,
         label: label.into(),
         suffix: suffix.into(),
-        description: format!(
-            "Observation serveur : {reading}. L’édition est une intention distincte."
-        )
-        .into(),
+        description: format!("Server observation: {reading}. Editing is a separate action.").into(),
         lower: draft.text.clone().into(),
         lower_position: draft.value.map_or(0., |q| data.position(q)),
         slider_enabled: limits.minimum < limits.maximum,
@@ -121,6 +118,10 @@ fn field(data: &Data, field: Field, draft: &Draft) -> Option<ProDeviceValue> {
 pub(super) fn clear(window: &HomewardWindow) {
     window.set_media_publishing(true);
     window.set_media_visible(false);
+    window.set_media_progress_known(false);
+    window.set_media_progress(0.);
+    window.set_media_position_label("".into());
+    window.set_media_duration_label("".into());
     window.set_media_has_data(false);
     window.set_media_editable(false);
     window.set_media_generation(0);
@@ -156,12 +157,12 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     window.set_media_publishing(true);
     let status = match value.status {
         Status::Hidden | Status::Unsupported | Status::Ready => "",
-        Status::Loading => "Lecture des informations média…",
-        Status::Denied => "Lecture média non autorisée. Les données privées ont été retirées.",
+        Status::Loading => "Reading media information…",
+        Status::Denied => "Media access denied. Private data was removed.",
         Status::Offline => {
-            "Serveur indisponible. Lecture datée ; aucune commande n’est rejouée à la reconnexion."
+            "Server unavailable. Dated reading; no commands will be replayed on reconnection."
         }
-        Status::Contract => "Réponse média incompatible. Aucune commande envoyée.",
+        Status::Contract => "Incompatible media response. No command was sent.",
     };
     window.set_media_generation(value.generation);
     window.set_media_visible(true);
@@ -176,6 +177,10 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             .into(),
     );
     let Some(data) = value.data else {
+        window.set_media_progress_known(false);
+        window.set_media_progress(0.);
+        window.set_media_position_label("".into());
+        window.set_media_duration_label("".into());
         window.set_media_data(Default::default());
         window.set_media_actions(Default::default());
         window.set_media_values(Default::default());
@@ -188,13 +193,48 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         return;
     };
     let snapshot = data.snapshot();
+    let progress = snapshot
+        .position_millis
+        .zip(snapshot.duration_millis)
+        .filter(|(position, duration)| *duration > 0 && position <= duration);
+    window.set_media_progress_known(progress.is_some());
+    window.set_media_progress(
+        progress.map_or(0., |(position, duration)| position as f32 / duration as f32),
+    );
+    let time_label = |millis: u64| {
+        let seconds = millis / 1000;
+        if seconds >= 3600 {
+            format!(
+                "{}:{:02}:{:02}",
+                seconds / 3600,
+                (seconds / 60) % 60,
+                seconds % 60
+            )
+        } else {
+            format!("{}:{:02}", seconds / 60, seconds % 60)
+        }
+    };
+    window.set_media_position_label(
+        snapshot
+            .position_millis
+            .map(time_label)
+            .unwrap_or_default()
+            .into(),
+    );
+    window.set_media_duration_label(
+        snapshot
+            .duration_millis
+            .map(time_label)
+            .unwrap_or_default()
+            .into(),
+    );
     let playback = match snapshot.playback {
-        EnumValue::Known(wire::PlaybackState::Playing) => "En lecture",
-        EnumValue::Known(wire::PlaybackState::Paused) => "En pause",
-        EnumValue::Known(wire::PlaybackState::Stopped) => "Arrêté",
-        EnumValue::Known(wire::PlaybackState::Buffering) => "Mise en mémoire tampon",
-        EnumValue::Known(wire::PlaybackState::Unspecified) => "Lecture inconnue",
-        EnumValue::Unknown(_) => "Lecture non prise en charge",
+        EnumValue::Known(wire::PlaybackState::Playing) => "Playing",
+        EnumValue::Known(wire::PlaybackState::Paused) => "Paused",
+        EnumValue::Known(wire::PlaybackState::Stopped) => "Stopped",
+        EnumValue::Known(wire::PlaybackState::Buffering) => "Buffering",
+        EnumValue::Known(wire::PlaybackState::Unspecified) => "Playback unknown",
+        EnumValue::Unknown(_) => "Playback unsupported",
     };
     let quality = crate::cache_view::quality_text(&observation::ObservedState {
         quality: snapshot.quality.clone(),
@@ -204,8 +244,8 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         .received_at
         .as_option()
         .and_then(|t| chrono::DateTime::<chrono::Utc>::from_timestamp(t.seconds, t.nanos as u32))
-        .map(|t| format!("Reçu {}", t.format("%Y-%m-%d %H:%M:%S%.3f UTC")))
-        .unwrap_or_else(|| "Horodatage non fourni".into());
+        .map(|t| format!("Received {}", t.format("%Y-%m-%d %H:%M:%S%.3f UTC")))
+        .unwrap_or_else(|| "Timestamp not provided".into());
     let mut presentation = ProMediaPresentation {
         token: 1,
         generation: value.generation,
@@ -213,7 +253,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             .title
             .clone()
             .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| "Titre non fourni".into())
+            .unwrap_or_else(|| "Title not provided".into())
             .into(),
         subtitle: snapshot.artist.clone().unwrap_or_default().into(),
         collection: snapshot.collection.clone().unwrap_or_default().into(),
@@ -230,11 +270,11 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     };
     let mut remaining = 0;
     let (state, label) = match value.picture {
-        Picture::Absent => (ProArtworkState::Absent, "Pochette non fournie"),
-        Picture::Loading => (ProArtworkState::Loading, "Chargement de la pochette…"),
-        Picture::Denied => (ProArtworkState::Denied, "Pochette non autorisée"),
-        Picture::Expired => (ProArtworkState::Expired, "Pochette expirée"),
-        Picture::Failed => (ProArtworkState::Failed, "Pochette indisponible"),
+        Picture::Absent => (ProArtworkState::Absent, "Artwork not provided"),
+        Picture::Loading => (ProArtworkState::Loading, "Loading artwork…"),
+        Picture::Denied => (ProArtworkState::Denied, "Artwork unauthorized"),
+        Picture::Expired => (ProArtworkState::Expired, "Artwork expired"),
+        Picture::Failed => (ProArtworkState::Failed, "Artwork unavailable"),
         Picture::Ready(image) => match image.expires().duration_since(SystemTime::now()) {
             Ok(duration) => {
                 remaining = duration.as_millis().saturating_add(1).min(i32::MAX as u128) as i32;
@@ -250,9 +290,9 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                     )
                 };
                 window.set_media_artwork_id(value.picture_id);
-                (ProArtworkState::Ready, "Pochette du média")
+                (ProArtworkState::Ready, "Media Artwork")
             }
-            Err(_) => (ProArtworkState::Expired, "Pochette expirée"),
+            Err(_) => (ProArtworkState::Expired, "Artwork expired"),
         },
     };
     if state != ProArtworkState::Ready {
@@ -314,7 +354,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         .as_ref()
         .and_then(|id| snapshot.capabilities.groups.iter().find(|g| g.id == *id))
         .map(|g| g.label.as_str())
-        .unwrap_or("Groupe média");
+        .unwrap_or("Media Group");
     window.set_media_group_title(
         if snapshot.group_id.is_some() || snapshot.members.len() > 1 {
             group.into()
@@ -327,8 +367,8 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             .members
             .iter()
             .find(|m| m.entity_id == data.coordinator().as_str())
-            .map(|m| format!("Coordonnateur : {}", m.label))
-            .unwrap_or_else(|| "Coordonnateur non exposé".into())
+            .map(|m| format!("Coordinator: {}", m.label))
+            .unwrap_or_else(|| "Coordinator not exposed".into())
             .into(),
     );
     window.set_media_members(rows(

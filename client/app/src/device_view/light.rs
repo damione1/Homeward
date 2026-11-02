@@ -111,16 +111,16 @@ impl ColorTemperature {
     }
     pub fn description(&self, input: &str) -> String {
         let bounds = format!(
-            "Serveur : {} à {} mireds{}",
+            "Server: {} to {} mireds{}",
             self.server.minimum(),
             self.server.maximum(),
             self.server
                 .step()
-                .map(|step| format!(", pas {step} mireds"))
+                .map(|step| format!(", step {step} mireds"))
                 .unwrap_or_default()
         );
         match self.convert(NumericInput::Text(input.into())) {
-            Ok(value) => format!("{bounds}. Après conversion : {}.", value.observation()),
+            Ok(value) => format!("{bounds}. After conversion: {}.", value.observation()),
             Err(_) => bounds,
         }
     }

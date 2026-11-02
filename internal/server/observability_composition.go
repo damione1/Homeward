@@ -28,6 +28,7 @@ type observationRuntime struct {
 	captures   *observability.TraceCaptures
 	sequence   *sequencer.Sequencer
 	host       *integrations.Manager
+	identity   integrations.IdentityAuthority
 	recording  *recorder.Recorder
 	supervisor *integrations.Supervisor
 	runs       *automationruns.Controller

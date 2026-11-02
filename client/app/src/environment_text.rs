@@ -6,28 +6,28 @@ use home_wire_contract::{environment_contract as admit, home::environment::v1 as
 fn condition(value: EnumValue<env::WeatherCondition>) -> Option<StateText> {
     use env::WeatherCondition as C;
     let (label, literal) = match value {
-        EnumValue::Known(C::Unknown) => ("Conditions inconnues", "unknown"),
-        EnumValue::Known(C::ClearDay) => ("Ensoleillé", "sunny"),
-        EnumValue::Known(C::ClearNight) => ("Nuit dégagée", "clear-night"),
-        EnumValue::Known(C::Cloudy) => ("Nuageux", "cloudy"),
-        EnumValue::Known(C::PartlyCloudy) => ("Partiellement nuageux", "partlycloudy"),
-        EnumValue::Known(C::Rainy) => ("Pluie", "rainy"),
-        EnumValue::Known(C::Pouring) => ("Forte pluie", "pouring"),
-        EnumValue::Known(C::Snowy) => ("Neige", "snowy"),
-        EnumValue::Known(C::SnowyRainy) => ("Pluie et neige", "snowy-rainy"),
-        EnumValue::Known(C::Hail) => ("Grêle", "hail"),
-        EnumValue::Known(C::Lightning) => ("Orage", "lightning"),
-        EnumValue::Known(C::LightningRainy) => ("Pluie et orage", "lightning-rainy"),
-        EnumValue::Known(C::Windy) => ("Venteux", "windy"),
-        EnumValue::Known(C::WindyVariant) => ("Vent et nuages", "windy-variant"),
-        EnumValue::Known(C::Fog) => ("Brouillard", "fog"),
-        EnumValue::Known(C::Exceptional) => ("Conditions exceptionnelles", "exceptional"),
+        EnumValue::Known(C::Unknown) => ("Conditions unknown", "unknown"),
+        EnumValue::Known(C::ClearDay) => ("Sunny", "sunny"),
+        EnumValue::Known(C::ClearNight) => ("Clear night", "clear-night"),
+        EnumValue::Known(C::Cloudy) => ("Cloudy", "cloudy"),
+        EnumValue::Known(C::PartlyCloudy) => ("Partly cloudy", "partlycloudy"),
+        EnumValue::Known(C::Rainy) => ("Rain", "rainy"),
+        EnumValue::Known(C::Pouring) => ("Heavy rain", "pouring"),
+        EnumValue::Known(C::Snowy) => ("Snow", "snowy"),
+        EnumValue::Known(C::SnowyRainy) => ("Rain and snow", "snowy-rainy"),
+        EnumValue::Known(C::Hail) => ("Hail", "hail"),
+        EnumValue::Known(C::Lightning) => ("Thunderstorms", "lightning"),
+        EnumValue::Known(C::LightningRainy) => ("Rain and thunderstorms", "lightning-rainy"),
+        EnumValue::Known(C::Windy) => ("Windy", "windy"),
+        EnumValue::Known(C::WindyVariant) => ("Windy and cloudy", "windy-variant"),
+        EnumValue::Known(C::Fog) => ("Fog", "fog"),
+        EnumValue::Known(C::Exceptional) => ("Exceptional conditions", "exceptional"),
         EnumValue::Known(C::Unspecified) | EnumValue::Unknown(_) => return None,
     };
     Some(StateText { label, literal })
 }
 pub(crate) fn condition_label(value: EnumValue<env::WeatherCondition>) -> &'static str {
-    condition(value).map_or("Condition non prise en charge", |v| v.label)
+    condition(value).map_or("Unsupported condition", |v| v.label)
 }
 
 pub(crate) fn weather_literal(value: &env::WeatherValue) -> Option<&'static str> {
@@ -47,14 +47,14 @@ pub(crate) fn presence_literal(value: &env::PresenceValue) -> Option<&'static st
 
 pub(crate) fn temperature(value: &env::Temperature) -> String {
     if !admit::temperature(value) {
-        return "Température non prise en charge".into();
+        return "Unsupported temperature".into();
     }
     let unit = match value.unit {
         EnumValue::Known(env::TemperatureUnit::Celsius) => "°C",
         EnumValue::Known(env::TemperatureUnit::Fahrenheit) => "°F",
         EnumValue::Known(env::TemperatureUnit::Kelvin) => "K",
         EnumValue::Known(env::TemperatureUnit::Unspecified) | EnumValue::Unknown(_) => {
-            return "Température non prise en charge".into();
+            return "Unsupported temperature".into();
         }
     };
     format!("{} {unit}", crate::cache_view::number(value.value.unwrap()))
@@ -68,38 +68,38 @@ pub(crate) fn weather(value: &env::WeatherValue) -> String {
     if let Some(value) = value.condition {
         parts.push(
             condition(value)
-                .map_or("Condition non prise en charge", |v| v.label)
+                .map_or("Unsupported condition", |v| v.label)
                 .into(),
         );
     }
     if parts.is_empty() {
-        "Météo non renseignée".into()
+        "Weather not provided".into()
     } else {
         parts.join(" · ")
     }
 }
 pub(crate) fn presence(value: &env::PresenceValue) -> String {
     let label = match value.residence {
-        EnumValue::Known(env::Residence::Home) => "À la maison",
-        EnumValue::Known(env::Residence::Away) => "Absent",
-        EnumValue::Known(env::Residence::Unknown) => "Présence inconnue",
+        EnumValue::Known(env::Residence::Home) => "Home",
+        EnumValue::Known(env::Residence::Away) => "Away",
+        EnumValue::Known(env::Residence::Unknown) => "Presence unknown",
         EnumValue::Known(env::Residence::Unspecified) | EnumValue::Unknown(_) => {
-            "Présence non prise en charge"
+            "Unsupported presence"
         }
     };
     label.into()
 }
 pub(crate) fn details(value: &env::PresenceDetailsValue) -> String {
     if !admit::presence_details_value(value) {
-        return "Localisation non prise en charge".into();
+        return "Unsupported location".into();
     }
     if let Some(zone) = value.zone.as_option() {
         return zone.label.clone();
     }
     if value.coordinates.as_option().is_some() {
-        "Position privée disponible".into()
+        "Private location available".into()
     } else {
-        "Zone non fournie".into()
+        "Zone not provided".into()
     }
 }
 
@@ -120,7 +120,7 @@ mod tests {
             ..Default::default()
         };
         let text = weather(&value);
-        assert!(text.contains("non prise en charge") && text.contains("Pluie"));
+        assert!(text.contains("Unsupported") && text.contains("Rain"));
         assert!(!text.contains("°C"));
         assert_eq!(weather_literal(&value), Some("rainy"));
         assert_eq!(
@@ -141,7 +141,7 @@ mod tests {
             confidence: env::PresenceConfidence::Unknown.into(),
             ..Default::default()
         };
-        assert_eq!(presence(&value), "Présence inconnue");
+        assert_eq!(presence(&value), "Presence unknown");
         assert_eq!(presence_literal(&value), Some("unknown"));
         value.residence = EnumValue::Unknown(255);
         assert_eq!(presence_literal(&value), None);
@@ -155,7 +155,7 @@ mod tests {
             .into(),
             ..Default::default()
         };
-        assert_eq!(details(&private), "Position privée disponible");
+        assert_eq!(details(&private), "Private location available");
         assert!(!details(&private).contains("12.3456"));
     }
 }

@@ -53,6 +53,7 @@ pub(super) struct State {
     pub job: Option<Job>,
     pub busy: bool,
     pub uncertain: bool,
+    pub query_override: Option<wire::QueryOccurrencesRequest>,
 }
 impl Default for State {
     fn default() -> Self {
@@ -87,6 +88,7 @@ impl Default for State {
             job: None,
             busy: false,
             uncertain: false,
+            query_override: None,
         }
     }
 }
@@ -182,6 +184,10 @@ impl State {
             })
     }
     pub fn query(&self) -> Option<wire::QueryOccurrencesRequest> {
+        if let Some(query) = &self.query_override {
+            return (self.selected.as_ref() == admit::calendar_id(&query.id).as_ref())
+                .then(|| query.clone());
+        }
         let query = wire::QueryOccurrencesRequest {
             id: wire::CalendarId {
                 entity_id: self.selected.as_ref()?.entity().as_str().into(),
@@ -292,4 +298,45 @@ impl State {
                 .collect()
         })
     }
+}
+
+/// Exact absolute window from the server's configured source, duration and zone.
+/// No civil-time resolution or fallback calendar is performed in the client.
+pub(super) fn widget_query(
+    target: &crate::dashboard_widget_host::AgendaTarget,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<wire::QueryOccurrencesRequest> {
+    if target.limit == 0
+        || target.limit > 1000
+        || target.window_seconds == 0
+        || target.window_seconds > 31_622_400
+    {
+        return None;
+    }
+    let start = chrono::DateTime::<chrono::Utc>::from_timestamp(now.timestamp(), 0)?;
+    let end =
+        start.checked_add_signed(chrono::Duration::seconds(i64::from(target.window_seconds)))?;
+    let query = wire::QueryOccurrencesRequest {
+        id: wire::CalendarId {
+            entity_id: target.calendar.entity().as_str().into(),
+            ..Default::default()
+        }
+        .into(),
+        window: wire::Window {
+            zone: target.zone.name().into(),
+            bounds: Some(wire::window::Bounds::Times(Box::new(wire::TimeSpan {
+                start_instant: start.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                end_instant: end.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                zone: target.zone.name().into(),
+                ..Default::default()
+            }))),
+            ..Default::default()
+        }
+        .into(),
+        page_size: u32::try_from(target.limit).ok()?,
+        ..Default::default()
+    };
+    admit::admit_query(&query)
+        .ok()
+        .map(|query| query.wire().clone())
 }

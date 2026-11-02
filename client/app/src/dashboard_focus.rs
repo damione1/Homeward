@@ -81,6 +81,9 @@ impl SavedView {
     pub fn layout(&self) -> Option<&Arc<Layout>> {
         self.layout.as_ref()
     }
+    pub fn has_origin(&self) -> bool {
+        self.origin.is_some()
+    }
     pub fn catalogue(&self) -> Option<&crate::dashboard_catalogue::CatalogueToken> {
         self.catalogue.as_ref()
     }

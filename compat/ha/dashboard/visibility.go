@@ -61,12 +61,19 @@ func (c *compiler) conditionDepth(node parser.Node, depth int) Visibility {
 		return v
 	}
 	switch name {
+	case "screen":
+		if c.profile != CompilationDashboard || depth != 0 {
+			c.unsupported(CodeUnsupportedVariant, node, "screen conditions require the dashboard profile and a top-level conjunction")
+			v.status = StatusUnsupported
+			return v
+		}
+		v.kind = VisibilityScreen
 	case "state":
 		v.kind = VisibilityState
 	case "user":
 		v.kind = VisibilityHAUser
 	case "and", "or":
-		if c.profile != CompilationRecipes {
+		if c.profile < CompilationRecipes {
 			c.unsupported(CodeUnsupportedVariant, node, "visibility condition outside profile")
 			v.status = StatusUnsupported
 			return v
@@ -81,10 +88,20 @@ func (c *compiler) conditionDepth(node parser.Node, depth int) Visibility {
 		return v
 	}
 	blocked := false
-	var hasEntity, hasState, hasNot, hasUsers, hasChildren bool
+	var hasEntity, hasState, hasNot, hasUsers, hasChildren, hasQuery bool
 	for _, entry := range node.Entries() {
 		switch entry.Key {
 		case "condition":
+		case "media_query":
+			text, valid := scalarText(entry.Value)
+			minimum, maximum, admitted := parseScreenMediaQuery(text)
+			if v.kind != VisibilityScreen || hasQuery || !valid || !admitted {
+				c.unsupported(CodeInvalidValue, entry.Value, "screen media_query must contain bounded min-width/max-width pixel clauses joined by and")
+				blocked = true
+			} else {
+				v.viewportMin, v.viewportMax = minimum, maximum
+			}
+			hasQuery = true
 		case "conditions":
 			if (v.kind != VisibilityAll && v.kind != VisibilityAny) || entry.Value.Kind() != parser.KindSequence || len(entry.Value.Items()) == 0 || len(entry.Value.Items()) > 63 {
 				c.unsupported(CodeInvalidValue, entry.Value, "native conjunction/disjunction requires 1..63 conditions")
@@ -159,6 +176,10 @@ func (c *compiler) conditionDepth(node parser.Node, depth int) Visibility {
 			c.unknown(entry, "visibility property outside profile")
 			blocked = true
 		}
+	}
+	if v.kind == VisibilityScreen && !hasQuery {
+		c.unsupported(CodeMissingField, node, "screen condition requires media_query")
+		blocked = true
 	}
 	if v.kind == VisibilityState && (!hasEntity || hasState == hasNot) {
 		c.unsupported(CodeMissingField, node, "state condition needs one entity and exactly one state test")

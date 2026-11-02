@@ -155,6 +155,7 @@ pub enum LayoutKind {
     LAYOUT_KIND_VERTICAL_STACK = 9i32,
     LAYOUT_KIND_POPUP = 10i32,
     LAYOUT_KIND_CHIP_GROUP = 11i32,
+    LAYOUT_KIND_WIDGET = 12i32,
 }
 impl LayoutKind {
     ///Idiomatic alias for [`Self::LAYOUT_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -193,6 +194,9 @@ impl LayoutKind {
     ///Idiomatic alias for [`Self::LAYOUT_KIND_CHIP_GROUP`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ChipGroup: Self = Self::LAYOUT_KIND_CHIP_GROUP;
+    ///Idiomatic alias for [`Self::LAYOUT_KIND_WIDGET`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Widget: Self = Self::LAYOUT_KIND_WIDGET;
 }
 impl ::core::default::Default for LayoutKind {
     fn default() -> Self {
@@ -214,6 +218,7 @@ impl ::buffa::Enumeration for LayoutKind {
             9i32 => ::core::option::Option::Some(Self::LAYOUT_KIND_VERTICAL_STACK),
             10i32 => ::core::option::Option::Some(Self::LAYOUT_KIND_POPUP),
             11i32 => ::core::option::Option::Some(Self::LAYOUT_KIND_CHIP_GROUP),
+            12i32 => ::core::option::Option::Some(Self::LAYOUT_KIND_WIDGET),
             _ => ::core::option::Option::None,
         }
     }
@@ -234,6 +239,7 @@ impl ::buffa::Enumeration for LayoutKind {
             Self::LAYOUT_KIND_VERTICAL_STACK => "LAYOUT_KIND_VERTICAL_STACK",
             Self::LAYOUT_KIND_POPUP => "LAYOUT_KIND_POPUP",
             Self::LAYOUT_KIND_CHIP_GROUP => "LAYOUT_KIND_CHIP_GROUP",
+            Self::LAYOUT_KIND_WIDGET => "LAYOUT_KIND_WIDGET",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -266,6 +272,9 @@ impl ::buffa::Enumeration for LayoutKind {
             "LAYOUT_KIND_CHIP_GROUP" => {
                 ::core::option::Option::Some(Self::LAYOUT_KIND_CHIP_GROUP)
             }
+            "LAYOUT_KIND_WIDGET" => {
+                ::core::option::Option::Some(Self::LAYOUT_KIND_WIDGET)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -283,6 +292,7 @@ impl ::buffa::Enumeration for LayoutKind {
             Self::LAYOUT_KIND_VERTICAL_STACK,
             Self::LAYOUT_KIND_POPUP,
             Self::LAYOUT_KIND_CHIP_GROUP,
+            Self::LAYOUT_KIND_WIDGET,
         ]
     }
 }
@@ -435,6 +445,215 @@ impl ::buffa::Enumeration for NativeHeadingStyle {
             Self::NATIVE_HEADING_STYLE_DEFAULT,
             Self::NATIVE_HEADING_STYLE_TITLE,
             Self::NATIVE_HEADING_STYLE_SUBTITLE,
+        ]
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum NativeControlPresentation {
+    NATIVE_CONTROL_PRESENTATION_CONTROLS = 0i32,
+    NATIVE_CONTROL_PRESENTATION_SUMMARY = 1i32,
+}
+impl NativeControlPresentation {
+    ///Idiomatic alias for [`Self::NATIVE_CONTROL_PRESENTATION_CONTROLS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Controls: Self = Self::NATIVE_CONTROL_PRESENTATION_CONTROLS;
+    ///Idiomatic alias for [`Self::NATIVE_CONTROL_PRESENTATION_SUMMARY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Summary: Self = Self::NATIVE_CONTROL_PRESENTATION_SUMMARY;
+}
+impl ::core::default::Default for NativeControlPresentation {
+    fn default() -> Self {
+        Self::NATIVE_CONTROL_PRESENTATION_CONTROLS
+    }
+}
+impl ::buffa::Enumeration for NativeControlPresentation {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => {
+                ::core::option::Option::Some(Self::NATIVE_CONTROL_PRESENTATION_CONTROLS)
+            }
+            1i32 => {
+                ::core::option::Option::Some(Self::NATIVE_CONTROL_PRESENTATION_SUMMARY)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::NATIVE_CONTROL_PRESENTATION_CONTROLS => {
+                "NATIVE_CONTROL_PRESENTATION_CONTROLS"
+            }
+            Self::NATIVE_CONTROL_PRESENTATION_SUMMARY => {
+                "NATIVE_CONTROL_PRESENTATION_SUMMARY"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "NATIVE_CONTROL_PRESENTATION_CONTROLS" => {
+                ::core::option::Option::Some(Self::NATIVE_CONTROL_PRESENTATION_CONTROLS)
+            }
+            "NATIVE_CONTROL_PRESENTATION_SUMMARY" => {
+                ::core::option::Option::Some(Self::NATIVE_CONTROL_PRESENTATION_SUMMARY)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::NATIVE_CONTROL_PRESENTATION_CONTROLS,
+            Self::NATIVE_CONTROL_PRESENTATION_SUMMARY,
+        ]
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum NativeThermostatPresentation {
+    NATIVE_THERMOSTAT_PRESENTATION_COMPACT = 0i32,
+    NATIVE_THERMOSTAT_PRESENTATION_DETAIL = 1i32,
+    NATIVE_THERMOSTAT_PRESENTATION_SUMMARY = 2i32,
+}
+impl NativeThermostatPresentation {
+    ///Idiomatic alias for [`Self::NATIVE_THERMOSTAT_PRESENTATION_COMPACT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Compact: Self = Self::NATIVE_THERMOSTAT_PRESENTATION_COMPACT;
+    ///Idiomatic alias for [`Self::NATIVE_THERMOSTAT_PRESENTATION_DETAIL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Detail: Self = Self::NATIVE_THERMOSTAT_PRESENTATION_DETAIL;
+    ///Idiomatic alias for [`Self::NATIVE_THERMOSTAT_PRESENTATION_SUMMARY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Summary: Self = Self::NATIVE_THERMOSTAT_PRESENTATION_SUMMARY;
+}
+impl ::core::default::Default for NativeThermostatPresentation {
+    fn default() -> Self {
+        Self::NATIVE_THERMOSTAT_PRESENTATION_COMPACT
+    }
+}
+impl ::buffa::Enumeration for NativeThermostatPresentation {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => {
+                ::core::option::Option::Some(
+                    Self::NATIVE_THERMOSTAT_PRESENTATION_COMPACT,
+                )
+            }
+            1i32 => {
+                ::core::option::Option::Some(Self::NATIVE_THERMOSTAT_PRESENTATION_DETAIL)
+            }
+            2i32 => {
+                ::core::option::Option::Some(
+                    Self::NATIVE_THERMOSTAT_PRESENTATION_SUMMARY,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::NATIVE_THERMOSTAT_PRESENTATION_COMPACT => {
+                "NATIVE_THERMOSTAT_PRESENTATION_COMPACT"
+            }
+            Self::NATIVE_THERMOSTAT_PRESENTATION_DETAIL => {
+                "NATIVE_THERMOSTAT_PRESENTATION_DETAIL"
+            }
+            Self::NATIVE_THERMOSTAT_PRESENTATION_SUMMARY => {
+                "NATIVE_THERMOSTAT_PRESENTATION_SUMMARY"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "NATIVE_THERMOSTAT_PRESENTATION_COMPACT" => {
+                ::core::option::Option::Some(
+                    Self::NATIVE_THERMOSTAT_PRESENTATION_COMPACT,
+                )
+            }
+            "NATIVE_THERMOSTAT_PRESENTATION_DETAIL" => {
+                ::core::option::Option::Some(Self::NATIVE_THERMOSTAT_PRESENTATION_DETAIL)
+            }
+            "NATIVE_THERMOSTAT_PRESENTATION_SUMMARY" => {
+                ::core::option::Option::Some(
+                    Self::NATIVE_THERMOSTAT_PRESENTATION_SUMMARY,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::NATIVE_THERMOSTAT_PRESENTATION_COMPACT,
+            Self::NATIVE_THERMOSTAT_PRESENTATION_DETAIL,
+            Self::NATIVE_THERMOSTAT_PRESENTATION_SUMMARY,
+        ]
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum NativeTasksPresentation {
+    NATIVE_TASKS_PRESENTATION_PREVIEW = 0i32,
+    NATIVE_TASKS_PRESENTATION_SHOPPING = 1i32,
+}
+impl NativeTasksPresentation {
+    ///Idiomatic alias for [`Self::NATIVE_TASKS_PRESENTATION_PREVIEW`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Preview: Self = Self::NATIVE_TASKS_PRESENTATION_PREVIEW;
+    ///Idiomatic alias for [`Self::NATIVE_TASKS_PRESENTATION_SHOPPING`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Shopping: Self = Self::NATIVE_TASKS_PRESENTATION_SHOPPING;
+}
+impl ::core::default::Default for NativeTasksPresentation {
+    fn default() -> Self {
+        Self::NATIVE_TASKS_PRESENTATION_PREVIEW
+    }
+}
+impl ::buffa::Enumeration for NativeTasksPresentation {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::NATIVE_TASKS_PRESENTATION_PREVIEW),
+            1i32 => {
+                ::core::option::Option::Some(Self::NATIVE_TASKS_PRESENTATION_SHOPPING)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::NATIVE_TASKS_PRESENTATION_PREVIEW => {
+                "NATIVE_TASKS_PRESENTATION_PREVIEW"
+            }
+            Self::NATIVE_TASKS_PRESENTATION_SHOPPING => {
+                "NATIVE_TASKS_PRESENTATION_SHOPPING"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "NATIVE_TASKS_PRESENTATION_PREVIEW" => {
+                ::core::option::Option::Some(Self::NATIVE_TASKS_PRESENTATION_PREVIEW)
+            }
+            "NATIVE_TASKS_PRESENTATION_SHOPPING" => {
+                ::core::option::Option::Some(Self::NATIVE_TASKS_PRESENTATION_SHOPPING)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::NATIVE_TASKS_PRESENTATION_PREVIEW,
+            Self::NATIVE_TASKS_PRESENTATION_SHOPPING,
         ]
     }
 }
@@ -1143,6 +1362,26 @@ pub enum NativeIcon {
     NATIVE_ICON_INFORMATION = 2i32,
     NATIVE_ICON_CLOCK = 3i32,
     NATIVE_ICON_GRID = 4i32,
+    NATIVE_ICON_SOFA = 5i32,
+    NATIVE_ICON_KITCHEN = 6i32,
+    NATIVE_ICON_BED = 7i32,
+    NATIVE_ICON_LIGHT = 8i32,
+    NATIVE_ICON_FAN = 9i32,
+    NATIVE_ICON_THERMOSTAT = 10i32,
+    NATIVE_ICON_MUSIC = 11i32,
+    NATIVE_ICON_GARAGE = 12i32,
+    NATIVE_ICON_LOCK = 13i32,
+    NATIVE_ICON_SHIELD = 14i32,
+    NATIVE_ICON_WATER = 15i32,
+    NATIVE_ICON_SUN = 16i32,
+    NATIVE_ICON_TREE = 17i32,
+    NATIVE_ICON_OFFICE = 18i32,
+    NATIVE_ICON_BATH = 19i32,
+    NATIVE_ICON_CHILD = 20i32,
+    NATIVE_ICON_SHOPPING = 21i32,
+    NATIVE_ICON_SCENE = 22i32,
+    NATIVE_ICON_BATTERY = 23i32,
+    NATIVE_ICON_POWER = 24i32,
 }
 impl NativeIcon {
     ///Idiomatic alias for [`Self::NATIVE_ICON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -1160,6 +1399,66 @@ impl NativeIcon {
     ///Idiomatic alias for [`Self::NATIVE_ICON_GRID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Grid: Self = Self::NATIVE_ICON_GRID;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_SOFA`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Sofa: Self = Self::NATIVE_ICON_SOFA;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_KITCHEN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Kitchen: Self = Self::NATIVE_ICON_KITCHEN;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_BED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Bed: Self = Self::NATIVE_ICON_BED;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_LIGHT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Light: Self = Self::NATIVE_ICON_LIGHT;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_FAN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Fan: Self = Self::NATIVE_ICON_FAN;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_THERMOSTAT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Thermostat: Self = Self::NATIVE_ICON_THERMOSTAT;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_MUSIC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Music: Self = Self::NATIVE_ICON_MUSIC;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_GARAGE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Garage: Self = Self::NATIVE_ICON_GARAGE;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_LOCK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Lock: Self = Self::NATIVE_ICON_LOCK;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_SHIELD`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Shield: Self = Self::NATIVE_ICON_SHIELD;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_WATER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Water: Self = Self::NATIVE_ICON_WATER;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_SUN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Sun: Self = Self::NATIVE_ICON_SUN;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_TREE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Tree: Self = Self::NATIVE_ICON_TREE;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_OFFICE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Office: Self = Self::NATIVE_ICON_OFFICE;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_BATH`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Bath: Self = Self::NATIVE_ICON_BATH;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_CHILD`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Child: Self = Self::NATIVE_ICON_CHILD;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_SHOPPING`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Shopping: Self = Self::NATIVE_ICON_SHOPPING;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_SCENE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Scene: Self = Self::NATIVE_ICON_SCENE;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_BATTERY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Battery: Self = Self::NATIVE_ICON_BATTERY;
+    ///Idiomatic alias for [`Self::NATIVE_ICON_POWER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Power: Self = Self::NATIVE_ICON_POWER;
 }
 impl ::core::default::Default for NativeIcon {
     fn default() -> Self {
@@ -1174,6 +1473,26 @@ impl ::buffa::Enumeration for NativeIcon {
             2i32 => ::core::option::Option::Some(Self::NATIVE_ICON_INFORMATION),
             3i32 => ::core::option::Option::Some(Self::NATIVE_ICON_CLOCK),
             4i32 => ::core::option::Option::Some(Self::NATIVE_ICON_GRID),
+            5i32 => ::core::option::Option::Some(Self::NATIVE_ICON_SOFA),
+            6i32 => ::core::option::Option::Some(Self::NATIVE_ICON_KITCHEN),
+            7i32 => ::core::option::Option::Some(Self::NATIVE_ICON_BED),
+            8i32 => ::core::option::Option::Some(Self::NATIVE_ICON_LIGHT),
+            9i32 => ::core::option::Option::Some(Self::NATIVE_ICON_FAN),
+            10i32 => ::core::option::Option::Some(Self::NATIVE_ICON_THERMOSTAT),
+            11i32 => ::core::option::Option::Some(Self::NATIVE_ICON_MUSIC),
+            12i32 => ::core::option::Option::Some(Self::NATIVE_ICON_GARAGE),
+            13i32 => ::core::option::Option::Some(Self::NATIVE_ICON_LOCK),
+            14i32 => ::core::option::Option::Some(Self::NATIVE_ICON_SHIELD),
+            15i32 => ::core::option::Option::Some(Self::NATIVE_ICON_WATER),
+            16i32 => ::core::option::Option::Some(Self::NATIVE_ICON_SUN),
+            17i32 => ::core::option::Option::Some(Self::NATIVE_ICON_TREE),
+            18i32 => ::core::option::Option::Some(Self::NATIVE_ICON_OFFICE),
+            19i32 => ::core::option::Option::Some(Self::NATIVE_ICON_BATH),
+            20i32 => ::core::option::Option::Some(Self::NATIVE_ICON_CHILD),
+            21i32 => ::core::option::Option::Some(Self::NATIVE_ICON_SHOPPING),
+            22i32 => ::core::option::Option::Some(Self::NATIVE_ICON_SCENE),
+            23i32 => ::core::option::Option::Some(Self::NATIVE_ICON_BATTERY),
+            24i32 => ::core::option::Option::Some(Self::NATIVE_ICON_POWER),
             _ => ::core::option::Option::None,
         }
     }
@@ -1187,6 +1506,26 @@ impl ::buffa::Enumeration for NativeIcon {
             Self::NATIVE_ICON_INFORMATION => "NATIVE_ICON_INFORMATION",
             Self::NATIVE_ICON_CLOCK => "NATIVE_ICON_CLOCK",
             Self::NATIVE_ICON_GRID => "NATIVE_ICON_GRID",
+            Self::NATIVE_ICON_SOFA => "NATIVE_ICON_SOFA",
+            Self::NATIVE_ICON_KITCHEN => "NATIVE_ICON_KITCHEN",
+            Self::NATIVE_ICON_BED => "NATIVE_ICON_BED",
+            Self::NATIVE_ICON_LIGHT => "NATIVE_ICON_LIGHT",
+            Self::NATIVE_ICON_FAN => "NATIVE_ICON_FAN",
+            Self::NATIVE_ICON_THERMOSTAT => "NATIVE_ICON_THERMOSTAT",
+            Self::NATIVE_ICON_MUSIC => "NATIVE_ICON_MUSIC",
+            Self::NATIVE_ICON_GARAGE => "NATIVE_ICON_GARAGE",
+            Self::NATIVE_ICON_LOCK => "NATIVE_ICON_LOCK",
+            Self::NATIVE_ICON_SHIELD => "NATIVE_ICON_SHIELD",
+            Self::NATIVE_ICON_WATER => "NATIVE_ICON_WATER",
+            Self::NATIVE_ICON_SUN => "NATIVE_ICON_SUN",
+            Self::NATIVE_ICON_TREE => "NATIVE_ICON_TREE",
+            Self::NATIVE_ICON_OFFICE => "NATIVE_ICON_OFFICE",
+            Self::NATIVE_ICON_BATH => "NATIVE_ICON_BATH",
+            Self::NATIVE_ICON_CHILD => "NATIVE_ICON_CHILD",
+            Self::NATIVE_ICON_SHOPPING => "NATIVE_ICON_SHOPPING",
+            Self::NATIVE_ICON_SCENE => "NATIVE_ICON_SCENE",
+            Self::NATIVE_ICON_BATTERY => "NATIVE_ICON_BATTERY",
+            Self::NATIVE_ICON_POWER => "NATIVE_ICON_POWER",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1200,6 +1539,40 @@ impl ::buffa::Enumeration for NativeIcon {
             }
             "NATIVE_ICON_CLOCK" => ::core::option::Option::Some(Self::NATIVE_ICON_CLOCK),
             "NATIVE_ICON_GRID" => ::core::option::Option::Some(Self::NATIVE_ICON_GRID),
+            "NATIVE_ICON_SOFA" => ::core::option::Option::Some(Self::NATIVE_ICON_SOFA),
+            "NATIVE_ICON_KITCHEN" => {
+                ::core::option::Option::Some(Self::NATIVE_ICON_KITCHEN)
+            }
+            "NATIVE_ICON_BED" => ::core::option::Option::Some(Self::NATIVE_ICON_BED),
+            "NATIVE_ICON_LIGHT" => ::core::option::Option::Some(Self::NATIVE_ICON_LIGHT),
+            "NATIVE_ICON_FAN" => ::core::option::Option::Some(Self::NATIVE_ICON_FAN),
+            "NATIVE_ICON_THERMOSTAT" => {
+                ::core::option::Option::Some(Self::NATIVE_ICON_THERMOSTAT)
+            }
+            "NATIVE_ICON_MUSIC" => ::core::option::Option::Some(Self::NATIVE_ICON_MUSIC),
+            "NATIVE_ICON_GARAGE" => {
+                ::core::option::Option::Some(Self::NATIVE_ICON_GARAGE)
+            }
+            "NATIVE_ICON_LOCK" => ::core::option::Option::Some(Self::NATIVE_ICON_LOCK),
+            "NATIVE_ICON_SHIELD" => {
+                ::core::option::Option::Some(Self::NATIVE_ICON_SHIELD)
+            }
+            "NATIVE_ICON_WATER" => ::core::option::Option::Some(Self::NATIVE_ICON_WATER),
+            "NATIVE_ICON_SUN" => ::core::option::Option::Some(Self::NATIVE_ICON_SUN),
+            "NATIVE_ICON_TREE" => ::core::option::Option::Some(Self::NATIVE_ICON_TREE),
+            "NATIVE_ICON_OFFICE" => {
+                ::core::option::Option::Some(Self::NATIVE_ICON_OFFICE)
+            }
+            "NATIVE_ICON_BATH" => ::core::option::Option::Some(Self::NATIVE_ICON_BATH),
+            "NATIVE_ICON_CHILD" => ::core::option::Option::Some(Self::NATIVE_ICON_CHILD),
+            "NATIVE_ICON_SHOPPING" => {
+                ::core::option::Option::Some(Self::NATIVE_ICON_SHOPPING)
+            }
+            "NATIVE_ICON_SCENE" => ::core::option::Option::Some(Self::NATIVE_ICON_SCENE),
+            "NATIVE_ICON_BATTERY" => {
+                ::core::option::Option::Some(Self::NATIVE_ICON_BATTERY)
+            }
+            "NATIVE_ICON_POWER" => ::core::option::Option::Some(Self::NATIVE_ICON_POWER),
             _ => ::core::option::Option::None,
         }
     }
@@ -1210,6 +1583,26 @@ impl ::buffa::Enumeration for NativeIcon {
             Self::NATIVE_ICON_INFORMATION,
             Self::NATIVE_ICON_CLOCK,
             Self::NATIVE_ICON_GRID,
+            Self::NATIVE_ICON_SOFA,
+            Self::NATIVE_ICON_KITCHEN,
+            Self::NATIVE_ICON_BED,
+            Self::NATIVE_ICON_LIGHT,
+            Self::NATIVE_ICON_FAN,
+            Self::NATIVE_ICON_THERMOSTAT,
+            Self::NATIVE_ICON_MUSIC,
+            Self::NATIVE_ICON_GARAGE,
+            Self::NATIVE_ICON_LOCK,
+            Self::NATIVE_ICON_SHIELD,
+            Self::NATIVE_ICON_WATER,
+            Self::NATIVE_ICON_SUN,
+            Self::NATIVE_ICON_TREE,
+            Self::NATIVE_ICON_OFFICE,
+            Self::NATIVE_ICON_BATH,
+            Self::NATIVE_ICON_CHILD,
+            Self::NATIVE_ICON_SHOPPING,
+            Self::NATIVE_ICON_SCENE,
+            Self::NATIVE_ICON_BATTERY,
+            Self::NATIVE_ICON_POWER,
         ]
     }
 }
@@ -2726,6 +3119,35 @@ pub struct LayoutNode {
     pub secondary: ::buffa::alloc::string::String,
     /// Field 19: `features`
     pub features: ::buffa::alloc::vec::Vec<::buffa::EnumValue<NativeFeatureKind>>,
+    /// Version 3: a finite native widget with exact server-owned bindings.
+    ///
+    /// Field 20: `widget`
+    pub widget: ::buffa::MessageField<NativeWidget, ::buffa::Inline<NativeWidget>>,
+    /// Logical pixels. V3 servers supply container defaults explicitly; gap zero
+    /// means no gap. Legacy nodes retain native defaults when fields are absent.
+    ///
+    /// Field 21: `minimum_column_width`
+    pub minimum_column_width: u32,
+    /// Field 22: `gap`
+    pub gap: u32,
+    /// Field 23: `responsive_spans`
+    pub responsive_spans: ::buffa::alloc::vec::Vec<NativeResponsiveSpan>,
+    /// Finite icon vocabulary chosen by the admitted source, never downloaded SVG.
+    ///
+    /// Field 24: `icon`
+    pub icon: ::buffa::EnumValue<NativeIcon>,
+    /// Source-selected density; this changes presentation, never command authority.
+    ///
+    /// Field 25: `control_presentation`
+    pub control_presentation: ::buffa::EnumValue<NativeControlPresentation>,
+    /// Presentation only, evaluated against the full logical window width. This
+    /// never grants an action or substitutes for NativeRecipes visibility.
+    ///
+    /// Field 26: `screen_visibility`
+    pub screen_visibility: ::buffa::MessageField<
+        NativeScreenVisibility,
+        ::buffa::Inline<NativeScreenVisibility>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -2751,6 +3173,13 @@ impl ::core::fmt::Debug for LayoutNode {
             .field("recipe_kind", &self.recipe_kind)
             .field("secondary", &self.secondary)
             .field("features", &self.features)
+            .field("widget", &self.widget)
+            .field("minimum_column_width", &self.minimum_column_width)
+            .field("gap", &self.gap)
+            .field("responsive_spans", &self.responsive_spans)
+            .field("icon", &self.icon)
+            .field("control_presentation", &self.control_presentation)
+            .field("screen_visibility", &self.screen_visibility)
             .finish()
     }
 }
@@ -2895,6 +3324,51 @@ impl ::buffa::Message for LayoutNode {
                 .sum::<u64>();
             size += 2u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if self.widget.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.widget.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.minimum_column_width != 0u32 {
+            size
+                += 2u64
+                    + ::buffa::types::uint32_encoded_len(self.minimum_column_width)
+                        as u64;
+        }
+        if self.gap != 0u32 {
+            size += 2u64 + ::buffa::types::uint32_encoded_len(self.gap) as u64;
+        }
+        for v in &self.responsive_spans {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.icon.to_i32();
+            if val != 0 {
+                size += 2u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        {
+            let val = self.control_presentation.to_i32();
+            if val != 0 {
+                size += 2u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if self.screen_visibility.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.screen_visibility.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2998,6 +3472,48 @@ impl ::buffa::Message for LayoutNode {
             for v in &self.features {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        if self.widget.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                20u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.widget.write_to(__cache, buf);
+        }
+        if self.minimum_column_width != 0u32 {
+            ::buffa::types::put_uint32_field(21u32, self.minimum_column_width, buf);
+        }
+        if self.gap != 0u32 {
+            ::buffa::types::put_uint32_field(22u32, self.gap, buf);
+        }
+        for v in &self.responsive_spans {
+            ::buffa::types::put_len_delimited_header(
+                23u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        {
+            let val = self.icon.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(24u32, val, buf);
+            }
+        }
+        {
+            let val = self.control_presentation.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(25u32, val, buf);
+            }
+        }
+        if self.screen_visibility.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                26u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.screen_visibility.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3206,6 +3722,70 @@ impl ::buffa::Message for LayoutNode {
                     );
                 }
             }
+            20u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.widget.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.minimum_column_width = ::buffa::types::decode_uint32(buf)?;
+            }
+            22u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.gap = ::buffa::types::decode_uint32(buf)?;
+            }
+            23u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.responsive_spans.push(elem);
+            }
+            24u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.icon = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            25u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.control_presentation = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            26u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.screen_visibility.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3233,6 +3813,13 @@ impl ::buffa::Message for LayoutNode {
         self.recipe_kind = ::buffa::EnumValue::from(0);
         self.secondary.clear();
         self.features.clear();
+        self.widget = ::buffa::MessageField::none();
+        self.minimum_column_width = 0u32;
+        self.gap = 0u32;
+        self.responsive_spans.clear();
+        self.icon = ::buffa::EnumValue::from(0);
+        self.control_presentation = ::buffa::EnumValue::from(0);
+        self.screen_visibility = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3244,6 +3831,2091 @@ impl ::buffa::ExtensionSet for LayoutNode {
     fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
         &mut self.__buffa_unknown_fields
     }
+}
+/// Closed viewport-width subset. Zero denotes an absent bound; comparisons are
+/// inclusive. Unknown fields or invalid ranges make the node inert.
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeScreenVisibility {
+    /// Field 1: `min_width`
+    pub min_width: u32,
+    /// Field 2: `max_width`
+    pub max_width: u32,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeScreenVisibility {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeScreenVisibility")
+            .field("min_width", &self.min_width)
+            .field("max_width", &self.max_width)
+            .finish()
+    }
+}
+impl NativeScreenVisibility {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeScreenVisibility";
+}
+::buffa::impl_default_instance!(NativeScreenVisibility);
+impl ::buffa::MessageName for NativeScreenVisibility {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeScreenVisibility";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeScreenVisibility";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeScreenVisibility";
+}
+impl ::buffa::Message for NativeScreenVisibility {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.min_width != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.min_width) as u64;
+        }
+        if self.max_width != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.max_width) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.min_width != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.min_width, buf);
+        }
+        if self.max_width != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.max_width, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.min_width = ::buffa::types::decode_uint32(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.max_width = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.min_width = 0u32;
+        self.max_width = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeScreenVisibility {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeScreenVisibility";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+/// Exact canonical field keys are interpreted against the current authorized
+/// entity view. Missing bindings never select another entity or field.
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeResponsiveSpan {
+    /// Field 1: `columns`
+    pub columns: u32,
+    /// Field 2: `span`
+    pub span: u32,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeResponsiveSpan {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeResponsiveSpan")
+            .field("columns", &self.columns)
+            .field("span", &self.span)
+            .finish()
+    }
+}
+impl NativeResponsiveSpan {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeResponsiveSpan";
+}
+::buffa::impl_default_instance!(NativeResponsiveSpan);
+impl ::buffa::MessageName for NativeResponsiveSpan {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeResponsiveSpan";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeResponsiveSpan";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeResponsiveSpan";
+}
+impl ::buffa::Message for NativeResponsiveSpan {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.columns != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.columns) as u64;
+        }
+        if self.span != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.span) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.columns != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.columns, buf);
+        }
+        if self.span != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.span, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.columns = ::buffa::types::decode_uint32(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.span = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.columns = 0u32;
+        self.span = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeResponsiveSpan {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeResponsiveSpan";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeFieldBinding {
+    /// Field 1: `entity_id`
+    pub entity_id: ::buffa::alloc::string::String,
+    /// Field 2: `field_key`
+    pub field_key: ::buffa::alloc::string::String,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeFieldBinding {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeFieldBinding")
+            .field("entity_id", &self.entity_id)
+            .field("field_key", &self.field_key)
+            .finish()
+    }
+}
+impl NativeFieldBinding {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeFieldBinding";
+}
+::buffa::impl_default_instance!(NativeFieldBinding);
+impl ::buffa::MessageName for NativeFieldBinding {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeFieldBinding";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeFieldBinding";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeFieldBinding";
+}
+impl ::buffa::Message for NativeFieldBinding {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.entity_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.entity_id) as u64;
+        }
+        if !self.field_key.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.field_key) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.entity_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.entity_id, buf);
+        }
+        if !self.field_key.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.field_key, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.entity_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.field_key, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.entity_id.clear();
+        self.field_key.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeFieldBinding {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeFieldBinding";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeClockWeatherWidget {
+    /// Field 1: `timezone`
+    pub timezone: ::buffa::alloc::string::String,
+    /// Field 2: `weather_entity_id`
+    pub weather_entity_id: ::buffa::alloc::string::String,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeClockWeatherWidget {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeClockWeatherWidget")
+            .field("timezone", &self.timezone)
+            .field("weather_entity_id", &self.weather_entity_id)
+            .finish()
+    }
+}
+impl NativeClockWeatherWidget {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeClockWeatherWidget";
+}
+::buffa::impl_default_instance!(NativeClockWeatherWidget);
+impl ::buffa::MessageName for NativeClockWeatherWidget {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeClockWeatherWidget";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeClockWeatherWidget";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeClockWeatherWidget";
+}
+impl ::buffa::Message for NativeClockWeatherWidget {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.timezone.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.timezone) as u64;
+        }
+        if !self.weather_entity_id.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.weather_entity_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.timezone.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.timezone, buf);
+        }
+        if !self.weather_entity_id.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.weather_entity_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.timezone, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.weather_entity_id, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.timezone.clear();
+        self.weather_entity_id.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeClockWeatherWidget {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeClockWeatherWidget";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeRoomWidget {
+    /// Field 1: `room_id`
+    pub room_id: ::buffa::alloc::string::String,
+    /// Field 2: `temperature`
+    pub temperature: ::buffa::MessageField<
+        NativeFieldBinding,
+        ::buffa::Inline<NativeFieldBinding>,
+    >,
+    /// Field 3: `activity_entity_ids`
+    pub activity_entity_ids: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Field 4: `active_states`
+    pub active_states: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeRoomWidget {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeRoomWidget")
+            .field("room_id", &self.room_id)
+            .field("temperature", &self.temperature)
+            .field("activity_entity_ids", &self.activity_entity_ids)
+            .field("active_states", &self.active_states)
+            .finish()
+    }
+}
+impl NativeRoomWidget {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeRoomWidget";
+}
+::buffa::impl_default_instance!(NativeRoomWidget);
+impl ::buffa::MessageName for NativeRoomWidget {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeRoomWidget";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeRoomWidget";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeRoomWidget";
+}
+impl ::buffa::Message for NativeRoomWidget {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.room_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.room_id) as u64;
+        }
+        if self.temperature.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.temperature.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.activity_entity_ids {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.active_states {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.room_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.room_id, buf);
+        }
+        if self.temperature.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.temperature.write_to(__cache, buf);
+        }
+        for v in &self.activity_entity_ids {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        for v in &self.active_states {
+            ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.room_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.temperature.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.activity_entity_ids.push(__elem);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.active_states.push(__elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.room_id.clear();
+        self.temperature = ::buffa::MessageField::none();
+        self.activity_entity_ids.clear();
+        self.active_states.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeRoomWidget {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeRoomWidget";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeThermostatWidget {
+    /// Field 1: `entity_id`
+    pub entity_id: ::buffa::alloc::string::String,
+    /// Field 2: `current_temperature`
+    pub current_temperature: ::buffa::MessageField<
+        NativeFieldBinding,
+        ::buffa::Inline<NativeFieldBinding>,
+    >,
+    /// Field 3: `target_temperature`
+    pub target_temperature: ::buffa::MessageField<
+        NativeFieldBinding,
+        ::buffa::Inline<NativeFieldBinding>,
+    >,
+    /// Field 4: `presentation`
+    pub presentation: ::buffa::EnumValue<NativeThermostatPresentation>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeThermostatWidget {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeThermostatWidget")
+            .field("entity_id", &self.entity_id)
+            .field("current_temperature", &self.current_temperature)
+            .field("target_temperature", &self.target_temperature)
+            .field("presentation", &self.presentation)
+            .finish()
+    }
+}
+impl NativeThermostatWidget {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeThermostatWidget";
+}
+::buffa::impl_default_instance!(NativeThermostatWidget);
+impl ::buffa::MessageName for NativeThermostatWidget {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeThermostatWidget";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeThermostatWidget";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeThermostatWidget";
+}
+impl ::buffa::Message for NativeThermostatWidget {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.entity_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.entity_id) as u64;
+        }
+        if self.current_temperature.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.current_temperature.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.target_temperature.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.target_temperature.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.presentation.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.entity_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.entity_id, buf);
+        }
+        if self.current_temperature.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.current_temperature.write_to(__cache, buf);
+        }
+        if self.target_temperature.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.target_temperature.write_to(__cache, buf);
+        }
+        {
+            let val = self.presentation.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(4u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.entity_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.current_temperature.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.target_temperature.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.presentation = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.entity_id.clear();
+        self.current_temperature = ::buffa::MessageField::none();
+        self.target_temperature = ::buffa::MessageField::none();
+        self.presentation = ::buffa::EnumValue::from(0);
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeThermostatWidget {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeThermostatWidget";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeAgendaWidget {
+    /// Field 1: `calendar_id`
+    pub calendar_id: ::buffa::alloc::string::String,
+    /// Field 2: `timezone`
+    pub timezone: ::buffa::alloc::string::String,
+    /// Field 3: `window_seconds`
+    pub window_seconds: u32,
+    /// Field 4: `limit`
+    pub limit: u32,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeAgendaWidget {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeAgendaWidget")
+            .field("calendar_id", &self.calendar_id)
+            .field("timezone", &self.timezone)
+            .field("window_seconds", &self.window_seconds)
+            .field("limit", &self.limit)
+            .finish()
+    }
+}
+impl NativeAgendaWidget {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeAgendaWidget";
+}
+::buffa::impl_default_instance!(NativeAgendaWidget);
+impl ::buffa::MessageName for NativeAgendaWidget {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeAgendaWidget";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeAgendaWidget";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeAgendaWidget";
+}
+impl ::buffa::Message for NativeAgendaWidget {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.calendar_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.calendar_id) as u64;
+        }
+        if !self.timezone.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.timezone) as u64;
+        }
+        if self.window_seconds != 0u32 {
+            size
+                += 1u64 + ::buffa::types::uint32_encoded_len(self.window_seconds) as u64;
+        }
+        if self.limit != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.limit) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.calendar_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.calendar_id, buf);
+        }
+        if !self.timezone.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.timezone, buf);
+        }
+        if self.window_seconds != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.window_seconds, buf);
+        }
+        if self.limit != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.limit, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.calendar_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.timezone, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.window_seconds = ::buffa::types::decode_uint32(buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.limit = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.calendar_id.clear();
+        self.timezone.clear();
+        self.window_seconds = 0u32;
+        self.limit = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeAgendaWidget {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeAgendaWidget";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeTasksWidget {
+    /// Field 1: `list_id`
+    pub list_id: ::buffa::alloc::string::String,
+    /// Field 2: `limit`
+    pub limit: u32,
+    /// Field 3: `presentation`
+    pub presentation: ::buffa::EnumValue<NativeTasksPresentation>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeTasksWidget {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeTasksWidget")
+            .field("list_id", &self.list_id)
+            .field("limit", &self.limit)
+            .field("presentation", &self.presentation)
+            .finish()
+    }
+}
+impl NativeTasksWidget {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeTasksWidget";
+}
+::buffa::impl_default_instance!(NativeTasksWidget);
+impl ::buffa::MessageName for NativeTasksWidget {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeTasksWidget";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeTasksWidget";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeTasksWidget";
+}
+impl ::buffa::Message for NativeTasksWidget {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.list_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.list_id) as u64;
+        }
+        if self.limit != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.limit) as u64;
+        }
+        {
+            let val = self.presentation.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.list_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.list_id, buf);
+        }
+        if self.limit != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.limit, buf);
+        }
+        {
+            let val = self.presentation.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.list_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.limit = ::buffa::types::decode_uint32(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.presentation = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.list_id.clear();
+        self.limit = 0u32;
+        self.presentation = ::buffa::EnumValue::from(0);
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeTasksWidget {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeTasksWidget";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeSecurityWidget {
+    /// Field 1: `entity_ids`
+    pub entity_ids: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeSecurityWidget {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeSecurityWidget")
+            .field("entity_ids", &self.entity_ids)
+            .finish()
+    }
+}
+impl NativeSecurityWidget {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeSecurityWidget";
+}
+::buffa::impl_default_instance!(NativeSecurityWidget);
+impl ::buffa::MessageName for NativeSecurityWidget {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeSecurityWidget";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeSecurityWidget";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeSecurityWidget";
+}
+impl ::buffa::Message for NativeSecurityWidget {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.entity_ids {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.entity_ids {
+            ::buffa::types::put_string_field(1u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.entity_ids.push(__elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.entity_ids.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeSecurityWidget {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeSecurityWidget";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeObservationBinding {
+    /// Field 1: `field`
+    pub field: ::buffa::MessageField<
+        NativeFieldBinding,
+        ::buffa::Inline<NativeFieldBinding>,
+    >,
+    /// Field 2: `label`
+    pub label: ::buffa::alloc::string::String,
+    /// Field 3: `active_states`
+    pub active_states: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Field 4: `icon`
+    pub icon: ::buffa::EnumValue<NativeIcon>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeObservationBinding {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeObservationBinding")
+            .field("field", &self.field)
+            .field("label", &self.label)
+            .field("active_states", &self.active_states)
+            .field("icon", &self.icon)
+            .finish()
+    }
+}
+impl NativeObservationBinding {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeObservationBinding";
+}
+::buffa::impl_default_instance!(NativeObservationBinding);
+impl ::buffa::MessageName for NativeObservationBinding {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeObservationBinding";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeObservationBinding";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeObservationBinding";
+}
+impl ::buffa::Message for NativeObservationBinding {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.field.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.field.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.label.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.label) as u64;
+        }
+        for v in &self.active_states {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        {
+            let val = self.icon.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.field.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.field.write_to(__cache, buf);
+        }
+        if !self.label.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.label, buf);
+        }
+        for v in &self.active_states {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        {
+            let val = self.icon.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(4u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.field.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.label, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.active_states.push(__elem);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.icon = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.field = ::buffa::MessageField::none();
+        self.label.clear();
+        self.active_states.clear();
+        self.icon = ::buffa::EnumValue::from(0);
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeObservationBinding {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeObservationBinding";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeObservationsWidget {
+    /// Field 1: `items`
+    pub items: ::buffa::alloc::vec::Vec<NativeObservationBinding>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeObservationsWidget {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeObservationsWidget").field("items", &self.items).finish()
+    }
+}
+impl NativeObservationsWidget {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeObservationsWidget";
+}
+::buffa::impl_default_instance!(NativeObservationsWidget);
+impl ::buffa::MessageName for NativeObservationsWidget {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeObservationsWidget";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeObservationsWidget";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeObservationsWidget";
+}
+impl ::buffa::Message for NativeObservationsWidget {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.items {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.items {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.items.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.items.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeObservationsWidget {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeObservationsWidget";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeNavigationWidget {
+    /// Field 1: `destination`
+    pub destination: ::buffa::MessageField<
+        NativeDestination,
+        ::buffa::Inline<NativeDestination>,
+    >,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeNavigationWidget {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeNavigationWidget")
+            .field("destination", &self.destination)
+            .finish()
+    }
+}
+impl NativeNavigationWidget {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeNavigationWidget";
+}
+::buffa::impl_default_instance!(NativeNavigationWidget);
+impl ::buffa::MessageName for NativeNavigationWidget {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeNavigationWidget";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeNavigationWidget";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeNavigationWidget";
+}
+impl ::buffa::Message for NativeNavigationWidget {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.destination.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.destination.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.destination.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.destination.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.destination.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.destination = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeNavigationWidget {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeNavigationWidget";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct NativeWidget {
+    /// Field 10: `action`
+    pub action: ::buffa::MessageField<
+        NativeDestination,
+        ::buffa::Inline<NativeDestination>,
+    >,
+    /// Field 11: `action_label`
+    pub action_label: ::buffa::alloc::string::String,
+    /// Field 12: `empty_label`
+    pub empty_label: ::buffa::alloc::string::String,
+    pub content: ::core::option::Option<__buffa::oneof::native_widget::Content>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for NativeWidget {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("NativeWidget")
+            .field("action", &self.action)
+            .field("action_label", &self.action_label)
+            .field("empty_label", &self.empty_label)
+            .field("content", &self.content)
+            .finish()
+    }
+}
+impl NativeWidget {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeWidget";
+}
+::buffa::impl_default_instance!(NativeWidget);
+impl ::buffa::MessageName for NativeWidget {
+    const PACKAGE: &'static str = "home.dashboard.v1";
+    const NAME: &'static str = "NativeWidget";
+    const FULL_NAME: &'static str = "home.dashboard.v1.NativeWidget";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeWidget";
+}
+impl ::buffa::Message for NativeWidget {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if let ::core::option::Option::Some(ref v) = self.content {
+            match v {
+                __buffa::oneof::native_widget::Content::ClockWeather(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::native_widget::Content::Room(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::native_widget::Content::Thermostat(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::native_widget::Content::Agenda(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::native_widget::Content::Tasks(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::native_widget::Content::Security(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::native_widget::Content::Observations(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::native_widget::Content::Navigation(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
+        if self.action.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.action.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.action_label.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.action_label) as u64;
+        }
+        if !self.empty_label.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.empty_label) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if let ::core::option::Option::Some(ref v) = self.content {
+            match v {
+                __buffa::oneof::native_widget::Content::ClockWeather(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::native_widget::Content::Room(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::native_widget::Content::Thermostat(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        3u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::native_widget::Content::Agenda(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::native_widget::Content::Tasks(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::native_widget::Content::Security(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::native_widget::Content::Observations(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::native_widget::Content::Navigation(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        8u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
+        if self.action.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                10u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.action.write_to(__cache, buf);
+        }
+        if !self.action_label.is_empty() {
+            ::buffa::types::put_string_field(11u32, &self.action_label, buf);
+        }
+        if !self.empty_label.is_empty() {
+            ::buffa::types::put_string_field(12u32, &self.empty_label, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::native_widget::Content::ClockWeather(
+                        ref mut existing,
+                    ),
+                ) = self.content
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.content = ::core::option::Option::Some(
+                        __buffa::oneof::native_widget::Content::ClockWeather(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::native_widget::Content::Room(ref mut existing),
+                ) = self.content
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.content = ::core::option::Option::Some(
+                        __buffa::oneof::native_widget::Content::Room(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::native_widget::Content::Thermostat(ref mut existing),
+                ) = self.content
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.content = ::core::option::Option::Some(
+                        __buffa::oneof::native_widget::Content::Thermostat(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::native_widget::Content::Agenda(ref mut existing),
+                ) = self.content
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.content = ::core::option::Option::Some(
+                        __buffa::oneof::native_widget::Content::Agenda(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::native_widget::Content::Tasks(ref mut existing),
+                ) = self.content
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.content = ::core::option::Option::Some(
+                        __buffa::oneof::native_widget::Content::Tasks(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::native_widget::Content::Security(ref mut existing),
+                ) = self.content
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.content = ::core::option::Option::Some(
+                        __buffa::oneof::native_widget::Content::Security(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::native_widget::Content::Observations(
+                        ref mut existing,
+                    ),
+                ) = self.content
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.content = ::core::option::Option::Some(
+                        __buffa::oneof::native_widget::Content::Observations(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::native_widget::Content::Navigation(ref mut existing),
+                ) = self.content
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.content = ::core::option::Option::Some(
+                        __buffa::oneof::native_widget::Content::Navigation(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.action.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.action_label, buf)?;
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.empty_label, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.content = ::core::option::Option::None;
+        self.action = ::buffa::MessageField::none();
+        self.action_label.clear();
+        self.empty_label.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for NativeWidget {
+    const PROTO_FQN: &'static str = "home.dashboard.v1.NativeWidget";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+pub mod native_widget {
+    #[allow(unused_imports)]
+    use super::*;
+    #[doc(inline)]
+    pub use super::__buffa::oneof::native_widget::Content;
+    #[doc(inline)]
+    pub use super::__buffa::view::oneof::native_widget::Content as ContentView;
 }
 #[derive(Clone, PartialEq, Default)]
 pub struct NativeDestination {
@@ -4977,6 +7649,10 @@ pub struct ClientLayoutSupport {
     pub version: u32,
     /// Field 3: `kinds`
     pub kinds: ::buffa::alloc::vec::Vec<::buffa::EnumValue<LayoutKind>>,
+    /// Required before screen-conditioned nodes can be projected as controls.
+    ///
+    /// Field 4: `screen_visibility`
+    pub screen_visibility: bool,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -4986,6 +7662,7 @@ impl ::core::fmt::Debug for ClientLayoutSupport {
             .field("profile", &self.profile)
             .field("version", &self.version)
             .field("kinds", &self.kinds)
+            .field("screen_visibility", &self.screen_visibility)
             .finish()
     }
 }
@@ -5030,6 +7707,9 @@ impl ::buffa::Message for ClientLayoutSupport {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if self.screen_visibility {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5056,6 +7736,9 @@ impl ::buffa::Message for ClientLayoutSupport {
             for v in &self.kinds {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        if self.screen_visibility {
+            ::buffa::types::put_bool_field(4u32, self.screen_visibility, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5122,6 +7805,13 @@ impl ::buffa::Message for ClientLayoutSupport {
                     );
                 }
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.screen_visibility = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5133,6 +7823,7 @@ impl ::buffa::Message for ClientLayoutSupport {
         self.profile.clear();
         self.version = 0u32;
         self.kinds.clear();
+        self.screen_visibility = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -10184,6 +12875,41 @@ pub mod __buffa {
                 'a,
                 ::buffa::EnumValue<super::super::NativeFeatureKind>,
             >,
+            /// Version 3: a finite native widget with exact server-owned bindings.
+            ///
+            /// Field 20: `widget`
+            pub widget: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeWidgetView<'a>,
+            >,
+            /// Logical pixels. V3 servers supply container defaults explicitly; gap zero
+            /// means no gap. Legacy nodes retain native defaults when fields are absent.
+            ///
+            /// Field 21: `minimum_column_width`
+            pub minimum_column_width: u32,
+            /// Field 22: `gap`
+            pub gap: u32,
+            /// Field 23: `responsive_spans`
+            pub responsive_spans: ::buffa::RepeatedView<
+                'a,
+                super::super::__buffa::view::NativeResponsiveSpanView<'a>,
+            >,
+            /// Finite icon vocabulary chosen by the admitted source, never downloaded SVG.
+            ///
+            /// Field 24: `icon`
+            pub icon: ::buffa::EnumValue<super::super::NativeIcon>,
+            /// Source-selected density; this changes presentation, never command authority.
+            ///
+            /// Field 25: `control_presentation`
+            pub control_presentation: ::buffa::EnumValue<
+                super::super::NativeControlPresentation,
+            >,
+            /// Presentation only, evaluated against the full logical window width. This
+            /// never grants an action or substitutes for NativeRecipes visibility.
+            ///
+            /// Field 26: `screen_visibility`
+            pub screen_visibility: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeScreenVisibilityView<'a>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for LayoutNodeView<'a> {
@@ -10419,6 +13145,90 @@ pub mod __buffa {
                         )?;
                         view.secondary = ::buffa::types::borrow_str(&mut cur)?;
                     }
+                    20u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.widget.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.widget = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NativeWidgetView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    21u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.minimum_column_width = ::buffa::types::decode_uint32(
+                            &mut cur,
+                        )?;
+                    }
+                    22u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.gap = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    24u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.icon = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    25u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.control_presentation = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    26u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.screen_visibility.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.screen_visibility = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NativeScreenVisibilityView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     6u32 => {
                         ::buffa::encoding::check_wire_type(
                             tag,
@@ -10462,6 +13272,26 @@ pub mod __buffa {
                                 ),
                             );
                         }
+                    }
+                    23u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::core::mem::size_of::<
+                                super::super::__buffa::view::NativeResponsiveSpanView,
+                            >(),
+                        )?;
+                        view.responsive_spans
+                            .push(
+                                <super::super::__buffa::view::NativeResponsiveSpanView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            );
                     }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -10537,6 +13367,33 @@ pub mod __buffa {
                     recipe_kind: self.recipe_kind,
                     secondary: self.secondary.to_string(),
                     features: self.features.to_vec(),
+                    widget: match self.widget.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NativeWidget,
+                                ::buffa::Inline<super::super::NativeWidget>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    minimum_column_width: self.minimum_column_width,
+                    gap: self.gap,
+                    responsive_spans: self
+                        .responsive_spans
+                        .iter()
+                        .map(|v| v.to_owned_from_source(__buffa_src))
+                        .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+                    icon: self.icon,
+                    control_presentation: self.control_presentation,
+                    screen_visibility: match self.screen_visibility.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NativeScreenVisibility,
+                                ::buffa::Inline<super::super::NativeScreenVisibility>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -10655,6 +13512,52 @@ pub mod __buffa {
                         += 2u64 + ::buffa::encoding::varint_len(payload) as u64
                             + payload;
                 }
+                if self.widget.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.widget.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.minimum_column_width != 0u32 {
+                    size
+                        += 2u64
+                            + ::buffa::types::uint32_encoded_len(
+                                self.minimum_column_width,
+                            ) as u64;
+                }
+                if self.gap != 0u32 {
+                    size += 2u64 + ::buffa::types::uint32_encoded_len(self.gap) as u64;
+                }
+                for v in &self.responsive_spans {
+                    let __slot = __cache.reserve();
+                    let inner_size = v.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                {
+                    let val = self.icon.to_i32();
+                    if val != 0 {
+                        size += 2u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                {
+                    let val = self.control_presentation.to_i32();
+                    if val != 0 {
+                        size += 2u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                if self.screen_visibility.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.screen_visibility.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -10759,6 +13662,52 @@ pub mod __buffa {
                     for v in &self.features {
                         ::buffa::types::encode_int32(v.to_i32(), buf);
                     }
+                }
+                if self.widget.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        20u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.widget.write_to(__cache, buf);
+                }
+                if self.minimum_column_width != 0u32 {
+                    ::buffa::types::put_uint32_field(
+                        21u32,
+                        self.minimum_column_width,
+                        buf,
+                    );
+                }
+                if self.gap != 0u32 {
+                    ::buffa::types::put_uint32_field(22u32, self.gap, buf);
+                }
+                for v in &self.responsive_spans {
+                    ::buffa::types::put_len_delimited_header(
+                        23u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    v.write_to(__cache, buf);
+                }
+                {
+                    let val = self.icon.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(24u32, val, buf);
+                    }
+                }
+                {
+                    let val = self.control_presentation.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(25u32, val, buf);
+                    }
+                }
+                if self.screen_visibility.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        26u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.screen_visibility.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -10978,6 +13927,68 @@ pub mod __buffa {
             > {
                 &self.0.reborrow().features
             }
+            /// Version 3: a finite native widget with exact server-owned bindings.
+            ///
+            /// Field 20: `widget`
+            #[must_use]
+            pub fn widget(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeWidgetView<'_>,
+            > {
+                &self.0.reborrow().widget
+            }
+            /// Logical pixels. V3 servers supply container defaults explicitly; gap zero
+            /// means no gap. Legacy nodes retain native defaults when fields are absent.
+            ///
+            /// Field 21: `minimum_column_width`
+            #[must_use]
+            pub fn minimum_column_width(&self) -> u32 {
+                self.0.reborrow().minimum_column_width
+            }
+            /// Field 22: `gap`
+            #[must_use]
+            pub fn gap(&self) -> u32 {
+                self.0.reborrow().gap
+            }
+            /// Field 23: `responsive_spans`
+            #[must_use]
+            pub fn responsive_spans(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                super::super::__buffa::view::NativeResponsiveSpanView<'_>,
+            > {
+                &self.0.reborrow().responsive_spans
+            }
+            /// Finite icon vocabulary chosen by the admitted source, never downloaded SVG.
+            ///
+            /// Field 24: `icon`
+            #[must_use]
+            pub fn icon(&self) -> ::buffa::EnumValue<super::super::NativeIcon> {
+                self.0.reborrow().icon
+            }
+            /// Source-selected density; this changes presentation, never command authority.
+            ///
+            /// Field 25: `control_presentation`
+            #[must_use]
+            pub fn control_presentation(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::NativeControlPresentation> {
+                self.0.reborrow().control_presentation
+            }
+            /// Presentation only, evaluated against the full logical window width. This
+            /// never grants an action or substitutes for NativeRecipes visibility.
+            ///
+            /// Field 26: `screen_visibility`
+            #[must_use]
+            pub fn screen_visibility(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeScreenVisibilityView<'_>,
+            > {
+                &self.0.reborrow().screen_visibility
+            }
         }
         impl ::core::convert::From<::buffa::OwnedView<LayoutNodeView<'static>>>
         for LayoutNodeOwnedView {
@@ -11000,6 +14011,4395 @@ pub mod __buffa {
         impl ::buffa::HasMessageView for super::super::LayoutNode {
             type View<'a> = LayoutNodeView<'a>;
             type ViewHandle = LayoutNodeOwnedView;
+        }
+        /// Closed viewport-width subset. Zero denotes an absent bound; comparisons are
+        /// inclusive. Unknown fields or invalid ranges make the node inert.
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeScreenVisibilityView<'a> {
+            /// Field 1: `min_width`
+            pub min_width: u32,
+            /// Field 2: `max_width`
+            pub max_width: u32,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeScreenVisibilityView<'a> {
+            type Owned = super::super::NativeScreenVisibility;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.min_width = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.max_width = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeScreenVisibility,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeScreenVisibility,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeScreenVisibility {
+                    min_width: self.min_width,
+                    max_width: self.max_width,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeScreenVisibilityView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.min_width != 0u32 {
+                    size
+                        += 1u64
+                            + ::buffa::types::uint32_encoded_len(self.min_width) as u64;
+                }
+                if self.max_width != 0u32 {
+                    size
+                        += 1u64
+                            + ::buffa::types::uint32_encoded_len(self.max_width) as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.min_width != 0u32 {
+                    ::buffa::types::put_uint32_field(1u32, self.min_width, buf);
+                }
+                if self.max_width != 0u32 {
+                    ::buffa::types::put_uint32_field(2u32, self.max_width, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeScreenVisibilityView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeScreenVisibility";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeScreenVisibility";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeScreenVisibility";
+        }
+        ::buffa::impl_default_view_instance!(NativeScreenVisibilityView);
+        ::buffa::impl_view_reborrow!(NativeScreenVisibilityView);
+        /** Self-contained, `'static` owned view of a `NativeScreenVisibility` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeScreenVisibilityView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeScreenVisibilityView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeScreenVisibilityOwnedView(
+            ::buffa::OwnedView<NativeScreenVisibilityView<'static>>,
+        );
+        impl NativeScreenVisibilityOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeScreenVisibilityOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeScreenVisibilityOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeScreenVisibility,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeScreenVisibilityOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`NativeScreenVisibilityView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeScreenVisibilityView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeScreenVisibility {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `min_width`
+            #[must_use]
+            pub fn min_width(&self) -> u32 {
+                self.0.reborrow().min_width
+            }
+            /// Field 2: `max_width`
+            #[must_use]
+            pub fn max_width(&self) -> u32 {
+                self.0.reborrow().max_width
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<NativeScreenVisibilityView<'static>>,
+        > for NativeScreenVisibilityOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<NativeScreenVisibilityView<'static>>,
+            ) -> Self {
+                NativeScreenVisibilityOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeScreenVisibilityOwnedView>
+        for ::buffa::OwnedView<NativeScreenVisibilityView<'static>> {
+            fn from(wrapper: NativeScreenVisibilityOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<NativeScreenVisibilityView<'static>>,
+        > for NativeScreenVisibilityOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<NativeScreenVisibilityView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeScreenVisibility {
+            type View<'a> = NativeScreenVisibilityView<'a>;
+            type ViewHandle = NativeScreenVisibilityOwnedView;
+        }
+        /// Exact canonical field keys are interpreted against the current authorized
+        /// entity view. Missing bindings never select another entity or field.
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeResponsiveSpanView<'a> {
+            /// Field 1: `columns`
+            pub columns: u32,
+            /// Field 2: `span`
+            pub span: u32,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeResponsiveSpanView<'a> {
+            type Owned = super::super::NativeResponsiveSpan;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.columns = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.span = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeResponsiveSpan,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeResponsiveSpan,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeResponsiveSpan {
+                    columns: self.columns,
+                    span: self.span,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeResponsiveSpanView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.columns != 0u32 {
+                    size
+                        += 1u64
+                            + ::buffa::types::uint32_encoded_len(self.columns) as u64;
+                }
+                if self.span != 0u32 {
+                    size += 1u64 + ::buffa::types::uint32_encoded_len(self.span) as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.columns != 0u32 {
+                    ::buffa::types::put_uint32_field(1u32, self.columns, buf);
+                }
+                if self.span != 0u32 {
+                    ::buffa::types::put_uint32_field(2u32, self.span, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeResponsiveSpanView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeResponsiveSpan";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeResponsiveSpan";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeResponsiveSpan";
+        }
+        ::buffa::impl_default_view_instance!(NativeResponsiveSpanView);
+        ::buffa::impl_view_reborrow!(NativeResponsiveSpanView);
+        /** Self-contained, `'static` owned view of a `NativeResponsiveSpan` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeResponsiveSpanView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeResponsiveSpanView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeResponsiveSpanOwnedView(
+            ::buffa::OwnedView<NativeResponsiveSpanView<'static>>,
+        );
+        impl NativeResponsiveSpanOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeResponsiveSpanOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeResponsiveSpanOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeResponsiveSpan,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeResponsiveSpanOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`NativeResponsiveSpanView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeResponsiveSpanView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeResponsiveSpan {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `columns`
+            #[must_use]
+            pub fn columns(&self) -> u32 {
+                self.0.reborrow().columns
+            }
+            /// Field 2: `span`
+            #[must_use]
+            pub fn span(&self) -> u32 {
+                self.0.reborrow().span
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<NativeResponsiveSpanView<'static>>>
+        for NativeResponsiveSpanOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<NativeResponsiveSpanView<'static>>,
+            ) -> Self {
+                NativeResponsiveSpanOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeResponsiveSpanOwnedView>
+        for ::buffa::OwnedView<NativeResponsiveSpanView<'static>> {
+            fn from(wrapper: NativeResponsiveSpanOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<NativeResponsiveSpanView<'static>>,
+        > for NativeResponsiveSpanOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<NativeResponsiveSpanView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeResponsiveSpan {
+            type View<'a> = NativeResponsiveSpanView<'a>;
+            type ViewHandle = NativeResponsiveSpanOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeFieldBindingView<'a> {
+            /// Field 1: `entity_id`
+            pub entity_id: &'a str,
+            /// Field 2: `field_key`
+            pub field_key: &'a str,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeFieldBindingView<'a> {
+            type Owned = super::super::NativeFieldBinding;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.entity_id = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.field_key = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeFieldBinding,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeFieldBinding,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeFieldBinding {
+                    entity_id: self.entity_id.to_string(),
+                    field_key: self.field_key.to_string(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeFieldBindingView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.entity_id.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.entity_id) as u64;
+                }
+                if !self.field_key.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.field_key) as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.entity_id.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.entity_id, buf);
+                }
+                if !self.field_key.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.field_key, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeFieldBindingView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeFieldBinding";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeFieldBinding";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeFieldBinding";
+        }
+        ::buffa::impl_default_view_instance!(NativeFieldBindingView);
+        ::buffa::impl_view_reborrow!(NativeFieldBindingView);
+        /** Self-contained, `'static` owned view of a `NativeFieldBinding` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeFieldBindingView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeFieldBindingView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeFieldBindingOwnedView(
+            ::buffa::OwnedView<NativeFieldBindingView<'static>>,
+        );
+        impl NativeFieldBindingOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeFieldBindingOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeFieldBindingOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeFieldBinding,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeFieldBindingOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`NativeFieldBindingView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeFieldBindingView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeFieldBinding {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `entity_id`
+            #[must_use]
+            pub fn entity_id(&self) -> &'_ str {
+                self.0.reborrow().entity_id
+            }
+            /// Field 2: `field_key`
+            #[must_use]
+            pub fn field_key(&self) -> &'_ str {
+                self.0.reborrow().field_key
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<NativeFieldBindingView<'static>>>
+        for NativeFieldBindingOwnedView {
+            fn from(inner: ::buffa::OwnedView<NativeFieldBindingView<'static>>) -> Self {
+                NativeFieldBindingOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeFieldBindingOwnedView>
+        for ::buffa::OwnedView<NativeFieldBindingView<'static>> {
+            fn from(wrapper: NativeFieldBindingOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<NativeFieldBindingView<'static>>>
+        for NativeFieldBindingOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<NativeFieldBindingView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeFieldBinding {
+            type View<'a> = NativeFieldBindingView<'a>;
+            type ViewHandle = NativeFieldBindingOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeClockWeatherWidgetView<'a> {
+            /// Field 1: `timezone`
+            pub timezone: &'a str,
+            /// Field 2: `weather_entity_id`
+            pub weather_entity_id: &'a str,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeClockWeatherWidgetView<'a> {
+            type Owned = super::super::NativeClockWeatherWidget;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.timezone = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.weather_entity_id = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeClockWeatherWidget,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeClockWeatherWidget,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeClockWeatherWidget {
+                    timezone: self.timezone.to_string(),
+                    weather_entity_id: self.weather_entity_id.to_string(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeClockWeatherWidgetView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.timezone.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.timezone) as u64;
+                }
+                if !self.weather_entity_id.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.weather_entity_id)
+                                as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.timezone.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.timezone, buf);
+                }
+                if !self.weather_entity_id.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.weather_entity_id, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeClockWeatherWidgetView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeClockWeatherWidget";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeClockWeatherWidget";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeClockWeatherWidget";
+        }
+        ::buffa::impl_default_view_instance!(NativeClockWeatherWidgetView);
+        ::buffa::impl_view_reborrow!(NativeClockWeatherWidgetView);
+        /** Self-contained, `'static` owned view of a `NativeClockWeatherWidget` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeClockWeatherWidgetView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeClockWeatherWidgetView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeClockWeatherWidgetOwnedView(
+            ::buffa::OwnedView<NativeClockWeatherWidgetView<'static>>,
+        );
+        impl NativeClockWeatherWidgetOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeClockWeatherWidgetOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeClockWeatherWidgetOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeClockWeatherWidget,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeClockWeatherWidgetOwnedView(
+                        ::buffa::OwnedView::from_owned(msg)?,
+                    ),
+                )
+            }
+            /// Borrow the full [`NativeClockWeatherWidgetView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeClockWeatherWidgetView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeClockWeatherWidget {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `timezone`
+            #[must_use]
+            pub fn timezone(&self) -> &'_ str {
+                self.0.reborrow().timezone
+            }
+            /// Field 2: `weather_entity_id`
+            #[must_use]
+            pub fn weather_entity_id(&self) -> &'_ str {
+                self.0.reborrow().weather_entity_id
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<NativeClockWeatherWidgetView<'static>>,
+        > for NativeClockWeatherWidgetOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<NativeClockWeatherWidgetView<'static>>,
+            ) -> Self {
+                NativeClockWeatherWidgetOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeClockWeatherWidgetOwnedView>
+        for ::buffa::OwnedView<NativeClockWeatherWidgetView<'static>> {
+            fn from(wrapper: NativeClockWeatherWidgetOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<NativeClockWeatherWidgetView<'static>>,
+        > for NativeClockWeatherWidgetOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<NativeClockWeatherWidgetView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeClockWeatherWidget {
+            type View<'a> = NativeClockWeatherWidgetView<'a>;
+            type ViewHandle = NativeClockWeatherWidgetOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeRoomWidgetView<'a> {
+            /// Field 1: `room_id`
+            pub room_id: &'a str,
+            /// Field 2: `temperature`
+            pub temperature: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeFieldBindingView<'a>,
+            >,
+            /// Field 3: `activity_entity_ids`
+            pub activity_entity_ids: ::buffa::RepeatedView<'a, &'a str>,
+            /// Field 4: `active_states`
+            pub active_states: ::buffa::RepeatedView<'a, &'a str>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeRoomWidgetView<'a> {
+            type Owned = super::super::NativeRoomWidget;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.room_id = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.temperature.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.temperature = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NativeFieldBindingView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::buffa::__private::element_footprint(&__elem),
+                        )?;
+                        view.activity_entity_ids.push(__elem);
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::buffa::__private::element_footprint(&__elem),
+                        )?;
+                        view.active_states.push(__elem);
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeRoomWidget,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeRoomWidget,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeRoomWidget {
+                    room_id: self.room_id.to_string(),
+                    temperature: match self.temperature.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NativeFieldBinding,
+                                ::buffa::Inline<super::super::NativeFieldBinding>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    activity_entity_ids: self
+                        .activity_entity_ids
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                    active_states: self
+                        .active_states
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeRoomWidgetView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.room_id.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.room_id) as u64;
+                }
+                if self.temperature.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.temperature.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                for v in &self.activity_entity_ids {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
+                for v in &self.active_states {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.room_id.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.room_id, buf);
+                }
+                if self.temperature.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.temperature.write_to(__cache, buf);
+                }
+                for v in &self.activity_entity_ids {
+                    ::buffa::types::put_string_field(3u32, v, buf);
+                }
+                for v in &self.active_states {
+                    ::buffa::types::put_string_field(4u32, v, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeRoomWidgetView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeRoomWidget";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeRoomWidget";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeRoomWidget";
+        }
+        ::buffa::impl_default_view_instance!(NativeRoomWidgetView);
+        ::buffa::impl_view_reborrow!(NativeRoomWidgetView);
+        /** Self-contained, `'static` owned view of a `NativeRoomWidget` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeRoomWidgetView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeRoomWidgetView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeRoomWidgetOwnedView(
+            ::buffa::OwnedView<NativeRoomWidgetView<'static>>,
+        );
+        impl NativeRoomWidgetOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeRoomWidgetOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeRoomWidgetOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeRoomWidget,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeRoomWidgetOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`NativeRoomWidgetView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeRoomWidgetView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeRoomWidget {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `room_id`
+            #[must_use]
+            pub fn room_id(&self) -> &'_ str {
+                self.0.reborrow().room_id
+            }
+            /// Field 2: `temperature`
+            #[must_use]
+            pub fn temperature(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeFieldBindingView<'_>,
+            > {
+                &self.0.reborrow().temperature
+            }
+            /// Field 3: `activity_entity_ids`
+            #[must_use]
+            pub fn activity_entity_ids(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+                &self.0.reborrow().activity_entity_ids
+            }
+            /// Field 4: `active_states`
+            #[must_use]
+            pub fn active_states(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+                &self.0.reborrow().active_states
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<NativeRoomWidgetView<'static>>>
+        for NativeRoomWidgetOwnedView {
+            fn from(inner: ::buffa::OwnedView<NativeRoomWidgetView<'static>>) -> Self {
+                NativeRoomWidgetOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeRoomWidgetOwnedView>
+        for ::buffa::OwnedView<NativeRoomWidgetView<'static>> {
+            fn from(wrapper: NativeRoomWidgetOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<NativeRoomWidgetView<'static>>>
+        for NativeRoomWidgetOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<NativeRoomWidgetView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeRoomWidget {
+            type View<'a> = NativeRoomWidgetView<'a>;
+            type ViewHandle = NativeRoomWidgetOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeThermostatWidgetView<'a> {
+            /// Field 1: `entity_id`
+            pub entity_id: &'a str,
+            /// Field 2: `current_temperature`
+            pub current_temperature: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeFieldBindingView<'a>,
+            >,
+            /// Field 3: `target_temperature`
+            pub target_temperature: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeFieldBindingView<'a>,
+            >,
+            /// Field 4: `presentation`
+            pub presentation: ::buffa::EnumValue<
+                super::super::NativeThermostatPresentation,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeThermostatWidgetView<'a> {
+            type Owned = super::super::NativeThermostatWidget;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.entity_id = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.current_temperature.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.current_temperature = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NativeFieldBindingView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.target_temperature.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.target_temperature = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NativeFieldBindingView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.presentation = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeThermostatWidget,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeThermostatWidget,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeThermostatWidget {
+                    entity_id: self.entity_id.to_string(),
+                    current_temperature: match self.current_temperature.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NativeFieldBinding,
+                                ::buffa::Inline<super::super::NativeFieldBinding>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    target_temperature: match self.target_temperature.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NativeFieldBinding,
+                                ::buffa::Inline<super::super::NativeFieldBinding>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    presentation: self.presentation,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeThermostatWidgetView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.entity_id.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.entity_id) as u64;
+                }
+                if self.current_temperature.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.current_temperature.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.target_temperature.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.target_temperature.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                {
+                    let val = self.presentation.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.entity_id.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.entity_id, buf);
+                }
+                if self.current_temperature.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.current_temperature.write_to(__cache, buf);
+                }
+                if self.target_temperature.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        3u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.target_temperature.write_to(__cache, buf);
+                }
+                {
+                    let val = self.presentation.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(4u32, val, buf);
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeThermostatWidgetView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeThermostatWidget";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeThermostatWidget";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeThermostatWidget";
+        }
+        ::buffa::impl_default_view_instance!(NativeThermostatWidgetView);
+        ::buffa::impl_view_reborrow!(NativeThermostatWidgetView);
+        /** Self-contained, `'static` owned view of a `NativeThermostatWidget` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeThermostatWidgetView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeThermostatWidgetView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeThermostatWidgetOwnedView(
+            ::buffa::OwnedView<NativeThermostatWidgetView<'static>>,
+        );
+        impl NativeThermostatWidgetOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeThermostatWidgetOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeThermostatWidgetOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeThermostatWidget,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeThermostatWidgetOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`NativeThermostatWidgetView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeThermostatWidgetView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeThermostatWidget {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `entity_id`
+            #[must_use]
+            pub fn entity_id(&self) -> &'_ str {
+                self.0.reborrow().entity_id
+            }
+            /// Field 2: `current_temperature`
+            #[must_use]
+            pub fn current_temperature(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeFieldBindingView<'_>,
+            > {
+                &self.0.reborrow().current_temperature
+            }
+            /// Field 3: `target_temperature`
+            #[must_use]
+            pub fn target_temperature(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeFieldBindingView<'_>,
+            > {
+                &self.0.reborrow().target_temperature
+            }
+            /// Field 4: `presentation`
+            #[must_use]
+            pub fn presentation(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::NativeThermostatPresentation> {
+                self.0.reborrow().presentation
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<NativeThermostatWidgetView<'static>>,
+        > for NativeThermostatWidgetOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<NativeThermostatWidgetView<'static>>,
+            ) -> Self {
+                NativeThermostatWidgetOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeThermostatWidgetOwnedView>
+        for ::buffa::OwnedView<NativeThermostatWidgetView<'static>> {
+            fn from(wrapper: NativeThermostatWidgetOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<NativeThermostatWidgetView<'static>>,
+        > for NativeThermostatWidgetOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<NativeThermostatWidgetView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeThermostatWidget {
+            type View<'a> = NativeThermostatWidgetView<'a>;
+            type ViewHandle = NativeThermostatWidgetOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeAgendaWidgetView<'a> {
+            /// Field 1: `calendar_id`
+            pub calendar_id: &'a str,
+            /// Field 2: `timezone`
+            pub timezone: &'a str,
+            /// Field 3: `window_seconds`
+            pub window_seconds: u32,
+            /// Field 4: `limit`
+            pub limit: u32,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeAgendaWidgetView<'a> {
+            type Owned = super::super::NativeAgendaWidget;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.calendar_id = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.timezone = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.window_seconds = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.limit = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeAgendaWidget,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeAgendaWidget,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeAgendaWidget {
+                    calendar_id: self.calendar_id.to_string(),
+                    timezone: self.timezone.to_string(),
+                    window_seconds: self.window_seconds,
+                    limit: self.limit,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeAgendaWidgetView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.calendar_id.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.calendar_id)
+                                as u64;
+                }
+                if !self.timezone.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.timezone) as u64;
+                }
+                if self.window_seconds != 0u32 {
+                    size
+                        += 1u64
+                            + ::buffa::types::uint32_encoded_len(self.window_seconds)
+                                as u64;
+                }
+                if self.limit != 0u32 {
+                    size += 1u64 + ::buffa::types::uint32_encoded_len(self.limit) as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.calendar_id.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.calendar_id, buf);
+                }
+                if !self.timezone.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.timezone, buf);
+                }
+                if self.window_seconds != 0u32 {
+                    ::buffa::types::put_uint32_field(3u32, self.window_seconds, buf);
+                }
+                if self.limit != 0u32 {
+                    ::buffa::types::put_uint32_field(4u32, self.limit, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeAgendaWidgetView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeAgendaWidget";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeAgendaWidget";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeAgendaWidget";
+        }
+        ::buffa::impl_default_view_instance!(NativeAgendaWidgetView);
+        ::buffa::impl_view_reborrow!(NativeAgendaWidgetView);
+        /** Self-contained, `'static` owned view of a `NativeAgendaWidget` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeAgendaWidgetView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeAgendaWidgetView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeAgendaWidgetOwnedView(
+            ::buffa::OwnedView<NativeAgendaWidgetView<'static>>,
+        );
+        impl NativeAgendaWidgetOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeAgendaWidgetOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeAgendaWidgetOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeAgendaWidget,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeAgendaWidgetOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`NativeAgendaWidgetView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeAgendaWidgetView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeAgendaWidget {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `calendar_id`
+            #[must_use]
+            pub fn calendar_id(&self) -> &'_ str {
+                self.0.reborrow().calendar_id
+            }
+            /// Field 2: `timezone`
+            #[must_use]
+            pub fn timezone(&self) -> &'_ str {
+                self.0.reborrow().timezone
+            }
+            /// Field 3: `window_seconds`
+            #[must_use]
+            pub fn window_seconds(&self) -> u32 {
+                self.0.reborrow().window_seconds
+            }
+            /// Field 4: `limit`
+            #[must_use]
+            pub fn limit(&self) -> u32 {
+                self.0.reborrow().limit
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<NativeAgendaWidgetView<'static>>>
+        for NativeAgendaWidgetOwnedView {
+            fn from(inner: ::buffa::OwnedView<NativeAgendaWidgetView<'static>>) -> Self {
+                NativeAgendaWidgetOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeAgendaWidgetOwnedView>
+        for ::buffa::OwnedView<NativeAgendaWidgetView<'static>> {
+            fn from(wrapper: NativeAgendaWidgetOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<NativeAgendaWidgetView<'static>>>
+        for NativeAgendaWidgetOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<NativeAgendaWidgetView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeAgendaWidget {
+            type View<'a> = NativeAgendaWidgetView<'a>;
+            type ViewHandle = NativeAgendaWidgetOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeTasksWidgetView<'a> {
+            /// Field 1: `list_id`
+            pub list_id: &'a str,
+            /// Field 2: `limit`
+            pub limit: u32,
+            /// Field 3: `presentation`
+            pub presentation: ::buffa::EnumValue<super::super::NativeTasksPresentation>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeTasksWidgetView<'a> {
+            type Owned = super::super::NativeTasksWidget;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.list_id = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.limit = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.presentation = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeTasksWidget,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeTasksWidget,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeTasksWidget {
+                    list_id: self.list_id.to_string(),
+                    limit: self.limit,
+                    presentation: self.presentation,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeTasksWidgetView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.list_id.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.list_id) as u64;
+                }
+                if self.limit != 0u32 {
+                    size += 1u64 + ::buffa::types::uint32_encoded_len(self.limit) as u64;
+                }
+                {
+                    let val = self.presentation.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.list_id.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.list_id, buf);
+                }
+                if self.limit != 0u32 {
+                    ::buffa::types::put_uint32_field(2u32, self.limit, buf);
+                }
+                {
+                    let val = self.presentation.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(3u32, val, buf);
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeTasksWidgetView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeTasksWidget";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeTasksWidget";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeTasksWidget";
+        }
+        ::buffa::impl_default_view_instance!(NativeTasksWidgetView);
+        ::buffa::impl_view_reborrow!(NativeTasksWidgetView);
+        /** Self-contained, `'static` owned view of a `NativeTasksWidget` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeTasksWidgetView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeTasksWidgetView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeTasksWidgetOwnedView(
+            ::buffa::OwnedView<NativeTasksWidgetView<'static>>,
+        );
+        impl NativeTasksWidgetOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeTasksWidgetOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeTasksWidgetOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeTasksWidget,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeTasksWidgetOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`NativeTasksWidgetView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeTasksWidgetView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeTasksWidget {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `list_id`
+            #[must_use]
+            pub fn list_id(&self) -> &'_ str {
+                self.0.reborrow().list_id
+            }
+            /// Field 2: `limit`
+            #[must_use]
+            pub fn limit(&self) -> u32 {
+                self.0.reborrow().limit
+            }
+            /// Field 3: `presentation`
+            #[must_use]
+            pub fn presentation(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::NativeTasksPresentation> {
+                self.0.reborrow().presentation
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<NativeTasksWidgetView<'static>>>
+        for NativeTasksWidgetOwnedView {
+            fn from(inner: ::buffa::OwnedView<NativeTasksWidgetView<'static>>) -> Self {
+                NativeTasksWidgetOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeTasksWidgetOwnedView>
+        for ::buffa::OwnedView<NativeTasksWidgetView<'static>> {
+            fn from(wrapper: NativeTasksWidgetOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<NativeTasksWidgetView<'static>>>
+        for NativeTasksWidgetOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<NativeTasksWidgetView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeTasksWidget {
+            type View<'a> = NativeTasksWidgetView<'a>;
+            type ViewHandle = NativeTasksWidgetOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeSecurityWidgetView<'a> {
+            /// Field 1: `entity_ids`
+            pub entity_ids: ::buffa::RepeatedView<'a, &'a str>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeSecurityWidgetView<'a> {
+            type Owned = super::super::NativeSecurityWidget;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::buffa::__private::element_footprint(&__elem),
+                        )?;
+                        view.entity_ids.push(__elem);
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeSecurityWidget,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeSecurityWidget,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeSecurityWidget {
+                    entity_ids: self.entity_ids.iter().map(|s| s.to_string()).collect(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeSecurityWidgetView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                for v in &self.entity_ids {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                for v in &self.entity_ids {
+                    ::buffa::types::put_string_field(1u32, v, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeSecurityWidgetView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeSecurityWidget";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeSecurityWidget";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeSecurityWidget";
+        }
+        ::buffa::impl_default_view_instance!(NativeSecurityWidgetView);
+        ::buffa::impl_view_reborrow!(NativeSecurityWidgetView);
+        /** Self-contained, `'static` owned view of a `NativeSecurityWidget` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeSecurityWidgetView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeSecurityWidgetView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeSecurityWidgetOwnedView(
+            ::buffa::OwnedView<NativeSecurityWidgetView<'static>>,
+        );
+        impl NativeSecurityWidgetOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeSecurityWidgetOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeSecurityWidgetOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeSecurityWidget,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeSecurityWidgetOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`NativeSecurityWidgetView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeSecurityWidgetView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeSecurityWidget {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `entity_ids`
+            #[must_use]
+            pub fn entity_ids(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+                &self.0.reborrow().entity_ids
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<NativeSecurityWidgetView<'static>>>
+        for NativeSecurityWidgetOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<NativeSecurityWidgetView<'static>>,
+            ) -> Self {
+                NativeSecurityWidgetOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeSecurityWidgetOwnedView>
+        for ::buffa::OwnedView<NativeSecurityWidgetView<'static>> {
+            fn from(wrapper: NativeSecurityWidgetOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<NativeSecurityWidgetView<'static>>,
+        > for NativeSecurityWidgetOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<NativeSecurityWidgetView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeSecurityWidget {
+            type View<'a> = NativeSecurityWidgetView<'a>;
+            type ViewHandle = NativeSecurityWidgetOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeObservationBindingView<'a> {
+            /// Field 1: `field`
+            pub field: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeFieldBindingView<'a>,
+            >,
+            /// Field 2: `label`
+            pub label: &'a str,
+            /// Field 3: `active_states`
+            pub active_states: ::buffa::RepeatedView<'a, &'a str>,
+            /// Field 4: `icon`
+            pub icon: ::buffa::EnumValue<super::super::NativeIcon>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeObservationBindingView<'a> {
+            type Owned = super::super::NativeObservationBinding;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.field.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.field = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NativeFieldBindingView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.label = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.icon = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::buffa::__private::element_footprint(&__elem),
+                        )?;
+                        view.active_states.push(__elem);
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeObservationBinding,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeObservationBinding,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeObservationBinding {
+                    field: match self.field.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NativeFieldBinding,
+                                ::buffa::Inline<super::super::NativeFieldBinding>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    label: self.label.to_string(),
+                    active_states: self
+                        .active_states
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                    icon: self.icon,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeObservationBindingView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.field.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.field.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if !self.label.is_empty() {
+                    size
+                        += 1u64 + ::buffa::types::string_encoded_len(&self.label) as u64;
+                }
+                for v in &self.active_states {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
+                {
+                    let val = self.icon.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.field.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.field.write_to(__cache, buf);
+                }
+                if !self.label.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.label, buf);
+                }
+                for v in &self.active_states {
+                    ::buffa::types::put_string_field(3u32, v, buf);
+                }
+                {
+                    let val = self.icon.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(4u32, val, buf);
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeObservationBindingView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeObservationBinding";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeObservationBinding";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeObservationBinding";
+        }
+        ::buffa::impl_default_view_instance!(NativeObservationBindingView);
+        ::buffa::impl_view_reborrow!(NativeObservationBindingView);
+        /** Self-contained, `'static` owned view of a `NativeObservationBinding` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeObservationBindingView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeObservationBindingView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeObservationBindingOwnedView(
+            ::buffa::OwnedView<NativeObservationBindingView<'static>>,
+        );
+        impl NativeObservationBindingOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeObservationBindingOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeObservationBindingOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeObservationBinding,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeObservationBindingOwnedView(
+                        ::buffa::OwnedView::from_owned(msg)?,
+                    ),
+                )
+            }
+            /// Borrow the full [`NativeObservationBindingView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeObservationBindingView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeObservationBinding {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `field`
+            #[must_use]
+            pub fn field(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeFieldBindingView<'_>,
+            > {
+                &self.0.reborrow().field
+            }
+            /// Field 2: `label`
+            #[must_use]
+            pub fn label(&self) -> &'_ str {
+                self.0.reborrow().label
+            }
+            /// Field 3: `active_states`
+            #[must_use]
+            pub fn active_states(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+                &self.0.reborrow().active_states
+            }
+            /// Field 4: `icon`
+            #[must_use]
+            pub fn icon(&self) -> ::buffa::EnumValue<super::super::NativeIcon> {
+                self.0.reborrow().icon
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<NativeObservationBindingView<'static>>,
+        > for NativeObservationBindingOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<NativeObservationBindingView<'static>>,
+            ) -> Self {
+                NativeObservationBindingOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeObservationBindingOwnedView>
+        for ::buffa::OwnedView<NativeObservationBindingView<'static>> {
+            fn from(wrapper: NativeObservationBindingOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<NativeObservationBindingView<'static>>,
+        > for NativeObservationBindingOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<NativeObservationBindingView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeObservationBinding {
+            type View<'a> = NativeObservationBindingView<'a>;
+            type ViewHandle = NativeObservationBindingOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeObservationsWidgetView<'a> {
+            /// Field 1: `items`
+            pub items: ::buffa::RepeatedView<
+                'a,
+                super::super::__buffa::view::NativeObservationBindingView<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeObservationsWidgetView<'a> {
+            type Owned = super::super::NativeObservationsWidget;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::core::mem::size_of::<
+                                super::super::__buffa::view::NativeObservationBindingView,
+                            >(),
+                        )?;
+                        view.items
+                            .push(
+                                <super::super::__buffa::view::NativeObservationBindingView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            );
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeObservationsWidget,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeObservationsWidget,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeObservationsWidget {
+                    items: self
+                        .items
+                        .iter()
+                        .map(|v| v.to_owned_from_source(__buffa_src))
+                        .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeObservationsWidgetView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                for v in &self.items {
+                    let __slot = __cache.reserve();
+                    let inner_size = v.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                for v in &self.items {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    v.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeObservationsWidgetView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeObservationsWidget";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeObservationsWidget";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeObservationsWidget";
+        }
+        ::buffa::impl_default_view_instance!(NativeObservationsWidgetView);
+        ::buffa::impl_view_reborrow!(NativeObservationsWidgetView);
+        /** Self-contained, `'static` owned view of a `NativeObservationsWidget` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeObservationsWidgetView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeObservationsWidgetView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeObservationsWidgetOwnedView(
+            ::buffa::OwnedView<NativeObservationsWidgetView<'static>>,
+        );
+        impl NativeObservationsWidgetOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeObservationsWidgetOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeObservationsWidgetOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeObservationsWidget,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeObservationsWidgetOwnedView(
+                        ::buffa::OwnedView::from_owned(msg)?,
+                    ),
+                )
+            }
+            /// Borrow the full [`NativeObservationsWidgetView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeObservationsWidgetView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeObservationsWidget {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `items`
+            #[must_use]
+            pub fn items(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                super::super::__buffa::view::NativeObservationBindingView<'_>,
+            > {
+                &self.0.reborrow().items
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<NativeObservationsWidgetView<'static>>,
+        > for NativeObservationsWidgetOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<NativeObservationsWidgetView<'static>>,
+            ) -> Self {
+                NativeObservationsWidgetOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeObservationsWidgetOwnedView>
+        for ::buffa::OwnedView<NativeObservationsWidgetView<'static>> {
+            fn from(wrapper: NativeObservationsWidgetOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<NativeObservationsWidgetView<'static>>,
+        > for NativeObservationsWidgetOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<NativeObservationsWidgetView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeObservationsWidget {
+            type View<'a> = NativeObservationsWidgetView<'a>;
+            type ViewHandle = NativeObservationsWidgetOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeNavigationWidgetView<'a> {
+            /// Field 1: `destination`
+            pub destination: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeDestinationView<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeNavigationWidgetView<'a> {
+            type Owned = super::super::NativeNavigationWidget;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.destination.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.destination = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NativeDestinationView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeNavigationWidget,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeNavigationWidget,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeNavigationWidget {
+                    destination: match self.destination.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NativeDestination,
+                                ::buffa::Inline<super::super::NativeDestination>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeNavigationWidgetView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.destination.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.destination.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.destination.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.destination.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeNavigationWidgetView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeNavigationWidget";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeNavigationWidget";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeNavigationWidget";
+        }
+        ::buffa::impl_default_view_instance!(NativeNavigationWidgetView);
+        ::buffa::impl_view_reborrow!(NativeNavigationWidgetView);
+        /** Self-contained, `'static` owned view of a `NativeNavigationWidget` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeNavigationWidgetView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeNavigationWidgetView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeNavigationWidgetOwnedView(
+            ::buffa::OwnedView<NativeNavigationWidgetView<'static>>,
+        );
+        impl NativeNavigationWidgetOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeNavigationWidgetOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeNavigationWidgetOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeNavigationWidget,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeNavigationWidgetOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`NativeNavigationWidgetView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeNavigationWidgetView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeNavigationWidget {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `destination`
+            #[must_use]
+            pub fn destination(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeDestinationView<'_>,
+            > {
+                &self.0.reborrow().destination
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<NativeNavigationWidgetView<'static>>,
+        > for NativeNavigationWidgetOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<NativeNavigationWidgetView<'static>>,
+            ) -> Self {
+                NativeNavigationWidgetOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeNavigationWidgetOwnedView>
+        for ::buffa::OwnedView<NativeNavigationWidgetView<'static>> {
+            fn from(wrapper: NativeNavigationWidgetOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<NativeNavigationWidgetView<'static>>,
+        > for NativeNavigationWidgetOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<NativeNavigationWidgetView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeNavigationWidget {
+            type View<'a> = NativeNavigationWidgetView<'a>;
+            type ViewHandle = NativeNavigationWidgetOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct NativeWidgetView<'a> {
+            /// Field 10: `action`
+            pub action: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeDestinationView<'a>,
+            >,
+            /// Field 11: `action_label`
+            pub action_label: &'a str,
+            /// Field 12: `empty_label`
+            pub empty_label: &'a str,
+            pub content: ::core::option::Option<
+                super::super::__buffa::view::oneof::native_widget::Content<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for NativeWidgetView<'a> {
+            type Owned = super::super::NativeWidget;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    10u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.action.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.action = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NativeDestinationView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    11u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.action_label = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    12u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.empty_label = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::native_widget::Content::ClockWeather(
+                                ref mut existing,
+                            ),
+                        ) = view.content
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.content = Some(
+                                super::super::__buffa::view::oneof::native_widget::Content::ClockWeather(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::NativeClockWeatherWidgetView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::native_widget::Content::Room(
+                                ref mut existing,
+                            ),
+                        ) = view.content
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.content = Some(
+                                super::super::__buffa::view::oneof::native_widget::Content::Room(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::NativeRoomWidgetView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::native_widget::Content::Thermostat(
+                                ref mut existing,
+                            ),
+                        ) = view.content
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.content = Some(
+                                super::super::__buffa::view::oneof::native_widget::Content::Thermostat(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::NativeThermostatWidgetView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::native_widget::Content::Agenda(
+                                ref mut existing,
+                            ),
+                        ) = view.content
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.content = Some(
+                                super::super::__buffa::view::oneof::native_widget::Content::Agenda(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::NativeAgendaWidgetView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::native_widget::Content::Tasks(
+                                ref mut existing,
+                            ),
+                        ) = view.content
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.content = Some(
+                                super::super::__buffa::view::oneof::native_widget::Content::Tasks(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::NativeTasksWidgetView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::native_widget::Content::Security(
+                                ref mut existing,
+                            ),
+                        ) = view.content
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.content = Some(
+                                super::super::__buffa::view::oneof::native_widget::Content::Security(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::NativeSecurityWidgetView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::native_widget::Content::Observations(
+                                ref mut existing,
+                            ),
+                        ) = view.content
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.content = Some(
+                                super::super::__buffa::view::oneof::native_widget::Content::Observations(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::NativeObservationsWidgetView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::native_widget::Content::Navigation(
+                                ref mut existing,
+                            ),
+                        ) = view.content
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.content = Some(
+                                super::super::__buffa::view::oneof::native_widget::Content::Navigation(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::NativeNavigationWidgetView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::NativeWidget,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::NativeWidget,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::NativeWidget {
+                    action: match self.action.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NativeDestination,
+                                ::buffa::Inline<super::super::NativeDestination>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    action_label: self.action_label.to_string(),
+                    empty_label: self.empty_label.to_string(),
+                    content: match self.content.as_ref() {
+                        ::core::option::Option::Some(v) => {
+                            ::core::option::Option::Some(
+                                match v {
+                                    super::super::__buffa::view::oneof::native_widget::Content::ClockWeather(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::native_widget::Content::ClockWeather(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::native_widget::Content::Room(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::native_widget::Content::Room(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::native_widget::Content::Thermostat(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::native_widget::Content::Thermostat(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::native_widget::Content::Agenda(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::native_widget::Content::Agenda(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::native_widget::Content::Tasks(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::native_widget::Content::Tasks(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::native_widget::Content::Security(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::native_widget::Content::Security(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::native_widget::Content::Observations(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::native_widget::Content::Observations(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::native_widget::Content::Navigation(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::native_widget::Content::Navigation(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                        ::core::option::Option::None => ::core::option::Option::None,
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for NativeWidgetView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if let ::core::option::Option::Some(ref v) = self.content {
+                    match v {
+                        super::super::__buffa::view::oneof::native_widget::Content::ClockWeather(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Room(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Thermostat(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Agenda(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Tasks(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Security(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Observations(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Navigation(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                    }
+                }
+                if self.action.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.action.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if !self.action_label.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.action_label)
+                                as u64;
+                }
+                if !self.empty_label.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.empty_label)
+                                as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if let ::core::option::Option::Some(ref v) = self.content {
+                    match v {
+                        super::super::__buffa::view::oneof::native_widget::Content::ClockWeather(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                1u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Room(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                2u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Thermostat(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                3u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Agenda(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                4u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Tasks(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                5u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Security(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                6u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Observations(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                7u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::native_widget::Content::Navigation(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                8u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                    }
+                }
+                if self.action.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        10u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.action.write_to(__cache, buf);
+                }
+                if !self.action_label.is_empty() {
+                    ::buffa::types::put_string_field(11u32, &self.action_label, buf);
+                }
+                if !self.empty_label.is_empty() {
+                    ::buffa::types::put_string_field(12u32, &self.empty_label, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for NativeWidgetView<'a> {
+            const PACKAGE: &'static str = "home.dashboard.v1";
+            const NAME: &'static str = "NativeWidget";
+            const FULL_NAME: &'static str = "home.dashboard.v1.NativeWidget";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.dashboard.v1.NativeWidget";
+        }
+        ::buffa::impl_default_view_instance!(NativeWidgetView);
+        ::buffa::impl_view_reborrow!(NativeWidgetView);
+        /** Self-contained, `'static` owned view of a `NativeWidget` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`NativeWidgetView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`NativeWidgetView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct NativeWidgetOwnedView(::buffa::OwnedView<NativeWidgetView<'static>>);
+        impl NativeWidgetOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeWidgetOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeWidgetOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::NativeWidget,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    NativeWidgetOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`NativeWidgetView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &NativeWidgetView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::NativeWidget {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 10: `action`
+            #[must_use]
+            pub fn action(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NativeDestinationView<'_>,
+            > {
+                &self.0.reborrow().action
+            }
+            /// Field 11: `action_label`
+            #[must_use]
+            pub fn action_label(&self) -> &'_ str {
+                self.0.reborrow().action_label
+            }
+            /// Field 12: `empty_label`
+            #[must_use]
+            pub fn empty_label(&self) -> &'_ str {
+                self.0.reborrow().empty_label
+            }
+            /// Oneof `content`.
+            #[must_use]
+            pub fn content(
+                &self,
+            ) -> ::core::option::Option<
+                &super::super::__buffa::view::oneof::native_widget::Content<'_>,
+            > {
+                self.0.reborrow().content.as_ref()
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<NativeWidgetView<'static>>>
+        for NativeWidgetOwnedView {
+            fn from(inner: ::buffa::OwnedView<NativeWidgetView<'static>>) -> Self {
+                NativeWidgetOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<NativeWidgetOwnedView>
+        for ::buffa::OwnedView<NativeWidgetView<'static>> {
+            fn from(wrapper: NativeWidgetOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<NativeWidgetView<'static>>>
+        for NativeWidgetOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<NativeWidgetView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::NativeWidget {
+            type View<'a> = NativeWidgetView<'a>;
+            type ViewHandle = NativeWidgetOwnedView;
         }
         #[derive(Clone, Debug, Default)]
         pub struct NativeDestinationView<'a> {
@@ -14688,6 +22088,10 @@ pub mod __buffa {
                 'a,
                 ::buffa::EnumValue<super::super::LayoutKind>,
             >,
+            /// Required before screen-conditioned nodes can be projected as controls.
+            ///
+            /// Field 4: `screen_visibility`
+            pub screen_visibility: bool,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for ClientLayoutSupportView<'a> {
@@ -14739,6 +22143,13 @@ pub mod __buffa {
                             ::buffa::encoding::WireType::Varint,
                         )?;
                         view.version = ::buffa::types::decode_uint32(&mut cur)?;
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.screen_visibility = ::buffa::types::decode_bool(&mut cur)?;
                     }
                     3u32 => {
                         if tag.wire_type()
@@ -14805,6 +22216,7 @@ pub mod __buffa {
                     profile: self.profile.to_string(),
                     version: self.version,
                     kinds: self.kinds.to_vec(),
+                    screen_visibility: self.screen_visibility,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -14839,6 +22251,9 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(payload) as u64
                             + payload;
                 }
+                if self.screen_visibility {
+                    size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -14866,6 +22281,9 @@ pub mod __buffa {
                     for v in &self.kinds {
                         ::buffa::types::encode_int32(v.to_i32(), buf);
                     }
+                }
+                if self.screen_visibility {
+                    ::buffa::types::put_bool_field(4u32, self.screen_visibility, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -14981,6 +22399,13 @@ pub mod __buffa {
                 ::buffa::EnumValue<super::super::LayoutKind>,
             > {
                 &self.0.reborrow().kinds
+            }
+            /// Required before screen-conditioned nodes can be projected as controls.
+            ///
+            /// Field 4: `screen_visibility`
+            #[must_use]
+            pub fn screen_visibility(&self) -> bool {
+                self.0.reborrow().screen_visibility
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<ClientLayoutSupportView<'static>>>
@@ -19764,6 +27189,69 @@ pub mod __buffa {
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
+            pub mod native_widget {
+                #[allow(unused_imports)]
+                use super::*;
+                #[derive(Clone, Debug)]
+                pub enum Content<'a> {
+                    ClockWeather(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::NativeClockWeatherWidgetView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Room(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::NativeRoomWidgetView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Thermostat(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::NativeThermostatWidgetView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Agenda(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::NativeAgendaWidgetView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Tasks(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::NativeTasksWidgetView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Security(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::NativeSecurityWidgetView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Observations(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::NativeObservationsWidgetView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Navigation(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::NativeNavigationWidgetView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                }
+            }
             pub mod native_interaction {
                 #[allow(unused_imports)]
                 use super::*;
@@ -19854,6 +27342,132 @@ pub mod __buffa {
     pub mod oneof {
         #[allow(unused_imports)]
         use super::*;
+        pub mod native_widget {
+            #[allow(unused_imports)]
+            use super::*;
+            #[derive(Clone, PartialEq, Debug)]
+            pub enum Content {
+                ClockWeather(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::NativeClockWeatherWidget,
+                    >,
+                ),
+                Room(::buffa::alloc::boxed::Box<super::super::super::NativeRoomWidget>),
+                Thermostat(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::NativeThermostatWidget,
+                    >,
+                ),
+                Agenda(
+                    ::buffa::alloc::boxed::Box<super::super::super::NativeAgendaWidget>,
+                ),
+                Tasks(
+                    ::buffa::alloc::boxed::Box<super::super::super::NativeTasksWidget>,
+                ),
+                Security(
+                    ::buffa::alloc::boxed::Box<super::super::super::NativeSecurityWidget>,
+                ),
+                Observations(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::NativeObservationsWidget,
+                    >,
+                ),
+                Navigation(
+                    ::buffa::alloc::boxed::Box<
+                        super::super::super::NativeNavigationWidget,
+                    >,
+                ),
+            }
+            impl ::buffa::Oneof for Content {}
+            impl From<super::super::super::NativeClockWeatherWidget> for Content {
+                fn from(v: super::super::super::NativeClockWeatherWidget) -> Self {
+                    Self::ClockWeather(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::NativeClockWeatherWidget>
+            for ::core::option::Option<Content> {
+                fn from(v: super::super::super::NativeClockWeatherWidget) -> Self {
+                    Self::Some(Content::from(v))
+                }
+            }
+            impl From<super::super::super::NativeRoomWidget> for Content {
+                fn from(v: super::super::super::NativeRoomWidget) -> Self {
+                    Self::Room(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::NativeRoomWidget>
+            for ::core::option::Option<Content> {
+                fn from(v: super::super::super::NativeRoomWidget) -> Self {
+                    Self::Some(Content::from(v))
+                }
+            }
+            impl From<super::super::super::NativeThermostatWidget> for Content {
+                fn from(v: super::super::super::NativeThermostatWidget) -> Self {
+                    Self::Thermostat(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::NativeThermostatWidget>
+            for ::core::option::Option<Content> {
+                fn from(v: super::super::super::NativeThermostatWidget) -> Self {
+                    Self::Some(Content::from(v))
+                }
+            }
+            impl From<super::super::super::NativeAgendaWidget> for Content {
+                fn from(v: super::super::super::NativeAgendaWidget) -> Self {
+                    Self::Agenda(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::NativeAgendaWidget>
+            for ::core::option::Option<Content> {
+                fn from(v: super::super::super::NativeAgendaWidget) -> Self {
+                    Self::Some(Content::from(v))
+                }
+            }
+            impl From<super::super::super::NativeTasksWidget> for Content {
+                fn from(v: super::super::super::NativeTasksWidget) -> Self {
+                    Self::Tasks(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::NativeTasksWidget>
+            for ::core::option::Option<Content> {
+                fn from(v: super::super::super::NativeTasksWidget) -> Self {
+                    Self::Some(Content::from(v))
+                }
+            }
+            impl From<super::super::super::NativeSecurityWidget> for Content {
+                fn from(v: super::super::super::NativeSecurityWidget) -> Self {
+                    Self::Security(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::NativeSecurityWidget>
+            for ::core::option::Option<Content> {
+                fn from(v: super::super::super::NativeSecurityWidget) -> Self {
+                    Self::Some(Content::from(v))
+                }
+            }
+            impl From<super::super::super::NativeObservationsWidget> for Content {
+                fn from(v: super::super::super::NativeObservationsWidget) -> Self {
+                    Self::Observations(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::NativeObservationsWidget>
+            for ::core::option::Option<Content> {
+                fn from(v: super::super::super::NativeObservationsWidget) -> Self {
+                    Self::Some(Content::from(v))
+                }
+            }
+            impl From<super::super::super::NativeNavigationWidget> for Content {
+                fn from(v: super::super::super::NativeNavigationWidget) -> Self {
+                    Self::Navigation(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::NativeNavigationWidget>
+            for ::core::option::Option<Content> {
+                fn from(v: super::super::super::NativeNavigationWidget) -> Self {
+                    Self::Some(Content::from(v))
+                }
+            }
+        }
         pub mod native_interaction {
             #[allow(unused_imports)]
             use super::*;
@@ -20028,6 +27642,58 @@ pub use self::__buffa::view::LayoutSourceOwnedView;
 pub use self::__buffa::view::LayoutNodeView;
 #[doc(inline)]
 pub use self::__buffa::view::LayoutNodeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeScreenVisibilityView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeScreenVisibilityOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeResponsiveSpanView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeResponsiveSpanOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeFieldBindingView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeFieldBindingOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeClockWeatherWidgetView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeClockWeatherWidgetOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeRoomWidgetView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeRoomWidgetOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeThermostatWidgetView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeThermostatWidgetOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeAgendaWidgetView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeAgendaWidgetOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeTasksWidgetView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeTasksWidgetOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeSecurityWidgetView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeSecurityWidgetOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeObservationBindingView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeObservationBindingOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeObservationsWidgetView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeObservationsWidgetOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeNavigationWidgetView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeNavigationWidgetOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeWidgetView;
+#[doc(inline)]
+pub use self::__buffa::view::NativeWidgetOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::NativeDestinationView;
 #[doc(inline)]

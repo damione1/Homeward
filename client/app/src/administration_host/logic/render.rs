@@ -10,24 +10,24 @@ macro_rules! label {
         fn $fn(value:EnumValue<$ty>) -> &'static str {
             use $ty as V;
             match value { $(EnumValue::Known(V::$variant)=>$text,)+
-                EnumValue::Known(V::Unspecified)|EnumValue::Unknown(_)=>"Valeur non prise en charge" }
+                EnumValue::Known(V::Unspecified)|EnumValue::Unknown(_)=>"Unsupported value" }
         }
     }
 }
 label!(mode,wire::RunMode,Single=>"Single",Restart=>"Restart",Queued=>"Queued",Parallel=>"Parallel");
-label!(status,wire::RunStatus,Queued=>"En attente",Running=>"En cours",Completed=>"Terminé",Canceled=>"Annulé",Interrupted=>"Interrompu",Failed=>"Refusé ou échoué");
-label!(reason,wire::RunReason,ExplicitRequest=>"Demande explicite",SingleBusy=>"Single déjà occupé",RestartReplaced=>"Remplacé par un nouveau run",WaitingForSlot=>"En attente du précédent",ExplicitCancellation=>"Étapes futures annulées",ServerRestart=>"Redémarrage serveur",SyntheticFailure=>"Erreur synthétique");
-label!(compatibility,wire::Compatibility,Supported=>"Prise en charge",Partial=>"Partielle",Unsupported=>"Non prise en charge");
-label!(diagnostic,wire::Diagnostic,InvalidSchema=>"Schéma invalide",ExcludedReference=>"Référence exclue",UnsupportedExtension=>"Extension non prise en charge",SourceUnavailable=>"Source indisponible");
-label!(gap,wire::GapReason,Evicted=>"Événements évincés",Redacted=>"Événements expurgés",NotRetained=>"Événements non conservés");
-label!(action,obs::TraceActionKind,Variables=>"Variables",Sequence=>"Séquence",Choose=>"Choix",If=>"Condition",Repeat=>"Répétition",Parallel=>"Parallèle",Wait=>"Attente",Stop=>"Arrêt",Call=>"Appel",Delay=>"Délai",WaitTemplate=>"Attente de template");
-label!(stage,obs::TraceNodeStage,Entered=>"Entrée",Completed=>"Terminé",Stopped=>"Arrêté",Cancelled=>"Annulé",Failed=>"Échec",Waiting=>"En attente");
-label!(outcome,history::CommandOutcome,Accepted=>"Admise",Dispatched=>"Dispatchée",Acknowledged=>"Acquittée",Confirmed=>"Confirmée",Indeterminate=>"Indéterminée",Refused=>"Refusée",NotAttempted=>"Non tentée");
+label!(status,wire::RunStatus,Queued=>"Pending",Running=>"In progress",Completed=>"Done",Canceled=>"Cancelled",Interrupted=>"Interrupted",Failed=>"Rejected or failed");
+label!(reason,wire::RunReason,ExplicitRequest=>"Explicit Request",SingleBusy=>"Single-run slot already occupied",RestartReplaced=>"Replaced by a new run",WaitingForSlot=>"Waiting for previous step",ExplicitCancellation=>"Future steps cancelled",ServerRestart=>"Server Restart",SyntheticFailure=>"Synthetic error");
+label!(compatibility,wire::Compatibility,Supported=>"Support",Partial=>"Partial",Unsupported=>"Unsupported");
+label!(diagnostic,wire::Diagnostic,InvalidSchema=>"Invalid schema",ExcludedReference=>"Excluded Reference",UnsupportedExtension=>"Unsupported extension",SourceUnavailable=>"Source unavailable");
+label!(gap,wire::GapReason,Evicted=>"Evicted Events",Redacted=>"Redacted Events",NotRetained=>"Unretained Events");
+label!(action,obs::TraceActionKind,Variables=>"Variables",Sequence=>"Sequence",Choose=>"Choose",If=>"Condition",Repeat=>"Repeat",Parallel=>"Parallel",Wait=>"Wait",Stop=>"Off",Call=>"Call",Delay=>"Delay",WaitTemplate=>"Waiting for template");
+label!(stage,obs::TraceNodeStage,Entered=>"Entry",Completed=>"Done",Stopped=>"Stopped",Cancelled=>"Cancelled",Failed=>"Failed",Waiting=>"Pending");
+label!(outcome,history::CommandOutcome,Accepted=>"Accepted",Dispatched=>"Dispatched",Acknowledged=>"Acknowledged",Confirmed=>"Confirmed",Indeterminate=>"Uncertain",Refused=>"Rejected",NotAttempted=>"Not attempted");
 fn family(value: EnumValue<plan::SourceFamily>) -> &'static str {
     match value {
-        EnumValue::Known(plan::SourceFamily::Automation) => "Automatisation",
+        EnumValue::Known(plan::SourceFamily::Automation) => "Automation",
         EnumValue::Known(plan::SourceFamily::Script) => "Script",
-        EnumValue::Known(plan::SourceFamily::Scene) => "Scène",
+        EnumValue::Known(plan::SourceFamily::Scene) => "Scene",
         EnumValue::Known(
             plan::SourceFamily::Operational
             | plan::SourceFamily::DeclarativeV1
@@ -37,22 +37,22 @@ fn family(value: EnumValue<plan::SourceFamily>) -> &'static str {
             | plan::SourceFamily::Dashboard
             | plan::SourceFamily::Unspecified,
         )
-        | EnumValue::Unknown(_) => "Famille non prise en charge",
+        | EnumValue::Unknown(_) => "Unsupported family",
     }
 }
 fn actor(run: &wire::Run) -> String {
     match &run.actor.observation {
         Some(wire::actor::Observation::Account(value)) => {
-            format!("Acteur enregistré : {}", value.value)
+            format!("Recorded actor: {}", value.value)
         }
-        Some(wire::actor::Observation::Redacted(_)) => "Acteur expurgé par le serveur".into(),
-        Some(wire::actor::Observation::NotRecorded(_)) => "Acteur non enregistré".into(),
-        None => "Acteur indisponible".into(),
+        Some(wire::actor::Observation::Redacted(_)) => "Actor redacted by the server".into(),
+        Some(wire::actor::Observation::NotRecorded(_)) => "Actor not recorded".into(),
+        None => "Actor unavailable".into(),
     }
 }
 fn run_detail(run: &wire::Run) -> String {
     format!(
-        "{} · {} · {}\nGénération {} · {} · {}\n{}\nTentative {} · Aucun effet matériel validé",
+        "{} · {} · {}\nGeneration {} · {} · {}\n{}\nAttempt {} · No hardware effect validated",
         mode(run.mode),
         status(run.status),
         reason(run.reason),
@@ -78,22 +78,27 @@ pub(in crate::administration_host) fn rows(
             detail,
         });
     };
-    push(render::fact("logic/mock"),"Logique · serveur synthétique".into(),"Mock NHA-163 explicite. Aucune routine réelle exécutée. Ouvrir cette vue n’active aucune définition.".into());
+    push(
+        render::fact("logic/mock"),
+        "Logic · synthetic server".into(),
+        "Explicit NHA-163 mock. No real routine runs. Opening this view activates no definition."
+            .into(),
+    );
     push(
         Target::Logic(Selection::Catalogue),
         "Catalogue".into(),
-        "Recharger les définitions autorisées depuis le serveur".into(),
+        "Reload Authorized Definitions From Server".into(),
     );
     match payload {
         Payload::Catalogue(value) => {
             push(
                 render::fact("logic/count"),
                 format!(
-                    "{} définitions retenues · {} reportées",
+                    "{} retained definitions · {} reported",
                     value.retained, value.reported
                 ),
                 format!(
-                    "Catalogue {} · génération {} · epoch {}",
+                    "Catalogue {} · generation {} · epoch {}",
                     value.context.catalogue, value.context.generation, value.context.epoch
                 ),
             );
@@ -124,7 +129,7 @@ pub(in crate::administration_host) fn rows(
                 render::fact("logic/definition"),
                 definition.title.clone(),
                 format!(
-                    "{} · {} · version {}\nHash {}\nSchéma {} · {}",
+                    "{} · {} · version {}\nHash {}\nSchema {} · {}",
                     family(definition.family),
                     mode(definition.mode),
                     definition.reference.version.revision,
@@ -135,9 +140,9 @@ pub(in crate::administration_host) fn rows(
             );
             push(
                 render::fact("logic/source"),
-                "Source protégée".into(),
+                "Protected Source".into(),
                 format!(
-                    "Document {}\nRéférence {}\nCes métadonnées ne sont pas une source éditable. La simulation utilise une source fournie séparément dans Configuration.",
+                    "Document {}\nReference {}\nThis metadata is not an editable source. Simulation uses a source supplied separately in Configuration.",
                     definition.source_document.value,
                     render::hex(&definition.protected_source_reference)
                 ),
@@ -145,7 +150,7 @@ pub(in crate::administration_host) fn rows(
             for (index, value) in definition.diagnostics.iter().enumerate() {
                 push(
                     render::fact(format!("logic/diagnostic/{index}")),
-                    "Diagnostic serveur".into(),
+                    "Server Diagnostic".into(),
                     diagnostic(*value).into(),
                 );
             }
@@ -162,8 +167,8 @@ pub(in crate::administration_host) fn rows(
             if runs.is_empty() {
                 push(
                     render::fact("logic/no-runs"),
-                    "Aucun run retenu".into(),
-                    "Cette lecture ne lance aucune exécution.".into(),
+                    "No retained run".into(),
+                    "This reading does not start an execution.".into(),
                 );
             }
         }
@@ -172,7 +177,7 @@ pub(in crate::administration_host) fn rows(
             push(
                 render::fact("logic/run-definition"),
                 format!(
-                    "Définition {} · version {}",
+                    "Definition {} · version {}",
                     run.definition.id, run.definition.version.revision
                 ),
                 render::hex(&run.definition.version.source_sha256),
@@ -182,8 +187,8 @@ pub(in crate::administration_host) fn rows(
                     context: context.clone(),
                     id: RunId::parse(&run.id).expect("admitted run"),
                 }),
-                "Inspecter la trace".into(),
-                "Capture paginée avec trous et expurgation explicites".into(),
+                "Inspect Trace".into(),
+                "Paged snapshot with explicit gaps and redaction".into(),
             );
         }
         Payload::Trace {
@@ -197,13 +202,13 @@ pub(in crate::administration_host) fn rows(
                     context: context.clone(),
                     id: RunId::parse(&run.id).expect("admitted run"),
                 }),
-                "Revenir au run".into(),
+                "Back to Run".into(),
                 run_detail(run),
             );
             push(
                 render::fact("logic/capture"),
-                format!("{} événements · capture {}", events.len(), capture),
-                "Capture serveur figée ; aucun ordre continu déduit à travers les trous.".into(),
+                format!("{} events · snapshot {}", events.len(), capture),
+                "Fixed server snapshot; no continuous ordering is inferred across gaps.".into(),
             );
             for row in events {
                 let (title, detail) = match &row.event {
@@ -213,11 +218,9 @@ pub(in crate::administration_host) fn rows(
                                 "{}:{}:{} · {}",
                                 value.file, value.line, value.column, value.path
                             ),
-                            Some(wire::node::Source::Redacted(_)) => "Source expurgée".into(),
-                            Some(wire::node::Source::NotRecorded(_)) => {
-                                "Source non enregistrée".into()
-                            }
-                            None => "Source indisponible".into(),
+                            Some(wire::node::Source::Redacted(_)) => "Source redacted".into(),
+                            Some(wire::node::Source::NotRecorded(_)) => "Source not saved".into(),
+                            None => "Source unavailable".into(),
                         };
                         (
                             format!("{} · {}", action(value.kind), stage(value.stage)),
@@ -225,24 +228,24 @@ pub(in crate::administration_host) fn rows(
                         )
                     }
                     Some(wire::trace_row::Event::Command(value)) => (
-                        format!("Commande synthétique · {}", outcome(value.outcome)),
+                        format!("Synthetic command · {}", outcome(value.outcome)),
                         format!(
-                            "{} · Aucun argument ni appareil réel exposé",
+                            "{} · No arguments or real devices exposed",
                             value.command_id
                         ),
                     ),
                     Some(wire::trace_row::Event::Gap(value)) => (
                         gap(value.reason).into(),
                         if value.count_unknown {
-                            "Quantité inconnue · continuité non établie".into()
+                            "Quantity unknown · continuity not established".into()
                         } else {
-                            format!("{} événements manquants", value.known_missing_count)
+                            format!("{} missing events", value.known_missing_count)
                         },
                     ),
                     Some(wire::trace_row::Event::Lifecycle(value)) => {
-                        ("Cycle de vie".into(), reason(*value).into())
+                        ("Lifecycle".into(), reason(*value).into())
                     }
-                    None => ("Événement indisponible".into(), String::new()),
+                    None => ("Event unavailable".into(), String::new()),
                 };
                 push(
                     render::fact(format!("logic/trace/{}", row.ordinal)),

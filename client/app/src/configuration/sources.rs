@@ -51,15 +51,15 @@ impl SourceFamily {
     ];
     pub fn label(self) -> &'static str {
         match self {
-            Self::Operational => "Paramètres du serveur",
-            Self::DeclarativeV1 => "Déclarations v1",
-            Self::DeclarativeV2 => "Déclarations v2",
-            Self::Authorization => "Droits humains",
-            Self::Ownership => "Propriété des équipements",
+            Self::Operational => "Server Settings",
+            Self::DeclarativeV1 => "v1 Declarations",
+            Self::DeclarativeV2 => "v2 Declarations",
+            Self::Authorization => "User Permissions",
+            Self::Ownership => "Equipment Ownership",
             Self::Dashboard => "Dashboard",
-            Self::Automation => "Automatisation",
+            Self::Automation => "Automation",
             Self::Script => "Script",
-            Self::Scene => "Scène",
+            Self::Scene => "Scene",
         }
     }
     pub fn to_wire(self) -> wire::SourceFamily {

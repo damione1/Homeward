@@ -19,11 +19,11 @@ pub enum Statistic {
 impl Statistic {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Observation => "Observation source",
-            Self::Minimum => "Minimum serveur",
-            Self::Maximum => "Maximum serveur",
-            Self::Mean => "Moyenne serveur",
-            Self::Contribution => "Contribution serveur",
+            Self::Observation => "Source Observation",
+            Self::Minimum => "Server Minimum",
+            Self::Maximum => "Server Maximum",
+            Self::Mean => "Server Average",
+            Self::Contribution => "Server Contribution",
         }
     }
 }

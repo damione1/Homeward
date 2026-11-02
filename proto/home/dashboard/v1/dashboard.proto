@@ -70,6 +70,7 @@ enum LayoutKind {
   LAYOUT_KIND_VERTICAL_STACK = 9;
   LAYOUT_KIND_POPUP = 10;
   LAYOUT_KIND_CHIP_GROUP = 11;
+  LAYOUT_KIND_WIDGET = 12;
 }
 enum LayoutDimensionKind {
   LAYOUT_DIMENSION_KIND_UNSPECIFIED = 0;
@@ -115,6 +116,82 @@ message LayoutNode {
   NativeRecipeKind recipe_kind = 17;
   string secondary = 18;
   repeated NativeFeatureKind features = 19;
+  // Version 3: a finite native widget with exact server-owned bindings.
+  NativeWidget widget = 20;
+  // Logical pixels. V3 servers supply container defaults explicitly; gap zero
+  // means no gap. Legacy nodes retain native defaults when fields are absent.
+  uint32 minimum_column_width = 21;
+  uint32 gap = 22;
+  repeated NativeResponsiveSpan responsive_spans = 23;
+  // Finite icon vocabulary chosen by the admitted source, never downloaded SVG.
+  NativeIcon icon = 24;
+  // Source-selected density; this changes presentation, never command authority.
+  NativeControlPresentation control_presentation = 25;
+  // Presentation only, evaluated against the full logical window width. This
+  // never grants an action or substitutes for NativeRecipes visibility.
+  NativeScreenVisibility screen_visibility = 26;
+}
+
+// Closed viewport-width subset. Zero denotes an absent bound; comparisons are
+// inclusive. Unknown fields or invalid ranges make the node inert.
+message NativeScreenVisibility { uint32 min_width = 1; uint32 max_width = 2; }
+
+enum NativeControlPresentation {
+  NATIVE_CONTROL_PRESENTATION_CONTROLS = 0;
+  NATIVE_CONTROL_PRESENTATION_SUMMARY = 1;
+}
+
+// Exact canonical field keys are interpreted against the current authorized
+// entity view. Missing bindings never select another entity or field.
+message NativeResponsiveSpan { uint32 columns = 1; uint32 span = 2; }
+message NativeFieldBinding { string entity_id = 1; string field_key = 2; }
+message NativeClockWeatherWidget { string timezone = 1; string weather_entity_id = 2; }
+message NativeRoomWidget {
+  string room_id = 1;
+  NativeFieldBinding temperature = 2;
+  repeated string activity_entity_ids = 3;
+  repeated string active_states = 4;
+}
+enum NativeThermostatPresentation {
+  NATIVE_THERMOSTAT_PRESENTATION_COMPACT = 0;
+  NATIVE_THERMOSTAT_PRESENTATION_DETAIL = 1;
+  NATIVE_THERMOSTAT_PRESENTATION_SUMMARY = 2;
+}
+message NativeThermostatWidget {
+  string entity_id = 1;
+  NativeFieldBinding current_temperature = 2;
+  NativeFieldBinding target_temperature = 3;
+  NativeThermostatPresentation presentation = 4;
+}
+message NativeAgendaWidget { string calendar_id = 1; string timezone = 2; uint32 window_seconds = 3; uint32 limit = 4; }
+enum NativeTasksPresentation {
+  NATIVE_TASKS_PRESENTATION_PREVIEW = 0;
+  NATIVE_TASKS_PRESENTATION_SHOPPING = 1;
+}
+message NativeTasksWidget { string list_id = 1; uint32 limit = 2; NativeTasksPresentation presentation = 3; }
+message NativeSecurityWidget { repeated string entity_ids = 1; }
+message NativeObservationBinding {
+  NativeFieldBinding field = 1;
+  string label = 2;
+  repeated string active_states = 3;
+  NativeIcon icon = 4;
+}
+message NativeObservationsWidget { repeated NativeObservationBinding items = 1; }
+message NativeNavigationWidget { NativeDestination destination = 1; }
+message NativeWidget {
+  oneof content {
+    NativeClockWeatherWidget clock_weather = 1;
+    NativeRoomWidget room = 2;
+    NativeThermostatWidget thermostat = 3;
+    NativeAgendaWidget agenda = 4;
+    NativeTasksWidget tasks = 5;
+    NativeSecurityWidget security = 6;
+    NativeObservationsWidget observations = 7;
+    NativeNavigationWidget navigation = 8;
+  }
+  NativeDestination action = 10;
+  string action_label = 11;
+  string empty_label = 12;
 }
 
 enum NativeRecipeKind {
@@ -238,6 +315,8 @@ message ClientLayoutSupport {
   string profile = 1;
   uint32 version = 2;
   repeated LayoutKind kinds = 3;
+  // Required before screen-conditioned nodes can be projected as controls.
+  bool screen_visibility = 4;
 }
 
 enum NativeIcon {
@@ -246,6 +325,26 @@ enum NativeIcon {
   NATIVE_ICON_INFORMATION = 2;
   NATIVE_ICON_CLOCK = 3;
   NATIVE_ICON_GRID = 4;
+  NATIVE_ICON_SOFA = 5;
+  NATIVE_ICON_KITCHEN = 6;
+  NATIVE_ICON_BED = 7;
+  NATIVE_ICON_LIGHT = 8;
+  NATIVE_ICON_FAN = 9;
+  NATIVE_ICON_THERMOSTAT = 10;
+  NATIVE_ICON_MUSIC = 11;
+  NATIVE_ICON_GARAGE = 12;
+  NATIVE_ICON_LOCK = 13;
+  NATIVE_ICON_SHIELD = 14;
+  NATIVE_ICON_WATER = 15;
+  NATIVE_ICON_SUN = 16;
+  NATIVE_ICON_TREE = 17;
+  NATIVE_ICON_OFFICE = 18;
+  NATIVE_ICON_BATH = 19;
+  NATIVE_ICON_CHILD = 20;
+  NATIVE_ICON_SHOPPING = 21;
+  NATIVE_ICON_SCENE = 22;
+  NATIVE_ICON_BATTERY = 23;
+  NATIVE_ICON_POWER = 24;
 }
 enum ServingMode {
   SERVING_MODE_UNSPECIFIED = 0;

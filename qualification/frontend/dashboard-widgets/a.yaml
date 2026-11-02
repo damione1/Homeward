@@ -1,0 +1,53 @@
+homeward:
+  profile: homeward-dashboard-3
+  owner: OWNER_ACCOUNT_ID
+  url_path: configuration
+views:
+- type: sections
+  path: home
+  title: Maison configurée A
+  max_columns: 3
+  minimum_column_width: 280
+  gap: 16
+  sections:
+  - type: grid
+    column_span: 3
+    cards:
+    - type: custom:homeward-thermostat
+      title: Confort configuré
+      entity: climate.neviweb130_climate_sous_sol
+      current_temperature: {entity: climate.neviweb130_climate_sous_sol, field: current_temperature_celsius}
+      target_temperature: {entity: climate.neviweb130_climate_sous_sol, field: setpoint_celsius}
+    - type: custom:homeward-room
+      title: Pièce du serveur A
+      room_id: room-a
+      action: /configuration/rooms
+      action_label: Ouvrir la pièce
+      temperature: {entity: climate.neviweb130_climate_sous_sol, field: current_temperature_celsius}
+      activity_entities: [light.basement_lights]
+      active_states: ['on']
+    - type: custom:homeward-security
+      title: Bloc conditionnel
+      entities: [binary_sensor.arc_soundbar_microphone]
+      visibility: [{condition: state, entity: binary_sensor.arc_soundbar_microphone, state: 'on'}]
+    - type: custom:homeward-agenda
+      title: Agenda uniquement A
+      calendar_id: dashboard-config-calendar
+      timezone: America/Toronto
+      window_seconds: 86400
+      limit: 3
+    - type: custom:homeward-navigation
+      title: Navigation du serveur
+      destination: /configuration/rooms
+    - type: custom:homeward-tasks
+      title: Liste uniquement A
+      list_id: LIST_A_ID
+      limit: 1
+- type: sections
+  path: rooms
+  title: Pièces configurées
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Destination configurée

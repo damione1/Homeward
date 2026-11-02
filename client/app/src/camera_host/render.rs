@@ -33,34 +33,37 @@ impl Projection {
 }
 fn status(value: Status) -> (ProCameraState, &'static str) {
     match value {
-        Status::Hidden => (ProCameraState::Hidden, "Aperçu retiré hors du viewport"),
-        Status::Loading => (ProCameraState::Loading, "Chargement de l’image…"),
-        Status::Ready => (ProCameraState::Ready, "Image autorisée de la caméra"),
-        Status::Missing => (ProCameraState::Missing, "Aucune image pour cette source"),
+        Status::Hidden => (
+            ProCameraState::Hidden,
+            "Preview removed outside the viewport",
+        ),
+        Status::Loading => (ProCameraState::Loading, "Loading image…"),
+        Status::Ready => (ProCameraState::Ready, "Authorized camera image"),
+        Status::Missing => (ProCameraState::Missing, "No image for this source"),
         Status::Expired => (
             ProCameraState::Expired,
-            "Session ou image expirée — rechargez pour relire",
+            "Session or image expired — reload to read again",
         ),
         Status::Revoked => (
             ProCameraState::Revoked,
-            "Accès retiré — images privées effacées",
+            "Access removed — private images cleared",
         ),
         Status::WrongCamera => (
             ProCameraState::WrongCamera,
-            "Identité de caméra incorrecte — image refusée",
+            "Camera identity mismatch — image rejected",
         ),
         Status::Offline => (
             ProCameraState::Offline,
-            "Connexion interrompue — images privées retirées",
+            "Connection interrupted — private images removed",
         ),
         Status::Unavailable => (
             ProCameraState::Unavailable,
-            "Source temporairement indisponible",
+            "Source temporarily unavailable",
         ),
-        Status::Invalid => (ProCameraState::Invalid, "Réponse ou image non admise"),
+        Status::Invalid => (ProCameraState::Invalid, "Response or image rejected"),
         Status::Unsupported => (
             ProCameraState::Unsupported,
-            "Le serveur ne propose pas encore cette interface caméra",
+            "The server does not yet provide this camera interface",
         ),
     }
 }
@@ -92,9 +95,9 @@ impl Model for Rows {
             )
             .into(),
             image_label: if event.has_image {
-                "Vignette disponible"
+                "Thumbnail available"
             } else {
-                "Sans vignette"
+                "No thumbnail"
             }
             .into(),
         })
@@ -147,8 +150,8 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         camera.source = metadata.source.clone().into();
         camera.identity = metadata.id.entity().as_str().into();
         camera.provenance = match metadata.provenance {
-            Provenance::Observed => "Observation serveur",
-            Provenance::Synthetic => "MOCK ISOLÉ · Aucun appareil réel",
+            Provenance::Observed => "Server observation",
+            Provenance::Synthetic => "ISOLATED MOCK · No real devices",
         }
         .into();
         if let Some(ImageKey::EventThumbnail(key)) = &value.target {
@@ -199,9 +202,9 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     let notice = match value.catalog_status {
         Status::Ready => {
             if value.catalog.is_empty() {
-                "Aucune caméra autorisée"
+                "No authorized cameras"
             } else {
-                "Les images restent privées et leur session est courte"
+                "Images stay private and use a short-lived session"
             }
         }
         Status::Hidden

@@ -76,30 +76,30 @@ pub(super) fn editors(control: &Control) -> Vec<Editor> {
 }
 pub(crate) fn mode_label(value: registry::ClimateMode) -> &'static str {
     match value {
-        registry::ClimateMode::Unspecified => "Non précisé",
-        registry::ClimateMode::Off => "Arrêt",
-        registry::ClimateMode::Heat => "Chauffage",
-        registry::ClimateMode::Cool => "Climatisation",
-        registry::ClimateMode::Auto => "Automatique",
-        registry::ClimateMode::Dry => "Déshumidification",
-        registry::ClimateMode::FanOnly => "Ventilation seule",
+        registry::ClimateMode::Unspecified => "Unspecified",
+        registry::ClimateMode::Off => "Off",
+        registry::ClimateMode::Heat => "Heat",
+        registry::ClimateMode::Cool => "Cool",
+        registry::ClimateMode::Auto => "Auto",
+        registry::ClimateMode::Dry => "Dehumidification",
+        registry::ClimateMode::FanOnly => "Fan Only",
     }
 }
 fn fan_target_label(value: registry::ClimateFanTarget) -> &'static str {
     match value {
-        registry::ClimateFanTarget::Unspecified => "Non précisé",
-        registry::ClimateFanTarget::On => "Marche",
-        registry::ClimateFanTarget::Auto => "Automatique",
+        registry::ClimateFanTarget::Unspecified => "Unspecified",
+        registry::ClimateFanTarget::On => "On",
+        registry::ClimateFanTarget::Auto => "Auto",
     }
 }
 fn activity_label(value: registry::ClimateActivity) -> &'static str {
     match value {
-        registry::ClimateActivity::Unspecified => "Non précisée",
-        registry::ClimateActivity::Idle => "Au repos",
-        registry::ClimateActivity::Heating => "Chauffe",
-        registry::ClimateActivity::Cooling => "Refroidit",
-        registry::ClimateActivity::Drying => "Déshumidifie",
-        registry::ClimateActivity::FanOnly => "Ventile",
+        registry::ClimateActivity::Unspecified => "Unspecified",
+        registry::ClimateActivity::Idle => "Idle",
+        registry::ClimateActivity::Heating => "Heating",
+        registry::ClimateActivity::Cooling => "Cooling",
+        registry::ClimateActivity::Drying => "Dehumidifying",
+        registry::ClimateActivity::FanOnly => "Fan running",
     }
 }
 pub(super) fn choices(control: &Control) -> Vec<Choice> {
@@ -108,13 +108,13 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
         Control::Climate(climate) => {
             for mode in climate.modes() {
                 choices.push(Choice {
-                    label: format!("Mode demandé · {}", mode_label(*mode)),
+                    label: format!("Requested mode · {}", mode_label(*mode)),
                     intent: DeviceIntent::Climate(ClimateIntent::Mode(*mode)),
                 });
             }
             for target in climate.fan_targets() {
                 choices.push(Choice {
-                    label: format!("Ventilation demandée · {}", fan_target_label(*target)),
+                    label: format!("Requested fan mode · {}", fan_target_label(*target)),
                     intent: DeviceIntent::Climate(ClimateIntent::FanTarget(*target)),
                 });
             }
@@ -122,15 +122,15 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
         Control::Fan(fan) => {
             for speed in fan.speeds() {
                 let label = match *speed {
-                    state::FanSpeed::Unspecified => "Non précisée",
-                    state::FanSpeed::Off => "Arrêt",
-                    state::FanSpeed::Low => "Faible",
-                    state::FanSpeed::Medium => "Moyenne",
-                    state::FanSpeed::MediumHigh => "Moyenne haute",
-                    state::FanSpeed::High => "Haute",
+                    state::FanSpeed::Unspecified => "Unspecified",
+                    state::FanSpeed::Off => "Off",
+                    state::FanSpeed::Low => "Low",
+                    state::FanSpeed::Medium => "Medium",
+                    state::FanSpeed::MediumHigh => "Medium High",
+                    state::FanSpeed::High => "High",
                 };
                 choices.push(Choice {
-                    label: format!("Vitesse · {label}"),
+                    label: format!("Speed · {label}"),
                     intent: DeviceIntent::FanSpeed(*speed),
                 });
             }
@@ -139,7 +139,7 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
             if helper.operations().contains(&helpers::HelperOperation::Set)
                 && matches!(helper.kind(), Kind::Boolean)
             {
-                for (value, label) in [(true, "Activer"), (false, "Désactiver")] {
+                for (value, label) in [(true, "Enable"), (false, "Disable")] {
                     choices.push(Choice {
                         label: label.into(),
                         intent: DeviceIntent::Helper(HelperIntent::Boolean(value)),
@@ -149,13 +149,13 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
             for operation in helper.operations() {
                 let label = match *operation {
                     helpers::HelperOperation::Set | helpers::HelperOperation::Unspecified => None,
-                    helpers::HelperOperation::Toggle => Some("Inverser"),
-                    helpers::HelperOperation::Increment => Some("Augmenter"),
-                    helpers::HelperOperation::Decrement => Some("Diminuer"),
-                    helpers::HelperOperation::Reset => Some("Réinitialiser"),
-                    helpers::HelperOperation::Press => Some("Déclencher"),
-                    helpers::HelperOperation::Next => Some("Option suivante"),
-                    helpers::HelperOperation::Previous => Some("Option précédente"),
+                    helpers::HelperOperation::Toggle => Some("Reverse"),
+                    helpers::HelperOperation::Increment => Some("Increase"),
+                    helpers::HelperOperation::Decrement => Some("Decrease"),
+                    helpers::HelperOperation::Reset => Some("Reset"),
+                    helpers::HelperOperation::Press => Some("Trigger"),
+                    helpers::HelperOperation::Next => Some("Next Option"),
+                    helpers::HelperOperation::Previous => Some("Previous Option"),
                 };
                 if let Some(label) = label {
                     choices.push(Choice {
@@ -318,29 +318,29 @@ pub(super) fn readings(control: &Control, entity: &state::ViewEntity) -> String 
         return String::new();
     };
     let Some(value) = climate_observation(entity) else {
-        return "Aucune observation climatique".into();
+        return "No climate observation".into();
     };
     let observes = climate.observes();
     let mut parts = Vec::new();
     if observes.temperature
         && let Some(value) = value.current_temperature_celsius.filter(|v| v.is_finite())
     {
-        parts.push(format!("Température · {value} °C"));
+        parts.push(format!("Temperature · {value} °C"));
     }
     match value.setpoint.as_ref() {
         Some(state::climate_value::Setpoint::SetpointCelsius(value))
             if observes.setpoint && value.is_finite() =>
         {
-            parts.push(format!("Consigne observée · {value} °C"));
+            parts.push(format!("Observed setpoint · {value} °C"));
         }
         Some(state::climate_value::Setpoint::SetpointRangeCelsius(value))
             if observes.range && value.__buffa_unknown_fields.is_empty() =>
         {
             if let Some(low) = value.low_celsius.filter(|v| v.is_finite()) {
-                parts.push(format!("Seuil bas observé · {low} °C"));
+                parts.push(format!("Observed lower threshold · {low} °C"));
             }
             if let Some(high) = value.high_celsius.filter(|v| v.is_finite()) {
-                parts.push(format!("Seuil haut observé · {high} °C"));
+                parts.push(format!("Observed upper threshold · {high} °C"));
             }
         }
         Some(
@@ -354,25 +354,25 @@ pub(super) fn readings(control: &Control, entity: &state::ViewEntity) -> String 
         .and_then(|v| v.as_known())
         .filter(|v| observes.modes.contains(v))
     {
-        parts.push(format!("Mode observé · {}", mode_label(mode)));
+        parts.push(format!("Observed mode · {}", mode_label(mode)));
     }
     if let Some(activity) = value
         .activity
         .and_then(|v| v.as_known())
         .filter(|v| observes.activities.contains(v))
     {
-        parts.push(format!("Activité observée · {}", activity_label(activity)));
+        parts.push(format!("Observed activity · {}", activity_label(activity)));
     }
     if observes.humidity
         && let Some(value) = value.humidity_percent.filter(|v| v.is_finite())
     {
-        parts.push(format!("Humidité · {value} %"));
+        parts.push(format!("Humidity · {value} %"));
     }
     if observes.fan_activity
         && let Some(value) = value.fan_active
     {
         parts.push(format!(
-            "Ventilation observée · {}",
+            "Observed fan mode · {}",
             if value { "Active" } else { "Inactive" }
         ));
     }
@@ -382,12 +382,12 @@ pub(super) fn readings(control: &Control, entity: &state::ViewEntity) -> String 
         .filter(|v| observes.fan_targets.contains(v))
     {
         parts.push(format!(
-            "Ventilation demandée observée · {}",
+            "Observed requested fan mode · {}",
             fan_target_label(target)
         ));
     }
     if parts.is_empty() {
-        "Aucune observation climatique annoncée".into()
+        "No climate observation reported".into()
     } else {
         parts.join("\n")
     }
@@ -595,20 +595,20 @@ impl Editor {
             return helper_row(token, draft, control);
         };
         let (mode, label) = match self {
-            Self::Setpoint(_) => (ProValueMode::Single, "Consigne"),
-            Self::CoverPosition(_) => (ProValueMode::Single, "Position"),
-            Self::Range(_) => (ProValueMode::Range, "Plage de consigne"),
-            Self::Helper => (ProValueMode::Single, "Valeur"),
-            Self::ColorTemperature => (ProValueMode::Single, "Température de couleur"),
+            Self::Setpoint(_) => (ProValueMode::Single, "Setpoint"),
+            Self::CoverPosition(_) => (ProValueMode::Single, "Target position"),
+            Self::Range(_) => (ProValueMode::Range, "Setpoint Range"),
+            Self::Helper => (ProValueMode::Single, "Value"),
+            Self::ColorTemperature => (ProValueMode::Single, "Color Temperature"),
         };
         let description = |bounds: Bounds| {
             format!(
-                "{} à {}{}",
+                "{} to {}{}",
                 bounds.minimum(),
                 bounds.maximum(),
                 bounds
                     .step()
-                    .map(|v| format!(", pas {v}"))
+                    .map(|v| format!(", step {v}"))
                     .unwrap_or_default()
             )
         };
@@ -629,8 +629,8 @@ impl Editor {
             kind: ProValueKind::Numeric,
             mode,
             label: label.into(),
-            lower_label: "Seuil bas".into(),
-            upper_label: "Seuil haut".into(),
+            lower_label: "Lower Threshold".into(),
+            upper_label: "Upper Threshold".into(),
             suffix: match self {
                 Self::Setpoint(_) | Self::Range(_) => "°C",
                 Self::Helper => "",
@@ -677,7 +677,7 @@ impl Editor {
             draft.gesture = false;
         }
         draft.error = if result.is_err() {
-            "Valeur hors limites, hors pas ou plage invalide.".into()
+            "Value outside limits, invalid step or invalid range.".into()
         } else {
             String::new()
         };
@@ -845,36 +845,32 @@ fn helper_row(token: i32, draft: &Draft, control: &Control) -> ProDeviceValue {
             step,
         } => (
             ProValueKind::Counter,
-            "Compteur",
+            "Counter",
             format!(
-                "Entier 64 bits · minimum {} · maximum {} · valeur multiple de {step} · incrément {step}",
+                "64-bit integer · minimum {} · maximum {} · multiple of {step} · increment {step}",
                 minimum
                     .map(|v| v.to_string())
-                    .unwrap_or_else(|| "non précisé".into()),
+                    .unwrap_or_else(|| "unspecified".into()),
                 maximum
                     .map(|v| v.to_string())
-                    .unwrap_or_else(|| "non précisé".into())
+                    .unwrap_or_else(|| "unspecified".into())
             ),
         ),
         Kind::Text { minimum, maximum } => (
             ProValueKind::Text,
-            "Texte",
-            format!("{minimum} à {maximum} caractères Unicode"),
+            "Text",
+            format!("{minimum} to {maximum} Unicode characters"),
         ),
         Kind::Date => (
             ProValueKind::Date,
             "Date",
-            "AAAA-MM-JJ · date civile".into(),
+            "YYYY-MM-DD · calendar date".into(),
         ),
-        Kind::Time => (
-            ProValueKind::Time,
-            "Heure",
-            "HH:MM[:SS] · heure civile".into(),
-        ),
+        Kind::Time => (ProValueKind::Time, "Time", "HH:MM[:SS] · local time".into()),
         Kind::DateTime => (
             ProValueKind::DateTime,
-            "Date et heure",
-            "AAAA-MM-JJTHH:MM[:SS] · sans fuseau implicite".into(),
+            "Date and Time",
+            "YYYY-MM-DDTHH:MM[:SS] · no implicit time zone".into(),
         ),
         Kind::Select(_) => (ProValueKind::Select, "Option", String::new()),
         Kind::Number(_) | Kind::Boolean | Kind::Button => return ProDeviceValue::default(),

@@ -55,37 +55,39 @@ export component HomewardCalendars inherits Rectangle {
     min-width: 0px; min-height: 0px; clip: true;
     out property <length> scroll-y: page.content-y;
     public function focus-catalog() { catalog.take-focus(); }
+    public function dismiss-selection-popover() -> bool {
+        return root.data.selected && agenda.dismiss-selection-popover();
+    }
     public function focus-editor() { editor.focus-summary(); }
     public function scroll-to(y: length) { page.content-y = y; }
     page := KitScrollArea {
         width: parent.width; height: parent.height;
-        content-width: self.visible-width;
         VerticalLayout {
             width: page.visible-width; padding: 16px; spacing: 16px;
-            Text { text: "Calendriers"; color: root.theme.text-primary; font-size: 24px * root.theme.text-scale; font-weight: 600; }
+            Text { text: "Calendars"; color: root.theme.text-primary; font-size: 24px * root.theme.text-scale; font-weight: 600; }
             Text { text: root.data.notice; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
             catalog := KitContentList {
                 theme: root.theme; items: root.data.catalog; generation: root.data.generation;
-                label: "Calendriers autorisés"; preferred-height: 180px; min-height: 120px;
+                label: "Authorized Calendars"; preferred-height: 180px; min-height: 120px;
                 activate(t,g) => { root.choose(t,g); }
             }
             KitWrap {
-                KitTextField { theme: root.theme; label: "Nom du calendrier"; text <=> root.name-draft; access: root.data.editable && root.interactive ? FieldAccess.editable : FieldAccess.disabled; control-size: ControlSize.comfortable; }
-                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Créer"; disabled: !root.interactive || !root.data.editable || root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.create,root.name-draft,"",""); } }
-                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Renommer"; disabled: !root.interactive || !root.data.editable || !root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.rename,root.name-draft,"",""); } }
-                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Supprimer le calendrier"; disabled: !root.interactive || !root.data.editable || !root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.remove,"","",""); } }
-                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Relire"; disabled: !root.interactive || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.reload,"","",""); } }
+                KitTextField { theme: root.theme; label: "Calendar Name"; text <=> root.name-draft; access: root.data.editable && root.interactive ? FieldAccess.editable : FieldAccess.disabled; control-size: ControlSize.comfortable; }
+                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Create"; disabled: !root.interactive || !root.data.editable || root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.create,root.name-draft,"",""); } }
+                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Rename"; disabled: !root.interactive || !root.data.editable || !root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.rename,root.name-draft,"",""); } }
+                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Delete Calendar"; disabled: !root.interactive || !root.data.editable || !root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.remove,"","",""); } }
+                ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Refresh"; disabled: !root.interactive || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.reload,"","",""); } }
             }
             VerticalLayout {
                 visible: root.data.selected;
                 spacing: 12px;
                 Text { text: root.data.source + " · " + root.data.revision + " · " + root.data.cached-at; color: root.theme.text-secondary; font-size: 13px * root.theme.text-scale; wrap: word-wrap; }
                 KitWrap {
-                    KitTextField { theme: root.theme; label: "Début inclus (AAAA-MM-JJ)"; text <=> root.range-start; control-size: ControlSize.comfortable; }
-                    KitTextField { theme: root.theme; label: "Fin exclue (AAAA-MM-JJ)"; text <=> root.range-end; control-size: ControlSize.comfortable; }
-                    KitTextField { theme: root.theme; label: "Fuseau IANA"; text <=> root.range-zone; control-size: ControlSize.comfortable; }
-                    ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Afficher la plage"; disabled: !root.interactive || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.apply-range,root.range-start,root.range-end,root.range-zone); } }
-                    ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Nouvel événement"; disabled: !root.interactive || !root.data.ready || !root.data.editable || !root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.new-event,"","",""); } }
+                    KitTextField { theme: root.theme; label: "Start Inclusive (YYYY-MM-DD)"; text <=> root.range-start; control-size: ControlSize.comfortable; }
+                    KitTextField { theme: root.theme; label: "End Exclusive (YYYY-MM-DD)"; text <=> root.range-end; control-size: ControlSize.comfortable; }
+                    KitTextField { theme: root.theme; label: "IANA Time Zone"; text <=> root.range-zone; control-size: ControlSize.comfortable; }
+                    ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "Show Range"; disabled: !root.interactive || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.apply-range,root.range-start,root.range-end,root.range-zone); } }
+                    ProIdentityButton { theme: root.theme; generation: root.data.generation; text: "New Event"; disabled: !root.interactive || !root.data.ready || !root.data.editable || !root.data.present || root.data.busy; trigger(t,g) => { root.command(g,CalendarCommand.new-event,"","",""); } }
                 }
                 agenda := ProAgenda {
                     theme: root.theme; rows: root.data.rows; days: root.data.days;
@@ -94,11 +96,11 @@ export component HomewardCalendars inherits Rectangle {
                     selected: root.data.editor.selected; selected-token: root.data.editor.token; selected-generation: root.data.editor.generation;
                     interactive: root.interactive && root.data.ready && !root.data.busy;
                     preferred-height: max(400px,560px * root.theme.text-scale); min-height: 320px;
-                    empty-label: "Aucun événement dans cette plage"; all-day-label: "Toute la journée"; list-label: "Liste"; week-label: "Semaine"; date-label: "Choisir une date";
+                    empty-label: "No events in this range"; all-day-label: "All Day"; list-label: "List"; week-label: "Week"; date-label: "Choose Date";
                     date-text <=> root.range-start;
-                    date-placeholder: "AAAA-MM-JJ"; date-description: "Date civile ; sans fuseau horaire";
-                    calendar-button-label: "Calendrier"; calendar-accessible-name: "Ouvrir le calendrier";
-                    previous-month-label: "Mois précédent"; next-month-label: "Mois suivant";
+                    date-placeholder: "YYYY-MM-DD"; date-description: "Calendar date; no time zone";
+                    calendar-button-label: "Calendar"; calendar-accessible-name: "Open Calendar";
+                    previous-month-label: "Previous Month"; next-month-label: "Next Month";
                     select(t,g) => { root.select(t,g); }
                     navigate(step) => { root.navigate(step); }
                     mode-requested(mode) => { root.mode-requested(mode); }
@@ -107,7 +109,7 @@ export component HomewardCalendars inherits Rectangle {
                     date-chosen(day) => { root.date-chosen(day); }
                     month-requested(direction) => { root.month-requested(direction); }
                     accepted-date: root.data.accepted-date; calendar-days: root.data.calendar-days; calendar-title: root.data.calendar-title; calendar-index: root.data.calendar-index;
-                    weekdays: ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+                    weekdays: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
                 }
                 Rectangle {
                     visible: root.data.editor.selected;
@@ -120,16 +122,16 @@ export component HomewardCalendars inherits Rectangle {
                     theme: root.theme; selected: root.data.editor.selected; token: root.data.editor.token; generation: root.data.editor.generation;
                     access: root.interactive ? root.data.editor.access : ProAgendaAccess.offline;
                     phase: root.data.editor.phase; temporal-kind: root.data.editor.kind; valid: root.data.editor.valid; removable: root.data.editor.existing;
-                    title: "Événement"; source-label: root.data.source; exceptions-label: root.data.editor.exceptions;
+                    title: "Event"; source-label: root.data.source; exceptions-label: root.data.editor.exceptions;
                     summary <=> root.edit-summary; description <=> root.edit-description; location <=> root.edit-location;
                     start-date <=> root.edit-start-date; end-date <=> root.edit-end-date; start-time <=> root.edit-start-time; end-time <=> root.edit-end-time; zone <=> root.edit-zone;
                     accepted-start: root.data.editor.accepted-start; accepted-end: root.data.editor.accepted-end;
                     start-resolution: root.data.editor.start-resolution; end-resolution: root.data.editor.end-resolution; start-message: root.data.editor.start-message; end-message: root.data.editor.end-message;
-                    date-placeholder: "AAAA-MM-JJ"; date-description: "Date civile ; sans fuseau horaire"; time-description: "Heure locale au format 24 h";
-                    summary-label: "Titre"; description-label: "Description"; location-label: "Lieu"; all-day-label: "Toute la journée"; timed-label: "Événement horaire";
-                    start-label: "Début"; end-label: "Fin"; start-date-label: "Date de début"; end-date-label: "Date de fin (exclue)"; start-time-label: "Heure de début"; end-time-label: "Heure de fin";
-                    zone-label: "Fuseau horaire"; zone-description: "Fuseau IANA explicite"; earlier-label: "Choisir la première occurrence"; later-label: "Choisir la seconde occurrence";
-                    save-label: "Enregistrer"; remove-label: "Supprimer l’événement"; reload-label: "Relire l’événement"; rebase-label: "Résoudre avec la révision actuelle"; cancel-label: "Fermer l’éditeur";
+                    date-placeholder: "YYYY-MM-DD"; date-description: "Calendar date; no time zone"; time-description: "Local time in 24-hour format";
+                    summary-label: "Title"; description-label: "Description"; location-label: "Location"; all-day-label: "All Day"; timed-label: "Timed event";
+                    start-label: "Start"; end-label: "End"; start-date-label: "Start Date"; end-date-label: "End Date (Exclusive)"; start-time-label: "Start Time"; end-time-label: "End Time";
+                    zone-label: "Time Zone"; zone-description: "Explicit IANA Time Zone"; earlier-label: "Choose First Occurrence"; later-label: "Choose Second Occurrence";
+                    save-label: "Save"; remove-label: "Delete Event"; reload-label: "Refresh Event"; rebase-label: "Resolve With Current Revision"; cancel-label: "Close Editor";
                     edited(t,g,f,v) => { root.edited(t,g,f,v); }
                     date-edited(t,g,b,v) => { root.date-edited(t,g,b,v); }
                     time-edited(t,g,b,v) => { root.time-edited(t,g,b,v); }

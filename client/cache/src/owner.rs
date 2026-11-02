@@ -551,6 +551,68 @@ async fn maintain_access<P: Send + 'static>(
     }
 }
 
+// Read retries count consecutive attempts without an admitted cursor advance
+// or a sustained watch retaining that admitted view. A new pagination token or
+// admission proof is not evidence of progress.
+#[derive(Default)]
+struct ReadProgress {
+    cursor: Option<home_wire_contract::home::state::v1::ViewCursor>,
+    failures: u8,
+}
+impl ReadProgress {
+    fn observe(&mut self, cursor: &home_wire_contract::home::state::v1::ViewCursor) {
+        if self.cursor.as_ref().is_none_or(|previous| {
+            !crate::same_generation(previous, cursor)
+                || cursor.global_sequence > previous.global_sequence
+        }) {
+            self.cursor = Some(cursor.clone());
+            self.failures = 0;
+        }
+    }
+    fn failed(&mut self) -> u8 {
+        self.failures = self.failures.saturating_add(1);
+        self.failures
+    }
+    fn watch_ended(&mut self, elapsed: Duration, exit: &WatchExit) {
+        // Quiet homes need not advance the cursor before an ordinary server
+        // stream rotation. Only a long EOF/deadline with an admitted retained
+        // view earns a fresh reconnect budget. Resyncs, invalid frames and
+        // authority failures never earn it merely by taking a long time.
+        let retained_rotation = match exit {
+            WatchExit::Ended(_) => true,
+            WatchExit::Transport { failure, retained } => {
+                failure.kind() == FailureKind::Deadline
+                    && failure.may_resume_read()
+                    && retained.is_some()
+            }
+            WatchExit::Resync(_) | WatchExit::Invalid(_) | WatchExit::Cancelled => false,
+        };
+        if elapsed >= Duration::from_secs(30) && retained_rotation {
+            self.failures = 0;
+        }
+    }
+}
+async fn resume_read<P: Send + 'static>(
+    emitter: &Emitter<P>,
+    policy: ReconnectPolicy,
+    progress: &mut ReadProgress,
+    cancel: &CancellationToken,
+) -> bool {
+    if policy
+        .wait_after(progress.failed(), cancel)
+        .await
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    if !cancel.is_cancelled() {
+        // No worker will attempt another read. Leave an actionable terminal
+        // state, rather than indefinitely displaying a resync in progress.
+        emitter.set(CachePhase::Blocked, None);
+    }
+    false
+}
+
 async fn feed<P: Send + 'static>(
     emitter: &Emitter<P>,
     session: &SessionCoordinator,
@@ -563,7 +625,7 @@ async fn feed<P: Send + 'static>(
         .expect("fixed read retry policy");
     let mut retained = None;
     let mut access_generation = None;
-    let mut failures = 0u8;
+    let mut progress = ReadProgress::default();
     loop {
         if cancel.is_cancelled() {
             return;
@@ -610,8 +672,7 @@ async fn feed<P: Send + 'static>(
                             .event(CacheEvent::Transport(failure.kind()), cancel)
                             .await;
                         let retryable = failure.may_resume_read();
-                        failures = failures.saturating_add(1);
-                        if retryable && policy.wait_after(failures, cancel).await.unwrap_or(false) {
+                        if retryable && resume_read(emitter, policy, &mut progress, cancel).await {
                             continue;
                         }
                         emitter.set(CachePhase::Blocked, None);
@@ -625,7 +686,8 @@ async fn feed<P: Send + 'static>(
                 }
             }
         };
-        let mut applied = false;
+        progress.observe(view.cursor());
+        let watch_started = tokio::time::Instant::now();
         let exit = watch_once(
             transport,
             &lease,
@@ -633,7 +695,7 @@ async fn feed<P: Send + 'static>(
             Duration::from_secs(3600),
             cancel,
             |view| {
-                applied = true;
+                progress.observe(view.cursor());
                 emitter.set(CachePhase::Live, Some(view));
             },
         )
@@ -646,6 +708,7 @@ async fn feed<P: Send + 'static>(
             emitter.set(CachePhase::Loading, None);
             continue;
         }
+        progress.watch_ended(watch_started.elapsed(), &exit);
         match exit {
             WatchExit::Ended(view) => {
                 emitter.set(CachePhase::Offline, Some(&view));
@@ -689,11 +752,7 @@ async fn feed<P: Send + 'static>(
                 continue;
             }
         }
-        if applied {
-            failures = 0;
-        }
-        failures = failures.saturating_add(1);
-        if !policy.wait_after(failures, cancel).await.unwrap_or(false) {
+        if !resume_read(emitter, policy, &mut progress, cancel).await {
             return;
         }
     }
@@ -761,6 +820,217 @@ mod tests {
             tokio::time::timeout(Duration::from_secs(2), self.runs.started.notified())
                 .await
                 .unwrap();
+        }
+    }
+
+    fn captured_cursor(config: u64, sequence: u64, proof: u8, token: &str) -> CachedView {
+        use buffa_types::google::protobuf::Timestamp;
+        use home_wire_contract::home::state::v1 as state;
+        let filter = Filter::all();
+        let response = state::OpenViewResponse {
+            snapshot_token: token.into(),
+            cursor: state::ViewCursor {
+                epoch: "read-recovery-epoch".into(),
+                config_revision: config,
+                authorization_revision: 1,
+                global_sequence: sequence,
+                filter_sha256: filter.digest().to_vec(),
+                config_sha256: vec![1; 32],
+                grant_sha256: vec![2; 32],
+                admission_proof: vec![proof; 40],
+                ..Default::default()
+            }
+            .into(),
+            expires_at: Timestamp::from_unix_secs(60).into(),
+            ..Default::default()
+        };
+        crate::SnapshotCapture::begin(filter, 256, response, &Timestamp::from_unix_secs(0))
+            .unwrap()
+            .finish(&Timestamp::from_unix_secs(0))
+            .unwrap()
+    }
+    fn recovery_emitter(rig: &Rig) -> Emitter<CachePhase> {
+        Emitter {
+            inner: rig.owner.handle.inner.clone(),
+            generation: rig.owner.handle.inner.mailbox.generation(),
+            state: Mutex::new(DisplayState {
+                phase: CachePhase::Loading,
+                view: None,
+            }),
+        }
+    }
+    #[tokio::test]
+    async fn coherent_new_config_captures_recover_beyond_the_retry_budget_without_watch_deltas() {
+        let rig = Rig::new();
+        let emitter = recovery_emitter(&rig);
+        let policy =
+            ReconnectPolicy::new(4, Duration::from_millis(1), Duration::from_millis(4)).unwrap();
+        let cancel = CancellationToken::new();
+        let mut progress = ReadProgress::default();
+        for config in 1..=8 {
+            // Every new active configuration forces a resync before any delta.
+            // Pagination storage and proof happen to be fresh too, but are not
+            // the reason this coherent capture earns another bounded budget.
+            let view = captured_cursor(config, 10, config as u8, &format!("capture-{config}"));
+            progress.observe(view.cursor());
+            emitter.set(CachePhase::Live, Some(&view));
+            emitter.set(CachePhase::Resyncing, None);
+            assert!(resume_read(&emitter, policy, &mut progress, &cancel).await);
+            assert_eq!(progress.failures, 1);
+        }
+        let view = captured_cursor(8, 11, 9, "advanced-global-sequence");
+        progress.observe(view.cursor());
+        assert!(resume_read(&emitter, policy, &mut progress, &cancel).await);
+        assert_eq!(progress.failures, 1);
+        rig.owner.close().await;
+    }
+    #[tokio::test]
+    async fn identical_recaptures_with_new_tokens_and_proofs_are_bounded_and_publish_blocked() {
+        let rig = Rig::new();
+        let emitter = recovery_emitter(&rig);
+        let policy =
+            ReconnectPolicy::new(4, Duration::from_millis(1), Duration::from_millis(4)).unwrap();
+        let cancel = CancellationToken::new();
+        let mut progress = ReadProgress::default();
+        for attempt in 1..=4 {
+            let view = captured_cursor(1, 10, attempt, &format!("different-token-{attempt}"));
+            progress.observe(view.cursor());
+            emitter.set(CachePhase::Live, Some(&view));
+            emitter.set(CachePhase::Resyncing, None);
+            assert_eq!(
+                resume_read(&emitter, policy, &mut progress, &cancel).await,
+                attempt < 4
+            );
+        }
+        {
+            let display = emitter.state.lock().unwrap();
+            assert_eq!(display.phase, CachePhase::Blocked);
+            assert!(display.view.is_none());
+        }
+        let ticket = rig.queued.lock().unwrap().pop().unwrap();
+        assert_eq!(
+            ticket.deliver(|_, phase| assert_eq!(phase, CachePhase::Blocked)),
+            DeliveryOutcome::Delivered
+        );
+        rig.owner.close().await;
+    }
+    #[tokio::test]
+    async fn quiet_long_watch_rotations_reconnect_without_exhausting_the_retry_budget() {
+        let rig = Rig::new();
+        let emitter = recovery_emitter(&rig);
+        let policy =
+            ReconnectPolicy::new(4, Duration::from_millis(1), Duration::from_millis(4)).unwrap();
+        let cancel = CancellationToken::new();
+        let view = captured_cursor(1, 10, 1, "quiet-view");
+        let mut progress = ReadProgress::default();
+        progress.observe(view.cursor());
+        for rotation in 0..8 {
+            // No data changes, new snapshot tokens or refreshed proofs are
+            // needed: an idle retained stream may rotate repeatedly.
+            let exit = if rotation % 2 == 0 {
+                WatchExit::Ended(view.clone())
+            } else {
+                WatchExit::Transport {
+                    failure: connectrpc::ConnectError::new(
+                        connectrpc::ErrorCode::DeadlineExceeded,
+                        "synthetic watch deadline",
+                    )
+                    .into(),
+                    retained: Some(view.clone()),
+                }
+            };
+            progress.watch_ended(Duration::from_secs(30), &exit);
+            emitter.set(CachePhase::Offline, Some(&view));
+            assert!(resume_read(&emitter, policy, &mut progress, &cancel).await);
+            assert_eq!(progress.failures, 1);
+        }
+        // A healthy rotation does not create an unbounded budget for the next
+        // rapid failure sequence on that same cursor.
+        for attempt in 2..=4 {
+            progress.watch_ended(Duration::from_millis(1), &WatchExit::Ended(view.clone()));
+            assert_eq!(
+                resume_read(&emitter, policy, &mut progress, &cancel).await,
+                attempt < 4
+            );
+        }
+        assert_eq!(emitter.state.lock().unwrap().phase, CachePhase::Blocked);
+        rig.owner.close().await;
+    }
+
+    #[test]
+    fn long_resyncs_invalidations_and_authority_failures_never_reset_watch_failures() {
+        let view = captured_cursor(1, 10, 1, "unchanged-view");
+        let mut progress = ReadProgress::default();
+        progress.observe(view.cursor());
+        progress.failures = 3;
+        let exits = [
+            WatchExit::Ended(view.clone()),
+            WatchExit::Transport {
+                failure: connectrpc::ConnectError::new(
+                    connectrpc::ErrorCode::DeadlineExceeded,
+                    "synthetic short deadline",
+                )
+                .into(),
+                retained: Some(view),
+            },
+        ];
+        for exit in exits {
+            progress.watch_ended(Duration::from_millis(29_999), &exit);
+            assert_eq!(progress.failures, 3, "short watches remain bounded");
+        }
+        let exits = [
+            WatchExit::Resync(buffa::EnumValue::Unknown(255)),
+            WatchExit::Invalid(CacheFailure::Expired),
+            WatchExit::Cancelled,
+            WatchExit::Transport {
+                failure: connectrpc::ConnectError::new(
+                    connectrpc::ErrorCode::Unauthenticated,
+                    "synthetic authority failure",
+                )
+                .into(),
+                retained: None,
+            },
+            WatchExit::Transport {
+                failure: connectrpc::ConnectError::new(
+                    connectrpc::ErrorCode::DeadlineExceeded,
+                    "synthetic deadline without an admitted view",
+                )
+                .into(),
+                retained: None,
+            },
+        ];
+        for exit in exits {
+            progress.watch_ended(Duration::from_secs(3600), &exit);
+            assert_eq!(progress.failures, 3, "duration cannot restore authority");
+        }
+    }
+    #[test]
+    fn only_admitted_cohort_changes_or_forward_positions_reset_read_failures() {
+        let mut progress = ReadProgress::default();
+        let original = captured_cursor(1, 10, 1, "original");
+        progress.observe(original.cursor());
+        progress.failed();
+        let older = captured_cursor(1, 9, 2, "older-position");
+        progress.observe(older.cursor());
+        assert_eq!(progress.failures, 1);
+        let same = captured_cursor(1, 10, 3, "same-position");
+        progress.observe(same.cursor());
+        assert_eq!(progress.failures, 1);
+        for change in 0..6 {
+            let mut cursor = original.cursor().clone();
+            match change {
+                0 => cursor.epoch = "restarted-epoch".into(),
+                1 => cursor.config_revision += 1,
+                2 => cursor.authorization_revision += 1,
+                3 => cursor.config_sha256 = vec![7; 32],
+                4 => cursor.grant_sha256 = vec![8; 32],
+                5 => cursor.global_sequence += 1,
+                _ => unreachable!(),
+            }
+            progress.cursor = Some(original.cursor().clone());
+            progress.failures = 3;
+            progress.observe(&cursor);
+            assert_eq!(progress.failures, 0, "progress case {change}");
         }
     }
 

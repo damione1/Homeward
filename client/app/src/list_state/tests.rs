@@ -90,6 +90,40 @@ fn dirty() -> State {
 }
 
 #[test]
+fn grocery_list_scope_cannot_survive_list_switch_or_private_reset() {
+    let mut state = ready();
+    let token = state.selected_list_token();
+    let generation = state.generation;
+    assert!(state.matches_list_scope(token, generation));
+    assert!(!state.matches_list_scope(0, generation));
+    state
+        .select_list(state.catalog_tokens[1], generation)
+        .unwrap();
+    assert!(!state.matches_list_scope(token, generation));
+    assert!(!state.matches_list_scope(token, state.generation));
+    let next = state.selected_list_token();
+    assert!(state.matches_list_scope(next, state.generation));
+    state.clear();
+    assert!(!state.matches_list_scope(next, state.generation));
+}
+
+#[test]
+fn an_uncertain_add_never_authorizes_clearing_the_input() {
+    let mut state = ready();
+    let prepared = state
+        .prepare(state.generation, Write::Add("Unconfirmed item".into()))
+        .unwrap();
+    assert!(state.confirmed_add.is_none());
+    state.finish(
+        prepared.context,
+        prepared.id,
+        ListWriteOutcome::CommitUnknown(WriteIssue::Transport(FailureKind::NetworkInterrupted)),
+    );
+    assert!(state.confirmed_add.is_none());
+    assert!(!state.busy());
+}
+
+#[test]
 fn tokens_and_revisions_cannot_retarget_an_equal_uid_in_another_list() {
     let mut state = dirty();
     let token = state.item_tokens[0];
@@ -215,7 +249,7 @@ fn offline_withdraws_a_prepared_write_and_unknown_outcomes_stay_unknown_after_re
         .unwrap();
     let key = state.selected_item.clone().unwrap();
     assert!(state.drafts[&key].phase == DraftPhase::Unknown);
-    assert!(state.notice.contains("inconnu"));
+    assert!(state.notice.contains("unknown"));
     assert!(state.read_notice.is_empty());
     assert!(matches!(
         state.prepare(state.generation, Write::Save),
@@ -385,7 +419,7 @@ fn resync_resumes_only_an_identity_read_again_in_a_fresh_authorized_catalogue() 
         .publish_items(items(LIST, 12, &[("same", 4, "Fresh authorized value")]))
         .unwrap();
     assert!(!state.drafts.contains_key(&key));
-    assert!(state.notice.contains("brouillons"));
+    assert!(state.notice.contains("drafts"));
     state.reset_for_resync();
     state.active = true;
     state.publish_catalog(catalog(&["other-list"])).unwrap();
@@ -397,7 +431,7 @@ fn resync_during_a_write_reports_uncertainty_and_never_revives_its_admission() {
     let mut state = dirty();
     let prepared = state.prepare(state.generation, Write::Save).unwrap();
     state.reset_for_resync();
-    assert!(state.notice.contains("résultat inconnu"));
+    assert!(state.notice.contains("outcome unknown"));
     state.active = true;
     state.publish_catalog(catalog(&[LIST])).unwrap();
     assert!(!state.admits(prepared.context, prepared.id));

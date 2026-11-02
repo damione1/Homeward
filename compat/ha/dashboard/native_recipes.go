@@ -150,13 +150,21 @@ func ProjectNativeRecipes(owner Location, actions []Action, visibility []Visibil
 		list := &wire.NativePredicateList{}
 		remaining := 63 // the enclosing conjunction consumes the first node
 		for _, value := range visibility {
+			if value.Kind() == VisibilityScreen {
+				if _, _, valid := value.Viewport(); !valid {
+					return nil, ErrUnprojectableRecipe
+				}
+				continue // handled exclusively by LayoutNode.screen_visibility
+			}
 			predicate, err := projectNativePredicate(value, resolver, 1, &remaining)
 			if err != nil {
 				return nil, err
 			}
 			list.Conditions = append(list.Conditions, predicate)
 		}
-		recipes.Visibility = &wire.NativePredicate{Source: nativeSource(owner, "visibility"), Condition: &wire.NativePredicate_All{All: list}}
+		if len(list.Conditions) != 0 {
+			recipes.Visibility = &wire.NativePredicate{Source: nativeSource(owner, "visibility"), Condition: &wire.NativePredicate_All{All: list}}
+		}
 	}
 	if len(recipes.Interactions) == 0 && recipes.Visibility == nil {
 		return nil, nil

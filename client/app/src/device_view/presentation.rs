@@ -1,7 +1,7 @@
 //! Transferable projection data. Slint's nested models use Rc and are created
 //! only on the UI thread, after the cache publication fence has been checked.
 use crate::{
-    IconKind, OptionRow, ProActionPhase, ProAlarmChoice, ProControlAccess, ProCoverChoice,
+    IconGlyph, OptionRow, ProActionPhase, ProAlarmChoice, ProControlAccess, ProCoverChoice,
     ProDeviceChoice, ProDeviceKind, ProDeviceRow, ProDeviceValue, ProLockChoice, SelectState,
 };
 use slint::{Model, ModelRc, SharedString, VecModel};
@@ -37,16 +37,19 @@ macro_rules! card_row {
             pub lock_operations: Vec<ProLockChoice>,
             pub alarm_operations: Vec<ProAlarmChoice>,
             pub values: Vec<ProDeviceValue>,
+            pub field_keys: std::collections::BTreeMap<&'static str, i32>,
             pub choices: Vec<ProDeviceChoice>,
             pub select_options: Vec<OptionRow>,
             pub environment: crate::environment_view::Presentation,
         }
         impl CardRow {
-            pub fn ui(&self, previous: Option<&ProDeviceRow>) -> ProDeviceRow {
+            pub fn ui(&self, previous: Option<&ProDeviceRow>, icon: &IconGlyph) -> ProDeviceRow {
                 let previous=previous.filter(|row|row.token==self.token && row.generation==self.generation);
                 let (environment_kind,weather,solar,presence)=self.environment.ui(previous);
                 ProDeviceRow {
-                    environment_kind, weather, solar, presence,
+                    has_primary_value: self.field_keys.contains_key("setpoint_celsius") || self.field_keys.contains_key("setpoint_range_celsius"),
+                    primary_value_token: self.field_keys.get("setpoint_celsius").or_else(|| self.field_keys.get("setpoint_range_celsius")).copied().unwrap_or_default(),
+                    environment_kind, weather, solar, presence, icon: icon.clone(),
                     $($field:self.$field.to_owned(),)*
                     cover_operations:nested(self.cover_operations.as_slice(),previous.map(|row|&row.cover_operations)),
                     lock_operations:nested(self.lock_operations.as_slice(),previous.map(|row|&row.lock_operations)),
@@ -60,9 +63,9 @@ macro_rules! card_row {
     }
 }
 card_row! {
-    token:i32, generation:i32, kind:ProDeviceKind,
+    token:i32, generation:i32, kind:ProDeviceKind, summary_only:bool,
     title:SharedString, value:SharedString, unit:SharedString, quality:SharedString, freshness:SharedString,
-    icon:IconKind, power_known:bool, power_on:bool,
+    power_known:bool, power_on:bool,
     brightness_known:bool, brightness_percent:f32,
     brightness_minimum:f32, brightness_maximum:f32, brightness_step:f32,
     can_power:bool, can_brightness:bool, access:ProControlAccess,
@@ -85,16 +88,19 @@ mod tests {
             }],
             ..Default::default()
         };
-        let first = row.ui(None);
+        row.field_keys.insert("setpoint_celsius", 0);
+        let first = row.ui(None, &IconGlyph::default());
+        assert!(first.has_primary_value);
+        assert_eq!(first.primary_value_token, 0);
         row.values[0].lower = "-".into();
-        let refreshed = row.ui(Some(&first));
+        let refreshed = row.ui(Some(&first), &IconGlyph::default());
         assert_eq!(
             first.values, refreshed.values,
             "a live editor must retain its model"
         );
         assert_eq!(refreshed.values.row_data(0).unwrap().lower, "-");
         row.generation += 1;
-        let replaced = row.ui(Some(&refreshed));
+        let replaced = row.ui(Some(&refreshed), &IconGlyph::default());
         assert_ne!(
             replaced.values, refreshed.values,
             "an old gesture must not share the replacement editor"

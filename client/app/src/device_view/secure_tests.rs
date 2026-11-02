@@ -188,7 +188,7 @@ fn typed_sdk_choices_resolve_to_the_same_host_choice_and_exact_wire_operation() 
                     crate::ProLockOperation::Unlock
                 );
                 assert!(row.cover_operations.is_empty() && row.alarm_operations.is_empty());
-                assert!(row.value.contains("bloquée"));
+                assert!(row.value.contains("jammed"));
                 Arguments::Lock(
                     wire::LockAction {
                         operation: wire::LockOperation::Unlock.into(),
@@ -203,7 +203,7 @@ fn typed_sdk_choices_resolve_to_the_same_host_choice_and_exact_wire_operation() 
                     crate::ProAlarmOperation::Disarm
                 );
                 assert!(row.cover_operations.is_empty() && row.lock_operations.is_empty());
-                assert!(row.value.contains("déclenchée"));
+                assert!(row.value.contains("triggered"));
                 Arguments::Alarm(
                     wire::AlarmAction {
                         operation: wire::AlarmOperation::Disarm.into(),
