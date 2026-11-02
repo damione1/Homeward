@@ -667,7 +667,9 @@ fn profile_message(error: ProfileFailure) -> &'static str {
         ProfileFailure::InvalidEndpoint => {
             "Enter an HTTPS address without credentials, a path, parameters or a fragment."
         }
-        ProfileFailure::InvalidTrust => "The trusted PEM certificate is missing or invalid.",
+        ProfileFailure::InvalidTrust => {
+            "Certificate trust could not be configured. Check the private certificate, if provided."
+        }
         ProfileFailure::Unavailable => {
             "The server configuration could not be saved on this device."
         }
@@ -1010,6 +1012,7 @@ async fn install_profile(
         .join(" ");
     ui.post(epoch, move |window| {
         window.set_server_draft(origin.clone().into());
+        window.set_use_private_certificate(!certificates.is_empty());
         window.set_certificate_draft(certificates.into());
         window.set_endpoint_label(origin.into());
         window.set_trust_fingerprint(fingerprint.into());

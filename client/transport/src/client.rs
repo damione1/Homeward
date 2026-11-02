@@ -30,7 +30,7 @@ pub struct StateTransport {
 }
 
 impl StateTransport {
-    /// Require an HTTPS origin and explicitly supplied trusted CA certificates.
+    /// Require HTTPS; an empty PEM selects device trust, otherwise private CAs.
     /// Rustls keeps its standard chain and server-name verification enabled.
     pub fn new(origin: &str, trusted_ca_pem: &[u8]) -> Result<Self, Failure> {
         Ok(Connection::new(origin, trusted_ca_pem)?.state())

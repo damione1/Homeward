@@ -72,6 +72,13 @@ pub fn run() -> Result<(), slint::PlatformError> {
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
+    // AndroidApp owns these VM/activity references throughout initialization.
+    let _ = unsafe {
+        home_client_transport::initialize_android_trust(
+            app.vm_as_ptr().cast(),
+            app.activity_as_ptr().cast(),
+        )
+    };
     let context = home_client_platform::NativeStoreContext::new(&app);
     let _ = home_client_platform::notifications::initialize(&app);
     let lifecycle = session_host::LifecycleBridge::new();

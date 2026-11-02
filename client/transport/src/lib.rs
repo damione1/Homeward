@@ -33,6 +33,8 @@ pub use configuration::{
     ConfigurationTransport, ConfigurationWatch,
 };
 pub use connection::Connection;
+#[cfg(target_os = "android")]
+pub use connection::initialize_android_trust;
 pub use connectrpc::ErrorCode as RpcCode;
 pub use dashboard::{DashboardTransport, DashboardWatch};
 pub use failure::{DetailFailure, Failure, FailureKind};

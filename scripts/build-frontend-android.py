@@ -2,7 +2,7 @@
 """Build with cargo-apk 0.10; enforce lock immutability despite its missing --locked."""
 import argparse
 import json
-from frontend_android_package import package_activity
+from frontend_android_package import package_activity, verify_native_trust_lock
 from enum import Enum
 from pathlib import Path
 import subprocess
@@ -29,6 +29,7 @@ args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
 lock = root / 'Cargo.lock'
 before = lock.read_bytes()
+verify_native_trust_lock(root)
 metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--no-deps', '--format-version', '1'], cwd=root, text=True))
 result = subprocess.run(['cargo', 'apk', 'build', '-p', 'homeward-app', '--lib', '--target', 'aarch64-linux-android',
                          *args.profile.arguments()], cwd=root)

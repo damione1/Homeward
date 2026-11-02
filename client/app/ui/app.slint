@@ -1,6 +1,6 @@
 export { KitFormValidation, HtmlInputKind, NumberInputFormat, KitInputConstraints, KitValidationResult, KitValidityState } from "@kit/kit.slint";
 import { KitDialogSurface, KitDialogPanel, KitIconButton, KitButton, KitSelect, KitTheme, KitThemes, KitThemeContext, KitCard, KitCardHeader, KitUrlField,
-    KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess,
+    KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess, KitCheckbox, CheckState,
     KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest } from "@kit/kit.slint";
 import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro/kit-pro.slint";
@@ -53,6 +53,7 @@ export component HomewardWindow inherits Window {
     changed theme => { KitThemeContext.current = root.theme; }
     in-out property <string> server-draft;
     in-out property <string> certificate-draft;
+    in-out property <bool> use-private-certificate;
     in-out property <bool> show-endpoint: true;
     in property <bool> endpoint-ready;
     in property <string> endpoint-label;
@@ -498,23 +499,26 @@ export component HomewardWindow inherits Window {
         if root.show-endpoint: KitCard {
             theme: root.theme;
             KitCardHeader { theme: root.theme; title: "Your Server";
-                description: "HTTPS address and trusted public certificate provided by your administrator."; }
+                description: "Connect securely to your Homeward server."; }
             KitUrlField { theme: root.theme; control-size: comfortable; label: "Server Address";
                 placeholder: "https://home.example.com"; text <=> root.server-draft; }
-            KitTextArea { theme: root.theme; control-size: comfortable; label: "Trusted Certificate (PEM)";
+            KitCheckbox { theme: root.theme; label: "Use a private certificate (advanced)";
+                state: root.use-private-certificate ? CheckState.checked : CheckState.unchecked;
+                toggled(state) => { root.use-private-certificate = state == CheckState.checked; } }
+            if root.use-private-certificate: KitTextArea { theme: root.theme; control-size: comfortable; label: "Trusted Certificate (PEM)";
                 min-lines: 3; max-lines: 5; text <=> root.certificate-draft;
                 input-method-hints: { capitalization: CapitalizationMode.none, auto-correct: false, auto-complete: false }; }
             if root.setup-message != "": KitAlert {
                 theme: root.theme; title: "Connect to Server"; message: root.setup-message;
             }
             KitButton { theme: root.theme; control-size: comfortable; text: "Use This Server"; control-width: ControlWidth.fill;
-                disabled: root.server-draft == "" || root.certificate-draft == "";
-                activated => { root.connect-endpoint(root.server-draft, root.certificate-draft); } }
+                disabled: root.server-draft == "" || (root.use-private-certificate && root.certificate-draft == "");
+                activated => { root.connect-endpoint(root.server-draft, root.use-private-certificate ? root.certificate-draft : ""); } }
         }
         if root.endpoint-ready && !root.show-endpoint: KitStack {
             Text { text: root.endpoint-label; color: root.theme.text-secondary;
                 font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
-            Text { text: "SHA-256 Trust: " + root.trust-fingerprint; color: root.theme.text-secondary;
+            if root.use-private-certificate: Text { text: "SHA-256 Trust: " + root.trust-fingerprint; color: root.theme.text-secondary;
                 font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
             if root.recovery-receipt != "": KitCard {
                 theme: root.theme;
