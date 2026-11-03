@@ -138,7 +138,7 @@ enum StartupRead {
 }
 impl StartupRead {
     fn claim(&mut self, phase: Phase) -> bool {
-        if !matches!(phase, Phase::Ready | Phase::Refreshing) {
+        if !matches!(phase, Phase::Ready | Phase::Refreshing | Phase::Offline) {
             return false;
         }
         match self {
@@ -340,7 +340,7 @@ impl LifecycleBridge {
 }
 
 fn should_resume_view(requested: bool, phase: Phase) -> bool {
-    requested && matches!(phase, Phase::Ready | Phase::Refreshing)
+    requested && matches!(phase, Phase::Ready | Phase::Refreshing | Phase::Offline)
 }
 // A projection target must not retain the slot containing its own CacheHandle.
 // Otherwise Inner.notify -> Ui -> binding -> Inner forms a reference cycle.
@@ -690,6 +690,7 @@ fn invitation_allowed(phase: Phase) -> bool {
         | Phase::EnrollmentRequired
         | Phase::Ready
         | Phase::Refreshing
+        | Phase::Offline
         | Phase::AuthorityUnavailable
         | Phase::RightsChanged
         | Phase::StorageUnavailable
@@ -711,7 +712,10 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
         "Your session credentials are kept in this device’s secure storage.".into(),
     );
     window.set_session_severity(AlertSeverity::Success);
-    if !matches!(view.phase, Phase::Ready | Phase::Refreshing) {
+    if !matches!(
+        view.phase,
+        Phase::Ready | Phase::Refreshing | Phase::Offline
+    ) {
         cache_view::clear(window);
     }
     let message = match view.phase {
@@ -752,6 +756,13 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
                 "Too many attempts",
                 "Wait before trying again. No retry will start automatically.",
             ))
+        }
+        Phase::Offline => {
+            window.set_access_stage(ProAccessStage::Connected);
+            window.set_session_title("Offline".into());
+            window.set_session_description("Your session is saved on this device. Retry the connection when the server is reachable.".into());
+            window.set_session_severity(AlertSeverity::Warning);
+            None
         }
         Phase::NetworkUnavailable => {
             window.set_access_stage(ProAccessStage::Identity);
@@ -1174,6 +1185,7 @@ async fn install_profile(
                 | Phase::EnrollmentRequired
                 | Phase::RateLimited
                 | Phase::NetworkUnavailable
+                | Phase::Offline
                 | Phase::AuthorityUnavailable
                 | Phase::StorageUnavailable
                 | Phase::UnsupportedResponse => {}
@@ -2154,6 +2166,28 @@ mod tests {
     }
 
     #[test]
+    fn saved_offline_session_stays_connected_and_can_start_or_resume_one_read() {
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        let connection =
+            home_client_transport::Connection::new("https://127.0.0.1:1", &[]).unwrap();
+        let owner = SessionCoordinator::new(connection.auth(), Arc::new(UnusedCredentialStore));
+        let mut view = *owner.subscribe().borrow();
+        view.phase = Phase::Offline;
+        render_view(&window, view);
+        assert_eq!(window.get_access_stage(), ProAccessStage::Connected);
+        assert!(!window.get_busy());
+        assert!(!invitation_allowed(Phase::Offline));
+        assert!(should_resume_view(true, Phase::Offline));
+        assert!(!should_resume_view(false, Phase::Offline));
+        let mut startup = StartupRead::default();
+        assert!(startup.claim(Phase::Offline));
+        assert!(!startup.claim(Phase::Offline));
+        startup = StartupRead::Cancelled;
+        assert!(!startup.claim(Phase::Offline));
+    }
+
+    #[test]
     fn lifecycle_notifications_are_typed_and_duplicate_native_events_do_not_restart_work() {
         let bridge = LifecycleBridge::new();
         let mut events = bridge.events.subscribe();
@@ -2201,7 +2235,7 @@ mod tests {
 
     #[test]
     fn foreground_resume_never_opens_an_unrequested_or_suspended_authority_view() {
-        for phase in [Phase::Ready, Phase::Refreshing] {
+        for phase in [Phase::Ready, Phase::Refreshing, Phase::Offline] {
             assert!(should_resume_view(true, phase));
             assert!(!should_resume_view(false, phase));
         }

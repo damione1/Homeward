@@ -39,12 +39,20 @@ pub enum FailureKind {
 /// The diagnostic representation excludes headers, response text and credentials.
 pub struct Failure {
     kind: FailureKind,
+    not_dispatched: bool,
     rpc: Option<Box<ConnectError>>,
 }
 
 impl Failure {
     pub fn kind(&self) -> FailureKind {
         self.kind
+    }
+
+    /// True only when the typed HTTP connection failure proves the request
+    /// never reached a sender. This does not make TLS failures retryable and
+    /// must never reclassify send, response, deadline or cancellation errors.
+    pub fn request_not_dispatched(&self) -> bool {
+        self.not_dispatched
     }
 
     /// A read may reconnect after a transient transport/remote cancellation.
@@ -145,6 +153,7 @@ impl Failure {
     pub(crate) fn invalid_configuration() -> Self {
         Self {
             kind: FailureKind::InvalidConfiguration,
+            not_dispatched: false,
             rpc: None,
         }
     }
@@ -152,6 +161,7 @@ impl Failure {
     pub(crate) fn cancelled() -> Self {
         Self {
             kind: FailureKind::Cancelled,
+            not_dispatched: false,
             rpc: None,
         }
     }
@@ -160,6 +170,7 @@ impl Failure {
 impl From<ConnectError> for Failure {
     fn from(error: ConnectError) -> Self {
         let mut kind = FailureKind::Rpc(error.code);
+        let mut not_dispatched = false;
         // Caller cancellation is produced by our CancellationToken branches.
         // A server's Canceled status (including graceful restart) stays an RPC.
         if error.code == ErrorCode::DeadlineExceeded {
@@ -168,7 +179,11 @@ impl From<ConnectError> for Failure {
         let mut sources: Vec<&(dyn Error + 'static)> = vec![&error];
         for _ in 0..16 {
             let Some(current) = sources.pop() else { break };
+            if let Some(connection) = current.downcast_ref::<hyper_util::client::legacy::Error>() {
+                not_dispatched |= connection.is_connect();
+            }
             if current.is::<connectrpc::client::ResponseBodyReadError>() {
+                not_dispatched = false;
                 kind = FailureKind::NetworkInterrupted;
                 break;
             }
@@ -202,6 +217,7 @@ impl From<ConnectError> for Failure {
         }
         Self {
             kind,
+            not_dispatched,
             rpc: Some(Box::new(error)),
         }
     }

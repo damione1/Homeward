@@ -23,6 +23,12 @@ pub(crate) trait AuthApi: Send + Sync {
         request: auth::CompleteLoginRequest,
         cancel: &CancellationToken,
     ) -> Result<auth::CompleteLoginResponse, Failure>;
+    async fn preflight_refresh(
+        &self,
+        request: auth::ListSessionsRequest,
+        token: &AccessToken,
+        cancel: &CancellationToken,
+    ) -> Result<(), Failure>;
     async fn refresh(
         &self,
         request: auth::RefreshSessionRequest,
@@ -56,6 +62,16 @@ impl AuthApi for AuthTransport {
     ) -> Result<auth::CompleteLoginResponse, Failure> {
         self.complete_login(request, Duration::from_secs(10), cancel)
             .await
+    }
+    async fn preflight_refresh(
+        &self,
+        request: auth::ListSessionsRequest,
+        token: &AccessToken,
+        cancel: &CancellationToken,
+    ) -> Result<(), Failure> {
+        self.list_sessions(request, token, Duration::from_secs(5), cancel)
+            .await
+            .map(|_| ())
     }
     async fn refresh(
         &self,

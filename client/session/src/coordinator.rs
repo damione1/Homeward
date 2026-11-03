@@ -203,7 +203,9 @@ impl SessionCoordinator {
                     home_client_transport::RpcCode::Unauthenticated,
                 )) => Phase::CredentialRejected,
                 SessionFailure::Transport(_) => Phase::NetworkUnavailable,
-                SessionFailure::Cancelled | SessionFailure::Closed => Phase::SignedOut,
+                SessionFailure::Cancelled
+                | SessionFailure::RefreshSuperseded
+                | SessionFailure::Closed => Phase::SignedOut,
                 SessionFailure::NeedsLogin => Phase::NeedsLogin,
                 SessionFailure::RefreshUncertain(FailureKind::Rpc(
                     home_client_transport::RpcCode::ResourceExhausted,
@@ -482,6 +484,8 @@ impl SessionCoordinator {
         // must instead cancel every waiter from the previous session identity.
         let identity_epoch = self.inner.identity_epoch.load(Ordering::SeqCst);
         let mut changes = self.subscribe();
+        let mut first_attempt = true;
+        let mut refresh_generation = None;
         loop {
             let mut state = self.inner.state.lock().await;
             if self.inner.shutdown.is_cancelled() {
@@ -493,6 +497,19 @@ impl SessionCoordinator {
             if self.inner.identity_epoch.load(Ordering::SeqCst) != identity_epoch {
                 return Err(SessionFailure::Cancelled);
             }
+            if refresh_generation.is_some_and(|attempt| attempt != self.generation()) {
+                // A later renewal superseded the attempt this waiter joined.
+                // It must not silently join that new attempt after missing Offline.
+                return Err(SessionFailure::RefreshSuperseded);
+            }
+            // A fresh read intention can retry a saved, unconsumed renewal.
+            // Waiters on the previous shared attempt all receive its outcome.
+            if first_attempt && state.phase == Phase::Offline && state.record.is_some() {
+                state.phase = Phase::Ready;
+                state.failure = None;
+                self.publish(Phase::Ready);
+            }
+            first_attempt = false;
             if state.phase == Phase::Ready {
                 let record = state.record.clone().ok_or(SessionFailure::NeedsLogin)?;
                 let now = self.inner.clock.now()?;
@@ -533,6 +550,7 @@ impl SessionCoordinator {
             } else if state.phase != Phase::Refreshing {
                 return Err(state.failure.unwrap_or(SessionFailure::NeedsLogin));
             }
+            refresh_generation = Some(self.generation());
             drop(state);
             tokio::select! {
                 biased;
@@ -545,6 +563,22 @@ impl SessionCoordinator {
 
     async fn refresh(&self, generation: Generation, previous: Arc<SecretRecord>) {
         let result = async {
+            // A read-only reachability check avoids burning a refresh while a
+            // reverse proxy is up but its backend is offline. Its success is
+            // never used to reclassify a later ambiguous refresh failure.
+            let access = AccessToken::parse(&previous.tokens.access_token).map_err(|_| SessionFailure::InvalidResponse)?;
+            if let Err(error) = self.inner.api.preflight_refresh(
+                auth::ListSessionsRequest { account_id: previous.tokens.session.account_id.clone(), ..Default::default() },
+                &access, &self.token_for(generation)?).await {
+                let expired_access = error.kind() == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated)
+                    && matches!(error.authorization_termination(), Ok(Some(detail)) if detail.reason == auth::AuthorizationTerminationReason::CredentialExpired);
+                if !expired_access {
+                    let reaction = self.observe_failure_inner(generation, &error).await?;
+                    if reaction != SessionReaction::Unchanged { return Ok(()); }
+                    self.defer_unstarted_refresh(generation, previous, error.kind()).await?;
+                    return Ok(());
+                }
+            }
             let consumed = SecretRecord {
                 tokens: previous.tokens.clone(),
                 admitted_at: previous.admitted_at.clone(),
@@ -554,7 +588,7 @@ impl SessionCoordinator {
             if !self.is_current(generation) {
                 return Err(SessionFailure::Cancelled);
             }
-            let response = self
+            let response = match self
                 .inner
                 .api
                 .refresh(
@@ -565,16 +599,35 @@ impl SessionCoordinator {
                     &self.token_for(generation)?,
                 )
                 .await
-                .map_err(|error| SessionFailure::RefreshUncertain(error.kind()))?;
+            {
+                Ok(response) => response,
+                Err(error) if error.request_not_dispatched() => {
+                    // The durable burn is reversible ONLY with proof that
+                    // no HTTP request was sent. A lost reply stays burned.
+                    self.defer_unstarted_refresh(generation, previous, error.kind())
+                        .await?;
+                    return Ok(());
+                }
+                Err(error) => return Err(SessionFailure::RefreshUncertain(error.kind())),
+            };
             let tokens = response
                 .tokens
                 .into_option()
                 .ok_or(SessionFailure::InvalidResponse)?;
             if tokens.session.id != previous.tokens.session.id
                 || tokens.session.account_id != previous.tokens.session.account_id
-                || tokens.session.expires_at != previous.tokens.session.expires_at
-                || tokens.session.created_at != previous.tokens.session.created_at
-                || tokens.session.authenticated_at != previous.tokens.session.authenticated_at
+                || !same_persisted_instant(
+                    tokens.session.expires_at.as_option(),
+                    previous.tokens.session.expires_at.as_option(),
+                )
+                || !same_persisted_instant(
+                    tokens.session.created_at.as_option(),
+                    previous.tokens.session.created_at.as_option(),
+                )
+                || !same_persisted_instant(
+                    tokens.session.authenticated_at.as_option(),
+                    previous.tokens.session.authenticated_at.as_option(),
+                )
                 || tokens.session.authentication_satisfaction
                     != previous.tokens.session.authentication_satisfaction
             {
@@ -588,6 +641,25 @@ impl SessionCoordinator {
         if let Err(error) = result {
             self.fail(generation, error).await;
         }
+    }
+
+    async fn defer_unstarted_refresh(
+        &self,
+        generation: Generation,
+        previous: Arc<SecretRecord>,
+        failure: FailureKind,
+    ) -> Result<(), SessionFailure> {
+        self.persist(generation, Some(previous.encode())).await?;
+        let mut state = self.inner.state.lock().await;
+        if !self.is_current(generation) {
+            return Err(SessionFailure::Cancelled);
+        }
+        state.record = Some(previous);
+        state.challenge = None;
+        state.phase = Phase::Offline;
+        state.failure = Some(SessionFailure::Transport(failure));
+        self.publish_failure(Phase::Offline, state.failure);
+        Ok(())
     }
 
     pub async fn logout_local(&self) -> Result<(), SessionFailure> {
@@ -678,6 +750,16 @@ impl SessionCoordinator {
         failure: &Failure,
     ) -> Result<SessionReaction, SessionFailure> {
         let _operation = self.operation().await?;
+        self.observe_failure_inner(generation, failure).await
+    }
+
+    // Tracked refresh tasks already belong to this owner. They must not acquire
+    // operations.read while close holds operations.write and joins those tasks.
+    async fn observe_failure_inner(
+        &self,
+        generation: Generation,
+        failure: &Failure,
+    ) -> Result<SessionReaction, SessionFailure> {
         use auth::AuthorizationTerminationReason as Reason;
         let reason = match failure.authorization_termination() {
             Ok(Some(detail)) => Some(detail.reason.as_known()),
@@ -769,3 +851,18 @@ impl SessionCoordinator {
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+
+// PostgreSQL timestamps retain microseconds. Older servers returned the original
+// nanoseconds at login, then the stored precision at rotation. Only these three
+// immutable timestamps use that resolution; all other identity checks stay exact.
+fn same_persisted_instant(a: Option<&Timestamp>, b: Option<&Timestamp>) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => {
+            (0..1_000_000_000).contains(&a.nanos)
+                && (0..1_000_000_000).contains(&b.nanos)
+                && a.seconds == b.seconds
+                && a.nanos / 1000 == b.nanos / 1000
+        }
+        (Some(_), None) | (None, Some(_)) | (None, None) => false,
+    }
+}

@@ -109,8 +109,5 @@ async fn system_trust_rejects_a_private_ca_while_explicit_trust_verifies_identit
         handshake("127.0.0.1", CA).await,
         FailureKind::Rpc(ErrorCode::Unauthenticated)
     );
-    assert_eq!(
-        handshake("::1", CA).await,
-        FailureKind::WrongServerName
-    );
+    assert_eq!(handshake("::1", CA).await, FailureKind::WrongServerName);
 }

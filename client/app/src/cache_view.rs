@@ -2,7 +2,7 @@
 //! keeps the inventory virtualized at 64 rows. Configured dashboard forests
 //! are separately bounded by their negotiated profile.
 use crate::{
-    HomewardWindow, KitGlyphs, ProObservationRow, ProRoomRow, TableRow,
+    ConnectionStatus, HomewardWindow, KitGlyphs, ProObservationRow, ProRoomRow, TableRow,
     dashboard::{self, Icon, Layout, ProjectionRequest},
 };
 use buffa::EnumValue;
@@ -896,6 +896,7 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_media_notice("".into());
     window.set_view_loaded(false);
     window.set_commands_ready(false);
+    window.set_connection_status(ConnectionStatus::Idle);
     window.set_has_configured_layout(false);
     window.set_action_feedback("".into());
     window.set_dashboard_title("Home".into());
@@ -972,12 +973,14 @@ pub(crate) fn render(
     if !projection.home.captured && window.get_view_loaded() {
         clear_state(window, false);
         window.set_read_status(cache_status(projection.phase, 0).into());
+        window.set_connection_status(connection_status(projection.phase));
         return;
     }
     if projection.revision != window.get_projection_version() {
         return;
     }
     let revision = projection.revision;
+    window.set_connection_status(connection_status(projection.phase));
     if projection.phase == CachePhase::Live && projection.home.captured {
         // A coherent admitted recovery supersedes its transient read warning.
         // Device/list command outcomes remain independently owned.
@@ -1404,6 +1407,15 @@ pub(crate) fn publish_widget_agenda(
     model.set_row_data(index, row);
 }
 
+fn connection_status(phase: CachePhase) -> ConnectionStatus {
+    match phase {
+        CachePhase::Idle | CachePhase::Suspended | CachePhase::Closed => ConnectionStatus::Idle,
+        CachePhase::Loading | CachePhase::Resyncing => ConnectionStatus::Connecting,
+        CachePhase::Live => ConnectionStatus::Live,
+        CachePhase::Offline => ConnectionStatus::Offline,
+        CachePhase::Blocked | CachePhase::Invalid => ConnectionStatus::Blocked,
+    }
+}
 fn cache_status(phase: CachePhase, total: usize) -> String {
     let label = match phase {
         CachePhase::Idle => "",

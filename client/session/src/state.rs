@@ -16,10 +16,15 @@ impl Generation {
 pub enum Phase {
     SignedOut,
     Busy,
-    Challenge { recovery: bool, fido2: bool },
+    Challenge {
+        recovery: bool,
+        fido2: bool,
+    },
     EnrollmentRequired,
     Ready,
     Refreshing,
+    /// Saved session retained after a refresh proven not to have been sent.
+    Offline,
     NeedsLogin,
     CredentialRejected,
     RateLimited,
@@ -41,6 +46,8 @@ pub struct SessionView {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionFailure {
     Cancelled,
+    /// A newer renewal replaced this waiter under the same session identity.
+    RefreshSuperseded,
     NeedsLogin,
     Busy,
     UnsupportedFactor,

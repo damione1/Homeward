@@ -1,6 +1,6 @@
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicUsize, Ordering},
 };
 
 use async_trait::async_trait;
@@ -66,11 +66,30 @@ struct TestApi {
     rate_limit_refresh: AtomicBool,
     server_clock_offset: AtomicI64,
     access_lifetime: AtomicI64,
+    issued_nanos: AtomicI32,
+    rotated_nanos: AtomicI32,
+    refused_connect: AtomicBool,
+    gateway_offline: AtomicBool,
+    preflight_reason: Mutex<Option<auth::AuthorizationTerminationReason>>,
+    block_preflight: AtomicBool,
+    preflight_started: Notify,
+    preflight_cancelled: Notify,
+    preflight_release: Semaphore,
 }
 impl TestApi {
     fn tokens(&self, account: &str, rotated: bool) -> auth::SessionTokens {
         let offset = self.server_clock_offset.load(Ordering::SeqCst);
         let now = self.clock.0.load(Ordering::SeqCst) + offset;
+        let nanos = if rotated {
+            self.rotated_nanos.load(Ordering::SeqCst)
+        } else {
+            self.issued_nanos.load(Ordering::SeqCst)
+        };
+        let precise = |seconds| Timestamp {
+            seconds,
+            nanos,
+            ..Default::default()
+        };
         auth::SessionTokens {
             session: auth::Session {
                 id: auth::SessionId {
@@ -83,10 +102,10 @@ impl TestApi {
                     ..Default::default()
                 }
                 .into(),
-                created_at: timestamp(BASE - 1 + offset).into(),
-                expires_at: timestamp(BASE + 3600 + offset).into(),
+                created_at: precise(BASE - 1 + offset).into(),
+                expires_at: precise(BASE + 3600 + offset).into(),
                 authentication_satisfaction: auth::AuthenticationSatisfaction::PasswordOnly.into(),
-                authenticated_at: timestamp(BASE - 1 + offset).into(),
+                authenticated_at: precise(BASE - 1 + offset).into(),
                 ..Default::default()
             }
             .into(),
@@ -141,6 +160,28 @@ impl AuthApi for TestApi {
     ) -> Result<auth::CompleteLoginResponse, Failure> {
         Err(ConnectError::unimplemented("not used").into())
     }
+    async fn preflight_refresh(
+        &self,
+        _: auth::ListSessionsRequest,
+        _: &home_client_transport::AccessToken,
+        cancel: &CancellationToken,
+    ) -> Result<(), Failure> {
+        if self.block_preflight.load(Ordering::SeqCst) {
+            self.preflight_started.notify_one();
+            cancel.cancelled().await;
+            self.preflight_cancelled.notify_one();
+            self.preflight_release.acquire().await.unwrap().forget();
+            return Err(ConnectError::canceled("synthetic preflight cancelled").into());
+        }
+        let reason = *self.preflight_reason.lock().unwrap();
+        if let Some(reason) = reason {
+            return Err(termination(reason));
+        }
+        if self.gateway_offline.load(Ordering::SeqCst) {
+            return Err(ConnectError::unavailable("synthetic proxy backend unavailable").into());
+        }
+        Ok(())
+    }
     async fn refresh(
         &self,
         _: auth::RefreshSessionRequest,
@@ -164,6 +205,23 @@ impl AuthApi for TestApi {
                 () = cancel.cancelled() => return Err(ConnectError::canceled("synthetic cancellation").into()),
                 permit = self.release.acquire() => permit.unwrap().forget(),
             }
+        }
+        if self.refused_connect.load(Ordering::SeqCst) {
+            let socket = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let origin = format!("https://{}", socket.local_addr().unwrap());
+            drop(socket);
+            return home_client_transport::Connection::new(&origin, &[])
+                .unwrap()
+                .auth()
+                .refresh_session(
+                    auth::RefreshSessionRequest {
+                        refresh_token: "synthetic-unstarted-only".into(),
+                        ..Default::default()
+                    },
+                    std::time::Duration::from_secs(2),
+                    cancel,
+                )
+                .await;
         }
         if self.lost_reply.load(Ordering::SeqCst) {
             return Err(ConnectError::unavailable("synthetic lost reply").into());
@@ -197,6 +255,15 @@ fn fixture() -> (
         rate_limit_refresh: AtomicBool::new(false),
         server_clock_offset: AtomicI64::new(0),
         access_lifetime: AtomicI64::new(120),
+        issued_nanos: AtomicI32::new(0),
+        rotated_nanos: AtomicI32::new(0),
+        refused_connect: AtomicBool::new(false),
+        gateway_offline: AtomicBool::new(false),
+        preflight_reason: Mutex::new(None),
+        block_preflight: AtomicBool::new(false),
+        preflight_started: Notify::new(),
+        preflight_cancelled: Notify::new(),
+        preflight_release: Semaphore::new(0),
     });
     (
         SessionCoordinator::with_parts(api.clone(), store.clone(), clock.clone()),
@@ -565,4 +632,219 @@ async fn first_launch_with_an_empty_os_store_is_signed_out_without_a_refusal() {
     assert!(store.load().unwrap().is_none());
     assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 0);
     owner.close().await;
+}
+
+#[tokio::test]
+async fn rotation_accepts_sql_timestamp_precision_but_rejects_another_microsecond() {
+    for (rotated_nanos, accepted) in [(159_008_000, true), (159_009_000, false)] {
+        let (owner, api, clock, _) = fixture();
+        api.issued_nanos.store(159_008_138, Ordering::SeqCst);
+        api.rotated_nanos.store(rotated_nanos, Ordering::SeqCst);
+        owner
+            .login("alice".into(), Zeroizing::new("synthetic password".into()))
+            .await
+            .unwrap();
+        clock.0.store(BASE + 121, Ordering::SeqCst);
+        api.release.add_permits(1);
+        assert_eq!(
+            owner.access(&CancellationToken::new()).await.is_ok(),
+            accepted
+        );
+        assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
+        owner.close().await;
+    }
+}
+
+#[tokio::test]
+async fn proven_unstarted_refresh_survives_restart_then_renews_without_login() {
+    let (owner, api, clock, store) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("synthetic password".into()))
+        .await
+        .unwrap();
+    clock.0.store(BASE + 121, Ordering::SeqCst);
+    api.refused_connect.store(true, Ordering::SeqCst);
+    api.release.add_permits(1);
+    assert!(matches!(
+        owner.access(&CancellationToken::new()).await,
+        Err(SessionFailure::Transport(_))
+    ));
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
+    let bytes = store.load().unwrap().unwrap();
+    assert!(SecretRecord::decode(&bytes, &clock.now().unwrap()).is_ok());
+    assert_eq!(
+        store.clear_calls.load(Ordering::SeqCst),
+        1,
+        "only initial login cleared storage"
+    );
+    owner.close().await;
+    api.refused_connect.store(false, Ordering::SeqCst);
+    api.release.add_permits(1);
+    let restarted = SessionCoordinator::with_parts(api.clone(), store, clock);
+    restarted.restore().await.unwrap();
+    assert!(restarted.access(&CancellationToken::new()).await.is_ok());
+    assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 2);
+    restarted.close().await;
+}
+
+#[tokio::test]
+async fn logout_after_unstarted_refresh_cannot_be_revived_by_a_new_read() {
+    let (owner, api, clock, store) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("synthetic password".into()))
+        .await
+        .unwrap();
+    clock.0.store(BASE + 121, Ordering::SeqCst);
+    api.refused_connect.store(true, Ordering::SeqCst);
+    api.release.add_permits(1);
+    assert!(owner.access(&CancellationToken::new()).await.is_err());
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
+    owner.logout_local().await.unwrap();
+    assert!(store.load().unwrap().is_none());
+    assert!(owner.access(&CancellationToken::new()).await.is_err());
+    assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
+    owner.close().await;
+}
+
+#[tokio::test]
+async fn delayed_waiter_cannot_join_a_new_attempt_after_missing_offline() {
+    use std::{
+        future::{Future, poll_fn},
+        task::Poll,
+    };
+    let (owner, api, clock, _) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("synthetic password".into()))
+        .await
+        .unwrap();
+    clock.0.store(BASE + 121, Ordering::SeqCst);
+    api.refused_connect.store(true, Ordering::SeqCst);
+    let a = owner.clone();
+    let first = tokio::spawn(async move { a.access(&CancellationToken::new()).await });
+    api.started.notified().await;
+    let cancel = CancellationToken::new();
+    let mut delayed = Box::pin(owner.access(&cancel));
+    poll_fn(|cx| match delayed.as_mut().poll(cx) {
+        Poll::Pending => Poll::Ready(()),
+        Poll::Ready(_) => panic!("waiter must join blocked first refresh"),
+    })
+    .await;
+    api.release.add_permits(1);
+    assert!(first.await.unwrap().is_err());
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
+    api.refused_connect.store(false, Ordering::SeqCst);
+    let c = owner.clone();
+    let next = tokio::spawn(async move { c.access(&CancellationToken::new()).await });
+    api.started.notified().await;
+    assert!(matches!(
+        tokio::time::timeout(std::time::Duration::from_millis(100), delayed)
+            .await
+            .unwrap(),
+        Err(SessionFailure::RefreshSuperseded)
+    ));
+    api.release.add_permits(1);
+    assert!(next.await.unwrap().is_ok());
+    owner.close().await;
+}
+
+#[tokio::test]
+async fn proxy_backend_outage_preserves_unburned_session_before_refresh_dispatch() {
+    let (owner, api, clock, store) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("synthetic password".into()))
+        .await
+        .unwrap();
+    clock.0.store(BASE + 121, Ordering::SeqCst);
+    api.gateway_offline.store(true, Ordering::SeqCst);
+    assert!(owner.access(&CancellationToken::new()).await.is_err());
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
+    assert_eq!(
+        api.refresh_calls.load(Ordering::SeqCst),
+        0,
+        "read-only preflight must not dispatch renewal"
+    );
+    assert!(SecretRecord::decode(&store.load().unwrap().unwrap(), &clock.now().unwrap()).is_ok());
+    api.gateway_offline.store(false, Ordering::SeqCst);
+    api.release.add_permits(1);
+    assert!(owner.access(&CancellationToken::new()).await.is_ok());
+    assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
+    owner.close().await;
+}
+
+#[tokio::test]
+async fn closing_during_blocked_preflight_joins_without_operation_lock_deadlock() {
+    let (owner, api, clock, _) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("synthetic password".into()))
+        .await
+        .unwrap();
+    clock.0.store(BASE + 121, Ordering::SeqCst);
+    api.block_preflight.store(true, Ordering::SeqCst);
+    let reader = owner.clone();
+    let pending = tokio::spawn(async move { reader.access(&CancellationToken::new()).await });
+    api.preflight_started.notified().await;
+    let closing_owner = owner.clone();
+    let closing = tokio::spawn(async move { closing_owner.close().await });
+    api.preflight_cancelled.notified().await;
+    assert!(pending.await.unwrap().is_err());
+    tokio::task::yield_now().await;
+    assert!(
+        owner.inner.operations.try_read().is_err(),
+        "close owns the operation barrier while joining refresh"
+    );
+    api.preflight_release.add_permits(1);
+    tokio::time::timeout(std::time::Duration::from_millis(500), closing)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Closed);
+}
+
+#[tokio::test]
+async fn preflight_distinguishes_expired_access_from_revocation_and_unavailable_authority() {
+    use auth::AuthorizationTerminationReason as Reason;
+    for reason in [
+        Reason::CredentialExpired,
+        Reason::CredentialRevoked,
+        Reason::AuthorityUnavailable,
+    ] {
+        let (owner, api, clock, store) = fixture();
+        owner
+            .login("alice".into(), Zeroizing::new("synthetic password".into()))
+            .await
+            .unwrap();
+        clock.0.store(BASE + 121, Ordering::SeqCst);
+        *api.preflight_reason.lock().unwrap() = Some(reason);
+        api.release.add_permits(1);
+        let result = owner.access(&CancellationToken::new()).await;
+        match reason {
+            Reason::CredentialExpired => {
+                assert!(result.is_ok());
+                assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
+            }
+            Reason::CredentialRevoked => {
+                assert!(result.is_err());
+                assert_eq!(owner.subscribe().borrow().phase, Phase::NeedsLogin);
+                assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 0);
+                assert!(store.load().unwrap().is_none());
+            }
+            Reason::AuthorityUnavailable => {
+                assert!(result.is_err());
+                assert_eq!(
+                    owner.subscribe().borrow().phase,
+                    Phase::AuthorityUnavailable
+                );
+                assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 0);
+                assert!(
+                    SecretRecord::decode(&store.load().unwrap().unwrap(), &clock.now().unwrap())
+                        .is_ok()
+                );
+            }
+            Reason::Unspecified | Reason::RightsChanged | Reason::AccountDisabled => {
+                unreachable!("not an exercised case")
+            }
+        }
+        owner.close().await;
+    }
 }

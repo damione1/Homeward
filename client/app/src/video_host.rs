@@ -456,6 +456,7 @@ impl Videos {
                     | Phase::NeedsLogin
                     | Phase::CredentialRejected
                     | Phase::RateLimited
+                    | Phase::Offline
                     | Phase::NetworkUnavailable
                     | Phase::AuthorityUnavailable
                     | Phase::RightsChanged

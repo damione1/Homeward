@@ -2005,6 +2005,7 @@ dependencies = [
  "home-client-model",
  "home-wire-contract",
  "http",
+ "hyper-util",
  "jni 0.22.4",
  "rustls",
  "rustls-pemfile",

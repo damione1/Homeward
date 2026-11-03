@@ -238,7 +238,7 @@ impl<P: Send + 'static> CacheHandle<P> {
             return Err(ControlFailure::Closed);
         }
         match phase {
-            Phase::Ready | Phase::Refreshing => Ok(()),
+            Phase::Ready | Phase::Refreshing | Phase::Offline => Ok(()),
             Phase::SignedOut
             | Phase::Busy
             | Phase::Challenge { .. }
@@ -485,6 +485,15 @@ impl<P: Send + 'static> Emitter<P> {
         };
         self.inner.emit(self.generation, phase, view);
     }
+    fn offline(&self) {
+        let view = self
+            .state
+            .lock()
+            .expect("cache view mutex poisoned")
+            .view
+            .clone();
+        self.set(CachePhase::Offline, view.as_ref());
+    }
     fn reproject(&self) {
         let (phase, view) = {
             let state = self.state.lock().expect("cache view mutex poisoned");
@@ -545,8 +554,15 @@ async fn maintain_access<P: Send + 'static>(
             && let Err(error) = session.access(cancel).await
             && !cancel.is_cancelled()
         {
-            emitter.set(CachePhase::Blocked, None);
-            emitter.event(CacheEvent::Session(error), cancel).await;
+            // The feed owns transient offline presentation and its retry loop.
+            // A maintenance waiter must not overwrite it with terminal Blocked.
+            if error != SessionFailure::RefreshSuperseded
+                && (session.subscribe().borrow().phase != Phase::Offline
+                    || !transient_session_failure(error))
+            {
+                emitter.set(CachePhase::Blocked, None);
+                emitter.event(CacheEvent::Session(error), cancel).await;
+            }
         }
     }
 }
@@ -613,6 +629,57 @@ async fn resume_read<P: Send + 'static>(
     false
 }
 
+// Transport outages have no total retry budget. Backoff and each network
+// operation remain bounded; protocol-invalid resync loops retain their limit.
+fn network_backoff(attempt: u8) -> Duration {
+    Duration::from_millis(250)
+        .saturating_mul(1 << attempt.saturating_sub(1).min(7))
+        .min(Duration::from_secs(30))
+}
+#[derive(Default)]
+struct NetworkRetry {
+    failures: u8,
+}
+impl NetworkRetry {
+    fn observe_watch(&mut self, elapsed: Duration, exit: &WatchExit) {
+        let quiet_rotation = match exit {
+            WatchExit::Ended(_) => true,
+            WatchExit::Transport { failure, retained } => {
+                failure.kind() == FailureKind::Deadline
+                    && failure.may_resume_read()
+                    && retained.is_some()
+            }
+            WatchExit::Resync(_) | WatchExit::Invalid(_) | WatchExit::Cancelled => false,
+        };
+        // A healthy quiet watch can reach its 30s deadline slightly early.
+        if elapsed >= Duration::from_secs(15) && quiet_rotation {
+            self.failures = 0;
+        }
+    }
+}
+async fn resume_network(progress: &mut NetworkRetry, cancel: &CancellationToken) -> bool {
+    progress.failures = progress.failures.saturating_add(1);
+    let delay = network_backoff(progress.failures);
+    tokio::select! {
+        biased;
+        () = cancel.cancelled() => false,
+        () = tokio::time::sleep(delay) => true,
+    }
+}
+fn transient_session_failure(failure: SessionFailure) -> bool {
+    matches!(
+        failure,
+        SessionFailure::Transport(
+            FailureKind::NetworkInterrupted
+                | FailureKind::Deadline
+                | FailureKind::Rpc(
+                    home_client_transport::RpcCode::Unavailable
+                        | home_client_transport::RpcCode::Canceled
+                )
+        )
+    )
+}
+
 async fn feed<P: Send + 'static>(
     emitter: &Emitter<P>,
     session: &SessionCoordinator,
@@ -623,76 +690,92 @@ async fn feed<P: Send + 'static>(
 ) {
     let policy = ReconnectPolicy::new(4, Duration::from_millis(250), Duration::from_secs(4))
         .expect("fixed read retry policy");
-    let mut retained = None;
     let mut access_generation = None;
     let mut progress = ReadProgress::default();
+    let mut network = NetworkRetry::default();
     loop {
         if cancel.is_cancelled() {
             return;
         }
         let lease = match session.access(cancel).await {
             Ok(lease) => lease,
+            Err(SessionFailure::RefreshSuperseded) => {
+                // This read was overtaken by another shared renewal. Re-enter
+                // under its new generation; writes keep the refusal instead.
+                continue;
+            }
             Err(error) => {
-                emitter.set(CachePhase::Blocked, None);
+                let retryable = session.subscribe().borrow().phase == Phase::Offline
+                    && transient_session_failure(error);
+                emitter.set(
+                    if retryable {
+                        CachePhase::Offline
+                    } else {
+                        CachePhase::Blocked
+                    },
+                    None,
+                );
                 emitter.event(CacheEvent::Session(error), cancel).await;
+                if retryable && resume_network(&mut network, cancel).await {
+                    continue;
+                }
                 return;
             }
         };
         if access_generation != Some(lease.generation) {
-            retained = None;
             access_generation = Some(lease.generation);
             emitter.set(CachePhase::Loading, None);
         }
-        let view = match retained.take() {
-            Some(view) => view,
-            None => {
-                match read_snapshot_owned(transport, &lease, filter.clone(), 256, cancel, releases)
-                    .await
-                {
-                    Ok(view) => {
-                        if !session.is_current(lease.generation) || cancel.is_cancelled() {
-                            continue;
-                        }
-                        emitter.set(CachePhase::Live, Some(&view));
-                        view
-                    }
-                    Err(SnapshotFailure::Cancelled) => {
-                        if cancel.is_cancelled() {
-                            return;
-                        }
+        let view =
+            match read_snapshot_owned(transport, &lease, filter.clone(), 256, cancel, releases)
+                .await
+            {
+                Ok(view) => {
+                    if !session.is_current(lease.generation) || cancel.is_cancelled() {
                         continue;
                     }
-                    Err(SnapshotFailure::Transport(failure)) => {
-                        if !session.is_current(lease.generation) {
-                            continue;
-                        }
-                        emitter.set(CachePhase::Offline, None);
-                        let _ = session.observe_failure(lease.generation, &failure).await;
-                        emitter
-                            .event(CacheEvent::Transport(failure.kind()), cancel)
-                            .await;
-                        let retryable = failure.may_resume_read();
-                        if retryable && resume_read(emitter, policy, &mut progress, cancel).await {
-                            continue;
-                        }
-                        emitter.set(CachePhase::Blocked, None);
-                        return;
-                    }
-                    Err(SnapshotFailure::Contract(error)) => {
-                        emitter.set(CachePhase::Invalid, None);
-                        emitter.event(CacheEvent::Contract(error), cancel).await;
-                        return;
-                    }
+                    emitter.set(CachePhase::Live, Some(&view));
+                    view
                 }
-            }
-        };
+                Err(SnapshotFailure::Cancelled) => {
+                    if cancel.is_cancelled() {
+                        return;
+                    }
+                    continue;
+                }
+                Err(SnapshotFailure::Transport(failure)) => {
+                    if !session.is_current(lease.generation) {
+                        continue;
+                    }
+                    if failure.may_resume_read() {
+                        emitter.offline();
+                    } else {
+                        emitter.set(CachePhase::Blocked, None);
+                    }
+                    let _ = session.observe_failure(lease.generation, &failure).await;
+                    emitter
+                        .event(CacheEvent::Transport(failure.kind()), cancel)
+                        .await;
+                    let retryable = failure.may_resume_read();
+                    if retryable && resume_network(&mut network, cancel).await {
+                        continue;
+                    }
+                    emitter.set(CachePhase::Blocked, None);
+                    return;
+                }
+                Err(SnapshotFailure::Contract(error)) => {
+                    emitter.set(CachePhase::Invalid, None);
+                    emitter.event(CacheEvent::Contract(error), cancel).await;
+                    return;
+                }
+            };
         progress.observe(view.cursor());
         let watch_started = tokio::time::Instant::now();
         let exit = watch_once(
             transport,
             &lease,
             view,
-            Duration::from_secs(3600),
+            Duration::from_secs(30),
             cancel,
             |view| {
                 progress.observe(view.cursor());
@@ -704,16 +787,20 @@ async fn feed<P: Send + 'static>(
             return;
         }
         if !session.is_current(lease.generation) {
-            retained = None;
             emitter.set(CachePhase::Loading, None);
             continue;
         }
         progress.watch_ended(watch_started.elapsed(), &exit);
+        network.observe_watch(watch_started.elapsed(), &exit);
         match exit {
             WatchExit::Ended(view) => {
                 emitter.set(CachePhase::Offline, Some(&view));
-                retained = Some(view);
+                // A fresh admitted snapshot restores Live even without deltas.
                 emitter.event(CacheEvent::StreamEnded, cancel).await;
+                if resume_network(&mut network, cancel).await {
+                    continue;
+                }
+                return;
             }
             WatchExit::Transport {
                 failure,
@@ -731,15 +818,17 @@ async fn feed<P: Send + 'static>(
                 emitter
                     .event(CacheEvent::Transport(failure.kind()), cancel)
                     .await;
-                retained = view;
-                if retained.is_none() {
-                    return;
+                // Never wait for a delta to prove recovery of a quiet home.
+                // Keep the dated display only until a new snapshot is admitted.
+                if failure.may_resume_read() && resume_network(&mut network, cancel).await {
+                    continue;
                 }
+                emitter.set(CachePhase::Blocked, None);
+                return;
             }
             WatchExit::Resync(reason) => {
                 emitter.set(CachePhase::Resyncing, None);
                 emitter.event(CacheEvent::Resync(reason), cancel).await;
-                retained = None;
             }
             WatchExit::Invalid(error) => {
                 emitter.set(CachePhase::Invalid, None);
@@ -747,7 +836,6 @@ async fn feed<P: Send + 'static>(
                 return;
             }
             WatchExit::Cancelled => {
-                retained = None;
                 emitter.set(CachePhase::Loading, None);
                 continue;
             }
@@ -763,6 +851,38 @@ mod tests {
     use super::*;
     use crate::DeliveryOutcome;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[tokio::test(start_paused = true)]
+    async fn transport_outage_retries_beyond_four_attempts_with_capped_wait_and_cancellation() {
+        let cancel = CancellationToken::new();
+        let mut progress = NetworkRetry::default();
+        for attempt in 1..=20 {
+            let started = tokio::time::Instant::now();
+            assert!(resume_network(&mut progress, &cancel).await);
+            let elapsed = tokio::time::Instant::now() - started;
+            assert!(elapsed <= Duration::from_secs(30));
+            if attempt >= 8 {
+                assert_eq!(elapsed, Duration::from_secs(30));
+            }
+        }
+        cancel.cancel();
+        assert!(!resume_network(&mut progress, &cancel).await);
+    }
+    #[tokio::test]
+    async fn offline_saved_session_keeps_the_current_single_cache_owner_until_explicit_logout() {
+        let rig = Rig::new();
+        let handle = rig.owner.handle.clone();
+        handle.activate().unwrap();
+        rig.runs.started.notified().await;
+        let generation = handle.inner.desired.borrow().generation;
+        handle.session_changed(Phase::Offline).unwrap();
+        assert_eq!(handle.inner.desired.borrow().generation, generation);
+        assert_eq!(rig.runs.active.load(Ordering::SeqCst), 1);
+        handle.session_changed(Phase::SignedOut).unwrap();
+        handle.wait_for_control().await.unwrap();
+        assert_eq!(rig.runs.active.load(Ordering::SeqCst), 0);
+        rig.owner.close().await;
+    }
 
     #[derive(Default)]
     struct Runs {

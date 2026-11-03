@@ -35,6 +35,9 @@ import { HomewardDashboard } from "native-dashboard.slint";
 import { HomewardConfirmation } from "native-confirmation.slint";
 import { HomewardPopup } from "native-popup.slint";
 
+export { ConnectionStatus } from "connection-banner.slint";
+import { HomewardConnectionBanner, ConnectionStatus } from "connection-banner.slint";
+
 export enum ViewPage { home, rooms, inventory, room, detail, lists, calendars, cameras, settings }
 export enum RoomView { cards, list }
 export enum BodyFocus { read, inventory, back, settings, lists, calendars, cameras, popup }
@@ -66,6 +69,7 @@ export component HomewardWindow inherits Window {
     in property <string> message;
     in property <AlertSeverity> message-severity: AlertSeverity.information;
     in property <string> read-status;
+    in property <ConnectionStatus> connection-status;
     in property <string> cache-error;
     in property <[TableRow]> cache-rows;
     in-out property <int> cache-active-index: -1;
@@ -619,6 +623,9 @@ export component HomewardWindow inherits Window {
         restore-focus => { root.shell-restore(); }
         compact-changed(compact) => { root.shell-compact(compact); }
         content-focus-requested => { root.content-focus(); }
+        VerticalLayout {
+          spacing: 8px;
+          HomewardConnectionBanner { theme: root.theme; status: root.connection-status; interactive: root.content-interactive; retry => { root.read-protected(); } }
         viewport := Rectangle {
             min-width: 0px; min-height: 0px; max-width: 100000px; max-height: 100000px;
             horizontal-stretch: 1; vertical-stretch: 1;
@@ -921,6 +928,7 @@ export component HomewardWindow inherits Window {
             }
         }
     }
+    }
 }
     KitDialogSurface {
         width: root.width; height: root.height; theme: root.theme;
@@ -949,6 +957,7 @@ export component HomewardWindow inherits Window {
                         activated => { if (self.route-generation == root.projection-version && root.page == ViewPage.detail) { root.go-back(); } }
                     }
                 }
+                HomewardConnectionBanner { theme: root.theme; status: root.connection-status; interactive: root.content-interactive; retry => { root.read-protected(); } }
                 detail-scroll := KitScrollArea {
                     vertical-stretch: 1;
                 if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
