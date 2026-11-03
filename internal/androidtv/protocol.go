@@ -136,7 +136,9 @@ type Observation struct {
 type protocol struct {
 	features            uint64
 	configured, started bool
-	observation         Observation
+	// Reset for each frame; only an actual RemoteStart may publish core power.
+	powerUpdated bool
+	observation  Observation
 }
 
 func newProtocol(ime bool) *protocol {
@@ -147,6 +149,7 @@ func newProtocol(ime bool) *protocol {
 	return &protocol{features: f}
 }
 func (p *protocol) handle(b []byte) (reply []byte, changed bool, err error) {
+	p.powerUpdated = false
 	fs, e := fields(b)
 	if e != nil {
 		return nil, false, e
@@ -203,6 +206,7 @@ func (p *protocol) handle(b []byte) (reply []byte, changed bool, err error) {
 		on := v == 1
 		p.observation.Power = &on
 		p.started = true
+		p.powerUpdated = true
 		return nil, true, nil
 	}
 	if vol, ok := payload(fs, 50); ok && p.features&featureVolume != 0 {

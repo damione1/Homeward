@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/damione1/Homeward/contracts"
 	media "github.com/damione1/Homeward/gen/home/media/v1"
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	state "github.com/damione1/Homeward/gen/home/state/v1"
@@ -91,6 +92,13 @@ func (r *Runtime) Snapshot(id domain.EntityID) (*media.Snapshot, bool) {
 func (r *Runtime) description(label string) *registry.CapabilityDescription {
 	return &registry.CapabilityDescription{SchemaId: Schema, Major: 1, Endpoint: Endpoint, DisplayName: label, DescriptorSet: append([]byte(nil), r.descriptor...), DescriptorSha256: append([]byte(nil), r.digest[:]...), Constraints: &registry.CapabilityDescription_Extension{Extension: &registry.ExtensionConstraints{}}}
 }
+func (r *Runtime) candidate(player PlayerInput) (integrations.Candidate, error) {
+	return integrations.NewCandidate(player.SourceKey(), []*registry.CapabilityDescription{
+		r.description(player.Label),
+		{SchemaId: contracts.SwitchSchema, Major: 1, Endpoint: PowerEndpoint, DisplayName: player.Label,
+			Constraints: &registry.CapabilityDescription_Switch{Switch: &registry.SwitchConstraints{SetOn: false}}},
+	})
+}
 
 type pilot struct {
 	settings Settings
@@ -111,7 +119,7 @@ func (p *pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 	players := p.settings.Players()
 	candidates := make([]integrations.Candidate, 0, len(players))
 	for _, player := range players {
-		c, e := integrations.NewCandidate(player.SourceKey(), []*registry.CapabilityDescription{p.runtime.description(player.Label)})
+		c, e := p.runtime.candidate(player)
 		if e != nil {
 			return e
 		}
@@ -136,7 +144,8 @@ func (p *pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 	}
 	for i, player := range players {
 		entity := ids[i]
-		if e = tasks.Go(func(taskCtx context.Context) error { return p.run(taskCtx, host, player, entity) }); e != nil {
+		binding := bindings[i]
+		if e = tasks.Go(func(taskCtx context.Context) error { return p.run(taskCtx, host, player, entity, binding) }); e != nil {
 			return e
 		}
 	}
@@ -164,18 +173,25 @@ func (p *pilot) forget(id domain.EntityID) {
 		delete(p.runtime.records, id)
 	}
 }
-func (p *pilot) run(taskCtx context.Context, host integrations.SessionHost, player PlayerInput, id domain.EntityID) error {
+func (p *pilot) run(taskCtx context.Context, host integrations.SessionHost, player PlayerInput, id domain.EntityID, binding integrations.Binding) error {
 	ctx, cancel := context.WithCancel(p.ctx)
 	defer cancel()
 	stop := context.AfterFunc(taskCtx, cancel)
 	defer stop()
 	defer p.forget(id)
+	// Retained/restored core power is never current evidence after startup.
+	if e := publishPower(ctx, host, binding, nil, time.Now().UTC()); e != nil {
+		return e
+	}
 	delay := 100 * time.Millisecond
 	for ctx.Err() == nil {
-		err := p.connect(ctx, host, player, id)
+		err := p.connect(ctx, host, player, id, binding)
 		p.forget(id)
 		if ctx.Err() != nil {
 			return nil
+		}
+		if e := publishPower(ctx, host, binding, nil, time.Now().UTC()); e != nil {
+			return e
 		}
 		health, _ := integrations.NewHealthReport(integrations.HealthDegraded, "androidtv: authenticated observation unavailable; check pairing credential and device identity")
 		if e := host.ReportHealth(ctx, health); e != nil {
@@ -197,7 +213,7 @@ func (p *pilot) run(taskCtx context.Context, host integrations.SessionHost, play
 	}
 	return nil
 }
-func (p *pilot) connect(ctx context.Context, host integrations.SessionHost, player PlayerInput, id domain.EntityID) error {
+func (p *pilot) connect(ctx context.Context, host integrations.SessionHost, player PlayerInput, id domain.EntityID, binding integrations.Binding) error {
 	secrets, e := host.Secrets()
 	if e != nil {
 		return ErrCredential
@@ -249,6 +265,11 @@ func (p *pilot) connect(ctx context.Context, host integrations.SessionHost, play
 		if !protocol.started {
 			continue
 		}
+		if protocol.powerUpdated {
+			if e = publishPower(ctx, host, binding, protocol.observation.Power, time.Now().UTC()); e != nil {
+				return e
+			}
+		}
 		p.cache(id, player.Label, protocol.observation, changed)
 		level, detail := integrations.HealthDegraded, "androidtv: one or more native observations unavailable"
 		p.runtime.mu.Lock()
@@ -268,6 +289,26 @@ func (p *pilot) connect(ctx context.Context, host integrations.SessionHost, play
 		}
 	}
 	return nil
+}
+
+func publishPower(ctx context.Context, host integrations.SessionHost, binding integrations.Binding, power *bool, at time.Time) error {
+	availability, freshness := domain.AvailabilityUnavailable, domain.FreshnessStale
+	var value *domain.StateValue
+	var observedAt *time.Time
+	if power != nil {
+		availability, freshness = domain.AvailabilityAvailable, domain.FreshnessFresh
+		v := domain.NewSwitchValue(*power)
+		value, observedAt = &v, &at
+	}
+	quality, e := domain.NewQuality(availability, freshness, domain.ProvenanceObserved)
+	if e != nil {
+		return e
+	}
+	observation, e := integrations.NewStateObservation(PowerEndpoint, quality, value, observedAt, at, nil)
+	if e != nil {
+		return e
+	}
+	return host.Publish(ctx, binding, observation)
 }
 func (p *pilot) cache(id domain.EntityID, label string, o Observation, changed bool) {
 	r := p.runtime

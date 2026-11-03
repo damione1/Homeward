@@ -16,6 +16,7 @@ import (
 
 const Schema = "androidtv.media.v1"
 const Endpoint = "player"
+const PowerEndpoint = "power"
 
 var ErrSettings = errors.New("androidtv: invalid configuration")
 var ErrCredential = errors.New("androidtv: invalid or untrusted pairing credential")

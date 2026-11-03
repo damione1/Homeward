@@ -443,7 +443,7 @@ func TestReconnectClearsOldStateAndCannotReplayKeys(t *testing.T) {
 		return client, nil
 	}
 	done := make(chan error, 1)
-	go func() { done <- p.run(ctx, host, testPlayer(), id) }()
+	go func() { done <- p.run(ctx, host, testPlayer(), id, integrations.Binding{}) }()
 	select {
 	case <-firstReady:
 	case <-time.After(2 * time.Second):
