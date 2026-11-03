@@ -1,7 +1,14 @@
 version: v2
 modules:
   - path: proto
+deps:
+  - buf.build/googleapis/googleapis
 lint:
   use: [STANDARD]
+  # AIP-131/134 return the resource itself from Get/Update, unlike Buf's
+  # generic per-RPC response convention. Keep v1 rules and scope exceptions.
+  ignore_only:
+    RPC_REQUEST_RESPONSE_UNIQUE: [proto/home/api/v2/home.proto]
+    RPC_RESPONSE_STANDARD_NAME: [proto/home/api/v2/home.proto]
 breaking:
   use: [FILE]

@@ -279,6 +279,8 @@ func (NativeHeadingStyle) EnumDescriptor() ([]byte, []int) {
 type NativeControlPresentation int32
 
 const (
+	// Legacy v1 default is meaningful. Preserve its name and wire number.
+	// buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
 	NativeControlPresentation_NATIVE_CONTROL_PRESENTATION_CONTROLS NativeControlPresentation = 0
 	NativeControlPresentation_NATIVE_CONTROL_PRESENTATION_SUMMARY  NativeControlPresentation = 1
 )
@@ -325,6 +327,8 @@ func (NativeControlPresentation) EnumDescriptor() ([]byte, []int) {
 type NativeThermostatPresentation int32
 
 const (
+	// Legacy v1 default is meaningful. Preserve its name and wire number.
+	// buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
 	NativeThermostatPresentation_NATIVE_THERMOSTAT_PRESENTATION_COMPACT NativeThermostatPresentation = 0
 	NativeThermostatPresentation_NATIVE_THERMOSTAT_PRESENTATION_DETAIL  NativeThermostatPresentation = 1
 	NativeThermostatPresentation_NATIVE_THERMOSTAT_PRESENTATION_SUMMARY NativeThermostatPresentation = 2
@@ -374,6 +378,8 @@ func (NativeThermostatPresentation) EnumDescriptor() ([]byte, []int) {
 type NativeTasksPresentation int32
 
 const (
+	// Legacy v1 default is meaningful. Preserve its name and wire number.
+	// buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
 	NativeTasksPresentation_NATIVE_TASKS_PRESENTATION_PREVIEW  NativeTasksPresentation = 0
 	NativeTasksPresentation_NATIVE_TASKS_PRESENTATION_SHOPPING NativeTasksPresentation = 1
 )

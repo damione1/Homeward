@@ -3,6 +3,7 @@
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod home {
+    pub mod api { pub mod v2 { include!("generated/home.api.v2.rs"); } }
     pub mod notifications { pub mod v1 { include!("generated/home.notifications.v1.rs"); } }
     pub mod companion { pub mod v1 { include!("generated/home.companion.v1.rs"); } }
     pub mod logic { pub mod v1 { include!("generated/home.logic.v1.rs"); } }
@@ -38,6 +39,7 @@ pub mod home {
 }
 
 pub mod actions_contract;
+pub mod api_contract;
 pub mod auth_contract;
 pub mod authorization_contract;
 pub mod calendars_contract;
