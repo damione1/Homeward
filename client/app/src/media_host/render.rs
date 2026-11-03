@@ -233,7 +233,11 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         EnumValue::Known(wire::PlaybackState::Paused) => "Paused",
         EnumValue::Known(wire::PlaybackState::Stopped) => "Stopped",
         EnumValue::Known(wire::PlaybackState::Buffering) => "Buffering",
-        EnumValue::Known(wire::PlaybackState::Unspecified) => "Playback unknown",
+        EnumValue::Known(wire::PlaybackState::Unspecified) => match snapshot.powered_on {
+            Some(true) => "On",
+            Some(false) => "Off",
+            None => "Playback unknown",
+        },
         EnumValue::Unknown(_) => "Playback unsupported",
     };
     let quality = crate::cache_view::quality_text(&observation::ObservedState {

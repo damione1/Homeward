@@ -9,6 +9,7 @@ import (
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	media "github.com/damione1/Homeward/gen/home/media/v1"
 	"github.com/damione1/Homeward/gen/home/media/v1/mediav1connect"
+	"github.com/damione1/Homeward/internal/androidtv"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
@@ -54,8 +55,13 @@ func addConfiguredSonos(plan *RuntimePlan, settings sonos.Settings) error {
 	return nil
 }
 
-type sonosHandler struct {
-	runtime   *sonos.Runtime
+type nativeMediaSource struct {
+	schema   string
+	endpoint string
+	snapshot func(domain.EntityID) (*media.Snapshot, bool)
+}
+type nativeMediaHandler struct {
+	sources   []nativeMediaSource
 	owner     *configactivation.Owner
 	authority *authorization.Authority
 }
@@ -64,7 +70,7 @@ func mediaReadError(code connect.Code) error {
 	return connect.NewError(code, errors.New("media observation unavailable"))
 }
 
-func (h *sonosHandler) ReadSnapshot(ctx context.Context, request *connect.Request[media.ReadSnapshotRequest]) (*connect.Response[media.ReadSnapshotResponse], error) {
+func (h *nativeMediaHandler) ReadSnapshot(ctx context.Context, request *connect.Request[media.ReadSnapshotRequest]) (*connect.Response[media.ReadSnapshotResponse], error) {
 	if request == nil || request.Msg == nil || len(request.Msg.ProtoReflect().GetUnknown()) != 0 {
 		return nil, mediaReadError(connect.CodeInvalidArgument)
 	}
@@ -91,51 +97,28 @@ func (h *sonosHandler) ReadSnapshot(ctx context.Context, request *connect.Reques
 	}
 	var snapshot *media.Snapshot
 	e = h.authority.WithCurrent(ctx, principal, func(current authorization.Current) error {
-		read := func(id domain.EntityID) error {
-			slot, e := authorization.NewCapabilitySlot(sonos.Schema, sonos.Endpoint)
-			if e != nil {
-				return e
+		var err error
+		snapshot, err = projectNativeMedia(entity, h.sources, revision, func(id domain.EntityID, schema, endpoint string) error {
+			slot, err := authorization.NewCapabilitySlot(schema, endpoint)
+			if err != nil {
+				return err
 			}
-			object, e := authorization.EntityObject(id, slot)
-			if e != nil {
-				return e
+			object, err := authorization.EntityObject(id, slot)
+			if err != nil {
+				return err
 			}
 			for _, family := range []auth.ScopeFamily{auth.ScopeFamily_SCOPE_FAMILY_MEDIA, auth.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY} {
-				permission, e := authorization.NewPermission(family, auth.ScopeOperation_SCOPE_OPERATION_READ)
-				if e != nil {
-					return e
+				permission, err := authorization.NewPermission(family, auth.ScopeOperation_SCOPE_OPERATION_READ)
+				if err != nil {
+					return err
 				}
-				if e = current.Authorize(permission, object); e != nil {
-					return e
+				if err = current.Authorize(permission, object); err != nil {
+					return err
 				}
 			}
 			return nil
-		}
-		if e := read(entity); e != nil {
-			return e
-		}
-		value, ok := h.runtime.Snapshot(entity)
-		if !ok {
-			return sonos.ErrUnavailable
-		}
-		coordinator, e := domain.ParseEntityID(value.Route.CoordinatorEntityId)
-		if e != nil {
-			return sonos.ErrUnavailable
-		}
-		if e = read(coordinator); e != nil {
-			return e
-		}
-		visible := value.Members[:0]
-		for _, member := range value.Members {
-			id, e := domain.ParseEntityID(member.EntityId)
-			if e == nil && read(id) == nil {
-				visible = append(visible, member)
-			}
-		}
-		value.Members = visible
-		value.Route.ConfigRevision = revision
-		snapshot = value
-		return nil
+		})
+		return err
 	})
 	if e != nil {
 		if errors.Is(e, authorization.ErrDenied) {
@@ -151,15 +134,77 @@ func (h *sonosHandler) ReadSnapshot(ctx context.Context, request *connect.Reques
 	}
 	return connect.NewResponse(&media.ReadSnapshotResponse{Result: &media.ReadSnapshotResponse_Snapshot{Snapshot: snapshot}}), nil
 }
-func (h *sonosHandler) ReadArtwork(context.Context, *connect.Request[media.ReadArtworkRequest]) (*connect.Response[media.ReadArtworkResponse], error) {
+
+// projectNativeMedia runs entirely inside the current authorization fence.
+// Sources return owned cache copies; it never invokes network/provider work.
+func projectNativeMedia(entity domain.EntityID, sources []nativeMediaSource, revision uint64, authorize func(domain.EntityID, string, string) error) (*media.Snapshot, error) {
+	identity, err := entity.Value()
+	if err != nil || authorize == nil {
+		return nil, sonos.ErrUnavailable
+	}
+	var snapshot *media.Snapshot
+	readable := false
+	for _, source := range sources {
+		read := func(id domain.EntityID) error { return authorize(id, source.schema, source.endpoint) }
+		if err := read(entity); err != nil {
+			if !errors.Is(err, authorization.ErrDenied) {
+				return nil, err
+			}
+			continue
+		}
+		readable = true
+		value, ok := source.snapshot(entity)
+		if !ok {
+			continue
+		}
+		if snapshot != nil || value == nil || value.Route == nil || value.Route.EntityId != identity || value.Route.Endpoint != source.endpoint {
+			return nil, sonos.ErrUnavailable
+		}
+		coordinator, err := domain.ParseEntityID(value.Route.CoordinatorEntityId)
+		if err != nil {
+			return nil, sonos.ErrUnavailable
+		}
+		if err = read(coordinator); err != nil {
+			return nil, err
+		}
+		visible := value.Members[:0]
+		for _, member := range value.Members {
+			if member == nil {
+				return nil, sonos.ErrUnavailable
+			}
+			id, err := domain.ParseEntityID(member.EntityId)
+			if err == nil && read(id) == nil {
+				visible = append(visible, member)
+			}
+		}
+		value.Members = visible
+		value.Route.ConfigRevision = revision
+		snapshot = value
+	}
+	if !readable {
+		return nil, authorization.ErrDenied
+	}
+	if snapshot == nil {
+		return nil, sonos.ErrUnavailable
+	}
+	return snapshot, nil
+}
+
+func (h *nativeMediaHandler) ReadArtwork(context.Context, *connect.Request[media.ReadArtworkRequest]) (*connect.Response[media.ReadArtworkResponse], error) {
 	return nil, mediaReadError(connect.CodeUnimplemented)
 }
 
-func registerSonosRoutes(plan *PublicPlan, runtime *sonos.Runtime, owner *configactivation.Owner, authority *authorization.Authority) error {
-	if runtime == nil {
+func registerNativeMediaRoutes(plan *PublicPlan, runtime *sonos.Runtime, tv *androidtv.Runtime, owner *configactivation.Owner, authority *authorization.Authority) error {
+	if runtime == nil && tv == nil {
 		return nil
 	}
-	handler := &sonosHandler{runtime: runtime, owner: owner, authority: authority}
+	handler := &nativeMediaHandler{owner: owner, authority: authority}
+	if runtime != nil {
+		handler.sources = append(handler.sources, nativeMediaSource{sonos.Schema, sonos.Endpoint, runtime.Snapshot})
+	}
+	if tv != nil {
+		handler.sources = append(handler.sources, nativeMediaSource{androidtv.Schema, androidtv.Endpoint, tv.Snapshot})
+	}
 	paths := []string{mediav1connect.MediaServiceReadSnapshotProcedure, mediav1connect.MediaServiceReadArtworkProcedure}
 	procedures := make([]ConnectProcedure, 0, len(paths))
 	for _, path := range paths {

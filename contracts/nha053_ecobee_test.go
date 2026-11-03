@@ -8,7 +8,7 @@ import (
 )
 
 func TestNativeIntegrationPublicFieldsRefusePrivatePathsAndOtherFamilies(t *testing.T) {
-	for _, nativeField := range []string{"ecobee", "sonos"} {
+	for _, nativeField := range []string{"ecobee", "sonos", "android_tv"} {
 		t.Run(nativeField, func(t *testing.T) {
 			plan := nha053ContractPlan()
 			plan.Family = wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL

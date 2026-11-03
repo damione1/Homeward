@@ -28,6 +28,7 @@ type descriptor struct {
 }
 
 var descriptors = []descriptor{
+	{id: "android_tv", fields: []string{"instance", "players"}, capabilities: []string{"androidtv.media.v1"}, shape: "object"},
 	{id: "sonos", fields: []string{"instance", "players"}, capabilities: []string{"sonos.media.v1"}, shape: "object"},
 	{id: "mqtt", fields: []string{"profile", "broker", "instance", "mode", "subscriptions", "command_topics", "transition_lights", "will"}, secrets: []string{"username_secret", "password_secret"}, capabilities: []string{contracts.BinarySchema, contracts.SwitchSchema, contracts.MeasurementSchema, contracts.LightSchema}, shape: "object"},
 	{id: "ecobee", fields: []string{"instance", "address", "accessory_id"}, secrets: []string{"credential_secret"}, capabilities: []string{contracts.ClimateSchema}, shape: "object"},

@@ -284,11 +284,6 @@ func (p *pilot) cache(id domain.EntityID, label string, o Observation, changed b
 	}
 	identity, _ := id.Value()
 	snapshot := &media.Snapshot{Route: &media.Route{EntityId: identity, Endpoint: Endpoint, CoordinatorEntityId: identity, TopologyRevision: 1, AdmissionEpoch: r.epoch}, Capabilities: &media.Capabilities{}, ActionAccess: state.ActionAccess_ACTION_ACCESS_DENIED, Playback: media.PlaybackState_PLAYBACK_STATE_UNSPECIFIED, SourceId: o.Source, VolumeBasisPoints: o.VolumeBasisPoints, Members: []*media.Member{{EntityId: identity, Label: label}}, Quality: &state.Quality{Availability: state.Availability_AVAILABILITY_AVAILABLE, Freshness: state.Freshness_FRESHNESS_FRESH, Provenance: state.Provenance_PROVENANCE_OBSERVED}, ReceivedAt: timestamppb.New(now), Provenance: "androidtv-local-remote-v2-read", DescriptorSha256: append([]byte(nil), r.digest[:]...)}
-	// The common facade is extended by composition with optional powered_on.
-	// Reflection keeps this isolated package buildable against the base contract
-	// until that additive generated contract is integrated by the coordinator.
-	if f := snapshot.ProtoReflect().Descriptor().Fields().ByName("powered_on"); f != nil && o.Power != nil {
-		snapshot.ProtoReflect().Set(f, protoreflect.ValueOfBool(*o.Power))
-	}
+	snapshot.PoweredOn = o.Power
 	r.records[id] = cached{p, snapshot, now}
 }

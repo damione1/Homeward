@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"io"
 	"math/big"
 	"net"
@@ -167,24 +168,39 @@ func TestMTLSHandshakeRejectsUnpinnedPeer(t *testing.T) {
 		{"paired", config.Certificates[0], true}, {"different key with same MAC", other.Certificates[0], false},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			left, right := net.Pipe()
-			defer left.Close()
-			defer right.Close()
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
-			server := tls.Server(right, &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{scenario.certificate}, ClientAuth: tls.RequireAnyClientCert})
-			done := make(chan error, 1)
-			go func() { done <- server.HandshakeContext(ctx) }()
-			client := tls.Client(left, config.Clone())
-			e := client.HandshakeContext(ctx)
-			if (e == nil) != scenario.accepted {
-				t.Fatalf("TLS accepted=%v, expected %v", e == nil, scenario.accepted)
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
 			}
-			_ = left.Close()
+			defer listener.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			done := make(chan error, 1)
+			go func() {
+				socket, err := listener.Accept()
+				if err != nil {
+					done <- err
+					return
+				}
+				defer socket.Close()
+				server := tls.Server(socket, &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{scenario.certificate}, ClientAuth: tls.RequireAnyClientCert, SessionTicketsDisabled: true})
+				done <- server.HandshakeContext(ctx)
+			}()
+			dialer := tls.Dialer{Config: config.Clone()}
+			client, err := dialer.DialContext(ctx, "tcp", listener.Addr().String())
+			if client != nil {
+				defer client.Close()
+			}
+			if (err == nil) != scenario.accepted {
+				t.Fatalf("TLS accepted=%v expected=%v: %v", err == nil, scenario.accepted, err)
+			}
+			if !scenario.accepted && !errors.Is(err, ErrCredential) {
+				t.Fatalf("wrong peer was not rejected by its pin: %v", err)
+			}
 			select {
-			case se := <-done:
-				if scenario.accepted && se != nil {
-					t.Fatal(se)
+			case serverErr := <-done:
+				if scenario.accepted && serverErr != nil {
+					t.Fatal(serverErr)
 				}
 			case <-ctx.Done():
 				t.Fatal("TLS handshake did not terminate")
@@ -311,7 +327,7 @@ func TestCacheRetainsOffButExpiresAndCancels(t *testing.T) {
 	off := false
 	p.cache(id, "Demo", Observation{Power: &off}, true)
 	s, ok := r.Snapshot(id)
-	if !ok || s.Playback != media.PlaybackState_PLAYBACK_STATE_UNSPECIFIED || s.Title != nil || s.PositionMillis != nil || s.DurationMillis != nil || s.SourceId != nil {
+	if !ok || s.PoweredOn == nil || *s.PoweredOn || s.Playback != media.PlaybackState_PLAYBACK_STATE_UNSPECIFIED || s.Title != nil || s.PositionMillis != nil || s.DurationMillis != nil || s.SourceId != nil {
 		t.Fatal("invented media state")
 	}
 	if len(s.Capabilities.Operations) > 0 || s.ActionAccess.String() != "ACTION_ACCESS_DENIED" || s.Quality.Availability.String() != "AVAILABILITY_AVAILABLE" {

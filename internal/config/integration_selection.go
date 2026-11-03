@@ -27,6 +27,12 @@ func selectEnabledIntegrations(disabled []string, c Config) (Config, error) {
 			return Config{}, ErrInvalidYAML
 		}
 	}
+	if c.androidTV != nil {
+		id, err := c.androidTV.Instance()
+		if err != nil || add(id) != nil {
+			return Config{}, ErrInvalidYAML
+		}
+	}
 	if c.mqtt != nil {
 		id, err := c.mqtt.Instance()
 		if err != nil || add(id) != nil {
@@ -82,6 +88,12 @@ func selectEnabledIntegrations(disabled []string, c Config) (Config, error) {
 		id, _ := c.sonos.Instance()
 		if isOff(id) {
 			c.sonos = nil
+		}
+	}
+	if c.androidTV != nil {
+		id, _ := c.androidTV.Instance()
+		if isOff(id) {
+			c.androidTV = nil
 		}
 	}
 	if c.mqtt != nil {

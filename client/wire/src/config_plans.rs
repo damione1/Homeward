@@ -155,7 +155,8 @@ fn base(value: &wire::Base) -> bool {
 fn field(value: &str) -> bool {
     matches!(
         value,
-        "sonos"
+        "android_tv"
+            | "sonos"
             | "ecobee"
             | "disabled_integrations"
             | "remote_calendar"
@@ -231,7 +232,7 @@ fn plan(value: &wire::Plan) -> bool {
     for change in &value.changes {
         if !change.__buffa_unknown_fields.is_empty()
             || !field(&change.field)
-            || ((change.field == "sonos"
+            || (((change.field == "android_tv" || change.field == "sonos")
                 || change.field == "ecobee"
                 || change.field == "remote_calendar"
                 || change.field == "disabled_integrations")
@@ -556,7 +557,7 @@ mod ecobee_tests {
 
     #[test]
     fn native_integration_response_refuses_private_settings_and_cross_family_effect() {
-        for native_field in ["ecobee", "sonos"] {
+        for native_field in ["ecobee", "sonos", "android_tv"] {
             let plan = wire::Plan {
                 state: wire::PlanState::Admitted.into(),
                 author: "server-admitted-admin".into(),

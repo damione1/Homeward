@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/damione1/Homeward/internal/androidtv"
 	"github.com/damione1/Homeward/internal/backups"
 	backuparchive "github.com/damione1/Homeward/internal/backups/archive"
 	"github.com/damione1/Homeward/internal/ecobee"
@@ -41,6 +42,7 @@ type Config struct {
 	neviweb             *neviweb.Settings
 	ecobee              *ecobee.Settings
 	sonos               *sonos.Settings
+	androidTV           *androidtv.Settings
 	hilo                *hilo.Settings
 	workers             []worker.Config
 	energy              []EnergyBinding
@@ -71,6 +73,7 @@ type rawConfig struct {
 	Neviweb                 *neviweb.Input          `yaml:"neviweb"`
 	Ecobee                  *ecobee.Input           `yaml:"ecobee"`
 	Sonos                   *sonos.Input            `yaml:"sonos"`
+	AndroidTV               *androidtv.Input        `yaml:"android_tv"`
 	Hilo                    *hilo.Input             `yaml:"hilo"`
 	Energy                  []energyInput           `yaml:"energy"`
 	DerivedPower            yaml.Node               `yaml:"derived_power"`
@@ -123,6 +126,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 	launch.mqtt, launch.neviweb, launch.hilo = operational.mqtt, operational.neviweb, operational.hilo
 	launch.ecobee = operational.ecobee
 	launch.sonos = operational.sonos
+	launch.androidTV = operational.androidTV
 	launch.workers, launch.energy, launch.derivedPower = operational.workers, operational.energy, operational.derivedPower
 	launch.solar, launch.workday = operational.solar, operational.workday
 	launch.remoteCalendar = operational.remoteCalendar
@@ -250,6 +254,13 @@ func parseOperational(raw rawConfig) (Config, error) {
 			return Config{}, ErrInvalidYAML
 		}
 		result.sonos = &settings
+	}
+	if raw.AndroidTV != nil {
+		settings, err := androidtv.ParseSettings(*raw.AndroidTV)
+		if err != nil {
+			return Config{}, ErrInvalidYAML
+		}
+		result.androidTV = &settings
 	}
 	if raw.Neviweb != nil {
 		settings, err := neviweb.ParseSettings(*raw.Neviweb)

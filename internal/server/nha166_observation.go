@@ -28,10 +28,11 @@ func validateMQTTReadOnlyObservation(c, launch config.Config, admitted configact
 	_, hilo := c.HiloSettings()
 	_, ecobee := c.EcobeeSettings()
 	_, sonos := c.SonosSettings()
+	_, androidTV := c.AndroidTVSettings()
 	_, remote := c.RemoteCalendarSettings()
 	_, solar := c.SolarSettings()
 	_, workday := c.WorkdaySettings()
-	if factory != nil || !enabled || !settings.StrictlyPassive() || neviweb || hilo || ecobee || sonos || remote || solar || workday || len(c.ExternalWorkers()) != 0 || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() {
+	if factory != nil || !enabled || !settings.StrictlyPassive() || neviweb || hilo || ecobee || sonos || androidTV || remote || solar || workday || len(c.ExternalWorkers()) != 0 || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() {
 		return errReadOnlyObservationScope
 	}
 	if candidate, present := admitted.LegacyCandidate(); present {

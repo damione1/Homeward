@@ -184,3 +184,22 @@ pub fn action(value: &wire::MediaAction, current: &wire::Snapshot) -> bool {
             None => false,
         }
 }
+
+#[cfg(test)]
+mod power_observation_tests {
+    use super::*;
+    #[test]
+    fn off_roundtrips_without_becoming_unknown_or_a_playback_stop() {
+        let off = wire::Snapshot {
+            powered_on: Some(false),
+            ..Default::default()
+        };
+        let bytes = off.encode_to_vec();
+        let decoded = wire::Snapshot::decode_from_slice(&bytes).unwrap();
+        assert_eq!(decoded.powered_on, Some(false));
+        assert_eq!(decoded.playback, wire::PlaybackState::Unspecified);
+        let unknown =
+            wire::Snapshot::decode_from_slice(&wire::Snapshot::default().encode_to_vec()).unwrap();
+        assert_eq!(unknown.powered_on, None);
+    }
+}
