@@ -34,6 +34,9 @@ type commandTransport struct {
 	ackOnly, failWrite, failReadback, badACK bool
 	writes                                   []string
 	afterTopology                            func()
+	transitionReads, transportReads          int
+	transitionForever                        bool
+	afterTransport                           func(int)
 }
 
 func (f *commandTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -93,6 +96,18 @@ func (f *commandTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		return nil, io.ErrUnexpectedEOF
 	}
 	wrong, volume, playback, topology, callback := f.wrongUID, f.volume, f.playback, f.topology, f.afterTopology
+	readNumber := 0
+	if name == "GetTransportInfo" && len(f.writes) > 0 {
+		f.transportReads++
+		readNumber = f.transportReads
+		if f.transitionForever || f.transitionReads > 0 {
+			playback = "TRANSITIONING"
+			if f.transitionReads > 0 {
+				f.transitionReads--
+			}
+		}
+	}
+	transportCallback := f.afterTransport
 	f.mu.Unlock()
 	response, err := (&readTransport{wrongUID: wrong}).RoundTrip(req)
 	if err != nil {
@@ -112,6 +127,9 @@ func (f *commandTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		if callback != nil {
 			callback()
 		}
+	}
+	if readNumber != 0 && transportCallback != nil {
+		transportCallback(readNumber)
 	}
 	response.Body = io.NopCloser(strings.NewReader(body))
 	return response, nil
@@ -292,6 +310,115 @@ func TestSonosACKAloneNeverConfirmsAndFailureNeverReplays(t *testing.T) {
 				t.Fatal("failed or acknowledged command replayed")
 			}
 		})
+	}
+}
+
+func TestSonosTransportTransitionWaitsForObservedStableStateWithoutAnotherWrite(t *testing.T) {
+	for _, operation := range []media.Operation{media.Operation_OPERATION_PLAY, media.Operation_OPERATION_PAUSE, media.Operation_OPERATION_STOP} {
+		t.Run(operation.String(), func(t *testing.T) {
+			r := newCommandRig(t)
+			r.transport.transitionReads = 1
+			bufferingObserved := false
+			r.transport.afterTransport = func(read int) {
+				if read != 2 {
+					return
+				}
+				snapshot, ok := r.pilot.runtime.Snapshot(r.entity)
+				if !ok || snapshot.Playback != media.PlaybackState_PLAYBACK_STATE_BUFFERING {
+					t.Fatal("transition was replaced by an invented stable state")
+				}
+				r.status(t, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
+				bufferingObserved = true
+			}
+			request := r.request(t, operation)
+			if _, err := r.service.Dispatch(context.Background(), r.actor, request); err != nil {
+				t.Fatal(err)
+			}
+			r.status(t, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
+			if !bufferingObserved || r.transport.count() != 1 || r.transport.transportReads != 2 {
+				t.Fatal("transport transition did not finish with two observations and one write")
+			}
+			_, _ = r.service.Dispatch(context.Background(), r.actor, request)
+			if r.transport.count() != 1 {
+				t.Fatal("confirmed transition replayed")
+			}
+		})
+	}
+}
+
+func TestSonosTransportTransitionTimeoutCancellationAndFencesNeverReplay(t *testing.T) {
+	for _, mode := range []string{"timeout", "intent-expiry", "cancel", "session-stop", "host-fence", "uid-change", "regroup"} {
+		t.Run(mode, func(t *testing.T) {
+			r := newCommandRig(t)
+			r.transport.transitionReads = 1
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if mode == "timeout" {
+				var timeoutCancel context.CancelFunc
+				ctx, timeoutCancel = context.WithTimeout(ctx, 100*time.Millisecond)
+				defer timeoutCancel()
+				r.transport.transitionForever = true
+			}
+			r.transport.afterTransport = func(read int) {
+				if read != 2 {
+					return
+				}
+				switch mode {
+				case "cancel":
+					cancel()
+				case "session-stop":
+					_ = r.pilot.Stop(context.Background())
+				case "host-fence":
+					_ = r.host.CloseAdmissions()
+				case "uid-change":
+					r.transport.mu.Lock()
+					r.transport.wrongUID = true
+					r.transport.mu.Unlock()
+				case "regroup":
+					r.transport.mu.Lock()
+					r.transport.topology = `<ZoneGroupState><ZoneGroups><ZoneGroup Coordinator="` + testUID + `"><ZoneGroupMember UUID="` + testUID + `"/><ZoneGroupMember UUID="RINCON_00112233446601400"/></ZoneGroup></ZoneGroups></ZoneGroupState>`
+					r.transport.mu.Unlock()
+				}
+			}
+			request := r.request(t, media.Operation_OPERATION_PLAY)
+			if mode == "intent-expiry" {
+				request.ExpiresAt = timestamppb.New(time.Now().Add(100 * time.Millisecond))
+			}
+			started := time.Now()
+			_, _ = r.service.Dispatch(ctx, r.actor, request)
+			if time.Since(started) > 2*time.Second {
+				t.Fatal("transition wait ignored cancellation or timeout")
+			}
+			id, _ := domain.ParseCommandID(request.CommandId)
+			status, err := r.host.ActionStatus(id)
+			if err != nil || status.Status == actions.ActionStatus_ACTION_STATUS_CONFIRMED {
+				t.Fatal("transition confirmed after timeout, cancellation or a lost fence", err)
+			}
+			_, _ = r.service.Dispatch(context.Background(), r.actor, request)
+			if r.transport.count() != 1 {
+				t.Fatal("transition failure replayed the physical write")
+			}
+		})
+	}
+}
+
+func TestSonosTransitionWaitDoesNotExtendVolumeOrStableMismatch(t *testing.T) {
+	for _, volume := range []bool{false, true} {
+		r := newCommandRig(t)
+		var request *actions.CommandRequest
+		if volume {
+			r.transport.transitionForever = true
+			request = r.request(t, uint32(1800))
+		} else {
+			r.transport.ackOnly = true
+			request = r.request(t, media.Operation_OPERATION_PAUSE)
+		}
+		if _, err := r.service.Dispatch(context.Background(), r.actor, request); err != nil {
+			t.Fatal(err)
+		}
+		if r.transport.count() != 1 || r.transport.transportReads != 1 {
+			t.Fatal("readback wait escaped its transport TRANSITIONING scope")
+		}
 	}
 }
 

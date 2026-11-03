@@ -141,50 +141,76 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	}
 	// A SOAP ACK is only acknowledgement. Only a fresh, matching real readback
 	// from the same verified standalone player can confirm this exact action.
-	after, err := r.read(budget, player)
-	if err != nil || !standalone(after, player.UID) {
-		p.invalidateObservation(budget, entity)
-		return nil
-	}
-	playback, err := r.transport(budget, player)
-	if err != nil {
-		p.invalidateObservation(budget, entity)
-		return nil
-	}
-	after.playback = playback.playback
-	finalTopology, err := r.identityTopology(budget, player)
-	if err != nil || !standalone(finalTopology, player.UID) {
-		p.invalidateObservation(budget, entity)
-		return nil
-	}
-	p.runtime.mu.Lock()
-	cached, present := p.runtime.records[entity]
-	if present && cached.owner == p && cached.snapshot.Route.TopologyRevision == action.Route.TopologyRevision && parent.Err() == nil {
-		cached.snapshot = proto.Clone(cached.snapshot).(*media.Snapshot)
-		cached.snapshot.VolumeBasisPoints = proto.Uint32(after.volume)
-		cached.snapshot.Title, cached.snapshot.Artist, cached.snapshot.Collection = playback.title, playback.artist, playback.collection
-		cached.snapshot.PositionMillis, cached.snapshot.DurationMillis = playback.position, playback.duration
-		cached.snapshot.Playback = media.PlaybackState_PLAYBACK_STATE_UNSPECIFIED
-		switch after.playback {
-		case "PLAYING":
-			cached.snapshot.Playback = media.PlaybackState_PLAYBACK_STATE_PLAYING
-		case "PAUSED_PLAYBACK":
-			cached.snapshot.Playback = media.PlaybackState_PLAYBACK_STATE_PAUSED
-		case "STOPPED", "NO_MEDIA_PRESENT":
-			cached.snapshot.Playback = media.PlaybackState_PLAYBACK_STATE_STOPPED
+	for {
+		if !current() {
+			return nil
 		}
-		cached.captured = time.Now()
-		cached.snapshot.ReceivedAt = timestamppb.New(cached.captured)
-		p.runtime.records[entity] = cached
+		after, err := r.read(budget, player)
+		if err != nil || !standalone(after, player.UID) {
+			p.invalidateObservation(budget, entity)
+			return nil
+		}
+		playback, err := r.transport(budget, player)
+		if err != nil {
+			p.invalidateObservation(budget, entity)
+			return nil
+		}
+		after.playback = playback.playback
+		finalTopology, err := r.identityTopology(budget, player)
+		if err != nil || !standalone(finalTopology, player.UID) {
+			p.invalidateObservation(budget, entity)
+			return nil
+		}
+		if !current() {
+			return nil
+		}
+		p.runtime.mu.Lock()
+		cached, present := p.runtime.records[entity]
+		if present && cached.owner == p && cached.snapshot.Route.TopologyRevision == action.Route.TopologyRevision && parent.Err() == nil {
+			cached.snapshot = proto.Clone(cached.snapshot).(*media.Snapshot)
+			cached.snapshot.VolumeBasisPoints = proto.Uint32(after.volume)
+			cached.snapshot.Title, cached.snapshot.Artist, cached.snapshot.Collection = playback.title, playback.artist, playback.collection
+			cached.snapshot.PositionMillis, cached.snapshot.DurationMillis = playback.position, playback.duration
+			cached.snapshot.Playback = media.PlaybackState_PLAYBACK_STATE_UNSPECIFIED
+			switch after.playback {
+			case "TRANSITIONING":
+				cached.snapshot.Playback = media.PlaybackState_PLAYBACK_STATE_BUFFERING
+			case "PLAYING":
+				cached.snapshot.Playback = media.PlaybackState_PLAYBACK_STATE_PLAYING
+			case "PAUSED_PLAYBACK":
+				cached.snapshot.Playback = media.PlaybackState_PLAYBACK_STATE_PAUSED
+			case "STOPPED", "NO_MEDIA_PRESENT":
+				cached.snapshot.Playback = media.PlaybackState_PLAYBACK_STATE_STOPPED
+			}
+			cached.captured = time.Now()
+			cached.snapshot.ReceivedAt = timestamppb.New(cached.captured)
+			p.runtime.records[entity] = cached
+		}
+		p.runtime.mu.Unlock()
+		if p.host != nil {
+			_ = publishVolume(budget, p.host, p.bindings[entity], &after.volume, time.Now())
+		}
+		if matchesAction(action, after) {
+			if !current() {
+				return nil
+			}
+			return command.ConfirmProtocol(readbackProof{action: action, observed: after, uid: player.UID})
+		}
+		if _, transport := action.Command.(*media.MediaAction_Operation); !transport || after.playback != "TRANSITIONING" {
+			return nil
+		}
+		// Sonos may acknowledge transport before reaching its stable state. Only
+		// this observed transition permits more reads; the single POST above is
+		// never repeated. The original deadline and session cancellation bound all
+		// waiting, and every iteration rechecks UID/topology and the Host fence.
+		timer := time.NewTimer(250 * time.Millisecond)
+		select {
+		case <-budget.Done():
+			timer.Stop()
+			return nil
+		case <-timer.C:
+		}
 	}
-	p.runtime.mu.Unlock()
-	if p.host != nil {
-		_ = publishVolume(budget, p.host, p.bindings[entity], &after.volume, time.Now())
-	}
-	if !matchesAction(action, after) {
-		return nil
-	}
-	return command.ConfirmProtocol(readbackProof{action: action, observed: after, uid: player.UID})
 }
 
 func (p *pilot) invalidateObservation(ctx context.Context, entity domain.EntityID) {
