@@ -26,7 +26,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const nhf014MediaSchema = "home.media.v1.MediaAction"
+const nhf014MediaSchema = "home.media.v1"
 
 type nhf014ArtworkMode uint8
 

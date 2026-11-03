@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 pub const MAX_SNAPSHOT_BYTES: usize = 64 * 1024;
 pub const MAX_ARTWORK_BYTES: usize = 128 * 1024;
 pub const MAX_POSITION_MILLIS: u64 = 7 * 24 * 60 * 60 * 1000;
-pub const ACTION_SCHEMA: &str = "home.media.v1.MediaAction";
+pub const ACTION_SCHEMA: &str = "home.media.v1";
 
 pub fn identity(value: &str) -> bool {
     !value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control)
