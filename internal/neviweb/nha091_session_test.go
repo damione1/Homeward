@@ -138,6 +138,7 @@ func newNHA091SessionRig(t *testing.T, handler http.HandlerFunc) nha091SessionRi
 	}
 	pilot := factory().(*Pilot)
 	pilot.client = client
+	pilot.host = session
 	return nha091SessionRig{settings: settings, pilot: pilot, host: host, catalog: catalog, sequence: sequence, session: session, secrets: secrets, quota: quota}
 }
 
@@ -505,8 +506,12 @@ func TestNHA091AdmittedClimateAndRelayCommandsUseOnePUT(t *testing.T) {
 	payloads := make(map[string]string)
 	switchEntered := make(chan struct{})
 	rig := newNHA091SessionRig(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut || r.Header.Get("Session-Id") != "fixture-session" || r.Header.Get("Cookie") != "sid=fixture-cookie" {
+		if r.Header.Get("Session-Id") != "fixture-session" || r.Header.Get("Cookie") != "sid=fixture-cookie" {
 			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`{"roomTemperature":{"value":20},"roomSetpoint":22,"roomSetpointMin":5,"roomSetpointMax":30,"systemMode":"off"}`))
 			return
 		}
 		body, _ := io.ReadAll(r.Body)
@@ -535,8 +540,10 @@ func TestNHA091AdmittedClimateAndRelayCommandsUseOnePUT(t *testing.T) {
 		switch binding.kind {
 		case BindingClimate:
 			snapshot.frames[binding.alias] = attributeFrame{model: modelInfo{family: familyZigbee, bounded: true, minimum: 5, maximum: 30}}
+			rig.pilot.signatures[binding.deviceID] = []byte(`{"model":1123}`)
 		case BindingSwitch:
 			snapshot.frames[binding.alias] = attributeFrame{model: modelInfo{family: familySwitch}}
+			rig.pilot.signatures[binding.deviceID] = []byte(`{"model":2151}`)
 		}
 	}
 	if err := rig.pilot.discover(ctx, rig.session, snapshot); err != nil {
@@ -638,7 +645,7 @@ func TestNHA091AdmittedClimateAndRelayCommandsUseOnePUT(t *testing.T) {
 		t.Fatal("admitted command mapping or exactly-once HTTP boundary changed")
 	}
 	count, err := rig.quota.Today(ctx)
-	if err != nil || count != 5 {
+	if err != nil || count != 8 {
 		t.Fatalf("action attempts=%d, error=%v", count, err)
 	}
 }
