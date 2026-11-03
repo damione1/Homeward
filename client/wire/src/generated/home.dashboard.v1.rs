@@ -452,6 +452,8 @@ impl ::buffa::Enumeration for NativeHeadingStyle {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
 pub enum NativeControlPresentation {
+    /// Legacy v1 default is meaningful. Preserve its name and wire number.
+    /// buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
     NATIVE_CONTROL_PRESENTATION_CONTROLS = 0i32,
     NATIVE_CONTROL_PRESENTATION_SUMMARY = 1i32,
 }
@@ -515,6 +517,8 @@ impl ::buffa::Enumeration for NativeControlPresentation {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
 pub enum NativeThermostatPresentation {
+    /// Legacy v1 default is meaningful. Preserve its name and wire number.
+    /// buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
     NATIVE_THERMOSTAT_PRESENTATION_COMPACT = 0i32,
     NATIVE_THERMOSTAT_PRESENTATION_DETAIL = 1i32,
     NATIVE_THERMOSTAT_PRESENTATION_SUMMARY = 2i32,
@@ -600,6 +604,8 @@ impl ::buffa::Enumeration for NativeThermostatPresentation {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
 pub enum NativeTasksPresentation {
+    /// Legacy v1 default is meaningful. Preserve its name and wire number.
+    /// buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
     NATIVE_TASKS_PRESENTATION_PREVIEW = 0i32,
     NATIVE_TASKS_PRESENTATION_SHOPPING = 1i32,
 }

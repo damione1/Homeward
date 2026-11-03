@@ -1,0 +1,1362 @@
+{
+  "baseline": {
+    "audit_revision": "b464aeeab7a0671b60f5070c66364266b3777101",
+    "implementation_base": "718385f93ade6896264af1c62c0e20e2b12e9629",
+    "rpc_count": 135,
+    "private_operator": "Local Unix socket; no public protobuf service or reflection export.",
+    "initial_implementation_base": "29fe98b4c713c1898b46975ea385d97f6ebf2187"
+  },
+  "resource_namespace": "homeward.damiengoehrig.ca",
+  "rows": [
+    {
+      "rpc": "home.actions.v1.ActionService/GetAction",
+      "source": "proto/home/actions/v1/actions_rpc.proto",
+      "owner": "internal/server/core_rpc_actions.go",
+      "visibility": "public",
+      "migration_ticket": "NHA-201",
+      "target": "ExecuteCapability / google.longrunning.Operations",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.actions.v1.ActionService/SubmitAction",
+      "source": "proto/home/actions/v1/actions_rpc.proto",
+      "owner": "internal/server/core_rpc_actions.go",
+      "visibility": "public",
+      "migration_ticket": "NHA-201",
+      "target": "ExecuteCapability / google.longrunning.Operations",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.actions.v1.ActionService/WatchAction",
+      "source": "proto/home/actions/v1/actions_rpc.proto",
+      "owner": "internal/server/core_rpc_actions.go",
+      "visibility": "public",
+      "migration_ticket": "NHA-201",
+      "target": "ExecuteCapability / google.longrunning.Operations",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/AcceptInvitation",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/CreateAccount",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/CreateInvitation",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/DeleteAccount",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/GetAccount",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/GetSecondFactorPolicy",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/ListAccounts",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/ListInvitations",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/RevokeInvitation",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/SetSecondFactorPolicy",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AccountService/UpdateAccount",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthService/BeginFactorEnrollment",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthService/CompleteFactorEnrollment",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthService/CompleteLogin",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthService/ListFactors",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthService/ListSessions",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthService/RefreshSession",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthService/RemoveFactor",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthService/ReplaceRecoveryCodes",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthService/RevokeSession",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthService/StartLogin",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthorizationPolicyService/GetPolicy",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.AuthorizationPolicyService/ReplacePolicy",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.McpKeyService/CreateMcpKey",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.McpKeyService/ListMcpKeys",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.McpKeyService/RevokeMcpKey",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.OperatorAccountService/BootstrapAdmin",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.OperatorAccountService/RecoverAccount",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.auth.v1.OperatorAccountService/ResetSecondFactor",
+      "source": "proto/home/auth/v1/auth.proto",
+      "owner": "internal/accounts",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.calendars.v1.CalendarService/GetCalendar",
+      "source": "proto/home/calendars/v1/calendars.proto",
+      "owner": "internal/calendars",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Calendar / CalendarEvent / occurrences",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.calendars.v1.CalendarService/GetEvent",
+      "source": "proto/home/calendars/v1/calendars.proto",
+      "owner": "internal/calendars",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Calendar / CalendarEvent / occurrences",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.calendars.v1.CalendarService/ListCalendars",
+      "source": "proto/home/calendars/v1/calendars.proto",
+      "owner": "internal/calendars",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Calendar / CalendarEvent / occurrences",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.calendars.v1.CalendarService/MutateCalendar",
+      "source": "proto/home/calendars/v1/calendars.proto",
+      "owner": "internal/calendars",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Calendar / CalendarEvent / occurrences",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.calendars.v1.CalendarService/MutateEvent",
+      "source": "proto/home/calendars/v1/calendars.proto",
+      "owner": "internal/calendars",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Calendar / CalendarEvent / occurrences",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.calendars.v1.CalendarService/QueryOccurrences",
+      "source": "proto/home/calendars/v1/calendars.proto",
+      "owner": "internal/calendars",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Calendar / CalendarEvent / occurrences",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.calendars.v1.CalendarService/ResolveLocalTime",
+      "source": "proto/home/calendars/v1/calendars.proto",
+      "owner": "internal/calendars",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Calendar / CalendarEvent / occurrences",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.calendars.v1.CalendarService/WatchCalendar",
+      "source": "proto/home/calendars/v1/calendars.proto",
+      "owner": "internal/calendars",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Calendar / CalendarEvent / occurrences",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.cameras.v1.CameraService/CloseSession",
+      "source": "proto/home/cameras/v1/cameras.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Camera observations and MediaSession",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.cameras.v1.CameraService/ListCameras",
+      "source": "proto/home/cameras/v1/cameras.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Camera observations and MediaSession",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.cameras.v1.CameraService/ListEvents",
+      "source": "proto/home/cameras/v1/cameras.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Camera observations and MediaSession",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.cameras.v1.CameraService/OpenSession",
+      "source": "proto/home/cameras/v1/cameras.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Camera observations and MediaSession",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.cameras.v1.CameraService/ReadImage",
+      "source": "proto/home/cameras/v1/cameras.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Camera observations and MediaSession",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.cameras.v1.CameraService/ReadVideo",
+      "source": "proto/home/cameras/v1/cameras.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Camera observations and MediaSession",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.cameras.v1.CameraService/WatchSession",
+      "source": "proto/home/cameras/v1/cameras.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "Camera observations and MediaSession",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.companion.v1.CompanionService/DescribeCompanion",
+      "source": "proto/home/companion/v1/companion.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "CompanionDevice and enrollment transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.companion.v1.CompanionService/GetInstallation",
+      "source": "proto/home/companion/v1/companion.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "CompanionDevice and enrollment transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.companion.v1.CompanionService/PublishTelemetry",
+      "source": "proto/home/companion/v1/companion.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "CompanionDevice and enrollment transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.companion.v1.CompanionService/RegisterInstallation",
+      "source": "proto/home/companion/v1/companion.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "CompanionDevice and enrollment transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.companion.v1.CompanionService/RevokeInstallation",
+      "source": "proto/home/companion/v1/companion.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "CompanionDevice and enrollment transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.companion.v1.CompanionService/UpdateConsent",
+      "source": "proto/home/companion/v1/companion.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "CompanionDevice and enrollment transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configuration.v1.ConfigurationService/ListDocuments",
+      "source": "proto/home/configuration/v1/configuration.proto",
+      "owner": "internal/configdocuments",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ConfigurationDocument / Revision",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configuration.v1.ConfigurationService/ListGenerations",
+      "source": "proto/home/configuration/v1/configuration.proto",
+      "owner": "internal/configdocuments",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ConfigurationDocument / Revision",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configuration.v1.ConfigurationService/ListSchemas",
+      "source": "proto/home/configuration/v1/configuration.proto",
+      "owner": "internal/configdocuments",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ConfigurationDocument / Revision",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configuration.v1.ConfigurationService/ListVersions",
+      "source": "proto/home/configuration/v1/configuration.proto",
+      "owner": "internal/configdocuments",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ConfigurationDocument / Revision",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configuration.v1.ConfigurationService/ReadDocument",
+      "source": "proto/home/configuration/v1/configuration.proto",
+      "owner": "internal/configdocuments",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ConfigurationDocument / Revision",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configuration.v1.ConfigurationService/RestoreDocument",
+      "source": "proto/home/configuration/v1/configuration.proto",
+      "owner": "internal/configdocuments",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ConfigurationDocument / Revision",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configuration.v1.ConfigurationService/WatchConfiguration",
+      "source": "proto/home/configuration/v1/configuration.proto",
+      "owner": "internal/configdocuments",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ConfigurationDocument / Revision",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configuration.v1.ConfigurationService/WriteDocument",
+      "source": "proto/home/configuration/v1/configuration.proto",
+      "owner": "internal/configdocuments",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ConfigurationDocument / Revision",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configurationapply.v1.ConfigurationApplyService/Apply",
+      "source": "proto/home/configurationapply/v1/apply.proto",
+      "owner": "internal/configactivation",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ApplyConfigurationPlan / Operation",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configurationapply.v1.ConfigurationApplyService/Rollback",
+      "source": "proto/home/configurationapply/v1/apply.proto",
+      "owner": "internal/configactivation",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ApplyConfigurationPlan / Operation",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configurationplan.v1.ConfigurationPlanService/BuildPlan",
+      "source": "proto/home/configurationplan/v1/plans.proto",
+      "owner": "internal/configplans",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ConfigurationPlan",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configurationplan.v1.ConfigurationPlanService/RevalidatePlan",
+      "source": "proto/home/configurationplan/v1/plans.proto",
+      "owner": "internal/configplans",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "ConfigurationPlan",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.configurationsimulation.v1.ConfigurationSimulationService/SimulatePlan",
+      "source": "proto/home/configurationsimulation/v1/simulation.proto",
+      "owner": "internal/configsimulation",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "SimulateConfigurationPlan",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.dashboard.v1.DashboardService/CreateDashboard",
+      "source": "proto/home/dashboard/v1/dashboard.proto",
+      "owner": "internal/server/dashboard_transport.go",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Dashboard / authorized projection",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.dashboard.v1.DashboardService/DeleteDashboard",
+      "source": "proto/home/dashboard/v1/dashboard.proto",
+      "owner": "internal/server/dashboard_transport.go",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Dashboard / authorized projection",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.dashboard.v1.DashboardService/GetDashboard",
+      "source": "proto/home/dashboard/v1/dashboard.proto",
+      "owner": "internal/server/dashboard_transport.go",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Dashboard / authorized projection",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.dashboard.v1.DashboardService/ListDashboards",
+      "source": "proto/home/dashboard/v1/dashboard.proto",
+      "owner": "internal/server/dashboard_transport.go",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Dashboard / authorized projection",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.dashboard.v1.DashboardService/ReplaceDashboard",
+      "source": "proto/home/dashboard/v1/dashboard.proto",
+      "owner": "internal/server/dashboard_transport.go",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Dashboard / authorized projection",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.dashboard.v1.DashboardService/WatchDashboards",
+      "source": "proto/home/dashboard/v1/dashboard.proto",
+      "owner": "internal/server/dashboard_transport.go",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Dashboard / authorized projection",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.history.v1.HistoryService/QueryAggregates",
+      "source": "proto/home/history/v1/history.proto",
+      "owner": "internal/historyquery",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "typed observation / operation history queries",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.history.v1.HistoryService/QueryExecutionTraces",
+      "source": "proto/home/history/v1/history.proto",
+      "owner": "internal/historyquery",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "typed observation / operation history queries",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.history.v1.HistoryService/QueryObservations",
+      "source": "proto/home/history/v1/history.proto",
+      "owner": "internal/historyquery",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "typed observation / operation history queries",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrationadmin.v1.IntegrationService/CreateInstance",
+      "source": "proto/home/integrationadmin/v1/integration_admin.proto",
+      "owner": "internal/integrationadmin",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "IntegrationType / IntegrationInstance and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrationadmin.v1.IntegrationService/DeleteInstance",
+      "source": "proto/home/integrationadmin/v1/integration_admin.proto",
+      "owner": "internal/integrationadmin",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "IntegrationType / IntegrationInstance and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrationadmin.v1.IntegrationService/GetInstance",
+      "source": "proto/home/integrationadmin/v1/integration_admin.proto",
+      "owner": "internal/integrationadmin",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "IntegrationType / IntegrationInstance and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrationadmin.v1.IntegrationService/GetIntegrationType",
+      "source": "proto/home/integrationadmin/v1/integration_admin.proto",
+      "owner": "internal/integrationadmin",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "IntegrationType / IntegrationInstance and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrationadmin.v1.IntegrationService/ListInstances",
+      "source": "proto/home/integrationadmin/v1/integration_admin.proto",
+      "owner": "internal/integrationadmin",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "IntegrationType / IntegrationInstance and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrationadmin.v1.IntegrationService/ListIntegrationTypes",
+      "source": "proto/home/integrationadmin/v1/integration_admin.proto",
+      "owner": "internal/integrationadmin",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "IntegrationType / IntegrationInstance and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrationadmin.v1.IntegrationService/SetInstanceEnabled",
+      "source": "proto/home/integrationadmin/v1/integration_admin.proto",
+      "owner": "internal/integrationadmin",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "IntegrationType / IntegrationInstance and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrationadmin.v1.IntegrationService/UpdateInstance",
+      "source": "proto/home/integrationadmin/v1/integration_admin.proto",
+      "owner": "internal/integrationadmin",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "IntegrationType / IntegrationInstance and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrations.v1.HostService/Commands",
+      "source": "proto/home/integrations/v1/host.proto",
+      "owner": "internal/integrations",
+      "visibility": "private",
+      "migration_ticket": null,
+      "target": "retained versioned private Host protocol",
+      "state": "retained-private",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrations.v1.HostService/CompleteCommand",
+      "source": "proto/home/integrations/v1/host.proto",
+      "owner": "internal/integrations",
+      "visibility": "private",
+      "migration_ticket": null,
+      "target": "retained versioned private Host protocol",
+      "state": "retained-private",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrations.v1.HostService/Discover",
+      "source": "proto/home/integrations/v1/host.proto",
+      "owner": "internal/integrations",
+      "visibility": "private",
+      "migration_ticket": null,
+      "target": "retained versioned private Host protocol",
+      "state": "retained-private",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrations.v1.HostService/Emit",
+      "source": "proto/home/integrations/v1/host.proto",
+      "owner": "internal/integrations",
+      "visibility": "private",
+      "migration_ticket": null,
+      "target": "retained versioned private Host protocol",
+      "state": "retained-private",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrations.v1.HostService/Handshake",
+      "source": "proto/home/integrations/v1/host.proto",
+      "owner": "internal/integrations",
+      "visibility": "private",
+      "migration_ticket": null,
+      "target": "retained versioned private Host protocol",
+      "state": "retained-private",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrations.v1.HostService/Heartbeat",
+      "source": "proto/home/integrations/v1/host.proto",
+      "owner": "internal/integrations",
+      "visibility": "private",
+      "migration_ticket": null,
+      "target": "retained versioned private Host protocol",
+      "state": "retained-private",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrations.v1.HostService/Publish",
+      "source": "proto/home/integrations/v1/host.proto",
+      "owner": "internal/integrations",
+      "visibility": "private",
+      "migration_ticket": null,
+      "target": "retained versioned private Host protocol",
+      "state": "retained-private",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrations.v1.HostService/ReadSecret",
+      "source": "proto/home/integrations/v1/host.proto",
+      "owner": "internal/integrations",
+      "visibility": "private",
+      "migration_ticket": null,
+      "target": "retained versioned private Host protocol",
+      "state": "retained-private",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.integrations.v1.HostService/ReportHealth",
+      "source": "proto/home/integrations/v1/host.proto",
+      "owner": "internal/integrations",
+      "visibility": "private",
+      "migration_ticket": null,
+      "target": "retained versioned private Host protocol",
+      "state": "retained-private",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/AddItem",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/CountItems",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/CountLists",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/CreateList",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/DeleteItem",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/DeleteList",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/EditItem",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/GetItem",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/GetList",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/ListItems",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/ListLists",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/MoveItem",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/RenameList",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/SetCompleted",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.lists.v1.ListService/WatchLists",
+      "source": "proto/home/lists/v1/lists.proto",
+      "owner": "internal/lists",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "TaskList / Task CRUD and MoveTask",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.logic.v1.LogicService/CancelRun",
+      "source": "proto/home/logic/v1/logic.proto",
+      "owner": "internal/automationruns",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Automation / Run and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.logic.v1.LogicService/GetRun",
+      "source": "proto/home/logic/v1/logic.proto",
+      "owner": "internal/automationruns",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Automation / Run and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.logic.v1.LogicService/ListDefinitions",
+      "source": "proto/home/logic/v1/logic.proto",
+      "owner": "internal/automationruns",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Automation / Run and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.logic.v1.LogicService/ListRuns",
+      "source": "proto/home/logic/v1/logic.proto",
+      "owner": "internal/automationruns",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Automation / Run and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.logic.v1.LogicService/ReadTrace",
+      "source": "proto/home/logic/v1/logic.proto",
+      "owner": "internal/automationruns",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Automation / Run and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.logic.v1.LogicService/StartRun",
+      "source": "proto/home/logic/v1/logic.proto",
+      "owner": "internal/automationruns",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "Automation / Run and transitions",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.media.v1.MediaService/ReadArtwork",
+      "source": "proto/home/media/v1/media.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "MediaSession and authorized byte reads",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.media.v1.MediaService/ReadSnapshot",
+      "source": "proto/home/media/v1/media.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-202",
+      "target": "MediaSession and authorized byte reads",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.notifications.v1.NotificationService/AcknowledgeDelivery",
+      "source": "proto/home/notifications/v1/notifications.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "NotificationDestination / Delivery / Receipt",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.notifications.v1.NotificationService/DescribeNotifications",
+      "source": "proto/home/notifications/v1/notifications.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "NotificationDestination / Delivery / Receipt",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.notifications.v1.NotificationService/GetDelivery",
+      "source": "proto/home/notifications/v1/notifications.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "NotificationDestination / Delivery / Receipt",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.notifications.v1.NotificationService/GetDestination",
+      "source": "proto/home/notifications/v1/notifications.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "NotificationDestination / Delivery / Receipt",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.notifications.v1.NotificationService/ReadInbox",
+      "source": "proto/home/notifications/v1/notifications.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "NotificationDestination / Delivery / Receipt",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.notifications.v1.NotificationService/RegisterDestination",
+      "source": "proto/home/notifications/v1/notifications.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "NotificationDestination / Delivery / Receipt",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.notifications.v1.NotificationService/ResolveOpen",
+      "source": "proto/home/notifications/v1/notifications.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "NotificationDestination / Delivery / Receipt",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.notifications.v1.NotificationService/RevokeDestination",
+      "source": "proto/home/notifications/v1/notifications.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "NotificationDestination / Delivery / Receipt",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.notifications.v1.NotificationService/UpdateDestination",
+      "source": "proto/home/notifications/v1/notifications.proto",
+      "owner": "internal/frontendmock",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "NotificationDestination / Delivery / Receipt",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.observability.v1.ObservabilityService/GetHealth",
+      "source": "proto/home/observability/v1/observability.proto",
+      "owner": "internal/observability",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "typed status / health / trace projections",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.observability.v1.ObservabilityService/GetIntegrationHealth",
+      "source": "proto/home/observability/v1/observability.proto",
+      "owner": "internal/observability",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "typed status / health / trace projections",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.observability.v1.ObservabilityService/GetMetrics",
+      "source": "proto/home/observability/v1/observability.proto",
+      "owner": "internal/observability",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "typed status / health / trace projections",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.observability.v1.ObservabilityService/QueryAudits",
+      "source": "proto/home/observability/v1/observability.proto",
+      "owner": "internal/observability",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "typed status / health / trace projections",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.observability.v1.ObservabilityService/QueryRuntimeLogs",
+      "source": "proto/home/observability/v1/observability.proto",
+      "owner": "internal/observability",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "typed status / health / trace projections",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.observability.v1.ObservabilityService/ReadRecorderCoverage",
+      "source": "proto/home/observability/v1/observability.proto",
+      "owner": "internal/observability",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "typed status / health / trace projections",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.observability.v1.ObservabilityService/ReadRunTrace",
+      "source": "proto/home/observability/v1/observability.proto",
+      "owner": "internal/observability",
+      "visibility": "public",
+      "migration_ticket": "NHA-203",
+      "target": "typed status / health / trace projections",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.state.v1.StateService/OpenView",
+      "source": "proto/home/state/v1/state.proto",
+      "owner": "internal/view",
+      "visibility": "public",
+      "migration_ticket": "NHA-201",
+      "target": "EntityView Create/Get/List/Read/Watch/Delete",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.state.v1.StateService/ReadPage",
+      "source": "proto/home/state/v1/state.proto",
+      "owner": "internal/view",
+      "visibility": "public",
+      "migration_ticket": "NHA-201",
+      "target": "EntityView Create/Get/List/Read/Watch/Delete",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.state.v1.StateService/ReleaseView",
+      "source": "proto/home/state/v1/state.proto",
+      "owner": "internal/view",
+      "visibility": "public",
+      "migration_ticket": "NHA-201",
+      "target": "EntityView Create/Get/List/Read/Watch/Delete",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    },
+    {
+      "rpc": "home.state.v1.StateService/WatchView",
+      "source": "proto/home/state/v1/state.proto",
+      "owner": "internal/view",
+      "visibility": "public",
+      "migration_ticket": "NHA-201",
+      "target": "EntityView Create/Get/List/Read/Watch/Delete",
+      "state": "compatibility-v1",
+      "v2_implemented": false
+    }
+  ]
+}

@@ -3,6 +3,7 @@
 
 use std::{error::Error, fmt, str::FromStr};
 
+pub mod api;
 pub mod calendars;
 pub mod cameras;
 pub mod dashboard;

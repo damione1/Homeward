@@ -1,0 +1,18 @@
+# admission	capability_name
+ok	homes/demo/entities/lamp-a/capabilities/power
+ok	homes/123/entities/123/capabilities/123
+ok	homes/a/entities/a/capabilities/a
+reject	-
+reject	/homes/demo/entities/lamp-a/capabilities/power
+reject	homes/demo/entities/lamp-a/capabilities/power/
+reject	homes/Demo/entities/lamp-a/capabilities/power
+reject	homes/demo/entities/-a/capabilities/power
+reject	homes/demo/entities/a-/capabilities/power
+reject	homes/demo/entities/a.b/capabilities/power
+reject	homes/demo/entities/%2fa/capabilities/power
+reject	homes/demo/entities/é/capabilities/power
+reject	homes/demo/entities/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/capabilities/power
+reject	homes/demo/devices/lamp-a/capabilities/power
+reject	homes/./entities/lamp-a/capabilities/power
+reject	homes/demo/entities//capabilities/power
+reject	homes/demo/entities/lamp-a/capabilities/power?x=1

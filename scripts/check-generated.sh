@@ -29,4 +29,6 @@ EOF
 PATH="$PWD/.tools/bin:$PATH" buf generate --template "$contract_temp/buf.gen.yaml"
 diff -r gen "$contract_temp/go"
 diff -r client/wire/src/generated "$contract_temp/rust"
+buf build --path proto/home/api/v2 --as-file-descriptor-set -o "$contract_temp/api_v2_descriptor.binpb"
+cmp contracts/api_v2_descriptor.binpb "$contract_temp/api_v2_descriptor.binpb"
 echo "Go/Connect/Rust generated bindings match pinned generators"

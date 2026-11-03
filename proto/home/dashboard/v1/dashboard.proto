@@ -137,6 +137,8 @@ message LayoutNode {
 message NativeScreenVisibility { uint32 min_width = 1; uint32 max_width = 2; }
 
 enum NativeControlPresentation {
+  // Legacy v1 default is meaningful. Preserve its name and wire number.
+  // buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
   NATIVE_CONTROL_PRESENTATION_CONTROLS = 0;
   NATIVE_CONTROL_PRESENTATION_SUMMARY = 1;
 }
@@ -153,6 +155,8 @@ message NativeRoomWidget {
   repeated string active_states = 4;
 }
 enum NativeThermostatPresentation {
+  // Legacy v1 default is meaningful. Preserve its name and wire number.
+  // buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
   NATIVE_THERMOSTAT_PRESENTATION_COMPACT = 0;
   NATIVE_THERMOSTAT_PRESENTATION_DETAIL = 1;
   NATIVE_THERMOSTAT_PRESENTATION_SUMMARY = 2;
@@ -165,6 +169,8 @@ message NativeThermostatWidget {
 }
 message NativeAgendaWidget { string calendar_id = 1; string timezone = 2; uint32 window_seconds = 3; uint32 limit = 4; }
 enum NativeTasksPresentation {
+  // Legacy v1 default is meaningful. Preserve its name and wire number.
+  // buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
   NATIVE_TASKS_PRESENTATION_PREVIEW = 0;
   NATIVE_TASKS_PRESENTATION_SHOPPING = 1;
 }
