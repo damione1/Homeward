@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/mqtt/testbroker"
 )
 
@@ -159,6 +160,94 @@ func TestNHA193AvailabilityCannotRefreshSavedDeviceValue(t *testing.T) {
 	r.send("zigbee2mqtt/saved", "OFF", ObservationLive)
 	if _, ok := r.state(key).CriticalValue(); !ok {
 		t.Fatal("subsequent real state did not refresh")
+	}
+}
+
+type nha193EdgeHost struct {
+	nha068BindingHost
+	edges chan integrations.NativeMQTTEdge
+}
+
+func (h *nha193EdgeHost) PublishNativeMQTTEdge(ctx context.Context, edge integrations.NativeMQTTEdge) error {
+	select {
+	case h.edges <- edge:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestNHA193NativeReadNeverEchoesAsTriggerButExternalStateDoes(t *testing.T) {
+	broker := testbroker.Start(t)
+	input := nha193Input(broker.Address)
+	input.Z2MReads[0].Properties = []string{"state"}
+	settings, err := ParseSettings(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := newNHA069Rig(t, ModeActive)
+	key := r.configure("test-lamp", "test-device")
+	const stateTopic = "zigbee2mqtt/Test lamp"
+	broker.Publish(t, "homeassistant/switch/test-lamp/config", []byte(`{"unique_id":"test-lamp","device":{"identifiers":["test-device"]},"state_topic":"zigbee2mqtt/Test lamp","value_template":"{{ value_json.state }}"}`), true)
+	observer := broker.Connect(t, testbroker.ObserverUser, testbroker.ObserverPassword, "nha193-get-edge-observer", true, 0, nil)
+	requests := observer.Subscribe(t, stateTopic+"/get")
+	factory, err := NewDiscoveryPilotFactoryWithTriggerEdges(settings, r.repo, []TopicFilter{mustNHA069Filter(t, "zigbee2mqtt/#")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pilot := factory().(*discoveryPilot)
+	r.mapper = pilot.mapper
+	broker.WatchSentTopics(settings.clientID)
+	tasks := newNHA068Tasks()
+	host := &nha193EdgeHost{nha068BindingHost: nha068BindingHost{Session: r.session, provider: nha068Provider{instance: settings.instance, password: testbroker.PilotPassword}}, edges: make(chan integrations.NativeMQTTEdge, 8)}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	err = pilot.Start(ctx, host, tasks)
+	cancel()
+	if err != nil {
+		tasks.close(t, pilot.Pilot)
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { tasks.close(t, pilot.Pilot) })
+	select {
+	case request := <-requests:
+		if request.Topic != stateTopic+"/get" || string(request.Payload) != `{"state":""}` {
+			t.Fatalf("native read absent: %+v", request)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("native read did not reach the independent broker observer")
+	}
+	// External responses still pass the same broad filter and become genuine
+	// state observations and native edges. Stop joins the consumer before the
+	// final drain, so a delayed self echo cannot escape the assertion.
+	broker.Publish(t, stateTopic, []byte(`{"state":"ON"}`), false)
+	select {
+	case edge := <-host.edges:
+		topic, payload, _, err := edge.Components()
+		if err != nil || topic != stateTopic || string(payload) != `{"state":"ON"}` {
+			t.Fatalf("self read became an automation edge: topic=%q payload=%q err=%v", topic, payload, err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("external device response lost its native edge")
+	}
+	if _, ok := r.state(key).CriticalValue(); !ok {
+		t.Fatal("external response lost its fresh device state")
+	}
+	tasks.close(t, pilot.Pilot)
+	if len(host.edges) != 0 {
+		t.Fatal("unexpected extra edge from our own native read")
+	}
+	if count := broker.PublishCount(settings.clientID); count != 1 {
+		t.Fatalf("native session emitted %d requests, want one get", count)
+	}
+	stateDelivered := false
+	for _, topic := range broker.SentTopics(settings.clientID) {
+		if topic == stateTopic+"/get" {
+			t.Fatal("broker echoed our get to the source subscription")
+		}
+		stateDelivered = stateDelivered || topic == stateTopic
+	}
+	if !stateDelivered {
+		t.Fatal("broker did not deliver the external state to the source subscription")
 	}
 }
 

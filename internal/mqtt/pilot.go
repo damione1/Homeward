@@ -430,7 +430,11 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 	for _, filter := range p.settings.subscriptions {
 		// MQTT 5 RAP=false: retained snapshot arrives with RETAIN=1, while
 		// a new live publication arrives with RETAIN=0 even if stored by broker.
-		subs = append(subs, paho.SubscribeOptions{Topic: filter.value, QoS: 1, RetainAsPublished: false})
+		// Sessions with native reads must not consume their own startup/get
+		// publications as live automation edges. MQTT 5 No Local excludes only
+		// this client (MQTT-3.8.3-3); device responses published by Z2M remain subscribed.
+		// Other sessions retain their existing subscription behavior.
+		subs = append(subs, paho.SubscribeOptions{Topic: filter.value, QoS: 1, RetainAsPublished: false, NoLocal: len(p.settings.reads) != 0})
 	}
 	subscribeCtx, subscribeCancel := context.WithTimeout(startCtx, connectTimeout)
 	defer subscribeCancel()
