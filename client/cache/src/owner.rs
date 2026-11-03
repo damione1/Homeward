@@ -238,7 +238,9 @@ impl<P: Send + 'static> CacheHandle<P> {
             return Err(ControlFailure::Closed);
         }
         match phase {
-            Phase::Ready | Phase::Refreshing | Phase::Offline => Ok(()),
+            Phase::Ready | Phase::Refreshing | Phase::Offline | Phase::AuthorityUnavailable => {
+                Ok(())
+            }
             Phase::SignedOut
             | Phase::Busy
             | Phase::Challenge { .. }
@@ -247,7 +249,6 @@ impl<P: Send + 'static> CacheHandle<P> {
             | Phase::CredentialRejected
             | Phase::RateLimited
             | Phase::NetworkUnavailable
-            | Phase::AuthorityUnavailable
             | Phase::RightsChanged
             | Phase::StorageUnavailable
             | Phase::UnsupportedResponse
@@ -631,17 +632,12 @@ async fn resume_read<P: Send + 'static>(
 
 // Transport outages have no total retry budget. Backoff and each network
 // operation remain bounded; protocol-invalid resync loops retain their limit.
-fn network_backoff(attempt: u8) -> Duration {
-    Duration::from_millis(250)
-        .saturating_mul(1 << attempt.saturating_sub(1).min(7))
-        .min(Duration::from_secs(30))
-}
 #[derive(Default)]
 struct NetworkRetry {
-    failures: u8,
+    backoff: home_client_transport::FibonacciBackoff,
 }
 impl NetworkRetry {
-    fn observe_watch(&mut self, elapsed: Duration, exit: &WatchExit) {
+    fn observe_watch(&mut self, elapsed: Duration, exit: &WatchExit) -> bool {
         let quiet_rotation = match exit {
             WatchExit::Ended(_) => true,
             WatchExit::Transport { failure, retained } => {
@@ -652,14 +648,15 @@ impl NetworkRetry {
             WatchExit::Resync(_) | WatchExit::Invalid(_) | WatchExit::Cancelled => false,
         };
         // A healthy quiet watch can reach its 30s deadline slightly early.
-        if elapsed >= Duration::from_secs(15) && quiet_rotation {
-            self.failures = 0;
+        let healthy_rotation = elapsed >= Duration::from_secs(15) && quiet_rotation;
+        if healthy_rotation {
+            self.backoff.reset();
         }
+        healthy_rotation
     }
 }
 async fn resume_network(progress: &mut NetworkRetry, cancel: &CancellationToken) -> bool {
-    progress.failures = progress.failures.saturating_add(1);
-    let delay = network_backoff(progress.failures);
+    let delay = progress.backoff.next_delay();
     tokio::select! {
         biased;
         () = cancel.cancelled() => false,
@@ -675,6 +672,10 @@ fn transient_session_failure(failure: SessionFailure) -> bool {
                 | FailureKind::Rpc(
                     home_client_transport::RpcCode::Unavailable
                         | home_client_transport::RpcCode::Canceled
+                        | home_client_transport::RpcCode::Internal
+                        | home_client_transport::RpcCode::Unknown
+                        | home_client_transport::RpcCode::ResourceExhausted
+                        | home_client_transport::RpcCode::Unauthenticated
                 )
         )
     )
@@ -705,10 +706,13 @@ async fn feed<P: Send + 'static>(
                 continue;
             }
             Err(error) => {
-                let retryable = session.subscribe().borrow().phase == Phase::Offline
-                    && transient_session_failure(error);
+                let authority_unavailable =
+                    session.subscribe().borrow().phase == Phase::AuthorityUnavailable;
+                let retryable = (session.subscribe().borrow().phase == Phase::Offline
+                    && transient_session_failure(error))
+                    || authority_unavailable;
                 emitter.set(
-                    if retryable {
+                    if retryable && !authority_unavailable {
                         CachePhase::Offline
                     } else {
                         CachePhase::Blocked
@@ -717,6 +721,9 @@ async fn feed<P: Send + 'static>(
                 );
                 emitter.event(CacheEvent::Session(error), cancel).await;
                 if retryable && resume_network(&mut network, cancel).await {
+                    if authority_unavailable {
+                        let _ = session.allow_new_view_attempt().await;
+                    }
                     continue;
                 }
                 return;
@@ -735,6 +742,7 @@ async fn feed<P: Send + 'static>(
                         continue;
                     }
                     emitter.set(CachePhase::Live, Some(&view));
+                    network = NetworkRetry::default();
                     view
                 }
                 Err(SnapshotFailure::Cancelled) => {
@@ -756,8 +764,17 @@ async fn feed<P: Send + 'static>(
                     emitter
                         .event(CacheEvent::Transport(failure.kind()), cancel)
                         .await;
-                    let retryable = failure.may_resume_read();
+                    let authority_unavailable =
+                        session.subscribe().borrow().phase == Phase::AuthorityUnavailable;
+                    let access_rejected = session.subscribe().borrow().phase == Phase::Offline
+                        && failure.kind()
+                            == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated);
+                    let retryable =
+                        failure.may_resume_read() || authority_unavailable || access_rejected;
                     if retryable && resume_network(&mut network, cancel).await {
+                        if authority_unavailable {
+                            let _ = session.allow_new_view_attempt().await;
+                        }
                         continue;
                     }
                     emitter.set(CachePhase::Blocked, None);
@@ -791,7 +808,11 @@ async fn feed<P: Send + 'static>(
             continue;
         }
         progress.watch_ended(watch_started.elapsed(), &exit);
-        network.observe_watch(watch_started.elapsed(), &exit);
+        if network.observe_watch(watch_started.elapsed(), &exit) {
+            // The bounded watch deliberately rotates. Confirm the next read
+            // immediately; a planned deadline is not a network outage.
+            continue;
+        }
         match exit {
             WatchExit::Ended(view) => {
                 emitter.set(CachePhase::Offline, Some(&view));
@@ -815,12 +836,25 @@ async fn feed<P: Send + 'static>(
                     view.as_ref(),
                 );
                 let _ = session.observe_failure(lease.generation, &failure).await;
+                let authority_unavailable =
+                    session.subscribe().borrow().phase == Phase::AuthorityUnavailable;
+                let access_rejected = session.subscribe().borrow().phase == Phase::Offline
+                    && failure.kind()
+                        == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated);
+                if authority_unavailable || access_rejected {
+                    emitter.set(CachePhase::Blocked, None);
+                }
                 emitter
                     .event(CacheEvent::Transport(failure.kind()), cancel)
                     .await;
                 // Never wait for a delta to prove recovery of a quiet home.
                 // Keep the dated display only until a new snapshot is admitted.
-                if failure.may_resume_read() && resume_network(&mut network, cancel).await {
+                if (failure.may_resume_read() || authority_unavailable || access_rejected)
+                    && resume_network(&mut network, cancel).await
+                {
+                    if authority_unavailable {
+                        let _ = session.allow_new_view_attempt().await;
+                    }
                     continue;
                 }
                 emitter.set(CachePhase::Blocked, None);
@@ -856,14 +890,15 @@ mod tests {
     async fn transport_outage_retries_beyond_four_attempts_with_capped_wait_and_cancellation() {
         let cancel = CancellationToken::new();
         let mut progress = NetworkRetry::default();
-        for attempt in 1..=20 {
+        let expected = [
+            1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 3600, 3600,
+            3600,
+        ];
+        for seconds in expected {
             let started = tokio::time::Instant::now();
             assert!(resume_network(&mut progress, &cancel).await);
             let elapsed = tokio::time::Instant::now() - started;
-            assert!(elapsed <= Duration::from_secs(30));
-            if attempt >= 8 {
-                assert_eq!(elapsed, Duration::from_secs(30));
-            }
+            assert_eq!(elapsed, Duration::from_secs(seconds));
         }
         cancel.cancel();
         assert!(!resume_network(&mut progress, &cancel).await);

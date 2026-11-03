@@ -1987,6 +1987,7 @@ dependencies = [
  "buffa",
  "buffa-types",
  "connectrpc",
+ "getrandom 0.3.4",
  "home-client-transport",
  "home-wire-contract",
  "tokio",

@@ -78,7 +78,8 @@ impl AuthApi for AuthTransport {
         request: auth::RefreshSessionRequest,
         cancel: &CancellationToken,
     ) -> Result<auth::RefreshSessionResponse, Failure> {
-        // Exactly one dispatch. This future is never retried after uncertainty.
+        // One bounded dispatch. The owner persists a renewal key before send;
+        // a later attempt recovers that same operation after a lost reply.
         self.refresh_session(request, Duration::from_secs(10), cancel)
             .await
     }

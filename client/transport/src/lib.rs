@@ -43,7 +43,7 @@ pub use lists::{ListTransport, ListWatch};
 pub use logic::LogicTransport;
 pub use media::MediaTransport;
 pub use notifications::NotificationTransport;
-pub use reconnect::ReconnectPolicy;
+pub use reconnect::{FibonacciBackoff, ReconnectPolicy};
 
 #[allow(clippy::all)]
 #[rustfmt::skip]

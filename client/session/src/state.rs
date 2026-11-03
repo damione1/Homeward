@@ -23,7 +23,7 @@ pub enum Phase {
     EnrollmentRequired,
     Ready,
     Refreshing,
-    /// Saved session retained after a refresh proven not to have been sent.
+    /// Saved session and any pending renewal retained for automatic recovery.
     Offline,
     NeedsLogin,
     CredentialRejected,

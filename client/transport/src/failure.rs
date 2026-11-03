@@ -63,8 +63,36 @@ impl Failure {
             self.kind,
             FailureKind::NetworkInterrupted
                 | FailureKind::Deadline
-                | FailureKind::Rpc(ErrorCode::Unavailable | ErrorCode::Canceled)
+                | FailureKind::Rpc(
+                    ErrorCode::Unavailable
+                        | ErrorCode::Canceled
+                        | ErrorCode::Internal
+                        | ErrorCode::Unknown
+                        | ErrorCode::ResourceExhausted
+                )
         ) && matches!(self.authorization_termination(), Ok(None))
+            && matches!(self.auth_error(), Ok(None))
+    }
+
+    /// Only the identified, durably saved renewal operation may use this
+    /// recovery policy, after admitting any AuthError. It never authorizes
+    /// replaying another mutation.
+    pub fn may_recover_renewal(&self) -> bool {
+        use crate::RpcCode;
+        let transient = matches!(
+            self.kind,
+            FailureKind::NetworkInterrupted
+                | FailureKind::Deadline
+                | FailureKind::Rpc(
+                    RpcCode::Unavailable
+                        | RpcCode::Canceled
+                        | RpcCode::Internal
+                        | RpcCode::Unknown
+                        | RpcCode::ResourceExhausted
+                        | RpcCode::Unauthenticated
+                )
+        );
+        transient && matches!(self.authorization_termination(), Ok(None))
     }
 
     /// Inspect typed details explicitly; callers must not log the raw response.

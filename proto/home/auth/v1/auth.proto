@@ -534,6 +534,8 @@ message AuthorizationPolicyError {
 enum AuthorizationTerminationReason {
   AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED = 0;
   AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED = 1;
+  // The admitted bearer expired. Native interactive clients discard its view
+  // and seek RefreshSession: only AuthError expired=SESSION ends that session.
   AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED = 2;
   AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED = 3;
   AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED = 4;

@@ -60,3 +60,24 @@ fn corrupt_storage_and_backwards_clock_do_not_expose_a_session() {
         Err(RecordFailure::ClockMovedBackwards)
     ));
 }
+
+#[test]
+fn legacy_available_records_migrate_without_discarding_the_session() {
+    let (record, now) = record();
+    let mut legacy = record.encode();
+    legacy[..8].copy_from_slice(b"HWSess01");
+    let restored = SecretRecord::decode(&legacy, &now).unwrap();
+    assert_eq!(&restored.encode()[..8], b"HWSess02");
+}
+
+#[test]
+fn a_saved_deadline_cannot_discard_a_server_extended_session() {
+    let (record, now) = record();
+    let later = Timestamp {
+        seconds: now.seconds + 365 * 86_400,
+        ..Default::default()
+    };
+    let restored = SecretRecord::decode(&record.encode(), &later).unwrap();
+    assert!(restored.access_expired(&later));
+    assert!(restored.session_expired(&later));
+}

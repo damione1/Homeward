@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 
 use crate::{
-    Phase, RecordFailure, SecretRecord, SecureStore, SessionCoordinator, SessionFailure,
+    Phase, RefreshState, SecretRecord, SecureStore, SessionCoordinator, SessionFailure,
     StoreFailure, api::AuthApi, coordinator::Clock,
 };
 
@@ -35,6 +35,7 @@ fn timestamp(seconds: i64) -> Timestamp {
 struct MemoryStore {
     record: Mutex<Option<Zeroizing<Vec<u8>>>>,
     fail_save: AtomicBool,
+    fail_clear: AtomicBool,
     clear_calls: AtomicUsize,
 }
 impl SecureStore for MemoryStore {
@@ -50,6 +51,9 @@ impl SecureStore for MemoryStore {
     }
     fn clear(&self) -> Result<(), StoreFailure> {
         self.clear_calls.fetch_add(1, Ordering::SeqCst);
+        if self.fail_clear.load(Ordering::SeqCst) {
+            return Err(StoreFailure::Unavailable);
+        }
         *self.record.lock().unwrap() = None;
         Ok(())
     }
@@ -59,6 +63,9 @@ struct TestApi {
     clock: Arc<TestClock>,
     store: Arc<MemoryStore>,
     refresh_calls: AtomicUsize,
+    renewal_keys: Mutex<Vec<Vec<u8>>>,
+    refresh_error: Mutex<Option<auth::AuthError>>,
+    bare_refresh_unauthenticated: AtomicBool,
     started: Notify,
     release: Semaphore,
     lost_reply: AtomicBool,
@@ -70,6 +77,7 @@ struct TestApi {
     rotated_nanos: AtomicI32,
     refused_connect: AtomicBool,
     gateway_offline: AtomicBool,
+    bare_preflight_unauthenticated: AtomicBool,
     preflight_reason: Mutex<Option<auth::AuthorizationTerminationReason>>,
     block_preflight: AtomicBool,
     preflight_started: Notify,
@@ -103,7 +111,7 @@ impl TestApi {
                 }
                 .into(),
                 created_at: precise(BASE - 1 + offset).into(),
-                expires_at: precise(BASE + 3600 + offset).into(),
+                expires_at: precise(now + 3600).into(),
                 authentication_satisfaction: auth::AuthenticationSatisfaction::PasswordOnly.into(),
                 authenticated_at: precise(BASE - 1 + offset).into(),
                 ..Default::default()
@@ -180,22 +188,33 @@ impl AuthApi for TestApi {
         if self.gateway_offline.load(Ordering::SeqCst) {
             return Err(ConnectError::unavailable("synthetic proxy backend unavailable").into());
         }
+        if self.bare_preflight_unauthenticated.load(Ordering::SeqCst) {
+            return Err(ConnectError::unauthenticated(
+                "synthetic expired access without terminal detail",
+            )
+            .into());
+        }
         Ok(())
     }
     async fn refresh(
         &self,
-        _: auth::RefreshSessionRequest,
+        request: auth::RefreshSessionRequest,
         cancel: &CancellationToken,
     ) -> Result<auth::RefreshSessionResponse, Failure> {
         self.refresh_calls.fetch_add(1, Ordering::SeqCst);
         let saved = self.store.load().unwrap().unwrap();
-        assert!(
-            matches!(
-                SecretRecord::decode(&saved, &self.clock.now().unwrap()),
-                Err(RecordFailure::RefreshConsumed)
-            ),
-            "dispatch preceded durable burn"
+        let persisted = SecretRecord::decode(&saved, &self.clock.now().unwrap()).unwrap();
+        assert_eq!(request.renewal_key.len(), 32);
+        assert_ne!(request.renewal_key.as_slice(), &[0; 32]);
+        assert_eq!(
+            persisted.refresh,
+            RefreshState::Pending(request.renewal_key.as_slice().try_into().unwrap()),
+            "dispatch preceded durable renewal identity"
         );
+        self.renewal_keys
+            .lock()
+            .unwrap()
+            .push(request.renewal_key.to_vec());
         self.started.notify_one();
         if self.ignore_cancel.load(Ordering::SeqCst) {
             self.release.acquire().await.unwrap().forget();
@@ -226,6 +245,20 @@ impl AuthApi for TestApi {
         if self.lost_reply.load(Ordering::SeqCst) {
             return Err(ConnectError::unavailable("synthetic lost reply").into());
         }
+        if let Some(detail) = self.refresh_error.lock().unwrap().clone() {
+            use buffa::MessageName;
+            return Err(
+                ConnectError::permission_denied("synthetic terminal renewal refusal")
+                    .with_detail(connectrpc::ErrorDetail::from_message(
+                        auth::AuthError::FULL_NAME,
+                        &detail,
+                    ))
+                    .into(),
+            );
+        }
+        if self.bare_refresh_unauthenticated.load(Ordering::SeqCst) {
+            return Err(ConnectError::unauthenticated("synthetic untyped proxy refusal").into());
+        }
         if self.rate_limit_refresh.load(Ordering::SeqCst) {
             return Err(ConnectError::resource_exhausted("synthetic limit").into());
         }
@@ -248,6 +281,9 @@ fn fixture() -> (
         clock: clock.clone(),
         store: store.clone(),
         refresh_calls: AtomicUsize::new(0),
+        renewal_keys: Mutex::new(Vec::new()),
+        refresh_error: Mutex::new(None),
+        bare_refresh_unauthenticated: AtomicBool::new(false),
         started: Notify::new(),
         release: Semaphore::new(0),
         lost_reply: AtomicBool::new(false),
@@ -259,6 +295,7 @@ fn fixture() -> (
         rotated_nanos: AtomicI32::new(0),
         refused_connect: AtomicBool::new(false),
         gateway_offline: AtomicBool::new(false),
+        bare_preflight_unauthenticated: AtomicBool::new(false),
         preflight_reason: Mutex::new(None),
         block_preflight: AtomicBool::new(false),
         preflight_started: Notify::new(),
@@ -307,15 +344,12 @@ async fn independent_clocks_restore_normally_and_refresh_before_the_server_deadl
     assert!(restored.access(&CancellationToken::new()).await.is_ok());
     assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
     clock.0.store(BASE + 3571, Ordering::SeqCst);
-    assert_eq!(
-        restored.revalidate_lifetime().await,
-        Err(SessionFailure::NeedsLogin)
-    );
-    assert_eq!(restored.subscribe().borrow().phase, Phase::NeedsLogin);
+    assert_eq!(restored.revalidate_lifetime().await, Ok(()));
+    assert_eq!(restored.subscribe().borrow().phase, Phase::Ready);
     assert_eq!(
         api.refresh_calls.load(Ordering::SeqCst),
         1,
-        "absolute expiry must not refresh"
+        "the saved old deadline cannot expire an extended session"
     );
     restored.close().await;
 }
@@ -443,7 +477,7 @@ async fn rights_change_resets_the_view_without_revoking_the_native_session() {
 }
 
 #[tokio::test]
-async fn refresh_rate_limit_has_a_distinct_state_without_a_retry_loop() {
+async fn refresh_rate_limit_preserves_the_pending_operation_for_backoff_recovery() {
     let (owner, api, clock, _) = fixture();
     owner
         .login("alice".into(), Zeroizing::new("synthetic password".into()))
@@ -453,9 +487,15 @@ async fn refresh_rate_limit_has_a_distinct_state_without_a_retry_loop() {
     api.rate_limit_refresh.store(true, Ordering::SeqCst);
     api.release.add_permits(1);
     assert!(owner.access(&CancellationToken::new()).await.is_err());
-    assert_eq!(owner.subscribe().borrow().phase, Phase::RateLimited);
-    assert!(owner.access(&CancellationToken::new()).await.is_err());
-    assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
+    api.rate_limit_refresh.store(false, Ordering::SeqCst);
+    api.release.add_permits(1);
+    assert!(owner.access(&CancellationToken::new()).await.is_ok());
+    assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 2);
+    {
+        let keys = api.renewal_keys.lock().unwrap();
+        assert_eq!(keys[0], keys[1]);
+    }
     owner.close().await;
 }
 
@@ -490,7 +530,7 @@ async fn cancelling_one_waiter_does_not_cancel_the_shared_refresh() {
 }
 
 #[tokio::test]
-async fn ten_expired_access_requests_share_one_durably_burned_refresh() {
+async fn ten_expired_access_requests_share_one_durably_identified_refresh() {
     let (owner, api, clock, store) = fixture();
     owner
         .login("alice".into(), Zeroizing::new("synthetic password".into()))
@@ -519,7 +559,7 @@ async fn ten_expired_access_requests_share_one_durably_burned_refresh() {
 }
 
 #[tokio::test]
-async fn lost_refresh_response_never_replays_after_restart() {
+async fn lost_refresh_response_recovers_the_same_operation_after_restart() {
     let (owner, api, clock, store) = fixture();
     owner
         .login("alice".into(), Zeroizing::new("synthetic password".into()))
@@ -532,9 +572,18 @@ async fn lost_refresh_response_never_replays_after_restart() {
     assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
     owner.close().await;
     let restarted = SessionCoordinator::with_parts(api.clone(), store, clock);
-    assert_eq!(restarted.restore().await, Err(SessionFailure::NeedsLogin));
-    assert!(restarted.access(&CancellationToken::new()).await.is_err());
-    assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
+    restarted.restore().await.unwrap();
+    api.lost_reply.store(false, Ordering::SeqCst);
+    api.release.add_permits(1);
+    assert!(restarted.access(&CancellationToken::new()).await.is_ok());
+    assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 2);
+    {
+        let keys = api.renewal_keys.lock().unwrap();
+        assert_eq!(
+            keys[0], keys[1],
+            "restart must recover the original renewal"
+        );
+    }
     restarted.close().await;
 }
 
@@ -599,7 +648,7 @@ async fn late_refresh_cannot_restore_the_previous_account_after_logout_and_login
 }
 
 #[tokio::test]
-async fn idle_lifetime_check_clears_absolute_expiry_without_dispatching_a_refresh() {
+async fn saved_expiry_suspends_access_but_preserves_server_authoritative_recovery() {
     let (owner, api, clock, store) = fixture();
     owner
         .login("alice".into(), Zeroizing::new("synthetic password".into()))
@@ -611,13 +660,10 @@ async fn idle_lifetime_check_clears_absolute_expiry_without_dispatching_a_refres
     assert!(store.load().unwrap().is_some());
     assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 0);
     clock.0.store(BASE + 3600, Ordering::SeqCst);
-    assert_eq!(
-        owner.revalidate_lifetime().await,
-        Err(SessionFailure::NeedsLogin)
-    );
+    assert_eq!(owner.revalidate_lifetime().await, Ok(()));
     assert!(lease.cancellation.is_cancelled());
-    assert!(store.load().unwrap().is_none());
-    assert_eq!(owner.subscribe().borrow().phase, Phase::NeedsLogin);
+    assert!(store.load().unwrap().is_some());
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
     assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 0);
     owner.close().await;
 }
@@ -847,4 +893,229 @@ async fn preflight_distinguishes_expired_access_from_revocation_and_unavailable_
         }
         owner.close().await;
     }
+}
+
+#[tokio::test]
+async fn pending_renewal_survives_multiple_outages_and_saved_expiry_without_preflight() {
+    let (owner, api, clock, store) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("synthetic password".into()))
+        .await
+        .unwrap();
+    clock.0.store(BASE + 121, Ordering::SeqCst);
+    api.lost_reply.store(true, Ordering::SeqCst);
+    api.release.add_permits(5);
+    for _ in 0..5 {
+        assert!(owner.access(&CancellationToken::new()).await.is_err());
+        assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
+    }
+    owner.close().await;
+    // The server may already have extended expiry in the lost response. Its
+    // old access is invalid, so a preflight must not discard the pending op.
+    clock.0.store(BASE + 4000, Ordering::SeqCst);
+    api.gateway_offline.store(true, Ordering::SeqCst);
+    api.lost_reply.store(false, Ordering::SeqCst);
+    let restarted = SessionCoordinator::with_parts(api.clone(), store.clone(), clock.clone());
+    restarted.restore().await.unwrap();
+    api.release.add_permits(1);
+    restarted.access(&CancellationToken::new()).await.unwrap();
+    assert_eq!(restarted.subscribe().borrow().phase, Phase::Ready);
+    assert_eq!(store.clear_calls.load(Ordering::SeqCst), 1);
+    {
+        let keys = api.renewal_keys.lock().unwrap();
+        assert_eq!(keys.len(), 6);
+        assert!(keys.iter().all(|key| key == &keys[0]));
+    }
+    restarted.close().await;
+}
+
+#[tokio::test]
+async fn typed_definitive_renewal_failures_clear_credentials_instead_of_retrying() {
+    use auth::{
+        AuthErrorCode, AuthenticationFailure, ExpiredResource, PermissionFailure,
+        auth_error::Detail,
+    };
+    for detail in [
+        auth::AuthError {
+            code: AuthErrorCode::Unauthenticated.into(),
+            detail: Some(Detail::Authentication(
+                AuthenticationFailure::Revoked.into(),
+            )),
+            ..Default::default()
+        },
+        auth::AuthError {
+            code: AuthErrorCode::Expired.into(),
+            detail: Some(Detail::Expired(ExpiredResource::Session.into())),
+            ..Default::default()
+        },
+        auth::AuthError {
+            code: AuthErrorCode::PermissionDenied.into(),
+            detail: Some(Detail::Permission(
+                PermissionFailure::AccountDisabled.into(),
+            )),
+            ..Default::default()
+        },
+    ] {
+        let (owner, api, clock, store) = fixture();
+        owner
+            .login("alice".into(), Zeroizing::new("synthetic password".into()))
+            .await
+            .unwrap();
+        clock.0.store(BASE + 121, Ordering::SeqCst);
+        *api.refresh_error.lock().unwrap() = Some(detail);
+        api.release.add_permits(1);
+        assert!(owner.access(&CancellationToken::new()).await.is_err());
+        assert_eq!(owner.subscribe().borrow().phase, Phase::NeedsLogin);
+        assert!(store.load().unwrap().is_none());
+        assert!(owner.access(&CancellationToken::new()).await.is_err());
+        assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
+        owner.close().await;
+    }
+}
+
+#[tokio::test]
+async fn bare_access_refusal_asks_the_refresh_authority_instead_of_losing_the_session() {
+    let (owner, api, clock, store) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("synthetic password".into()))
+        .await
+        .unwrap();
+    clock.0.store(BASE + 121, Ordering::SeqCst);
+    api.bare_preflight_unauthenticated
+        .store(true, Ordering::SeqCst);
+    api.release.add_permits(1);
+    owner.access(&CancellationToken::new()).await.unwrap();
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Ready);
+    assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
+    assert!(store.load().unwrap().is_some());
+    owner.close().await;
+}
+
+#[tokio::test]
+async fn untyped_refusal_preserves_the_session_and_recovers_the_same_pending_renewal() {
+    let (owner, api, clock, store) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("synthetic password".into()))
+        .await
+        .unwrap();
+    let access = owner.access(&CancellationToken::new()).await.unwrap();
+    let refusal = Failure::from(ConnectError::unauthenticated(
+        "synthetic missing auth details",
+    ));
+    assert_eq!(
+        owner
+            .observe_failure(access.generation, &refusal)
+            .await
+            .unwrap(),
+        crate::SessionReaction::ViewSuspended
+    );
+    assert!(access.cancellation.is_cancelled());
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
+    assert!(store.load().unwrap().is_some());
+    // The old access remains locally unexpired: refusal must force renewal.
+    api.bare_refresh_unauthenticated
+        .store(true, Ordering::SeqCst);
+    api.release.add_permits(1);
+    assert!(owner.access(&CancellationToken::new()).await.is_err());
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
+    owner.close().await;
+    let restored = SessionCoordinator::with_parts(api.clone(), store.clone(), clock);
+    restored.restore().await.unwrap();
+    api.bare_refresh_unauthenticated
+        .store(false, Ordering::SeqCst);
+    api.release.add_permits(1);
+    restored.access(&CancellationToken::new()).await.unwrap();
+    {
+        let keys = api.renewal_keys.lock().unwrap();
+        assert_eq!(keys.len(), 2);
+        assert_eq!(keys[0], keys[1]);
+    }
+    assert_eq!(store.clear_calls.load(Ordering::SeqCst), 1);
+    restored.close().await;
+}
+
+#[tokio::test]
+async fn failed_secure_clear_publishes_storage_failure_under_the_new_generation() {
+    use auth::{AuthErrorCode, AuthenticationFailure, auth_error::Detail};
+    use buffa::MessageName;
+    for during_refresh in [true, false] {
+        let (owner, api, clock, store) = fixture();
+        owner
+            .login("alice".into(), Zeroizing::new("synthetic password".into()))
+            .await
+            .unwrap();
+        let lease = owner.access(&CancellationToken::new()).await.unwrap();
+        let detail = auth::AuthError {
+            code: AuthErrorCode::Unauthenticated.into(),
+            detail: Some(Detail::Authentication(
+                AuthenticationFailure::Revoked.into(),
+            )),
+            ..Default::default()
+        };
+        store.fail_clear.store(true, Ordering::SeqCst);
+        if during_refresh {
+            clock.0.store(BASE + 121, Ordering::SeqCst);
+            *api.refresh_error.lock().unwrap() = Some(detail);
+            api.release.add_permits(1);
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(2),
+                owner.access(&CancellationToken::new()),
+            )
+            .await;
+            assert!(result.unwrap().is_err());
+        } else {
+            let error = Failure::from(
+                ConnectError::unauthenticated("synthetic terminal refusal").with_detail(
+                    connectrpc::ErrorDetail::from_message(auth::AuthError::FULL_NAME, &detail),
+                ),
+            );
+            assert_eq!(
+                owner.observe_failure(lease.generation, &error).await,
+                Err(SessionFailure::Store(StoreFailure::Unavailable))
+            );
+        }
+        assert!(lease.cancellation.is_cancelled());
+        assert_eq!(owner.subscribe().borrow().phase, Phase::StorageUnavailable);
+        assert_eq!(owner.subscribe().borrow().generation, owner.generation());
+        // Recovery must not remain Busy/Refreshing. Once secure storage works,
+        // an explicit fresh login is admitted without restarting the process.
+        store.fail_clear.store(false, Ordering::SeqCst);
+        owner
+            .login("bob".into(), Zeroizing::new("synthetic password".into()))
+            .await
+            .unwrap();
+        assert_eq!(owner.subscribe().borrow().phase, Phase::Ready);
+        owner.close().await;
+    }
+}
+
+#[tokio::test]
+async fn an_expired_stream_access_lease_renews_the_session_instead_of_signing_out() {
+    let (owner, api, _, store) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("synthetic password".into()))
+        .await
+        .unwrap();
+    let lease = owner.access(&CancellationToken::new()).await.unwrap();
+    let expired_access = termination(auth::AuthorizationTerminationReason::CredentialExpired);
+    assert_eq!(
+        owner
+            .observe_failure(lease.generation, &expired_access)
+            .await
+            .unwrap(),
+        crate::SessionReaction::ViewSuspended
+    );
+    assert!(lease.cancellation.is_cancelled());
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
+    assert!(store.load().unwrap().is_some());
+    api.release.add_permits(1);
+    owner.access(&CancellationToken::new()).await.unwrap();
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Ready);
+    assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        store.clear_calls.load(Ordering::SeqCst),
+        1,
+        "only initial login cleared storage"
+    );
+    owner.close().await;
 }

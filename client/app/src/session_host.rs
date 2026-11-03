@@ -743,7 +743,7 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
             window.set_access_stage(ProAccessStage::Identity);
             Some((
                 "Sign-in required",
-                "Sign in again to open a session. An uncertain renewal will not be retried.",
+                "Your session expired or was revoked. Sign in again to continue.",
             ))
         }
         Phase::CredentialRejected => {
@@ -760,7 +760,10 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
         Phase::Offline => {
             window.set_access_stage(ProAccessStage::Connected);
             window.set_session_title("Offline".into());
-            window.set_session_description("Your session is saved on this device. Retry the connection when the server is reachable.".into());
+            window.set_session_description(
+                "Your session is saved. Reconnecting automatically; Retry connects immediately."
+                    .into(),
+            );
             window.set_session_severity(AlertSeverity::Warning);
             None
         }
@@ -794,7 +797,7 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
             window.set_session_severity(AlertSeverity::Warning);
             Some((
                 "Permission check unavailable",
-                "Your session is retained. You can try reading again.",
+                "Your session is saved. Reconnecting automatically; Retry connects immediately.",
             ))
         }
         Phase::RightsChanged => {

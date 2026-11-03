@@ -221,7 +221,7 @@ fn remote_cancellation_can_resume_a_read_but_authority_cancellation_cannot() {
         },
     ));
     assert!(!malformed_authority.may_resume_read());
-    assert!(!Failure::from(ConnectError::internal("server fault")).may_resume_read());
+    assert!(Failure::from(ConnectError::internal("server fault")).may_resume_read());
 }
 
 #[tokio::test(start_paused = true)]

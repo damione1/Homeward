@@ -3,7 +3,7 @@ use crate::dashboard::{DashboardId, LayoutState};
 use crate::dashboard_catalogue::{Capture, CaptureOutcome};
 use crate::dashboard_selection::{Catalogue, Choices};
 use home_client_session::{Generation, Phase, SessionCoordinator};
-use home_client_transport::{DashboardTransport, Failure, FailureKind, RpcCode};
+use home_client_transport::{DashboardTransport, Failure, FailureKind, FibonacciBackoff, RpcCode};
 use home_wire_contract::home::dashboard::v1 as wire;
 use std::{sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
@@ -189,17 +189,28 @@ pub(crate) async fn run(
     publish: impl Fn(Generation, u64, Catalogue, LayoutState),
 ) {
     let mut phases = session.subscribe();
+    let mut backoff = FibonacciBackoff::default();
     loop {
         let view = *phases.borrow_and_update();
         if view.phase == Phase::Ready {
             let attempt = cancel.child_token();
             let revision = choices.snapshot().0;
+            let succeeded = std::sync::atomic::AtomicBool::new(false);
+            let admit = |generation, revision, catalogue: Catalogue, layout: LayoutState| {
+                if !matches!(layout, LayoutState::Loading) {
+                    succeeded.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+                publish(generation, revision, catalogue, layout);
+            };
             let result = tokio::select! { biased;
                 () = cancel.cancelled() => return,
                 () = retry.notified() => { attempt.cancel(); continue; },
                 changed = phases.changed() => { attempt.cancel(); if changed.is_err() { return; } continue; },
-                result = follow(&transport, &session, &attempt, &choices, revision, &publish) => result,
+                result = follow(&transport, &session, &attempt, &choices, revision, &admit) => result,
             };
+            if succeeded.load(std::sync::atomic::Ordering::Relaxed) {
+                backoff.reset();
+            }
             match result {
                 Err(ReadFailure::Transport(failure)) => {
                     let _ = session.observe_failure(view.generation, &failure).await;
@@ -251,7 +262,7 @@ pub(crate) async fn run(
                 () = cancel.cancelled() => return,
                 changed = phases.changed() => if changed.is_err() { return; },
                 () = retry.notified() => {},
-                () = tokio::time::sleep(Duration::from_secs(3)) => {},
+                () = tokio::time::sleep(backoff.next_delay()) => {},
             }
         } else {
             tokio::select! { biased;

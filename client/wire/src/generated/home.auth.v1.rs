@@ -1705,6 +1705,8 @@ impl ::buffa::Enumeration for AuthorizationPolicyErrorCode {
 pub enum AuthorizationTerminationReason {
     AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED = 0i32,
     AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED = 1i32,
+    /// The admitted bearer expired. Native interactive clients discard its view
+    /// and seek RefreshSession: only AuthError expired=SESSION ends that session.
     AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED = 2i32,
     AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED = 3i32,
     AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED = 4i32,

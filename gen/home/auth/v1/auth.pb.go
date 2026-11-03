@@ -993,8 +993,10 @@ func (AuthorizationPolicyErrorCode) EnumDescriptor() ([]byte, []int) {
 type AuthorizationTerminationReason int32
 
 const (
-	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED           AuthorizationTerminationReason = 0
-	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED    AuthorizationTerminationReason = 1
+	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED        AuthorizationTerminationReason = 0
+	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED AuthorizationTerminationReason = 1
+	// The admitted bearer expired. Native interactive clients discard its view
+	// and seek RefreshSession: only AuthError expired=SESSION ends that session.
 	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED    AuthorizationTerminationReason = 2
 	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED      AuthorizationTerminationReason = 3
 	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED        AuthorizationTerminationReason = 4
