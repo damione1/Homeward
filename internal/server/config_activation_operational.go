@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
+	"github.com/damione1/Homeward/internal/androidtv"
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/calendars"
 	"github.com/damione1/Homeward/internal/config"
@@ -25,6 +26,7 @@ import (
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/solar"
+	"github.com/damione1/Homeward/internal/sonos"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/workday"
 	"github.com/damione1/Homeward/internal/worker"
@@ -35,24 +37,26 @@ import (
 // activation owner. Constructors below only prepare the delivered factories;
 // no pilot, client, process, Host discovery or credential mutation starts here.
 type configuredOperationalCompiler struct {
-	remoteCalendar  *remoteCalendarRuntime
-	manifest        registry.Manifest
-	repository      *registry.Repository
-	store           *storage.Store
-	sequence        *sequencer.Sequencer
-	host            *integrations.Manager
-	catalog         *contracts.CapabilityCatalog
-	authorization   *cloudAuthorizationCoordinator
-	templates       *reactiveTemplateRuntime
-	secrets         *storage.SecretRepository
-	solarClock      automationtriggers.Clock
-	workdayClock    automationtriggers.Clock
-	workday         *activationWorkdayCalendar
-	supervisor      *integrations.Supervisor
-	triggerPlan     automationtriggers.Plan
-	sourceOwnership *heatingownership.Decision
-	sourceParent    *configuredOperationalCompiler
-	sourceGate      *registry.ActivationGate
+	sonosRuntime     *sonos.Runtime
+	androidTVRuntime *androidtv.Runtime
+	remoteCalendar   *remoteCalendarRuntime
+	manifest         registry.Manifest
+	repository       *registry.Repository
+	store            *storage.Store
+	sequence         *sequencer.Sequencer
+	host             *integrations.Manager
+	catalog          *contracts.CapabilityCatalog
+	authorization    *cloudAuthorizationCoordinator
+	templates        *reactiveTemplateRuntime
+	secrets          *storage.SecretRepository
+	solarClock       automationtriggers.Clock
+	workdayClock     automationtriggers.Clock
+	workday          *activationWorkdayCalendar
+	supervisor       *integrations.Supervisor
+	triggerPlan      automationtriggers.Plan
+	sourceOwnership  *heatingownership.Decision
+	sourceParent     *configuredOperationalCompiler
+	sourceGate       *registry.ActivationGate
 }
 
 type configuredOperationalPublication struct {
@@ -255,6 +259,30 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 				return configactivation.OperationalImage{}, err
 			}
 			if err := addBinding(instance, key, alias); err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+		}
+	}
+	newSonos, hasNewSonos := next.SonosSettings()
+	if hasNewSonos {
+		instance, err := newSonos.Instance()
+		if err != nil {
+			return configactivation.OperationalImage{}, err
+		}
+		for _, player := range newSonos.Players() {
+			if err := addBinding(instance, player.SourceKey(), player.Alias); err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+		}
+	}
+	newAndroidTV, hasNewAndroidTV := next.AndroidTVSettings()
+	if hasNewAndroidTV {
+		instance, err := newAndroidTV.Instance()
+		if err != nil {
+			return configactivation.OperationalImage{}, err
+		}
+		for _, player := range newAndroidTV.Players() {
+			if err := addBinding(instance, player.SourceKey(), player.Alias); err != nil {
 				return configactivation.OperationalImage{}, err
 			}
 		}
@@ -473,6 +501,42 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 		if err != nil {
 			return configactivation.OperationalImage{}, err
 		}
+	}
+	oldSonos, hadSonos := old.SonosSettings()
+	oldSonosID, _ := oldSonos.Instance()
+	newSonosID, _ := newSonos.Instance()
+	if hadSonos != hasNewSonos || !reflect.DeepEqual(oldSonos, newSonos) || forced[oldSonosID] || forced[newSonosID] {
+		var spec *integrations.PilotSpec
+		if hasNewSonos {
+			factory, err := c.sonosRuntime.Factory(newSonos)
+			if err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+			value, err := integrations.NewPilotSpec(newSonosID, factory)
+			if err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+			spec = &value
+		}
+		replace(oldSonosID, hadSonos, spec)
+	}
+	oldAndroidTV, hadAndroidTV := old.AndroidTVSettings()
+	oldAndroidTVID, _ := oldAndroidTV.Instance()
+	newAndroidTVID, _ := newAndroidTV.Instance()
+	if hadAndroidTV != hasNewAndroidTV || !reflect.DeepEqual(oldAndroidTV, newAndroidTV) || forced[oldAndroidTVID] || forced[newAndroidTVID] {
+		var spec *integrations.PilotSpec
+		if hasNewAndroidTV {
+			factory, err := c.androidTVRuntime.Factory(newAndroidTV)
+			if err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+			value, err := integrations.NewPilotSpec(newAndroidTVID, factory)
+			if err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+			spec = &value
+		}
+		replace(oldAndroidTVID, hadAndroidTV, spec)
 	}
 	oldEcobee, hadEcobee := old.EcobeeSettings()
 	oldEcobeeID, _ := oldEcobee.Instance()

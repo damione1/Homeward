@@ -86,6 +86,9 @@ message Snapshot {
   // Hash of the server-registered MediaAction extension descriptor. Preserve
   // this exact capability reference at Submit; no downloaded code is executed.
   bytes descriptor_sha256 = 18;
+  // Independent power observation; false means off, absence means unknown.
+  // Power never implies any transport/playback state.
+  optional bool powered_on = 19;
 }
 message ReadSnapshotRequest { string entity_id = 1; }
 message Unsupported {}

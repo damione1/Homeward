@@ -2,6 +2,7 @@ package accounts
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -36,6 +37,43 @@ type AccessSecret struct {
 type RefreshSecret struct {
 	raw   [sessionTokenBytes]byte
 	valid bool
+}
+
+// RenewalKey identifies one durably saved refresh operation. It is secret:
+// an old refresh credential alone cannot recover the operation's successor.
+type RenewalKey struct {
+	raw [sessionTokenBytes]byte
+}
+
+func ParseRenewalKey(raw []byte) (RenewalKey, error) {
+	if len(raw) != sessionTokenBytes {
+		return RenewalKey{}, ErrInvalidSessionToken
+	}
+	key := RenewalKey{raw: [sessionTokenBytes]byte(raw)}
+	if key.raw == [sessionTokenBytes]byte{} {
+		return RenewalKey{}, ErrInvalidSessionToken
+	}
+	return key, nil
+}
+
+func (k RenewalKey) String() string               { return "[REDACTED RENEWAL KEY]" }
+func (k RenewalKey) GoString() string             { return k.String() }
+func (k RenewalKey) MarshalJSON() ([]byte, error) { return json.Marshal(k.String()) }
+
+// Successor is deterministic for exactly one token/key pair. Only digests are
+// stored server-side; recovering a lost response requires both original secrets.
+func (s RefreshSecret) Successor(key RenewalKey) (RefreshSecret, error) {
+	if !s.valid || key.raw == [sessionTokenBytes]byte{} {
+		return RefreshSecret{}, ErrInvalidSessionToken
+	}
+	mac := hmac.New(sha256.New, s.raw[:])
+	_, _ = mac.Write([]byte("homeward/refresh-renewal/v1"))
+	_, _ = mac.Write(key.raw[:])
+	raw := [sessionTokenBytes]byte(mac.Sum(nil))
+	if raw == [sessionTokenBytes]byte{} {
+		return RefreshSecret{}, ErrInvalidSessionToken
+	}
+	return RefreshSecret{raw: raw, valid: true}, nil
 }
 
 type EnrollmentSecret struct {

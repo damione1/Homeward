@@ -30,6 +30,7 @@ enum SavedProfile {
     #[serde(rename = "1")]
     V1 {
         origin: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
         certificates: String,
     },
 }
@@ -57,13 +58,17 @@ impl TrustedEndpoint {
             .map_err(|_| ProfileFailure::InvalidTrust)?;
         roots.sort();
         roots.dedup();
-        if roots.is_empty() || roots.len() > 16 {
+        let device_trust = certificates.is_empty();
+        if (!device_trust && roots.is_empty()) || roots.len() > 16 {
             return Err(ProfileFailure::InvalidTrust);
         }
         // Persist only parsed public certificates, never arbitrary pasted text
         // or private-key material adjacent to a certificate in the input.
         let mut certificates = String::new();
         let mut trust = Sha256::new();
+        if device_trust {
+            trust.update(b"Homeward-device-certificate-trust-v1\0");
+        }
         for root in &roots {
             trust.update((root.len() as u64).to_le_bytes());
             trust.update(root);
@@ -224,7 +229,30 @@ mod tests {
         ] {
             assert!(TrustedEndpoint::parse(origin, TRUST_A).is_err());
         }
-        assert!(TrustedEndpoint::parse("https://home.example.test", "").is_err());
+        assert!(TrustedEndpoint::parse("https://home.example.test", "not a certificate").is_err());
+    }
+
+    #[test]
+    fn device_trust_needs_only_https_and_has_a_separate_credential_namespace() {
+        let public = TrustedEndpoint::parse("https://HOME.example.test:443/", "").unwrap();
+        let canonical = TrustedEndpoint::parse("https://home.example.test", "").unwrap();
+        assert!(TrustedEndpoint::parse("https://home.example.test", " \n").is_err());
+        assert_eq!(public.key().identifier(), canonical.key().identifier());
+        assert!(public.certificates().is_empty());
+        assert_ne!(
+            public.key().identifier(),
+            TrustedEndpoint::parse("https://home.example.test", TRUST_A)
+                .unwrap()
+                .key()
+                .identifier()
+        );
+        assert_ne!(
+            public.key().identifier(),
+            TrustedEndpoint::parse("https://other.example.test", "")
+                .unwrap()
+                .key()
+                .identifier()
+        );
     }
 
     #[test]
@@ -272,6 +300,18 @@ mod tests {
                 .key()
                 .identifier(),
             profile.key().identifier()
+        );
+        let public = TrustedEndpoint::parse("https://home.example.test", "").unwrap();
+        public.save(&directory.0).unwrap();
+        let raw = std::fs::read_to_string(&config).unwrap();
+        assert!(!raw.contains("certificates"));
+        assert_eq!(
+            TrustedEndpoint::load(&directory.0)
+                .unwrap()
+                .unwrap()
+                .key()
+                .identifier(),
+            public.key().identifier()
         );
         std::fs::write(
             &config,

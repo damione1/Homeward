@@ -1705,6 +1705,8 @@ impl ::buffa::Enumeration for AuthorizationPolicyErrorCode {
 pub enum AuthorizationTerminationReason {
     AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED = 0i32,
     AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED = 1i32,
+    /// The admitted bearer expired. Native interactive clients discard its view
+    /// and seek RefreshSession: only AuthError expired=SESSION ends that session.
     AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED = 2i32,
     AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED = 3i32,
     AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED = 4i32,
@@ -9938,6 +9940,12 @@ impl ::buffa::ExtensionSet for CompleteLoginResponse {
 pub struct RefreshSessionRequest {
     /// Field 1: `refresh_token`
     pub refresh_token: ::buffa::alloc::string::String,
+    /// Optional 32-byte random operation secret, durably saved before dispatch.
+    /// Retrying the same token/key may recover only its still-current successor.
+    /// Empty retains legacy one-use rotation and replay revocation.
+    ///
+    /// Field 2: `renewal_key`
+    pub renewal_key: ::buffa::alloc::vec::Vec<u8>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -9945,6 +9953,7 @@ impl ::core::fmt::Debug for RefreshSessionRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("RefreshSessionRequest")
             .field("refresh_token", &self.refresh_token)
+            .field("renewal_key", &self.renewal_key)
             .finish()
     }
 }
@@ -9979,6 +9988,9 @@ impl ::buffa::Message for RefreshSessionRequest {
             size
                 += 1u64 + ::buffa::types::string_encoded_len(&self.refresh_token) as u64;
         }
+        if !self.renewal_key.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.renewal_key) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9991,6 +10003,9 @@ impl ::buffa::Message for RefreshSessionRequest {
         use ::buffa::Enumeration as _;
         if !self.refresh_token.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.refresh_token, buf);
+        }
+        if !self.renewal_key.is_empty() {
+            ::buffa::types::put_shared_bytes_field(2u32, &self.renewal_key, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10012,6 +10027,13 @@ impl ::buffa::Message for RefreshSessionRequest {
                 )?;
                 ::buffa::types::merge_string(&mut self.refresh_token, buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.renewal_key, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -10021,6 +10043,7 @@ impl ::buffa::Message for RefreshSessionRequest {
     }
     fn clear(&mut self) {
         self.refresh_token.clear();
+        self.renewal_key.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -32470,6 +32493,12 @@ pub mod __buffa {
         pub struct RefreshSessionRequestView<'a> {
             /// Field 1: `refresh_token`
             pub refresh_token: &'a str,
+            /// Optional 32-byte random operation secret, durably saved before dispatch.
+            /// Retrying the same token/key may recover only its still-current successor.
+            /// Empty retains legacy one-use rotation and replay revocation.
+            ///
+            /// Field 2: `renewal_key`
+            pub renewal_key: &'a [u8],
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for RefreshSessionRequestView<'a> {
@@ -32515,6 +32544,13 @@ pub mod __buffa {
                         )?;
                         view.refresh_token = ::buffa::types::borrow_str(&mut cur)?;
                     }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.renewal_key = ::buffa::types::borrow_bytes(&mut cur)?;
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -32545,6 +32581,7 @@ pub mod __buffa {
                 let _ = __buffa_src;
                 ::core::result::Result::Ok(super::super::RefreshSessionRequest {
                     refresh_token: self.refresh_token.to_string(),
+                    renewal_key: (self.renewal_key).to_vec(),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -32565,6 +32602,12 @@ pub mod __buffa {
                             + ::buffa::types::string_encoded_len(&self.refresh_token)
                                 as u64;
                 }
+                if !self.renewal_key.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::bytes_encoded_len(&self.renewal_key)
+                                as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -32578,6 +32621,9 @@ pub mod __buffa {
                 use ::buffa::Enumeration as _;
                 if !self.refresh_token.is_empty() {
                     ::buffa::types::put_string_field(1u32, &self.refresh_token, buf);
+                }
+                if !self.renewal_key.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(2u32, &self.renewal_key, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -32678,6 +32724,15 @@ pub mod __buffa {
             #[must_use]
             pub fn refresh_token(&self) -> &'_ str {
                 self.0.reborrow().refresh_token
+            }
+            /// Optional 32-byte random operation secret, durably saved before dispatch.
+            /// Retrying the same token/key may recover only its still-current successor.
+            /// Empty retains legacy one-use rotation and replay revocation.
+            ///
+            /// Field 2: `renewal_key`
+            #[must_use]
+            pub fn renewal_key(&self) -> &'_ [u8] {
+                self.0.reborrow().renewal_key
             }
         }
         impl ::core::convert::From<

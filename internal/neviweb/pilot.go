@@ -31,6 +31,7 @@ type Pilot struct {
 	catalog    *contracts.CapabilityCatalog
 	policy     *integrations.CloudPolicy
 	quota      *storage.CloudAttemptQuota
+	operations chan struct{}
 	mu         sync.RWMutex
 	client     *integrations.CloudClient
 	host       integrations.SessionHost
@@ -56,7 +57,7 @@ func NewPilotFactory(settings Settings, repository *registry.Repository, decisio
 		return nil, ErrSettings
 	}
 	return func() integrations.Pilot {
-		return &Pilot{settings: settings, repository: repository, decision: decision, catalog: catalog, policy: policy, quota: quota, bindings: make(map[string]integrations.Binding), models: make(map[string]modelInfo), declared: make(map[string]modelInfo), listed: make(map[string]bool), signatures: make(map[string]json.RawMessage)}
+		return &Pilot{settings: settings, repository: repository, decision: decision, catalog: catalog, policy: policy, quota: quota, operations: make(chan struct{}, 1), bindings: make(map[string]integrations.Binding), models: make(map[string]modelInfo), declared: make(map[string]modelInfo), listed: make(map[string]bool), signatures: make(map[string]json.RawMessage)}
 	}, nil
 }
 
@@ -94,13 +95,16 @@ func (p *Pilot) Stop(context.Context) error {
 
 func (p *Pilot) run(ctx context.Context, host integrations.SessionHost) {
 	for ctx.Err() == nil {
-		err := p.poll(ctx, host)
+		if err := p.acquire(ctx); err != nil {
+			return
+		}
+		err := p.pollLocked(ctx, host)
 		if errors.Is(err, ErrSessionExpired) && ctx.Err() == nil {
 			// The pinned client reconnects on USRSESSEXP. Recover one read
 			// cycle immediately; a second expiry waits for the next cadence.
 			// Actions never enter this path and are never replayed.
 			p.expireSession()
-			err = p.poll(ctx, host)
+			err = p.pollLocked(ctx, host)
 		}
 		if err != nil {
 			if !errors.Is(err, ErrPartialObservation) {
@@ -124,6 +128,7 @@ func (p *Pilot) run(ctx context.Context, host integrations.SessionHost) {
 				p.report(ctx, host, integrations.HealthReady, "neviweb observations admitted")
 			}
 		}
+		p.release()
 		wait := p.settings.poll
 		if errors.Is(err, ErrProviderQuota) {
 			wait = 24 * time.Hour
@@ -151,6 +156,23 @@ func (p *Pilot) run(ctx context.Context, host integrations.SessionHost) {
 		}
 	}
 }
+
+// Keep a poll's read/publication and a command's PUT/readback in order. Waiting
+// for a cloud operation must remain cancellable and never queue a later write.
+func (p *Pilot) acquire(ctx context.Context) error {
+	select {
+	case p.operations <- struct{}{}:
+		if err := ctx.Err(); err != nil {
+			p.release()
+			return err
+		}
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (p *Pilot) release() { <-p.operations }
 
 func (p *Pilot) expireSession() {
 	p.mu.Lock()
@@ -339,7 +361,7 @@ func (p *Pilot) readCycle(ctx context.Context) (cycleSnapshot, error) {
 			}
 			response, err := p.fetch(ctx, "/api/device/"+binding.deviceID+"/attribute", url.Values{"attributes": []string{attributes}})
 			if err != nil {
-				if errors.Is(err, ErrUnsupportedAttribute) {
+				if errors.Is(err, ErrUnsupportedAttribute) || errors.Is(err, ErrDeviceUnavailable) {
 					snapshot.degraded = true
 					continue
 				}
@@ -396,6 +418,14 @@ func (p *Pilot) readCycle(ctx context.Context) (cycleSnapshot, error) {
 }
 
 func (p *Pilot) poll(ctx context.Context, host integrations.SessionHost) error {
+	if err := p.acquire(ctx); err != nil {
+		return err
+	}
+	defer p.release()
+	return p.pollLocked(ctx, host)
+}
+
+func (p *Pilot) pollLocked(ctx context.Context, host integrations.SessionHost) error {
 	p.mu.RLock()
 	refresh := p.refresh
 	discovered := p.discovered
@@ -491,6 +521,13 @@ func (p *Pilot) descriptions(binding Binding, info modelInfo) []*wire.Capability
 			constraints.ObservedSetpointCelsius.Bounds = bounds
 			if info.family == familyZigbee || info.family == familyWiFi {
 				constraints.SetpointCelsius = bounds
+				if info.family == familyZigbee {
+					// All admitted Zigbee heating models inherit the pinned
+					// Neviweb130Thermostat's 0.5 C command step. Observation
+					// bounds stay continuous so cloud values remain reportable.
+					step := 0.5
+					constraints.SetpointCelsius = &wire.NumberBounds{Minimum: info.minimum, Maximum: info.maximum, Step: &step}
+				}
 			}
 		}
 		if info.family == familyZigbee || info.family == familyWiFi {
@@ -584,7 +621,11 @@ func (p *Pilot) discover(ctx context.Context, host integrations.SessionHost, sna
 }
 
 func (p *Pilot) publish(ctx context.Context, host integrations.SessionHost, snapshot cycleSnapshot) error {
-	for _, binding := range p.settings.bindings {
+	return p.publishBindings(ctx, host, snapshot, p.settings.bindings)
+}
+
+func (p *Pilot) publishBindings(ctx context.Context, host integrations.SessionHost, snapshot cycleSnapshot, bindings []Binding) error {
+	for _, binding := range bindings {
 		p.mu.RLock()
 		owned, ok := p.bindings[binding.alias]
 		p.mu.RUnlock()
@@ -765,6 +806,13 @@ func (p *Pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	if p == nil || ctx == nil || !command.ReadyForTransport() {
 		return integrations.ErrInactiveSession
 	}
+	if err := p.acquire(ctx); err != nil {
+		return err
+	}
+	defer p.release()
+	if !command.ReadyForTransport() {
+		return integrations.ErrInactiveSession
+	}
 	_, entity, err := command.RouteIdentity()
 	if err != nil {
 		return err
@@ -858,7 +906,10 @@ func (p *Pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	if err := providerFailure(response.Bytes()); err != nil {
 		return err
 	}
-	return command.Acknowledge()
+	if err := command.Acknowledge(); err != nil {
+		return err
+	}
+	return p.readback(ctx, command, selected)
 }
 
 func modeAttribute(family modelFamily, mode wire.ClimateMode) (map[string]any, error) {

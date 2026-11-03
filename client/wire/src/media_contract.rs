@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 pub const MAX_SNAPSHOT_BYTES: usize = 64 * 1024;
 pub const MAX_ARTWORK_BYTES: usize = 128 * 1024;
 pub const MAX_POSITION_MILLIS: u64 = 7 * 24 * 60 * 60 * 1000;
-pub const ACTION_SCHEMA: &str = "home.media.v1.MediaAction";
+pub const ACTION_SCHEMA: &str = "home.media.v1";
 
 pub fn identity(value: &str) -> bool {
     !value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control)
@@ -183,4 +183,23 @@ pub fn action(value: &wire::MediaAction, current: &wire::Snapshot) -> bool {
             Some(Command::GroupId(id)) => limits.groups.iter().any(|o| o.id == *id),
             None => false,
         }
+}
+
+#[cfg(test)]
+mod power_observation_tests {
+    use super::*;
+    #[test]
+    fn off_roundtrips_without_becoming_unknown_or_a_playback_stop() {
+        let off = wire::Snapshot {
+            powered_on: Some(false),
+            ..Default::default()
+        };
+        let bytes = off.encode_to_vec();
+        let decoded = wire::Snapshot::decode_from_slice(&bytes).unwrap();
+        assert_eq!(decoded.powered_on, Some(false));
+        assert_eq!(decoded.playback, wire::PlaybackState::Unspecified);
+        let unknown =
+            wire::Snapshot::decode_from_slice(&wire::Snapshot::default().encode_to_vec()).unwrap();
+        assert_eq!(unknown.powered_on, None);
+    }
 }

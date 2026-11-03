@@ -993,8 +993,10 @@ func (AuthorizationPolicyErrorCode) EnumDescriptor() ([]byte, []int) {
 type AuthorizationTerminationReason int32
 
 const (
-	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED           AuthorizationTerminationReason = 0
-	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED    AuthorizationTerminationReason = 1
+	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED        AuthorizationTerminationReason = 0
+	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED AuthorizationTerminationReason = 1
+	// The admitted bearer expired. Native interactive clients discard its view
+	// and seek RefreshSession: only AuthError expired=SESSION ends that session.
 	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED    AuthorizationTerminationReason = 2
 	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED      AuthorizationTerminationReason = 3
 	AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED        AuthorizationTerminationReason = 4
@@ -4289,8 +4291,12 @@ func (x *CompleteLoginResponse) GetDecision() *LoginDecision {
 }
 
 type RefreshSessionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	RefreshToken string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	// Optional 32-byte random operation secret, durably saved before dispatch.
+	// Retrying the same token/key may recover only its still-current successor.
+	// Empty retains legacy one-use rotation and replay revocation.
+	RenewalKey    []byte `protobuf:"bytes,2,opt,name=renewal_key,json=renewalKey,proto3" json:"renewal_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4330,6 +4336,13 @@ func (x *RefreshSessionRequest) GetRefreshToken() string {
 		return x.RefreshToken
 	}
 	return ""
+}
+
+func (x *RefreshSessionRequest) GetRenewalKey() []byte {
+	if x != nil {
+		return x.RenewalKey
+	}
+	return nil
 }
 
 type RefreshSessionResponse struct {
@@ -6310,9 +6323,11 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\fchallenge_id\x18\x01 \x01(\v2\x19.home.auth.v1.ChallengeIdR\vchallengeId\x12/\n" +
 	"\x05proof\x18\x02 \x01(\v2\x19.home.auth.v1.FactorProofR\x05proof\"P\n" +
 	"\x15CompleteLoginResponse\x127\n" +
-	"\bdecision\x18\x01 \x01(\v2\x1b.home.auth.v1.LoginDecisionR\bdecision\"<\n" +
+	"\bdecision\x18\x01 \x01(\v2\x1b.home.auth.v1.LoginDecisionR\bdecision\"]\n" +
 	"\x15RefreshSessionRequest\x12#\n" +
-	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"M\n" +
+	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\x12\x1f\n" +
+	"\vrenewal_key\x18\x02 \x01(\fR\n" +
+	"renewalKey\"M\n" +
 	"\x16RefreshSessionResponse\x123\n" +
 	"\x06tokens\x18\x01 \x01(\v2\x1b.home.auth.v1.SessionTokensR\x06tokens\"M\n" +
 	"\x13ListSessionsRequest\x126\n" +

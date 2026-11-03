@@ -162,6 +162,11 @@ func NewPilot(settings Settings, handler ObservationHandler) (*Pilot, error) {
 	if _, err := settings.Instance(); err != nil || missingInterface(handler) {
 		return nil, ErrInvalidSettings
 	}
+	if len(settings.reads) != 0 {
+		if _, ok := handler.(z2mReadDiscovery); !ok {
+			return nil, ErrInvalidSettings
+		}
+	}
 	return &Pilot{settings: settings, handler: handler, phase: pilotCreated, fault: make(chan error, 1), startDone: make(chan struct{}), admissionStop: make(chan struct{}), commandGate: make(chan struct{}, 1)}, nil
 }
 
@@ -183,7 +188,8 @@ func NewPilotFactory(settings Settings, handler ObservationHandler) (integration
 		return nil, err
 	}
 	return func() integrations.Pilot {
-		return &Pilot{settings: settings, handler: handler, phase: pilotCreated, fault: make(chan error, 1), startDone: make(chan struct{}), admissionStop: make(chan struct{}), commandGate: make(chan struct{}, 1)}
+		pilot, _ := NewPilot(settings, handler)
+		return pilot
 	}, nil
 }
 
@@ -271,6 +277,7 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 	}()
 	queue := make(chan delivery, queueCapacity)
 	space := make(chan struct{}, queueCapacity)
+	readWake := make(chan struct{}, 1)
 	p.mu.Lock()
 	p.observationQueue = queue
 	p.observationInstalled = true
@@ -380,6 +387,12 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 					p.fail(err)
 					return err
 				}
+				if len(p.settings.reads) != 0 {
+					select {
+					case readWake <- struct{}{}:
+					default:
+					}
+				}
 				if ctx.Err() != nil {
 					return nil
 				}
@@ -417,7 +430,11 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 	for _, filter := range p.settings.subscriptions {
 		// MQTT 5 RAP=false: retained snapshot arrives with RETAIN=1, while
 		// a new live publication arrives with RETAIN=0 even if stored by broker.
-		subs = append(subs, paho.SubscribeOptions{Topic: filter.value, QoS: 1, RetainAsPublished: false})
+		// Sessions with native reads must not consume their own startup/get
+		// publications as live automation edges. MQTT 5 No Local excludes only
+		// this client (MQTT-3.8.3-3); device responses published by Z2M remain subscribed.
+		// Other sessions retain their existing subscription behavior.
+		subs = append(subs, paho.SubscribeOptions{Topic: filter.value, QoS: 1, RetainAsPublished: false, NoLocal: len(p.settings.reads) != 0})
 	}
 	subscribeCtx, subscribeCancel := context.WithTimeout(startCtx, connectTimeout)
 	defer subscribeCancel()
@@ -455,6 +472,11 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 			return ErrSubscription
 		}
 	}
+	if len(p.settings.reads) != 0 {
+		if err := tasks.Go(func(ctx context.Context) error { return p.runZ2MReads(ctx, readWake) }); err != nil {
+			return err
+		}
+	}
 	health, _ := integrations.NewHealthReport(integrations.HealthReady, "mqtt connected")
 	if err := host.ReportHealth(startCtx, health); err != nil {
 		return err
@@ -480,6 +502,18 @@ func clientDone(p *Pilot) <-chan struct{} {
 func (p *Pilot) allowedObservation(topic Topic) bool {
 	for _, f := range p.settings.subscriptions {
 		if f.Matches(topic) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Pilot) allowedCommand(topic Topic) bool {
+	if p.settings.mode != ModeActive {
+		return false
+	}
+	for _, filter := range p.settings.commands {
+		if filter.Matches(topic) {
 			return true
 		}
 	}
@@ -661,14 +695,7 @@ func (p *Pilot) WriteCommand(ctx context.Context, command CommandPublication) er
 	if _, err := command.topic.Value(); err != nil || len(command.payload) == 0 || len(command.payload) > maxPayload {
 		return ErrInvalidTopic
 	}
-	allowed := false
-	for _, f := range p.settings.commands {
-		if f.Matches(command.topic) {
-			allowed = true
-			break
-		}
-	}
-	if !allowed {
+	if !p.allowedCommand(command.topic) {
 		return ErrInvalidTopic
 	}
 	var properties *paho.PublishProperties
@@ -680,6 +707,15 @@ func (p *Pilot) WriteCommand(ctx context.Context, command CommandPublication) er
 			return ErrInvalidTopic
 		}
 		properties = &paho.PublishProperties{ResponseTopic: command.responseTopic.value, CorrelationData: []byte(command.correlation.wire)}
+	}
+	return p.writePublication(ctx, command.topic, command.payload, properties)
+}
+
+// Both admitted commands and native read requests share the bounded writer.
+// Only their separate, closed admission paths may call this method.
+func (p *Pilot) writePublication(ctx context.Context, topic Topic, payload []byte, properties *paho.PublishProperties) error {
+	if p.settings.mode != ModeActive {
+		return ErrPassiveMode
 	}
 	select {
 	case p.commandGate <- struct{}{}:
@@ -721,7 +757,7 @@ func (p *Pilot) WriteCommand(ctx context.Context, command CommandPublication) er
 		case <-watchStop:
 		}
 	}()
-	_, err := client.Publish(writeCtx, &paho.Publish{Topic: command.topic.value, Payload: append([]byte(nil), command.payload...), QoS: 0, Retain: false, Properties: properties})
+	_, err := client.Publish(writeCtx, &paho.Publish{Topic: topic.value, Payload: append([]byte(nil), payload...), QoS: 0, Retain: false, Properties: properties})
 	close(watchStop)
 	<-watchDone
 	p.mu.Lock()

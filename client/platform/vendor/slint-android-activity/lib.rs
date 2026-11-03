@@ -10,6 +10,8 @@
 #![cfg_attr(slint_nightly_test, warn(non_exhaustive_omitted_patterns))]
 
 mod androidwindowadapter;
+mod touch_guard;
+mod touch_dispatch;
 mod javahelper;
 mod vsync;
 

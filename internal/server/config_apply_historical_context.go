@@ -38,6 +38,12 @@ func historicalSourceCompilationInputs(ctx context.Context, input configcompilat
 	if err != nil {
 		return ir.Catalogue{}, nil, err
 	}
+	// Match default Run's fixed native codec registration. This admits the
+	// existing Sonos descriptor for validation only: no pilot, session or
+	// capability instance is created, and unknown codecs still fail closed.
+	if _, err := newNativeSonosRuntime(validation); err != nil {
+		return ir.Catalogue{}, nil, err
+	}
 	identities := input.Identities()
 	capabilities := input.Capabilities()
 	records := make([]integrations.RegistryRecord, 0, len(identities))

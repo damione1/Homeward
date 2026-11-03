@@ -19,6 +19,7 @@ var ErrCredentials = errors.New("neviweb: credentials rejected")
 var ErrTooManySessions = errors.New("neviweb: provider session limit")
 var ErrProviderQuota = errors.New("neviweb: provider request limit")
 var ErrUnsupportedAttribute = errors.New("neviweb: device attribute unsupported")
+var ErrDeviceUnavailable = errors.New("neviweb: device unavailable")
 var ErrProtocol = errors.New("neviweb: malformed provider response")
 
 // sessionEnvelope is untrusted persisted JSON. It is never used as runtime
@@ -52,7 +53,7 @@ func (s sessionState) valid() bool {
 	case sessionAbsent:
 		return s.id == "" && s.cookies == "" && s.account == ""
 	case sessionActive:
-		return s.id != "" && len(s.id) <= 512 && !strings.ContainsAny(s.id, "\r\n") && s.cookies != "" && len(s.cookies) <= 8192 && !strings.ContainsAny(s.cookies, "\r\n") && s.account != ""
+		return s.id != "" && len(s.id) <= 512 && !strings.ContainsAny(s.id, "\r\n") && len(s.cookies) <= 8192 && !strings.ContainsAny(s.cookies, "\r\n") && s.account != ""
 	default:
 		return false
 	}
@@ -147,6 +148,8 @@ func providerFailure(body []byte) error {
 		return ErrProviderQuota
 	case "DVCATTRNSPTD":
 		return ErrUnsupportedAttribute
+	case "DVCUNVLB":
+		return ErrDeviceUnavailable
 	default:
 		return ErrProtocol
 	}
@@ -249,7 +252,7 @@ func (p *Pilot) session(ctx context.Context, host integrations.SessionHost, refr
 		return sessionState{}, ErrSession
 	}
 	cookie, err := response.Cookies().MergeHeader(current.cookies)
-	if err != nil || cookie == "" {
+	if err != nil {
 		return sessionState{}, ErrSession
 	}
 	encoded, err := activeSessionValue(data.Session, cookie, p.settings.accountText)
@@ -266,7 +269,11 @@ func (p *Pilot) session(ctx context.Context, host integrations.SessionHost, refr
 }
 
 func sessionHeaders(s sessionState) http.Header {
-	return http.Header{"Session-Id": []string{s.id}, "Cookie": []string{s.cookies}}
+	headers := http.Header{"Session-Id": []string{s.id}}
+	if s.cookies != "" {
+		headers.Set("Cookie", s.cookies)
+	}
+	return headers
 }
 
 func decodeCloudFailure(err error, observation bool) error {

@@ -1,0 +1,27 @@
+import { KitTheme, KitButton, KitCard, ControlSize } from "@kit/kit.slint";
+export enum ConnectionStatus { idle, connecting, live, offline, blocked }
+
+// Product composition only: transport and retries belong to the Rust owner.
+export component HomewardConnectionBanner inherits VerticalLayout {
+    in property <KitTheme> theme;
+    in property <ConnectionStatus> status;
+    in property <bool> interactive: true;
+    callback retry();
+    if root.status == ConnectionStatus.connecting || root.status == ConnectionStatus.offline || root.status == ConnectionStatus.blocked: KitCard {
+        theme: root.theme;
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: root.status == ConnectionStatus.connecting ? "Connecting…" : root.status == ConnectionStatus.offline ? "Offline · retrying automatically" : "Reading unavailable · check the connection";
+                color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale;
+                wrap: word-wrap; min-width: 0px; horizontal-stretch: 1; vertical-alignment: center;
+                accessible-live-region: polite;
+            }
+            KitButton {
+                theme: root.theme; control-size: ControlSize.comfortable; text: "Retry";
+                disabled: !root.interactive || root.status == ConnectionStatus.connecting;
+                activated => { root.retry(); }
+            }
+        }
+    }
+}

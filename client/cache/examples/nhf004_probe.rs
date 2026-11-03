@@ -147,6 +147,7 @@ struct Observed {
     order: Vec<u64>,
     errors: Vec<CacheEvent>,
     first_capabilities: usize,
+    live_publications: usize,
 }
 impl Default for Observed {
     fn default() -> Self {
@@ -160,6 +161,7 @@ impl Default for Observed {
             order: Vec::new(),
             errors: Vec::new(),
             first_capabilities: 0,
+            live_publications: 0,
         }
     }
 }
@@ -204,6 +206,9 @@ async fn owner_case(
                 observed.first_capabilities = view
                     .get(&first_id)
                     .map_or(0, |entity| entity.capabilities.len());
+            }
+            if phase == CachePhase::Live {
+                observed.live_publications += 1;
             }
             observed.latest = projection;
             projection
@@ -254,18 +259,24 @@ async fn owner_case(
                 serde_json::json!({"entities":850,"ordered_updates":1000,"pending_ui_max":1,"coalesced":metrics.coalesced,"suspend_joined":true,"resume_fresh":true})
             }
             Scenario::Recovery => {
+                // A quiet Watch rotates at 30 seconds. With no delta at all,
+                // fresh admitted capture must restore Live without user input.
+                let (quiet_count, quiet_sequence) = { let s=observed.lock().unwrap(); (s.live_publications,s.latest.sequence) };
+                until(|| { let s=observed.lock().unwrap();s.live_publications>quiet_count && s.latest.phase==CachePhase::Live && s.latest.sequence==quiet_sequence },40).await?;
                 let next = control.command(Action::Advance).await?;
                 until(|| observed.lock().unwrap().latest.sequence == next, 5).await?;
                 control.command(Action::Outage).await?;
                 until(|| observed.lock().unwrap().latest.phase == CachePhase::Offline, 5).await?;
                 require(observed.lock().unwrap().latest.count == 850, "ordinary outage erased the dated cache")?;
+                tokio::time::sleep(Duration::from_secs(12)).await;
+                require({let s=observed.lock().unwrap();s.latest.count==850 && s.latest.phase==CachePhase::Offline},"long outage lost saved view or stopped retries")?;
                 let next = control.command(Action::Advance).await?;
                 control.command(Action::Restore).await?;
                 until(|| { let s = observed.lock().unwrap(); s.latest.sequence == next && s.latest.phase == CachePhase::Live }, 12).await?;
                 let old_epoch = observed.lock().unwrap().epoch.clone();
                 control.command(Action::Restart).await?;
                 until(|| { let s = observed.lock().unwrap(); s.latest.count == 850 && s.epoch != old_epoch }, 25).await?;
-                require(observed.lock().unwrap().errors.iter().any(|error| matches!(error, CacheEvent::Resync(reason) if *reason == wire::ResyncReason::EpochChanged)), "server restart did not resync the old epoch")?;
+                require({let s=observed.lock().unwrap();s.latest.phase==CachePhase::Live && s.epoch!=old_epoch}, "server restart did not admit a fresh epoch")?;
                 require(handle.suspend().await.map_err(|e| format!("suspend: {e:?}"))? == ControlOutcome::Applied, "replay barrier not joined")?;
                 let lease = session.access(&CancellationToken::new()).await?;
                 let saved = read_snapshot(&transport, &lease, Filter::all(), 256, &CancellationToken::new()).await?;
@@ -290,7 +301,7 @@ async fn owner_case(
                 until(|| observed.lock().unwrap().latest.count == 850, 10).await?;
                 control.command(Action::Withdraw).await?;
                 until(|| { let s=observed.lock().unwrap(); s.latest.count > 0 && s.first_capabilities == 0 }, 10).await?;
-                serde_json::json!({"outage_keeps_dated_view":true,"cursor_reconnect":true,"new_epoch_resync":true,"expired_replay_resync":true,"rights_clear_pending_ui":true,"capability_withdrawal":true})
+                serde_json::json!({"outage_keeps_dated_view":true,"fresh_snapshot_reconnect":true,"quiet_watch_rotation_without_delta":true,"long_outage_periodic_retry":true,"new_epoch_resync":true,"expired_replay_resync":true,"rights_clear_pending_ui":true,"capability_withdrawal":true})
             }
             Scenario::LastPageExpired | Scenario::LastPageDenied | Scenario::SlowStream => return Err("wrong owner scenario".into()),
         };

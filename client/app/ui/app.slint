@@ -1,6 +1,6 @@
 export { KitFormValidation, HtmlInputKind, NumberInputFormat, KitInputConstraints, KitValidationResult, KitValidityState } from "@kit/kit.slint";
 import { KitDialogSurface, KitDialogPanel, KitIconButton, KitButton, KitSelect, KitTheme, KitThemes, KitThemeContext, KitCard, KitCardHeader, KitUrlField,
-    KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess,
+    KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess, KitCheckbox, CheckState,
     KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest } from "@kit/kit.slint";
 import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro/kit-pro.slint";
@@ -35,6 +35,9 @@ import { HomewardDashboard } from "native-dashboard.slint";
 import { HomewardConfirmation } from "native-confirmation.slint";
 import { HomewardPopup } from "native-popup.slint";
 
+export { ConnectionStatus } from "connection-banner.slint";
+import { HomewardConnectionBanner, ConnectionStatus } from "connection-banner.slint";
+
 export enum ViewPage { home, rooms, inventory, room, detail, lists, calendars, cameras, settings }
 export enum RoomView { cards, list }
 export enum BodyFocus { read, inventory, back, settings, lists, calendars, cameras, popup }
@@ -53,6 +56,7 @@ export component HomewardWindow inherits Window {
     changed theme => { KitThemeContext.current = root.theme; }
     in-out property <string> server-draft;
     in-out property <string> certificate-draft;
+    in-out property <bool> use-private-certificate;
     in-out property <bool> show-endpoint: true;
     in property <bool> endpoint-ready;
     in property <string> endpoint-label;
@@ -65,6 +69,7 @@ export component HomewardWindow inherits Window {
     in property <string> message;
     in property <AlertSeverity> message-severity: AlertSeverity.information;
     in property <string> read-status;
+    in property <ConnectionStatus> connection-status;
     in property <string> cache-error;
     in property <[TableRow]> cache-rows;
     in-out property <int> cache-active-index: -1;
@@ -498,23 +503,26 @@ export component HomewardWindow inherits Window {
         if root.show-endpoint: KitCard {
             theme: root.theme;
             KitCardHeader { theme: root.theme; title: "Your Server";
-                description: "HTTPS address and trusted public certificate provided by your administrator."; }
+                description: "Connect securely to your Homeward server."; }
             KitUrlField { theme: root.theme; control-size: comfortable; label: "Server Address";
                 placeholder: "https://home.example.com"; text <=> root.server-draft; }
-            KitTextArea { theme: root.theme; control-size: comfortable; label: "Trusted Certificate (PEM)";
+            KitCheckbox { theme: root.theme; label: "Use a private certificate (advanced)";
+                state: root.use-private-certificate ? CheckState.checked : CheckState.unchecked;
+                toggled(state) => { root.use-private-certificate = state == CheckState.checked; } }
+            if root.use-private-certificate: KitTextArea { theme: root.theme; control-size: comfortable; label: "Trusted Certificate (PEM)";
                 min-lines: 3; max-lines: 5; text <=> root.certificate-draft;
                 input-method-hints: { capitalization: CapitalizationMode.none, auto-correct: false, auto-complete: false }; }
             if root.setup-message != "": KitAlert {
                 theme: root.theme; title: "Connect to Server"; message: root.setup-message;
             }
             KitButton { theme: root.theme; control-size: comfortable; text: "Use This Server"; control-width: ControlWidth.fill;
-                disabled: root.server-draft == "" || root.certificate-draft == "";
-                activated => { root.connect-endpoint(root.server-draft, root.certificate-draft); } }
+                disabled: root.server-draft == "" || (root.use-private-certificate && root.certificate-draft == "");
+                activated => { root.connect-endpoint(root.server-draft, root.use-private-certificate ? root.certificate-draft : ""); } }
         }
         if root.endpoint-ready && !root.show-endpoint: KitStack {
             Text { text: root.endpoint-label; color: root.theme.text-secondary;
                 font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
-            Text { text: "SHA-256 Trust: " + root.trust-fingerprint; color: root.theme.text-secondary;
+            if root.use-private-certificate: Text { text: "SHA-256 Trust: " + root.trust-fingerprint; color: root.theme.text-secondary;
                 font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
             if root.recovery-receipt != "": KitCard {
                 theme: root.theme;
@@ -615,6 +623,9 @@ export component HomewardWindow inherits Window {
         restore-focus => { root.shell-restore(); }
         compact-changed(compact) => { root.shell-compact(compact); }
         content-focus-requested => { root.content-focus(); }
+        VerticalLayout {
+          spacing: 8px;
+          HomewardConnectionBanner { theme: root.theme; status: root.connection-status; interactive: root.content-interactive; retry => { root.read-protected(); } }
         viewport := Rectangle {
             min-width: 0px; min-height: 0px; max-width: 100000px; max-height: 100000px;
             horizontal-stretch: 1; vertical-stretch: 1;
@@ -917,6 +928,7 @@ export component HomewardWindow inherits Window {
             }
         }
     }
+    }
 }
     KitDialogSurface {
         width: root.width; height: root.height; theme: root.theme;
@@ -926,7 +938,8 @@ export component HomewardWindow inherits Window {
         KitDialogPanel {
             theme: root.theme;
             accessible-name: root.device-cards.length > 0 ? root.device-cards[0].title : root.detail-title;
-            width: max(0px,min(root.width - 32px,560px)); height: max(0px,min(root.height * 0.88,760px));
+            width: root.width < 600px ? root.width : max(0px,min(root.width - 48px,560px));
+            height: root.width < 600px ? root.height : max(0px,min(root.height - 48px,720px));
             x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
             VerticalLayout {
                 padding: 20px; spacing: 8px;
@@ -944,11 +957,13 @@ export component HomewardWindow inherits Window {
                         activated => { if (self.route-generation == root.projection-version && root.page == ViewPage.detail) { root.go-back(); } }
                     }
                 }
+                HomewardConnectionBanner { theme: root.theme; status: root.connection-status; interactive: root.content-interactive; retry => { root.read-protected(); } }
                 detail-scroll := KitScrollArea {
+                    pan-policy: children-first;
                     vertical-stretch: 1;
                 if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
                 if !root.media-has-data: HomewardDeviceDetail {
-                    theme: root.theme; viewport-width: detail-scroll.visible-width; devices: root.device-cards;
+                    theme: root.theme; viewport-width: detail-scroll.visible-width; viewport-height: detail-scroll.visible-height; devices: root.device-cards;
                     interactive: root.content-interactive && root.page == ViewPage.detail; commands-ready: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }

@@ -2,6 +2,7 @@ package configactivation
 
 import (
 	"context"
+	"errors"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/configcompilation"
 )
@@ -15,7 +16,10 @@ func (o *Owner) sourceCompiler(ctx context.Context, input configcompilation.Cont
 		return nil, ErrProgramCompositionRequired
 	}
 	compiler, err := o.runtime.SourceFactory(ctx, input, operational)
-	if err != nil || compiler == nil {
+	if err != nil {
+		return nil, errors.Join(ErrProgramCompositionRequired, err)
+	}
+	if compiler == nil {
 		return nil, ErrProgramCompositionRequired
 	}
 	compilerContext := *compiler

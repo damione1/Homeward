@@ -4,3 +4,9 @@ package neviweb
 // v4.3.1, commit d3d05893a9646a5a494eb12012de72cf6d37c037, GPL-3.0.
 // Source: https://github.com/claudegel/sinope-130/tree/d3d05893a9646a5a494eb12012de72cf6d37c037
 // Homeward is GPL-3.0. The adaptation does not embed Home Assistant runtime.
+//
+// Post-command observation deliberately differs from climate.py:set_temperature
+// (optimistic local target) and __init__.py:Neviweb130Client.set_device_attributes
+// (up to three PUTs). Homeward sends one PUT and one targeted observation through
+// its existing quota/session client; only separately read and published matching
+// attributes qualify confirmation. Normal polling remains 540s by default.

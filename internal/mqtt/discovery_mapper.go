@@ -765,6 +765,16 @@ func (m *DiscoveryMapper) observeAvailability(ctx context.Context, host integrat
 	if runtime.lastValue != nil {
 		quality = runtime.lastQuality
 	}
+	// Availability describes reachability. Re-emitting a saved device value
+	// must not renew its freshness at the availability packet's receive time.
+	_, _, provenance, err := quality.Components()
+	if err != nil {
+		return err
+	}
+	quality, err = domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessStale, provenance)
+	if err != nil {
+		return err
+	}
 	return m.publishCurrent(ctx, host, runtime, quality)
 }
 

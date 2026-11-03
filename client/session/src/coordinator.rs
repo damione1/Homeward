@@ -203,7 +203,9 @@ impl SessionCoordinator {
                     home_client_transport::RpcCode::Unauthenticated,
                 )) => Phase::CredentialRejected,
                 SessionFailure::Transport(_) => Phase::NetworkUnavailable,
-                SessionFailure::Cancelled | SessionFailure::Closed => Phase::SignedOut,
+                SessionFailure::Cancelled
+                | SessionFailure::RefreshSuperseded
+                | SessionFailure::Closed => Phase::SignedOut,
                 SessionFailure::NeedsLogin => Phase::NeedsLogin,
                 SessionFailure::RefreshUncertain(FailureKind::Rpc(
                     home_client_transport::RpcCode::ResourceExhausted,
@@ -418,7 +420,6 @@ impl SessionCoordinator {
             Ok(record) => record,
             Err(
                 RecordFailure::Invalid
-                | RecordFailure::Expired
                 | RecordFailure::RefreshConsumed
                 | RecordFailure::ClockMovedBackwards,
             ) => {
@@ -437,12 +438,11 @@ impl SessionCoordinator {
         Ok(())
     }
 
-    /// Recheck absolute lifetime without a network call or an access refresh.
-    /// Hosts call this while idle and on returning to the foreground so a
-    /// previously displayed protected result cannot outlive its session.
+    /// Invalidate protected access at the saved deadline, retaining the secure
+    /// renewal operation. Only the server knows the current sliding deadline.
     pub async fn revalidate_lifetime(&self) -> Result<(), SessionFailure> {
         let _operation = self.operation().await?;
-        let generation = {
+        {
             let mut state = self.inner.state.lock().await;
             if self.inner.shutdown.is_cancelled() {
                 return Err(SessionFailure::Closed);
@@ -458,22 +458,15 @@ impl SessionCoordinator {
                     return Err(self.fail(generation, error).await);
                 }
             };
-            if !record.session_expired(&now) {
+            if !record.session_expired(&now) || state.phase != Phase::Ready {
                 return Ok(());
             }
-            let generation = self.advance();
-            self.inner.identity_epoch.fetch_add(1, Ordering::SeqCst);
-            state.record = None;
-            state.challenge = None;
-            state.phase = Phase::NeedsLogin;
-            state.failure = Some(SessionFailure::NeedsLogin);
-            self.publish_failure(Phase::NeedsLogin, Some(SessionFailure::NeedsLogin));
-            generation
-        };
-        if let Err(error) = self.persist(generation, None).await {
-            return Err(self.fail(generation, error).await);
+            self.advance();
+            state.phase = Phase::Offline;
+            state.failure = Some(SessionFailure::Transport(FailureKind::Deadline));
+            self.publish_failure(Phase::Offline, state.failure);
         }
-        Err(SessionFailure::NeedsLogin)
+        Ok(())
     }
 
     pub async fn access(&self, cancel: &CancellationToken) -> Result<AccessLease, SessionFailure> {
@@ -482,6 +475,8 @@ impl SessionCoordinator {
         // must instead cancel every waiter from the previous session identity.
         let identity_epoch = self.inner.identity_epoch.load(Ordering::SeqCst);
         let mut changes = self.subscribe();
+        let mut first_attempt = true;
+        let mut refresh_generation = None;
         loop {
             let mut state = self.inner.state.lock().await;
             if self.inner.shutdown.is_cancelled() {
@@ -493,21 +488,22 @@ impl SessionCoordinator {
             if self.inner.identity_epoch.load(Ordering::SeqCst) != identity_epoch {
                 return Err(SessionFailure::Cancelled);
             }
+            if refresh_generation.is_some_and(|attempt| attempt != self.generation()) {
+                // A later renewal superseded the attempt this waiter joined.
+                // It must not silently join that new attempt after missing Offline.
+                return Err(SessionFailure::RefreshSuperseded);
+            }
+            // A fresh read intention can retry a saved, unconsumed renewal.
+            // Waiters on the previous shared attempt all receive its outcome.
+            if first_attempt && state.phase == Phase::Offline && state.record.is_some() {
+                state.phase = Phase::Ready;
+                state.failure = None;
+                self.publish(Phase::Ready);
+            }
+            first_attempt = false;
             if state.phase == Phase::Ready {
                 let record = state.record.clone().ok_or(SessionFailure::NeedsLogin)?;
                 let now = self.inner.clock.now()?;
-                if record.session_expired(&now) {
-                    let generation = self.advance();
-                    self.inner.identity_epoch.fetch_add(1, Ordering::SeqCst);
-                    state.record = None;
-                    state.phase = Phase::NeedsLogin;
-                    self.publish(Phase::NeedsLogin);
-                    drop(state);
-                    if let Err(error) = self.persist(generation, None).await {
-                        return Err(self.fail(generation, error).await);
-                    }
-                    return Err(SessionFailure::NeedsLogin);
-                }
                 if !record.access_expired(&now) {
                     let generation = self.generation();
                     return Ok(AccessLease {
@@ -533,6 +529,7 @@ impl SessionCoordinator {
             } else if state.phase != Phase::Refreshing {
                 return Err(state.failure.unwrap_or(SessionFailure::NeedsLogin));
             }
+            refresh_generation = Some(self.generation());
             drop(state);
             tokio::select! {
                 biased;
@@ -545,36 +542,125 @@ impl SessionCoordinator {
 
     async fn refresh(&self, generation: Generation, previous: Arc<SecretRecord>) {
         let result = async {
-            let consumed = SecretRecord {
+            // A read-only reachability check avoids burning a refresh while a
+            // reverse proxy is up but its backend is offline. Its success is
+            // never used to reclassify a later ambiguous refresh failure.
+            let access = AccessToken::parse(&previous.tokens.access_token)
+                .map_err(|_| SessionFailure::InvalidResponse)?;
+            if previous.refresh == RefreshState::Available
+                && let Err(error) = self
+                    .inner
+                    .api
+                    .preflight_refresh(
+                        auth::ListSessionsRequest {
+                            account_id: previous.tokens.session.account_id.clone(),
+                            ..Default::default()
+                        },
+                        &access,
+                        &self.token_for(generation)?,
+                    )
+                    .await
+            {
+                // Older admission guards cannot distinguish an expired access
+                // bearer. The independent refresh asks the session authority.
+                let expired_access = error.kind()
+                    == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated)
+                    && match error.authorization_termination() {
+                        Ok(None) => true,
+                        Ok(Some(detail)) => {
+                            detail.reason == auth::AuthorizationTerminationReason::CredentialExpired
+                        }
+                        Err(_) => false,
+                    };
+                if !expired_access {
+                    let reaction = self.observe_failure_inner(generation, &error).await?;
+                    if reaction != SessionReaction::Unchanged {
+                        return Ok(());
+                    }
+                    self.defer_refresh(generation, previous, error.kind())
+                        .await?;
+                    return Ok(());
+                }
+            }
+            let renewal_key = match previous.refresh {
+                RefreshState::Available | RefreshState::AccessRejected => {
+                    let mut key = [0; 32];
+                    getrandom::fill(&mut key).map_err(|_| SessionFailure::InvalidResponse)?;
+                    if key == [0; 32] {
+                        return Err(SessionFailure::InvalidResponse);
+                    }
+                    key
+                }
+                RefreshState::Pending(key) => key,
+                RefreshState::Consumed => return Err(SessionFailure::NeedsLogin),
+            };
+            let pending = Arc::new(SecretRecord {
                 tokens: previous.tokens.clone(),
                 admitted_at: previous.admitted_at.clone(),
-                refresh: RefreshState::Consumed,
-            };
-            self.persist(generation, Some(consumed.encode())).await?;
-            if !self.is_current(generation) {
-                return Err(SessionFailure::Cancelled);
+                refresh: RefreshState::Pending(renewal_key),
+            });
+            self.persist(generation, Some(pending.encode())).await?;
+            {
+                let mut state = self.inner.state.lock().await;
+                if !self.is_current(generation) {
+                    return Err(SessionFailure::Cancelled);
+                }
+                state.record = Some(pending.clone());
             }
-            let response = self
+            let response = match self
                 .inner
                 .api
                 .refresh(
                     auth::RefreshSessionRequest {
                         refresh_token: previous.tokens.refresh_token.clone(),
+                        renewal_key: renewal_key.to_vec(),
                         ..Default::default()
                     },
                     &self.token_for(generation)?,
                 )
                 .await
-                .map_err(|error| SessionFailure::RefreshUncertain(error.kind()))?;
+            {
+                Ok(response) => response,
+                Err(error) => {
+                    match renewal_failure(&error)? {
+                        RenewalFailure::Reauthenticate => {
+                            self.reject_session(generation).await?;
+                            return Ok(());
+                        }
+                        RenewalFailure::Retry => {
+                            self.defer_refresh(generation, pending, error.kind())
+                                .await?;
+                            return Ok(());
+                        }
+                        RenewalFailure::Stop => {}
+                    }
+                    if self.observe_failure_inner(generation, &error).await?
+                        != SessionReaction::Unchanged
+                    {
+                        return Ok(());
+                    }
+                    // A trust/protocol/permission refusal is not proof that
+                    // the saved session expired. Keep its exact pending op;
+                    // the read owner decides whether automatic retry is safe.
+                    self.defer_refresh(generation, pending, error.kind())
+                        .await?;
+                    return Ok(());
+                }
+            };
             let tokens = response
                 .tokens
                 .into_option()
                 .ok_or(SessionFailure::InvalidResponse)?;
             if tokens.session.id != previous.tokens.session.id
                 || tokens.session.account_id != previous.tokens.session.account_id
-                || tokens.session.expires_at != previous.tokens.session.expires_at
-                || tokens.session.created_at != previous.tokens.session.created_at
-                || tokens.session.authenticated_at != previous.tokens.session.authenticated_at
+                || !same_persisted_instant(
+                    tokens.session.created_at.as_option(),
+                    previous.tokens.session.created_at.as_option(),
+                )
+                || !same_persisted_instant(
+                    tokens.session.authenticated_at.as_option(),
+                    previous.tokens.session.authenticated_at.as_option(),
+                )
                 || tokens.session.authentication_satisfaction
                     != previous.tokens.session.authentication_satisfaction
             {
@@ -588,6 +674,49 @@ impl SessionCoordinator {
         if let Err(error) = result {
             self.fail(generation, error).await;
         }
+    }
+
+    async fn reject_session(&self, generation: Generation) -> Result<(), SessionFailure> {
+        let mut state = self.inner.state.lock().await;
+        if !self.is_current(generation) {
+            return Err(SessionFailure::Cancelled);
+        }
+        let next = self.advance();
+        self.inner.identity_epoch.fetch_add(1, Ordering::SeqCst);
+        state.record = None;
+        state.challenge = None;
+        state.phase = Phase::Refreshing;
+        state.failure = Some(SessionFailure::NeedsLogin);
+        drop(state);
+        if let Err(error) = self.persist(next, None).await {
+            return Err(self.fail(next, error).await);
+        }
+        let mut state = self.inner.state.lock().await;
+        if !self.is_current(next) {
+            return Err(SessionFailure::Cancelled);
+        }
+        state.phase = Phase::NeedsLogin;
+        self.publish_failure(Phase::NeedsLogin, state.failure);
+        Ok(())
+    }
+
+    async fn defer_refresh(
+        &self,
+        generation: Generation,
+        previous: Arc<SecretRecord>,
+        failure: FailureKind,
+    ) -> Result<(), SessionFailure> {
+        self.persist(generation, Some(previous.encode())).await?;
+        let mut state = self.inner.state.lock().await;
+        if !self.is_current(generation) {
+            return Err(SessionFailure::Cancelled);
+        }
+        state.record = Some(previous);
+        state.challenge = None;
+        state.phase = Phase::Offline;
+        state.failure = Some(SessionFailure::Transport(failure));
+        self.publish_failure(Phase::Offline, state.failure);
+        Ok(())
     }
 
     pub async fn logout_local(&self) -> Result<(), SessionFailure> {
@@ -678,7 +807,73 @@ impl SessionCoordinator {
         failure: &Failure,
     ) -> Result<SessionReaction, SessionFailure> {
         let _operation = self.operation().await?;
+        self.observe_failure_inner(generation, failure).await
+    }
+
+    // Tracked refresh tasks already belong to this owner. They must not acquire
+    // operations.read while close holds operations.write and joins those tasks.
+    async fn observe_failure_inner(
+        &self,
+        generation: Generation,
+        failure: &Failure,
+    ) -> Result<SessionReaction, SessionFailure> {
         use auth::AuthorizationTerminationReason as Reason;
+        let access_expired = if let Some(detail) = failure
+            .auth_error()
+            .map_err(|_| SessionFailure::InvalidResponse)?
+        {
+            let admitted =
+                auth_contract::admit_error(&detail).map_err(|_| SessionFailure::InvalidResponse)?;
+            if matches!(renewal_failure(failure)?, RenewalFailure::Reauthenticate) {
+                if !self.is_current(generation) {
+                    return Ok(SessionReaction::IgnoredOldGeneration);
+                }
+                self.reject_session(generation).await?;
+                return Ok(SessionReaction::CredentialsDiscarded);
+            }
+            matches!(&admitted.wire().detail,
+                Some(auth::auth_error::Detail::Expired(value)) if *value == auth::ExpiredResource::AccessToken)
+        } else {
+            false
+        };
+        let access_expired = access_expired
+            || matches!(failure.authorization_termination(),
+            Ok(Some(detail)) if detail.reason == Reason::CredentialExpired);
+        // A stream expires with its access lease too. Only RefreshSession's
+        // Expired(Session) proves that the independent session is unusable.
+        // A bare access refusal says nothing definitive about the independent
+        // refresh credential. Fence this view and ask the session authority.
+        if access_expired
+            || (failure.kind() == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated)
+                && matches!(failure.authorization_termination(), Ok(None))
+                && matches!(failure.auth_error(), Ok(None)))
+        {
+            let mut state = self.inner.state.lock().await;
+            if !self.is_current(generation) {
+                return Ok(SessionReaction::IgnoredOldGeneration);
+            }
+            let previous = state.record.as_ref().ok_or(SessionFailure::NeedsLogin)?;
+            let retained = SecretRecord {
+                tokens: previous.tokens.clone(),
+                admitted_at: previous.admitted_at.clone(),
+                refresh: match previous.refresh {
+                    RefreshState::Available | RefreshState::AccessRejected => {
+                        RefreshState::AccessRejected
+                    }
+                    RefreshState::Pending(key) => RefreshState::Pending(key),
+                    RefreshState::Consumed => return Err(SessionFailure::NeedsLogin),
+                },
+            };
+            let next = self.advance();
+            let bytes = retained.encode();
+            state.record = Some(Arc::new(retained));
+            state.phase = Phase::Offline;
+            state.failure = Some(SessionFailure::Transport(failure.kind()));
+            self.publish_failure(Phase::Offline, state.failure);
+            drop(state);
+            self.persist(next, Some(bytes)).await?;
+            return Ok(SessionReaction::ViewSuspended);
+        }
         let reason = match failure.authorization_termination() {
             Ok(Some(detail)) => Some(detail.reason.as_known()),
             Ok(None)
@@ -769,3 +964,72 @@ impl SessionCoordinator {
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+
+// PostgreSQL timestamps retain microseconds. Older servers returned the original
+// nanoseconds at login, then the stored precision at rotation. Only these two
+// immutable timestamps use that resolution; all other identity checks stay exact.
+fn same_persisted_instant(a: Option<&Timestamp>, b: Option<&Timestamp>) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => {
+            (0..1_000_000_000).contains(&a.nanos)
+                && (0..1_000_000_000).contains(&b.nanos)
+                && a.seconds == b.seconds
+                && a.nanos / 1000 == b.nanos / 1000
+        }
+        (Some(_), None) | (None, Some(_)) | (None, None) => false,
+    }
+}
+
+// Map the protobuf error exactly once at the renewal boundary. A permission
+// error about another resource must not silently erase a valid session.
+enum RenewalFailure {
+    Retry,
+    Reauthenticate,
+    Stop,
+}
+fn renewal_failure(failure: &Failure) -> Result<RenewalFailure, SessionFailure> {
+    use auth::{
+        AuthenticationFailure as Authentication, ExpiredResource as Expired,
+        PermissionFailure as Permission, auth_error::Detail,
+    };
+    if let Some(detail) = failure
+        .auth_error()
+        .map_err(|_| SessionFailure::InvalidResponse)?
+    {
+        let admitted =
+            auth_contract::admit_error(&detail).map_err(|_| SessionFailure::InvalidResponse)?;
+        return Ok(match &admitted.wire().detail {
+            Some(Detail::Authentication(value))
+                if matches!(
+                    value.as_known(),
+                    Some(
+                        Authentication::InvalidCredential
+                            | Authentication::Revoked
+                            | Authentication::FactorRequired
+                    )
+                ) =>
+            {
+                RenewalFailure::Reauthenticate
+            }
+            Some(Detail::Expired(value)) if *value == Expired::Session => {
+                RenewalFailure::Reauthenticate
+            }
+            Some(Detail::Permission(value)) if *value == Permission::AccountDisabled => {
+                RenewalFailure::Reauthenticate
+            }
+            Some(Detail::RetryAt(_)) if failure.may_recover_renewal() => RenewalFailure::Retry,
+            Some(Detail::Authentication(_))
+            | Some(Detail::Expired(_))
+            | Some(Detail::Permission(_))
+            | Some(Detail::RetryAt(_))
+            | Some(Detail::InvalidField(_))
+            | Some(Detail::Conflict(_))
+            | None => RenewalFailure::Stop,
+        });
+    }
+    Ok(if failure.may_recover_renewal() {
+        RenewalFailure::Retry
+    } else {
+        RenewalFailure::Stop
+    })
+}

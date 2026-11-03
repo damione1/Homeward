@@ -115,7 +115,7 @@ func TestNHA141StoreRotationReplayAndRollingLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !created.Session.ExpiresAt().Equal(now.Add(30*24*time.Hour)) || !created.AccessExpiresAt.Equal(now.Add(15*time.Minute)) {
+	if !created.Session.ExpiresAt().Equal(now.Add(7*24*time.Hour)) || !created.AccessExpiresAt.Equal(now.Add(15*time.Minute)) {
 		t.Fatal("session/access lifetime changed")
 	}
 	if _, err := store.AdmitAccess(ctx, SessionOwner{Account: input.ID, Session: id}, access, created.AccessExpiresAt); !errors.Is(err, ErrSessionNotFound) {
@@ -128,11 +128,11 @@ func TestNHA141StoreRotationReplayAndRollingLimit(t *testing.T) {
 	rotated, err := store.RotateRefresh(ctx, RefreshRotation{Owner: SessionOwner{Account: input.ID, Session: id},
 		OldDigest: refresh, NewDigest: newRefresh, NewAccessDigest: newAccess, Now: now.Add(time.Minute)})
 	rotatedRecord, _, rotatedOK := rotated.Rotated()
-	if err != nil || !rotatedOK || rotated.ReplayRevoked() || rotated.GenerationExhausted() {
+	if err != nil || !rotatedOK || rotated.ReplayRevoked() {
 		t.Fatalf("first rotation: %+v %v", rotated, err)
 	}
-	if !rotatedRecord.ExpiresAt().Equal(created.Session.ExpiresAt()) {
-		t.Fatal("refresh slid absolute expiry")
+	if !rotatedRecord.ExpiresAt().Equal(now.Add(time.Minute + 7*24*time.Hour)) {
+		t.Fatal("refresh did not extend inactivity expiry")
 	}
 	if _, err := store.AdmitAccess(ctx, SessionOwner{Account: input.ID, Session: id}, access, now.Add(time.Minute)); !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("old access survived rotation: %v", err)
@@ -177,7 +177,7 @@ func TestNHA141StoreRotationReplayAndRollingLimit(t *testing.T) {
 	}
 	nextAccess, nextRefresh := nha141Digests(t)
 	if _, err := store.CreateSession(ctx, SessionCreation{ID: nextID, Account: input.ID, Revision: recoveredRevision,
-		AccessDigest: nextAccess, RefreshDigest: nextRefresh, Now: created.Session.ExpiresAt()}); err != nil {
+		AccessDigest: nextAccess, RefreshDigest: nextRefresh, Now: rotatedRecord.ExpiresAt()}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.LookupRefreshOwner(ctx, refresh); !errors.Is(err, ErrSessionNotFound) {
@@ -309,10 +309,13 @@ func TestNHA141StoreOldestSessionEvictionAndGenerationLimit(t *testing.T) {
 	newAccess, newRefresh := nha141Digests(t)
 	result, err := store.RotateRefresh(ctx, RefreshRotation{Owner: SessionOwner{Account: input.ID, Session: lastID},
 		OldDigest: lastRefresh, NewDigest: newRefresh, NewAccessDigest: newAccess, Now: now.Add(18 * time.Second)})
-	if err != nil || !result.GenerationExhausted() {
-		t.Fatalf("generation 4097 admitted: %v %+v", err, result)
+	if _, _, ok := result.Rotated(); err != nil || !ok {
+		t.Fatalf("generation ring did not wrap: %v %+v", err, result)
+	}
+	if _, err := store.AdmitAccess(ctx, SessionOwner{Account: input.ID, Session: lastID}, newAccess, now.Add(18*time.Second)); err != nil {
+		t.Fatalf("wrapped session access denied: %v", err)
 	}
 	if _, err := store.AdmitAccess(ctx, SessionOwner{Account: input.ID, Session: lastID}, lastAccess, now.Add(18*time.Second)); !errors.Is(err, ErrSessionNotFound) {
-		t.Fatalf("exhausted family access survived: %v", err)
+		t.Fatalf("old access survived rotation: %v", err)
 	}
 }

@@ -33,6 +33,8 @@ pub use configuration::{
     ConfigurationTransport, ConfigurationWatch,
 };
 pub use connection::Connection;
+#[cfg(target_os = "android")]
+pub use connection::initialize_android_trust;
 pub use connectrpc::ErrorCode as RpcCode;
 pub use dashboard::{DashboardTransport, DashboardWatch};
 pub use failure::{DetailFailure, Failure, FailureKind};
@@ -41,7 +43,7 @@ pub use lists::{ListTransport, ListWatch};
 pub use logic::LogicTransport;
 pub use media::MediaTransport;
 pub use notifications::NotificationTransport;
-pub use reconnect::ReconnectPolicy;
+pub use reconnect::{FibonacciBackoff, ReconnectPolicy};
 
 #[allow(clippy::all)]
 #[rustfmt::skip]

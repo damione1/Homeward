@@ -21,6 +21,18 @@ func selectEnabledIntegrations(disabled []string, c Config) (Config, error) {
 		declared[text] = true
 		return nil
 	}
+	if c.sonos != nil {
+		id, err := c.sonos.Instance()
+		if err != nil || add(id) != nil {
+			return Config{}, ErrInvalidYAML
+		}
+	}
+	if c.androidTV != nil {
+		id, err := c.androidTV.Instance()
+		if err != nil || add(id) != nil {
+			return Config{}, ErrInvalidYAML
+		}
+	}
 	if c.mqtt != nil {
 		id, err := c.mqtt.Instance()
 		if err != nil || add(id) != nil {
@@ -72,6 +84,18 @@ func selectEnabledIntegrations(disabled []string, c Config) (Config, error) {
 		off[text] = true
 	}
 	isOff := func(id domain.IntegrationInstanceID) bool { text, _ := id.Value(); return off[text] }
+	if c.sonos != nil {
+		id, _ := c.sonos.Instance()
+		if isOff(id) {
+			c.sonos = nil
+		}
+	}
+	if c.androidTV != nil {
+		id, _ := c.androidTV.Instance()
+		if isOff(id) {
+			c.androidTV = nil
+		}
+	}
 	if c.mqtt != nil {
 		id, _ := c.mqtt.Instance()
 		if isOff(id) {

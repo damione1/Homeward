@@ -12,6 +12,7 @@ import (
 
 	"github.com/damione1/Homeward/contracts"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
+	"github.com/damione1/Homeward/internal/androidtv"
 	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/backups"
@@ -30,6 +31,7 @@ import (
 	"github.com/damione1/Homeward/internal/recorder"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
+	"github.com/damione1/Homeward/internal/sonos"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/view"
 	"github.com/damione1/Homeward/internal/workday"
@@ -54,6 +56,8 @@ func (unconfiguredIdentity) Resolve(context.Context, domain.IntegrationInstanceI
 // drains the command service. Run also joins its job scheduler before closing
 // PostgreSQL, using the same shutdown budget for both owners.
 type RuntimePlan struct {
+	sonosRuntime     *sonos.Runtime
+	androidTVRuntime *androidtv.Runtime
 	// Optional trusted profile source; absent by default, never the host zone.
 	DisplayProfiles view.DisplayProfileSource
 	remoteCalendar  *remoteCalendarRuntime
@@ -284,8 +288,10 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		solarSettings, solarEnabled := c.SolarSettings()
 		workdaySettings, workdayEnabled := c.WorkdaySettings()
 		ecobeeSettings, ecobeeEnabled := c.EcobeeSettings()
+		sonosSettings, sonosEnabled := c.SonosSettings()
+		androidTVSettings, androidTVEnabled := c.AndroidTVSettings()
 		_, remoteEnabled := c.RemoteCalendarSettings()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled || remoteEnabled || ecobeeEnabled {
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled || remoteEnabled || ecobeeEnabled || sonosEnabled || androidTVEnabled {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
@@ -298,6 +304,20 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 				cloud = append(cloud, neviwebComposition{settings: neviwebSettings, catalog: catalog, ownership: &ownership})
 			}
 			plan, err = defaultConfiguredRuntimePlanWithManifest(scopeManifest, mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
+			if err != nil {
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+			}
+			plan.sonosRuntime, err = newNativeSonosRuntime(catalog)
+			if err == nil && sonosEnabled {
+				err = addConfiguredSonos(&plan, sonosSettings)
+			}
+			if err != nil {
+				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+			}
+			plan.androidTVRuntime, err = androidtv.NewRuntime()
+			if err == nil && androidTVEnabled {
+				err = addConfiguredAndroidTV(&plan, androidTVSettings)
+			}
 			if err != nil {
 				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 			}
@@ -335,6 +355,14 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 				}
 			}
+		}
+	}
+	// An empty configured household may hot-enable Sonos later as well. Its
+	// codec and facade must exist before that first pilot discovers any source.
+	if factory == nil && !startup.MQTTReadOnlyObservation() && plan.sonosRuntime == nil {
+		plan.sonosRuntime, err = newNativeSonosRuntime(catalog)
+		if err != nil {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 		}
 	}
 	if factory == nil {
@@ -743,6 +771,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		}
 		if coreErr == nil {
 			coreErr = registerDashboardRoutes(plan.Public, activation, sessions.authority, sequence)
+		}
+		if coreErr == nil {
+			coreErr = registerNativeMediaRoutes(plan.Public, plan.sonosRuntime, plan.androidTVRuntime, activation, sessions.authority, sequence)
 		}
 		if coreErr == nil {
 			coreErr = registerMCPReads(plan.Public, publicSettings.MCPEnabled(), core, documents, sessions, observed)

@@ -16,7 +16,7 @@ use i_slint_core::api::{
 use i_slint_core::input::{InternalKeyEvent, KeyEvent, KeyEventType, TouchPhase};
 use i_slint_core::lengths::PhysicalEdges;
 use i_slint_core::platform::{
-    InternalEvent, Key, PointerEventButton, WindowAdapter, WindowEvent, WindowEventDispatchResult,
+    Key, PointerEventButton, WindowAdapter, WindowEvent, WindowEventDispatchResult,
     WindowProperties,
 };
 use i_slint_core::timers::{Timer, TimerMode};
@@ -49,6 +49,7 @@ pub struct AndroidWindowAdapter {
 
     long_press: RefCell<Option<LongPressDetection>>,
     last_pressed_state: Cell<ButtonState>,
+    touch_guard: RefCell<crate::touch_guard::TouchGuard>,
 }
 
 impl WindowAdapter for AndroidWindowAdapter {
@@ -211,6 +212,7 @@ impl AndroidWindowAdapter {
             show_cursor_handles: Cell::new(false),
             long_press: RefCell::default(),
             last_pressed_state: Cell::new(ButtonState(0)),
+            touch_guard: RefCell::default(),
         })
     }
 
@@ -375,26 +377,14 @@ impl AndroidWindowAdapter {
                             );
                             self.long_press.replace(Some(LongPressDetection { position, _timer }));
                             if let Some(p) = motion_event.pointers().next() {
-                                self.window.dispatch_event(WindowEvent::internal(
-                                    InternalEvent::Touch {
-                                        id: p.pointer_id(),
-                                        position: touch_pos(&p),
-                                        phase: TouchPhase::Started,
-                                    },
-                                ));
+                                crate::touch_dispatch::dispatch_touch(&self.window, &mut self.touch_guard.borrow_mut(), p.pointer_id(), touch_pos(&p), TouchPhase::Started);
                             }
                             InputStatus::Handled
                         }
                         MotionAction::Up => {
                             self.long_press.take();
                             if let Some(p) = motion_event.pointers().next() {
-                                self.window.dispatch_event(WindowEvent::internal(
-                                    InternalEvent::Touch {
-                                        id: p.pointer_id(),
-                                        position: touch_pos(&p),
-                                        phase: TouchPhase::Ended,
-                                    },
-                                ));
+                                crate::touch_dispatch::dispatch_touch(&self.window, &mut self.touch_guard.borrow_mut(), p.pointer_id(), touch_pos(&p), TouchPhase::Ended);
                             }
                             InputStatus::Handled
                         }
@@ -412,13 +402,7 @@ impl AndroidWindowAdapter {
                             drop(lp);
 
                             for p in motion_event.pointers() {
-                                self.window.dispatch_event(WindowEvent::internal(
-                                    InternalEvent::Touch {
-                                        id: p.pointer_id(),
-                                        position: touch_pos(&p),
-                                        phase: TouchPhase::Moved,
-                                    },
-                                ));
+                                crate::touch_dispatch::dispatch_touch(&self.window, &mut self.touch_guard.borrow_mut(), p.pointer_id(), touch_pos(&p), TouchPhase::Moved);
                             }
                             InputStatus::Handled
                         }
@@ -427,26 +411,14 @@ impl AndroidWindowAdapter {
                             self.long_press.take();
                             let idx = motion_event.pointer_index();
                             if let Some(p) = motion_event.pointers().nth(idx) {
-                                self.window.dispatch_event(WindowEvent::internal(
-                                    InternalEvent::Touch {
-                                        id: p.pointer_id(),
-                                        position: touch_pos(&p),
-                                        phase: TouchPhase::Started,
-                                    },
-                                ));
+                                crate::touch_dispatch::dispatch_touch(&self.window, &mut self.touch_guard.borrow_mut(), p.pointer_id(), touch_pos(&p), TouchPhase::Started);
                             }
                             InputStatus::Handled
                         }
                         MotionAction::PointerUp => {
                             let idx = motion_event.pointer_index();
                             if let Some(p) = motion_event.pointers().nth(idx) {
-                                self.window.dispatch_event(WindowEvent::internal(
-                                    InternalEvent::Touch {
-                                        id: p.pointer_id(),
-                                        position: touch_pos(&p),
-                                        phase: TouchPhase::Ended,
-                                    },
-                                ));
+                                crate::touch_dispatch::dispatch_touch(&self.window, &mut self.touch_guard.borrow_mut(), p.pointer_id(), touch_pos(&p), TouchPhase::Ended);
                             }
                             InputStatus::Handled
                         }
@@ -460,13 +432,7 @@ impl AndroidWindowAdapter {
                         MotionAction::Cancel | MotionAction::Outside => {
                             self.long_press.take();
                             for p in motion_event.pointers() {
-                                self.window.dispatch_event(WindowEvent::internal(
-                                    InternalEvent::Touch {
-                                        id: p.pointer_id(),
-                                        position: touch_pos(&p),
-                                        phase: TouchPhase::Cancelled,
-                                    },
-                                ));
+                                crate::touch_dispatch::dispatch_touch(&self.window, &mut self.touch_guard.borrow_mut(), p.pointer_id(), touch_pos(&p), TouchPhase::Cancelled);
                             }
                             InputStatus::Handled
                         }

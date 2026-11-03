@@ -5,6 +5,26 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{AccessToken, Failure, StateTransport, StateWatch};
 
+/// Unlimited outage recovery: Fibonacci seconds, capped at one hour. Each
+/// successful connection starts a fresh sequence. Manual retry skips a wait.
+#[derive(Default)]
+pub struct FibonacciBackoff {
+    previous: u64,
+    next: u64,
+}
+
+impl FibonacciBackoff {
+    pub fn next_delay(&mut self) -> Duration {
+        let delay = self.next.max(1);
+        (self.previous, self.next) = (delay, (self.previous + delay).min(3600));
+        Duration::from_secs(delay)
+    }
+
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
 /// Finite read-only reconnect budget. The cache owns the last applied cursor;
 /// this policy never advances it or retries a command/session refresh.
 #[derive(Clone, Copy)]
@@ -96,6 +116,22 @@ mod tests {
     use home_wire_contract::home::auth::v1::AuthorizationTermination;
 
     #[test]
+    fn fibonacci_outages_cap_at_one_hour_and_success_resets_the_sequence() {
+        let mut backoff = FibonacciBackoff::default();
+        for seconds in [
+            1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 3600, 3600,
+        ] {
+            assert_eq!(backoff.next_delay(), Duration::from_secs(seconds));
+        }
+        for _ in 0..1000 {
+            assert_eq!(backoff.next_delay(), Duration::from_secs(3600));
+        }
+        backoff.reset();
+        assert_eq!(backoff.next_delay(), Duration::from_secs(1));
+        assert_eq!(backoff.next_delay(), Duration::from_secs(1));
+    }
+
+    #[test]
     fn authority_termination_never_retries_a_cached_cursor_even_when_unavailable() {
         let plain = Failure::from(ConnectError::unavailable("network"));
         assert!(retryable(&plain));
@@ -112,7 +148,7 @@ mod tests {
         assert!(!retryable(&Failure::from(ConnectError::unauthenticated(
             "expired"
         ))));
-        assert!(!retryable(&Failure::from(ConnectError::internal(
+        assert!(retryable(&Failure::from(ConnectError::internal(
             "connection reset"
         ))));
         assert!(retryable(&Failure::from(

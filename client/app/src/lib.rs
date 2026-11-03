@@ -44,7 +44,11 @@ mod list_host;
 mod list_state;
 pub mod media;
 mod media_host;
+#[cfg(test)]
+mod native_touch_tests;
 mod navigation;
+#[cfg(test)]
+use native_touch_tests::touch_guard;
 mod notification_host;
 mod preferences;
 mod profile;
@@ -72,6 +76,13 @@ pub fn run() -> Result<(), slint::PlatformError> {
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
+    // AndroidApp owns these VM/activity references throughout initialization.
+    let _ = unsafe {
+        home_client_transport::initialize_android_trust(
+            app.vm_as_ptr().cast(),
+            app.activity_as_ptr().cast(),
+        )
+    };
     let context = home_client_platform::NativeStoreContext::new(&app);
     let _ = home_client_platform::notifications::initialize(&app);
     let lifecycle = session_host::LifecycleBridge::new();

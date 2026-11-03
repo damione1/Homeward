@@ -138,7 +138,7 @@ enum StartupRead {
 }
 impl StartupRead {
     fn claim(&mut self, phase: Phase) -> bool {
-        if !matches!(phase, Phase::Ready | Phase::Refreshing) {
+        if !matches!(phase, Phase::Ready | Phase::Refreshing | Phase::Offline) {
             return false;
         }
         match self {
@@ -340,7 +340,7 @@ impl LifecycleBridge {
 }
 
 fn should_resume_view(requested: bool, phase: Phase) -> bool {
-    requested && matches!(phase, Phase::Ready | Phase::Refreshing)
+    requested && matches!(phase, Phase::Ready | Phase::Refreshing | Phase::Offline)
 }
 // A projection target must not retain the slot containing its own CacheHandle.
 // Otherwise Inner.notify -> Ui -> binding -> Inner forms a reference cycle.
@@ -667,7 +667,9 @@ fn profile_message(error: ProfileFailure) -> &'static str {
         ProfileFailure::InvalidEndpoint => {
             "Enter an HTTPS address without credentials, a path, parameters or a fragment."
         }
-        ProfileFailure::InvalidTrust => "The trusted PEM certificate is missing or invalid.",
+        ProfileFailure::InvalidTrust => {
+            "Certificate trust could not be configured. Check the private certificate, if provided."
+        }
         ProfileFailure::Unavailable => {
             "The server configuration could not be saved on this device."
         }
@@ -688,6 +690,7 @@ fn invitation_allowed(phase: Phase) -> bool {
         | Phase::EnrollmentRequired
         | Phase::Ready
         | Phase::Refreshing
+        | Phase::Offline
         | Phase::AuthorityUnavailable
         | Phase::RightsChanged
         | Phase::StorageUnavailable
@@ -709,7 +712,10 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
         "Your session credentials are kept in this device’s secure storage.".into(),
     );
     window.set_session_severity(AlertSeverity::Success);
-    if !matches!(view.phase, Phase::Ready | Phase::Refreshing) {
+    if !matches!(
+        view.phase,
+        Phase::Ready | Phase::Refreshing | Phase::Offline
+    ) {
         cache_view::clear(window);
     }
     let message = match view.phase {
@@ -737,7 +743,7 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
             window.set_access_stage(ProAccessStage::Identity);
             Some((
                 "Sign-in required",
-                "Sign in again to open a session. An uncertain renewal will not be retried.",
+                "Your session expired or was revoked. Sign in again to continue.",
             ))
         }
         Phase::CredentialRejected => {
@@ -750,6 +756,16 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
                 "Too many attempts",
                 "Wait before trying again. No retry will start automatically.",
             ))
+        }
+        Phase::Offline => {
+            window.set_access_stage(ProAccessStage::Connected);
+            window.set_session_title("Offline".into());
+            window.set_session_description(
+                "Your session is saved. Reconnecting automatically; Retry connects immediately."
+                    .into(),
+            );
+            window.set_session_severity(AlertSeverity::Warning);
+            None
         }
         Phase::NetworkUnavailable => {
             window.set_access_stage(ProAccessStage::Identity);
@@ -781,7 +797,7 @@ fn render_view(window: &HomewardWindow, view: SessionView) {
             window.set_session_severity(AlertSeverity::Warning);
             Some((
                 "Permission check unavailable",
-                "Your session is retained. You can try reading again.",
+                "Your session is saved. Reconnecting automatically; Retry connects immediately.",
             ))
         }
         Phase::RightsChanged => {
@@ -1010,6 +1026,7 @@ async fn install_profile(
         .join(" ");
     ui.post(epoch, move |window| {
         window.set_server_draft(origin.clone().into());
+        window.set_use_private_certificate(!certificates.is_empty());
         window.set_certificate_draft(certificates.into());
         window.set_endpoint_label(origin.into());
         window.set_trust_fingerprint(fingerprint.into());
@@ -1171,6 +1188,7 @@ async fn install_profile(
                 | Phase::EnrollmentRequired
                 | Phase::RateLimited
                 | Phase::NetworkUnavailable
+                | Phase::Offline
                 | Phase::AuthorityUnavailable
                 | Phase::StorageUnavailable
                 | Phase::UnsupportedResponse => {}
@@ -1484,18 +1502,43 @@ pub(crate) fn run_with_lifecycle(
     {
         use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
         let events = lifecycle.clone();
-        window.window().on_winit_window_event(move |_, event| {
-            if let WindowEvent::Occluded(occluded) = event {
-                events.set(if *occluded {
-                    Lifecycle::Suspended
-                } else {
-                    Lifecycle::Foreground
-                });
-            } else if matches!(event, WindowEvent::Destroyed) {
-                events.set(Lifecycle::Suspended);
-            }
-            EventResult::Propagate
-        });
+        let touch_guard =
+            std::cell::RefCell::new(home_client_platform::touch_guard::TouchGuard::default());
+        window
+            .window()
+            .on_winit_window_event(move |native_window, event| {
+                if let WindowEvent::Touch(touch) = event {
+                    use home_client_platform::touch_guard::{Delivery, Phase, TouchId};
+                    use slint::winit_030::winit::event::TouchPhase;
+                    let phase = match touch.phase {
+                        TouchPhase::Started => Phase::Started,
+                        TouchPhase::Moved => Phase::Moved,
+                        TouchPhase::Ended => Phase::Ended,
+                        TouchPhase::Cancelled => Phase::Cancelled,
+                    };
+                    match touch_guard.borrow_mut().observe(TouchId(touch.id), phase) {
+                        Delivery::Propagate => {}
+                        Delivery::CancelAndPropagate => native_window
+                            .dispatch_event(slint::platform::WindowEvent::PointerExited),
+                        Delivery::CancelAndSuppress => {
+                            native_window
+                                .dispatch_event(slint::platform::WindowEvent::PointerExited);
+                            return EventResult::PreventDefault;
+                        }
+                        Delivery::Suppress => return EventResult::PreventDefault,
+                    }
+                }
+                if let WindowEvent::Occluded(occluded) = event {
+                    events.set(if *occluded {
+                        Lifecycle::Suspended
+                    } else {
+                        Lifecycle::Foreground
+                    });
+                } else if matches!(event, WindowEvent::Destroyed) {
+                    events.set(Lifecycle::Suspended);
+                }
+                EventResult::Propagate
+            });
     }
     cache_view::bind(&window);
     let lists = crate::list_host::Lists::bind(&window);
@@ -2151,6 +2194,28 @@ mod tests {
     }
 
     #[test]
+    fn saved_offline_session_stays_connected_and_can_start_or_resume_one_read() {
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        let connection =
+            home_client_transport::Connection::new("https://127.0.0.1:1", &[]).unwrap();
+        let owner = SessionCoordinator::new(connection.auth(), Arc::new(UnusedCredentialStore));
+        let mut view = *owner.subscribe().borrow();
+        view.phase = Phase::Offline;
+        render_view(&window, view);
+        assert_eq!(window.get_access_stage(), ProAccessStage::Connected);
+        assert!(!window.get_busy());
+        assert!(!invitation_allowed(Phase::Offline));
+        assert!(should_resume_view(true, Phase::Offline));
+        assert!(!should_resume_view(false, Phase::Offline));
+        let mut startup = StartupRead::default();
+        assert!(startup.claim(Phase::Offline));
+        assert!(!startup.claim(Phase::Offline));
+        startup = StartupRead::Cancelled;
+        assert!(!startup.claim(Phase::Offline));
+    }
+
+    #[test]
     fn lifecycle_notifications_are_typed_and_duplicate_native_events_do_not_restart_work() {
         let bridge = LifecycleBridge::new();
         let mut events = bridge.events.subscribe();
@@ -2198,7 +2263,7 @@ mod tests {
 
     #[test]
     fn foreground_resume_never_opens_an_unrequested_or_suspended_authority_view() {
-        for phase in [Phase::Ready, Phase::Refreshing] {
+        for phase in [Phase::Ready, Phase::Refreshing, Phase::Offline] {
             assert!(should_resume_view(true, phase));
             assert!(!should_resume_view(false, phase));
         }

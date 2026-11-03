@@ -531,7 +531,11 @@ func (p *compiledPublic) handler(settings config.PublicSettings, admissions *pub
 				admitted, err = p.authenticator.Authenticate(ctx, r)
 			}
 			if err != nil {
-				p.deny(w, r, route, nil, contextErrorCode(ctx, PublicErrorUnauthenticated))
+				code := PublicErrorUnauthenticated
+				if errors.Is(err, errSessionAuthorityUnavailable) {
+					code = PublicErrorUnavailable
+				}
+				p.deny(w, r, route, nil, contextErrorCode(ctx, code))
 				return
 			}
 			if ctx.Err() != nil {
@@ -544,7 +548,11 @@ func (p *compiledPublic) handler(settings config.PublicSettings, admissions *pub
 			}
 			actor = &admitted
 			if err := p.authorizer.Authorize(ctx, admitted, route.key); err != nil {
-				p.deny(w, r, route, actor, contextErrorCode(ctx, PublicErrorPermissionDenied))
+				code := PublicErrorPermissionDenied
+				if errors.Is(err, authorization.ErrUnavailable) {
+					code = PublicErrorUnavailable
+				}
+				p.deny(w, r, route, actor, contextErrorCode(ctx, code))
 				return
 			}
 			if ctx.Err() != nil {

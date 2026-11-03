@@ -1,11 +1,12 @@
 import { KitTheme } from "@kit/kit.slint";
-import { ProDeviceRow, ProDeviceKind, ProThermostatDetail, ProFanDetail, ProDimmerDetail, ProEntityTile, ProPowerIntent, ProValueIntent } from "@kit-pro/kit-pro.slint";
+import { ProDeviceRow, ProDeviceKind, ProThermostatDetail, ProFanDetail, ProDimmerDetail, ProSwitchDetail, ProEntityTile, ProPowerIntent, ProValueIntent } from "@kit-pro/kit-pro.slint";
 
 // Selection and exact field identity come from the host. Large controls belong
 // to the equipment detail, while ordinary dashboard entities stay compact.
 export component HomewardDeviceDetail inherits VerticalLayout {
     in property <KitTheme> theme;
     in property <length> viewport-width;
+    in property <length> viewport-height;
     in property <[ProDeviceRow]> devices;
     in property <bool> interactive;
     in property <bool> commands-ready;
@@ -14,11 +15,14 @@ export component HomewardDeviceDetail inherits VerticalLayout {
     callback power(int,int,ProPowerIntent);
     callback brightness(int,int,float);
     callback stop-tracking(int,int);
-    alignment: start; spacing: 12px;
-    for device in root.devices: VerticalLayout {
-        alignment: start; spacing: 8px;
+    width: root.viewport-width; min-height: max(0px,root.viewport-height - 60px);
+    alignment: center; spacing: 12px;
+    for device in root.devices: HorizontalLayout {
+        alignment: center; spacing: 8px;
         if device.kind == ProDeviceKind.climate && device.has-primary-value: VerticalLayout {
-          for field in device.values: VerticalLayout {
+          width: min(root.viewport-width,480px);
+          for field in device.values: HorizontalLayout {
+           alignment: center;
            if field.token == device.primary-value-token: ProThermostatDetail {
             width: min(root.viewport-width,480px);
             theme: root.theme; context: {token: device.token,generation: device.generation};
@@ -46,7 +50,13 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             brightness-requested(t,g,value) => { root.brightness(t,g,value); }
             power-requested(t,g,intent) => { root.power(t,g,intent); }
         }
-        if device.kind != ProDeviceKind.fan && !(device.kind == ProDeviceKind.light && device.can-brightness) && (device.kind != ProDeviceKind.climate || !device.has-primary-value): ProEntityTile {
+        if device.kind == ProDeviceKind.switch || (device.kind == ProDeviceKind.light && !device.can-brightness && device.can-power): ProSwitchDetail {
+            width: min(root.viewport-width,480px); theme: root.theme;
+            context: {token: device.token,generation: device.generation}; device: device;
+            interactive: root.interactive; commands-enabled: root.commands-ready;
+            power-requested(t,g,intent) => { root.power(t,g,intent); }
+        }
+        if device.kind != ProDeviceKind.switch && device.kind != ProDeviceKind.fan && !(device.kind == ProDeviceKind.light && (device.can-brightness || device.can-power)) && (device.kind != ProDeviceKind.climate || !device.has-primary-value): ProEntityTile {
             width: min(root.viewport-width,640px);
             theme: root.theme; device: device; show-details: false;
             interactive: root.interactive; commands-enabled: root.commands-ready;

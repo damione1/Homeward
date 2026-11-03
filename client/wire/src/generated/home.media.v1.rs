@@ -1197,6 +1197,11 @@ pub struct Snapshot {
     ///
     /// Field 18: `descriptor_sha256`
     pub descriptor_sha256: ::buffa::alloc::vec::Vec<u8>,
+    /// Independent power observation; false means off, absence means unknown.
+    /// Power never implies any transport/playback state.
+    ///
+    /// Field 19: `powered_on`
+    pub powered_on: ::core::option::Option<bool>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -1221,6 +1226,7 @@ impl ::core::fmt::Debug for Snapshot {
             .field("received_at", &self.received_at)
             .field("provenance", &self.provenance)
             .field("descriptor_sha256", &self.descriptor_sha256)
+            .field("powered_on", &self.powered_on)
             .finish()
     }
 }
@@ -1301,6 +1307,13 @@ impl Snapshot {
         value: impl Into<::buffa::alloc::string::String>,
     ) -> Self {
         self.group_id = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::powered_on`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_powered_on(mut self, value: bool) -> Self {
+        self.powered_on = Some(value);
         self
     }
 }
@@ -1416,6 +1429,9 @@ impl ::buffa::Message for Snapshot {
                 += 2u64
                     + ::buffa::types::bytes_encoded_len(&self.descriptor_sha256) as u64;
         }
+        if self.powered_on.is_some() {
+            size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1515,6 +1531,9 @@ impl ::buffa::Message for Snapshot {
         }
         if !self.descriptor_sha256.is_empty() {
             ::buffa::types::put_shared_bytes_field(18u32, &self.descriptor_sha256, buf);
+        }
+        if let Some(v) = self.powered_on {
+            ::buffa::types::put_bool_field(19u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1711,6 +1730,15 @@ impl ::buffa::Message for Snapshot {
                 )?;
                 ::buffa::types::merge_bytes(&mut self.descriptor_sha256, buf)?;
             }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.powered_on = ::core::option::Option::Some(
+                    ::buffa::types::decode_bool(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1737,6 +1765,7 @@ impl ::buffa::Message for Snapshot {
         self.received_at = ::buffa::MessageField::none();
         self.provenance.clear();
         self.descriptor_sha256.clear();
+        self.powered_on = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4601,6 +4630,11 @@ pub mod __buffa {
             ///
             /// Field 18: `descriptor_sha256`
             pub descriptor_sha256: &'a [u8],
+            /// Independent power observation; false means off, absence means unknown.
+            /// Power never implies any transport/playback state.
+            ///
+            /// Field 19: `powered_on`
+            pub powered_on: ::core::option::Option<bool>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SnapshotView<'a> {
@@ -4858,6 +4892,13 @@ pub mod __buffa {
                         )?;
                         view.descriptor_sha256 = ::buffa::types::borrow_bytes(&mut cur)?;
                     }
+                    19u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.powered_on = Some(::buffa::types::decode_bool(&mut cur)?);
+                    }
                     13u32 => {
                         ::buffa::encoding::check_wire_type(
                             tag,
@@ -4965,6 +5006,7 @@ pub mod __buffa {
                     },
                     provenance: self.provenance.to_string(),
                     descriptor_sha256: (self.descriptor_sha256).to_vec(),
+                    powered_on: self.powered_on,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -5075,6 +5117,9 @@ pub mod __buffa {
                             + ::buffa::types::bytes_encoded_len(&self.descriptor_sha256)
                                 as u64;
                 }
+                if self.powered_on.is_some() {
+                    size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -5179,6 +5224,9 @@ pub mod __buffa {
                         &self.descriptor_sha256,
                         buf,
                     );
+                }
+                if let Some(v) = self.powered_on {
+                    ::buffa::types::put_bool_field(19u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -5392,6 +5440,14 @@ pub mod __buffa {
             #[must_use]
             pub fn descriptor_sha256(&self) -> &'_ [u8] {
                 self.0.reborrow().descriptor_sha256
+            }
+            /// Independent power observation; false means off, absence means unknown.
+            /// Power never implies any transport/playback state.
+            ///
+            /// Field 19: `powered_on`
+            #[must_use]
+            pub fn powered_on(&self) -> ::core::option::Option<bool> {
+                self.0.reborrow().powered_on
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<SnapshotView<'static>>>

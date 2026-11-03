@@ -47,6 +47,7 @@ slint-kit-pro-build = { path = "../../.tools/frontend-kits/pro/crates/kit-pro-bu
 [dev-dependencies]
 connectrpc = { version = "=0.9.1", default-features = false }
 i-slint-backend-testing = "=1.18.1"
+i-slint-core = "=1.18.1"
 
 [package.metadata.android]
 package = "ca.homeward.frontend.dev"

@@ -546,8 +546,11 @@ type Snapshot struct {
 	// Hash of the server-registered MediaAction extension descriptor. Preserve
 	// this exact capability reference at Submit; no downloaded code is executed.
 	DescriptorSha256 []byte `protobuf:"bytes,18,opt,name=descriptor_sha256,json=descriptorSha256,proto3" json:"descriptor_sha256,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Independent power observation; false means off, absence means unknown.
+	// Power never implies any transport/playback state.
+	PoweredOn     *bool `protobuf:"varint,19,opt,name=powered_on,json=poweredOn,proto3,oneof" json:"powered_on,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Snapshot) Reset() {
@@ -704,6 +707,13 @@ func (x *Snapshot) GetDescriptorSha256() []byte {
 		return x.DescriptorSha256
 	}
 	return nil
+}
+
+func (x *Snapshot) GetPoweredOn() bool {
+	if x != nil && x.PoweredOn != nil {
+		return *x.PoweredOn
+	}
+	return false
 }
 
 type ReadSnapshotRequest struct {
@@ -1145,7 +1155,7 @@ const file_home_media_v1_media_proto_rawDesc = "" +
 	"\x10ArtworkReference\x12\x1c\n" +
 	"\treference\x18\x01 \x01(\fR\treference\x129\n" +
 	"\n" +
-	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xca\a\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xfd\a\n" +
 	"\bSnapshot\x12*\n" +
 	"\x05route\x18\x01 \x01(\v2\x14.home.media.v1.RouteR\x05route\x12?\n" +
 	"\fcapabilities\x18\x02 \x01(\v2\x1b.home.media.v1.CapabilitiesR\fcapabilities\x12@\n" +
@@ -1170,7 +1180,9 @@ const file_home_media_v1_media_proto_rawDesc = "" +
 	"\n" +
 	"provenance\x18\x11 \x01(\tR\n" +
 	"provenance\x12+\n" +
-	"\x11descriptor_sha256\x18\x12 \x01(\fR\x10descriptorSha256B\b\n" +
+	"\x11descriptor_sha256\x18\x12 \x01(\fR\x10descriptorSha256\x12\"\n" +
+	"\n" +
+	"powered_on\x18\x13 \x01(\bH\bR\tpoweredOn\x88\x01\x01B\b\n" +
 	"\x06_titleB\t\n" +
 	"\a_artistB\r\n" +
 	"\v_collectionB\x16\n" +
@@ -1179,7 +1191,8 @@ const file_home_media_v1_media_proto_rawDesc = "" +
 	"\x10_duration_millisB\f\n" +
 	"\n" +
 	"_source_idB\v\n" +
-	"\t_group_id\"2\n" +
+	"\t_group_idB\r\n" +
+	"\v_powered_on\"2\n" +
 	"\x13ReadSnapshotRequest\x12\x1b\n" +
 	"\tentity_id\x18\x01 \x01(\tR\bentityId\"\r\n" +
 	"\vUnsupported\"\x97\x01\n" +

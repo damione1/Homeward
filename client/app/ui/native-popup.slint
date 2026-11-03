@@ -75,6 +75,7 @@ export component HomewardPopup inherits KitDialogSurface {
                 }
             }
             scroll := KitScrollArea {
+                pan-policy: children-first;
                 vertical-stretch: 1;
                 scrolled => { root.scroll-interacted(); }
                 if root.nodes.length == 0: Text { text: "This item is unavailable in the current view."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }

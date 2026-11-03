@@ -17,6 +17,15 @@ use home_wire_contract::home::auth::v1::{
 use tokio_util::sync::CancellationToken;
 
 #[test]
+fn device_trust_requires_https_and_never_falls_back_from_invalid_private_material() {
+    use home_client_transport::Connection;
+    assert!(Connection::new("https://home.example.test", b"").is_ok());
+    assert!(Connection::new("http://home.example.test", b"").is_err());
+    assert!(Connection::new("https://home.example.test", b"not a certificate").is_err());
+    assert!(Connection::new("https://home.example.test", b" ").is_err());
+}
+
+#[test]
 fn typed_details_keep_future_reasons_and_reject_ambiguous_or_corrupt_known_details() {
     let known = AuthorizationTermination {
         reason: AuthorizationTerminationReason::CredentialRevoked.into(),
@@ -212,7 +221,7 @@ fn remote_cancellation_can_resume_a_read_but_authority_cancellation_cannot() {
         },
     ));
     assert!(!malformed_authority.may_resume_read());
-    assert!(!Failure::from(ConnectError::internal("server fault")).may_resume_read());
+    assert!(Failure::from(ConnectError::internal("server fault")).may_resume_read());
 }
 
 #[tokio::test(start_paused = true)]

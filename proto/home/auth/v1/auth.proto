@@ -314,6 +314,9 @@ message LoginDecision {
 service AuthService {
   rpc StartLogin(StartLoginRequest) returns (StartLoginResponse);
   rpc CompleteLogin(CompleteLoginRequest) returns (CompleteLoginResponse);
+  // Terminal failures use AuthError (expired session, revoked/invalid
+  // credential, disabled account). Unavailable, DeadlineExceeded and Canceled
+  // are transient: retry only the same durably saved renewal_key operation.
   rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse);
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
@@ -333,7 +336,13 @@ message CompleteLoginRequest {
   FactorProof proof = 2;
 }
 message CompleteLoginResponse { LoginDecision decision = 1; }
-message RefreshSessionRequest { string refresh_token = 1; }
+message RefreshSessionRequest {
+  string refresh_token = 1;
+  // Optional 32-byte random operation secret, durably saved before dispatch.
+  // Retrying the same token/key may recover only its still-current successor.
+  // Empty retains legacy one-use rotation and replay revocation.
+  bytes renewal_key = 2;
+}
 message RefreshSessionResponse { SessionTokens tokens = 1; }
 message ListSessionsRequest { AccountId account_id = 1; }
 message ListSessionsResponse { repeated Session sessions = 1; }
@@ -525,6 +534,8 @@ message AuthorizationPolicyError {
 enum AuthorizationTerminationReason {
   AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED = 0;
   AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED = 1;
+  // The admitted bearer expired. Native interactive clients discard its view
+  // and seek RefreshSession: only AuthError expired=SESSION ends that session.
   AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED = 2;
   AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED = 3;
   AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED = 4;

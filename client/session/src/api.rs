@@ -23,6 +23,12 @@ pub(crate) trait AuthApi: Send + Sync {
         request: auth::CompleteLoginRequest,
         cancel: &CancellationToken,
     ) -> Result<auth::CompleteLoginResponse, Failure>;
+    async fn preflight_refresh(
+        &self,
+        request: auth::ListSessionsRequest,
+        token: &AccessToken,
+        cancel: &CancellationToken,
+    ) -> Result<(), Failure>;
     async fn refresh(
         &self,
         request: auth::RefreshSessionRequest,
@@ -57,12 +63,23 @@ impl AuthApi for AuthTransport {
         self.complete_login(request, Duration::from_secs(10), cancel)
             .await
     }
+    async fn preflight_refresh(
+        &self,
+        request: auth::ListSessionsRequest,
+        token: &AccessToken,
+        cancel: &CancellationToken,
+    ) -> Result<(), Failure> {
+        self.list_sessions(request, token, Duration::from_secs(5), cancel)
+            .await
+            .map(|_| ())
+    }
     async fn refresh(
         &self,
         request: auth::RefreshSessionRequest,
         cancel: &CancellationToken,
     ) -> Result<auth::RefreshSessionResponse, Failure> {
-        // Exactly one dispatch. This future is never retried after uncertainty.
+        // One bounded dispatch. The owner persists a renewal key before send;
+        // a later attempt recovers that same operation after a lost reply.
         self.refresh_session(request, Duration::from_secs(10), cancel)
             .await
     }
