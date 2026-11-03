@@ -119,11 +119,14 @@ func TestSonosNativeReadsAreBoundedReadOnlyAndExpire(t *testing.T) {
 		t.Fatal(e)
 	}
 	description := r.description("Demo")
+	if e = r.RegisterCodec(catalog); e != nil {
+		t.Fatal(e)
+	}
 	if e = catalog.RegisterDriverCapability(entity, description); e != nil {
 		t.Fatal(e)
 	}
-	if description.GetExtension().ActionMessage != nil {
-		t.Fatal("read-only player advertises an action codec")
+	if description.GetExtension().GetActionMessage() != "home.media.v1.MediaAction" || description.SchemaId != "home.media.v1" {
+		t.Fatal("native player does not advertise the common media action codec")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -140,8 +143,8 @@ func TestSonosNativeReadsAreBoundedReadOnlyAndExpire(t *testing.T) {
 	if s.GetVolumeBasisPoints() != 700 || s.GetTitle() != "Demo track" || s.GetPositionMillis() != 12000 || s.GetDurationMillis() != 180000 || s.Route.CoordinatorEntityId != "demo-sonos-player" || s.Artwork != nil {
 		t.Fatalf("wrong native snapshot: %v", s)
 	}
-	if s.ActionAccess.String() != "ACTION_ACCESS_DENIED" || len(s.Capabilities.Operations) != 0 || s.Capabilities.VolumeBasisPoints != nil {
-		t.Fatal("read-only pilot advertised device actions")
+	if s.ActionAccess.String() != "ACTION_ACCESS_DENIED" || len(s.Capabilities.Operations) != 3 || s.Capabilities.GetVolumeBasisPoints().GetStep() != 100 {
+		t.Fatal("standalone capabilities or default access are incorrect")
 	}
 	if len(s.Route.AdmissionEpoch) != 32 {
 		t.Fatal("invalid media facade epoch")
@@ -202,7 +205,7 @@ func TestSonosXMLRejectsDuplicateFieldsDirectivesAndDeepNesting(t *testing.T) {
 			t.Fatal("ambiguous physical identity admitted")
 		}
 	}
-	for _, raw := range []string{`<!DOCTYPE x [<!ENTITY e SYSTEM "file:///private">]><x/>`, `<r><CurrentVolume>1</CurrentVolume><CurrentVolume>2</CurrentVolume></r>`, strings.Repeat("<x>", 25) + strings.Repeat("</x>", 25), `<x>`, `<r><CurrentVolume>7<x>ignored</x></CurrentVolume></r>`, `<r><CurrentVolume>7<!DOCTYPE x></CurrentVolume></r>`, `<r><CurrentVolume>7<CurrentVolume>8</CurrentVolume></CurrentVolume></r>`} {
+	for _, raw := range []string{`<!DOCTYPE x [<!ENTITY e SYSTEM "file:///private">]><x/>`, `<r><CurrentVolume>1</CurrentVolume><CurrentVolume>2</CurrentVolume></r>`, strings.Repeat("<x>", 25) + strings.Repeat("</x>", 25), `<x>`, `<x/>junk`, `junk<x/>`, `<x/><x/>`, `<r><CurrentVolume>7<x>ignored</x></CurrentVolume></r>`, `<r><CurrentVolume>7<!DOCTYPE x></CurrentVolume></r>`, `<r><CurrentVolume>7<CurrentVolume>8</CurrentVolume></CurrentVolume></r>`} {
 		if _, e := fields([]byte(raw), "CurrentVolume"); e == nil {
 			t.Fatal("invalid XML admitted")
 		}

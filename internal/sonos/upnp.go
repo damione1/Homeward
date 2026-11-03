@@ -15,7 +15,7 @@ import (
 
 const maxXML = 256 << 10
 
-// This closed reader intentionally has no generic action or URL entry point.
+// This closed transport has no exported action or URL entry point.
 // URLs in topology, track metadata and artwork are never followed.
 type reader struct{ client *http.Client }
 
@@ -25,6 +25,28 @@ func newReader() *reader {
 }
 func (r *reader) close() { r.client.CloseIdleConnections() }
 func (r *reader) request(ctx context.Context, ip, path, service, action, arguments string) ([]byte, error) {
+	return r.requestFenced(ctx, ip, path, service, action, arguments, nil)
+}
+func (r *reader) requestFenced(ctx context.Context, ip, path, service, action, arguments string, fence func() bool) ([]byte, error) {
+	// The package exposes neither an arbitrary UPnP action nor an unfenced
+	// mutation. Queue/group/source/EQ operations have no transport entry here.
+	wantService, wantPath, mutation := "", "/xml/device_description.xml", false
+	switch action {
+	case "":
+	case "GetZoneGroupState":
+		wantService, wantPath = "ZoneGroupTopology", "/ZoneGroupTopology/Control"
+	case "GetVolume", "SetVolume":
+		wantService, wantPath = "RenderingControl", "/MediaRenderer/RenderingControl/Control"
+		mutation = action == "SetVolume"
+	case "GetTransportInfo", "GetPositionInfo", "Play", "Pause", "Stop":
+		wantService, wantPath = "AVTransport", "/MediaRenderer/AVTransport/Control"
+		mutation = action == "Play" || action == "Pause" || action == "Stop"
+	default:
+		return nil, ErrUnavailable
+	}
+	if service != wantService || path != wantPath || mutation && fence == nil {
+		return nil, ErrUnavailable
+	}
 	method := http.MethodGet
 	var body io.Reader
 	if action != "" {
@@ -38,6 +60,13 @@ func (r *reader) request(ctx context.Context, ip, path, service, action, argumen
 	if action != "" {
 		req.Header.Set("Content-Type", `text/xml; charset="utf-8"`)
 		req.Header.Set("SOAPACTION", `"urn:schemas-upnp-org:service:`+service+`:1#`+action+`"`)
+	}
+	// In particular, never let net/http replay a mutation after a connection
+	// failure. There is no idempotency header, redirect, application retry or
+	// reconnect queue on this transport.
+	req.GetBody = nil
+	if ctx.Err() != nil || fence != nil && !fence() {
+		return nil, ErrUnavailable
 	}
 	response, err := r.client.Do(req)
 	if err != nil {
@@ -63,7 +92,7 @@ func fields(raw []byte, names ...string) (map[string]string, error) {
 	}
 	result := map[string]string{}
 	d := xml.NewDecoder(bytes.NewReader(raw))
-	depth, count := 0, 0
+	depth, count, roots := 0, 0, 0
 	selected := ""
 	var value strings.Builder
 	for {
@@ -95,9 +124,19 @@ func fields(raw []byte, names ...string) (map[string]string, error) {
 			continue
 		}
 		switch v := t.(type) {
+		case xml.CharData:
+			if depth == 0 && len(bytes.TrimSpace(v)) != 0 {
+				return nil, ErrUnavailable
+			}
 		case xml.Directive:
 			return nil, ErrUnavailable
 		case xml.StartElement:
+			if depth == 0 {
+				roots++
+				if roots > 1 {
+					return nil, ErrUnavailable
+				}
+			}
 			depth++
 			if depth > 24 {
 				return nil, ErrUnavailable
@@ -113,15 +152,16 @@ func fields(raw []byte, names ...string) (map[string]string, error) {
 			depth--
 		}
 	}
-	if depth != 0 {
+	if depth != 0 || roots != 1 {
 		return nil, ErrUnavailable
 	}
 	return result, nil
 }
 
 type member struct {
-	UID       string `xml:"UUID,attr"`
-	Invisible string `xml:"Invisible,attr"`
+	UID        string   `xml:"UUID,attr"`
+	Invisible  string   `xml:"Invisible,attr"`
+	Satellites []member `xml:"Satellite"`
 }
 type group struct {
 	Coordinator string   `xml:"Coordinator,attr"`
@@ -137,6 +177,7 @@ type observation struct {
 	position, duration        *uint64
 	coordinator               string
 	members                   []string
+	commandSafe               bool
 }
 
 func millis(s string) *uint64 {
@@ -186,6 +227,30 @@ func deviceUDN(raw []byte) (string, error) {
 	return root.Devices[0].UDNs[0], nil
 }
 func (r *reader) read(ctx context.Context, p PlayerInput) (observation, error) {
+	out, e := r.identityTopology(ctx, p)
+	if e != nil {
+		return out, e
+	}
+	b, e := r.request(ctx, p.Address, "/MediaRenderer/RenderingControl/Control", "RenderingControl", "GetVolume", "<InstanceID>0</InstanceID><Channel>Master</Channel>")
+	if e != nil {
+		return out, e
+	}
+	f, e := fields(b, "CurrentVolume")
+	if e != nil {
+		return out, e
+	}
+	v, e := strconv.ParseUint(f["CurrentVolume"], 10, 32)
+	if e != nil || v > 100 {
+		return out, ErrUnavailable
+	}
+	out.volume = uint32(v) * 100
+	return out, nil
+}
+
+// identityTopology performs uncached reads against this exact configured IP.
+// A mutation uses it immediately before the Host transport fence, and never
+// follows a coordinator address or URL received from the network.
+func (r *reader) identityTopology(ctx context.Context, p PlayerInput) (observation, error) {
 	var out observation
 	b, e := r.request(ctx, p.Address, "/xml/device_description.xml", "", "", "")
 	if e != nil {
@@ -222,6 +287,9 @@ func (r *reader) read(ctx context.Context, p PlayerInput) (observation, error) {
 				}
 				found = true
 				out.coordinator = g.Coordinator
+				// Invisible bonded units and satellites can still produce audio.
+				// Display membership omits them, but write admission must not.
+				out.commandSafe = g.Coordinator == p.UID && len(g.Members) == 1 && g.Members[0].UID == p.UID && g.Members[0].Invisible != "1" && len(g.Members[0].Satellites) == 0
 				for _, n := range g.Members {
 					if n.Invisible != "1" {
 						out.members = append(out.members, n.UID)
@@ -245,19 +313,6 @@ func (r *reader) read(ctx context.Context, p PlayerInput) (observation, error) {
 	if !playerPresent || !coordinatorPresent {
 		return out, ErrUnavailable
 	}
-	b, e = r.request(ctx, p.Address, "/MediaRenderer/RenderingControl/Control", "RenderingControl", "GetVolume", "<InstanceID>0</InstanceID><Channel>Master</Channel>")
-	if e != nil {
-		return out, e
-	}
-	f, e = fields(b, "CurrentVolume")
-	if e != nil {
-		return out, e
-	}
-	v, e := strconv.ParseUint(f["CurrentVolume"], 10, 32)
-	if e != nil || v > 100 {
-		return out, ErrUnavailable
-	}
-	out.volume = uint32(v) * 100
 	// Followers' AVTransport data may refer to an obsolete local queue. The
 	// polling cycle resolves the configured coordinator before reading playback.
 	return out, nil

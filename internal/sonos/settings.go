@@ -1,5 +1,5 @@
-// Package sonos reads explicitly configured Sonos players over local UPnP.
-// It does not issue playback, volume, grouping or queue mutations.
+// Package sonos observes explicitly configured Sonos players over local UPnP
+// and accepts bounded, Host-admitted standalone playback and volume commands.
 package sonos
 
 import (
@@ -11,8 +11,9 @@ import (
 	"github.com/damione1/Homeward/internal/integrations"
 )
 
-const Schema = "sonos.media.v1"
+const Schema = "home.media.v1"
 const Endpoint = "player"
+const VolumeEndpoint = "volume"
 
 var ErrSettings = errors.New("sonos: invalid configuration")
 var ErrUnavailable = errors.New("sonos: observation unavailable")
