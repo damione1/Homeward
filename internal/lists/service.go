@@ -101,26 +101,12 @@ func executeWithUnknown[T any](s *Service, ctx context.Context, op authv1.ScopeO
 	if ctx == nil || fn == nil {
 		return zero, failure(Invalid)
 	}
-	principal, err := authorization.PrincipalFromContext(ctx)
+	admission, err := s.admit(ctx, op, object)
 	if err != nil {
-		return zero, failure(Denied)
-	}
-	if err := s.enter(); err != nil {
 		return zero, err
 	}
-	defer s.leave()
-	callCtx, cancel := context.WithCancel(ctx)
-	stop := context.AfterFunc(s.ctx, cancel)
-	defer func() { stop(); cancel() }()
-	permission, err := listPermission(op)
-	if err != nil {
-		return zero, failure(Invalid)
-	}
-	permit, err := s.authority.Permit(callCtx, principal, permission, object)
-	if err != nil {
-		return zero, failure(Denied)
-	}
-	defer permit.Release()
+	defer admission.Release()
+	permit := admission.permit
 	evidence, selection, err := permit.ListEvidence()
 	if err != nil {
 		return zero, failure(Denied)

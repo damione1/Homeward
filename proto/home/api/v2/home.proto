@@ -328,4 +328,12 @@ enum ValidationReason {
   VALIDATION_REASON_INVALID_DEADLINE = 6;
   // Executable input contains an unrecognized field, including nested input.
   VALIDATION_REASON_UNKNOWN_FIELD = 7;
+  // A mandatory value was not supplied with the required presence.
+  VALIDATION_REASON_REQUIRED_VALUE = 8;
+  // A supplied value does not match the documented syntax or representation.
+  VALIDATION_REASON_INVALID_FORMAT = 9;
+  // Individually valid fields do not form a valid combined intention.
+  VALIDATION_REASON_INCONSISTENT_FIELDS = 10;
+  // An update mask names an unsupported or malformed field selection.
+  VALIDATION_REASON_INVALID_MASK = 11;
 }

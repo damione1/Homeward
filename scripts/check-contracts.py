@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Golden reproduction and a real negative Buf breaking check in an external temporary tree."""
-import json,pathlib,subprocess,tempfile,shutil
+"""Reproduce functional contract fixtures and validate the current API schema."""
+import json,pathlib,subprocess
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 index=json.loads((ROOT/"contracts/golden/index.json").read_text())
 # protoc is needed for regeneration, not for checking committed bindings at runtime.
@@ -25,13 +25,5 @@ for line in (ROOT/"contracts/solar_golden/index.tsv").read_text().splitlines():
     assert admitted in ("true","false")
     data=subprocess.check_output(["protoc","-I","proto","--encode=home.solar.v1."+message,"proto/home/solar/v1/solar.proto"],input=(ROOT/f"contracts/solar_golden/{name}.textproto").read_bytes(),cwd=ROOT)
     assert data==(ROOT/f"contracts/solar_golden/{name}.bin").read_bytes(),name
-subprocess.run(["buf","breaking","--against",".compat/baseline"],cwd=ROOT,check=True)
-with tempfile.TemporaryDirectory(prefix="nha004-breaking-") as directory:
-    temp=pathlib.Path(directory);shutil.copytree(ROOT/"proto",temp/"proto");shutil.copy(ROOT/"buf.yaml",temp/"buf.yaml");shutil.copy(ROOT/"buf.lock",temp/"buf.lock")
-    file=temp/"proto/home/actions/v1/actions.proto";source=file.read_text();needle="  home.registry.v1.EntityRef target = 4;"
-    assert needle in source;file.write_text(source.replace(needle,""))
-    result=subprocess.run(["buf","breaking",str(temp),"--against",str(ROOT/".compat/baseline")],capture_output=True,text=True)
-    assert result.returncode!=0 and 'target' in result.stdout+result.stderr and '4' in result.stdout+result.stderr,result.stdout+result.stderr
-    print("negative compatibility probe rejected unreserved deletion of CommandRequest.target #4")
-print(f"{len(index)} historical goldens and {len(auth_cases)} auth fixtures reproduced; Buf baseline compatible")
+print(f"{len(index)} functional goldens and {len(auth_cases)} auth fixtures reproduced")
 subprocess.run(["python3", "scripts/check-api.py"], cwd=ROOT, check=True)

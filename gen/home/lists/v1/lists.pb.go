@@ -75,79 +75,6 @@ func (ListOrigin) EnumDescriptor() ([]byte, []int) {
 	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{0}
 }
 
-type ListErrorCode int32
-
-const (
-	ListErrorCode_LIST_ERROR_CODE_UNSPECIFIED                 ListErrorCode = 0
-	ListErrorCode_LIST_ERROR_CODE_INVALID                     ListErrorCode = 1
-	ListErrorCode_LIST_ERROR_CODE_DENIED                      ListErrorCode = 2
-	ListErrorCode_LIST_ERROR_CODE_NOT_FOUND                   ListErrorCode = 3
-	ListErrorCode_LIST_ERROR_CODE_CONFLICT                    ListErrorCode = 4
-	ListErrorCode_LIST_ERROR_CODE_STALE_CURSOR                ListErrorCode = 5
-	ListErrorCode_LIST_ERROR_CODE_CAPACITY                    ListErrorCode = 6
-	ListErrorCode_LIST_ERROR_CODE_UNAVAILABLE                 ListErrorCode = 7
-	ListErrorCode_LIST_ERROR_CODE_COMMIT_UNKNOWN              ListErrorCode = 8
-	ListErrorCode_LIST_ERROR_CODE_COMMITTED_RESPONSE_WITHHELD ListErrorCode = 9
-	ListErrorCode_LIST_ERROR_CODE_CLOSED                      ListErrorCode = 10
-)
-
-// Enum value maps for ListErrorCode.
-var (
-	ListErrorCode_name = map[int32]string{
-		0:  "LIST_ERROR_CODE_UNSPECIFIED",
-		1:  "LIST_ERROR_CODE_INVALID",
-		2:  "LIST_ERROR_CODE_DENIED",
-		3:  "LIST_ERROR_CODE_NOT_FOUND",
-		4:  "LIST_ERROR_CODE_CONFLICT",
-		5:  "LIST_ERROR_CODE_STALE_CURSOR",
-		6:  "LIST_ERROR_CODE_CAPACITY",
-		7:  "LIST_ERROR_CODE_UNAVAILABLE",
-		8:  "LIST_ERROR_CODE_COMMIT_UNKNOWN",
-		9:  "LIST_ERROR_CODE_COMMITTED_RESPONSE_WITHHELD",
-		10: "LIST_ERROR_CODE_CLOSED",
-	}
-	ListErrorCode_value = map[string]int32{
-		"LIST_ERROR_CODE_UNSPECIFIED":                 0,
-		"LIST_ERROR_CODE_INVALID":                     1,
-		"LIST_ERROR_CODE_DENIED":                      2,
-		"LIST_ERROR_CODE_NOT_FOUND":                   3,
-		"LIST_ERROR_CODE_CONFLICT":                    4,
-		"LIST_ERROR_CODE_STALE_CURSOR":                5,
-		"LIST_ERROR_CODE_CAPACITY":                    6,
-		"LIST_ERROR_CODE_UNAVAILABLE":                 7,
-		"LIST_ERROR_CODE_COMMIT_UNKNOWN":              8,
-		"LIST_ERROR_CODE_COMMITTED_RESPONSE_WITHHELD": 9,
-		"LIST_ERROR_CODE_CLOSED":                      10,
-	}
-)
-
-func (x ListErrorCode) Enum() *ListErrorCode {
-	p := new(ListErrorCode)
-	*p = x
-	return p
-}
-
-func (x ListErrorCode) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ListErrorCode) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_lists_v1_lists_proto_enumTypes[1].Descriptor()
-}
-
-func (ListErrorCode) Type() protoreflect.EnumType {
-	return &file_home_lists_v1_lists_proto_enumTypes[1]
-}
-
-func (x ListErrorCode) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ListErrorCode.Descriptor instead.
-func (ListErrorCode) EnumDescriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{1}
-}
-
 // Wire identities are parsed into the domain's admitted ListID and ItemUID
 // before any operation. The name of a list or item is never its identity.
 type ListId struct {
@@ -750,60 +677,6 @@ func (x *MutationReceipt) GetItemRevision() *ItemRevision {
 	return nil
 }
 
-// A Connect error detail. Never contains a snapshot, current revision, SQL,
-// list name, item content or an untrusted server error string.
-type ListError struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Code          ListErrorCode          `protobuf:"varint,1,opt,name=code,proto3,enum=home.lists.v1.ListErrorCode" json:"code,omitempty"`
-	FieldPath     *string                `protobuf:"bytes,2,opt,name=field_path,json=fieldPath,proto3,oneof" json:"field_path,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListError) Reset() {
-	*x = ListError{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListError) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListError) ProtoMessage() {}
-
-func (x *ListError) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListError.ProtoReflect.Descriptor instead.
-func (*ListError) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *ListError) GetCode() ListErrorCode {
-	if x != nil {
-		return x.Code
-	}
-	return ListErrorCode_LIST_ERROR_CODE_UNSPECIFIED
-}
-
-func (x *ListError) GetFieldPath() string {
-	if x != nil && x.FieldPath != nil {
-		return *x.FieldPath
-	}
-	return ""
-}
-
 type ListListsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PageSize      uint32                 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -814,7 +687,7 @@ type ListListsRequest struct {
 
 func (x *ListListsRequest) Reset() {
 	*x = ListListsRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[10]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -826,7 +699,7 @@ func (x *ListListsRequest) String() string {
 func (*ListListsRequest) ProtoMessage() {}
 
 func (x *ListListsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[10]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -839,7 +712,7 @@ func (x *ListListsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListListsRequest.ProtoReflect.Descriptor instead.
 func (*ListListsRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{10}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListListsRequest) GetPageSize() uint32 {
@@ -866,7 +739,7 @@ type ListListsResponse struct {
 
 func (x *ListListsResponse) Reset() {
 	*x = ListListsResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[11]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -878,7 +751,7 @@ func (x *ListListsResponse) String() string {
 func (*ListListsResponse) ProtoMessage() {}
 
 func (x *ListListsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[11]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -891,7 +764,7 @@ func (x *ListListsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListListsResponse.ProtoReflect.Descriptor instead.
 func (*ListListsResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{11}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListListsResponse) GetLists() []*ListSnapshot {
@@ -916,7 +789,7 @@ type CountListsRequest struct {
 
 func (x *CountListsRequest) Reset() {
 	*x = CountListsRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[12]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -928,7 +801,7 @@ func (x *CountListsRequest) String() string {
 func (*CountListsRequest) ProtoMessage() {}
 
 func (x *CountListsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[12]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -941,7 +814,7 @@ func (x *CountListsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountListsRequest.ProtoReflect.Descriptor instead.
 func (*CountListsRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{12}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{11}
 }
 
 type CountListsResponse struct {
@@ -953,7 +826,7 @@ type CountListsResponse struct {
 
 func (x *CountListsResponse) Reset() {
 	*x = CountListsResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[13]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -965,7 +838,7 @@ func (x *CountListsResponse) String() string {
 func (*CountListsResponse) ProtoMessage() {}
 
 func (x *CountListsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[13]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -978,7 +851,7 @@ func (x *CountListsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountListsResponse.ProtoReflect.Descriptor instead.
 func (*CountListsResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{13}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CountListsResponse) GetCount() uint64 {
@@ -997,7 +870,7 @@ type GetListRequest struct {
 
 func (x *GetListRequest) Reset() {
 	*x = GetListRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[14]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1009,7 +882,7 @@ func (x *GetListRequest) String() string {
 func (*GetListRequest) ProtoMessage() {}
 
 func (x *GetListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[14]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1022,7 +895,7 @@ func (x *GetListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetListRequest.ProtoReflect.Descriptor instead.
 func (*GetListRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{14}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetListRequest) GetListId() *ListId {
@@ -1041,7 +914,7 @@ type GetListResponse struct {
 
 func (x *GetListResponse) Reset() {
 	*x = GetListResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[15]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1053,7 +926,7 @@ func (x *GetListResponse) String() string {
 func (*GetListResponse) ProtoMessage() {}
 
 func (x *GetListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[15]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1066,7 +939,7 @@ func (x *GetListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetListResponse.ProtoReflect.Descriptor instead.
 func (*GetListResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{15}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetListResponse) GetList() *ListSnapshot {
@@ -1085,7 +958,7 @@ type CreateListRequest struct {
 
 func (x *CreateListRequest) Reset() {
 	*x = CreateListRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[16]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1097,7 +970,7 @@ func (x *CreateListRequest) String() string {
 func (*CreateListRequest) ProtoMessage() {}
 
 func (x *CreateListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[16]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1110,7 +983,7 @@ func (x *CreateListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateListRequest.ProtoReflect.Descriptor instead.
 func (*CreateListRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{16}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CreateListRequest) GetName() string {
@@ -1129,7 +1002,7 @@ type CreateListResponse struct {
 
 func (x *CreateListResponse) Reset() {
 	*x = CreateListResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[17]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1141,7 +1014,7 @@ func (x *CreateListResponse) String() string {
 func (*CreateListResponse) ProtoMessage() {}
 
 func (x *CreateListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[17]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1154,7 +1027,7 @@ func (x *CreateListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateListResponse.ProtoReflect.Descriptor instead.
 func (*CreateListResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{17}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CreateListResponse) GetReceipt() *MutationReceipt {
@@ -1175,7 +1048,7 @@ type RenameListRequest struct {
 
 func (x *RenameListRequest) Reset() {
 	*x = RenameListRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[18]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1187,7 +1060,7 @@ func (x *RenameListRequest) String() string {
 func (*RenameListRequest) ProtoMessage() {}
 
 func (x *RenameListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[18]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1200,7 +1073,7 @@ func (x *RenameListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameListRequest.ProtoReflect.Descriptor instead.
 func (*RenameListRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{18}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *RenameListRequest) GetListId() *ListId {
@@ -1233,7 +1106,7 @@ type RenameListResponse struct {
 
 func (x *RenameListResponse) Reset() {
 	*x = RenameListResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[19]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1245,7 +1118,7 @@ func (x *RenameListResponse) String() string {
 func (*RenameListResponse) ProtoMessage() {}
 
 func (x *RenameListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[19]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1258,7 +1131,7 @@ func (x *RenameListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameListResponse.ProtoReflect.Descriptor instead.
 func (*RenameListResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{19}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *RenameListResponse) GetReceipt() *MutationReceipt {
@@ -1278,7 +1151,7 @@ type DeleteListRequest struct {
 
 func (x *DeleteListRequest) Reset() {
 	*x = DeleteListRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[20]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1290,7 +1163,7 @@ func (x *DeleteListRequest) String() string {
 func (*DeleteListRequest) ProtoMessage() {}
 
 func (x *DeleteListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[20]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1303,7 +1176,7 @@ func (x *DeleteListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteListRequest.ProtoReflect.Descriptor instead.
 func (*DeleteListRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{20}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *DeleteListRequest) GetListId() *ListId {
@@ -1329,7 +1202,7 @@ type DeleteListResponse struct {
 
 func (x *DeleteListResponse) Reset() {
 	*x = DeleteListResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[21]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1341,7 +1214,7 @@ func (x *DeleteListResponse) String() string {
 func (*DeleteListResponse) ProtoMessage() {}
 
 func (x *DeleteListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[21]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1354,7 +1227,7 @@ func (x *DeleteListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteListResponse.ProtoReflect.Descriptor instead.
 func (*DeleteListResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{21}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *DeleteListResponse) GetReceipt() *MutationReceipt {
@@ -1375,7 +1248,7 @@ type ListItemsRequest struct {
 
 func (x *ListItemsRequest) Reset() {
 	*x = ListItemsRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[22]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1387,7 +1260,7 @@ func (x *ListItemsRequest) String() string {
 func (*ListItemsRequest) ProtoMessage() {}
 
 func (x *ListItemsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[22]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1400,7 +1273,7 @@ func (x *ListItemsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListItemsRequest.ProtoReflect.Descriptor instead.
 func (*ListItemsRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{22}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListItemsRequest) GetListId() *ListId {
@@ -1434,7 +1307,7 @@ type ListItemsResponse struct {
 
 func (x *ListItemsResponse) Reset() {
 	*x = ListItemsResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[23]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1446,7 +1319,7 @@ func (x *ListItemsResponse) String() string {
 func (*ListItemsResponse) ProtoMessage() {}
 
 func (x *ListItemsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[23]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1459,7 +1332,7 @@ func (x *ListItemsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListItemsResponse.ProtoReflect.Descriptor instead.
 func (*ListItemsResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{23}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListItemsResponse) GetItems() []*ItemSnapshot {
@@ -1485,7 +1358,7 @@ type CountItemsRequest struct {
 
 func (x *CountItemsRequest) Reset() {
 	*x = CountItemsRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[24]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1497,7 +1370,7 @@ func (x *CountItemsRequest) String() string {
 func (*CountItemsRequest) ProtoMessage() {}
 
 func (x *CountItemsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[24]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1510,7 +1383,7 @@ func (x *CountItemsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountItemsRequest.ProtoReflect.Descriptor instead.
 func (*CountItemsRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{24}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *CountItemsRequest) GetListId() *ListId {
@@ -1529,7 +1402,7 @@ type CountItemsResponse struct {
 
 func (x *CountItemsResponse) Reset() {
 	*x = CountItemsResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[25]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1541,7 +1414,7 @@ func (x *CountItemsResponse) String() string {
 func (*CountItemsResponse) ProtoMessage() {}
 
 func (x *CountItemsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[25]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1554,7 +1427,7 @@ func (x *CountItemsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountItemsResponse.ProtoReflect.Descriptor instead.
 func (*CountItemsResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{25}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *CountItemsResponse) GetCount() uint64 {
@@ -1574,7 +1447,7 @@ type GetItemRequest struct {
 
 func (x *GetItemRequest) Reset() {
 	*x = GetItemRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[26]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1586,7 +1459,7 @@ func (x *GetItemRequest) String() string {
 func (*GetItemRequest) ProtoMessage() {}
 
 func (x *GetItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[26]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1599,7 +1472,7 @@ func (x *GetItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetItemRequest.ProtoReflect.Descriptor instead.
 func (*GetItemRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{26}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetItemRequest) GetListId() *ListId {
@@ -1625,7 +1498,7 @@ type GetItemResponse struct {
 
 func (x *GetItemResponse) Reset() {
 	*x = GetItemResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[27]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1637,7 +1510,7 @@ func (x *GetItemResponse) String() string {
 func (*GetItemResponse) ProtoMessage() {}
 
 func (x *GetItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[27]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1650,7 +1523,7 @@ func (x *GetItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetItemResponse.ProtoReflect.Descriptor instead.
 func (*GetItemResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{27}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetItemResponse) GetItem() *ItemSnapshot {
@@ -1671,7 +1544,7 @@ type AddItemRequest struct {
 
 func (x *AddItemRequest) Reset() {
 	*x = AddItemRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[28]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1683,7 +1556,7 @@ func (x *AddItemRequest) String() string {
 func (*AddItemRequest) ProtoMessage() {}
 
 func (x *AddItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[28]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1696,7 +1569,7 @@ func (x *AddItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddItemRequest.ProtoReflect.Descriptor instead.
 func (*AddItemRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{28}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *AddItemRequest) GetListId() *ListId {
@@ -1729,7 +1602,7 @@ type AddItemResponse struct {
 
 func (x *AddItemResponse) Reset() {
 	*x = AddItemResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[29]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1741,7 +1614,7 @@ func (x *AddItemResponse) String() string {
 func (*AddItemResponse) ProtoMessage() {}
 
 func (x *AddItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[29]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1754,7 +1627,7 @@ func (x *AddItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddItemResponse.ProtoReflect.Descriptor instead.
 func (*AddItemResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{29}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *AddItemResponse) GetReceipt() *MutationReceipt {
@@ -1777,7 +1650,7 @@ type EditItemRequest struct {
 
 func (x *EditItemRequest) Reset() {
 	*x = EditItemRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[30]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1789,7 +1662,7 @@ func (x *EditItemRequest) String() string {
 func (*EditItemRequest) ProtoMessage() {}
 
 func (x *EditItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[30]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1802,7 +1675,7 @@ func (x *EditItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditItemRequest.ProtoReflect.Descriptor instead.
 func (*EditItemRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{30}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *EditItemRequest) GetListId() *ListId {
@@ -1849,7 +1722,7 @@ type EditItemResponse struct {
 
 func (x *EditItemResponse) Reset() {
 	*x = EditItemResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[31]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1861,7 +1734,7 @@ func (x *EditItemResponse) String() string {
 func (*EditItemResponse) ProtoMessage() {}
 
 func (x *EditItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[31]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1874,7 +1747,7 @@ func (x *EditItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditItemResponse.ProtoReflect.Descriptor instead.
 func (*EditItemResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{31}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *EditItemResponse) GetReceipt() *MutationReceipt {
@@ -1896,7 +1769,7 @@ type DeleteItemRequest struct {
 
 func (x *DeleteItemRequest) Reset() {
 	*x = DeleteItemRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[32]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1908,7 +1781,7 @@ func (x *DeleteItemRequest) String() string {
 func (*DeleteItemRequest) ProtoMessage() {}
 
 func (x *DeleteItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[32]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1921,7 +1794,7 @@ func (x *DeleteItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteItemRequest.ProtoReflect.Descriptor instead.
 func (*DeleteItemRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{32}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *DeleteItemRequest) GetListId() *ListId {
@@ -1961,7 +1834,7 @@ type DeleteItemResponse struct {
 
 func (x *DeleteItemResponse) Reset() {
 	*x = DeleteItemResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[33]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1973,7 +1846,7 @@ func (x *DeleteItemResponse) String() string {
 func (*DeleteItemResponse) ProtoMessage() {}
 
 func (x *DeleteItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[33]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1986,7 +1859,7 @@ func (x *DeleteItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteItemResponse.ProtoReflect.Descriptor instead.
 func (*DeleteItemResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{33}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *DeleteItemResponse) GetReceipt() *MutationReceipt {
@@ -2009,7 +1882,7 @@ type SetCompletedRequest struct {
 
 func (x *SetCompletedRequest) Reset() {
 	*x = SetCompletedRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[34]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2021,7 +1894,7 @@ func (x *SetCompletedRequest) String() string {
 func (*SetCompletedRequest) ProtoMessage() {}
 
 func (x *SetCompletedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[34]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2034,7 +1907,7 @@ func (x *SetCompletedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCompletedRequest.ProtoReflect.Descriptor instead.
 func (*SetCompletedRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{34}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *SetCompletedRequest) GetListId() *ListId {
@@ -2081,7 +1954,7 @@ type SetCompletedResponse struct {
 
 func (x *SetCompletedResponse) Reset() {
 	*x = SetCompletedResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[35]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2093,7 +1966,7 @@ func (x *SetCompletedResponse) String() string {
 func (*SetCompletedResponse) ProtoMessage() {}
 
 func (x *SetCompletedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[35]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2106,7 +1979,7 @@ func (x *SetCompletedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCompletedResponse.ProtoReflect.Descriptor instead.
 func (*SetCompletedResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{35}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *SetCompletedResponse) GetReceipt() *MutationReceipt {
@@ -2133,7 +2006,7 @@ type MoveItemRequest struct {
 
 func (x *MoveItemRequest) Reset() {
 	*x = MoveItemRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[36]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2145,7 +2018,7 @@ func (x *MoveItemRequest) String() string {
 func (*MoveItemRequest) ProtoMessage() {}
 
 func (x *MoveItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[36]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2158,7 +2031,7 @@ func (x *MoveItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveItemRequest.ProtoReflect.Descriptor instead.
 func (*MoveItemRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{36}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *MoveItemRequest) GetListId() *ListId {
@@ -2239,7 +2112,7 @@ type MoveItemResponse struct {
 
 func (x *MoveItemResponse) Reset() {
 	*x = MoveItemResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[37]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2251,7 +2124,7 @@ func (x *MoveItemResponse) String() string {
 func (*MoveItemResponse) ProtoMessage() {}
 
 func (x *MoveItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[37]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2264,7 +2137,7 @@ func (x *MoveItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveItemResponse.ProtoReflect.Descriptor instead.
 func (*MoveItemResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{37}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *MoveItemResponse) GetReceipt() *MutationReceipt {
@@ -2289,7 +2162,7 @@ type WatchListsRequest struct {
 
 func (x *WatchListsRequest) Reset() {
 	*x = WatchListsRequest{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[38]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2301,7 +2174,7 @@ func (x *WatchListsRequest) String() string {
 func (*WatchListsRequest) ProtoMessage() {}
 
 func (x *WatchListsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[38]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2314,7 +2187,7 @@ func (x *WatchListsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchListsRequest.ProtoReflect.Descriptor instead.
 func (*WatchListsRequest) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{38}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *WatchListsRequest) GetScope() isWatchListsRequest_Scope {
@@ -2366,7 +2239,7 @@ type WatchReady struct {
 
 func (x *WatchReady) Reset() {
 	*x = WatchReady{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[39]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2378,7 +2251,7 @@ func (x *WatchReady) String() string {
 func (*WatchReady) ProtoMessage() {}
 
 func (x *WatchReady) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[39]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2391,7 +2264,7 @@ func (x *WatchReady) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchReady.ProtoReflect.Descriptor instead.
 func (*WatchReady) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{39}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{38}
 }
 
 type ListChanged struct {
@@ -2404,7 +2277,7 @@ type ListChanged struct {
 
 func (x *ListChanged) Reset() {
 	*x = ListChanged{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[40]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2416,7 +2289,7 @@ func (x *ListChanged) String() string {
 func (*ListChanged) ProtoMessage() {}
 
 func (x *ListChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[40]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2429,7 +2302,7 @@ func (x *ListChanged) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListChanged.ProtoReflect.Descriptor instead.
 func (*ListChanged) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{40}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ListChanged) GetListId() *ListId {
@@ -2455,7 +2328,7 @@ type ListResyncRequired struct {
 
 func (x *ListResyncRequired) Reset() {
 	*x = ListResyncRequired{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[41]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2467,7 +2340,7 @@ func (x *ListResyncRequired) String() string {
 func (*ListResyncRequired) ProtoMessage() {}
 
 func (x *ListResyncRequired) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[41]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2480,7 +2353,7 @@ func (x *ListResyncRequired) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListResyncRequired.ProtoReflect.Descriptor instead.
 func (*ListResyncRequired) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{41}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{40}
 }
 
 type WatchListsResponse struct {
@@ -2498,7 +2371,7 @@ type WatchListsResponse struct {
 
 func (x *WatchListsResponse) Reset() {
 	*x = WatchListsResponse{}
-	mi := &file_home_lists_v1_lists_proto_msgTypes[42]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2510,7 +2383,7 @@ func (x *WatchListsResponse) String() string {
 func (*WatchListsResponse) ProtoMessage() {}
 
 func (x *WatchListsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_lists_v1_lists_proto_msgTypes[42]
+	mi := &file_home_lists_v1_lists_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2523,7 +2396,7 @@ func (x *WatchListsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchListsResponse.ProtoReflect.Descriptor instead.
 func (*WatchListsResponse) Descriptor() ([]byte, []int) {
-	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{42}
+	return file_home_lists_v1_lists_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *WatchListsResponse) GetStreamSequence() uint64 {
@@ -2640,12 +2513,7 @@ const file_home_lists_v1_lists_proto_rawDesc = "" +
 	"\alist_id\x18\x01 \x01(\v2\x15.home.lists.v1.ListIdR\x06listId\x121\n" +
 	"\bitem_uid\x18\x02 \x01(\v2\x16.home.lists.v1.ItemUidR\aitemUid\x12@\n" +
 	"\rlist_revision\x18\x03 \x01(\v2\x1b.home.lists.v1.ListRevisionR\flistRevision\x12@\n" +
-	"\ritem_revision\x18\x04 \x01(\v2\x1b.home.lists.v1.ItemRevisionR\fitemRevision\"p\n" +
-	"\tListError\x120\n" +
-	"\x04code\x18\x01 \x01(\x0e2\x1c.home.lists.v1.ListErrorCodeR\x04code\x12\"\n" +
-	"\n" +
-	"field_path\x18\x02 \x01(\tH\x00R\tfieldPath\x88\x01\x01B\r\n" +
-	"\v_field_path\"N\n" +
+	"\ritem_revision\x18\x04 \x01(\v2\x1b.home.lists.v1.ItemRevisionR\fitemRevision\"N\n" +
 	"\x10ListListsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\rR\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -2754,20 +2622,7 @@ const file_home_lists_v1_lists_proto_rawDesc = "" +
 	"\x17LIST_ORIGIN_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16LIST_ORIGIN_LOCAL_TODO\x10\x01\x12\x1d\n" +
 	"\x19LIST_ORIGIN_SHOPPING_LIST\x10\x02\x12\x16\n" +
-	"\x12LIST_ORIGIN_NATIVE\x10\x03*\xf8\x02\n" +
-	"\rListErrorCode\x12\x1f\n" +
-	"\x1bLIST_ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1b\n" +
-	"\x17LIST_ERROR_CODE_INVALID\x10\x01\x12\x1a\n" +
-	"\x16LIST_ERROR_CODE_DENIED\x10\x02\x12\x1d\n" +
-	"\x19LIST_ERROR_CODE_NOT_FOUND\x10\x03\x12\x1c\n" +
-	"\x18LIST_ERROR_CODE_CONFLICT\x10\x04\x12 \n" +
-	"\x1cLIST_ERROR_CODE_STALE_CURSOR\x10\x05\x12\x1c\n" +
-	"\x18LIST_ERROR_CODE_CAPACITY\x10\x06\x12\x1f\n" +
-	"\x1bLIST_ERROR_CODE_UNAVAILABLE\x10\a\x12\"\n" +
-	"\x1eLIST_ERROR_CODE_COMMIT_UNKNOWN\x10\b\x12/\n" +
-	"+LIST_ERROR_CODE_COMMITTED_RESPONSE_WITHHELD\x10\t\x12\x1a\n" +
-	"\x16LIST_ERROR_CODE_CLOSED\x10\n" +
-	"2\xc5\t\n" +
+	"\x12LIST_ORIGIN_NATIVE\x10\x032\xc5\t\n" +
 	"\vListService\x12N\n" +
 	"\tListLists\x12\x1f.home.lists.v1.ListListsRequest\x1a .home.lists.v1.ListListsResponse\x12Q\n" +
 	"\n" +
@@ -2804,162 +2659,159 @@ func file_home_lists_v1_lists_proto_rawDescGZIP() []byte {
 	return file_home_lists_v1_lists_proto_rawDescData
 }
 
-var file_home_lists_v1_lists_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_home_lists_v1_lists_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_home_lists_v1_lists_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_home_lists_v1_lists_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
 var file_home_lists_v1_lists_proto_goTypes = []any{
 	(ListOrigin)(0),               // 0: home.lists.v1.ListOrigin
-	(ListErrorCode)(0),            // 1: home.lists.v1.ListErrorCode
-	(*ListId)(nil),                // 2: home.lists.v1.ListId
-	(*ItemUid)(nil),               // 3: home.lists.v1.ItemUid
-	(*ListRevision)(nil),          // 4: home.lists.v1.ListRevision
-	(*ItemRevision)(nil),          // 5: home.lists.v1.ItemRevision
-	(*ListSnapshot)(nil),          // 6: home.lists.v1.ListSnapshot
-	(*DueInstant)(nil),            // 7: home.lists.v1.DueInstant
-	(*ItemPayload)(nil),           // 8: home.lists.v1.ItemPayload
-	(*ItemSnapshot)(nil),          // 9: home.lists.v1.ItemSnapshot
-	(*MutationReceipt)(nil),       // 10: home.lists.v1.MutationReceipt
-	(*ListError)(nil),             // 11: home.lists.v1.ListError
-	(*ListListsRequest)(nil),      // 12: home.lists.v1.ListListsRequest
-	(*ListListsResponse)(nil),     // 13: home.lists.v1.ListListsResponse
-	(*CountListsRequest)(nil),     // 14: home.lists.v1.CountListsRequest
-	(*CountListsResponse)(nil),    // 15: home.lists.v1.CountListsResponse
-	(*GetListRequest)(nil),        // 16: home.lists.v1.GetListRequest
-	(*GetListResponse)(nil),       // 17: home.lists.v1.GetListResponse
-	(*CreateListRequest)(nil),     // 18: home.lists.v1.CreateListRequest
-	(*CreateListResponse)(nil),    // 19: home.lists.v1.CreateListResponse
-	(*RenameListRequest)(nil),     // 20: home.lists.v1.RenameListRequest
-	(*RenameListResponse)(nil),    // 21: home.lists.v1.RenameListResponse
-	(*DeleteListRequest)(nil),     // 22: home.lists.v1.DeleteListRequest
-	(*DeleteListResponse)(nil),    // 23: home.lists.v1.DeleteListResponse
-	(*ListItemsRequest)(nil),      // 24: home.lists.v1.ListItemsRequest
-	(*ListItemsResponse)(nil),     // 25: home.lists.v1.ListItemsResponse
-	(*CountItemsRequest)(nil),     // 26: home.lists.v1.CountItemsRequest
-	(*CountItemsResponse)(nil),    // 27: home.lists.v1.CountItemsResponse
-	(*GetItemRequest)(nil),        // 28: home.lists.v1.GetItemRequest
-	(*GetItemResponse)(nil),       // 29: home.lists.v1.GetItemResponse
-	(*AddItemRequest)(nil),        // 30: home.lists.v1.AddItemRequest
-	(*AddItemResponse)(nil),       // 31: home.lists.v1.AddItemResponse
-	(*EditItemRequest)(nil),       // 32: home.lists.v1.EditItemRequest
-	(*EditItemResponse)(nil),      // 33: home.lists.v1.EditItemResponse
-	(*DeleteItemRequest)(nil),     // 34: home.lists.v1.DeleteItemRequest
-	(*DeleteItemResponse)(nil),    // 35: home.lists.v1.DeleteItemResponse
-	(*SetCompletedRequest)(nil),   // 36: home.lists.v1.SetCompletedRequest
-	(*SetCompletedResponse)(nil),  // 37: home.lists.v1.SetCompletedResponse
-	(*MoveItemRequest)(nil),       // 38: home.lists.v1.MoveItemRequest
-	(*MoveItemResponse)(nil),      // 39: home.lists.v1.MoveItemResponse
-	(*WatchListsRequest)(nil),     // 40: home.lists.v1.WatchListsRequest
-	(*WatchReady)(nil),            // 41: home.lists.v1.WatchReady
-	(*ListChanged)(nil),           // 42: home.lists.v1.ListChanged
-	(*ListResyncRequired)(nil),    // 43: home.lists.v1.ListResyncRequired
-	(*WatchListsResponse)(nil),    // 44: home.lists.v1.WatchListsResponse
-	(*timestamppb.Timestamp)(nil), // 45: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 46: google.protobuf.Empty
+	(*ListId)(nil),                // 1: home.lists.v1.ListId
+	(*ItemUid)(nil),               // 2: home.lists.v1.ItemUid
+	(*ListRevision)(nil),          // 3: home.lists.v1.ListRevision
+	(*ItemRevision)(nil),          // 4: home.lists.v1.ItemRevision
+	(*ListSnapshot)(nil),          // 5: home.lists.v1.ListSnapshot
+	(*DueInstant)(nil),            // 6: home.lists.v1.DueInstant
+	(*ItemPayload)(nil),           // 7: home.lists.v1.ItemPayload
+	(*ItemSnapshot)(nil),          // 8: home.lists.v1.ItemSnapshot
+	(*MutationReceipt)(nil),       // 9: home.lists.v1.MutationReceipt
+	(*ListListsRequest)(nil),      // 10: home.lists.v1.ListListsRequest
+	(*ListListsResponse)(nil),     // 11: home.lists.v1.ListListsResponse
+	(*CountListsRequest)(nil),     // 12: home.lists.v1.CountListsRequest
+	(*CountListsResponse)(nil),    // 13: home.lists.v1.CountListsResponse
+	(*GetListRequest)(nil),        // 14: home.lists.v1.GetListRequest
+	(*GetListResponse)(nil),       // 15: home.lists.v1.GetListResponse
+	(*CreateListRequest)(nil),     // 16: home.lists.v1.CreateListRequest
+	(*CreateListResponse)(nil),    // 17: home.lists.v1.CreateListResponse
+	(*RenameListRequest)(nil),     // 18: home.lists.v1.RenameListRequest
+	(*RenameListResponse)(nil),    // 19: home.lists.v1.RenameListResponse
+	(*DeleteListRequest)(nil),     // 20: home.lists.v1.DeleteListRequest
+	(*DeleteListResponse)(nil),    // 21: home.lists.v1.DeleteListResponse
+	(*ListItemsRequest)(nil),      // 22: home.lists.v1.ListItemsRequest
+	(*ListItemsResponse)(nil),     // 23: home.lists.v1.ListItemsResponse
+	(*CountItemsRequest)(nil),     // 24: home.lists.v1.CountItemsRequest
+	(*CountItemsResponse)(nil),    // 25: home.lists.v1.CountItemsResponse
+	(*GetItemRequest)(nil),        // 26: home.lists.v1.GetItemRequest
+	(*GetItemResponse)(nil),       // 27: home.lists.v1.GetItemResponse
+	(*AddItemRequest)(nil),        // 28: home.lists.v1.AddItemRequest
+	(*AddItemResponse)(nil),       // 29: home.lists.v1.AddItemResponse
+	(*EditItemRequest)(nil),       // 30: home.lists.v1.EditItemRequest
+	(*EditItemResponse)(nil),      // 31: home.lists.v1.EditItemResponse
+	(*DeleteItemRequest)(nil),     // 32: home.lists.v1.DeleteItemRequest
+	(*DeleteItemResponse)(nil),    // 33: home.lists.v1.DeleteItemResponse
+	(*SetCompletedRequest)(nil),   // 34: home.lists.v1.SetCompletedRequest
+	(*SetCompletedResponse)(nil),  // 35: home.lists.v1.SetCompletedResponse
+	(*MoveItemRequest)(nil),       // 36: home.lists.v1.MoveItemRequest
+	(*MoveItemResponse)(nil),      // 37: home.lists.v1.MoveItemResponse
+	(*WatchListsRequest)(nil),     // 38: home.lists.v1.WatchListsRequest
+	(*WatchReady)(nil),            // 39: home.lists.v1.WatchReady
+	(*ListChanged)(nil),           // 40: home.lists.v1.ListChanged
+	(*ListResyncRequired)(nil),    // 41: home.lists.v1.ListResyncRequired
+	(*WatchListsResponse)(nil),    // 42: home.lists.v1.WatchListsResponse
+	(*timestamppb.Timestamp)(nil), // 43: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),         // 44: google.protobuf.Empty
 }
 var file_home_lists_v1_lists_proto_depIdxs = []int32{
-	2,  // 0: home.lists.v1.ListRevision.list_id:type_name -> home.lists.v1.ListId
-	2,  // 1: home.lists.v1.ItemRevision.list_id:type_name -> home.lists.v1.ListId
-	3,  // 2: home.lists.v1.ItemRevision.item_uid:type_name -> home.lists.v1.ItemUid
-	2,  // 3: home.lists.v1.ListSnapshot.id:type_name -> home.lists.v1.ListId
+	1,  // 0: home.lists.v1.ListRevision.list_id:type_name -> home.lists.v1.ListId
+	1,  // 1: home.lists.v1.ItemRevision.list_id:type_name -> home.lists.v1.ListId
+	2,  // 2: home.lists.v1.ItemRevision.item_uid:type_name -> home.lists.v1.ItemUid
+	1,  // 3: home.lists.v1.ListSnapshot.id:type_name -> home.lists.v1.ListId
 	0,  // 4: home.lists.v1.ListSnapshot.origin:type_name -> home.lists.v1.ListOrigin
-	4,  // 5: home.lists.v1.ListSnapshot.revision:type_name -> home.lists.v1.ListRevision
-	45, // 6: home.lists.v1.ListSnapshot.updated_at:type_name -> google.protobuf.Timestamp
-	45, // 7: home.lists.v1.DueInstant.at:type_name -> google.protobuf.Timestamp
-	7,  // 8: home.lists.v1.ItemPayload.due_instant:type_name -> home.lists.v1.DueInstant
-	45, // 9: home.lists.v1.ItemPayload.completed_at:type_name -> google.protobuf.Timestamp
-	2,  // 10: home.lists.v1.ItemSnapshot.list_id:type_name -> home.lists.v1.ListId
-	3,  // 11: home.lists.v1.ItemSnapshot.uid:type_name -> home.lists.v1.ItemUid
-	8,  // 12: home.lists.v1.ItemSnapshot.value:type_name -> home.lists.v1.ItemPayload
-	5,  // 13: home.lists.v1.ItemSnapshot.revision:type_name -> home.lists.v1.ItemRevision
-	2,  // 14: home.lists.v1.MutationReceipt.list_id:type_name -> home.lists.v1.ListId
-	3,  // 15: home.lists.v1.MutationReceipt.item_uid:type_name -> home.lists.v1.ItemUid
-	4,  // 16: home.lists.v1.MutationReceipt.list_revision:type_name -> home.lists.v1.ListRevision
-	5,  // 17: home.lists.v1.MutationReceipt.item_revision:type_name -> home.lists.v1.ItemRevision
-	1,  // 18: home.lists.v1.ListError.code:type_name -> home.lists.v1.ListErrorCode
-	6,  // 19: home.lists.v1.ListListsResponse.lists:type_name -> home.lists.v1.ListSnapshot
-	2,  // 20: home.lists.v1.GetListRequest.list_id:type_name -> home.lists.v1.ListId
-	6,  // 21: home.lists.v1.GetListResponse.list:type_name -> home.lists.v1.ListSnapshot
-	10, // 22: home.lists.v1.CreateListResponse.receipt:type_name -> home.lists.v1.MutationReceipt
-	2,  // 23: home.lists.v1.RenameListRequest.list_id:type_name -> home.lists.v1.ListId
-	4,  // 24: home.lists.v1.RenameListRequest.expected_revision:type_name -> home.lists.v1.ListRevision
-	10, // 25: home.lists.v1.RenameListResponse.receipt:type_name -> home.lists.v1.MutationReceipt
-	2,  // 26: home.lists.v1.DeleteListRequest.list_id:type_name -> home.lists.v1.ListId
-	4,  // 27: home.lists.v1.DeleteListRequest.expected_revision:type_name -> home.lists.v1.ListRevision
-	10, // 28: home.lists.v1.DeleteListResponse.receipt:type_name -> home.lists.v1.MutationReceipt
-	2,  // 29: home.lists.v1.ListItemsRequest.list_id:type_name -> home.lists.v1.ListId
-	9,  // 30: home.lists.v1.ListItemsResponse.items:type_name -> home.lists.v1.ItemSnapshot
-	2,  // 31: home.lists.v1.CountItemsRequest.list_id:type_name -> home.lists.v1.ListId
-	2,  // 32: home.lists.v1.GetItemRequest.list_id:type_name -> home.lists.v1.ListId
-	3,  // 33: home.lists.v1.GetItemRequest.item_uid:type_name -> home.lists.v1.ItemUid
-	9,  // 34: home.lists.v1.GetItemResponse.item:type_name -> home.lists.v1.ItemSnapshot
-	2,  // 35: home.lists.v1.AddItemRequest.list_id:type_name -> home.lists.v1.ListId
-	4,  // 36: home.lists.v1.AddItemRequest.expected_list_revision:type_name -> home.lists.v1.ListRevision
-	8,  // 37: home.lists.v1.AddItemRequest.item:type_name -> home.lists.v1.ItemPayload
-	10, // 38: home.lists.v1.AddItemResponse.receipt:type_name -> home.lists.v1.MutationReceipt
-	2,  // 39: home.lists.v1.EditItemRequest.list_id:type_name -> home.lists.v1.ListId
-	3,  // 40: home.lists.v1.EditItemRequest.item_uid:type_name -> home.lists.v1.ItemUid
-	4,  // 41: home.lists.v1.EditItemRequest.expected_list_revision:type_name -> home.lists.v1.ListRevision
-	5,  // 42: home.lists.v1.EditItemRequest.expected_item_revision:type_name -> home.lists.v1.ItemRevision
-	8,  // 43: home.lists.v1.EditItemRequest.item:type_name -> home.lists.v1.ItemPayload
-	10, // 44: home.lists.v1.EditItemResponse.receipt:type_name -> home.lists.v1.MutationReceipt
-	2,  // 45: home.lists.v1.DeleteItemRequest.list_id:type_name -> home.lists.v1.ListId
-	3,  // 46: home.lists.v1.DeleteItemRequest.item_uid:type_name -> home.lists.v1.ItemUid
-	4,  // 47: home.lists.v1.DeleteItemRequest.expected_list_revision:type_name -> home.lists.v1.ListRevision
-	5,  // 48: home.lists.v1.DeleteItemRequest.expected_item_revision:type_name -> home.lists.v1.ItemRevision
-	10, // 49: home.lists.v1.DeleteItemResponse.receipt:type_name -> home.lists.v1.MutationReceipt
-	2,  // 50: home.lists.v1.SetCompletedRequest.list_id:type_name -> home.lists.v1.ListId
-	3,  // 51: home.lists.v1.SetCompletedRequest.item_uid:type_name -> home.lists.v1.ItemUid
-	4,  // 52: home.lists.v1.SetCompletedRequest.expected_list_revision:type_name -> home.lists.v1.ListRevision
-	5,  // 53: home.lists.v1.SetCompletedRequest.expected_item_revision:type_name -> home.lists.v1.ItemRevision
-	10, // 54: home.lists.v1.SetCompletedResponse.receipt:type_name -> home.lists.v1.MutationReceipt
-	2,  // 55: home.lists.v1.MoveItemRequest.list_id:type_name -> home.lists.v1.ListId
-	3,  // 56: home.lists.v1.MoveItemRequest.item_uid:type_name -> home.lists.v1.ItemUid
-	4,  // 57: home.lists.v1.MoveItemRequest.expected_list_revision:type_name -> home.lists.v1.ListRevision
-	5,  // 58: home.lists.v1.MoveItemRequest.expected_item_revision:type_name -> home.lists.v1.ItemRevision
-	46, // 59: home.lists.v1.MoveItemRequest.at_start:type_name -> google.protobuf.Empty
-	3,  // 60: home.lists.v1.MoveItemRequest.after_uid:type_name -> home.lists.v1.ItemUid
-	10, // 61: home.lists.v1.MoveItemResponse.receipt:type_name -> home.lists.v1.MutationReceipt
-	46, // 62: home.lists.v1.WatchListsRequest.catalog:type_name -> google.protobuf.Empty
-	2,  // 63: home.lists.v1.WatchListsRequest.list_id:type_name -> home.lists.v1.ListId
-	2,  // 64: home.lists.v1.ListChanged.list_id:type_name -> home.lists.v1.ListId
-	4,  // 65: home.lists.v1.ListChanged.revision:type_name -> home.lists.v1.ListRevision
-	41, // 66: home.lists.v1.WatchListsResponse.ready:type_name -> home.lists.v1.WatchReady
-	42, // 67: home.lists.v1.WatchListsResponse.changed:type_name -> home.lists.v1.ListChanged
-	43, // 68: home.lists.v1.WatchListsResponse.resync_required:type_name -> home.lists.v1.ListResyncRequired
-	12, // 69: home.lists.v1.ListService.ListLists:input_type -> home.lists.v1.ListListsRequest
-	14, // 70: home.lists.v1.ListService.CountLists:input_type -> home.lists.v1.CountListsRequest
-	16, // 71: home.lists.v1.ListService.GetList:input_type -> home.lists.v1.GetListRequest
-	18, // 72: home.lists.v1.ListService.CreateList:input_type -> home.lists.v1.CreateListRequest
-	20, // 73: home.lists.v1.ListService.RenameList:input_type -> home.lists.v1.RenameListRequest
-	22, // 74: home.lists.v1.ListService.DeleteList:input_type -> home.lists.v1.DeleteListRequest
-	24, // 75: home.lists.v1.ListService.ListItems:input_type -> home.lists.v1.ListItemsRequest
-	26, // 76: home.lists.v1.ListService.CountItems:input_type -> home.lists.v1.CountItemsRequest
-	28, // 77: home.lists.v1.ListService.GetItem:input_type -> home.lists.v1.GetItemRequest
-	30, // 78: home.lists.v1.ListService.AddItem:input_type -> home.lists.v1.AddItemRequest
-	32, // 79: home.lists.v1.ListService.EditItem:input_type -> home.lists.v1.EditItemRequest
-	34, // 80: home.lists.v1.ListService.DeleteItem:input_type -> home.lists.v1.DeleteItemRequest
-	36, // 81: home.lists.v1.ListService.SetCompleted:input_type -> home.lists.v1.SetCompletedRequest
-	38, // 82: home.lists.v1.ListService.MoveItem:input_type -> home.lists.v1.MoveItemRequest
-	40, // 83: home.lists.v1.ListService.WatchLists:input_type -> home.lists.v1.WatchListsRequest
-	13, // 84: home.lists.v1.ListService.ListLists:output_type -> home.lists.v1.ListListsResponse
-	15, // 85: home.lists.v1.ListService.CountLists:output_type -> home.lists.v1.CountListsResponse
-	17, // 86: home.lists.v1.ListService.GetList:output_type -> home.lists.v1.GetListResponse
-	19, // 87: home.lists.v1.ListService.CreateList:output_type -> home.lists.v1.CreateListResponse
-	21, // 88: home.lists.v1.ListService.RenameList:output_type -> home.lists.v1.RenameListResponse
-	23, // 89: home.lists.v1.ListService.DeleteList:output_type -> home.lists.v1.DeleteListResponse
-	25, // 90: home.lists.v1.ListService.ListItems:output_type -> home.lists.v1.ListItemsResponse
-	27, // 91: home.lists.v1.ListService.CountItems:output_type -> home.lists.v1.CountItemsResponse
-	29, // 92: home.lists.v1.ListService.GetItem:output_type -> home.lists.v1.GetItemResponse
-	31, // 93: home.lists.v1.ListService.AddItem:output_type -> home.lists.v1.AddItemResponse
-	33, // 94: home.lists.v1.ListService.EditItem:output_type -> home.lists.v1.EditItemResponse
-	35, // 95: home.lists.v1.ListService.DeleteItem:output_type -> home.lists.v1.DeleteItemResponse
-	37, // 96: home.lists.v1.ListService.SetCompleted:output_type -> home.lists.v1.SetCompletedResponse
-	39, // 97: home.lists.v1.ListService.MoveItem:output_type -> home.lists.v1.MoveItemResponse
-	44, // 98: home.lists.v1.ListService.WatchLists:output_type -> home.lists.v1.WatchListsResponse
-	84, // [84:99] is the sub-list for method output_type
-	69, // [69:84] is the sub-list for method input_type
-	69, // [69:69] is the sub-list for extension type_name
-	69, // [69:69] is the sub-list for extension extendee
-	0,  // [0:69] is the sub-list for field type_name
+	3,  // 5: home.lists.v1.ListSnapshot.revision:type_name -> home.lists.v1.ListRevision
+	43, // 6: home.lists.v1.ListSnapshot.updated_at:type_name -> google.protobuf.Timestamp
+	43, // 7: home.lists.v1.DueInstant.at:type_name -> google.protobuf.Timestamp
+	6,  // 8: home.lists.v1.ItemPayload.due_instant:type_name -> home.lists.v1.DueInstant
+	43, // 9: home.lists.v1.ItemPayload.completed_at:type_name -> google.protobuf.Timestamp
+	1,  // 10: home.lists.v1.ItemSnapshot.list_id:type_name -> home.lists.v1.ListId
+	2,  // 11: home.lists.v1.ItemSnapshot.uid:type_name -> home.lists.v1.ItemUid
+	7,  // 12: home.lists.v1.ItemSnapshot.value:type_name -> home.lists.v1.ItemPayload
+	4,  // 13: home.lists.v1.ItemSnapshot.revision:type_name -> home.lists.v1.ItemRevision
+	1,  // 14: home.lists.v1.MutationReceipt.list_id:type_name -> home.lists.v1.ListId
+	2,  // 15: home.lists.v1.MutationReceipt.item_uid:type_name -> home.lists.v1.ItemUid
+	3,  // 16: home.lists.v1.MutationReceipt.list_revision:type_name -> home.lists.v1.ListRevision
+	4,  // 17: home.lists.v1.MutationReceipt.item_revision:type_name -> home.lists.v1.ItemRevision
+	5,  // 18: home.lists.v1.ListListsResponse.lists:type_name -> home.lists.v1.ListSnapshot
+	1,  // 19: home.lists.v1.GetListRequest.list_id:type_name -> home.lists.v1.ListId
+	5,  // 20: home.lists.v1.GetListResponse.list:type_name -> home.lists.v1.ListSnapshot
+	9,  // 21: home.lists.v1.CreateListResponse.receipt:type_name -> home.lists.v1.MutationReceipt
+	1,  // 22: home.lists.v1.RenameListRequest.list_id:type_name -> home.lists.v1.ListId
+	3,  // 23: home.lists.v1.RenameListRequest.expected_revision:type_name -> home.lists.v1.ListRevision
+	9,  // 24: home.lists.v1.RenameListResponse.receipt:type_name -> home.lists.v1.MutationReceipt
+	1,  // 25: home.lists.v1.DeleteListRequest.list_id:type_name -> home.lists.v1.ListId
+	3,  // 26: home.lists.v1.DeleteListRequest.expected_revision:type_name -> home.lists.v1.ListRevision
+	9,  // 27: home.lists.v1.DeleteListResponse.receipt:type_name -> home.lists.v1.MutationReceipt
+	1,  // 28: home.lists.v1.ListItemsRequest.list_id:type_name -> home.lists.v1.ListId
+	8,  // 29: home.lists.v1.ListItemsResponse.items:type_name -> home.lists.v1.ItemSnapshot
+	1,  // 30: home.lists.v1.CountItemsRequest.list_id:type_name -> home.lists.v1.ListId
+	1,  // 31: home.lists.v1.GetItemRequest.list_id:type_name -> home.lists.v1.ListId
+	2,  // 32: home.lists.v1.GetItemRequest.item_uid:type_name -> home.lists.v1.ItemUid
+	8,  // 33: home.lists.v1.GetItemResponse.item:type_name -> home.lists.v1.ItemSnapshot
+	1,  // 34: home.lists.v1.AddItemRequest.list_id:type_name -> home.lists.v1.ListId
+	3,  // 35: home.lists.v1.AddItemRequest.expected_list_revision:type_name -> home.lists.v1.ListRevision
+	7,  // 36: home.lists.v1.AddItemRequest.item:type_name -> home.lists.v1.ItemPayload
+	9,  // 37: home.lists.v1.AddItemResponse.receipt:type_name -> home.lists.v1.MutationReceipt
+	1,  // 38: home.lists.v1.EditItemRequest.list_id:type_name -> home.lists.v1.ListId
+	2,  // 39: home.lists.v1.EditItemRequest.item_uid:type_name -> home.lists.v1.ItemUid
+	3,  // 40: home.lists.v1.EditItemRequest.expected_list_revision:type_name -> home.lists.v1.ListRevision
+	4,  // 41: home.lists.v1.EditItemRequest.expected_item_revision:type_name -> home.lists.v1.ItemRevision
+	7,  // 42: home.lists.v1.EditItemRequest.item:type_name -> home.lists.v1.ItemPayload
+	9,  // 43: home.lists.v1.EditItemResponse.receipt:type_name -> home.lists.v1.MutationReceipt
+	1,  // 44: home.lists.v1.DeleteItemRequest.list_id:type_name -> home.lists.v1.ListId
+	2,  // 45: home.lists.v1.DeleteItemRequest.item_uid:type_name -> home.lists.v1.ItemUid
+	3,  // 46: home.lists.v1.DeleteItemRequest.expected_list_revision:type_name -> home.lists.v1.ListRevision
+	4,  // 47: home.lists.v1.DeleteItemRequest.expected_item_revision:type_name -> home.lists.v1.ItemRevision
+	9,  // 48: home.lists.v1.DeleteItemResponse.receipt:type_name -> home.lists.v1.MutationReceipt
+	1,  // 49: home.lists.v1.SetCompletedRequest.list_id:type_name -> home.lists.v1.ListId
+	2,  // 50: home.lists.v1.SetCompletedRequest.item_uid:type_name -> home.lists.v1.ItemUid
+	3,  // 51: home.lists.v1.SetCompletedRequest.expected_list_revision:type_name -> home.lists.v1.ListRevision
+	4,  // 52: home.lists.v1.SetCompletedRequest.expected_item_revision:type_name -> home.lists.v1.ItemRevision
+	9,  // 53: home.lists.v1.SetCompletedResponse.receipt:type_name -> home.lists.v1.MutationReceipt
+	1,  // 54: home.lists.v1.MoveItemRequest.list_id:type_name -> home.lists.v1.ListId
+	2,  // 55: home.lists.v1.MoveItemRequest.item_uid:type_name -> home.lists.v1.ItemUid
+	3,  // 56: home.lists.v1.MoveItemRequest.expected_list_revision:type_name -> home.lists.v1.ListRevision
+	4,  // 57: home.lists.v1.MoveItemRequest.expected_item_revision:type_name -> home.lists.v1.ItemRevision
+	44, // 58: home.lists.v1.MoveItemRequest.at_start:type_name -> google.protobuf.Empty
+	2,  // 59: home.lists.v1.MoveItemRequest.after_uid:type_name -> home.lists.v1.ItemUid
+	9,  // 60: home.lists.v1.MoveItemResponse.receipt:type_name -> home.lists.v1.MutationReceipt
+	44, // 61: home.lists.v1.WatchListsRequest.catalog:type_name -> google.protobuf.Empty
+	1,  // 62: home.lists.v1.WatchListsRequest.list_id:type_name -> home.lists.v1.ListId
+	1,  // 63: home.lists.v1.ListChanged.list_id:type_name -> home.lists.v1.ListId
+	3,  // 64: home.lists.v1.ListChanged.revision:type_name -> home.lists.v1.ListRevision
+	39, // 65: home.lists.v1.WatchListsResponse.ready:type_name -> home.lists.v1.WatchReady
+	40, // 66: home.lists.v1.WatchListsResponse.changed:type_name -> home.lists.v1.ListChanged
+	41, // 67: home.lists.v1.WatchListsResponse.resync_required:type_name -> home.lists.v1.ListResyncRequired
+	10, // 68: home.lists.v1.ListService.ListLists:input_type -> home.lists.v1.ListListsRequest
+	12, // 69: home.lists.v1.ListService.CountLists:input_type -> home.lists.v1.CountListsRequest
+	14, // 70: home.lists.v1.ListService.GetList:input_type -> home.lists.v1.GetListRequest
+	16, // 71: home.lists.v1.ListService.CreateList:input_type -> home.lists.v1.CreateListRequest
+	18, // 72: home.lists.v1.ListService.RenameList:input_type -> home.lists.v1.RenameListRequest
+	20, // 73: home.lists.v1.ListService.DeleteList:input_type -> home.lists.v1.DeleteListRequest
+	22, // 74: home.lists.v1.ListService.ListItems:input_type -> home.lists.v1.ListItemsRequest
+	24, // 75: home.lists.v1.ListService.CountItems:input_type -> home.lists.v1.CountItemsRequest
+	26, // 76: home.lists.v1.ListService.GetItem:input_type -> home.lists.v1.GetItemRequest
+	28, // 77: home.lists.v1.ListService.AddItem:input_type -> home.lists.v1.AddItemRequest
+	30, // 78: home.lists.v1.ListService.EditItem:input_type -> home.lists.v1.EditItemRequest
+	32, // 79: home.lists.v1.ListService.DeleteItem:input_type -> home.lists.v1.DeleteItemRequest
+	34, // 80: home.lists.v1.ListService.SetCompleted:input_type -> home.lists.v1.SetCompletedRequest
+	36, // 81: home.lists.v1.ListService.MoveItem:input_type -> home.lists.v1.MoveItemRequest
+	38, // 82: home.lists.v1.ListService.WatchLists:input_type -> home.lists.v1.WatchListsRequest
+	11, // 83: home.lists.v1.ListService.ListLists:output_type -> home.lists.v1.ListListsResponse
+	13, // 84: home.lists.v1.ListService.CountLists:output_type -> home.lists.v1.CountListsResponse
+	15, // 85: home.lists.v1.ListService.GetList:output_type -> home.lists.v1.GetListResponse
+	17, // 86: home.lists.v1.ListService.CreateList:output_type -> home.lists.v1.CreateListResponse
+	19, // 87: home.lists.v1.ListService.RenameList:output_type -> home.lists.v1.RenameListResponse
+	21, // 88: home.lists.v1.ListService.DeleteList:output_type -> home.lists.v1.DeleteListResponse
+	23, // 89: home.lists.v1.ListService.ListItems:output_type -> home.lists.v1.ListItemsResponse
+	25, // 90: home.lists.v1.ListService.CountItems:output_type -> home.lists.v1.CountItemsResponse
+	27, // 91: home.lists.v1.ListService.GetItem:output_type -> home.lists.v1.GetItemResponse
+	29, // 92: home.lists.v1.ListService.AddItem:output_type -> home.lists.v1.AddItemResponse
+	31, // 93: home.lists.v1.ListService.EditItem:output_type -> home.lists.v1.EditItemResponse
+	33, // 94: home.lists.v1.ListService.DeleteItem:output_type -> home.lists.v1.DeleteItemResponse
+	35, // 95: home.lists.v1.ListService.SetCompleted:output_type -> home.lists.v1.SetCompletedResponse
+	37, // 96: home.lists.v1.ListService.MoveItem:output_type -> home.lists.v1.MoveItemResponse
+	42, // 97: home.lists.v1.ListService.WatchLists:output_type -> home.lists.v1.WatchListsResponse
+	83, // [83:98] is the sub-list for method output_type
+	68, // [68:83] is the sub-list for method input_type
+	68, // [68:68] is the sub-list for extension type_name
+	68, // [68:68] is the sub-list for extension extendee
+	0,  // [0:68] is the sub-list for field type_name
 }
 
 func init() { file_home_lists_v1_lists_proto_init() }
@@ -2972,17 +2824,16 @@ func file_home_lists_v1_lists_proto_init() {
 		(*ItemPayload_DueDate)(nil),
 		(*ItemPayload_DueInstant)(nil),
 	}
-	file_home_lists_v1_lists_proto_msgTypes[9].OneofWrappers = []any{}
-	file_home_lists_v1_lists_proto_msgTypes[34].OneofWrappers = []any{}
-	file_home_lists_v1_lists_proto_msgTypes[36].OneofWrappers = []any{
+	file_home_lists_v1_lists_proto_msgTypes[33].OneofWrappers = []any{}
+	file_home_lists_v1_lists_proto_msgTypes[35].OneofWrappers = []any{
 		(*MoveItemRequest_AtStart)(nil),
 		(*MoveItemRequest_AfterUid)(nil),
 	}
-	file_home_lists_v1_lists_proto_msgTypes[38].OneofWrappers = []any{
+	file_home_lists_v1_lists_proto_msgTypes[37].OneofWrappers = []any{
 		(*WatchListsRequest_Catalog)(nil),
 		(*WatchListsRequest_ListId)(nil),
 	}
-	file_home_lists_v1_lists_proto_msgTypes[42].OneofWrappers = []any{
+	file_home_lists_v1_lists_proto_msgTypes[41].OneofWrappers = []any{
 		(*WatchListsResponse_Ready)(nil),
 		(*WatchListsResponse_Changed)(nil),
 		(*WatchListsResponse_ResyncRequired)(nil),
@@ -2992,8 +2843,8 @@ func file_home_lists_v1_lists_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_lists_v1_lists_proto_rawDesc), len(file_home_lists_v1_lists_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   43,
+			NumEnums:      1,
+			NumMessages:   42,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

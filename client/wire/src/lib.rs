@@ -1,5 +1,9 @@
 //! Protobuf codec boundary; no transport or UI.
 #![deny(clippy::wildcard_enum_match_arm)]
+/// Google's canonical RPC error types, generated from the locked upstream schema.
+#[allow(clippy::all)]
+#[rustfmt::skip]
+pub mod google { pub mod rpc { include!("generated/google.rpc.rs"); } }
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod home {
@@ -40,6 +44,7 @@ pub mod home {
 
 pub mod actions_contract;
 pub mod api_contract;
+pub mod api_errors;
 pub mod auth_contract;
 pub mod authorization_contract;
 pub mod calendars_contract;

@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/domain"
 )
 
@@ -48,7 +49,7 @@ func (e *Error) Code() Code {
 func failure(code Code) error { return &Error{code: code} }
 func IsCode(err error, code Code) bool {
 	var target *Error
-	return errors.As(err, &target) && target.code == code
+	return errors.As(err, &target) && target != nil && target.code == code
 }
 
 type Origin uint8
@@ -223,17 +224,25 @@ type ItemPayload struct {
 }
 
 func NewItemPayload(input ItemInput) (ItemPayload, error) {
+	var issues []InputViolation
 	if !validText(input.Summary, MaxNameBytes, true) {
-		return ItemPayload{}, failure(Invalid)
+		issues = append(issues, InputViolation{"summary", api.ValidationReason_VALIDATION_REASON_INVALID_FORMAT})
 	}
 	if input.Description != nil && !validDescription(*input.Description) {
-		return ItemPayload{}, failure(Invalid)
+		issues = append(issues, InputViolation{"description", api.ValidationReason_VALIDATION_REASON_INVALID_FORMAT})
 	}
 	if _, _, _, err := input.Due.Values(); err != nil {
-		return ItemPayload{}, err
+		issues = append(issues, InputViolation{"", api.ValidationReason_VALIDATION_REASON_INVALID_FORMAT})
 	}
-	if input.CompletedAt != nil && (!validPGInstant(*input.CompletedAt) || !input.Completed) {
-		return ItemPayload{}, failure(Invalid)
+	if input.CompletedAt != nil {
+		if !validPGInstant(*input.CompletedAt) {
+			issues = append(issues, InputViolation{"completed_at", api.ValidationReason_VALIDATION_REASON_INVALID_FORMAT})
+		} else if !input.Completed {
+			issues = append(issues, InputViolation{"completed_at", api.ValidationReason_VALIDATION_REASON_INCONSISTENT_FIELDS})
+		}
+	}
+	if len(issues) != 0 {
+		return ItemPayload{}, &InputValidationError{issues: issues}
 	}
 	p := ItemPayload{summary: strings.Clone(input.Summary), completed: input.Completed, due: input.Due, valid: true}
 	if input.Description != nil {

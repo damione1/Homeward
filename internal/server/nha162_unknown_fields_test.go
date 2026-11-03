@@ -54,19 +54,14 @@ func nha162AssertInvalidItemAdmission(t *testing.T, err error) {
 		return
 	}
 	structured, ok := err.(*connect.Error)
-	if !ok || len(structured.Details()) != 1 {
-		t.Error("unknown payload lost its structured Invalid detail:", err)
+	if !ok || len(structured.Details()) < 1 || len(structured.Details()) > 2 {
+		t.Error("unknown payload lost its structured validation error:", err)
 		return
 	}
-	value, decodeErr := structured.Details()[0].Value()
-	if decodeErr != nil {
-		t.Error(decodeErr)
-		return
+	if nha200Info(t, err).Reason != "VALIDATION_FAILED" {
+		t.Error("canonical validation reason missing")
 	}
-	detail, ok := value.(*listsv1.ListError)
-	if !ok || detail.Code != listsv1.ListErrorCode_LIST_ERROR_CODE_INVALID {
-		t.Errorf("unknown payload was not rejected at domain admission: %v", value)
-	}
+
 }
 
 func TestNHA162BinaryUnknownItemPayloadRejectsAddAndEditWithoutMutation(t *testing.T) {

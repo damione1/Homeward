@@ -656,7 +656,7 @@ impl State {
                     draft.phase = DraftPhase::Unknown;
                 }
             }
-            ListWriteOutcome::CommittedResponseWithheld | ListWriteOutcome::AuthorityTerminated => {
+            ListWriteOutcome::AuthorityTerminated => {
                 self.clear();
                 self.notice =
                     "Access changed. Private data was removed; no writes will be replayed.";

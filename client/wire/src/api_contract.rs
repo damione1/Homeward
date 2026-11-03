@@ -57,7 +57,7 @@ pub fn parse_command(request: &wire::ExecuteCapabilityRequest) -> Result<Command
             ),
             None => return Err(reject("level", ViolationKind::MissingIntent)),
         },
-        None => return Err(reject("command", ViolationKind::MissingIntent)),
+        None => return Err(reject("", ViolationKind::MissingIntent)),
     };
     let request_id = if request.request_id.is_empty() {
         None

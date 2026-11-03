@@ -64,7 +64,7 @@ pub struct ActionSnapshot {
     pub submission: SubmissionState,
     pub live: LiveState,
     pub response: Option<wire::CommandResponse>,
-    pub failure: Option<wire::ActionOperationFailure>,
+    pub failure: Option<home_wire_contract::api_errors::ApiFailure>,
     pub durable: Option<wire::DurableActionResult>,
     pub progress: Option<wire::ActionProgress>,
     pub issue: Option<TrackingIssue>,
@@ -404,7 +404,7 @@ async fn execute(
             }
         }
         Err(failure) => {
-            let detail = failure.action_operation_failure().ok().flatten();
+            let detail = failure.api_failure().ok().flatten().cloned();
             entry.update(Some(TrackingIssue::Transport(failure.kind())), |record| {
                 if record.submission_uncertain(detail).is_err() {
                     let _ = record.submission_uncertain(None);

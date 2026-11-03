@@ -85,13 +85,50 @@ fn ack_and_even_a_dispatch_record_named_confirmed_are_not_physical_confirmation(
 fn lost_submit_and_read_only_recovery_keep_the_exact_id_without_rearming_submission() {
     let mut action = record();
     action.begin_submission().unwrap();
+    use home_wire_contract::{
+        api_errors::{DOMAIN, admit_status},
+        google::rpc::{Code, ErrorInfo, Status},
+        home::api::v2::{ExecutionUncertainty, ReconciliationDisposition, UncertaintyPhase},
+    };
+    let status = Status {
+        code: Code::UNKNOWN as i32,
+        details: vec![
+            buffa_types::google::protobuf::Any {
+                type_url: ErrorInfo::TYPE_URL.into(),
+                value: ErrorInfo {
+                    domain: DOMAIN.into(),
+                    reason: "COMMIT_OUTCOME_UNKNOWN".into(),
+                    ..Default::default()
+                }
+                .encode_to_vec()
+                .into(),
+                ..Default::default()
+            },
+            buffa_types::google::protobuf::Any {
+                type_url: ExecutionUncertainty::TYPE_URL.into(),
+                value: ExecutionUncertainty {
+                    phase: UncertaintyPhase::Commit.into(),
+                    disposition: ReconciliationDisposition::ReconcileOnly.into(),
+                    ..Default::default()
+                }
+                .encode_to_vec()
+                .into(),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
     action
-        .submission_uncertain(Some(wire::ActionOperationFailure {
-            kind: wire::ActionOperationFailureKind::CommitOutcomeUnknown.into(),
-            response: Some(response(wire::ActionStatus::Acknowledged)).into(),
-            ..Default::default()
-        }))
+        .submission_uncertain(Some(admit_status(&status).unwrap()))
         .unwrap();
+    assert!(
+        action.response().is_none(),
+        "an error must not manufacture an ACK"
+    );
+    assert_eq!(
+        action.operation_failure().unwrap().uncertainty(),
+        Some(UncertaintyPhase::Commit)
+    );
     assert_eq!(action.submission(), SubmissionState::Uncertain);
     assert_eq!(action.id().as_str(), ID);
     action

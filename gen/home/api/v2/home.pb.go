@@ -258,29 +258,45 @@ const (
 	ValidationReason_VALIDATION_REASON_INVALID_DEADLINE ValidationReason = 6
 	// Executable input contains an unrecognized field, including nested input.
 	ValidationReason_VALIDATION_REASON_UNKNOWN_FIELD ValidationReason = 7
+	// A mandatory value was not supplied with the required presence.
+	ValidationReason_VALIDATION_REASON_REQUIRED_VALUE ValidationReason = 8
+	// A supplied value does not match the documented syntax or representation.
+	ValidationReason_VALIDATION_REASON_INVALID_FORMAT ValidationReason = 9
+	// Individually valid fields do not form a valid combined intention.
+	ValidationReason_VALIDATION_REASON_INCONSISTENT_FIELDS ValidationReason = 10
+	// An update mask names an unsupported or malformed field selection.
+	ValidationReason_VALIDATION_REASON_INVALID_MASK ValidationReason = 11
 )
 
 // Enum value maps for ValidationReason.
 var (
 	ValidationReason_name = map[int32]string{
-		0: "VALIDATION_REASON_UNSPECIFIED",
-		1: "VALIDATION_REASON_INVALID_NAME",
-		2: "VALIDATION_REASON_MISSING_INTENT",
-		3: "VALIDATION_REASON_UNKNOWN_VALUE",
-		4: "VALIDATION_REASON_OUT_OF_RANGE",
-		5: "VALIDATION_REASON_INVALID_REQUEST_ID",
-		6: "VALIDATION_REASON_INVALID_DEADLINE",
-		7: "VALIDATION_REASON_UNKNOWN_FIELD",
+		0:  "VALIDATION_REASON_UNSPECIFIED",
+		1:  "VALIDATION_REASON_INVALID_NAME",
+		2:  "VALIDATION_REASON_MISSING_INTENT",
+		3:  "VALIDATION_REASON_UNKNOWN_VALUE",
+		4:  "VALIDATION_REASON_OUT_OF_RANGE",
+		5:  "VALIDATION_REASON_INVALID_REQUEST_ID",
+		6:  "VALIDATION_REASON_INVALID_DEADLINE",
+		7:  "VALIDATION_REASON_UNKNOWN_FIELD",
+		8:  "VALIDATION_REASON_REQUIRED_VALUE",
+		9:  "VALIDATION_REASON_INVALID_FORMAT",
+		10: "VALIDATION_REASON_INCONSISTENT_FIELDS",
+		11: "VALIDATION_REASON_INVALID_MASK",
 	}
 	ValidationReason_value = map[string]int32{
-		"VALIDATION_REASON_UNSPECIFIED":        0,
-		"VALIDATION_REASON_INVALID_NAME":       1,
-		"VALIDATION_REASON_MISSING_INTENT":     2,
-		"VALIDATION_REASON_UNKNOWN_VALUE":      3,
-		"VALIDATION_REASON_OUT_OF_RANGE":       4,
-		"VALIDATION_REASON_INVALID_REQUEST_ID": 5,
-		"VALIDATION_REASON_INVALID_DEADLINE":   6,
-		"VALIDATION_REASON_UNKNOWN_FIELD":      7,
+		"VALIDATION_REASON_UNSPECIFIED":         0,
+		"VALIDATION_REASON_INVALID_NAME":        1,
+		"VALIDATION_REASON_MISSING_INTENT":      2,
+		"VALIDATION_REASON_UNKNOWN_VALUE":       3,
+		"VALIDATION_REASON_OUT_OF_RANGE":        4,
+		"VALIDATION_REASON_INVALID_REQUEST_ID":  5,
+		"VALIDATION_REASON_INVALID_DEADLINE":    6,
+		"VALIDATION_REASON_UNKNOWN_FIELD":       7,
+		"VALIDATION_REASON_REQUIRED_VALUE":      8,
+		"VALIDATION_REASON_INVALID_FORMAT":      9,
+		"VALIDATION_REASON_INCONSISTENT_FIELDS": 10,
+		"VALIDATION_REASON_INVALID_MASK":        11,
 	}
 )
 
@@ -1672,7 +1688,7 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	"Provenance\x12\x1a\n" +
 	"\x16PROVENANCE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13PROVENANCE_OBSERVED\x10\x01\x12\x16\n" +
-	"\x12PROVENANCE_DERIVED\x10\x02*\xbf\x02\n" +
+	"\x12PROVENANCE_DERIVED\x10\x02*\xda\x03\n" +
 	"\x10ValidationReason\x12!\n" +
 	"\x1dVALIDATION_REASON_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eVALIDATION_REASON_INVALID_NAME\x10\x01\x12$\n" +
@@ -1681,7 +1697,12 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	"\x1eVALIDATION_REASON_OUT_OF_RANGE\x10\x04\x12(\n" +
 	"$VALIDATION_REASON_INVALID_REQUEST_ID\x10\x05\x12&\n" +
 	"\"VALIDATION_REASON_INVALID_DEADLINE\x10\x06\x12#\n" +
-	"\x1fVALIDATION_REASON_UNKNOWN_FIELD\x10\a2\xdf\x05\n" +
+	"\x1fVALIDATION_REASON_UNKNOWN_FIELD\x10\a\x12$\n" +
+	" VALIDATION_REASON_REQUIRED_VALUE\x10\b\x12$\n" +
+	" VALIDATION_REASON_INVALID_FORMAT\x10\t\x12)\n" +
+	"%VALIDATION_REASON_INCONSISTENT_FIELDS\x10\n" +
+	"\x12\"\n" +
+	"\x1eVALIDATION_REASON_INVALID_MASK\x10\v2\xdf\x05\n" +
 	"\vHomeService\x12m\n" +
 	"\tGetEntity\x12\x1d.home.api.v2.GetEntityRequest\x1a\x13.home.api.v2.Entity\",\xdaA\x04name\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v2/{name=homes/*/entities/*}\x12\x83\x01\n" +
 	"\fListEntities\x12 .home.api.v2.ListEntitiesRequest\x1a!.home.api.v2.ListEntitiesResponse\".\xdaA\x06parent\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v2/{parent=homes/*}/entities\x12\x90\x01\n" +

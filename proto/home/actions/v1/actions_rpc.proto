@@ -58,30 +58,6 @@ message WatchActionResponse {
     NoLiveActionProgress unavailable = 3;
   }
 }
-enum ActionOperationFailureKind {
-  ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED = 0;
-  ACTION_OPERATION_FAILURE_KIND_LEDGER_UNAVAILABLE = 1;
-  ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN = 2;
-  ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE = 3;
-  ACTION_OPERATION_FAILURE_KIND_ID_CONFLICT = 4;
-  ACTION_OPERATION_FAILURE_KIND_POLICY_CONFLICT = 5;
-  ACTION_OPERATION_FAILURE_KIND_ROUTE_BUSY = 6;
-  ACTION_OPERATION_FAILURE_KIND_ROUTE_UNAVAILABLE = 7;
-  ACTION_OPERATION_FAILURE_KIND_CAPACITY = 8;
-  ACTION_OPERATION_FAILURE_KIND_CANCELLED = 9;
-  ACTION_OPERATION_FAILURE_KIND_DEADLINE = 10;
-  ACTION_OPERATION_FAILURE_KIND_RESULT_UNAVAILABLE = 11;
-  ACTION_OPERATION_FAILURE_KIND_INTENT_TOO_LARGE = 12;
-  ACTION_OPERATION_FAILURE_KIND_CLIENT_SLOW = 13;
-}
-// Connect error detail. A Go response+error keeps its response here. Neither
-// the Connect code nor absence of response establishes that no effect occurred.
-// The client may consult the same command_id; it must not silently resubmit.
-message ActionOperationFailure {
-  ActionOperationFailureKind kind = 1;
-  CommandResponse response = 2;
-}
-
 service ActionService {
   rpc SubmitAction(SubmitActionRequest) returns (SubmitActionResponse);
   rpc GetAction(GetActionRequest) returns (GetActionResponse);

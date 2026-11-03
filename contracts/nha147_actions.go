@@ -140,34 +140,6 @@ func AdmitWatchActionResponse(response *actions.WatchActionResponse) error {
 	}
 	return ErrInvalidActionRPC
 }
-func AdmitActionOperationFailure(detail *actions.ActionOperationFailure) error {
-	if detail == nil || !knownFieldsOnly(detail.ProtoReflect()) {
-		return ErrInvalidActionRPC
-	}
-	if detail.Response != nil && !validActionStatus(detail.Response.Status) {
-		return ErrInvalidActionRPC
-	}
-	switch detail.Kind {
-	case actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_LEDGER_UNAVAILABLE,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_ID_CONFLICT,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_POLICY_CONFLICT,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_ROUTE_BUSY,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_ROUTE_UNAVAILABLE,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_CAPACITY,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_CANCELLED,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_DEADLINE,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_RESULT_UNAVAILABLE,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_INTENT_TOO_LARGE,
-		actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_CLIENT_SLOW:
-		return nil
-	case actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED:
-		return ErrInvalidActionRPC
-	default:
-		return ErrInvalidActionRPC
-	}
-}
 
 // ActionResponseCopy owns the response before it crosses the public boundary.
 func ActionResponseCopy(response *actions.CommandResponse) *actions.CommandResponse {

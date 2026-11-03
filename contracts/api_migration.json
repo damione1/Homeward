@@ -15,7 +15,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-201",
       "target": "ExecuteCapability / google.longrunning.Operations",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -25,7 +25,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-201",
       "target": "ExecuteCapability / google.longrunning.Operations",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -35,7 +35,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-201",
       "target": "ExecuteCapability / google.longrunning.Operations",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -45,7 +45,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -55,7 +55,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -65,7 +65,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -75,7 +75,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -85,7 +85,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -95,7 +95,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -105,7 +105,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -115,7 +115,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -125,7 +125,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -135,7 +135,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -145,7 +145,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -155,7 +155,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -165,7 +165,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -175,7 +175,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -185,7 +185,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -195,7 +195,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -205,7 +205,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -215,7 +215,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -225,7 +225,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -235,7 +235,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -245,7 +245,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -255,7 +255,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -265,7 +265,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -275,7 +275,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -285,7 +285,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -295,7 +295,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -305,7 +305,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -315,7 +315,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -325,7 +325,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Account / Session / Factor / AuthorizationPolicy and auth transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -335,7 +335,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Calendar / CalendarEvent / occurrences",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -345,7 +345,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Calendar / CalendarEvent / occurrences",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -355,7 +355,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Calendar / CalendarEvent / occurrences",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -365,7 +365,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Calendar / CalendarEvent / occurrences",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -375,7 +375,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Calendar / CalendarEvent / occurrences",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -385,7 +385,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Calendar / CalendarEvent / occurrences",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -395,7 +395,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Calendar / CalendarEvent / occurrences",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -405,7 +405,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Calendar / CalendarEvent / occurrences",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -415,7 +415,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Camera observations and MediaSession",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -425,7 +425,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Camera observations and MediaSession",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -435,7 +435,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Camera observations and MediaSession",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -445,7 +445,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Camera observations and MediaSession",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -455,7 +455,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Camera observations and MediaSession",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -465,7 +465,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Camera observations and MediaSession",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -475,7 +475,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "Camera observations and MediaSession",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -485,7 +485,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "CompanionDevice and enrollment transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -495,7 +495,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "CompanionDevice and enrollment transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -505,7 +505,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "CompanionDevice and enrollment transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -515,7 +515,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "CompanionDevice and enrollment transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -525,7 +525,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "CompanionDevice and enrollment transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -535,7 +535,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "CompanionDevice and enrollment transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -545,7 +545,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ConfigurationDocument / Revision",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -555,7 +555,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ConfigurationDocument / Revision",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -565,7 +565,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ConfigurationDocument / Revision",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -575,7 +575,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ConfigurationDocument / Revision",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -585,7 +585,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ConfigurationDocument / Revision",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -595,7 +595,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ConfigurationDocument / Revision",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -605,7 +605,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ConfigurationDocument / Revision",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -615,7 +615,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ConfigurationDocument / Revision",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -625,7 +625,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ApplyConfigurationPlan / Operation",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -635,7 +635,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ApplyConfigurationPlan / Operation",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -645,7 +645,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ConfigurationPlan",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -655,7 +655,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "ConfigurationPlan",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -665,7 +665,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "SimulateConfigurationPlan",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -675,7 +675,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Dashboard / authorized projection",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -685,7 +685,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Dashboard / authorized projection",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -695,7 +695,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Dashboard / authorized projection",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -705,7 +705,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Dashboard / authorized projection",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -715,7 +715,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Dashboard / authorized projection",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -725,7 +725,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Dashboard / authorized projection",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -735,7 +735,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "typed observation / operation history queries",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -745,7 +745,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "typed observation / operation history queries",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -755,7 +755,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "typed observation / operation history queries",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -765,7 +765,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "IntegrationType / IntegrationInstance and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -775,7 +775,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "IntegrationType / IntegrationInstance and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -785,7 +785,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "IntegrationType / IntegrationInstance and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -795,7 +795,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "IntegrationType / IntegrationInstance and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -805,7 +805,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "IntegrationType / IntegrationInstance and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -815,7 +815,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "IntegrationType / IntegrationInstance and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -825,7 +825,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "IntegrationType / IntegrationInstance and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -835,7 +835,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "IntegrationType / IntegrationInstance and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -935,7 +935,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -945,7 +945,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -955,7 +955,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -965,7 +965,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -975,7 +975,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -985,7 +985,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -995,7 +995,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1005,7 +1005,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1015,7 +1015,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1025,7 +1025,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1035,7 +1035,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1045,7 +1045,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1055,7 +1055,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1065,7 +1065,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1075,7 +1075,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "TaskList / Task CRUD and MoveTask",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1085,7 +1085,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Automation / Run and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1095,7 +1095,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Automation / Run and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1105,7 +1105,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Automation / Run and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1115,7 +1115,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Automation / Run and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1125,7 +1125,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Automation / Run and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1135,7 +1135,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "Automation / Run and transitions",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1145,7 +1145,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "MediaSession and authorized byte reads",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1155,7 +1155,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-202",
       "target": "MediaSession and authorized byte reads",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1165,7 +1165,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "NotificationDestination / Delivery / Receipt",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1175,7 +1175,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "NotificationDestination / Delivery / Receipt",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1185,7 +1185,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "NotificationDestination / Delivery / Receipt",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1195,7 +1195,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "NotificationDestination / Delivery / Receipt",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1205,7 +1205,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "NotificationDestination / Delivery / Receipt",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1215,7 +1215,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "NotificationDestination / Delivery / Receipt",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1225,7 +1225,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "NotificationDestination / Delivery / Receipt",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1235,7 +1235,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "NotificationDestination / Delivery / Receipt",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1245,7 +1245,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "NotificationDestination / Delivery / Receipt",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1255,7 +1255,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "typed status / health / trace projections",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1265,7 +1265,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "typed status / health / trace projections",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1275,7 +1275,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "typed status / health / trace projections",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1285,7 +1285,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "typed status / health / trace projections",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1295,7 +1295,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "typed status / health / trace projections",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1305,7 +1305,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "typed status / health / trace projections",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1315,7 +1315,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-203",
       "target": "typed status / health / trace projections",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1325,7 +1325,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-201",
       "target": "EntityView Create/Get/List/Read/Watch/Delete",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1335,7 +1335,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-201",
       "target": "EntityView Create/Get/List/Read/Watch/Delete",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1345,7 +1345,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-201",
       "target": "EntityView Create/Get/List/Read/Watch/Delete",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     },
     {
@@ -1355,7 +1355,7 @@
       "visibility": "public",
       "migration_ticket": "NHA-201",
       "target": "EntityView Create/Get/List/Read/Watch/Delete",
-      "state": "compatibility-v1",
+      "state": "pending-replacement",
       "v2_implemented": false
     }
   ]

@@ -39,6 +39,7 @@ pub use connectrpc::ErrorCode as RpcCode;
 pub use dashboard::{DashboardTransport, DashboardWatch};
 pub use failure::{DetailFailure, Failure, FailureKind};
 pub use history::HistoryTransport;
+pub use home_wire_contract::api_errors::{ApiFailure, InvalidApiError};
 pub use lists::{ListTransport, ListWatch};
 pub use logic::LogicTransport;
 pub use media::MediaTransport;

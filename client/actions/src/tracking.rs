@@ -1,4 +1,5 @@
 use crate::CommandId;
+use home_wire_contract::api_errors::ApiFailure;
 use home_wire_contract::{actions_contract as admit, home::actions::v1 as wire};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,7 +44,7 @@ pub struct ActionRecord {
     config_revision: u64,
     submission: SubmissionState,
     response: Option<wire::CommandResponse>,
-    failure: Option<wire::ActionOperationFailure>,
+    failure: Option<ApiFailure>,
     durable: Option<wire::DurableActionResult>,
     live: LiveState,
     progress: Option<wire::ActionProgress>,
@@ -87,7 +88,7 @@ impl ActionRecord {
     pub fn response(&self) -> Option<&wire::CommandResponse> {
         self.response.as_ref()
     }
-    pub fn operation_failure(&self) -> Option<&wire::ActionOperationFailure> {
+    pub fn operation_failure(&self) -> Option<&ApiFailure> {
         self.failure.as_ref()
     }
     pub fn durable(&self) -> Option<&wire::DurableActionResult> {
@@ -143,21 +144,14 @@ impl ActionRecord {
     /// that changes this record back into a fresh submission opportunity.
     pub fn submission_uncertain(
         &mut self,
-        detail: Option<wire::ActionOperationFailure>,
+        detail: Option<ApiFailure>,
     ) -> Result<(), TrackingError> {
         if self.submission != SubmissionState::InFlight {
             return Err(TrackingError::AlreadySubmitted);
         }
-        if let Some(detail) = &detail {
-            admit::operation_failure(detail).map_err(|_| TrackingError::InvalidResponse)?;
-            if let Some(response) = detail.response.as_option() {
-                self.check_id(response)?;
-            }
-        }
-        self.response = detail
-            .as_ref()
-            .and_then(|detail| detail.response.as_option())
-            .cloned();
+        // An error carries no acknowledged response. Consult the durable ledger
+        // with this record's existing command ID; never reopen submission.
+        self.response = None;
         self.failure = detail;
         self.submission = SubmissionState::Uncertain;
         Ok(())

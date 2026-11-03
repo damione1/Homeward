@@ -140,88 +140,6 @@ func (DurableActionError) EnumDescriptor() ([]byte, []int) {
 	return file_home_actions_v1_actions_rpc_proto_rawDescGZIP(), []int{1}
 }
 
-type ActionOperationFailureKind int32
-
-const (
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED            ActionOperationFailureKind = 0
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_LEDGER_UNAVAILABLE     ActionOperationFailureKind = 1
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN ActionOperationFailureKind = 2
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE  ActionOperationFailureKind = 3
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_ID_CONFLICT            ActionOperationFailureKind = 4
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_POLICY_CONFLICT        ActionOperationFailureKind = 5
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_ROUTE_BUSY             ActionOperationFailureKind = 6
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_ROUTE_UNAVAILABLE      ActionOperationFailureKind = 7
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_CAPACITY               ActionOperationFailureKind = 8
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_CANCELLED              ActionOperationFailureKind = 9
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_DEADLINE               ActionOperationFailureKind = 10
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_RESULT_UNAVAILABLE     ActionOperationFailureKind = 11
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_INTENT_TOO_LARGE       ActionOperationFailureKind = 12
-	ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_CLIENT_SLOW            ActionOperationFailureKind = 13
-)
-
-// Enum value maps for ActionOperationFailureKind.
-var (
-	ActionOperationFailureKind_name = map[int32]string{
-		0:  "ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED",
-		1:  "ACTION_OPERATION_FAILURE_KIND_LEDGER_UNAVAILABLE",
-		2:  "ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN",
-		3:  "ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE",
-		4:  "ACTION_OPERATION_FAILURE_KIND_ID_CONFLICT",
-		5:  "ACTION_OPERATION_FAILURE_KIND_POLICY_CONFLICT",
-		6:  "ACTION_OPERATION_FAILURE_KIND_ROUTE_BUSY",
-		7:  "ACTION_OPERATION_FAILURE_KIND_ROUTE_UNAVAILABLE",
-		8:  "ACTION_OPERATION_FAILURE_KIND_CAPACITY",
-		9:  "ACTION_OPERATION_FAILURE_KIND_CANCELLED",
-		10: "ACTION_OPERATION_FAILURE_KIND_DEADLINE",
-		11: "ACTION_OPERATION_FAILURE_KIND_RESULT_UNAVAILABLE",
-		12: "ACTION_OPERATION_FAILURE_KIND_INTENT_TOO_LARGE",
-		13: "ACTION_OPERATION_FAILURE_KIND_CLIENT_SLOW",
-	}
-	ActionOperationFailureKind_value = map[string]int32{
-		"ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED":            0,
-		"ACTION_OPERATION_FAILURE_KIND_LEDGER_UNAVAILABLE":     1,
-		"ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN": 2,
-		"ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE":  3,
-		"ACTION_OPERATION_FAILURE_KIND_ID_CONFLICT":            4,
-		"ACTION_OPERATION_FAILURE_KIND_POLICY_CONFLICT":        5,
-		"ACTION_OPERATION_FAILURE_KIND_ROUTE_BUSY":             6,
-		"ACTION_OPERATION_FAILURE_KIND_ROUTE_UNAVAILABLE":      7,
-		"ACTION_OPERATION_FAILURE_KIND_CAPACITY":               8,
-		"ACTION_OPERATION_FAILURE_KIND_CANCELLED":              9,
-		"ACTION_OPERATION_FAILURE_KIND_DEADLINE":               10,
-		"ACTION_OPERATION_FAILURE_KIND_RESULT_UNAVAILABLE":     11,
-		"ACTION_OPERATION_FAILURE_KIND_INTENT_TOO_LARGE":       12,
-		"ACTION_OPERATION_FAILURE_KIND_CLIENT_SLOW":            13,
-	}
-)
-
-func (x ActionOperationFailureKind) Enum() *ActionOperationFailureKind {
-	p := new(ActionOperationFailureKind)
-	*p = x
-	return p
-}
-
-func (x ActionOperationFailureKind) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ActionOperationFailureKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_actions_v1_actions_rpc_proto_enumTypes[2].Descriptor()
-}
-
-func (ActionOperationFailureKind) Type() protoreflect.EnumType {
-	return &file_home_actions_v1_actions_rpc_proto_enumTypes[2]
-}
-
-func (x ActionOperationFailureKind) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ActionOperationFailureKind.Descriptor instead.
-func (ActionOperationFailureKind) EnumDescriptor() ([]byte, []int) {
-	return file_home_actions_v1_actions_rpc_proto_rawDescGZIP(), []int{2}
-}
-
 // These RPC messages deliberately do not change the Host descriptor graph.
 // Authentication and the actor come exclusively from the common transport.
 type SubmitActionRequest struct {
@@ -747,61 +665,6 @@ func (*WatchActionResponse_Progress) isWatchActionResponse_Frame() {}
 
 func (*WatchActionResponse_Unavailable) isWatchActionResponse_Frame() {}
 
-// Connect error detail. A Go response+error keeps its response here. Neither
-// the Connect code nor absence of response establishes that no effect occurred.
-// The client may consult the same command_id; it must not silently resubmit.
-type ActionOperationFailure struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
-	Kind          ActionOperationFailureKind `protobuf:"varint,1,opt,name=kind,proto3,enum=home.actions.v1.ActionOperationFailureKind" json:"kind,omitempty"`
-	Response      *CommandResponse           `protobuf:"bytes,2,opt,name=response,proto3" json:"response,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ActionOperationFailure) Reset() {
-	*x = ActionOperationFailure{}
-	mi := &file_home_actions_v1_actions_rpc_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ActionOperationFailure) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ActionOperationFailure) ProtoMessage() {}
-
-func (x *ActionOperationFailure) ProtoReflect() protoreflect.Message {
-	mi := &file_home_actions_v1_actions_rpc_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ActionOperationFailure.ProtoReflect.Descriptor instead.
-func (*ActionOperationFailure) Descriptor() ([]byte, []int) {
-	return file_home_actions_v1_actions_rpc_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *ActionOperationFailure) GetKind() ActionOperationFailureKind {
-	if x != nil {
-		return x.Kind
-	}
-	return ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED
-}
-
-func (x *ActionOperationFailure) GetResponse() *CommandResponse {
-	if x != nil {
-		return x.Response
-	}
-	return nil
-}
-
 var File_home_actions_v1_actions_rpc_proto protoreflect.FileDescriptor
 
 const file_home_actions_v1_actions_rpc_proto_rawDesc = "" +
@@ -836,10 +699,7 @@ const file_home_actions_v1_actions_rpc_proto_rawDesc = "" +
 	"\x0fstream_sequence\x18\x01 \x01(\x04R\x0estreamSequence\x12=\n" +
 	"\bprogress\x18\x02 \x01(\v2\x1f.home.actions.v1.ActionProgressH\x00R\bprogress\x12I\n" +
 	"\vunavailable\x18\x03 \x01(\v2%.home.actions.v1.NoLiveActionProgressH\x00R\vunavailableB\a\n" +
-	"\x05frame\"\x97\x01\n" +
-	"\x16ActionOperationFailure\x12?\n" +
-	"\x04kind\x18\x01 \x01(\x0e2+.home.actions.v1.ActionOperationFailureKindR\x04kind\x12<\n" +
-	"\bresponse\x18\x02 \x01(\v2 .home.actions.v1.CommandResponseR\bresponse*\xcc\x01\n" +
+	"\x05frame*\xcc\x01\n" +
 	"\x12DurableActionState\x12$\n" +
 	" DURABLE_ACTION_STATE_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dDURABLE_ACTION_STATE_ACCEPTED\x10\x01\x12$\n" +
@@ -854,23 +714,7 @@ const file_home_actions_v1_actions_rpc_proto_rawDesc = "" +
 	"\x1eDURABLE_ACTION_ERROR_CANCELLED\x10\x04\x12!\n" +
 	"\x1dDURABLE_ACTION_ERROR_DEADLINE\x10\x05\x12\x1e\n" +
 	"\x1aDURABLE_ACTION_ERROR_OTHER\x10\x06\x12.\n" +
-	"*DURABLE_ACTION_ERROR_OUTCOME_INDETERMINATE\x10\a*\xd7\x05\n" +
-	"\x1aActionOperationFailureKind\x12-\n" +
-	")ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED\x10\x00\x124\n" +
-	"0ACTION_OPERATION_FAILURE_KIND_LEDGER_UNAVAILABLE\x10\x01\x128\n" +
-	"4ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN\x10\x02\x127\n" +
-	"3ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE\x10\x03\x12-\n" +
-	")ACTION_OPERATION_FAILURE_KIND_ID_CONFLICT\x10\x04\x121\n" +
-	"-ACTION_OPERATION_FAILURE_KIND_POLICY_CONFLICT\x10\x05\x12,\n" +
-	"(ACTION_OPERATION_FAILURE_KIND_ROUTE_BUSY\x10\x06\x123\n" +
-	"/ACTION_OPERATION_FAILURE_KIND_ROUTE_UNAVAILABLE\x10\a\x12*\n" +
-	"&ACTION_OPERATION_FAILURE_KIND_CAPACITY\x10\b\x12+\n" +
-	"'ACTION_OPERATION_FAILURE_KIND_CANCELLED\x10\t\x12*\n" +
-	"&ACTION_OPERATION_FAILURE_KIND_DEADLINE\x10\n" +
-	"\x124\n" +
-	"0ACTION_OPERATION_FAILURE_KIND_RESULT_UNAVAILABLE\x10\v\x122\n" +
-	".ACTION_OPERATION_FAILURE_KIND_INTENT_TOO_LARGE\x10\f\x12-\n" +
-	")ACTION_OPERATION_FAILURE_KIND_CLIENT_SLOW\x10\r2\x9c\x02\n" +
+	"*DURABLE_ACTION_ERROR_OUTCOME_INDETERMINATE\x10\a2\x9c\x02\n" +
 	"\rActionService\x12[\n" +
 	"\fSubmitAction\x12$.home.actions.v1.SubmitActionRequest\x1a%.home.actions.v1.SubmitActionResponse\x12R\n" +
 	"\tGetAction\x12!.home.actions.v1.GetActionRequest\x1a\".home.actions.v1.GetActionResponse\x12Z\n" +
@@ -888,51 +732,47 @@ func file_home_actions_v1_actions_rpc_proto_rawDescGZIP() []byte {
 	return file_home_actions_v1_actions_rpc_proto_rawDescData
 }
 
-var file_home_actions_v1_actions_rpc_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_home_actions_v1_actions_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_home_actions_v1_actions_rpc_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_home_actions_v1_actions_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_home_actions_v1_actions_rpc_proto_goTypes = []any{
-	(DurableActionState)(0),         // 0: home.actions.v1.DurableActionState
-	(DurableActionError)(0),         // 1: home.actions.v1.DurableActionError
-	(ActionOperationFailureKind)(0), // 2: home.actions.v1.ActionOperationFailureKind
-	(*SubmitActionRequest)(nil),     // 3: home.actions.v1.SubmitActionRequest
-	(*SubmitActionResponse)(nil),    // 4: home.actions.v1.SubmitActionResponse
-	(*GetActionRequest)(nil),        // 5: home.actions.v1.GetActionRequest
-	(*WatchActionRequest)(nil),      // 6: home.actions.v1.WatchActionRequest
-	(*DurableActionResult)(nil),     // 7: home.actions.v1.DurableActionResult
-	(*ActionProgress)(nil),          // 8: home.actions.v1.ActionProgress
-	(*NoLiveActionProgress)(nil),    // 9: home.actions.v1.NoLiveActionProgress
-	(*GetActionResponse)(nil),       // 10: home.actions.v1.GetActionResponse
-	(*WatchActionResponse)(nil),     // 11: home.actions.v1.WatchActionResponse
-	(*ActionOperationFailure)(nil),  // 12: home.actions.v1.ActionOperationFailure
-	(*CommandRequest)(nil),          // 13: home.actions.v1.CommandRequest
-	(*CommandResponse)(nil),         // 14: home.actions.v1.CommandResponse
-	(ActionStatus)(0),               // 15: home.actions.v1.ActionStatus
+	(DurableActionState)(0),      // 0: home.actions.v1.DurableActionState
+	(DurableActionError)(0),      // 1: home.actions.v1.DurableActionError
+	(*SubmitActionRequest)(nil),  // 2: home.actions.v1.SubmitActionRequest
+	(*SubmitActionResponse)(nil), // 3: home.actions.v1.SubmitActionResponse
+	(*GetActionRequest)(nil),     // 4: home.actions.v1.GetActionRequest
+	(*WatchActionRequest)(nil),   // 5: home.actions.v1.WatchActionRequest
+	(*DurableActionResult)(nil),  // 6: home.actions.v1.DurableActionResult
+	(*ActionProgress)(nil),       // 7: home.actions.v1.ActionProgress
+	(*NoLiveActionProgress)(nil), // 8: home.actions.v1.NoLiveActionProgress
+	(*GetActionResponse)(nil),    // 9: home.actions.v1.GetActionResponse
+	(*WatchActionResponse)(nil),  // 10: home.actions.v1.WatchActionResponse
+	(*CommandRequest)(nil),       // 11: home.actions.v1.CommandRequest
+	(*CommandResponse)(nil),      // 12: home.actions.v1.CommandResponse
+	(ActionStatus)(0),            // 13: home.actions.v1.ActionStatus
 }
 var file_home_actions_v1_actions_rpc_proto_depIdxs = []int32{
-	13, // 0: home.actions.v1.SubmitActionRequest.command:type_name -> home.actions.v1.CommandRequest
-	14, // 1: home.actions.v1.SubmitActionResponse.result:type_name -> home.actions.v1.CommandResponse
+	11, // 0: home.actions.v1.SubmitActionRequest.command:type_name -> home.actions.v1.CommandRequest
+	12, // 1: home.actions.v1.SubmitActionResponse.result:type_name -> home.actions.v1.CommandResponse
 	0,  // 2: home.actions.v1.DurableActionResult.state:type_name -> home.actions.v1.DurableActionState
-	14, // 3: home.actions.v1.DurableActionResult.response:type_name -> home.actions.v1.CommandResponse
+	12, // 3: home.actions.v1.DurableActionResult.response:type_name -> home.actions.v1.CommandResponse
 	1,  // 4: home.actions.v1.DurableActionResult.error:type_name -> home.actions.v1.DurableActionError
-	15, // 5: home.actions.v1.ActionProgress.status:type_name -> home.actions.v1.ActionStatus
-	7,  // 6: home.actions.v1.GetActionResponse.durable:type_name -> home.actions.v1.DurableActionResult
-	8,  // 7: home.actions.v1.GetActionResponse.progress:type_name -> home.actions.v1.ActionProgress
-	9,  // 8: home.actions.v1.GetActionResponse.unavailable:type_name -> home.actions.v1.NoLiveActionProgress
-	8,  // 9: home.actions.v1.WatchActionResponse.progress:type_name -> home.actions.v1.ActionProgress
-	9,  // 10: home.actions.v1.WatchActionResponse.unavailable:type_name -> home.actions.v1.NoLiveActionProgress
-	2,  // 11: home.actions.v1.ActionOperationFailure.kind:type_name -> home.actions.v1.ActionOperationFailureKind
-	14, // 12: home.actions.v1.ActionOperationFailure.response:type_name -> home.actions.v1.CommandResponse
-	3,  // 13: home.actions.v1.ActionService.SubmitAction:input_type -> home.actions.v1.SubmitActionRequest
-	5,  // 14: home.actions.v1.ActionService.GetAction:input_type -> home.actions.v1.GetActionRequest
-	6,  // 15: home.actions.v1.ActionService.WatchAction:input_type -> home.actions.v1.WatchActionRequest
-	4,  // 16: home.actions.v1.ActionService.SubmitAction:output_type -> home.actions.v1.SubmitActionResponse
-	10, // 17: home.actions.v1.ActionService.GetAction:output_type -> home.actions.v1.GetActionResponse
-	11, // 18: home.actions.v1.ActionService.WatchAction:output_type -> home.actions.v1.WatchActionResponse
-	16, // [16:19] is the sub-list for method output_type
-	13, // [13:16] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	13, // 5: home.actions.v1.ActionProgress.status:type_name -> home.actions.v1.ActionStatus
+	6,  // 6: home.actions.v1.GetActionResponse.durable:type_name -> home.actions.v1.DurableActionResult
+	7,  // 7: home.actions.v1.GetActionResponse.progress:type_name -> home.actions.v1.ActionProgress
+	8,  // 8: home.actions.v1.GetActionResponse.unavailable:type_name -> home.actions.v1.NoLiveActionProgress
+	7,  // 9: home.actions.v1.WatchActionResponse.progress:type_name -> home.actions.v1.ActionProgress
+	8,  // 10: home.actions.v1.WatchActionResponse.unavailable:type_name -> home.actions.v1.NoLiveActionProgress
+	2,  // 11: home.actions.v1.ActionService.SubmitAction:input_type -> home.actions.v1.SubmitActionRequest
+	4,  // 12: home.actions.v1.ActionService.GetAction:input_type -> home.actions.v1.GetActionRequest
+	5,  // 13: home.actions.v1.ActionService.WatchAction:input_type -> home.actions.v1.WatchActionRequest
+	3,  // 14: home.actions.v1.ActionService.SubmitAction:output_type -> home.actions.v1.SubmitActionResponse
+	9,  // 15: home.actions.v1.ActionService.GetAction:output_type -> home.actions.v1.GetActionResponse
+	10, // 16: home.actions.v1.ActionService.WatchAction:output_type -> home.actions.v1.WatchActionResponse
+	14, // [14:17] is the sub-list for method output_type
+	11, // [11:14] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_home_actions_v1_actions_rpc_proto_init() }
@@ -954,8 +794,8 @@ func file_home_actions_v1_actions_rpc_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_actions_v1_actions_rpc_proto_rawDesc), len(file_home_actions_v1_actions_rpc_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   10,
+			NumEnums:      2,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -280,7 +280,7 @@ fn authority_loss_removes_every_projection_and_invalidates_late_results() {
     state.finish(
         prepared.context,
         prepared.id,
-        ListWriteOutcome::CommittedResponseWithheld,
+        ListWriteOutcome::AuthorityTerminated,
     );
     assert!(!state.active);
     assert!(state.items.is_none() && state.catalog.is_none());

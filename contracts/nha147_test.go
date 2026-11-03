@@ -62,21 +62,12 @@ func TestNHA147DurableAndLiveRemainSeparateAcrossUnknownWireValues(t *testing.T)
 	}
 }
 
-func TestNHA147IndeterminateErrorDetailRetainsResponseAndCopy(t *testing.T) {
+func TestNHA147ActionResponseCopyIsIndependent(t *testing.T) {
 	response := &actions.CommandResponse{CommandId: "nha147-unknown", Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}
-	detail := &actions.ActionOperationFailure{Kind: actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE, Response: ActionResponseCopy(response)}
+	copied := ActionResponseCopy(response)
 	response.Status = actions.ActionStatus_ACTION_STATUS_CONFIRMED
-	if detail.Response.Status != actions.ActionStatus_ACTION_STATUS_INDETERMINATE || AdmitActionOperationFailure(detail) != nil {
-		t.Fatal("outcome uncertainty was lost or aliased", detail)
-	}
-	for _, invalid := range []*actions.ActionOperationFailure{nil, {}, {Kind: actions.ActionOperationFailureKind(999)}} {
-		if AdmitActionOperationFailure(invalid) == nil {
-			t.Fatal("unknown failure kind admitted")
-		}
-	}
-	commit := &actions.ActionOperationFailure{Kind: actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN}
-	if err := AdmitActionOperationFailure(commit); err != nil {
-		t.Fatal("unknown commit incorrectly requires a fabricated response", err)
+	if copied.Status != actions.ActionStatus_ACTION_STATUS_INDETERMINATE {
+		t.Fatal("copied durable response was aliased")
 	}
 }
 

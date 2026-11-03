@@ -243,36 +243,6 @@ pub fn admit_receipt(
         Err(AdmissionError::Invalid)
     }
 }
-pub fn admit_error(value: &lists::ListError) -> Result<Admitted<lists::ListError>, AdmissionError> {
-    let known = match value.code {
-        EnumValue::Known(
-            lists::ListErrorCode::Invalid
-            | lists::ListErrorCode::Denied
-            | lists::ListErrorCode::NotFound
-            | lists::ListErrorCode::Conflict
-            | lists::ListErrorCode::StaleCursor
-            | lists::ListErrorCode::Capacity
-            | lists::ListErrorCode::Unavailable
-            | lists::ListErrorCode::CommitUnknown
-            | lists::ListErrorCode::CommittedResponseWithheld
-            | lists::ListErrorCode::Closed,
-        ) => true,
-        EnumValue::Known(lists::ListErrorCode::Unspecified) | EnumValue::Unknown(_) => false,
-    };
-    let path = value.field_path.as_ref().is_none_or(|s| {
-        !s.is_empty()
-            && s.len() <= 128
-            && s.bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"_.[]".contains(&b))
-    });
-    if known && path && value.__buffa_unknown_fields.is_empty() {
-        Ok(Admitted {
-            wire: value.clone(),
-        })
-    } else {
-        Err(AdmissionError::Invalid)
-    }
-}
 pub fn admit_watch_response(
     value: &lists::WatchListsResponse,
 ) -> Result<Admitted<lists::WatchListsResponse>, AdmissionError> {

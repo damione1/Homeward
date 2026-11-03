@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	listsv1 "github.com/damione1/Homeward/gen/home/lists/v1"
 	"github.com/damione1/Homeward/gen/home/lists/v1/listsv1connect"
 	"github.com/damione1/Homeward/internal/authorization"
@@ -30,59 +31,14 @@ func newListHandler(service *lists.Service, cursors *lists.CursorCodec) (*listHa
 }
 
 func listRPCCode(code lists.Code) error {
-	var wire listsv1.ListErrorCode
-	var status connect.Code
-	switch code {
-	case lists.Invalid:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_INVALID, connect.CodeInvalidArgument
-	case lists.Denied:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_DENIED, connect.CodePermissionDenied
-	case lists.NotFound:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_NOT_FOUND, connect.CodeNotFound
-	case lists.Conflict:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_CONFLICT, connect.CodeAborted
-	case lists.StaleCursor:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_STALE_CURSOR, connect.CodeFailedPrecondition
-	case lists.Capacity:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_CAPACITY, connect.CodeResourceExhausted
-	case lists.CommitUnknown:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_COMMIT_UNKNOWN, connect.CodeAborted
-	case lists.CommittedResponseWithheld:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_COMMITTED_RESPONSE_WITHHELD, connect.CodeAborted
-	case lists.Closed:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_CLOSED, connect.CodeUnavailable
-	case lists.Unavailable:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_UNAVAILABLE, connect.CodeUnavailable
-	default:
-		wire, status = listsv1.ListErrorCode_LIST_ERROR_CODE_UNAVAILABLE, connect.CodeUnavailable
-	}
-	result := connect.NewError(status, errors.New("list request rejected"))
-	if detail, err := connect.NewErrorDetail(&listsv1.ListError{Code: wire}); err == nil {
-		result.AddDetail(detail)
-	}
-	return result
+	return listFault(code).Connect()
 }
 
 func listRPCError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, context.Canceled) {
-		return connect.NewError(connect.CodeCanceled, errors.New("list request canceled"))
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return connect.NewError(connect.CodeDeadlineExceeded, errors.New("list request timed out"))
-	}
-	for _, code := range []lists.Code{
-		lists.Invalid, lists.Denied, lists.NotFound, lists.Conflict,
-		lists.StaleCursor, lists.Capacity, lists.Unavailable,
-		lists.CommitUnknown, lists.CommittedResponseWithheld, lists.Closed,
-	} {
-		if lists.IsCode(err, code) {
-			return listRPCCode(code)
-		}
-	}
-	return listRPCCode(lists.Unavailable)
+	return apiFault(err).Connect()
 }
 
 func (h *listHandler) admit(ctx context.Context) error {
@@ -557,26 +513,66 @@ func (h *listHandler) GetItem(ctx context.Context, request *connect.Request[list
 	}
 	return connect.NewResponse(&listsv1.GetItemResponse{Item: encoded}), nil
 }
+
+// withListTarget checks object authority before constructing admitted values.
+// The callback performs representation admission only. Repository operations
+// obtain a fresh permit/CAS fence and retain their existing commit semantics.
+func withListTarget[T any](h *listHandler, ctx context.Context, raw *listsv1.ListId, op authv1.ScopeOperation,
+	fn func(domain.ListID) (T, error)) (T, error) {
+	var zero T
+	var id domain.ListID
+	var err error
+	if raw != nil {
+		id, err = domain.ParseListID(raw.Value)
+	} else {
+		err = errors.New("missing identity")
+	}
+	var admission *lists.Admission
+	if err != nil {
+		admission, err = h.service.AdmitCollection(ctx, op)
+		if err != nil {
+			return zero, listRPCError(err)
+		}
+		defer admission.Release()
+		if !admission.Ready() {
+			return zero, listRPCCode(lists.Denied)
+		}
+		return zero, listRPCCode(lists.Invalid)
+	}
+	admission, err = h.service.AdmitObject(ctx, id, op)
+	if err != nil {
+		return zero, listRPCError(err)
+	}
+	defer admission.Release()
+	value, err := fn(id)
+	if !admission.Ready() {
+		return zero, listRPCCode(lists.Denied)
+	}
+	return value, err
+}
+
+type listAddition struct {
+	id       domain.ListID
+	expected lists.ListRevision
+	payload  lists.ItemPayload
+}
+
 func (h *listHandler) AddItem(ctx context.Context, request *connect.Request[listsv1.AddItemRequest]) (*connect.Response[listsv1.AddItemResponse], error) {
 	if err := h.admit(ctx); err != nil {
 		return nil, err
 	}
-	if request == nil || request.Msg == nil {
-		return nil, listRPCCode(lists.Invalid)
+	var target *listsv1.ListId
+	if request != nil && request.Msg != nil {
+		target = request.Msg.ListId
 	}
-	id, err := listID(request.Msg.ListId)
+	admitted, err := withListTarget(h, ctx, target, authv1.ScopeOperation_SCOPE_OPERATION_WRITE,
+		func(id domain.ListID) (listAddition, error) {
+			return parseListAddition(request.Msg, id)
+		})
 	if err != nil {
 		return nil, err
 	}
-	expected, err := expectedListRevision(request.Msg.ExpectedListRevision, id)
-	if err != nil {
-		return nil, err
-	}
-	payload, err := itemPayload(request.Msg.Item)
-	if err != nil {
-		return nil, err
-	}
-	receipt, err := h.service.AddItem(ctx, id, expected, payload)
+	receipt, err := h.service.AddItem(ctx, admitted.id, admitted.expected, admitted.payload)
 	if err != nil {
 		return nil, listRPCError(err)
 	}

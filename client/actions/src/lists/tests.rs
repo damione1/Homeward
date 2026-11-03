@@ -1,7 +1,10 @@
 use super::*;
-use buffa::MessageName;
+use buffa::{Enumeration, MessageName};
 use connectrpc::{ConnectError, ErrorDetail};
 use home_client_model::lists::ItemUid;
+use home_wire_contract::{
+    api_errors::DOMAIN, google::rpc::ErrorInfo, home::api::v2::ApiErrorReason as Code,
+};
 use std::sync::{
     Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -206,18 +209,35 @@ impl SubmitApi for Api {
             .expect("a mutation must never be retried")
     }
 }
-fn typed(code: wire::ListErrorCode) -> Failure {
-    Failure::from(
-        ConnectError::aborted("untrusted private server text").with_detail(
-            ErrorDetail::from_message(
-                wire::ListError::FULL_NAME,
-                &wire::ListError {
-                    code: code.into(),
-                    ..Default::default()
-                },
-            ),
-        ),
+fn reason_detail(code: Code) -> ErrorDetail {
+    ErrorDetail::from_message(
+        ErrorInfo::FULL_NAME,
+        &ErrorInfo {
+            domain: DOMAIN.into(),
+            reason: code
+                .proto_name()
+                .trim_start_matches("API_ERROR_REASON_")
+                .into(),
+            ..Default::default()
+        },
     )
+}
+fn typed(code: Code, rpc: ConnectError) -> Failure {
+    use home_wire_contract::home::api::v2::{
+        ExecutionUncertainty, ReconciliationDisposition, UncertaintyPhase,
+    };
+    let mut error = rpc.with_detail(reason_detail(code));
+    if code == Code::CommitOutcomeUnknown {
+        error = error.with_detail(ErrorDetail::from_message(
+            ExecutionUncertainty::FULL_NAME,
+            &ExecutionUncertainty {
+                phase: UncertaintyPhase::Commit.into(),
+                disposition: ReconciliationDisposition::ReconcileOnly.into(),
+                ..Default::default()
+            },
+        ));
+    }
+    Failure::from(error)
 }
 
 #[tokio::test]
@@ -242,13 +262,16 @@ async fn conflict_unknown_and_withheld_commits_are_distinct_and_each_makes_one_a
     ] {
         let response = match scenario {
             Scenario::Conflict => Err(SubmitFailure::Transport(typed(
-                wire::ListErrorCode::Conflict,
+                Code::EtagMismatch,
+                ConnectError::aborted("private"),
             ))),
             Scenario::Unknown => Err(SubmitFailure::Transport(typed(
-                wire::ListErrorCode::CommitUnknown,
+                Code::CommitOutcomeUnknown,
+                ConnectError::unknown("private"),
             ))),
             Scenario::Withheld => Err(SubmitFailure::Transport(typed(
-                wire::ListErrorCode::CommittedResponseWithheld,
+                Code::AccessDenied,
+                ConnectError::permission_denied("private"),
             ))),
             Scenario::Network => Err(SubmitFailure::Transport(Failure::from(
                 ConnectError::unavailable("network cut"),
@@ -275,7 +298,7 @@ async fn conflict_unknown_and_withheld_commits_are_distinct_and_each_makes_one_a
             )),
             Scenario::Withheld => assert!(matches!(
                 result.outcome,
-                ListWriteOutcome::CommittedResponseWithheld
+                ListWriteOutcome::AuthorityTerminated
             )),
             Scenario::Malformed => assert!(matches!(
                 result.outcome,
@@ -336,13 +359,7 @@ async fn a_reply_racing_with_projection_withdrawal_never_reports_saved() {
 
 #[test]
 fn ambiguous_or_unknown_typed_errors_and_authority_termination_do_not_become_conflicts() {
-    let detail = ErrorDetail::from_message(
-        wire::ListError::FULL_NAME,
-        &wire::ListError {
-            code: wire::ListErrorCode::Conflict.into(),
-            ..Default::default()
-        },
-    );
+    let detail = reason_detail(Code::EtagMismatch);
     let duplicate = Failure::from(
         ConnectError::aborted("private")
             .with_detail(detail.clone())
@@ -354,9 +371,10 @@ fn ambiguous_or_unknown_typed_errors_and_authority_termination_do_not_become_con
     ));
     let unknown = Failure::from(ConnectError::aborted("private").with_detail(
         ErrorDetail::from_message(
-            wire::ListError::FULL_NAME,
-            &wire::ListError {
-                code: EnumValue::Unknown(999),
+            ErrorInfo::FULL_NAME,
+            &ErrorInfo {
+                domain: DOMAIN.into(),
+                reason: "FUTURE_REASON".into(),
                 ..Default::default()
             },
         ),
@@ -383,9 +401,10 @@ fn ambiguous_or_unknown_typed_errors_and_authority_termination_do_not_become_con
     ));
     let contradictory = Failure::from(ConnectError::unavailable("private").with_detail(
         ErrorDetail::from_message(
-            wire::ListError::FULL_NAME,
-            &wire::ListError {
-                code: wire::ListErrorCode::Conflict.into(),
+            ErrorInfo::FULL_NAME,
+            &ErrorInfo {
+                domain: DOMAIN.into(),
+                reason: "ETAG_MISMATCH".into(),
                 ..Default::default()
             },
         ),

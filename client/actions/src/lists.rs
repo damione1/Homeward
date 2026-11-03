@@ -1,7 +1,6 @@
 //! Consuming, single-attempt ListService writes. A draft or conflict never
 //! becomes an offline queue; only an admitted matching receipt means committed.
 use crate::AdmissionCheck;
-use buffa::EnumValue;
 use home_client_model::lists::{ItemKey, ItemRevision, ListId, ListRevision};
 use home_client_session::{AccessLease, SessionCoordinator, SessionFailure};
 use home_client_transport::{Failure, FailureKind, ListTransport, RpcCode};
@@ -117,11 +116,8 @@ pub enum WriteIssue {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Rejection {
     Invalid,
-    Denied,
     NotFound,
     Capacity,
-    Unavailable,
-    Closed,
 }
 
 pub enum ListWriteOutcome {
@@ -129,7 +125,6 @@ pub enum ListWriteOutcome {
     Committed(ConfirmedMutation),
     Conflict,
     CommitUnknown(WriteIssue),
-    CommittedResponseWithheld,
     Rejected(Rejection),
     AuthorityTerminated,
 }
@@ -468,48 +463,39 @@ fn classify(failure: &Failure) -> ListWriteOutcome {
     {
         return ListWriteOutcome::AuthorityTerminated;
     }
-    let detail = match failure.list_error() {
-        Ok(Some(detail)) if lists_contract::admit_error(&detail).is_ok() => detail,
+    let detail = match failure.api_failure() {
+        Ok(Some(detail)) => detail,
         Ok(None) => return ListWriteOutcome::CommitUnknown(WriteIssue::Transport(failure.kind())),
-        Ok(Some(_)) | Err(_) => {
-            return ListWriteOutcome::CommitUnknown(WriteIssue::UnsupportedResponse);
-        }
+        Err(_) => return ListWriteOutcome::CommitUnknown(WriteIssue::UnsupportedResponse),
     };
-    use wire::ListErrorCode as Code;
-    let status = match detail.code {
-        EnumValue::Known(Code::Invalid) => RpcCode::InvalidArgument,
-        EnumValue::Known(Code::Denied) => RpcCode::PermissionDenied,
-        EnumValue::Known(Code::NotFound) => RpcCode::NotFound,
-        EnumValue::Known(
-            Code::Conflict | Code::CommitUnknown | Code::CommittedResponseWithheld,
-        ) => RpcCode::Aborted,
-        EnumValue::Known(Code::StaleCursor) => RpcCode::FailedPrecondition,
-        EnumValue::Known(Code::Capacity) => RpcCode::ResourceExhausted,
-        EnumValue::Known(Code::Unavailable | Code::Closed) => RpcCode::Unavailable,
-        EnumValue::Known(Code::Unspecified) | EnumValue::Unknown(_) => {
-            return ListWriteOutcome::CommitUnknown(WriteIssue::UnsupportedResponse);
+    use home_wire_contract::home::api::v2::ApiErrorReason as R;
+    match detail.reason() {
+        R::AuthenticationRequired | R::AccessDenied => ListWriteOutcome::AuthorityTerminated,
+        R::EtagMismatch => ListWriteOutcome::Conflict,
+        R::ValidationFailed => ListWriteOutcome::Rejected(Rejection::Invalid),
+        R::ResourceNotFound => ListWriteOutcome::Rejected(Rejection::NotFound),
+        R::RateLimited | R::QueryBudgetExceeded | R::RequestTooLarge => {
+            ListWriteOutcome::Rejected(Rejection::Capacity)
         }
-    };
-    if failure.kind() != FailureKind::Rpc(status) {
-        return ListWriteOutcome::CommitUnknown(WriteIssue::UnsupportedResponse);
-    }
-    match detail.code {
-        EnumValue::Known(Code::Conflict) => ListWriteOutcome::Conflict,
-        EnumValue::Known(Code::CommitUnknown) => {
+        R::CommitOutcomeUnknown
+        | R::EffectOutcomeUnknown
+        | R::ServiceUnavailable
+        | R::RequestCancelled
+        | R::RequestDeadlineExceeded
+        | R::InternalFailure
+        | R::StoredDataIntegrity => {
             ListWriteOutcome::CommitUnknown(WriteIssue::Transport(failure.kind()))
         }
-        EnumValue::Known(Code::CommittedResponseWithheld) => {
-            ListWriteOutcome::CommittedResponseWithheld
-        }
-        EnumValue::Known(Code::Invalid) => ListWriteOutcome::Rejected(Rejection::Invalid),
-        EnumValue::Known(Code::Denied) => ListWriteOutcome::Rejected(Rejection::Denied),
-        EnumValue::Known(Code::NotFound) => ListWriteOutcome::Rejected(Rejection::NotFound),
-        EnumValue::Known(Code::Capacity) => ListWriteOutcome::Rejected(Rejection::Capacity),
-        EnumValue::Known(Code::Unavailable) => ListWriteOutcome::Rejected(Rejection::Unavailable),
-        EnumValue::Known(Code::Closed) => ListWriteOutcome::Rejected(Rejection::Closed),
-        EnumValue::Known(Code::StaleCursor | Code::Unspecified) | EnumValue::Unknown(_) => {
-            ListWriteOutcome::CommitUnknown(WriteIssue::UnsupportedResponse)
-        }
+        R::ResourceAlreadyExists
+        | R::RequestIdReused
+        | R::ConfigChanged
+        | R::TopologyChanged
+        | R::CapabilityUnavailable
+        | R::SourceReadOnly
+        | R::ResyncRequired
+        | R::StreamCapacity
+        | R::MethodNotSupported
+        | R::Unspecified => ListWriteOutcome::CommitUnknown(WriteIssue::UnsupportedResponse),
     }
 }
 

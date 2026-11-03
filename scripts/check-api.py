@@ -25,7 +25,7 @@ DIGESTS = {
 
 
 class MigrationState(Enum):
-    COMPATIBILITY = 'compatibility-v1'
+    PENDING = 'pending-replacement'
     PRIVATE = 'retained-private'
     MIGRATED = 'migrated-v2'
 
@@ -115,7 +115,7 @@ def main():
             for value_index, value in enumerate(enum['value']):
                 assert (5, index, 2, value_index) in comments, 'undocumented enum value'
     # Lint only the public v2 contract. Dependencies, v1 and private Host remain
-    # under their existing Buf/compatibility policies; never export them here.
+    # under their current schema checks until their owning lot replaces them.
     with tempfile.TemporaryDirectory(prefix='homeward-aip-') as directory:
         public = Path(directory) / 'public.binpb'
         subprocess.run(['buf', 'build', '--path', 'proto/home/api/v2', '--as-file-descriptor-set', '-o', str(public)], cwd=ROOT, check=True)

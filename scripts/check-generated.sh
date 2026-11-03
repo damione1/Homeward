@@ -27,6 +27,7 @@ plugins:
     opt: [json=false, file_per_package=true]
 EOF
 PATH="$PWD/.tools/bin:$PATH" buf generate --template "$contract_temp/buf.gen.yaml"
+PATH="$PWD/.tools/bin:$PATH" python3 scripts/generate-rpc-types.py "$contract_temp/rust"
 diff -r gen "$contract_temp/go"
 diff -r client/wire/src/generated "$contract_temp/rust"
 buf build --path proto/home/api/v2 --as-file-descriptor-set -o "$contract_temp/api_v2_descriptor.binpb"

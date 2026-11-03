@@ -7,15 +7,17 @@ use base64::{
 use buffa::{Message, MessageName};
 use connectrpc::{ConnectError, ErrorCode};
 use home_wire_contract::home::{
-    actions::v1::ActionOperationFailure,
     auth::v1::{
         AuthError, AuthorizationPolicyError, AuthorizationTermination, SecondFactorPolicyError,
     },
     calendars::v1::CalendarError,
     configuration::v1::ConfigurationError,
     integrationadmin::v1::IntegrationError,
-    lists::v1::ListError,
     observability::v1::ObservabilityError,
+};
+use home_wire_contract::{
+    api_errors::{self, ApiFailure, InvalidApiError},
+    google::rpc::Status,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,9 +43,30 @@ pub struct Failure {
     kind: FailureKind,
     not_dispatched: bool,
     rpc: Option<Box<ConnectError>>,
+    api: Result<Option<ApiFailure>, InvalidApiError>,
 }
 
 impl Failure {
+    /// Canonical details are parsed once on receipt, independently of transport
+    /// failures. Malformed details stay an explicit failure.
+    pub fn api_failure(&self) -> Result<Option<&ApiFailure>, InvalidApiError> {
+        self.api
+            .as_ref()
+            .map(|value| value.as_ref())
+            .map_err(|error| *error)
+    }
+
+    fn canonical_read_recovery(&self) -> bool {
+        use home_wire_contract::home::api::v2::ApiErrorReason;
+        match self.api_failure() {
+            Ok(None) => true,
+            Ok(Some(failure)) => !matches!(
+                failure.reason(),
+                ApiErrorReason::AuthenticationRequired | ApiErrorReason::AccessDenied
+            ),
+            Err(_) => false,
+        }
+    }
     pub fn kind(&self) -> FailureKind {
         self.kind
     }
@@ -72,6 +95,7 @@ impl Failure {
                 )
         ) && matches!(self.authorization_termination(), Ok(None))
             && matches!(self.auth_error(), Ok(None))
+            && self.canonical_read_recovery()
     }
 
     /// Only the identified, durably saved renewal operation may use this
@@ -92,7 +116,9 @@ impl Failure {
                         | RpcCode::Unauthenticated
                 )
         );
-        transient && matches!(self.authorization_termination(), Ok(None))
+        transient
+            && matches!(self.authorization_termination(), Ok(None))
+            && self.canonical_read_recovery()
     }
 
     /// Inspect typed details explicitly; callers must not log the raw response.
@@ -105,20 +131,6 @@ impl Failure {
     pub fn authorization_termination(
         &self,
     ) -> Result<Option<AuthorizationTermination>, DetailFailure> {
-        self.typed_detail()
-    }
-
-    /// A dispatch response can accompany an error through this detail. Keep
-    /// its exact command ID and uncertainty; an error is no retry permission.
-    pub fn action_operation_failure(
-        &self,
-    ) -> Result<Option<ActionOperationFailure>, DetailFailure> {
-        self.typed_detail()
-    }
-
-    /// A list conflict or uncertain commit is a typed outcome, never a reason
-    /// to replay the mutation or expose the server's free-form error message.
-    pub fn list_error(&self) -> Result<Option<ListError>, DetailFailure> {
         self.typed_detail()
     }
 
@@ -183,6 +195,7 @@ impl Failure {
             kind: FailureKind::InvalidConfiguration,
             not_dispatched: false,
             rpc: None,
+            api: Ok(None),
         }
     }
 
@@ -191,6 +204,7 @@ impl Failure {
             kind: FailureKind::Cancelled,
             not_dispatched: false,
             rpc: None,
+            api: Ok(None),
         }
     }
 }
@@ -243,10 +257,12 @@ impl From<ConnectError> for Failure {
                 sources.push(payload);
             }
         }
+        let api = admit_api_error(&error);
         Self {
             kind,
             not_dispatched,
             rpc: Some(Box::new(error)),
+            api,
         }
     }
 }
@@ -264,3 +280,56 @@ impl fmt::Display for Failure {
 }
 
 impl Error for Failure {}
+
+fn admit_api_error(error: &ConnectError) -> Result<Option<ApiFailure>, InvalidApiError> {
+    if !error.details.iter().any(|detail| {
+        matches!(
+            detail.type_url.as_str(),
+            "google.rpc.ErrorInfo"
+                | "type.googleapis.com/google.rpc.ErrorInfo"
+                | "home.api.v2.ExecutionUncertainty"
+                | "type.googleapis.com/home.api.v2.ExecutionUncertainty"
+        )
+    }) {
+        return Ok(None);
+    }
+    if error.details.len() > 10 {
+        return Err(InvalidApiError::Limit);
+    }
+    let mut status = Status {
+        code: error.code.grpc_code() as i32,
+        ..Default::default()
+    };
+    let mut total = 0;
+    let mut seen = std::collections::BTreeSet::new();
+    for detail in &error.details {
+        if detail.type_url.len() > 256 {
+            return Err(InvalidApiError::Limit);
+        }
+        let kind = detail
+            .type_url
+            .strip_prefix("type.googleapis.com/")
+            .unwrap_or(&detail.type_url);
+        if !seen.insert(kind) {
+            return Err(InvalidApiError::Duplicate);
+        }
+        let value = detail.value.as_deref().ok_or(InvalidApiError::Malformed)?;
+        if value.len() > api_errors::MAX_DETAILS_BYTES.div_ceil(3) * 4 {
+            return Err(InvalidApiError::Limit);
+        }
+        let bytes = STANDARD_NO_PAD
+            .decode(value)
+            .or_else(|_| STANDARD.decode(value))
+            .map_err(|_| InvalidApiError::Malformed)?;
+        total += bytes.len();
+        if total > api_errors::MAX_DETAILS_BYTES {
+            return Err(InvalidApiError::Limit);
+        }
+        status.details.push(buffa_types::google::protobuf::Any {
+            type_url: detail.type_url.clone(),
+            value: bytes.into(),
+            ..Default::default()
+        });
+    }
+    api_errors::admit_status(&status).map(Some)
+}

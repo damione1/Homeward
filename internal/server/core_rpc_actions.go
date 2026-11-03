@@ -12,61 +12,6 @@ import (
 	"github.com/damione1/Homeward/internal/storage"
 )
 
-func coreActionError(ctx context.Context, err error, response *actions.CommandResponse) error {
-	if terminal := authorizationTerminationError(ctx); terminal != nil {
-		return terminal
-	}
-	if errors.Is(err, integrations.ErrCommandAuthorizationDenied) {
-		return coreRPCError(ctx, err)
-	}
-	kind := actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED
-	code := connect.CodeInternal
-	switch {
-	case errors.Is(err, integrations.ErrDurableCommitUnknown):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN, connect.CodeUnknown
-	case errors.Is(err, integrations.ErrCommandOutcomeIndeterminate):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE, connect.CodeUnknown
-	case errors.Is(err, integrations.ErrDurableLedgerUnavailable):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_LEDGER_UNAVAILABLE, connect.CodeUnavailable
-	case errors.Is(err, integrations.ErrCommandIDConflict):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_ID_CONFLICT, connect.CodeAlreadyExists
-	case errors.Is(err, integrations.ErrCommandPolicyConflict):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_POLICY_CONFLICT, connect.CodeAlreadyExists
-	case errors.Is(err, integrations.ErrCommandRouteBusy):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_ROUTE_BUSY, connect.CodeResourceExhausted
-	case errors.Is(err, integrations.ErrCommandRouteUnavailable):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_ROUTE_UNAVAILABLE, connect.CodeUnavailable
-	case errors.Is(err, integrations.ErrCommandPolicyLedgerFull), errors.Is(err, integrations.ErrDurableAdmissionCapacity), errors.Is(err, integrations.ErrActionProgressFull), errors.Is(err, integrations.ErrActionSubscribersFull):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_CAPACITY, connect.CodeResourceExhausted
-	case errors.Is(err, integrations.ErrCommandIntentTooLarge):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_INTENT_TOO_LARGE, connect.CodeResourceExhausted
-	case errors.Is(err, integrations.ErrActionSubscriberSlow):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_CLIENT_SLOW, connect.CodeResourceExhausted
-	case errors.Is(err, integrations.ErrCommandResultUnavailable):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_RESULT_UNAVAILABLE, connect.CodeInternal
-	case errors.Is(err, context.Canceled):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_CANCELLED, connect.CodeCanceled
-	case errors.Is(err, context.DeadlineExceeded):
-		kind, code = actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_DEADLINE, connect.CodeDeadlineExceeded
-	case errors.Is(err, integrations.ErrInvalidInput):
-		return coreRPCError(ctx, contracts.ErrInvalidActionRPC)
-	}
-	if kind == actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED {
-		return coreRPCError(ctx, err)
-	}
-	detail := &actions.ActionOperationFailure{Kind: kind, Response: contracts.ActionResponseCopy(response)}
-	if contracts.AdmitActionOperationFailure(detail) != nil {
-		return coreRPCError(ctx, contracts.ErrInvalidActionRPC)
-	}
-	public := connect.NewError(code, errors.New("action operation could not complete; consult the same command ID"))
-	wire, detailErr := connect.NewErrorDetail(detail)
-	if detailErr != nil {
-		return coreRPCError(ctx, detailErr)
-	}
-	public.AddDetail(wire)
-	return public
-}
-
 func (h *coreRPCHandler) SubmitAction(ctx context.Context, request *connect.Request[actions.SubmitActionRequest]) (*connect.Response[actions.SubmitActionResponse], error) {
 	actor, err := coreRPCActor(ctx)
 	if err != nil {
@@ -79,10 +24,10 @@ func (h *coreRPCHandler) SubmitAction(ctx context.Context, request *connect.Requ
 	// or stream close re-enters the command admission path.
 	response, err := h.commands.Dispatch(ctx, actor, request.Msg.Command)
 	if err != nil {
-		return nil, coreActionError(ctx, err, response)
+		return nil, apiRPCError(ctx, err)
 	}
 	if terminal := authorizationTerminationError(ctx); terminal != nil {
-		return nil, terminal
+		return nil, apiRPCError(ctx, terminal)
 	}
 	if response == nil {
 		return nil, coreRPCError(ctx, contracts.ErrInvalidActionRPC)
@@ -150,23 +95,23 @@ func (h *coreRPCHandler) GetAction(ctx context.Context, request *connect.Request
 	}
 	read, err := h.commands.AuthorizeActionRead(ctx, id)
 	if err != nil {
-		return nil, coreActionError(ctx, err, nil)
+		return nil, apiRPCError(ctx, err)
 	}
 	defer read.Close()
 	status, err := read.Durable()
 	if err != nil {
-		return nil, coreActionError(ctx, err, nil)
+		return nil, apiRPCError(ctx, err)
 	}
 	durable, err := coreDurableResult(status)
 	if err != nil {
-		return nil, coreActionError(ctx, err, nil)
+		return nil, apiRPCError(ctx, err)
 	}
 	result := &actions.GetActionResponse{Durable: durable}
 	snapshot, err := read.Live()
 	if errors.Is(err, integrations.ErrActionUnknown) {
 		result.Live = &actions.GetActionResponse_Unavailable{Unavailable: &actions.NoLiveActionProgress{}}
 	} else if err != nil {
-		return nil, coreActionError(ctx, err, nil)
+		return nil, apiRPCError(ctx, err)
 	} else {
 		progress, err := h.progressWire(snapshot)
 		if err != nil {
@@ -175,7 +120,7 @@ func (h *coreRPCHandler) GetAction(ctx context.Context, request *connect.Request
 		result.Live = &actions.GetActionResponse_Progress{Progress: progress}
 	}
 	if !read.Ready() {
-		return nil, coreActionError(ctx, integrations.ErrCommandAuthorizationDenied, nil)
+		return nil, apiRPCError(ctx, integrations.ErrCommandAuthorizationDenied)
 	}
 	if err := contracts.AdmitGetActionResponse(result); err != nil {
 		return nil, coreRPCError(ctx, err)
@@ -196,19 +141,19 @@ func (h *coreRPCHandler) WatchAction(ctx context.Context, request *connect.Reque
 	}
 	read, err := h.commands.AuthorizeActionRead(ctx, id)
 	if err != nil {
-		return coreActionError(ctx, err, nil)
+		return apiRPCError(ctx, err)
 	}
 	defer read.Close()
 	defer interruptCoreRPCWriteOnCancel(ctx, read.Context())()
 	subscription, err := read.Subscribe()
 	if errors.Is(err, integrations.ErrActionUnknown) {
 		if !read.Ready() {
-			return coreActionError(ctx, integrations.ErrCommandAuthorizationDenied, nil)
+			return apiRPCError(ctx, integrations.ErrCommandAuthorizationDenied)
 		}
 		return stream.Send(&actions.WatchActionResponse{StreamSequence: 1, Frame: &actions.WatchActionResponse_Unavailable{Unavailable: &actions.NoLiveActionProgress{}}})
 	}
 	if err != nil {
-		return coreActionError(ctx, err, nil)
+		return apiRPCError(ctx, err)
 	}
 	defer subscription.Close()
 	var sequence uint64
@@ -218,7 +163,7 @@ func (h *coreRPCHandler) WatchAction(ctx context.Context, request *connect.Reque
 			return nil
 		}
 		if err != nil {
-			return coreActionError(ctx, err, nil)
+			return apiRPCError(ctx, err)
 		}
 		progress, err := h.progressWire(snapshot)
 		if err != nil {
@@ -230,10 +175,10 @@ func (h *coreRPCHandler) WatchAction(ctx context.Context, request *connect.Reque
 			return coreRPCError(ctx, err)
 		}
 		if !read.Ready() {
-			return coreActionError(ctx, integrations.ErrCommandAuthorizationDenied, nil)
+			return apiRPCError(ctx, integrations.ErrCommandAuthorizationDenied)
 		}
 		if err := stream.Send(frame); err != nil {
-			return coreActionError(ctx, err, nil)
+			return apiRPCError(ctx, err)
 		}
 	}
 }

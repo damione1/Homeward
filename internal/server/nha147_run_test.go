@@ -21,6 +21,7 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 	"github.com/damione1/Homeward/gen/home/actions/v1/actionsv1connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
@@ -515,7 +516,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	}
 	unknownCommit := proto.Clone(command).(*actions.CommandRequest)
 	unknownCommit.CommandId += "-unknown-commit"
-	if _, err := submit(unknownCommit); nha147FailureKind(t, err) != actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN || driver.emitted.Load() != 0 {
+	if _, err := submit(unknownCommit); nha147FailureKind(t, err) != api.ApiErrorReason_API_ERROR_REASON_COMMIT_OUTCOME_UNKNOWN || driver.emitted.Load() != 0 {
 		t.Fatal("unknown acceptance commit lost its phase or reached driver", err)
 	}
 	if _, err := observer.Exec(ctx, `DROP TRIGGER nha147_refuse_accept ON public.command_intents; DROP FUNCTION public.nha147_refuse_accept()`); err != nil {
@@ -597,13 +598,13 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	}
 	unknownResult := proto.Clone(command).(*actions.CommandRequest)
 	unknownResult.CommandId += "-unknown-result"
-	if _, err := submit(unknownResult); nha147FailureKind(t, err) != actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE || driver.emitted.Load() != 3 {
+	if _, err := submit(unknownResult); nha147FailureKind(t, err) != api.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN || driver.emitted.Load() != 3 {
 		t.Fatal("post-effect persistence failure lost its uncertainty", err)
 	}
 	if _, err := observer.Exec(ctx, `DROP TRIGGER nha147_refuse_result ON public.command_intents; DROP FUNCTION public.nha147_refuse_result()`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := submit(unknownResult); nha147FailureKind(t, err) != actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE || driver.emitted.Load() != 3 {
+	if _, err := submit(unknownResult); nha147FailureKind(t, err) != api.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN || driver.emitted.Load() != 3 {
 		t.Fatal("unknown-result replay repeated an effect", err)
 	}
 	// AuthorizeActionRead retains the existing050 historical-actor boundary.
@@ -726,7 +727,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	if err != nil || recovered.Msg.GetUnavailable() == nil || recovered.Msg.Durable.State != actions.DurableActionState_DURABLE_ACTION_STATE_INDETERMINATE || recovered.Msg.Durable.Response.Status != actions.ActionStatus_ACTION_STATUS_INDETERMINATE {
 		t.Fatal("restart erased an uncertain effect", recovered, err)
 	}
-	if _, err := submit(unknownResult); nha147FailureKind(t, err) != actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE || driver.emitted.Load() != 4 {
+	if _, err := submit(unknownResult); nha147FailureKind(t, err) != api.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN || driver.emitted.Load() != 4 {
 		t.Fatal("recovered uncertainty emitted again", err)
 	}
 	missing, err := action.WatchAction(ctx, nha141BearerRequest(&actions.WatchActionRequest{CommandId: command.CommandId}, tokens.AccessToken))
@@ -844,27 +845,12 @@ func (c *nha147H2SettingsConn) initialWindow() (uint32, bool) {
 	return 0, false
 }
 
-func nha147FailureKind(t *testing.T, err error) actions.ActionOperationFailureKind {
+func nha147FailureKind(t *testing.T, err error) api.ApiErrorReason {
 	t.Helper()
-	var failure *connect.Error
-	if !errors.As(err, &failure) {
-		t.Fatal("missing Connect failure", err)
+	info := nha200Info(t, err)
+	value, known := api.ApiErrorReason_value["API_ERROR_REASON_"+info.Reason]
+	if !known || value == 0 {
+		t.Fatal("unknown action failure reason", info.Reason)
 	}
-	for _, detail := range failure.Details() {
-		message, decodeErr := detail.Value()
-		if decodeErr != nil {
-			continue
-		}
-		if typed, ok := message.(*actions.ActionOperationFailure); ok {
-			if contracts.AdmitActionOperationFailure(typed) != nil {
-				t.Fatal("invalid machine failure detail", typed)
-			}
-			if typed.Kind == actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE && (typed.Response == nil || typed.Response.Status != actions.ActionStatus_ACTION_STATUS_INDETERMINATE) {
-				t.Fatal("response+error lost the response", typed)
-			}
-			return typed.Kind
-		}
-	}
-	t.Fatal("missing typed action failure", err)
-	return actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_UNSPECIFIED
+	return api.ApiErrorReason(value)
 }

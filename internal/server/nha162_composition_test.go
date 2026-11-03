@@ -287,26 +287,18 @@ func TestNHA162RealWatchRPCBlockedWriterResyncsWithoutBlockingOthers(t *testing.
 	}
 }
 
-func TestNHA162AmbiguousCommitWireErrorsAreDistinctAndRedacted(t *testing.T) {
+func TestNHA162AmbiguousCommitWireErrorsAreRedacted(t *testing.T) {
 	for _, variant := range []struct {
 		domain lists.Code
-		wire   listsv1.ListErrorCode
+		status connect.Code
+		reason string
 	}{
-		{lists.CommitUnknown, listsv1.ListErrorCode_LIST_ERROR_CODE_COMMIT_UNKNOWN},
-		{lists.CommittedResponseWithheld, listsv1.ListErrorCode_LIST_ERROR_CODE_COMMITTED_RESPONSE_WITHHELD},
+		{lists.CommitUnknown, connect.CodeUnknown, "COMMIT_OUTCOME_UNKNOWN"},
+		{lists.CommittedResponseWithheld, connect.CodePermissionDenied, "ACCESS_DENIED"},
 	} {
 		err := listRPCCode(variant.domain)
-		var structured *connect.Error
-		if !errors.As(err, &structured) || structured.Code() != connect.CodeAborted || structured.Message() != "list request rejected" || len(structured.Details()) != 1 {
-			t.Fatalf("ambiguous commit leaked data or lost its stable envelope: %v", err)
-		}
-		value, err := structured.Details()[0].Value()
-		if err != nil {
+		if connect.CodeOf(err) != variant.status || nha200Info(t, err).Reason != variant.reason {
 			t.Fatal(err)
-		}
-		detail, ok := value.(*listsv1.ListError)
-		if !ok || detail.Code != variant.wire || detail.FieldPath != nil {
-			t.Fatalf("ambiguous commit lost its closed distinct detail: %v", value)
 		}
 	}
 }
@@ -493,16 +485,11 @@ func TestNHA162RealRPCKnownCommitWithholdsReceiptAfterPolicyRevocation(t *testin
 	select {
 	case result := <-renamed:
 		var rejected *connect.Error
-		if result.response != nil || !errors.As(result.err, &rejected) || rejected.Code() != connect.CodeAborted || rejected.Message() != "list request rejected" || len(rejected.Details()) != 1 {
+		if result.response != nil || !errors.As(result.err, &rejected) || rejected.Code() != connect.CodePermissionDenied || len(rejected.Details()) != 1 {
 			t.Fatal("committed RPC returned a success/receipt or lost its structured refusal:", result.err)
 		}
-		value, err := rejected.Details()[0].Value()
-		if err != nil {
-			t.Fatal(err)
-		}
-		detail, ok := value.(*listsv1.ListError)
-		if !ok || detail.Code != listsv1.ListErrorCode_LIST_ERROR_CODE_COMMITTED_RESPONSE_WITHHELD || detail.FieldPath != nil {
-			t.Fatalf("committed RPC was mislabeled or disclosed data: %v", value)
+		if nha200Info(t, result.err).Reason != "ACCESS_DENIED" {
+			t.Fatal("revocation disclosed commit details")
 		}
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())

@@ -72,26 +72,6 @@ message MutationReceipt {
   ItemRevision item_revision = 4;
 }
 
-enum ListErrorCode {
-  LIST_ERROR_CODE_UNSPECIFIED = 0;
-  LIST_ERROR_CODE_INVALID = 1;
-  LIST_ERROR_CODE_DENIED = 2;
-  LIST_ERROR_CODE_NOT_FOUND = 3;
-  LIST_ERROR_CODE_CONFLICT = 4;
-  LIST_ERROR_CODE_STALE_CURSOR = 5;
-  LIST_ERROR_CODE_CAPACITY = 6;
-  LIST_ERROR_CODE_UNAVAILABLE = 7;
-  LIST_ERROR_CODE_COMMIT_UNKNOWN = 8;
-  LIST_ERROR_CODE_COMMITTED_RESPONSE_WITHHELD = 9;
-  LIST_ERROR_CODE_CLOSED = 10;
-}
-// A Connect error detail. Never contains a snapshot, current revision, SQL,
-// list name, item content or an untrusted server error string.
-message ListError {
-  ListErrorCode code = 1;
-  optional string field_path = 2;
-}
-
 message ListListsRequest {
   uint32 page_size = 1;
   string page_token = 2;

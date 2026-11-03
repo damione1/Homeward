@@ -22,38 +22,27 @@ func nha147ID(t *testing.T, text string) domain.CommandID {
 	return id
 }
 
-func TestNHA147ConnectFailurePreservesIndeterminateResponse(t *testing.T) {
+func TestNHA147CanonicalActionFailuresDoNotFabricateResponse(t *testing.T) {
 	for _, tc := range []struct {
-		cause    error
-		kind     actions.ActionOperationFailureKind
-		response bool
+		cause  error
+		reason string
 	}{
-		{integrations.ErrDurableCommitUnknown, actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_COMMIT_OUTCOME_UNKNOWN, false},
-		{integrations.ErrCommandOutcomeIndeterminate, actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_OUTCOME_INDETERMINATE, true},
-		{integrations.ErrDurableLedgerUnavailable, actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_LEDGER_UNAVAILABLE, false},
-		{integrations.ErrCommandIDConflict, actions.ActionOperationFailureKind_ACTION_OPERATION_FAILURE_KIND_ID_CONFLICT, false},
+		{integrations.ErrDurableCommitUnknown, "COMMIT_OUTCOME_UNKNOWN"},
+		{integrations.ErrCommandOutcomeIndeterminate, "EFFECT_OUTCOME_UNKNOWN"},
+		{integrations.ErrDurableLedgerUnavailable, "SERVICE_UNAVAILABLE"},
+		{integrations.ErrCommandIDConflict, "REQUEST_ID_REUSED"},
 	} {
-		var response *actions.CommandResponse
-		if tc.response {
-			response = &actions.CommandResponse{CommandId: "nha147-kept-result", Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}
+		public := apiRPCError(context.Background(), tc.cause)
+		if info := nha200Info(t, public); info.Reason != tc.reason {
+			t.Fatal(info)
 		}
-		public := coreActionError(context.Background(), tc.cause, response)
-		var connectErr *connect.Error
-		if !errors.As(public, &connectErr) || len(connectErr.Details()) != 1 {
-			t.Fatal("machine detail missing", public)
+		var failure *connect.Error
+		if !errors.As(public, &failure) {
+			t.Fatal(public)
 		}
-		message, err := connectErr.Details()[0].Value()
-		if err != nil {
-			t.Fatal(err)
-		}
-		detail, ok := message.(*actions.ActionOperationFailure)
-		if !ok || detail.Kind != tc.kind || (detail.Response != nil) != tc.response || contracts.AdmitActionOperationFailure(detail) != nil {
-			t.Fatal("incorrect durable failure", message)
-		}
-		if response != nil {
-			response.Status = actions.ActionStatus_ACTION_STATUS_CONFIRMED
-			if detail.Response.Status != actions.ActionStatus_ACTION_STATUS_INDETERMINATE {
-				t.Fatal("response aliases mutable caller")
+		for _, detail := range failure.Details() {
+			if detail.Type() == "home.actions.v1.ActionOperationFailure" {
+				t.Fatal("obsolete detail emitted")
 			}
 		}
 	}

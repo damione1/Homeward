@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package home.api.v2;
+
+import "google/api/field_behavior.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_package = "com.home.api.v2";
+option java_multiple_files = true;
+option java_outer_classname = "ErrorsProto";
+
+// A possible durable effect is not permission to retry. This is an error detail,
+// carried in the native Connect/gRPC error envelope, never a successful reply.
+// Authorization may suppress even this detail; the client must still remember
+// that a lost mutation response cannot prove absence of an effect.
+message ExecutionUncertainty {
+  // COMMIT: SQL result is unknown. EFFECT: a dispatched device result is unknown.
+  UncertaintyPhase phase = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Read the existing operation/request identity; never automatically redispatch.
+  ReconciliationDisposition disposition = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// ErrorInfo.reason vocabulary. Strip API_ERROR_REASON_ only when serializing
+// ErrorInfo; never parse human messages. The domain is homeward.damiengoehrig.ca.
+// Application errors use google.rpc canonical codes and this one reason vocabulary.
+// Every native v2 application error contains one google.rpc.ErrorInfo, followed
+// by at most one of each applicable detail in canonical order: BadRequest,
+// PreconditionFailure, QuotaFailure, RetryInfo, ExecutionUncertainty, RequestInfo,
+// LocalizedMessage, Help, ResourceInfo. Details are bounded to 16 KiB. BadRequest
+// violations are sorted by protobuf field path then serialized rule, deduplicated
+// and limited to 32. Truncation is ErrorInfo.metadata.violationsTruncated="true".
+// Metadata contains only documented keys, never input values or upstream causes.
+enum ApiErrorReason {
+  // Unclassified; never emitted or admitted as an application error reason.
+  API_ERROR_REASON_UNSPECIFIED = 0;
+  // UNAUTHENTICATED: a valid credential is required; no account existence hint.
+  API_ERROR_REASON_AUTHENTICATION_REQUIRED = 1;
+  // PERMISSION_DENIED: no object contents, identity, revision or existence hint.
+  API_ERROR_REASON_ACCESS_DENIED = 2;
+  // INVALID_ARGUMENT: independent admitted field violations accompany the error.
+  API_ERROR_REASON_VALIDATION_FAILED = 3;
+  // NOT_FOUND: only after permission on the resource or applicable parent.
+  API_ERROR_REASON_RESOURCE_NOT_FOUND = 4;
+  // ALREADY_EXISTS: the authorized resource identity already exists.
+  API_ERROR_REASON_RESOURCE_ALREADY_EXISTS = 5;
+  // ALREADY_EXISTS: a request ID was reused for a different normalized intent.
+  API_ERROR_REASON_REQUEST_ID_REUSED = 6;
+  // ABORTED: read again and resolve the changed revision before a new intent.
+  API_ERROR_REASON_ETAG_MISMATCH = 7;
+  // FAILED_PRECONDITION: recapture the current configuration before a new intent.
+  API_ERROR_REASON_CONFIG_CHANGED = 8;
+  // FAILED_PRECONDITION: the media/device relationship has changed.
+  API_ERROR_REASON_TOPOLOGY_CHANGED = 9;
+  // FAILED_PRECONDITION: the advertised capability is no longer executable.
+  API_ERROR_REASON_CAPABILITY_UNAVAILABLE = 10;
+  // FAILED_PRECONDITION: permission does not make a read-only source writable.
+  API_ERROR_REASON_SOURCE_READ_ONLY = 11;
+  // FAILED_PRECONDITION: obtain a new complete snapshot, never replay a command.
+  API_ERROR_REASON_RESYNC_REQUIRED = 12;
+  // RESOURCE_EXHAUSTED: backoff applies only to admissible reads.
+  API_ERROR_REASON_RATE_LIMITED = 13;
+  // RESOURCE_EXHAUSTED: reduce the request within the documented size limit.
+  API_ERROR_REASON_REQUEST_TOO_LARGE = 14;
+  // RESOURCE_EXHAUSTED: bounded stream capacity, without a mutation retry promise.
+  API_ERROR_REASON_STREAM_CAPACITY = 15;
+  // RESOURCE_EXHAUSTED: reduce the bounded query/filter/window cost.
+  API_ERROR_REASON_QUERY_BUDGET_EXCEEDED = 16;
+  // UNAVAILABLE: does not prove that an attempted mutation had no effect.
+  API_ERROR_REASON_SERVICE_UNAVAILABLE = 17;
+  // CANCELLED: request cancellation does not prove transaction rollback.
+  API_ERROR_REASON_REQUEST_CANCELLED = 18;
+  // DEADLINE_EXCEEDED: reconcile a possibly submitted mutation rather than retry.
+  API_ERROR_REASON_REQUEST_DEADLINE_EXCEEDED = 19;
+  // UNKNOWN: a commit may have succeeded; only reconcile the existing identity.
+  API_ERROR_REASON_COMMIT_OUTCOME_UNKNOWN = 20;
+  // UNKNOWN: a dispatched physical effect is indeterminate; never redispatch.
+  API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN = 21;
+  // INTERNAL: no upstream text, payload, SQL, token or stack trace is exposed.
+  API_ERROR_REASON_INTERNAL_FAILURE = 22;
+  // DATA_LOSS: persisted data violates its admitted schema/invariants.
+  API_ERROR_REASON_STORED_DATA_INTEGRITY = 23;
+  // UNIMPLEMENTED: this implementation does not support the requested method.
+  API_ERROR_REASON_METHOD_NOT_SUPPORTED = 24;
+}
+
+// The boundary whose result could not be established, without raw intent data.
+enum UncertaintyPhase {
+  // Invalid in an emitted/admitted uncertainty detail.
+  UNCERTAINTY_PHASE_UNSPECIFIED = 0;
+  // The durable commit result could not be established.
+  UNCERTAINTY_PHASE_COMMIT = 1;
+  // The physical effect after dispatch could not be established.
+  UNCERTAINTY_PHASE_EFFECT = 2;
+}
+
+// Client disposition; no variant authorizes automatic mutation replay.
+enum ReconciliationDisposition {
+  // Invalid in an emitted/admitted uncertainty detail.
+  RECONCILIATION_DISPOSITION_UNSPECIFIED = 0;
+  // Inspect the existing request/operation identity without redispatch.
+  RECONCILIATION_DISPOSITION_RECONCILE_ONLY = 1;
+}

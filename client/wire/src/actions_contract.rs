@@ -146,36 +146,3 @@ pub fn watch_response(value: &wire::WatchActionResponse) -> Result<(), Admission
         Err(AdmissionError::Invalid)
     }
 }
-
-pub fn operation_failure(value: &wire::ActionOperationFailure) -> Result<(), AdmissionError> {
-    use wire::ActionOperationFailureKind as K;
-    let known = match value.kind {
-        EnumValue::Known(
-            K::LedgerUnavailable
-            | K::CommitOutcomeUnknown
-            | K::OutcomeIndeterminate
-            | K::IdConflict
-            | K::PolicyConflict
-            | K::RouteBusy
-            | K::RouteUnavailable
-            | K::Capacity
-            | K::Cancelled
-            | K::Deadline
-            | K::ResultUnavailable
-            | K::IntentTooLarge
-            | K::ClientSlow,
-        ) => true,
-        EnumValue::Known(K::Unspecified) | EnumValue::Unknown(_) => false,
-    };
-    if value.__buffa_unknown_fields.is_empty()
-        && known
-        && value
-            .response
-            .as_option()
-            .is_none_or(|response| command_response(response).is_ok())
-    {
-        Ok(())
-    } else {
-        Err(AdmissionError::Invalid)
-    }
-}

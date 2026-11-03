@@ -108,7 +108,7 @@ func parseIntent(request *wire.ExecuteCapabilityRequest) (apitypes.Intent, error
 			return nil, reject("level", MissingIntent)
 		}
 	default:
-		return nil, reject("command", MissingIntent)
+		return nil, reject("", MissingIntent)
 	}
 }
 
@@ -117,7 +117,7 @@ func parseIntent(request *wire.ExecuteCapabilityRequest) (apitypes.Intent, error
 // executable field is rejected instead of silently reducing the user's intent.
 func ParseCommand(request *wire.ExecuteCapabilityRequest) (apitypes.Command, error) {
 	if request == nil {
-		return apitypes.Command{}, reject("command", MissingIntent)
+		return apitypes.Command{}, reject("", MissingIntent)
 	}
 	if !knownFields(request.ProtoReflect()) {
 		return apitypes.Command{}, reject("", UnknownField)

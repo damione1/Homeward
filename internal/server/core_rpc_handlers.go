@@ -9,8 +9,6 @@ import (
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/internal/authorization"
-	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/sequencer"
@@ -25,27 +23,7 @@ type coreRPCHandler struct {
 }
 
 func coreRPCError(ctx context.Context, err error) error {
-	if terminal := authorizationTerminationError(ctx); terminal != nil {
-		return terminal
-	}
-	code := connect.CodeInternal
-	switch {
-	case errors.Is(err, context.Canceled):
-		code = connect.CodeCanceled
-	case errors.Is(err, context.DeadlineExceeded):
-		code = connect.CodeDeadlineExceeded
-	case errors.Is(err, authorization.ErrDenied), errors.Is(err, integrations.ErrCommandAuthorizationDenied):
-		code = connect.CodePermissionDenied
-	case errors.Is(err, view.ErrInvalidInput), errors.Is(err, contracts.ErrInvalidActionRPC):
-		code = connect.CodeInvalidArgument
-	case errors.Is(err, view.ErrResourceExhausted), errors.Is(err, authorization.ErrCapacity), errors.Is(err, sequencer.ErrSnapshotBudget):
-		code = connect.CodeResourceExhausted
-	case errors.Is(err, view.ErrSnapshotUnknown), errors.Is(err, view.ErrSnapshotExpired), errors.Is(err, view.ErrPageToken), errors.Is(err, view.ErrViewChanged):
-		code = connect.CodeFailedPrecondition
-	case errors.Is(err, sequencer.ErrRegistryUnavailable), errors.Is(err, authorization.ErrUnavailable), errors.Is(err, configactivation.ErrActivationUnavailable):
-		code = connect.CodeUnavailable
-	}
-	return connect.NewError(code, errors.New("core RPC request could not complete"))
+	return apiRPCError(ctx, err)
 }
 
 func coreRPCActor(ctx context.Context) (domain.ActorID, error) {
