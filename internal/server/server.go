@@ -307,7 +307,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			if err != nil {
 				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 			}
-			plan.sonosRuntime, err = sonos.NewRuntime()
+			plan.sonosRuntime, err = newNativeSonosRuntime(catalog)
 			if err == nil && sonosEnabled {
 				err = addConfiguredSonos(&plan, sonosSettings)
 			}
@@ -355,6 +355,14 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 				}
 			}
+		}
+	}
+	// An empty configured household may hot-enable Sonos later as well. Its
+	// codec and facade must exist before that first pilot discovers any source.
+	if factory == nil && !startup.MQTTReadOnlyObservation() && plan.sonosRuntime == nil {
+		plan.sonosRuntime, err = newNativeSonosRuntime(catalog)
+		if err != nil {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 		}
 	}
 	if factory == nil {
@@ -765,7 +773,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			coreErr = registerDashboardRoutes(plan.Public, activation, sessions.authority, sequence)
 		}
 		if coreErr == nil {
-			coreErr = registerNativeMediaRoutes(plan.Public, plan.sonosRuntime, plan.androidTVRuntime, activation, sessions.authority)
+			coreErr = registerNativeMediaRoutes(plan.Public, plan.sonosRuntime, plan.androidTVRuntime, activation, sessions.authority, sequence)
 		}
 		if coreErr == nil {
 			coreErr = registerMCPReads(plan.Public, publicSettings.MCPEnabled(), core, documents, sessions, observed)

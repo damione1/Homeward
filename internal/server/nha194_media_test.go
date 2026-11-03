@@ -16,8 +16,8 @@ func TestNHA194MediaProjectionScopesProviderAndPreservesObservedOff(t *testing.T
 	value := &media.Snapshot{Route: &media.Route{EntityId: "native-player", CoordinatorEntityId: "native-player", Endpoint: "player"}, PoweredOn: proto.Bool(false), Members: []*media.Member{{EntityId: "native-player", Label: "Player"}, {EntityId: "private-member", Label: "Hidden"}}}
 	sonosProbed := false
 	sources := []nativeMediaSource{
-		{sonos.Schema, sonos.Endpoint, func(domain.EntityID) (*media.Snapshot, bool) { sonosProbed = true; return nil, false }},
-		{androidtv.Schema, androidtv.Endpoint, func(domain.EntityID) (*media.Snapshot, bool) { return proto.Clone(value).(*media.Snapshot), true }},
+		{sonos.Schema, sonos.Endpoint, func(domain.EntityID) (*media.Snapshot, bool) { sonosProbed = true; return nil, false }, true},
+		{androidtv.Schema, androidtv.Endpoint, func(domain.EntityID) (*media.Snapshot, bool) { return proto.Clone(value).(*media.Snapshot), true }, false},
 	}
 	authorize := func(entity domain.EntityID, schema, endpoint string) error {
 		text, _ := entity.Value()
@@ -44,7 +44,7 @@ func TestNHA194MediaProjectionDeniesBeforeProbeAndRejectsAmbiguousOwners(t *test
 	source := nativeMediaSource{androidtv.Schema, androidtv.Endpoint, func(domain.EntityID) (*media.Snapshot, bool) {
 		calls++
 		return &media.Snapshot{Route: &media.Route{EntityId: "native-player", CoordinatorEntityId: "native-player", Endpoint: "player"}}, true
-	}}
+	}, false}
 	deny := func(domain.EntityID, string, string) error { return authorization.ErrDenied }
 	if _, err := projectNativeMedia(id, []nativeMediaSource{source}, 1, deny); !errors.Is(err, authorization.ErrDenied) || calls != 0 {
 		t.Fatal("unreadable source was probed")
