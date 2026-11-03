@@ -959,6 +959,7 @@ export component HomewardWindow inherits Window {
                 }
                 HomewardConnectionBanner { theme: root.theme; status: root.connection-status; interactive: root.content-interactive; retry => { root.read-protected(); } }
                 detail-scroll := KitScrollArea {
+                    pan-policy: children-first;
                     vertical-stretch: 1;
                 if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
                 if !root.media-has-data: HomewardDeviceDetail {

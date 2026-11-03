@@ -2043,6 +2043,7 @@ dependencies = [
  "home-client-transport",
  "home-wire-contract",
  "i-slint-backend-testing",
+ "i-slint-core",
  "png",
  "rustls-pemfile",
  "serde",

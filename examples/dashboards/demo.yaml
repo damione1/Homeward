@@ -838,7 +838,7 @@ views:
             columns: 1
           name: Design lamp
           features:
-          - type: light-brightness
+          - type: toggle
           tap_action:
             action: toggle
           icon: mdi:power-plug
@@ -1273,7 +1273,7 @@ views:
             columns: 1
           name: Desk lamp
           features:
-          - type: light-brightness
+          - type: toggle
           tap_action:
             action: more-info
           icon: mdi:power-plug
@@ -1283,7 +1283,7 @@ views:
             columns: 1
           name: TV lamp
           features:
-          - type: light-brightness
+          - type: toggle
           tap_action:
             action: more-info
           icon: mdi:power-plug

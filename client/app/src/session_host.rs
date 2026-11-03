@@ -1499,18 +1499,43 @@ pub(crate) fn run_with_lifecycle(
     {
         use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
         let events = lifecycle.clone();
-        window.window().on_winit_window_event(move |_, event| {
-            if let WindowEvent::Occluded(occluded) = event {
-                events.set(if *occluded {
-                    Lifecycle::Suspended
-                } else {
-                    Lifecycle::Foreground
-                });
-            } else if matches!(event, WindowEvent::Destroyed) {
-                events.set(Lifecycle::Suspended);
-            }
-            EventResult::Propagate
-        });
+        let touch_guard =
+            std::cell::RefCell::new(home_client_platform::touch_guard::TouchGuard::default());
+        window
+            .window()
+            .on_winit_window_event(move |native_window, event| {
+                if let WindowEvent::Touch(touch) = event {
+                    use home_client_platform::touch_guard::{Delivery, Phase, TouchId};
+                    use slint::winit_030::winit::event::TouchPhase;
+                    let phase = match touch.phase {
+                        TouchPhase::Started => Phase::Started,
+                        TouchPhase::Moved => Phase::Moved,
+                        TouchPhase::Ended => Phase::Ended,
+                        TouchPhase::Cancelled => Phase::Cancelled,
+                    };
+                    match touch_guard.borrow_mut().observe(TouchId(touch.id), phase) {
+                        Delivery::Propagate => {}
+                        Delivery::CancelAndPropagate => native_window
+                            .dispatch_event(slint::platform::WindowEvent::PointerExited),
+                        Delivery::CancelAndSuppress => {
+                            native_window
+                                .dispatch_event(slint::platform::WindowEvent::PointerExited);
+                            return EventResult::PreventDefault;
+                        }
+                        Delivery::Suppress => return EventResult::PreventDefault,
+                    }
+                }
+                if let WindowEvent::Occluded(occluded) = event {
+                    events.set(if *occluded {
+                        Lifecycle::Suspended
+                    } else {
+                        Lifecycle::Foreground
+                    });
+                } else if matches!(event, WindowEvent::Destroyed) {
+                    events.set(Lifecycle::Suspended);
+                }
+                EventResult::Propagate
+            });
     }
     cache_view::bind(&window);
     let lists = crate::list_host::Lists::bind(&window);

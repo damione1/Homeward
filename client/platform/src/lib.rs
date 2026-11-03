@@ -16,3 +16,6 @@ pub use macos::{NativeStore, app_data_directory};
 mod android;
 #[cfg(target_os = "android")]
 pub use android::{NativeStore, NativeStoreContext};
+
+#[path = "../vendor/slint-android-activity/touch_guard.rs"]
+pub mod touch_guard;

@@ -44,7 +44,11 @@ mod list_host;
 mod list_state;
 pub mod media;
 mod media_host;
+#[cfg(test)]
+mod native_touch_tests;
 mod navigation;
+#[cfg(test)]
+use native_touch_tests::touch_guard;
 mod notification_host;
 mod preferences;
 mod profile;
