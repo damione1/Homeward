@@ -521,6 +521,13 @@ func (p *Pilot) descriptions(binding Binding, info modelInfo) []*wire.Capability
 			constraints.ObservedSetpointCelsius.Bounds = bounds
 			if info.family == familyZigbee || info.family == familyWiFi {
 				constraints.SetpointCelsius = bounds
+				if info.family == familyZigbee {
+					// All admitted Zigbee heating models inherit the pinned
+					// Neviweb130Thermostat's 0.5 C command step. Observation
+					// bounds stay continuous so cloud values remain reportable.
+					step := 0.5
+					constraints.SetpointCelsius = &wire.NumberBounds{Minimum: info.minimum, Maximum: info.maximum, Step: &step}
+				}
 			}
 		}
 		if info.family == familyZigbee || info.family == familyWiFi {
