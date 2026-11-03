@@ -14,6 +14,16 @@ import (
 )
 
 var errSessionUnauthenticated = errors.New("server: unauthenticated session")
+var errSessionAuthorityUnavailable = errors.New("server: session authority unavailable")
+
+// A database or policy outage rejects this admission without declaring the
+// credential revoked. Clients may recover these read attempts automatically.
+func sessionAuthenticationError(err error) error {
+	if errors.Is(err, storage.ErrSessionNotFound) || errors.Is(err, errSessionUnauthenticated) {
+		return errSessionUnauthenticated
+	}
+	return errSessionAuthorityUnavailable
+}
 
 type sessionAuth struct {
 	store       *storage.Store
@@ -66,22 +76,22 @@ func (a *sessionAuth) authenticateAccessHeaders(ctx context.Context, header http
 	}
 	owner, err := a.store.LookupAccessOwner(ctx, digest)
 	if err != nil {
-		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
+		return domain.ActorID{}, nil, nil, sessionAuthenticationError(err)
 	}
 	guard, err := a.coordinator.enter(ctx, owner.Account)
 	if err != nil {
-		return domain.ActorID{}, nil, nil, err
+		return domain.ActorID{}, nil, nil, sessionAuthenticationError(err)
 	}
 	defer guard.release()
 	admission, err := a.store.AdmitAccess(ctx, owner, digest, a.coordinator.clock.Now())
 	if err != nil {
-		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
+		return domain.ActorID{}, nil, nil, sessionAuthenticationError(err)
 	}
 	switch admission.Role {
 	case authv1.AccountRole_ACCOUNT_ROLE_ADMIN:
 		ticket, err := a.coordinator.policy.tryEnter(admission.PolicyVersion)
 		if err != nil {
-			return domain.ActorID{}, nil, nil, err
+			return domain.ActorID{}, nil, nil, errSessionAuthorityUnavailable
 		}
 		defer ticket.release()
 	case authv1.AccountRole_ACCOUNT_ROLE_USER:
@@ -89,7 +99,7 @@ func (a *sessionAuth) authenticateAccessHeaders(ctx context.Context, header http
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
 	if err := guard.refreshForAuthentication(ctx); err != nil {
-		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
+		return domain.ActorID{}, nil, nil, errSessionAuthorityUnavailable
 	}
 	principal, err := authorization.NativePrincipal(owner.Account, owner.Session)
 	if err != nil {

@@ -314,6 +314,9 @@ message LoginDecision {
 service AuthService {
   rpc StartLogin(StartLoginRequest) returns (StartLoginResponse);
   rpc CompleteLogin(CompleteLoginRequest) returns (CompleteLoginResponse);
+  // Terminal failures use AuthError (expired session, revoked/invalid
+  // credential, disabled account). Unavailable, DeadlineExceeded and Canceled
+  // are transient: retry only the same durably saved renewal_key operation.
   rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse);
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
@@ -333,7 +336,13 @@ message CompleteLoginRequest {
   FactorProof proof = 2;
 }
 message CompleteLoginResponse { LoginDecision decision = 1; }
-message RefreshSessionRequest { string refresh_token = 1; }
+message RefreshSessionRequest {
+  string refresh_token = 1;
+  // Optional 32-byte random operation secret, durably saved before dispatch.
+  // Retrying the same token/key may recover only its still-current successor.
+  // Empty retains legacy one-use rotation and replay revocation.
+  bytes renewal_key = 2;
+}
 message RefreshSessionResponse { SessionTokens tokens = 1; }
 message ListSessionsRequest { AccountId account_id = 1; }
 message ListSessionsResponse { repeated Session sessions = 1; }

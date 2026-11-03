@@ -351,7 +351,7 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 		t.Fatal("login omitted session metadata")
 	}
 	if !first.AccessExpiresAt.AsTime().Equal(fakeClock.Now().Add(15*time.Minute)) ||
-		!first.Session.ExpiresAt.AsTime().Equal(fakeClock.Now().Add(30*24*time.Hour)) {
+		!first.Session.ExpiresAt.AsTime().Equal(fakeClock.Now().Add(7*24*time.Hour)) {
 		t.Fatal("login lifetimes changed")
 	}
 	if err := listWith(first.AccessToken); err != nil {
@@ -377,13 +377,47 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := refresh.Msg.Tokens
-	if second == nil || !second.Session.ExpiresAt.AsTime().Equal(first.Session.ExpiresAt.AsTime()) {
-		t.Fatal("refresh slid absolute session expiry")
+	if second == nil || !second.Session.ExpiresAt.AsTime().Equal(fakeClock.Now().Add(7*24*time.Hour)) {
+		t.Fatal("refresh did not extend inactivity expiry")
 	}
 	nha049Code(t, listWith(first.AccessToken), connect.CodeUnauthenticated)
 	_, err = auth.RefreshSession(context.Background(), connect.NewRequest(&authv1.RefreshSessionRequest{RefreshToken: first.RefreshToken}))
 	nha049Code(t, err, connect.CodeUnauthenticated)
 	nha049Code(t, listWith(second.AccessToken), connect.CodeUnauthenticated)
+	// A saved renewal operation may recover its committed successor after
+	// losing the reply, including after its initial access has expired.
+	recoverable := login(firstPassword)
+	operationKey := []byte("nha198-saved-operation-secret-01")
+	if len(operationKey) != 32 {
+		t.Fatal("invalid synthetic operation key")
+	}
+	savedRequest := &authv1.RefreshSessionRequest{RefreshToken: recoverable.RefreshToken, RenewalKey: operationKey}
+	initialRenewal, err := auth.RefreshSession(context.Background(), connect.NewRequest(savedRequest))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakeClock.Advance(initialRenewal.Msg.Tokens.AccessExpiresAt.AsTime().Add(time.Minute))
+	recoveredRenewal, err := auth.RefreshSession(context.Background(), connect.NewRequest(savedRequest))
+	if err != nil {
+		t.Fatalf("lost refresh reply could not recover over TLS: %v", err)
+	}
+	if recoveredRenewal.Msg.Tokens.RefreshToken != initialRenewal.Msg.Tokens.RefreshToken || recoveredRenewal.Msg.Tokens.AccessToken == initialRenewal.Msg.Tokens.AccessToken {
+		t.Fatal("recovering the same operation changed its successor or reused access")
+	}
+	if err := listWith(recoveredRenewal.Msg.Tokens.AccessToken); err != nil {
+		t.Fatalf("recovered access denied: %v", err)
+	}
+	malformed := &authv1.RefreshSessionRequest{RefreshToken: recoveredRenewal.Msg.Tokens.RefreshToken, RenewalKey: []byte{1}}
+	_, err = auth.RefreshSession(context.Background(), connect.NewRequest(malformed))
+	nha049Code(t, err, connect.CodeInvalidArgument)
+	if err := listWith(recoveredRenewal.Msg.Tokens.AccessToken); err != nil {
+		t.Fatalf("invalid operation shape changed session: %v", err)
+	}
+	wrongKey := append([]byte(nil), operationKey...)
+	wrongKey[0] ^= 1
+	_, err = auth.RefreshSession(context.Background(), connect.NewRequest(&authv1.RefreshSessionRequest{RefreshToken: recoverable.RefreshToken, RenewalKey: wrongKey}))
+	nha049Code(t, err, connect.CodeUnauthenticated)
+	nha049Code(t, listWith(recoveredRenewal.Msg.Tokens.AccessToken), connect.CodeUnauthenticated)
 	third := login(firstPassword)
 	stream := openStream(third.AccessToken)
 	fakeClock.Advance(third.AccessExpiresAt.AsTime())
@@ -570,8 +604,8 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	expectRecorderDrainFailure = true
 	if err := listWith(secondAdminSession.AccessToken); err == nil {
 		t.Fatal("database outage admitted an access credential")
-	} else if connect.CodeOf(err) != connect.CodeUnauthenticated && connect.CodeOf(err) != connect.CodeUnavailable {
-		t.Fatalf("database outage returned unexpected code: %v", err)
+	} else if connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("database outage was misclassified as invalid credentials: %v", err)
 	}
 }
 

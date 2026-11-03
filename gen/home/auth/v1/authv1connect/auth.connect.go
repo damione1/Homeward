@@ -586,6 +586,9 @@ func (UnimplementedAccountServiceHandler) SetSecondFactorPolicy(context.Context,
 type AuthServiceClient interface {
 	StartLogin(context.Context, *connect.Request[v1.StartLoginRequest]) (*connect.Response[v1.StartLoginResponse], error)
 	CompleteLogin(context.Context, *connect.Request[v1.CompleteLoginRequest]) (*connect.Response[v1.CompleteLoginResponse], error)
+	// Terminal failures use AuthError (expired session, revoked/invalid
+	// credential, disabled account). Unavailable, DeadlineExceeded and Canceled
+	// are transient: retry only the same durably saved renewal_key operation.
 	RefreshSession(context.Context, *connect.Request[v1.RefreshSessionRequest]) (*connect.Response[v1.RefreshSessionResponse], error)
 	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
@@ -738,6 +741,9 @@ func (c *authServiceClient) ReplaceRecoveryCodes(ctx context.Context, req *conne
 type AuthServiceHandler interface {
 	StartLogin(context.Context, *connect.Request[v1.StartLoginRequest]) (*connect.Response[v1.StartLoginResponse], error)
 	CompleteLogin(context.Context, *connect.Request[v1.CompleteLoginRequest]) (*connect.Response[v1.CompleteLoginResponse], error)
+	// Terminal failures use AuthError (expired session, revoked/invalid
+	// credential, disabled account). Unavailable, DeadlineExceeded and Canceled
+	// are transient: retry only the same durably saved renewal_key operation.
 	RefreshSession(context.Context, *connect.Request[v1.RefreshSessionRequest]) (*connect.Response[v1.RefreshSessionResponse], error)
 	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)

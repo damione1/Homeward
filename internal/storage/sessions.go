@@ -13,7 +13,7 @@ import (
 )
 
 const sessionAccessLifetime = 15 * time.Minute
-const sessionAbsoluteLifetime = 30 * 24 * time.Hour
+const sessionInactivityLifetime = 7 * 24 * time.Hour
 const sessionLimitPerAccount = 16
 const sessionGenerationLimit = 4096
 const sessionExpiredPruneBatch = 64
@@ -21,6 +21,12 @@ const sessionExpiredPruneBatch = 64
 var ErrSessionInvalid = errors.New("sessions: invalid input")
 var ErrSessionUnavailable = errors.New("sessions: unavailable")
 var ErrSessionNotFound = errors.New("sessions: credential or session unavailable")
+
+// These causes preserve errors.Is(ErrSessionNotFound) for existing callers,
+// while the RPC boundary can identify a confirmed terminal condition.
+var ErrSessionExpired = errors.Join(ErrSessionNotFound, errors.New("sessions: inactivity expired"))
+var ErrSessionRevoked = errors.Join(ErrSessionNotFound, errors.New("sessions: revoked"))
+var ErrSessionAccountDisabled = errors.Join(ErrSessionNotFound, errors.New("sessions: account disabled"))
 var ErrSessionPermission = errors.New("sessions: permission denied")
 var ErrSessionCommitUnknown = errors.New("sessions: commit outcome unknown")
 
@@ -94,6 +100,7 @@ type RefreshRotation struct {
 	NewDigest       accounts.RefreshDigest
 	NewAccessDigest accounts.AccessDigest
 	Now             time.Time
+	Recoverable     bool
 }
 
 type refreshRotationKind uint8
@@ -102,7 +109,6 @@ const (
 	refreshRotationUnspecified refreshRotationKind = iota
 	refreshRotationSucceeded
 	refreshRotationReplayRevoked
-	refreshRotationGenerationExhausted
 )
 
 // RotatedSession is a closed result: only a successful rotation carries a
@@ -123,9 +129,6 @@ func (r RotatedSession) Rotated() (SessionRecord, time.Time, bool) {
 	return r.session, r.accessExpiresAt, true
 }
 func (r RotatedSession) ReplayRevoked() bool { return r.kind == refreshRotationReplayRevoked }
-func (r RotatedSession) GenerationExhausted() bool {
-	return r.kind == refreshRotationGenerationExhausted
-}
 
 func sessionTransaction[T any](s *Store, ctx context.Context, fn func(pgx.Tx) (T, error)) (T, error) {
 	var zero T
@@ -291,14 +294,17 @@ func (s *Store) AdmitAccess(ctx context.Context, owner SessionOwner, digest acco
 	var role int16
 	var policyRevision int64
 	var policyHash []byte
-	err = s.pool.QueryRow(ctx, `SELECT s.account_id,s.id,a.expires_at,s.expires_at,c.role,p.version_revision,v.source_hash
-        FROM public.auth_access_credentials a
-        JOIN public.auth_sessions s ON s.id=a.session_id
-        JOIN public.auth_accounts c ON c.id=s.account_id
- JOIN public.auth_mfa_policy p ON p.singleton JOIN public.config_versions v ON v.document_id=p.document_id AND v.revision=p.version_revision
-        WHERE a.token_digest=$1 AND s.id=$2 AND s.account_id=$3 AND a.audience=1
-        AND `+mfaSessionPredicate,
-		raw[:], session, account).Scan(&foundAccount, &foundSession, &accessExpiry, &sessionExpiry, &role, &policyRevision, &policyHash)
+	err = s.pool.QueryRow(ctx, `UPDATE public.auth_sessions s
+        SET last_used_at=GREATEST(COALESCE(s.last_used_at,s.created_at),$4),
+            expires_at=GREATEST(COALESCE(s.last_used_at,s.created_at),$4)+$5*interval '1 second'
+        FROM public.auth_access_credentials a, public.auth_accounts c,
+             public.auth_mfa_policy p, public.config_versions v
+        WHERE a.session_id=s.id AND c.id=s.account_id AND p.singleton
+        AND v.document_id=p.document_id AND v.revision=p.version_revision
+        AND a.token_digest=$1 AND s.id=$2 AND s.account_id=$3 AND a.audience=1
+        AND a.expires_at>$4 AND s.expires_at>$4 AND `+mfaSessionPredicate+`
+        RETURNING s.account_id,s.id,a.expires_at,s.expires_at,c.role,p.version_revision,v.source_hash`,
+		raw[:], session, account, now, int64(sessionInactivityLifetime/time.Second)).Scan(&foundAccount, &foundSession, &accessExpiry, &sessionExpiry, &role, &policyRevision, &policyHash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AccessAdmission{}, ErrSessionNotFound
 	}
@@ -429,16 +435,14 @@ func (s *Store) createSessionTx(ctx context.Context, tx pgx.Tx, input SessionCre
 		}
 	}
 
-	// Keep consumed refresh digests for the full absolute lifetime. A new
-	// issuance prunes only this locked account's expired families in a
+	// A new issuance prunes only this locked account's expired families in a
 	// bounded batch; child digests disappear through the schema's cascades.
 	if _, err := tx.Exec(ctx, `DELETE FROM public.auth_sessions WHERE id IN (
 		SELECT id FROM public.auth_sessions WHERE account_id=$1 AND expires_at<=$2
 		ORDER BY expires_at,id LIMIT $3 FOR UPDATE)`, account, input.Now, sessionExpiredPruneBatch); err != nil {
 		return CreatedSession{}, ErrSessionUnavailable
 	}
-	// Expired rows no longer count, but their consumed digests stay until the
-	// absolute deadline. New issuance deterministically evicts the oldest.
+	// New issuance deterministically evicts the oldest active session.
 	var evicted *contracts.SessionID
 	var oldest string
 	err = tx.QueryRow(ctx, `SELECT id FROM public.auth_sessions WHERE account_id=$1 AND revoked_at IS NULL AND expires_at>$2
@@ -461,7 +465,7 @@ func (s *Store) createSessionTx(ctx context.Context, tx pgx.Tx, input SessionCre
 		}
 		evicted = &parsed
 	}
-	expires := input.Now.Add(sessionAbsoluteLifetime)
+	expires := input.Now.Add(sessionInactivityLifetime)
 	accessExpires := input.Now.Add(sessionAccessLifetime)
 	if accessExpires.After(expires) {
 		accessExpires = expires
@@ -510,11 +514,7 @@ func (s *Store) RotateRefresh(ctx context.Context, input RefreshRotation) (Rotat
 		var revision int64
 		var status int16
 		if err := tx.QueryRow(ctx, `SELECT revocation_revision,status FROM public.auth_accounts WHERE id=$1 FOR UPDATE`, account).Scan(&revision, &status); err != nil {
-			return RotatedSession{}, ErrSessionNotFound
-		}
-		var admitted bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.auth_sessions s JOIN public.auth_accounts c ON c.id=s.account_id CROSS JOIN public.auth_mfa_policy p WHERE p.singleton AND s.id=$1 AND s.account_id=$2 AND `+mfaSessionPredicate+`)`, session, account).Scan(&admitted); err != nil || !admitted {
-			return RotatedSession{}, ErrSessionNotFound
+			return RotatedSession{}, sessionLookupError(err)
 		}
 		var recordedRevision int64
 		var generation int32
@@ -522,18 +522,42 @@ func (s *Store) RotateRefresh(ctx context.Context, input RefreshRotation) (Rotat
 		var revoked *time.Time
 		if err := tx.QueryRow(ctx, `SELECT account_revision,current_generation,expires_at,revoked_at FROM public.auth_sessions
             WHERE id=$1 AND account_id=$2 FOR UPDATE`, session, account).Scan(&recordedRevision, &generation, &expiry, &revoked); err != nil {
+			return RotatedSession{}, sessionLookupError(err)
+		}
+		if status != 1 {
+			return RotatedSession{}, ErrSessionAccountDisabled
+		}
+		if revision != recordedRevision || revoked != nil {
+			return RotatedSession{}, ErrSessionRevoked
+		}
+		if !input.Now.Before(expiry) {
+			return RotatedSession{}, ErrSessionExpired
+		}
+		var admitted bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.auth_sessions s JOIN public.auth_accounts c ON c.id=s.account_id CROSS JOIN public.auth_mfa_policy p WHERE p.singleton AND s.id=$1 AND s.account_id=$2 AND `+mfaSessionPredicate+`)`, session, account).Scan(&admitted); err != nil {
+			return RotatedSession{}, ErrSessionUnavailable
+		}
+		if !admitted {
 			return RotatedSession{}, ErrSessionNotFound
 		}
-		if status != 1 || revision != recordedRevision || revoked != nil || !input.Now.Before(expiry) {
-			return RotatedSession{}, ErrSessionNotFound
-		}
+
 		var foundGeneration int32
 		var state int16
 		if err := tx.QueryRow(ctx, `SELECT generation,state FROM public.auth_refresh_generations
 			WHERE session_id=$1 AND token_digest=$2 FOR UPDATE`, session, oldDigest[:]).Scan(&foundGeneration, &state); err != nil {
-			return RotatedSession{}, ErrSessionNotFound
+			return RotatedSession{}, sessionLookupError(err)
 		}
-		if state == 2 {
+		recovering := false
+		if state == 2 && input.Recoverable && foundGeneration%sessionGenerationLimit+1 == generation {
+			// The caller has derived NewDigest from the old token AND its
+			// persisted operation secret. An old bearer alone cannot match.
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.auth_refresh_generations
+				WHERE session_id=$1 AND generation=$2 AND token_digest=$3 AND state=1)`,
+				session, generation, newDigest[:]).Scan(&recovering); err != nil {
+				return RotatedSession{}, ErrSessionUnavailable
+			}
+		}
+		if state == 2 && !recovering {
 			if _, err := tx.Exec(ctx, `UPDATE public.auth_sessions SET revoked_at=$2 WHERE id=$1`, session, input.Now); err != nil {
 				return RotatedSession{}, ErrSessionUnavailable
 			}
@@ -542,37 +566,39 @@ func (s *Store) RotateRefresh(ctx context.Context, input RefreshRotation) (Rotat
 			}
 			return RotatedSession{kind: refreshRotationReplayRevoked}, nil
 		}
-		if state != 1 || foundGeneration != generation {
-			return RotatedSession{}, ErrSessionNotFound
-		}
-		if generation >= sessionGenerationLimit {
-			if _, err := tx.Exec(ctx, `UPDATE public.auth_sessions SET revoked_at=$2 WHERE id=$1`, session, input.Now); err != nil {
+		if !recovering {
+			if state != 1 || foundGeneration != generation {
+				return RotatedSession{}, ErrSessionNotFound
+			}
+			command, err := tx.Exec(ctx, `UPDATE public.auth_refresh_generations SET state=2,consumed_at=$3
+				WHERE session_id=$1 AND generation=$2 AND state=1`, session, generation, input.Now)
+			if err != nil || command.RowsAffected() != 1 {
 				return RotatedSession{}, ErrSessionUnavailable
 			}
-			if err := insertSessionAudit(ctx, tx, input.Owner.Account, authActionSessionRevoke, authOutcomeAdmitted); err != nil {
-				return RotatedSession{}, err
+			generation = generation%sessionGenerationLimit + 1
+			// Slots bound retained history without expiring an actively used
+			// session. Only a consumed ancient slot may be evicted. Its token
+			// then becomes unknown (denied), never valid again after wrapping.
+			if _, err := tx.Exec(ctx, `DELETE FROM public.auth_refresh_generations
+				WHERE session_id=$1 AND generation=$2 AND state=2`, session, generation); err != nil {
+				return RotatedSession{}, ErrSessionUnavailable
 			}
-			return RotatedSession{kind: refreshRotationGenerationExhausted}, nil
+			if _, err := tx.Exec(ctx, `INSERT INTO public.auth_refresh_generations(session_id,generation,token_digest,state,issued_at)
+				VALUES($1,$2,$3,1,$4)`, session, generation, newDigest[:], input.Now); err != nil {
+				return RotatedSession{}, ErrSessionUnavailable
+			}
 		}
-		command, err := tx.Exec(ctx, `UPDATE public.auth_refresh_generations SET state=2,consumed_at=$3
-            WHERE session_id=$1 AND generation=$2 AND state=1`, session, generation, input.Now)
-		if err != nil || command.RowsAffected() != 1 {
-			return RotatedSession{}, ErrSessionUnavailable
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO public.auth_refresh_generations(session_id,generation,token_digest,state,issued_at)
-			VALUES($1,$2,$3,1,$4)`, session, generation+1, newDigest[:], input.Now); err != nil {
-			return RotatedSession{}, ErrSessionUnavailable
-		}
+		expiry = input.Now.Add(sessionInactivityLifetime)
 		accessExpires := input.Now.Add(sessionAccessLifetime)
 		if accessExpires.After(expiry) {
 			accessExpires = expiry
 		}
-		command, err = tx.Exec(ctx, `UPDATE public.auth_access_credentials SET token_digest=$2,expires_at=$3
+		command, err := tx.Exec(ctx, `UPDATE public.auth_access_credentials SET token_digest=$2,expires_at=$3
 			WHERE session_id=$1`, session, newAccessDigest[:], accessExpires)
 		if err != nil || command.RowsAffected() != 1 {
 			return RotatedSession{}, ErrSessionUnavailable
 		}
-		if _, err := tx.Exec(ctx, `UPDATE public.auth_sessions SET current_generation=$2,last_used_at=$3 WHERE id=$1`, session, generation+1, input.Now); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE public.auth_sessions SET current_generation=$2,last_used_at=$3,expires_at=$4 WHERE id=$1`, session, generation, input.Now, expiry); err != nil {
 			return RotatedSession{}, ErrSessionUnavailable
 		}
 		if err := insertSessionAudit(ctx, tx, input.Owner.Account, authActionSessionRefresh, authOutcomeAdmitted); err != nil {
@@ -581,6 +607,13 @@ func (s *Store) RotateRefresh(ctx context.Context, input RefreshRotation) (Rotat
 		record, err := scanSession(tx.QueryRow(ctx, `SELECT `+sessionColumns+` FROM public.auth_sessions s WHERE s.id=$1`, session))
 		return RotatedSession{kind: refreshRotationSucceeded, session: record, accessExpiresAt: accessExpires}, err
 	})
+}
+
+func sessionLookupError(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrSessionNotFound
+	}
+	return ErrSessionUnavailable
 }
 
 func insertSessionAudit(ctx context.Context, tx pgx.Tx, account contracts.AccountID, action authAction, outcome int16) error {

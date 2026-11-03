@@ -117,11 +117,31 @@ func sessionRPCError(err error) error {
 		return connect.NewError(connect.CodeInvalidArgument, errors.New("invalid session request"))
 	case errors.Is(err, storage.ErrSessionPermission):
 		return connect.NewError(connect.CodePermissionDenied, errors.New("session permission denied"))
+	case errors.Is(err, storage.ErrSessionExpired):
+		return sessionDetailedError(connect.CodeUnauthenticated, &authv1.AuthError{Code: authv1.AuthErrorCode_AUTH_ERROR_CODE_EXPIRED,
+			Detail: &authv1.AuthError_Expired{Expired: authv1.ExpiredResource_EXPIRED_RESOURCE_SESSION}})
+	case errors.Is(err, storage.ErrSessionRevoked):
+		return sessionDetailedError(connect.CodeUnauthenticated, &authv1.AuthError{Code: authv1.AuthErrorCode_AUTH_ERROR_CODE_UNAUTHENTICATED,
+			Detail: &authv1.AuthError_Authentication{Authentication: authv1.AuthenticationFailure_AUTHENTICATION_FAILURE_REVOKED}})
+	case errors.Is(err, storage.ErrSessionAccountDisabled):
+		return sessionDetailedError(connect.CodePermissionDenied, &authv1.AuthError{Code: authv1.AuthErrorCode_AUTH_ERROR_CODE_PERMISSION_DENIED,
+			Detail: &authv1.AuthError_Permission{Permission: authv1.PermissionFailure_PERMISSION_FAILURE_ACCOUNT_DISABLED}})
 	case errors.Is(err, storage.ErrSessionNotFound), errors.Is(err, errSessionUnauthenticated):
-		return connect.NewError(connect.CodeUnauthenticated, errors.New("authentication failed"))
+		return sessionDetailedError(connect.CodeUnauthenticated, &authv1.AuthError{Code: authv1.AuthErrorCode_AUTH_ERROR_CODE_UNAUTHENTICATED,
+			Detail: &authv1.AuthError_Authentication{Authentication: authv1.AuthenticationFailure_AUTHENTICATION_FAILURE_INVALID_CREDENTIAL}})
 	default:
 		return connect.NewError(connect.CodeUnavailable, errors.New("session service unavailable"))
 	}
+}
+
+// Unary session failures use the existing AuthError contract; transient RPC
+// codes carry no terminal credential detail and never require text matching.
+func sessionDetailedError(code connect.Code, detail *authv1.AuthError) error {
+	result := connect.NewError(code, errors.New("authentication failed"))
+	if wire, err := connect.NewErrorDetail(detail); err == nil {
+		result.AddDetail(wire)
+	}
+	return result
 }
 
 func (h *authHandler) deniedLogin(ctx context.Context, limited bool) error {
@@ -529,6 +549,13 @@ func (h *authHandler) RefreshSession(ctx context.Context, request *connect.Reque
 	if err != nil {
 		return nil, sessionRPCError(errSessionUnauthenticated)
 	}
+	var key accounts.RenewalKey
+	if len(request.Msg.RenewalKey) != 0 {
+		key, err = accounts.ParseRenewalKey(request.Msg.RenewalKey)
+		if err != nil {
+			return nil, sessionRPCError(storage.ErrSessionInvalid)
+		}
+	}
 	owner, err := h.store.LookupRefreshOwner(ctx, digest)
 	if err != nil {
 		return nil, sessionRPCError(err)
@@ -536,6 +563,16 @@ func (h *authHandler) RefreshSession(ctx context.Context, request *connect.Reque
 	credentials, err := newIssuedCredentials()
 	if err != nil {
 		return nil, sessionRPCError(err)
+	}
+	if len(request.Msg.RenewalKey) != 0 {
+		credentials.refresh, err = secret.Successor(key)
+		if err != nil {
+			return nil, sessionRPCError(err)
+		}
+		credentials.refreshDigest, err = credentials.refresh.Digest()
+		if err != nil {
+			return nil, sessionRPCError(err)
+		}
 	}
 	ticket, err := h.coordinator.enterMFAPolicy(ctx)
 	if err != nil {
@@ -548,7 +585,7 @@ func (h *authHandler) RefreshSession(ctx context.Context, request *connect.Reque
 	}
 	defer guard.release()
 	rotated, err := h.store.RotateRefresh(ctx, storage.RefreshRotation{Owner: owner, OldDigest: digest,
-		NewDigest: credentials.refreshDigest, NewAccessDigest: credentials.accessDigest, Now: h.coordinator.clock.Now()})
+		NewDigest: credentials.refreshDigest, NewAccessDigest: credentials.accessDigest, Now: h.coordinator.clock.Now(), Recoverable: len(request.Msg.RenewalKey) != 0})
 	if errors.Is(err, storage.ErrSessionCommitUnknown) {
 		guard.quarantine()
 		guard.cancelLeases(ctx, nil)
@@ -556,9 +593,9 @@ func (h *authHandler) RefreshSession(ctx context.Context, request *connect.Reque
 	if err != nil {
 		return nil, sessionRPCError(err)
 	}
-	if rotated.ReplayRevoked() || rotated.GenerationExhausted() {
+	if rotated.ReplayRevoked() {
 		guard.cancelLeases(ctx, &owner.Session)
-		return nil, sessionRPCError(errSessionUnauthenticated)
+		return nil, sessionRPCError(storage.ErrSessionRevoked)
 	}
 	current, accessExpiry, ok := rotated.Rotated()
 	if !ok {
