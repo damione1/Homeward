@@ -28,7 +28,10 @@ const (
 type Violation struct {
 	field string
 	kind  ViolationKind
+	root  protoreflect.MessageDescriptor
 }
+
+func (v *Violation) Descriptor() protoreflect.MessageDescriptor { return v.root }
 
 func (v *Violation) Field() string       { return v.field }
 func (v *Violation) Kind() ViolationKind { return v.kind }
@@ -36,7 +39,7 @@ func (v *Violation) Error() string {
 	return fmt.Sprintf("invalid command field %s (%d)", v.field, v.kind)
 }
 
-func reject(field string, kind ViolationKind) error { return &Violation{field, kind} }
+func reject(field string, kind ViolationKind) error { return &Violation{field: field, kind: kind, root: (&wire.ExecuteCapabilityRequest{}).ProtoReflect().Descriptor()} }
 
 // knownFields rejects future executable fields, including nested unknown fields.
 // Unknown observation fields are a different, non-actionable read policy.
@@ -107,6 +110,46 @@ func parseIntent(request *wire.ExecuteCapabilityRequest) (apitypes.Intent, error
 		default:
 			return nil, reject("level", MissingIntent)
 		}
+	case *wire.ExecuteCapabilityRequest_Media:
+		if command == nil {
+			return nil, reject("media", MissingIntent)
+		}
+		return ParseMediaCommand(command.Media)
+	case *wire.ExecuteCapabilityRequest_Light:
+		if command == nil {
+			return nil, reject("light", MissingIntent)
+		}
+		return parseLight(command.Light)
+	case *wire.ExecuteCapabilityRequest_Fan:
+		if command == nil {
+			return nil, reject("fan", MissingIntent)
+		}
+		return parseFan(command.Fan)
+	case *wire.ExecuteCapabilityRequest_TemperatureControl:
+		if command == nil {
+			return nil, reject("temperature_control", MissingIntent)
+		}
+		return parseThermal(command.TemperatureControl)
+	case *wire.ExecuteCapabilityRequest_Cover:
+		if command == nil {
+			return nil, reject("cover", MissingIntent)
+		}
+		return parseCover(command.Cover)
+	case *wire.ExecuteCapabilityRequest_Lock:
+		if command == nil {
+			return nil, reject("lock", MissingIntent)
+		}
+		return parseLock(command.Lock)
+	case *wire.ExecuteCapabilityRequest_Alarm:
+		if command == nil {
+			return nil, reject("alarm", MissingIntent)
+		}
+		return parseAlarm(command.Alarm)
+	case *wire.ExecuteCapabilityRequest_Helper:
+		if command == nil {
+			return nil, reject("helper", MissingIntent)
+		}
+		return parseHelper(command.Helper)
 	default:
 		return nil, reject("", MissingIntent)
 	}
@@ -141,5 +184,15 @@ func ParseCommand(request *wire.ExecuteCapabilityRequest) (apitypes.Command, err
 	if request.ExpireTime == nil || request.ExpireTime.CheckValid() != nil || request.ExpireTime.AsTime().IsZero() {
 		return apitypes.Command{}, reject("expire_time", InvalidDeadline)
 	}
-	return apitypes.NewCommand(target, intent, id, request.ExpireTime.AsTime())
+	command, err := apitypes.NewCommand(target, intent, id, request.ExpireTime.AsTime())
+	if err != nil {
+		return apitypes.Command{}, err
+	}
+	if request.Etag != "" {
+		command, err = command.WithDefinitionETag(request.Etag)
+		if err != nil {
+			return apitypes.Command{}, reject("etag", OutOfRange)
+		}
+	}
+	return command, nil
 }

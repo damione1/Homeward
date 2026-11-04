@@ -33,6 +33,10 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// HomeServiceGetHomeProcedure is the fully-qualified name of the HomeService's GetHome RPC.
+	HomeServiceGetHomeProcedure = "/home.api.v2.HomeService/GetHome"
+	// HomeServiceListHomesProcedure is the fully-qualified name of the HomeService's ListHomes RPC.
+	HomeServiceListHomesProcedure = "/home.api.v2.HomeService/ListHomes"
 	// HomeServiceGetEntityProcedure is the fully-qualified name of the HomeService's GetEntity RPC.
 	HomeServiceGetEntityProcedure = "/home.api.v2.HomeService/GetEntity"
 	// HomeServiceListEntitiesProcedure is the fully-qualified name of the HomeService's ListEntities
@@ -51,6 +55,12 @@ const (
 
 // HomeServiceClient is a client for the home.api.v2.HomeService service.
 type HomeServiceClient interface {
+	// Reads the persistent installation identity for a currently authenticated
+	// account. The name is independent of the listener address or user aliases.
+	GetHome(context.Context, *connect.Request[v2.GetHomeRequest]) (*connect.Response[v2.Home], error)
+	// Discovers the installation available to the currently authenticated account.
+	// This server serves one persistent home; page tokens confer no authority.
+	ListHomes(context.Context, *connect.Request[v2.ListHomesRequest]) (*connect.Response[v2.ListHomesResponse], error)
 	// Reads authorized entity metadata without refreshing or commanding hardware.
 	// Authorization precedes detailed validation; unknown names return NOT_FOUND
 	// only to an authorized caller. No automatic mutation or retry occurs.
@@ -78,6 +88,18 @@ func NewHomeServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 	baseURL = strings.TrimRight(baseURL, "/")
 	homeServiceMethods := v2.File_home_api_v2_home_proto.Services().ByName("HomeService").Methods()
 	return &homeServiceClient{
+		getHome: connect.NewClient[v2.GetHomeRequest, v2.Home](
+			httpClient,
+			baseURL+HomeServiceGetHomeProcedure,
+			connect.WithSchema(homeServiceMethods.ByName("GetHome")),
+			connect.WithClientOptions(opts...),
+		),
+		listHomes: connect.NewClient[v2.ListHomesRequest, v2.ListHomesResponse](
+			httpClient,
+			baseURL+HomeServiceListHomesProcedure,
+			connect.WithSchema(homeServiceMethods.ByName("ListHomes")),
+			connect.WithClientOptions(opts...),
+		),
 		getEntity: connect.NewClient[v2.GetEntityRequest, v2.Entity](
 			httpClient,
 			baseURL+HomeServiceGetEntityProcedure,
@@ -113,11 +135,23 @@ func NewHomeServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 
 // homeServiceClient implements HomeServiceClient.
 type homeServiceClient struct {
+	getHome          *connect.Client[v2.GetHomeRequest, v2.Home]
+	listHomes        *connect.Client[v2.ListHomesRequest, v2.ListHomesResponse]
 	getEntity        *connect.Client[v2.GetEntityRequest, v2.Entity]
 	listEntities     *connect.Client[v2.ListEntitiesRequest, v2.ListEntitiesResponse]
 	updateEntity     *connect.Client[v2.UpdateEntityRequest, v2.Entity]
 	getCapability    *connect.Client[v2.GetCapabilityRequest, v2.Capability]
 	listCapabilities *connect.Client[v2.ListCapabilitiesRequest, v2.ListCapabilitiesResponse]
+}
+
+// GetHome calls home.api.v2.HomeService.GetHome.
+func (c *homeServiceClient) GetHome(ctx context.Context, req *connect.Request[v2.GetHomeRequest]) (*connect.Response[v2.Home], error) {
+	return c.getHome.CallUnary(ctx, req)
+}
+
+// ListHomes calls home.api.v2.HomeService.ListHomes.
+func (c *homeServiceClient) ListHomes(ctx context.Context, req *connect.Request[v2.ListHomesRequest]) (*connect.Response[v2.ListHomesResponse], error) {
+	return c.listHomes.CallUnary(ctx, req)
 }
 
 // GetEntity calls home.api.v2.HomeService.GetEntity.
@@ -147,6 +181,12 @@ func (c *homeServiceClient) ListCapabilities(ctx context.Context, req *connect.R
 
 // HomeServiceHandler is an implementation of the home.api.v2.HomeService service.
 type HomeServiceHandler interface {
+	// Reads the persistent installation identity for a currently authenticated
+	// account. The name is independent of the listener address or user aliases.
+	GetHome(context.Context, *connect.Request[v2.GetHomeRequest]) (*connect.Response[v2.Home], error)
+	// Discovers the installation available to the currently authenticated account.
+	// This server serves one persistent home; page tokens confer no authority.
+	ListHomes(context.Context, *connect.Request[v2.ListHomesRequest]) (*connect.Response[v2.ListHomesResponse], error)
 	// Reads authorized entity metadata without refreshing or commanding hardware.
 	// Authorization precedes detailed validation; unknown names return NOT_FOUND
 	// only to an authorized caller. No automatic mutation or retry occurs.
@@ -170,6 +210,18 @@ type HomeServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewHomeServiceHandler(svc HomeServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	homeServiceMethods := v2.File_home_api_v2_home_proto.Services().ByName("HomeService").Methods()
+	homeServiceGetHomeHandler := connect.NewUnaryHandler(
+		HomeServiceGetHomeProcedure,
+		svc.GetHome,
+		connect.WithSchema(homeServiceMethods.ByName("GetHome")),
+		connect.WithHandlerOptions(opts...),
+	)
+	homeServiceListHomesHandler := connect.NewUnaryHandler(
+		HomeServiceListHomesProcedure,
+		svc.ListHomes,
+		connect.WithSchema(homeServiceMethods.ByName("ListHomes")),
+		connect.WithHandlerOptions(opts...),
+	)
 	homeServiceGetEntityHandler := connect.NewUnaryHandler(
 		HomeServiceGetEntityProcedure,
 		svc.GetEntity,
@@ -202,6 +254,10 @@ func NewHomeServiceHandler(svc HomeServiceHandler, opts ...connect.HandlerOption
 	)
 	return "/home.api.v2.HomeService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case HomeServiceGetHomeProcedure:
+			homeServiceGetHomeHandler.ServeHTTP(w, r)
+		case HomeServiceListHomesProcedure:
+			homeServiceListHomesHandler.ServeHTTP(w, r)
 		case HomeServiceGetEntityProcedure:
 			homeServiceGetEntityHandler.ServeHTTP(w, r)
 		case HomeServiceListEntitiesProcedure:
@@ -220,6 +276,14 @@ func NewHomeServiceHandler(svc HomeServiceHandler, opts ...connect.HandlerOption
 
 // UnimplementedHomeServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedHomeServiceHandler struct{}
+
+func (UnimplementedHomeServiceHandler) GetHome(context.Context, *connect.Request[v2.GetHomeRequest]) (*connect.Response[v2.Home], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.HomeService.GetHome is not implemented"))
+}
+
+func (UnimplementedHomeServiceHandler) ListHomes(context.Context, *connect.Request[v2.ListHomesRequest]) (*connect.Response[v2.ListHomesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.HomeService.ListHomes is not implemented"))
+}
 
 func (UnimplementedHomeServiceHandler) GetEntity(context.Context, *connect.Request[v2.GetEntityRequest]) (*connect.Response[v2.Entity], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.HomeService.GetEntity is not implemented"))

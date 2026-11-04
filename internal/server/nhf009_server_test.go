@@ -16,11 +16,12 @@ import (
 	"time"
 
 	imported "github.com/damione1/Homeward/compat/ha/dashboard"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -82,6 +83,7 @@ func TestNHF009ControlServer(t *testing.T) {
 	defer cancel()
 	instance, _ := domain.ParseIntegrationInstanceID("nhf009-fake-only")
 	var host *integrations.Manager
+	var ledger *storage.Store
 	var identities *registry.Repository
 	factory := RuntimeFactory(func(factoryCtx context.Context, store *storage.Store) (RuntimePlan, error) {
 		var err error
@@ -114,8 +116,8 @@ func TestNHF009ControlServer(t *testing.T) {
 				dashboard.activation = owner
 				return nil
 			},
-			Configure: func(_ context.Context, actual *integrations.Manager, _ *storage.Store) error {
-				host = actual
+			Configure: func(_ context.Context, actual *integrations.Manager, store *storage.Store) error {
+				host, ledger = actual, store
 				return nil
 			},
 		}
@@ -183,7 +185,7 @@ func TestNHF009ControlServer(t *testing.T) {
 		}
 		driver.mu.Unlock()
 		nhf003WritePrivate(t, out, "result.json", map[string]any{"server_joined": joined, "fake_driver_calls": driver.count.Load(), "command_driver_entries": count,
-			"submit_ids": calls.submit, "get_ids": calls.get, "watch_ids": calls.watch, "entity_count": len(devices),
+			"execute_request_ids": calls.execute, "get_operation_names": calls.get, "wait_operation_names": calls.wait, "admitted_operations": calls.admitted, "entity_count": len(devices),
 			"protocol_confirmations": protocolConfirmations, "observed_effects": observedEffects, "lost_responses": calls.lost.Load(),
 			"native_login_calls": calls.logins.Load(), "native_revokes": calls.revokes.Load(),
 			"dashboard_get_calls": dashboard.gets.Load(), "dashboard_watch_calls": dashboard.watches.Load(), "real_device_writes": 0, "last_device_arguments": deviceArguments, "device_arguments": allArguments})
@@ -259,13 +261,37 @@ func TestNHF009ControlServer(t *testing.T) {
 		}
 	}
 	setPolicy(true)
+	homeResp, err := apiv2connect.NewHomeServiceClient(client, base).ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{PageSize: 1}, tokens.AccessToken))
+	if err != nil || len(homeResp.Msg.GetHomes()) != 1 {
+		t.Fatal(err)
+	}
+	actor, err := domain.ParseActorID(account.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, err := apitypes.ParseHomeName(homeResp.Msg.GetHomes()[0].Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entityViews := apiv2connect.NewEntityViewServiceClient(client, base)
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		page, err := statev1connect.NewStateServiceClient(client, base).OpenView(ctx, nha141BearerRequest(&state.OpenViewRequest{Filter: &state.ViewFilter{}, PageSize: 32}, tokens.AccessToken))
+		createdView, err := entityViews.CreateEntityView(ctx, nha141BearerRequest(&api.CreateEntityViewRequest{
+			Parent:     homeResp.Msg.GetHomes()[0].Name,
+			EntityView: &api.EntityView{Filter: ""},
+		}, tokens.AccessToken))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(page.Msg.Entities) == len(resolved) {
+		page, err := entityViews.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{
+			Name:     createdView.Msg.GetName(),
+			PageSize: 32,
+		}, tokens.AccessToken))
+		_, _ = entityViews.DeleteEntityView(ctx, nha141BearerRequest(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, tokens.AccessToken))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Msg.Entries) == len(resolved) {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -354,16 +380,24 @@ func TestNHF009ControlServer(t *testing.T) {
 			case nhf009RestoreObservations:
 				publish(false)
 			case nhf009ConfirmLast:
-				last, err := driver.nhf009Last(command.command)
+				native, err := nhf009ResolveControlCommand(ctx, ledger, actor, home, command.request, driver)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := last.ConfirmProtocol(nhf009ProtocolReceipt{command: *command.command}); err != nil {
+				last, err := driver.nhf009Last(&native)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := last.ConfirmProtocol(nhf009ProtocolReceipt{command: native}); err != nil {
 					t.Fatal(err)
 				}
 				protocolConfirmations++
 			case nhf009ObserveLast:
-				if err := nhf009ObserveCommand(ctx, driver, command.command, source, bindings, devices); err != nil {
+				native, err := nhf009ResolveControlCommand(ctx, ledger, actor, home, command.request, driver)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := nhf009ObserveCommand(ctx, driver, &native, source, bindings, devices); err != nil {
 					t.Fatal(err)
 				}
 				observedEffects++

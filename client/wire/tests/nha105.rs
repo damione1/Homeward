@@ -1,5 +1,5 @@
 use buffa::{EnumValue, Message};
-use home_wire_contract::{home::solar::v1 as solar, solar_contract};
+use home_wire_contract::{api_solar_contract as solar_contract, home::api::v2 as solar};
 
 #[test]
 fn nha105_go_protoc_rust_roundtrip_and_admission() {

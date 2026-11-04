@@ -1,13 +1,13 @@
 use buffa::{EnumValue, Enumeration, Message};
-use home_wire_contract::{controls_contract as admit, home::controls::v1 as w};
+use home_wire_contract::{api_controls_contract as admit, home::api::v2 as w};
 
-fn cover_limits() -> w::CoverConstraints {
-    w::CoverConstraints {
+fn cover_limits() -> w::CoverDefinition {
+    w::CoverDefinition {
         operations: vec![
             w::CoverOperation::Open.into(),
             w::CoverOperation::Stop.into(),
         ],
-        set_position_percent: w::PercentBounds {
+        set_position_percent: w::PercentageBounds {
             minimum: 10.,
             maximum: 90.,
             step: Some(5.),
@@ -96,8 +96,8 @@ fn commands_require_their_own_advertised_operation_and_position_grid() {
         (w::CoverOperation::Stop, true),
         (w::CoverOperation::Unspecified, false),
     ] {
-        let command = w::CoverAction {
-            command: Some(w::cover_action::Command::Operation(operation.into())),
+        let command = w::SetCoverCommand {
+            target: Some(w::set_cover_command::Target::Operation(operation.into())),
             ..Default::default()
         };
         assert_eq!(admit::cover_action(&command, &limits), valid);
@@ -113,19 +113,22 @@ fn commands_require_their_own_advertised_operation_and_position_grid() {
         (f64::NAN, false),
         (f64::INFINITY, false),
     ] {
-        let command = w::CoverAction {
-            command: Some(w::cover_action::Command::PositionPercent(position)),
+        let command = w::SetCoverCommand {
+            target: Some(w::set_cover_command::Target::PositionPercent(position)),
             ..Default::default()
         };
         assert_eq!(admit::cover_action(&command, &limits), valid);
     }
-    assert!(!admit::cover_action(&w::CoverAction::default(), &limits));
-    let lock_limits = w::LockConstraints {
+    assert!(!admit::cover_action(
+        &w::SetCoverCommand::default(),
+        &limits
+    ));
+    let lock_limits = w::LockDefinition {
         operations: vec![w::LockOperation::Lock.into()],
         observed_states: vec![w::LockState::Jammed.into()],
         ..Default::default()
     };
-    let mut lock = w::LockAction {
+    let mut lock = w::SetLockCommand {
         operation: w::LockOperation::Lock.into(),
         ..Default::default()
     };
@@ -146,12 +149,12 @@ fn commands_require_their_own_advertised_operation_and_position_grid() {
         },
         &lock_limits
     ));
-    let alarm_limits = w::AlarmConstraints {
+    let alarm_limits = w::AlarmDefinition {
         operations: vec![w::AlarmOperation::ArmHome.into()],
         observed_states: vec![w::AlarmState::Triggered.into()],
         ..Default::default()
     };
-    let mut alarm = w::AlarmAction {
+    let mut alarm = w::SetAlarmCommand {
         operation: w::AlarmOperation::ArmHome.into(),
         ..Default::default()
     };
@@ -168,9 +171,9 @@ fn commands_require_their_own_advertised_operation_and_position_grid() {
 }
 #[test]
 fn constraints_reject_unknown_duplicate_and_unusable_declarations() {
-    assert!(!admit::cover_constraints(&w::CoverConstraints::default()));
-    assert!(!admit::lock_constraints(&w::LockConstraints::default()));
-    assert!(!admit::alarm_constraints(&w::AlarmConstraints::default()));
+    assert!(!admit::cover_constraints(&w::CoverDefinition::default()));
+    assert!(!admit::lock_constraints(&w::LockDefinition::default()));
+    assert!(!admit::alarm_constraints(&w::AlarmDefinition::default()));
     let limits = cover_limits();
     assert!(admit::cover_constraints(&limits));
     assert!(!admit::cover_constraints(&unknown(&limits)));

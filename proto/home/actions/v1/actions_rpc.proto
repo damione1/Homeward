@@ -58,9 +58,3 @@ message WatchActionResponse {
     NoLiveActionProgress unavailable = 3;
   }
 }
-service ActionService {
-  rpc SubmitAction(SubmitActionRequest) returns (SubmitActionResponse);
-  rpc GetAction(GetActionRequest) returns (GetActionResponse);
-  // Starts with the current live point, without an action replay cursor.
-  rpc WatchAction(WatchActionRequest) returns (stream WatchActionResponse);
-}

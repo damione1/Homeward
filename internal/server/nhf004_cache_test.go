@@ -16,12 +16,13 @@ import (
 	"testing"
 	"time"
 
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	dashboardv1 "github.com/damione1/Homeward/gen/home/dashboard/v1"
 	"github.com/damione1/Homeward/gen/home/dashboard/v1/dashboardv1connect"
-	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -429,9 +430,23 @@ func TestNHF004CacheServer(t *testing.T) {
 			t.Fatal("synthetic dashboard TLS readiness:", err)
 		}
 	}
-	api := statev1connect.NewStateServiceClient(client, base)
-	check, err := api.OpenView(ctx, nha141BearerRequest(&statev1.OpenViewRequest{Filter: &statev1.ViewFilter{}, PageSize: 256}, tokens.AccessToken))
-	if err != nil || len(check.Msg.Entities) != 256 || check.Msg.NextPageToken == "" {
+	homeResp, err := apiv2connect.NewHomeServiceClient(client, base).ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{PageSize: 1}, tokens.AccessToken))
+	if err != nil || len(homeResp.Msg.GetHomes()) != 1 {
+		t.Fatal("native paginated readiness home:", err)
+	}
+	viewAPI := apiv2connect.NewEntityViewServiceClient(client, base)
+	createdView, err := viewAPI.CreateEntityView(ctx, nha141BearerRequest(&api.CreateEntityViewRequest{
+		Parent:     homeResp.Msg.GetHomes()[0].Name,
+		EntityView: &api.EntityView{Filter: ""},
+	}, tokens.AccessToken))
+	if err != nil {
+		t.Fatal("native paginated readiness create view:", err)
+	}
+	check, err := viewAPI.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{
+		Name:     createdView.Msg.GetName(),
+		PageSize: 256,
+	}, tokens.AccessToken))
+	if err != nil || len(check.Msg.Entries) != 256 || check.Msg.NextPageToken == "" {
 		t.Fatal("native paginated readiness:", err)
 	}
 	certificate, err := os.ReadFile(filepath.Join(data, nha181CertificateName))
@@ -442,7 +457,15 @@ func TestNHF004CacheServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, _ := firstID.Value()
+	homeName, err := apitypes.ParseHomeName(homeResp.Msg.GetHomes()[0].Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstName, err := apitypes.EntityNameForIdentity(homeName, firstID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := firstName.String()
 	clientOrigin := base
 	if appMode {
 		pair, err := tls.LoadX509KeyPair(filepath.Join(data, nha181CertificateName), filepath.Join(data, nha181PrivateKeyName))
@@ -450,7 +473,7 @@ func TestNHF004CacheServer(t *testing.T) {
 			t.Fatal(err)
 		}
 		// Opt-in pass-through TLS observer used only to count actual native app
-		// login/read/revoke calls. It changes no auth or StateService response.
+		// login/read/revoke calls. It changes no auth or EntityViewService response.
 		proxy = nhf003StartProxy(t, base, roots, pair, out, nhf003LoginExpectation{name: login, password: password})
 		clientOrigin = proxy.server.URL
 	}
@@ -458,11 +481,26 @@ func TestNHF004CacheServer(t *testing.T) {
 	if workload != nil {
 		alias, _ := workload.meter.Value()
 		id, _ := workload.list.Value()
-		readyData["workload"] = map[string]any{"meter_alias": alias, "list_id": id, "point_count": nhf023PointCount, "item_count": nhf023ItemCount,
+		_, meterEntity, err := bindings[meterIndex].IDs()
+		if err != nil {
+			t.Fatal(err)
+		}
+		meterName, err := apitypes.EntityNameForIdentity(homeName, meterEntity)
+		if err != nil {
+			t.Fatal(err)
+		}
+		meterCapabilities, err := apiv2connect.NewHomeServiceClient(client, base).ListCapabilities(ctx, nha141BearerRequest(&api.ListCapabilitiesRequest{Parent: meterName.String()}, tokens.AccessToken))
+		if err != nil || len(meterCapabilities.Msg.GetCapabilities()) != 1 || meterCapabilities.Msg.Capabilities[0].GetNumericMeasurement() == nil {
+			t.Fatal("exact synthetic meter capability absent", err)
+		}
+		readyData["workload"] = map[string]any{"observation_capability": meterCapabilities.Msg.Capabilities[0].Name, "meter_alias": alias, "list_id": id, "point_count": nhf023PointCount, "item_count": nhf023ItemCount,
 			"start": time.Now().UTC().Add(-10 * time.Minute).Format(time.RFC3339), "end": time.Now().UTC().Add(5 * time.Minute).Format(time.RFC3339)}
 		if actionIndex >= 0 {
-			entity, _ := workload.driver.entity.Value()
-			readyData["workload"].(map[string]any)["action_entity"] = entity
+			entity, err := apitypes.EntityNameForIdentity(homeName, workload.driver.entity)
+			if err != nil {
+				t.Fatal(err)
+			}
+			readyData["workload"].(map[string]any)["action_entity"] = entity.String()
 		}
 	}
 	if appMode {
@@ -470,20 +508,27 @@ func TestNHF004CacheServer(t *testing.T) {
 		// Derive UI assertions from the real paginated view, not by reproducing
 		// the server's ordering or zipping identities with separate arrays.
 		page := check.Msg
-		readyData["expected_first_alias"] = page.Entities[0].CurrentAlias
-		count := len(page.Entities)
+		readyData["expected_first_label"] = page.Entries[0].Entity.DisplayName
+		count := len(page.Entries)
 		for page.NextPageToken != "" {
-			response, err := api.ReadPage(ctx, nha141BearerRequest(&statev1.ReadPageRequest{SnapshotToken: page.SnapshotToken, PageToken: page.NextPageToken}, tokens.AccessToken))
-			if err != nil || response.Msg.GetPage() == nil || len(response.Msg.Page.Entities) == 0 {
+			response, err := viewAPI.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{
+				Name:      createdView.Msg.GetName(),
+				PageSize:  256,
+				PageToken: page.NextPageToken,
+			}, tokens.AccessToken))
+			if err != nil || len(response.Msg.Entries) == 0 {
 				t.Fatal("native UI expected-row capture:", err)
 			}
-			page = response.Msg.Page
-			count += len(page.Entities)
+			page = response.Msg
+			count += len(page.Entries)
 		}
 		if count != len(keys) {
 			t.Fatal("native UI expected-row capture incomplete")
 		}
-		readyData["expected_last_alias"] = page.Entities[len(page.Entities)-1].CurrentAlias
+		readyData["expected_last_label"] = page.Entries[len(page.Entries)-1].Entity.DisplayName
+	}
+	if _, err := viewAPI.DeleteEntityView(ctx, nha141BearerRequest(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, tokens.AccessToken)); err != nil {
+		t.Fatal("native paginated readiness delete view:", err)
 	}
 	write("ready.json", readyData)
 	control := time.NewTicker(5 * time.Millisecond)

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -11,11 +12,10 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/storage"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -130,37 +130,66 @@ func TestNHA114NetworkAndClientWatchRecoveryNeverRedispatch(t *testing.T) {
 	unsent := f.command(t, "nha114-client-cancel-before-send", nha114Aliases[2], true)
 	unsentCtx, stopUnsent := context.WithCancel(f.ctx)
 	stopUnsent()
-	if _, err := f.actions.SubmitAction(unsentCtx, nha056SessionRequest(&actions.SubmitActionRequest{Command: unsent}, f.token)); connect.CodeOf(err) != connect.CodeCanceled {
+	if _, err := f.capabilities.ExecuteCapability(unsentCtx, nha056SessionRequest(unsent, f.token)); connect.CodeOf(err) != connect.CodeCanceled {
 		t.Fatal("already cancelled client sent an action request", err)
 	}
 	f.noCommands(t, 0)
 	command := f.command(t, "nha114-client-network-request", nha114Aliases[2], true)
-	command.ExpiresAt = timestamppb.New(time.Now().Add(5 * time.Second))
+	command.ExpireTime = timestamppb.New(time.Now().Add(5 * time.Second))
 	f.submit(t, command)
 	packet := f.nextCommand(t)
 	f.noCommands(t, 1)
+	// Operations are reconciled by unary reads. Disconnect a genuine entity
+	// stream while the intention is pending, then read that same operation again.
+	if nha114Metadata(t, f.progress(t, command.RequestId)).Phase != api.CommandPhase_COMMAND_PHASE_DISPATCHED {
+		t.Fatal("pending intention absent")
+	}
+	projection := f.view(t)
 	watchCtx, stopWatch := context.WithCancel(f.ctx)
-	watch, err := f.actions.WatchAction(watchCtx, nha056SessionRequest(&actions.WatchActionRequest{CommandId: command.CommandId}, f.token))
-	if err != nil || !watch.Receive() || watch.Msg().GetProgress().Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
-		t.Fatal("client did not see pending action", err)
+	opened := make(chan error, 1)
+	go func() {
+		watch, err := f.views.WatchEntityView(watchCtx, nha056SessionRequest(&api.WatchEntityViewRequest{Name: projection.Name, ResumeToken: projection.Resume}, f.token))
+		if err != nil {
+			opened <- err
+			return
+		}
+		defer watch.Close()
+		if !watch.Receive() {
+			opened <- watch.Err()
+			return
+		}
+		opened <- nil
+		for watch.Receive() {
+		}
+		opened <- watch.Err()
+	}()
+	// A real observation sends headers and proves the authenticated stream opened.
+	f.publish(t, nha114StateTopic(0), []byte("OFF"), nil)
+	select {
+	case err := <-opened:
+		if err != nil {
+			t.Fatal("client entity stream", err)
+		}
+	case <-f.ctx.Done():
+		t.Fatal(f.ctx.Err())
 	}
 	stopWatch()
-	if watch.Receive() || connect.CodeOf(watch.Err()) != connect.CodeCanceled {
-		t.Fatal("lost client watch did not expose cancellation", watch.Err())
+	select {
+	case err := <-opened:
+		if connect.CodeOf(err) != connect.CodeCanceled {
+			t.Fatal("lost client stream did not expose cancellation", err)
+		}
+	case <-f.ctx.Done():
+		t.Fatal(f.ctx.Err())
 	}
-	watch.Close()
-	// A new authenticated reader reconnects by the same command ID. The
-	// transport loss does not call SubmitAction or create another intention.
-	watch, err = f.actions.WatchAction(f.ctx, nha056SessionRequest(&actions.WatchActionRequest{CommandId: command.CommandId}, f.token))
-	if err != nil || !watch.Receive() || watch.Msg().GetProgress().Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
-		t.Fatal("watch could not reconnect to the same action", err)
+	if nha114Metadata(t, f.progress(t, command.RequestId)).Phase != api.CommandPhase_COMMAND_PHASE_DISPATCHED {
+		t.Fatal("reconnected reader lost same intention")
 	}
-	watch.Close()
 	f.noCommands(t, 1)
-	durableBefore := proto.Clone(f.progress(t, command.CommandId).Durable).(*actions.DurableActionResult)
+	durableBefore := f.durableResponse(t, command.RequestId)
 	f.reconnectMQTT(t)
-	progress := f.progress(t, command.CommandId)
-	if !proto.Equal(progress.Durable, durableBefore) || progress.GetProgress() == nil || progress.GetProgress().Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
+	progress := f.progress(t, command.RequestId)
+	if !bytes.Equal(f.durableResponse(t, command.RequestId), durableBefore) || nha114Metadata(t, progress).Phase != api.CommandPhase_COMMAND_PHASE_DISPATCHED {
 		t.Fatal("lost binding did not preserve exact durable result and unconfirmed dispatched progress")
 	}
 	f.noCommands(t, 1)
@@ -171,22 +200,22 @@ func TestNHA114NetworkAndClientWatchRecoveryNeverRedispatch(t *testing.T) {
 	}
 	f.publish(t, nha114StateTopic(2), []byte("ON"), packet.Properties.CorrelationData)
 	f.waitSwitch(t, 2, true)
-	if after := f.progress(t, command.CommandId); !proto.Equal(after.Durable, durableBefore) || after.GetProgress() == nil || after.GetProgress().Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
+	if after := f.progress(t, command.RequestId); !bytes.Equal(f.durableResponse(t, command.RequestId), durableBefore) || nha114Metadata(t, after).Phase != api.CommandPhase_COMMAND_PHASE_DISPATCHED {
 		t.Fatal("old session echo confirmed retired action")
 	}
 	// Session loss preserves pending progress. The real admitted deadline,
-	// observed through GetAction, is what makes this dispatched outcome
+	// observed through GetOperation, is what makes this dispatched outcome
 	// indeterminate; there is no arbitrary sleep or synthetic clock mutation.
 	nha114Eventually(t, "lost-session action did not become indeterminate at its admitted deadline", func() bool {
-		after := f.progress(t, command.CommandId)
-		if !proto.Equal(after.Durable, durableBefore) {
+		after := f.progress(t, command.RequestId)
+		if !bytes.Equal(f.durableResponse(t, command.RequestId), durableBefore) {
 			t.Fatal("deadline changed persisted dispatch result")
 		}
-		return after.GetProgress() != nil && after.GetProgress().Status == actions.ActionStatus_ACTION_STATUS_INDETERMINATE
+		return after.Done && nha114Metadata(t, after).Phase == api.CommandPhase_COMMAND_PHASE_INDETERMINATE
 	})
-	duplicate, err := f.actions.SubmitAction(f.ctx, nha056SessionRequest(&actions.SubmitActionRequest{Command: command}, f.token))
-	if err != nil || duplicate.Msg.Result.CommandId != command.CommandId {
-		t.Fatal("same-ID durable replay unavailable", err)
+	duplicate, err := f.capabilities.ExecuteCapability(f.ctx, nha056SessionRequest(command, f.token))
+	if err != nil || duplicate.Msg.Name != f.operationNames[command.RequestId] {
+		t.Fatal("same-request durable reconciliation unavailable", err)
 	}
 	f.noCommands(t, 1)
 	fresh := f.command(t, "nha114-explicit-after-network", nha114Aliases[2], false)
@@ -194,7 +223,7 @@ func TestNHA114NetworkAndClientWatchRecoveryNeverRedispatch(t *testing.T) {
 	reply := f.nextCommand(t)
 	f.publish(t, reply.Properties.ResponseTopic, []byte("OFF"), reply.Properties.CorrelationData)
 	nha114Eventually(t, "new explicit command not confirmed after recovery", func() bool {
-		return f.progress(t, fresh.CommandId).GetProgress().Status == actions.ActionStatus_ACTION_STATUS_CONFIRMED
+		return nha114Metadata(t, f.progress(t, fresh.RequestId)).Phase == api.CommandPhase_COMMAND_PHASE_CONFIRMED
 	})
 	f.noCommands(t, 2)
 	f.drainAndCount(t, 2)
@@ -211,7 +240,7 @@ func TestNHA114PostStartupPostgresStopAndSameCatalogRecovery(t *testing.T) {
 	f.submit(t, command)
 	f.nextCommand(t)
 	f.noCommands(t, 1)
-	before := proto.Clone(f.progress(t, command.CommandId).Durable).(*actions.DurableActionResult)
+	before := f.durableResponse(t, command.RequestId)
 	if err := f.cluster.Stop(); err != nil {
 		t.Fatal("actual isolated PG stop", err)
 	}
@@ -240,8 +269,8 @@ func TestNHA114PostStartupPostgresStopAndSameCatalogRecovery(t *testing.T) {
 	f.login(t)
 	f.refreshClients(t)
 	f.waitBindings(t)
-	after := f.progress(t, command.CommandId)
-	if !proto.Equal(before, after.Durable) || after.GetUnavailable() == nil {
+	after := f.progress(t, command.RequestId)
+	if !bytes.Equal(before, f.durableResponse(t, command.RequestId)) || nha114Metadata(t, after).LiveProgressAvailable {
 		t.Fatal("same catalog did not preserve the original durable request/result without live proof")
 	}
 	f.noCommands(t, 1)
@@ -250,7 +279,7 @@ func TestNHA114PostStartupPostgresStopAndSameCatalogRecovery(t *testing.T) {
 		t.Fatal("restarted actual Run did not reacquire durable readiness")
 	}
 	// Replay consults the stored record. It must never emit the command again.
-	if _, err := f.actions.SubmitAction(f.ctx, nha056SessionRequest(&actions.SubmitActionRequest{Command: command}, f.token)); err != nil {
+	if _, err := f.capabilities.ExecuteCapability(f.ctx, nha056SessionRequest(command, f.token)); err != nil {
 		t.Fatal("stored command not readable/replayable after restart", err)
 	}
 	f.noCommands(t, 1)

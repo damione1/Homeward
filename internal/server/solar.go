@@ -16,19 +16,20 @@ import (
 // Internal dependency injection preserves the configured production Run path.
 // It injects clocks and a consumer without replacing configured pilots.
 type runDependencies struct {
-	configurationWatcherClock  configdocuments.WatcherClock
-	remoteCalendarClock        automationtriggers.Clock
-	observeRemoteCalendar      func(*remoteCalendarRuntime)
-	observeRemoteActivation    remoteCalendarActivationObserver
-	sequenceClock              sequencer.Clock
-	solarClock                 automationtriggers.Clock
-	workdayClock               automationtriggers.Clock
-	configureWorkdayCalendar   func(context.Context, workday.CalendarReader) error
-	observe                    func(context.Context, *sequencer.Sequencer) error
-	observeLists               func(*listComposition, *sessionCoordinator)
-	maintenanceClock           recordermaintenance.Clock
-	observeRecorderMaintenance func(*recordermaintenance.Worker)
-	observeRuntime             func(*observationRuntime)
+	configurationWatcherClock        configdocuments.WatcherClock
+	remoteCalendarClock              automationtriggers.Clock
+	observeRemoteCalendar            func(*remoteCalendarRuntime)
+	observeRemoteActivation          remoteCalendarActivationObserver
+	sequenceClock                    sequencer.Clock
+	solarClock                       automationtriggers.Clock
+	workdayClock                     automationtriggers.Clock
+	configureWorkdayCalendar         func(context.Context, workday.CalendarReader) error
+	observe                          func(context.Context, *sequencer.Sequencer) error
+	observeLists                     func(*listComposition, *sessionCoordinator)
+	maintenanceClock                 recordermaintenance.Clock
+	observeRecorderMaintenance       func(*recordermaintenance.Worker)
+	observeRuntime                   func(*observationRuntime)
+	observeIntegrationAdministration func(*integrationHandler)
 }
 
 func addConfiguredSolar(plan *RuntimePlan, settings solar.Settings, clock automationtriggers.Clock) error {

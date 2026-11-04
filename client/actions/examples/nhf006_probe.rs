@@ -254,7 +254,7 @@ async fn main() -> Result<()> {
     session.close().await;
     println!(
         "NHF006_RESULT {}",
-        serde_json::json!({"pass":true,"command_id":id,"observed_unchanged":true})
+        serde_json::json!({"pass":true,"request_id":id,"observed_unchanged":true})
     );
     Ok(())
 }

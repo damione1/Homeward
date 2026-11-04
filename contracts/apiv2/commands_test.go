@@ -64,6 +64,7 @@ func TestSharedCommandCorpus(t *testing.T) {
 					if parts[0] == "zero" && intent.Percentage().Value() != 0 {
 						t.Fatal("zero lost")
 					}
+				case apitypes.LightCommand, apitypes.FanCommand, apitypes.ThermalCommand, apitypes.CoverCommand, apitypes.LockCommand, apitypes.AlarmCommand, apitypes.HelperCommand, apitypes.MediaCommand:
 				default:
 					t.Fatal("unhandled domain intent")
 				}
@@ -71,6 +72,9 @@ func TestSharedCommandCorpus(t *testing.T) {
 				violation, ok := err.(*Violation)
 				if !ok || violation.Field() != parts[3] {
 					t.Fatalf("want %q violation, got %v", parts[3], err)
+				}
+				if (parts[0] == "light-off-brightness-transition" || parts[0] == "helper-toggle-value") && violation.Kind() != wire.ValidationReason_VALIDATION_REASON_INCONSISTENT_FIELDS {
+					t.Fatal("present conflicting fields classified as missing", violation.Kind())
 				}
 			}
 		})
@@ -105,6 +109,9 @@ func TestCommandDescriptorCoverage(t *testing.T) {
 		"power": sample(),
 		"level": {Name: request.Name, ExpireTime: request.ExpireTime,
 			Command: &wire.ExecuteCapabilityRequest_Level{Level: &wire.SetLevelCommand{Target: &wire.SetLevelCommand_Percentage{Percentage: 0}}}},
+	}
+	for name, command := range traitFixtures() {
+		fixtures[name] = &wire.ExecuteCapabilityRequest{Name: request.Name, ExpireTime: request.ExpireTime, Command: command.Command}
 	}
 	if len(fixtures) != fields.Len() {
 		t.Fatal("new command variant requires an explicit domain conversion and fixture")

@@ -6,15 +6,15 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"github.com/damione1/Homeward/contracts"
-	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
 	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/scope"
+	"strings"
 )
 
 func TestNHA114LifecycleAndUnboundManifestTargetProduceNoCommands(t *testing.T) {
@@ -55,7 +55,8 @@ func TestNHA114LifecycleAndUnboundManifestTargetProduceNoCommands(t *testing.T) 
 	}
 	// The actual route resolver has no entity for this admitted alias. Its
 	// failure precedes construction of a permission object, and is intentionally
-	// hidden behind the public permission-denied boundary.
+	// unavailable in the native resolver. The installation administrator may
+	// receive canonical NOT_FOUND; an unprivileged caller remains indistinguishably denied.
 	if _, err := f.actual.sequence.ResolveCommandAlias(alias); !errors.Is(err, integrations.ErrCommandRouteUnavailable) {
 		t.Fatal("negative target unexpectedly has a route", err)
 	}
@@ -63,13 +64,16 @@ func TestNHA114LifecycleAndUnboundManifestTargetProduceNoCommands(t *testing.T) 
 	if err != nil || policy.Msg.GetPresent() == nil || !bytes.Equal(policy.Msg.GetPresent().YamlSource, f.policySource) {
 		t.Fatal("public policy no longer proves actions-all permission", err)
 	}
-	command := f.command(t, "nha114-unbound-foreign-source", foreign, true)
-	if err := contracts.AdmitSubmitActionRequest(&actions.SubmitActionRequest{Command: command}); err != nil {
-		t.Fatal("negative command is malformed", err)
+	// Aliases no longer form public command targets. Exercise the same denied
+	// boundary with a syntactically valid canonical identity lacking a native binding.
+	command := f.command(t, "nha114-unbound-foreign-source", nha114Aliases[0], true)
+	command.Name = f.entityName(t, "nha114-unbound-manifest-target") + "/capabilities/" + command.Name[strings.LastIndex(command.Name, "/")+1:]
+	if _, err := apitypes.ParseCapabilityName(command.Name); err != nil {
+		t.Fatal("negative canonical target malformed", err)
 	}
-	_, err = f.actions.SubmitAction(f.ctx, nha056SessionRequest(&actions.SubmitActionRequest{Command: command}, f.token))
-	if connect.CodeOf(err) != connect.CodePermissionDenied {
-		t.Fatal("unbound manifest resolution did not preserve its exact public denial", err)
+	_, err = f.capabilities.ExecuteCapability(f.ctx, nha056SessionRequest(command, f.token))
+	if connect.CodeOf(err) != connect.CodeNotFound || nha200Info(t, err).Reason != "RESOURCE_NOT_FOUND" {
+		t.Fatal("installation administrator lost canonical absence diagnostic", err)
 	}
 	f.noCommands(t, 0)
 	if err := f.run.join(t); err != nil {

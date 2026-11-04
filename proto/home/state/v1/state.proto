@@ -206,11 +206,3 @@ message WatchViewResponse {
     ResyncRequired resync_required = 4;
   }
 }
-
-// Authorized state reads and pagination cleanup; no device command dispatch.
-service StateService {
-  rpc OpenView(OpenViewRequest) returns (OpenViewResponse);
-  rpc ReadPage(ReadPageRequest) returns (ReadPageResponse);
-  rpc ReleaseView(ReleaseViewRequest) returns (ReleaseViewResponse);
-  rpc WatchView(WatchViewRequest) returns (stream WatchViewResponse);
-}

@@ -714,11 +714,7 @@ const file_home_actions_v1_actions_rpc_proto_rawDesc = "" +
 	"\x1eDURABLE_ACTION_ERROR_CANCELLED\x10\x04\x12!\n" +
 	"\x1dDURABLE_ACTION_ERROR_DEADLINE\x10\x05\x12\x1e\n" +
 	"\x1aDURABLE_ACTION_ERROR_OTHER\x10\x06\x12.\n" +
-	"*DURABLE_ACTION_ERROR_OUTCOME_INDETERMINATE\x10\a2\x9c\x02\n" +
-	"\rActionService\x12[\n" +
-	"\fSubmitAction\x12$.home.actions.v1.SubmitActionRequest\x1a%.home.actions.v1.SubmitActionResponse\x12R\n" +
-	"\tGetAction\x12!.home.actions.v1.GetActionRequest\x1a\".home.actions.v1.GetActionResponse\x12Z\n" +
-	"\vWatchAction\x12#.home.actions.v1.WatchActionRequest\x1a$.home.actions.v1.WatchActionResponse0\x01B<Z:github.com/damione1/Homeward/gen/home/actions/v1;actionsv1b\x06proto3"
+	"*DURABLE_ACTION_ERROR_OUTCOME_INDETERMINATE\x10\aB<Z:github.com/damione1/Homeward/gen/home/actions/v1;actionsv1b\x06proto3"
 
 var (
 	file_home_actions_v1_actions_rpc_proto_rawDescOnce sync.Once
@@ -762,14 +758,8 @@ var file_home_actions_v1_actions_rpc_proto_depIdxs = []int32{
 	8,  // 8: home.actions.v1.GetActionResponse.unavailable:type_name -> home.actions.v1.NoLiveActionProgress
 	7,  // 9: home.actions.v1.WatchActionResponse.progress:type_name -> home.actions.v1.ActionProgress
 	8,  // 10: home.actions.v1.WatchActionResponse.unavailable:type_name -> home.actions.v1.NoLiveActionProgress
-	2,  // 11: home.actions.v1.ActionService.SubmitAction:input_type -> home.actions.v1.SubmitActionRequest
-	4,  // 12: home.actions.v1.ActionService.GetAction:input_type -> home.actions.v1.GetActionRequest
-	5,  // 13: home.actions.v1.ActionService.WatchAction:input_type -> home.actions.v1.WatchActionRequest
-	3,  // 14: home.actions.v1.ActionService.SubmitAction:output_type -> home.actions.v1.SubmitActionResponse
-	9,  // 15: home.actions.v1.ActionService.GetAction:output_type -> home.actions.v1.GetActionResponse
-	10, // 16: home.actions.v1.ActionService.WatchAction:output_type -> home.actions.v1.WatchActionResponse
-	14, // [14:17] is the sub-list for method output_type
-	11, // [11:14] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
 	11, // [11:11] is the sub-list for extension extendee
 	0,  // [0:11] is the sub-list for field type_name
@@ -797,7 +787,7 @@ func file_home_actions_v1_actions_rpc_proto_init() {
 			NumEnums:      2,
 			NumMessages:   9,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   0,
 		},
 		GoTypes:           file_home_actions_v1_actions_rpc_proto_goTypes,
 		DependencyIndexes: file_home_actions_v1_actions_rpc_proto_depIdxs,

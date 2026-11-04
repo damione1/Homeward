@@ -170,6 +170,10 @@ func (s *Service) WatchView(ctx context.Context, actor ActorID, request *statewi
 	if err != nil {
 		return nil, err
 	}
+	return s.watchView(ctx, actor, filter, request.Cursor)
+}
+
+func (s *Service) watchView(ctx context.Context, actor ActorID, filter Filter, rawCursor *statewire.ViewCursor) (*Watch, error) {
 	authNotifier, ok := s.auth.(GrantChangeNotifier)
 	if !ok || nilInterface(authNotifier) {
 		return nil, ErrInvalidInput
@@ -206,7 +210,7 @@ func (s *Service) WatchView(ctx context.Context, actor ActorID, request *statewi
 		stop()
 		return nil, err
 	}
-	cursor, reason := s.admitCursor(request.Cursor, actor, filter, grant, config)
+	cursor, reason := s.admitCursor(rawCursor, actor, filter, grant, config)
 	if reason != statewire.ResyncReason_RESYNC_REASON_UNSPECIFIED {
 		stop()
 		return terminalWatch(reason), nil
@@ -426,7 +430,27 @@ func (w *Watch) authority(ctx context.Context) (Grant, statewire.ResyncReason, e
 // Next emits contiguous stream positions only for visible state changes. Its
 // cursor watermark advances across filtered journal entries. Metadata changes
 // terminate the old generation before a stale view can receive another delta.
+type watchEvent struct {
+	frame  *statewire.WatchViewResponse
+	entity domain.EntityID
+	state  domain.ObservedState
+}
+
 func (w *Watch) Next(ctx context.Context) (*statewire.WatchViewResponse, error) {
+	event, err := w.nextEvent(ctx)
+	if err != nil || event == nil {
+		return nil, err
+	}
+	return event.frame, nil
+}
+func (w *Watch) resyncEvent(reason statewire.ResyncReason) (*watchEvent, error) {
+	frame, err := w.resync(reason)
+	if err != nil {
+		return nil, err
+	}
+	return &watchEvent{frame: frame}, nil
+}
+func (w *Watch) nextEvent(ctx context.Context) (*watchEvent, error) {
 	if w == nil || ctx == nil {
 		return nil, ErrInvalidInput
 	}
@@ -436,7 +460,7 @@ func (w *Watch) Next(ctx context.Context) (*statewire.WatchViewResponse, error) 
 		frame := w.pending
 		w.pending = nil
 		_ = w.Close()
-		return frame, nil
+		return &watchEvent{frame: frame}, nil
 	}
 	if w.isClosed() {
 		return nil, io.EOF
@@ -457,23 +481,23 @@ func (w *Watch) Next(ctx context.Context) (*statewire.WatchViewResponse, error) 
 			return nil, err
 		}
 		if reason != statewire.ResyncReason_RESYNC_REASON_UNSPECIFIED {
-			return w.resync(reason)
+			return w.resyncEvent(reason)
 		}
 		mailboxReason, err := w.mailboxReason()
 		if err != nil {
 			return nil, err
 		}
 		if mailboxReason != statewire.ResyncReason_RESYNC_REASON_UNSPECIFIED {
-			return w.resync(mailboxReason)
+			return w.resyncEvent(mailboxReason)
 		}
 		entry, replayed := w.takeReplay()
 		if !replayed {
 			delivery, wake, pollErr := w.sub.Poll()
 			switch {
 			case errors.Is(pollErr, sequencer.ErrViewOverflow):
-				return w.resync(statewire.ResyncReason_RESYNC_REASON_CLIENT_SLOW)
+				return w.resyncEvent(statewire.ResyncReason_RESYNC_REASON_CLIENT_SLOW)
 			case errors.Is(pollErr, sequencer.ErrProjectionInvalidated):
-				return w.resync(statewire.ResyncReason_RESYNC_REASON_REGISTRY_UNAVAILABLE)
+				return w.resyncEvent(statewire.ResyncReason_RESYNC_REASON_REGISTRY_UNAVAILABLE)
 			case pollErr != nil:
 				if errors.Is(pollErr, sequencer.ErrSubscriptionClosed) && w.isClosed() {
 					return nil, io.EOF
@@ -488,11 +512,11 @@ func (w *Watch) Next(ctx context.Context) (*statewire.WatchViewResponse, error) 
 					return nil, io.EOF
 				case _, ok := <-w.grantChanges:
 					if !ok {
-						return w.resync(statewire.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED)
+						return w.resyncEvent(statewire.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED)
 					}
 				case _, ok := <-w.configChanges:
 					if !ok {
-						return w.resync(statewire.ResyncReason_RESYNC_REASON_CONFIGURATION_CHANGED)
+						return w.resyncEvent(statewire.ResyncReason_RESYNC_REASON_CONFIGURATION_CHANGED)
 					}
 				case <-wake:
 				}
@@ -502,7 +526,7 @@ func (w *Watch) Next(ctx context.Context) (*statewire.WatchViewResponse, error) 
 		}
 		tick := w.service.source.MonotonicNow()
 		if tick < entry.AdmissionTick() || tick-entry.AdmissionTick() > ReplayWindow {
-			return w.resync(statewire.ResyncReason_RESYNC_REASON_REPLAY_EXPIRED)
+			return w.resyncEvent(statewire.ResyncReason_RESYNC_REASON_REPLAY_EXPIRED)
 		}
 		// The authority may have changed while Poll removed a queued entry.
 		grant, reason, err = w.authority(ctx)
@@ -511,20 +535,20 @@ func (w *Watch) Next(ctx context.Context) (*statewire.WatchViewResponse, error) 
 			return nil, err
 		}
 		if reason != statewire.ResyncReason_RESYNC_REASON_UNSPECIFIED {
-			return w.resync(reason)
+			return w.resyncEvent(reason)
 		}
 		mailboxReason, err = w.mailboxReason()
 		if err != nil {
 			return nil, err
 		}
 		if mailboxReason != statewire.ResyncReason_RESYNC_REASON_UNSPECIFIED {
-			return w.resync(mailboxReason)
+			return w.resyncEvent(mailboxReason)
 		}
 		switch entry.Kind() {
 		case sequencer.KindRegistry:
-			return w.resync(statewire.ResyncReason_RESYNC_REASON_REGISTRY_CHANGED)
+			return w.resyncEvent(statewire.ResyncReason_RESYNC_REASON_REGISTRY_CHANGED)
 		case sequencer.KindCapabilities:
-			return w.resync(statewire.ResyncReason_RESYNC_REASON_CAPABILITIES_CHANGED)
+			return w.resyncEvent(statewire.ResyncReason_RESYNC_REASON_CAPABILITIES_CHANGED)
 		case sequencer.KindState:
 			id, state, _, _ := entry.State()
 			w.cursor.sequence = entry.Cursor()
@@ -547,17 +571,17 @@ func (w *Watch) Next(ctx context.Context) (*statewire.WatchViewResponse, error) 
 			}
 			frame := &statewire.WatchViewResponse{StreamSequence: w.streamSequence + 1, Cursor: wire, Frame: &statewire.WatchViewResponse_Delta{Delta: &statewire.StateDelta{States: []*statewire.ObservedState{wireState}}}}
 			if proto.Size(frame) > MaxFrameBytes {
-				return w.resync(statewire.ResyncReason_RESYNC_REASON_FRAME_TOO_LARGE)
+				return w.resyncEvent(statewire.ResyncReason_RESYNC_REASON_FRAME_TOO_LARGE)
 			}
 			tick = w.service.source.MonotonicNow()
 			if tick < entry.AdmissionTick() || tick-entry.AdmissionTick() > ReplayWindow {
-				return w.resync(statewire.ResyncReason_RESYNC_REASON_REPLAY_EXPIRED)
+				return w.resyncEvent(statewire.ResyncReason_RESYNC_REASON_REPLAY_EXPIRED)
 			}
 			w.streamSequence++
 			if w.isClosed() {
 				return nil, io.EOF
 			}
-			return frame, nil
+			return &watchEvent{frame: frame, entity: id, state: state}, nil
 		case sequencer.KindEvent, sequencer.KindHealth, sequencer.KindNativeMQTTEdge:
 			w.cursor.sequence = entry.Cursor()
 			continue

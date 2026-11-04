@@ -1,13 +1,11 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
+use crate::{CacheFailure, CachedView, Filter, MAX_PAGE_SIZE, SnapshotCapture, wall_now};
 use async_trait::async_trait;
-use buffa_types::google::protobuf::Timestamp;
+use home_client_model::api::HomeName;
 use home_client_session::AccessLease;
-use home_client_transport::{Failure, StateTransport};
-use home_wire_contract::home::state::v1 as wire;
+use home_client_transport::{EntityViewTransport, Failure, HomeTransport};
+use home_wire_contract::home::api::v2 as wire;
+use std::{sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
-
-use crate::{CacheFailure, CachedView, Filter, MAX_PAGE_SIZE, SnapshotCapture};
 
 #[derive(Debug)]
 pub enum SnapshotFailure {
@@ -15,7 +13,6 @@ pub enum SnapshotFailure {
     Transport(Failure),
     Cancelled,
 }
-
 impl std::fmt::Display for SnapshotFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
@@ -23,40 +20,56 @@ impl std::fmt::Display for SnapshotFailure {
 }
 impl std::error::Error for SnapshotFailure {}
 impl From<CacheFailure> for SnapshotFailure {
-    fn from(error: CacheFailure) -> Self {
-        Self::Contract(error)
+    fn from(value: CacheFailure) -> Self {
+        Self::Contract(value)
     }
 }
 
 #[async_trait]
 trait SnapshotApi: Send + Sync {
-    fn track(&self, _token: &str) -> Option<crate::snapshot_cleanup::ReleaseGuard> {
+    fn track(&self, _name: &str) -> Option<crate::snapshot_cleanup::ReleaseGuard> {
         None
     }
-    async fn open(&self, request: wire::OpenViewRequest)
-    -> Result<wire::OpenViewResponse, Failure>;
-    async fn read(&self, request: wire::ReadPageRequest)
-    -> Result<wire::ReadPageResponse, Failure>;
+    async fn home(&self) -> Result<wire::ListHomesResponse, Failure>;
+    async fn create(
+        &self,
+        request: wire::CreateEntityViewRequest,
+    ) -> Result<wire::EntityView, Failure>;
+    async fn query(
+        &self,
+        request: wire::QueryEntityViewRequest,
+    ) -> Result<wire::QueryEntityViewResponse, Failure>;
 }
-
 struct NativeApi<'a> {
-    transport: &'a StateTransport,
+    transport: &'a EntityViewTransport,
+    homes: &'a HomeTransport,
     lease: &'a AccessLease,
     cleanup: Option<&'a crate::snapshot_cleanup::CleanupHandle>,
 }
-
 #[async_trait]
 impl SnapshotApi for NativeApi<'_> {
-    fn track(&self, token: &str) -> Option<crate::snapshot_cleanup::ReleaseGuard> {
-        self.cleanup
-            .and_then(|cleanup| cleanup.track(token, self.lease))
+    fn track(&self, name: &str) -> Option<crate::snapshot_cleanup::ReleaseGuard> {
+        self.cleanup.and_then(|owner| owner.track(name, self.lease))
     }
-    async fn open(
+    async fn home(&self) -> Result<wire::ListHomesResponse, Failure> {
+        self.homes
+            .list_homes(
+                wire::ListHomesRequest {
+                    page_size: 1,
+                    ..Default::default()
+                },
+                self.lease.token(),
+                Duration::from_secs(10),
+                &self.lease.cancellation,
+            )
+            .await
+    }
+    async fn create(
         &self,
-        request: wire::OpenViewRequest,
-    ) -> Result<wire::OpenViewResponse, Failure> {
+        request: wire::CreateEntityViewRequest,
+    ) -> Result<wire::EntityView, Failure> {
         self.transport
-            .open_view(
+            .create_entity_view(
                 request,
                 self.lease.token(),
                 Duration::from_secs(10),
@@ -64,13 +77,12 @@ impl SnapshotApi for NativeApi<'_> {
             )
             .await
     }
-
-    async fn read(
+    async fn query(
         &self,
-        request: wire::ReadPageRequest,
-    ) -> Result<wire::ReadPageResponse, Failure> {
+        request: wire::QueryEntityViewRequest,
+    ) -> Result<wire::QueryEntityViewResponse, Failure> {
         self.transport
-            .read_page(
+            .query_entity_view(
                 request,
                 self.lease.token(),
                 Duration::from_secs(10),
@@ -79,25 +91,9 @@ impl SnapshotApi for NativeApi<'_> {
             .await
     }
 }
-
-fn wall_now() -> Result<Timestamp, CacheFailure> {
-    let time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| CacheFailure::InvalidResponse)?;
-    Ok(Timestamp {
-        seconds: i64::try_from(time.as_secs()).map_err(|_| CacheFailure::InvalidResponse)?,
-        nanos: time.subsec_nanos() as i32,
-        ..Default::default()
-    })
-}
-
-/// Capture all pages under one admitted access generation. A refused last page
-/// exposes no provisional data. The caller must still gate subsequent publication
-/// against its owner generation, since an already returned view can be invalidated.
-/// Low-level protocol probes use this unmanaged variant; production hosts use
-/// CacheOwner, which also relinquishes pagination storage on completion/drop.
 pub async fn read_snapshot(
-    transport: &StateTransport,
+    transport: &EntityViewTransport,
+    homes: &HomeTransport,
     lease: &AccessLease,
     filter: Filter,
     page_size: u32,
@@ -106,6 +102,7 @@ pub async fn read_snapshot(
     read_from(
         &NativeApi {
             transport,
+            homes,
             lease,
             cleanup: None,
         },
@@ -113,13 +110,12 @@ pub async fn read_snapshot(
         page_size,
         cancel,
         &lease.cancellation,
-        wall_now,
     )
     .await
 }
-
 pub(crate) async fn read_snapshot_owned(
-    transport: &StateTransport,
+    transport: &EntityViewTransport,
+    homes: &HomeTransport,
     lease: &AccessLease,
     filter: Filter,
     page_size: u32,
@@ -129,6 +125,7 @@ pub(crate) async fn read_snapshot_owned(
     read_from(
         &NativeApi {
             transport,
+            homes,
             lease,
             cleanup: Some(cleanup),
         },
@@ -136,11 +133,9 @@ pub(crate) async fn read_snapshot_owned(
         page_size,
         cancel,
         &lease.cancellation,
-        wall_now,
     )
     .await
 }
-
 fn check_cancel(
     cancel: &CancellationToken,
     access: &CancellationToken,
@@ -151,231 +146,214 @@ fn check_cancel(
         Ok(())
     }
 }
-
 async fn read_from(
     api: &impl SnapshotApi,
     filter: Filter,
     page_size: u32,
     cancel: &CancellationToken,
     access: &CancellationToken,
-    now: impl Fn() -> Result<Timestamp, CacheFailure>,
 ) -> Result<CachedView, SnapshotFailure> {
     if !(1..=MAX_PAGE_SIZE).contains(&page_size) {
         return Err(CacheFailure::InvalidPageSize.into());
     }
     check_cancel(cancel, access)?;
-    let request = wire::OpenViewRequest {
-        filter: filter.to_wire().into(),
-        page_size,
+    let discovery = tokio::select! {biased;
+     ()=cancel.cancelled()=>return Err(SnapshotFailure::Cancelled),
+     ()=access.cancelled()=>return Err(SnapshotFailure::Cancelled),
+     result=api.home()=>result.map_err(SnapshotFailure::Transport)?,
+    };
+    if !discovery.__buffa_unknown_fields.is_empty()
+        || discovery.homes.len() != 1
+        || !discovery.next_page_token.is_empty()
+    {
+        return Err(CacheFailure::InvalidResponse.into());
+    }
+    let resource = &discovery.homes[0];
+    if !resource.__buffa_unknown_fields.is_empty() {
+        return Err(CacheFailure::InvalidResponse.into());
+    }
+    let home =
+        HomeName::try_from(resource.name.as_str()).map_err(|_| CacheFailure::InvalidResponse)?;
+    check_cancel(cancel, access)?;
+    let request = wire::CreateEntityViewRequest {
+        parent: home.as_str().to_owned(),
+        entity_view: wire::EntityView {
+            filter: filter.expression().to_owned(),
+            ..Default::default()
+        }
+        .into(),
         ..Default::default()
     };
-    let first = tokio::select! {
-        biased;
-        () = cancel.cancelled() => return Err(SnapshotFailure::Cancelled),
-        () = access.cancelled() => return Err(SnapshotFailure::Cancelled),
-        response = api.open(request) => response.map_err(SnapshotFailure::Transport)?,
+    let descriptor = tokio::select! {biased;
+     ()=cancel.cancelled()=>return Err(SnapshotFailure::Cancelled),
+     ()=access.cancelled()=>return Err(SnapshotFailure::Cancelled),
+     result=api.create(request)=>result.map_err(SnapshotFailure::Transport)?,
     };
-    // Acquire before checking cancellation: even a response arriving at a
-    // suspension boundary has an owned server reservation to relinquish.
-    let _release = api.track(&first.snapshot_token);
+    // Own cleanup before checking cancellation. Unlike the old pagination-only
+    // capture, EntityViews must remain alive throughout watching and resumption.
+    let release = api.track(&descriptor.name).map(Arc::new);
     check_cancel(cancel, access)?;
-    let mut capture = SnapshotCapture::begin(filter, page_size, first, &now()?)?;
+    let mut capture = SnapshotCapture::begin(home, filter, page_size, descriptor, &wall_now()?)?;
     while let Some(request) = capture.next_request() {
-        let response = tokio::select! {
-            biased;
-            () = cancel.cancelled() => return Err(SnapshotFailure::Cancelled),
-            () = access.cancelled() => return Err(SnapshotFailure::Cancelled),
-            response = api.read(request) => response.map_err(SnapshotFailure::Transport)?,
+        let page = tokio::select! {biased;
+         ()=cancel.cancelled()=>return Err(SnapshotFailure::Cancelled),
+         ()=access.cancelled()=>return Err(SnapshotFailure::Cancelled),
+         result=api.query(request)=>result.map_err(SnapshotFailure::Transport)?,
         };
         check_cancel(cancel, access)?;
-        let page = response
-            .page
-            .into_option()
-            .ok_or(CacheFailure::InvalidResponse)?;
-        capture.push(page, &now()?)?;
+        capture.push(page, &wall_now()?)?;
     }
     check_cancel(cancel, access)?;
-    Ok(capture.finish(&now()?)?)
+    let mut complete = capture.finish(&wall_now()?)?;
+    complete._cleanup = release;
+    Ok(complete)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use connectrpc::ConnectError;
-    use std::{
-        collections::VecDeque,
-        sync::{
-            Mutex,
-            atomic::{AtomicI64, AtomicUsize, Ordering},
-        },
-    };
-
-    #[derive(Clone, Copy)]
-    enum LastPage {
-        Valid,
-        Refused,
-        Expired,
-        CancelAccess,
-        Blocked,
-    }
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct Api {
-        pages: Mutex<VecDeque<wire::OpenViewResponse>>,
-        calls: AtomicUsize,
-        last: LastPage,
-        now: AtomicI64,
-        access: CancellationToken,
-        entered: tokio::sync::Notify,
+        creates: AtomicUsize,
+        queries: AtomicUsize,
+        home_has_more: bool,
+        cancel_query: Option<CancellationToken>,
     }
-
-    fn timestamp(seconds: i64) -> Timestamp {
-        Timestamp {
-            seconds,
-            ..Default::default()
-        }
-    }
-
     impl Api {
-        fn new(last: LastPage) -> Self {
-            let filter = Filter::all();
-            let cursor = wire::ViewCursor {
-                epoch: "fixture-epoch".into(),
-                config_revision: 1,
-                authorization_revision: 1,
-                global_sequence: 100,
-                filter_sha256: filter.digest().to_vec(),
-                config_sha256: vec![1; 32],
-                grant_sha256: vec![2; 32],
-                admission_proof: vec![3; 40],
-                ..Default::default()
-            };
-            let pages = ["two", "three", ""]
-                .into_iter()
-                .enumerate()
-                .map(|(index, next)| wire::OpenViewResponse {
-                    snapshot_token: "fixture-capture".into(),
-                    cursor: cursor.clone().into(),
-                    expires_at: timestamp(60).into(),
-                    next_page_token: next.into(),
-                    entities: vec![wire::ViewEntity {
-                        entity_id: format!("entity-{index}"),
-                        ..Default::default()
-                    }],
-                    ..Default::default()
-                })
-                .collect();
+        fn new() -> Self {
             Self {
-                pages: Mutex::new(pages),
-                calls: AtomicUsize::new(0),
-                last,
-                now: AtomicI64::new(0),
-                access: CancellationToken::new(),
-                entered: tokio::sync::Notify::new(),
+                creates: AtomicUsize::new(0),
+                queries: AtomicUsize::new(0),
+                home_has_more: false,
+                cancel_query: None,
             }
         }
-        fn clock(&self) -> Result<Timestamp, CacheFailure> {
-            Ok(timestamp(self.now.load(Ordering::SeqCst)))
-        }
     }
-
     #[async_trait]
     impl SnapshotApi for Api {
-        async fn open(
-            &self,
-            request: wire::OpenViewRequest,
-        ) -> Result<wire::OpenViewResponse, Failure> {
-            assert!(request.filter.is_set());
-            assert_eq!(request.page_size, 1);
-            self.calls.fetch_add(1, Ordering::SeqCst);
-            Ok(self.pages.lock().unwrap().pop_front().unwrap())
+        async fn home(&self) -> Result<wire::ListHomesResponse, Failure> {
+            Ok(wire::ListHomesResponse {
+                homes: vec![wire::Home {
+                    name: "homes/synthetic".into(),
+                    ..Default::default()
+                }],
+                next_page_token: if self.home_has_more {
+                    "next".into()
+                } else {
+                    String::new()
+                },
+                ..Default::default()
+            })
         }
-        async fn read(
+        async fn create(
             &self,
-            request: wire::ReadPageRequest,
-        ) -> Result<wire::ReadPageResponse, Failure> {
-            assert_eq!(request.snapshot_token, "fixture-capture");
-            let call = self.calls.fetch_add(1, Ordering::SeqCst);
-            assert_eq!(request.page_token, if call == 1 { "two" } else { "three" });
-            if call == 2 {
-                match self.last {
-                    LastPage::Valid => {}
-                    LastPage::Refused => {
-                        return Err(Failure::from(ConnectError::permission_denied("fixture")));
-                    }
-                    LastPage::Expired => self.now.store(60, Ordering::SeqCst),
-                    LastPage::CancelAccess => self.access.cancel(),
-                    LastPage::Blocked => {
-                        self.entered.notify_one();
-                        std::future::pending::<()>().await;
-                    }
-                }
+            request: wire::CreateEntityViewRequest,
+        ) -> Result<wire::EntityView, Failure> {
+            assert_eq!(
+                self.creates.fetch_add(1, Ordering::SeqCst),
+                0,
+                "capture creation replayed"
+            );
+            assert_eq!(request.parent, "homes/synthetic");
+            let now = wall_now().unwrap();
+            let mut expiry = now.clone();
+            expiry.seconds += 60;
+            Ok(wire::EntityView {
+                name: "homes/synthetic/entityViews/reader-test".into(),
+                filter: request.entity_view.as_option().unwrap().filter.clone(),
+                create_time: now.into(),
+                expire_time: expiry.into(),
+                ..Default::default()
+            })
+        }
+        async fn query(
+            &self,
+            request: wire::QueryEntityViewRequest,
+        ) -> Result<wire::QueryEntityViewResponse, Failure> {
+            let ordinal = self.queries.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(request.name, "homes/synthetic/entityViews/reader-test");
+            assert_eq!(
+                request.page_token,
+                if ordinal == 0 { "" } else { "page-two" }
+            );
+            if let Some(cancel) = &self.cancel_query {
+                cancel.cancel();
             }
-            Ok(wire::ReadPageResponse {
-                page: self.pages.lock().unwrap().pop_front().unwrap().into(),
+            Ok(wire::QueryEntityViewResponse {
+                entries: if ordinal == 0 {
+                    vec![wire::EntityViewEntry {
+                        entity: wire::Entity {
+                            name: "homes/synthetic/entities/relay".into(),
+                            display_name: "Relay".into(),
+                            etag: "metadata-one".into(),
+                            ..Default::default()
+                        }
+                        .into(),
+                        ..Default::default()
+                    }]
+                } else {
+                    Vec::new()
+                },
+                next_page_token: if ordinal == 0 {
+                    "page-two".into()
+                } else {
+                    String::new()
+                },
+                resume_token: if ordinal == 0 {
+                    String::new()
+                } else {
+                    "complete-checkpoint".into()
+                },
                 ..Default::default()
             })
         }
     }
-
     #[tokio::test]
-    async fn driver_collects_all_pages_before_returning_a_complete_view() {
-        let api = Api::new(LastPage::Valid);
-        let result = read_from(
+    async fn capture_is_published_only_after_the_final_checkpoint() {
+        let api = Api::new();
+        let view = read_from(
             &api,
             Filter::all(),
             1,
             &CancellationToken::new(),
-            &api.access,
-            || api.clock(),
+            &CancellationToken::new(),
         )
         .await
         .unwrap();
-        assert_eq!(result.len(), 3);
-        assert_eq!(api.calls.load(Ordering::SeqCst), 3);
+        assert_eq!(view.len(), 1);
+        assert_eq!(view.checkpoint(), "complete-checkpoint");
+        assert_eq!(api.creates.load(Ordering::SeqCst), 1);
+        assert_eq!(api.queries.load(Ordering::SeqCst), 2);
     }
-
     #[tokio::test]
-    async fn last_rpc_refusal_expiry_and_generation_cancellation_discard_every_page() {
-        for last in [LastPage::Refused, LastPage::Expired, LastPage::CancelAccess] {
-            let api = Api::new(last);
-            let result = read_from(
+    async fn cancellation_after_a_page_never_publishes_or_recreates_the_capture() {
+        let cancel = CancellationToken::new();
+        let mut api = Api::new();
+        api.cancel_query = Some(cancel.clone());
+        assert!(matches!(
+            read_from(&api, Filter::all(), 1, &cancel, &CancellationToken::new()).await,
+            Err(SnapshotFailure::Cancelled)
+        ));
+        assert_eq!(api.creates.load(Ordering::SeqCst), 1);
+        assert_eq!(api.queries.load(Ordering::SeqCst), 1);
+    }
+    #[tokio::test]
+    async fn ambiguous_home_discovery_does_not_choose_an_authority() {
+        let mut api = Api::new();
+        api.home_has_more = true;
+        assert!(matches!(
+            read_from(
                 &api,
                 Filter::all(),
                 1,
                 &CancellationToken::new(),
-                &api.access,
-                || api.clock(),
+                &CancellationToken::new()
             )
-            .await;
-            match last {
-                LastPage::Refused => assert!(matches!(result, Err(SnapshotFailure::Transport(_)))),
-                LastPage::Expired => assert!(matches!(
-                    result,
-                    Err(SnapshotFailure::Contract(CacheFailure::Expired))
-                )),
-                LastPage::CancelAccess => {
-                    assert!(matches!(result, Err(SnapshotFailure::Cancelled)))
-                }
-                LastPage::Valid | LastPage::Blocked => unreachable!("not selected by this test"),
-            }
-            assert_eq!(api.calls.load(Ordering::SeqCst), 3);
-        }
-    }
-
-    #[tokio::test]
-    async fn cancellation_interrupts_a_blocked_last_page_and_prevents_an_initial_rpc() {
-        let api = Api::new(LastPage::Blocked);
-        let cancel = CancellationToken::new();
-        let work = read_from(&api, Filter::all(), 1, &cancel, &api.access, || api.clock());
-        let cancel_when_entered = async {
-            api.entered.notified().await;
-            cancel.cancel();
-        };
-        let (result, ()) = tokio::join!(work, cancel_when_entered);
-        assert!(matches!(result, Err(SnapshotFailure::Cancelled)));
-        let api = Api::new(LastPage::Valid);
-        let result = read_from(&api, Filter::all(), 1, &cancel, &api.access, || api.clock()).await;
-        assert!(matches!(result, Err(SnapshotFailure::Cancelled)));
-        assert_eq!(api.calls.load(Ordering::SeqCst), 0);
+            .await,
+            Err(SnapshotFailure::Contract(CacheFailure::InvalidResponse))
+        ));
+        assert_eq!(api.creates.load(Ordering::SeqCst), 0);
+        assert_eq!(api.queries.load(Ordering::SeqCst), 0);
     }
 }

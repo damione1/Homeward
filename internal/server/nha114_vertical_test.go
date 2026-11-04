@@ -3,13 +3,13 @@ package server
 import (
 	"bytes"
 	"encoding/hex"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"testing"
+	"time"
 
-	"github.com/damione1/Homeward/contracts"
-	actions "github.com/damione1/Homeward/gen/home/actions/v1"
-	helpers "github.com/damione1/Homeward/gen/home/helpers/v1"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
+	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -30,7 +30,7 @@ func TestNHA114ActualRunAuthenticatedVerticalCorrelatedObservationAndTrace(t *te
 		t.Fatal("admitted command lacks its native MQTT5 reply metadata")
 	}
 	f.noCommands(t, 1)
-	if p := f.progress(t, command.CommandId); p.GetProgress() == nil || p.GetProgress().Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
+	if p := f.progress(t, command.RequestId); nha114Metadata(t, p).Phase != api.CommandPhase_COMMAND_PHASE_DISPATCHED {
 		t.Fatal("broker receipt was mistaken for confirmation")
 	}
 
@@ -39,77 +39,105 @@ func TestNHA114ActualRunAuthenticatedVerticalCorrelatedObservationAndTrace(t *te
 	// subsequent correlated occurrence is joined by its exact public cursor.
 	f.publish(t, nha114StateTopic(0), []byte("ON"), nil)
 	f.waitSwitch(t, 0, true)
-	if p := f.progress(t, command.CommandId); p.GetProgress().Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
+	if p := f.progress(t, command.RequestId); nha114Metadata(t, p).Phase != api.CommandPhase_COMMAND_PHASE_DISPATCHED {
 		t.Fatal("value-only observation confirmed the API command")
 	}
 	f.publish(t, nha114StateTopic(0), []byte("OFF"), nil)
 	f.waitSwitch(t, 0, false)
 	before := f.view(t)
-	// Publish after the snapshot, then read its real replay suffix. Opening
-	// an idle Connect stream synchronously would wait for headers before the
-	// caller could send the very state packet that makes those headers arrive.
+	nativeBefore, err := f.actual.sequence.Capture()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The public checkpoint is opaque. The fixture independently joins the exact
+	// native journal occurrence to its automation trace; it never decodes a public token.
 	f.publish(t, packet.Properties.ResponseTopic, []byte("ON"), packet.Properties.CorrelationData)
-	watch, err := f.states.WatchView(f.ctx, nha056SessionRequest(&state.WatchViewRequest{Cursor: before.Cursor, Filter: &state.ViewFilter{}}, f.token))
+	watch, err := f.views.WatchEntityView(f.ctx, nha056SessionRequest(&api.WatchEntityViewRequest{Name: before.Name, ResumeToken: before.Resume}, f.token))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer watch.Close()
-	var event *state.ViewCursor
+	received := false
 	for watch.Receive() {
 		frame := watch.Msg()
-		if frame.GetResyncRequired() != nil {
-			t.Fatal("unexpected resync during correlated event", frame.GetResyncRequired().Reason)
+		entry := frame.GetUpsert()
+		if entry.GetEntity().GetName() != f.entityName(t, f.ids[0]) {
+			continue
 		}
-		for _, s := range frame.GetDelta().States {
-			if s.Entity.GetEntityId() == f.ids[0] && s.GetSwitchOn() {
-				event = frame.Cursor
+		for _, capability := range entry.Capabilities {
+			if capability.GetPower().GetObservation().GetValue() == api.PowerValue_POWER_VALUE_ON {
+				if frame.ResumeToken == "" || frame.ResumeToken == before.Resume {
+					t.Fatal("state receipt omitted its advancing checkpoint")
+				}
+				received = true
 			}
 		}
-		if event != nil {
+		if received {
 			break
 		}
 	}
-	if event == nil {
+	if !received {
 		t.Fatal("no public state-event receipt", watch.Err())
 	}
 	watch.Close()
 	nha114Eventually(t, "fresh explicitly correlated state did not confirm", func() bool {
-		return f.progress(t, command.CommandId).GetProgress().Status == actions.ActionStatus_ACTION_STATUS_CONFIRMED
+		return nha114Metadata(t, f.progress(t, command.RequestId)).Phase == api.CommandPhase_COMMAND_PHASE_CONFIRMED
+	})
+	var event sequencer.Cursor
+	nha114Eventually(t, "correlated receipt absent from native journal", func() bool {
+		entries, _, err := f.actual.sequence.ReadAfter(nativeBefore.Cursor, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range entries {
+			id, state, _, ok := entry.State()
+			text, _ := id.Value()
+			value, present := state.CurrentValue()
+			on, switchValue := value.Switch()
+			if ok && text == f.ids[0] && present && switchValue && on {
+				event = entry.Cursor()
+				return true
+			}
+		}
+		return false
 	})
 	runID := f.traceForEvent(t, event)
 	if runID == 0 {
 		t.Fatal("API command/event had no actual public automation RunID")
 	}
-	if event.ConfigRevision != command.ConfigRevision || event.Epoch != command.AdmissionEpoch {
-		t.Fatal("request and observed event cross generation/epoch")
+	beforeEpoch, _, _ := nativeBefore.Cursor.Components()
+	eventEpoch, eventSequence, err := event.Components()
+	if err != nil || beforeEpoch != eventEpoch {
+		t.Fatal("correlated receipt crossed native epoch", err)
+	}
+	if metadata := nha114Metadata(t, f.progress(t, command.RequestId)); metadata.Capability != command.Name || metadata.RequestId != command.RequestId {
+		t.Fatal("confirmation changed the captured intention")
 	}
 	f.noCommands(t, 1)
-	t.Logf("synthetic proof: request=%s command=%s event=%s/%d automation_run=%d command_packets=1", command.CommandId, command.CommandId, event.Epoch, event.GlobalSequence, runID)
+	t.Logf("synthetic proof: request=%s operation=%s native_event=%s/%d automation_run=%d command_packets=1", command.RequestId, f.operationNames[command.RequestId], eventEpoch, eventSequence, runID)
 	f.drainAndCount(t, 1)
 }
 
 func (f *nha114Fixture) exerciseHelpers(t *testing.T) {
 	t.Helper()
 	for _, item := range []struct {
-		alias, id string
-		action    *helpers.HelperAction
+		alias, label string
+		operation    api.HelperOperation
 	}{
-		{"input_boolean.away_mode", "nha114-helper-set", &helpers.HelperAction{Operation: helpers.HelperOperation_HELPER_OPERATION_SET, Value: &helpers.HelperValue{Value: &helpers.HelperValue_Boolean{Boolean: true}}}},
-		{"input_button.trash_out", "nha114-button-press", &helpers.HelperAction{Operation: helpers.HelperOperation_HELPER_OPERATION_PRESS}},
+		{"input_boolean.away_mode", "nha114-helper-set", api.HelperOperation_HELPER_OPERATION_SET},
+		{"input_button.trash_out", "nha114-button-press", api.HelperOperation_HELPER_OPERATION_PRESS},
 	} {
-		var observed *state.ObservedState
-		nha114Eventually(t, "published helper declaration/state is not publicly visible", func() bool {
-			for _, entity := range f.view(t).Entities {
-				if entity.CurrentAlias != item.alias || entity.State == nil {
+		entityName := f.aliasName(t, item.alias)
+		var capability *api.Capability
+		nha114Eventually(t, "published helper declaration is not publicly visible", func() bool {
+			for _, entry := range f.view(t).Entities {
+				if entry.Entity.GetName() != entityName {
 					continue
 				}
-				for _, description := range entity.Capabilities {
-					if description.SchemaId != contracts.HelperSchema || description.Endpoint != "value" || description.GetHelper() == nil {
-						continue
-					}
-					for _, operation := range description.GetHelper().Operations {
-						if operation == item.action.Operation {
-							observed = entity.State
+				for _, candidate := range entry.Capabilities {
+					for _, operation := range candidate.GetHelper().GetDefinition().GetOperations() {
+						if operation == item.operation {
+							capability = candidate
 							return true
 						}
 					}
@@ -117,73 +145,55 @@ func (f *nha114Fixture) exerciseHelpers(t *testing.T) {
 			}
 			return false
 		})
-		// Helper CAS has its own revision, distinct from ObservedState.revision.
-		// An unpressed button has no value on the public wire. Verify its actual
-		// SQL absence before using the existing097 absent-revision CAS value.
-		expected := observed.GetHelper().GetHelperRevision()
-		rows, sqlRevision := f.helperSQLRevision(t, item.alias)
-		if observed.GetHelper() == nil {
-			if item.action.Operation != helpers.HelperOperation_HELPER_OPERATION_PRESS || rows != 0 || sqlRevision != 0 {
-				t.Fatal("public helper absence does not match an unpressed SQL button")
+		observed := capability.GetHelper().GetObservation().GetValue()
+		expected := observed.GetHelperRevision()
+		rows, revision := f.helperSQLRevision(t, item.alias)
+		if observed == nil {
+			if item.operation != api.HelperOperation_HELPER_OPERATION_PRESS || rows != 0 || revision != 0 {
+				t.Fatal("public helper absence differs from unpressed SQL button")
 			}
-		} else if expected == 0 || rows != 1 || sqlRevision != expected {
-			t.Fatal("public helper CAS revision differs from the actual SQL value")
+		} else if expected <= 0 || rows != 1 || revision != uint64(expected) {
+			t.Fatal("public helper CAS differs from actual SQL value")
 		}
-		item.action.ExpectedHelperRevision = &expected
-		command := f.command(t, item.id, item.alias, true)
-		command.CapabilitySchemaId = contracts.HelperSchema
-		command.Endpoint = "value"
-		command.Arguments = &actions.ActionArgs{Arguments: &actions.ActionArgs_Helper{Helper: item.action}}
-		r, err := f.actions.SubmitAction(f.ctx, nha056SessionRequest(&actions.SubmitActionRequest{Command: command}, f.token))
-		if err != nil {
-			t.Fatal("published helper/button action through actual API", err)
+		helper := &api.SetHelperCommand{Operation: item.operation, ExpectedHelperRevision: &expected}
+		if item.operation == api.HelperOperation_HELPER_OPERATION_SET {
+			helper.Value = &api.HelperInputValue{Value: &api.HelperInputValue_BooleanValue{BooleanValue: true}}
 		}
-		response := r.Msg.GetResult()
-		if response.GetCommandId() != item.id || response.GetStatus() != actions.ActionStatus_ACTION_STATUS_DISPATCHED || response.GetError() != nil {
-			t.Fatalf("helper API request=%s status=%s code=%s field=%s", item.id, response.GetStatus(), response.GetError().GetCode(), response.GetError().GetFieldPath())
-		}
-		nha114Eventually(t, "helper commit did not produce actual confirmed live progress", func() bool {
-			result := f.progress(t, item.id)
-			if result.Durable.GetState() != actions.DurableActionState_DURABLE_ACTION_STATE_RESULT || result.Durable.GetError() != actions.DurableActionError_DURABLE_ACTION_ERROR_NONE || result.Durable.GetResponse().GetCommandId() != item.id || result.Durable.GetResponse().GetStatus() != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
-				t.Fatal("helper durable result did not retain the successful dispatched request", result.Durable)
+		command := &api.ExecuteCapabilityRequest{Name: capability.Name, Etag: capability.Etag, RequestId: nha114RequestID(item.label), ExpireTime: timestamppb.New(time.Now().Add(time.Minute)), Command: &api.ExecuteCapabilityRequest_Helper{Helper: helper}}
+		f.submit(t, command)
+		nha114Eventually(t, "helper commit did not produce confirmed operation", func() bool {
+			operation := f.progress(t, command.RequestId)
+			if operation.GetError() != nil {
+				t.Fatal("helper operation failed", operation.GetError())
 			}
-			return result.GetProgress() != nil && result.GetProgress().Status == actions.ActionStatus_ACTION_STATUS_CONFIRMED
+			return operation.Done && nha114Metadata(t, operation).Phase == api.CommandPhase_COMMAND_PHASE_CONFIRMED
 		})
-		nha114Eventually(t, "helper commit did not publish expected value and next CAS revision", func() bool {
-			for _, entity := range f.view(t).Entities {
-				if entity.CurrentAlias != item.alias || entity.State == nil {
+		// The native durable admission stays distinct from later confirmation.
+		if len(f.durableResponse(t, command.RequestId)) == 0 {
+			t.Fatal("helper original durable result disappeared")
+		}
+		nha114Eventually(t, "helper value and next CAS revision did not publish", func() bool {
+			for _, entry := range f.view(t).Entities {
+				if entry.Entity.GetName() != entityName {
 					continue
 				}
-				value := entity.State.GetHelper()
-				if value == nil || value.HelperRevision != expected+1 {
-					continue
+				for _, candidate := range entry.Capabilities {
+					value := candidate.GetHelper().GetObservation().GetValue()
+					if value.GetHelperRevision() != expected+1 {
+						continue
+					}
+					if item.operation == api.HelperOperation_HELPER_OPERATION_SET {
+						return value.GetBooleanValue()
+					}
+					return value.GetTriggerTime() != nil
 				}
-				if item.action.Operation == helpers.HelperOperation_HELPER_OPERATION_SET {
-					return value.GetBoolean()
-				}
-				return value.GetButtonPressedAt() != nil
 			}
 			return false
 		})
-		if rows, revision := f.helperSQLRevision(t, item.alias); rows != 1 || revision != expected+1 {
-			t.Fatal("helper successful commit did not persist exactly the next SQL revision")
+		if rows, revision := f.helperSQLRevision(t, item.alias); rows != 1 || revision != uint64(expected+1) {
+			t.Fatal("helper did not persist exactly next SQL revision")
 		}
 	}
-	nha114Eventually(t, "published helper/button values did not traverse actual API/SQL/runtime", func() bool {
-		boolean, button := false, false
-		for _, e := range f.view(t).Entities {
-			if e.State == nil {
-				continue
-			}
-			if e.CurrentAlias == "input_boolean.away_mode" {
-				boolean = e.State.GetHelper().GetBoolean()
-			}
-			if e.CurrentAlias == "input_button.trash_out" {
-				button = e.State.GetHelper().GetButtonPressedAt() != nil
-			}
-		}
-		return boolean && button
-	})
 	f.noCommands(t, 0)
 }
 
@@ -204,19 +214,33 @@ WHERE e.manifest_alias=$1`, alias).Scan(&rows, &revision)
 
 func (f *nha114Fixture) waitSwitch(t *testing.T, index int, on bool) {
 	t.Helper()
+	expected := api.PowerValue_POWER_VALUE_OFF
+	if on {
+		expected = api.PowerValue_POWER_VALUE_ON
+	}
 	nha114Eventually(t, "synthetic state was not admitted", func() bool {
-		for _, entity := range f.view(t).Entities {
-			if entity.EntityId == f.ids[index] && entity.State != nil && entity.State.Quality.Freshness == state.Freshness_FRESHNESS_FRESH && entity.State.GetSwitchOn() == on {
-				return true
+		for _, entry := range f.view(t).Entities {
+			if entry.Entity.GetName() != f.entityName(t, f.ids[index]) {
+				continue
+			}
+			for _, capability := range entry.Capabilities {
+				observation := capability.GetPower().GetObservation()
+				if observation != nil && observation.Value != nil && observation.GetValue() == expected && observation.GetQuality().GetFreshness() == api.Freshness_FRESHNESS_CURRENT {
+					return true
+				}
 			}
 		}
 		return false
 	})
 }
 
-func (f *nha114Fixture) traceForEvent(t *testing.T, event *state.ViewCursor) uint64 {
+func (f *nha114Fixture) traceForEvent(t *testing.T, event sequencer.Cursor) uint64 {
 	t.Helper()
-	epoch, err := hex.DecodeString(event.Epoch)
+	eventEpoch, eventSequence, err := event.Components()
+	if err != nil {
+		t.Fatal(err)
+	}
+	epoch, err := hex.DecodeString(eventEpoch)
 	if err != nil || len(epoch) != 16 {
 		t.Fatal("invalid actual event epoch", err)
 	}
@@ -251,7 +275,7 @@ func (f *nha114Fixture) traceForEvent(t *testing.T, event *state.ViewCursor) uin
 			read[id] = true
 			for _, row := range page.Rows {
 				position := row.GetController().GetTriggerPosition()
-				if position != nil && bytes.Equal(position.Epoch, epoch) && position.Sequence == event.GlobalSequence {
+				if position != nil && bytes.Equal(position.Epoch, epoch) && position.Sequence == eventSequence {
 					if row.RunId != page.RunId || row.RunId != id {
 						t.Fatal("trace position has a foreign RunID")
 					}

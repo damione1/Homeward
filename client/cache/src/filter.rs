@@ -1,74 +1,49 @@
+use crate::CacheFailure;
+use home_client_model::api::EntityName;
 use std::collections::BTreeSet;
 
-use home_client_model::EntityId;
-use home_wire_contract::home::state::v1 as wire;
-use sha2::{Digest, Sha256};
-
-use crate::{CacheFailure, MAX_ENTITIES};
-
-#[derive(Clone)]
-enum Selection {
-    All,
-    Only(BTreeSet<EntityId>),
-}
-
-/// Complete filter retained with every resume cursor. Its digest is not a filter.
+/// Typed selection over public identities. The server admits the full bounded
+/// AIP-160 expression; no native ID, grant digest or cursor is constructed here.
 #[derive(Clone)]
 pub struct Filter {
-    selection: Selection,
-    digest: [u8; 32],
+    names: Option<BTreeSet<EntityName>>,
+    expression: String,
 }
-
 impl Filter {
     pub fn all() -> Self {
         Self {
-            selection: Selection::All,
-            digest: Sha256::digest([2]).into(),
+            names: None,
+            expression: String::new(),
         }
     }
-
-    pub fn only(ids: impl IntoIterator<Item = EntityId>) -> Result<Self, CacheFailure> {
-        let mut selected = BTreeSet::new();
+    pub fn only(ids: impl IntoIterator<Item = EntityName>) -> Result<Self, CacheFailure> {
+        let mut names = BTreeSet::new();
         for id in ids {
-            selected.insert(id);
-            if selected.len() > MAX_ENTITIES {
+            names.insert(id);
+            if names.len() > 32 {
                 return Err(CacheFailure::InvalidFilter);
             }
         }
-        if selected.is_empty() {
+        if names.is_empty() {
             return Err(CacheFailure::InvalidFilter);
         }
-        // Matches internal/view.hashIDs: tag + sorted length-prefixed UTF-8.
-        let mut hash = Sha256::new();
-        hash.update([3]);
-        for id in &selected {
-            hash.update((id.as_str().len() as u64).to_be_bytes());
-            hash.update(id.as_str().as_bytes());
+        let expression = names
+            .iter()
+            .map(|name| format!("name = \"{}\"", name.as_str()))
+            .collect::<Vec<_>>()
+            .join(" OR ");
+        if expression.len() > 4096 {
+            return Err(CacheFailure::InvalidFilter);
         }
         Ok(Self {
-            selection: Selection::Only(selected),
-            digest: hash.finalize().into(),
+            names: Some(names),
+            expression,
         })
     }
-
-    pub fn to_wire(&self) -> wire::ViewFilter {
-        wire::ViewFilter {
-            entity_ids: match &self.selection {
-                Selection::All => Vec::new(),
-                Selection::Only(ids) => ids.iter().map(|id| id.as_str().to_owned()).collect(),
-            },
-            ..Default::default()
-        }
+    pub fn expression(&self) -> &str {
+        &self.expression
     }
-
-    pub fn digest(&self) -> &[u8; 32] {
-        &self.digest
-    }
-
-    pub(crate) fn permits(&self, id: &EntityId) -> bool {
-        match &self.selection {
-            Selection::All => true,
-            Selection::Only(ids) => ids.contains(id),
-        }
+    pub(crate) fn permits(&self, name: &EntityName) -> bool {
+        self.names.as_ref().is_none_or(|names| names.contains(name))
     }
 }

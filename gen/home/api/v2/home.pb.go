@@ -24,218 +24,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Explicit binary intent or observation; UNSPECIFIED is not an OFF command.
-type PowerValue int32
-
-const (
-	// No known value. Invalid in executable intent; permitted as no observation.
-	PowerValue_POWER_VALUE_UNSPECIFIED PowerValue = 0
-	// Turn controllable power on.
-	PowerValue_POWER_VALUE_ON PowerValue = 1
-	// Turn controllable power off.
-	PowerValue_POWER_VALUE_OFF PowerValue = 2
-)
-
-// Enum value maps for PowerValue.
-var (
-	PowerValue_name = map[int32]string{
-		0: "POWER_VALUE_UNSPECIFIED",
-		1: "POWER_VALUE_ON",
-		2: "POWER_VALUE_OFF",
-	}
-	PowerValue_value = map[string]int32{
-		"POWER_VALUE_UNSPECIFIED": 0,
-		"POWER_VALUE_ON":          1,
-		"POWER_VALUE_OFF":         2,
-	}
-)
-
-func (x PowerValue) Enum() *PowerValue {
-	p := new(PowerValue)
-	*p = x
-	return p
-}
-
-func (x PowerValue) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (PowerValue) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_api_v2_home_proto_enumTypes[0].Descriptor()
-}
-
-func (PowerValue) Type() protoreflect.EnumType {
-	return &file_home_api_v2_home_proto_enumTypes[0]
-}
-
-func (x PowerValue) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use PowerValue.Descriptor instead.
-func (PowerValue) EnumDescriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{0}
-}
-
-// Reachability of an observation's source.
-type Availability int32
-
-const (
-	// Source reachability is unknown.
-	Availability_AVAILABILITY_UNSPECIFIED Availability = 0
-	// Source is available.
-	Availability_AVAILABILITY_AVAILABLE Availability = 1
-	// Source is unavailable; a last known value may remain present.
-	Availability_AVAILABILITY_UNAVAILABLE Availability = 2
-)
-
-// Enum value maps for Availability.
-var (
-	Availability_name = map[int32]string{
-		0: "AVAILABILITY_UNSPECIFIED",
-		1: "AVAILABILITY_AVAILABLE",
-		2: "AVAILABILITY_UNAVAILABLE",
-	}
-	Availability_value = map[string]int32{
-		"AVAILABILITY_UNSPECIFIED": 0,
-		"AVAILABILITY_AVAILABLE":   1,
-		"AVAILABILITY_UNAVAILABLE": 2,
-	}
-)
-
-func (x Availability) Enum() *Availability {
-	p := new(Availability)
-	*p = x
-	return p
-}
-
-func (x Availability) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Availability) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_api_v2_home_proto_enumTypes[1].Descriptor()
-}
-
-func (Availability) Type() protoreflect.EnumType {
-	return &file_home_api_v2_home_proto_enumTypes[1]
-}
-
-func (x Availability) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Availability.Descriptor instead.
-func (Availability) EnumDescriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{1}
-}
-
-// Age qualification, independent of source reachability.
-type Freshness int32
-
-const (
-	// Freshness is unknown.
-	Freshness_FRESHNESS_UNSPECIFIED Freshness = 0
-	// Within the source's freshness limit.
-	Freshness_FRESHNESS_CURRENT Freshness = 1
-	// Last known value exceeds its freshness limit.
-	Freshness_FRESHNESS_STALE Freshness = 2
-)
-
-// Enum value maps for Freshness.
-var (
-	Freshness_name = map[int32]string{
-		0: "FRESHNESS_UNSPECIFIED",
-		1: "FRESHNESS_CURRENT",
-		2: "FRESHNESS_STALE",
-	}
-	Freshness_value = map[string]int32{
-		"FRESHNESS_UNSPECIFIED": 0,
-		"FRESHNESS_CURRENT":     1,
-		"FRESHNESS_STALE":       2,
-	}
-)
-
-func (x Freshness) Enum() *Freshness {
-	p := new(Freshness)
-	*p = x
-	return p
-}
-
-func (x Freshness) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Freshness) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_api_v2_home_proto_enumTypes[2].Descriptor()
-}
-
-func (Freshness) Type() protoreflect.EnumType {
-	return &file_home_api_v2_home_proto_enumTypes[2]
-}
-
-func (x Freshness) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Freshness.Descriptor instead.
-func (Freshness) EnumDescriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{2}
-}
-
-// Evidence origin of a value; never inferred from a transport ACK.
-type Provenance int32
-
-const (
-	// No established origin.
-	Provenance_PROVENANCE_UNSPECIFIED Provenance = 0
-	// Measured or read back from the source.
-	Provenance_PROVENANCE_OBSERVED Provenance = 1
-	// Computed from explicitly identified observations.
-	Provenance_PROVENANCE_DERIVED Provenance = 2
-)
-
-// Enum value maps for Provenance.
-var (
-	Provenance_name = map[int32]string{
-		0: "PROVENANCE_UNSPECIFIED",
-		1: "PROVENANCE_OBSERVED",
-		2: "PROVENANCE_DERIVED",
-	}
-	Provenance_value = map[string]int32{
-		"PROVENANCE_UNSPECIFIED": 0,
-		"PROVENANCE_OBSERVED":    1,
-		"PROVENANCE_DERIVED":     2,
-	}
-)
-
-func (x Provenance) Enum() *Provenance {
-	p := new(Provenance)
-	*p = x
-	return p
-}
-
-func (x Provenance) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Provenance) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_api_v2_home_proto_enumTypes[3].Descriptor()
-}
-
-func (Provenance) Type() protoreflect.EnumType {
-	return &file_home_api_v2_home_proto_enumTypes[3]
-}
-
-func (x Provenance) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Provenance.Descriptor instead.
-func (Provenance) EnumDescriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{3}
-}
-
 // Closed classification for representation admission. Field paths accompany
 // these reasons; human text is never a programmatic discrimination mechanism.
 // This is not a permission, physical outcome or retry policy vocabulary.
@@ -311,11 +99,11 @@ func (x ValidationReason) String() string {
 }
 
 func (ValidationReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_api_v2_home_proto_enumTypes[4].Descriptor()
+	return file_home_api_v2_home_proto_enumTypes[0].Descriptor()
 }
 
 func (ValidationReason) Type() protoreflect.EnumType {
-	return &file_home_api_v2_home_proto_enumTypes[4]
+	return &file_home_api_v2_home_proto_enumTypes[0]
 }
 
 func (x ValidationReason) Number() protoreflect.EnumNumber {
@@ -324,7 +112,7 @@ func (x ValidationReason) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ValidationReason.Descriptor instead.
 func (ValidationReason) EnumDescriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{4}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{0}
 }
 
 // A persistent installation identity. This server serves exactly one home;
@@ -332,7 +120,9 @@ func (ValidationReason) EnumDescriptor() ([]byte, []int) {
 type Home struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Canonical immutable installation name, independent of host/IP and aliases.
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Time this persistent installation identity was created locally.
+	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -372,6 +162,13 @@ func (x *Home) GetName() string {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *Home) GetCreateTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreateTime
+	}
+	return nil
 }
 
 // Entity metadata; capabilities carry observations independently per trait.
@@ -463,12 +260,35 @@ type Capability struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Immutable slot identity; observations do not change its name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Weak opaque definition binding (W/quoted); observations may change without
+	// changing this token. Never an authorization or a provider route.
+	Etag string `protobuf:"bytes,7,opt,name=etag,proto3" json:"etag,omitempty"`
+	// Current caller write admission for this exact entity/source slot. Intrinsic
+	// supports_set fields do not grant access. Media route dependencies can further
+	// deny preparation through the media trait action_access. Rechecked at effect.
+	ActionAccess ActionAccess `protobuf:"varint,21,opt,name=action_access,json=actionAccess,proto3,enum=home.api.v2.ActionAccess" json:"action_access,omitempty"`
 	// Exactly one trait is supplied. Absence is unsupported, never Power OFF.
 	//
 	// Types that are valid to be assigned to Trait:
 	//
 	//	*Capability_Power
 	//	*Capability_Level
+	//	*Capability_TemperatureControl
+	//	*Capability_NumericMeasurement
+	//	*Capability_BinaryObservation
+	//	*Capability_LightControl
+	//	*Capability_FanControl
+	//	*Capability_Cover
+	//	*Capability_Lock
+	//	*Capability_Alarm
+	//	*Capability_Helper
+	//	*Capability_Solar
+	//	*Capability_SolarEvent
+	//	*Capability_Weather
+	//	*Capability_Presence
+	//	*Capability_PresenceDetails
+	//	*Capability_Opaque
+	//	*Capability_MediaPlayback
 	Trait         isCapability_Trait `protobuf_oneof:"trait"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -511,6 +331,20 @@ func (x *Capability) GetName() string {
 	return ""
 }
 
+func (x *Capability) GetEtag() string {
+	if x != nil {
+		return x.Etag
+	}
+	return ""
+}
+
+func (x *Capability) GetActionAccess() ActionAccess {
+	if x != nil {
+		return x.ActionAccess
+	}
+	return ActionAccess_ACTION_ACCESS_UNSPECIFIED
+}
+
 func (x *Capability) GetTrait() isCapability_Trait {
 	if x != nil {
 		return x.Trait
@@ -536,6 +370,150 @@ func (x *Capability) GetLevel() *LevelCapability {
 	return nil
 }
 
+func (x *Capability) GetTemperatureControl() *TemperatureControlCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_TemperatureControl); ok {
+			return x.TemperatureControl
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetNumericMeasurement() *NumericMeasurementCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_NumericMeasurement); ok {
+			return x.NumericMeasurement
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetBinaryObservation() *BinaryObservationCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_BinaryObservation); ok {
+			return x.BinaryObservation
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetLightControl() *LightControlCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_LightControl); ok {
+			return x.LightControl
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetFanControl() *FanControlCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_FanControl); ok {
+			return x.FanControl
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetCover() *CoverCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_Cover); ok {
+			return x.Cover
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetLock() *LockCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_Lock); ok {
+			return x.Lock
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetAlarm() *AlarmCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_Alarm); ok {
+			return x.Alarm
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetHelper() *HelperCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_Helper); ok {
+			return x.Helper
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetSolar() *SolarCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_Solar); ok {
+			return x.Solar
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetSolarEvent() *SolarEventCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_SolarEvent); ok {
+			return x.SolarEvent
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetWeather() *WeatherCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_Weather); ok {
+			return x.Weather
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetPresence() *PresenceCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_Presence); ok {
+			return x.Presence
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetPresenceDetails() *PresenceDetailsCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_PresenceDetails); ok {
+			return x.PresenceDetails
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetOpaque() *OpaqueCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_Opaque); ok {
+			return x.Opaque
+		}
+	}
+	return nil
+}
+
+func (x *Capability) GetMediaPlayback() *MediaPlaybackCapability {
+	if x != nil {
+		if x, ok := x.Trait.(*Capability_MediaPlayback); ok {
+			return x.MediaPlayback
+		}
+	}
+	return nil
+}
+
 type isCapability_Trait interface {
 	isCapability_Trait()
 }
@@ -550,73 +528,121 @@ type Capability_Level struct {
 	Level *LevelCapability `protobuf:"bytes,3,opt,name=level,proto3,oneof"`
 }
 
+type Capability_TemperatureControl struct {
+	// Cohesive thermal control, independent of temperature/humidity readings.
+	TemperatureControl *TemperatureControlCapability `protobuf:"bytes,4,opt,name=temperature_control,json=temperatureControl,proto3,oneof"`
+}
+
+type Capability_NumericMeasurement struct {
+	// A read-only, dimensioned numeric quantity.
+	NumericMeasurement *NumericMeasurementCapability `protobuf:"bytes,5,opt,name=numeric_measurement,json=numericMeasurement,proto3,oneof"`
+}
+
+type Capability_BinaryObservation struct {
+	// A read-only binary fact; a missing value is distinct from false.
+	BinaryObservation *BinaryObservationCapability `protobuf:"bytes,6,opt,name=binary_observation,json=binaryObservation,proto3,oneof"`
+}
+
+type Capability_LightControl struct {
+	// Typed light control source trait.
+	LightControl *LightControlCapability `protobuf:"bytes,8,opt,name=light_control,json=lightControl,proto3,oneof"`
+}
+
+type Capability_FanControl struct {
+	// Typed fan control source trait.
+	FanControl *FanControlCapability `protobuf:"bytes,9,opt,name=fan_control,json=fanControl,proto3,oneof"`
+}
+
+type Capability_Cover struct {
+	// Typed cover source trait.
+	Cover *CoverCapability `protobuf:"bytes,10,opt,name=cover,proto3,oneof"`
+}
+
+type Capability_Lock struct {
+	// Typed lock source trait.
+	Lock *LockCapability `protobuf:"bytes,11,opt,name=lock,proto3,oneof"`
+}
+
+type Capability_Alarm struct {
+	// Typed alarm source trait.
+	Alarm *AlarmCapability `protobuf:"bytes,12,opt,name=alarm,proto3,oneof"`
+}
+
+type Capability_Helper struct {
+	// Typed helper source trait.
+	Helper *HelperCapability `protobuf:"bytes,13,opt,name=helper,proto3,oneof"`
+}
+
+type Capability_Solar struct {
+	// Typed solar source trait.
+	Solar *SolarCapability `protobuf:"bytes,14,opt,name=solar,proto3,oneof"`
+}
+
+type Capability_SolarEvent struct {
+	// Typed solar event source trait.
+	SolarEvent *SolarEventCapability `protobuf:"bytes,15,opt,name=solar_event,json=solarEvent,proto3,oneof"`
+}
+
+type Capability_Weather struct {
+	// Typed weather source trait.
+	Weather *WeatherCapability `protobuf:"bytes,16,opt,name=weather,proto3,oneof"`
+}
+
+type Capability_Presence struct {
+	// Typed presence source trait.
+	Presence *PresenceCapability `protobuf:"bytes,17,opt,name=presence,proto3,oneof"`
+}
+
+type Capability_PresenceDetails struct {
+	// Typed presence details source trait.
+	PresenceDetails *PresenceDetailsCapability `protobuf:"bytes,18,opt,name=presence_details,json=presenceDetails,proto3,oneof"`
+}
+
+type Capability_Opaque struct {
+	// Registered metadata without an executable public codec.
+	Opaque *OpaqueCapability `protobuf:"bytes,19,opt,name=opaque,proto3,oneof"`
+}
+
+type Capability_MediaPlayback struct {
+	// Generic media playback with independently authorized route metadata.
+	MediaPlayback *MediaPlaybackCapability `protobuf:"bytes,20,opt,name=media_playback,json=mediaPlayback,proto3,oneof"`
+}
+
 func (*Capability_Power) isCapability_Trait() {}
 
 func (*Capability_Level) isCapability_Trait() {}
 
-// Independent quality dimensions; missing observations never fabricate a value.
-type ObservationQuality struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Whether the source is currently reachable; distinct from its power state.
-	Availability Availability `protobuf:"varint,1,opt,name=availability,proto3,enum=home.api.v2.Availability" json:"availability,omitempty"`
-	// Whether this observation is current under the source freshness contract.
-	Freshness Freshness `protobuf:"varint,2,opt,name=freshness,proto3,enum=home.api.v2.Freshness" json:"freshness,omitempty"`
-	// How the value was obtained; an acknowledgement is not an observation.
-	Provenance    Provenance `protobuf:"varint,3,opt,name=provenance,proto3,enum=home.api.v2.Provenance" json:"provenance,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+func (*Capability_TemperatureControl) isCapability_Trait() {}
 
-func (x *ObservationQuality) Reset() {
-	*x = ObservationQuality{}
-	mi := &file_home_api_v2_home_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
+func (*Capability_NumericMeasurement) isCapability_Trait() {}
 
-func (x *ObservationQuality) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
+func (*Capability_BinaryObservation) isCapability_Trait() {}
 
-func (*ObservationQuality) ProtoMessage() {}
+func (*Capability_LightControl) isCapability_Trait() {}
 
-func (x *ObservationQuality) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
+func (*Capability_FanControl) isCapability_Trait() {}
 
-// Deprecated: Use ObservationQuality.ProtoReflect.Descriptor instead.
-func (*ObservationQuality) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{3}
-}
+func (*Capability_Cover) isCapability_Trait() {}
 
-func (x *ObservationQuality) GetAvailability() Availability {
-	if x != nil {
-		return x.Availability
-	}
-	return Availability_AVAILABILITY_UNSPECIFIED
-}
+func (*Capability_Lock) isCapability_Trait() {}
 
-func (x *ObservationQuality) GetFreshness() Freshness {
-	if x != nil {
-		return x.Freshness
-	}
-	return Freshness_FRESHNESS_UNSPECIFIED
-}
+func (*Capability_Alarm) isCapability_Trait() {}
 
-func (x *ObservationQuality) GetProvenance() Provenance {
-	if x != nil {
-		return x.Provenance
-	}
-	return Provenance_PROVENANCE_UNSPECIFIED
-}
+func (*Capability_Helper) isCapability_Trait() {}
+
+func (*Capability_Solar) isCapability_Trait() {}
+
+func (*Capability_SolarEvent) isCapability_Trait() {}
+
+func (*Capability_Weather) isCapability_Trait() {}
+
+func (*Capability_Presence) isCapability_Trait() {}
+
+func (*Capability_PresenceDetails) isCapability_Trait() {}
+
+func (*Capability_Opaque) isCapability_Trait() {}
+
+func (*Capability_MediaPlayback) isCapability_Trait() {}
 
 // Binary power definition and observation. An absent observation is not OFF.
 type PowerCapability struct {
@@ -631,7 +657,7 @@ type PowerCapability struct {
 
 func (x *PowerCapability) Reset() {
 	*x = PowerCapability{}
-	mi := &file_home_api_v2_home_proto_msgTypes[4]
+	mi := &file_home_api_v2_home_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -643,7 +669,7 @@ func (x *PowerCapability) String() string {
 func (*PowerCapability) ProtoMessage() {}
 
 func (x *PowerCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[4]
+	mi := &file_home_api_v2_home_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -656,7 +682,7 @@ func (x *PowerCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PowerCapability.ProtoReflect.Descriptor instead.
 func (*PowerCapability) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{4}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *PowerCapability) GetSupportsSet() bool {
@@ -688,7 +714,7 @@ type PowerObservation struct {
 
 func (x *PowerObservation) Reset() {
 	*x = PowerObservation{}
-	mi := &file_home_api_v2_home_proto_msgTypes[5]
+	mi := &file_home_api_v2_home_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -700,7 +726,7 @@ func (x *PowerObservation) String() string {
 func (*PowerObservation) ProtoMessage() {}
 
 func (x *PowerObservation) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[5]
+	mi := &file_home_api_v2_home_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -713,7 +739,7 @@ func (x *PowerObservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PowerObservation.ProtoReflect.Descriptor instead.
 func (*PowerObservation) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{5}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PowerObservation) GetValue() PowerValue {
@@ -737,71 +763,6 @@ func (x *PowerObservation) GetQuality() *ObservationQuality {
 	return nil
 }
 
-// Finite percentage constraints: 0 <= minimum <= maximum <= 100; positive step.
-// Advertised instance bounds supplement, never replace, intrinsic domain types.
-type PercentageBounds struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Inclusive lower bound in percent. Zero is a valid bound.
-	Minimum float64 `protobuf:"fixed64,1,opt,name=minimum,proto3" json:"minimum,omitempty"`
-	// Inclusive upper bound in percent.
-	Maximum float64 `protobuf:"fixed64,2,opt,name=maximum,proto3" json:"maximum,omitempty"`
-	// Optional positive increment relative to minimum; absent means continuous.
-	Step          *float64 `protobuf:"fixed64,3,opt,name=step,proto3,oneof" json:"step,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PercentageBounds) Reset() {
-	*x = PercentageBounds{}
-	mi := &file_home_api_v2_home_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PercentageBounds) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PercentageBounds) ProtoMessage() {}
-
-func (x *PercentageBounds) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PercentageBounds.ProtoReflect.Descriptor instead.
-func (*PercentageBounds) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *PercentageBounds) GetMinimum() float64 {
-	if x != nil {
-		return x.Minimum
-	}
-	return 0
-}
-
-func (x *PercentageBounds) GetMaximum() float64 {
-	if x != nil {
-		return x.Maximum
-	}
-	return 0
-}
-
-func (x *PercentageBounds) GetStep() float64 {
-	if x != nil && x.Step != nil {
-		return *x.Step
-	}
-	return 0
-}
-
 // Linear percentage definition and observation; unrelated dB gains need a
 // different dimensional quantity rather than a coercion to this trait.
 type LevelCapability struct {
@@ -818,7 +779,7 @@ type LevelCapability struct {
 
 func (x *LevelCapability) Reset() {
 	*x = LevelCapability{}
-	mi := &file_home_api_v2_home_proto_msgTypes[7]
+	mi := &file_home_api_v2_home_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -830,7 +791,7 @@ func (x *LevelCapability) String() string {
 func (*LevelCapability) ProtoMessage() {}
 
 func (x *LevelCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[7]
+	mi := &file_home_api_v2_home_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -843,7 +804,7 @@ func (x *LevelCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LevelCapability.ProtoReflect.Descriptor instead.
 func (*LevelCapability) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{7}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *LevelCapability) GetSupportsSet() bool {
@@ -882,7 +843,7 @@ type LevelObservation struct {
 
 func (x *LevelObservation) Reset() {
 	*x = LevelObservation{}
-	mi := &file_home_api_v2_home_proto_msgTypes[8]
+	mi := &file_home_api_v2_home_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -894,7 +855,7 @@ func (x *LevelObservation) String() string {
 func (*LevelObservation) ProtoMessage() {}
 
 func (x *LevelObservation) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[8]
+	mi := &file_home_api_v2_home_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -907,7 +868,7 @@ func (x *LevelObservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LevelObservation.ProtoReflect.Descriptor instead.
 func (*LevelObservation) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{8}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *LevelObservation) GetPercentage() float64 {
@@ -931,122 +892,6 @@ func (x *LevelObservation) GetQuality() *ObservationQuality {
 	return nil
 }
 
-// Explicit power intent. An empty message cannot silently mean OFF.
-type SetPowerCommand struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// ON or OFF only; UNSPECIFIED and unknown numeric values are invalid.
-	Value         PowerValue `protobuf:"varint,1,opt,name=value,proto3,enum=home.api.v2.PowerValue" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SetPowerCommand) Reset() {
-	*x = SetPowerCommand{}
-	mi := &file_home_api_v2_home_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SetPowerCommand) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SetPowerCommand) ProtoMessage() {}
-
-func (x *SetPowerCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SetPowerCommand.ProtoReflect.Descriptor instead.
-func (*SetPowerCommand) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *SetPowerCommand) GetValue() PowerValue {
-	if x != nil {
-		return x.Value
-	}
-	return PowerValue_POWER_VALUE_UNSPECIFIED
-}
-
-// Exactly one target is required; presence preserves a legitimate zero percent.
-type SetLevelCommand struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The presence of this union is mandatory for an executable command.
-	//
-	// Types that are valid to be assigned to Target:
-	//
-	//	*SetLevelCommand_Percentage
-	Target        isSetLevelCommand_Target `protobuf_oneof:"target"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SetLevelCommand) Reset() {
-	*x = SetLevelCommand{}
-	mi := &file_home_api_v2_home_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SetLevelCommand) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SetLevelCommand) ProtoMessage() {}
-
-func (x *SetLevelCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SetLevelCommand.ProtoReflect.Descriptor instead.
-func (*SetLevelCommand) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *SetLevelCommand) GetTarget() isSetLevelCommand_Target {
-	if x != nil {
-		return x.Target
-	}
-	return nil
-}
-
-func (x *SetLevelCommand) GetPercentage() float64 {
-	if x != nil {
-		if x, ok := x.Target.(*SetLevelCommand_Percentage); ok {
-			return x.Percentage
-		}
-	}
-	return 0
-}
-
-type isSetLevelCommand_Target interface {
-	isSetLevelCommand_Target()
-}
-
-type SetLevelCommand_Percentage struct {
-	// Finite percentage in [0,100], also subject to instance bounds and step.
-	Percentage float64 `protobuf:"fixed64,1,opt,name=percentage,proto3,oneof"`
-}
-
-func (*SetLevelCommand_Percentage) isSetLevelCommand_Target() {}
-
 // Typed intent envelope. Admission requires authorization before detailed
 // diagnostics, current source/capability/epoch checks and a durable reservation
 // before I/O. Parsing this message proves representation, never authorization.
@@ -1061,10 +906,21 @@ type ExecuteCapabilityRequest struct {
 	//
 	//	*ExecuteCapabilityRequest_Power
 	//	*ExecuteCapabilityRequest_Level
+	//	*ExecuteCapabilityRequest_Light
+	//	*ExecuteCapabilityRequest_Fan
+	//	*ExecuteCapabilityRequest_TemperatureControl
+	//	*ExecuteCapabilityRequest_Cover
+	//	*ExecuteCapabilityRequest_Lock
+	//	*ExecuteCapabilityRequest_Alarm
+	//	*ExecuteCapabilityRequest_Helper
+	//	*ExecuteCapabilityRequest_Media
 	Command isExecuteCapabilityRequest_Command `protobuf_oneof:"command"`
 	// Optional UUIDv4 idempotency key. Homeward clients always provide it. Omission
 	// disables client deduplication and never permits blind automatic retries.
 	RequestId string `protobuf:"bytes,4,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	// Definition binding from the authorized capability capture. Required by
+	// live execution admission, after object authorization and syntax parsing.
+	Etag string `protobuf:"bytes,6,opt,name=etag,proto3" json:"etag,omitempty"`
 	// Required physical-intent deadline; enforced again at the point of effect.
 	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1073,7 +929,7 @@ type ExecuteCapabilityRequest struct {
 
 func (x *ExecuteCapabilityRequest) Reset() {
 	*x = ExecuteCapabilityRequest{}
-	mi := &file_home_api_v2_home_proto_msgTypes[11]
+	mi := &file_home_api_v2_home_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1085,7 +941,7 @@ func (x *ExecuteCapabilityRequest) String() string {
 func (*ExecuteCapabilityRequest) ProtoMessage() {}
 
 func (x *ExecuteCapabilityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[11]
+	mi := &file_home_api_v2_home_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1098,7 +954,7 @@ func (x *ExecuteCapabilityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteCapabilityRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteCapabilityRequest) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{11}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ExecuteCapabilityRequest) GetName() string {
@@ -1133,9 +989,88 @@ func (x *ExecuteCapabilityRequest) GetLevel() *SetLevelCommand {
 	return nil
 }
 
+func (x *ExecuteCapabilityRequest) GetLight() *SetLightCommand {
+	if x != nil {
+		if x, ok := x.Command.(*ExecuteCapabilityRequest_Light); ok {
+			return x.Light
+		}
+	}
+	return nil
+}
+
+func (x *ExecuteCapabilityRequest) GetFan() *SetFanCommand {
+	if x != nil {
+		if x, ok := x.Command.(*ExecuteCapabilityRequest_Fan); ok {
+			return x.Fan
+		}
+	}
+	return nil
+}
+
+func (x *ExecuteCapabilityRequest) GetTemperatureControl() *SetTemperatureControlCommand {
+	if x != nil {
+		if x, ok := x.Command.(*ExecuteCapabilityRequest_TemperatureControl); ok {
+			return x.TemperatureControl
+		}
+	}
+	return nil
+}
+
+func (x *ExecuteCapabilityRequest) GetCover() *SetCoverCommand {
+	if x != nil {
+		if x, ok := x.Command.(*ExecuteCapabilityRequest_Cover); ok {
+			return x.Cover
+		}
+	}
+	return nil
+}
+
+func (x *ExecuteCapabilityRequest) GetLock() *SetLockCommand {
+	if x != nil {
+		if x, ok := x.Command.(*ExecuteCapabilityRequest_Lock); ok {
+			return x.Lock
+		}
+	}
+	return nil
+}
+
+func (x *ExecuteCapabilityRequest) GetAlarm() *SetAlarmCommand {
+	if x != nil {
+		if x, ok := x.Command.(*ExecuteCapabilityRequest_Alarm); ok {
+			return x.Alarm
+		}
+	}
+	return nil
+}
+
+func (x *ExecuteCapabilityRequest) GetHelper() *SetHelperCommand {
+	if x != nil {
+		if x, ok := x.Command.(*ExecuteCapabilityRequest_Helper); ok {
+			return x.Helper
+		}
+	}
+	return nil
+}
+
+func (x *ExecuteCapabilityRequest) GetMedia() *MediaCommand {
+	if x != nil {
+		if x, ok := x.Command.(*ExecuteCapabilityRequest_Media); ok {
+			return x.Media
+		}
+	}
+	return nil
+}
+
 func (x *ExecuteCapabilityRequest) GetRequestId() string {
 	if x != nil {
 		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ExecuteCapabilityRequest) GetEtag() string {
+	if x != nil {
+		return x.Etag
 	}
 	return ""
 }
@@ -1161,9 +1096,65 @@ type ExecuteCapabilityRequest_Level struct {
 	Level *SetLevelCommand `protobuf:"bytes,3,opt,name=level,proto3,oneof"`
 }
 
+type ExecuteCapabilityRequest_Light struct {
+	// Atomic light intention.
+	Light *SetLightCommand `protobuf:"bytes,7,opt,name=light,proto3,oneof"`
+}
+
+type ExecuteCapabilityRequest_Fan struct {
+	// Atomic fan intention.
+	Fan *SetFanCommand `protobuf:"bytes,8,opt,name=fan,proto3,oneof"`
+}
+
+type ExecuteCapabilityRequest_TemperatureControl struct {
+	// Atomic temperature control intention.
+	TemperatureControl *SetTemperatureControlCommand `protobuf:"bytes,9,opt,name=temperature_control,json=temperatureControl,proto3,oneof"`
+}
+
+type ExecuteCapabilityRequest_Cover struct {
+	// Atomic cover intention.
+	Cover *SetCoverCommand `protobuf:"bytes,10,opt,name=cover,proto3,oneof"`
+}
+
+type ExecuteCapabilityRequest_Lock struct {
+	// Atomic lock intention.
+	Lock *SetLockCommand `protobuf:"bytes,11,opt,name=lock,proto3,oneof"`
+}
+
+type ExecuteCapabilityRequest_Alarm struct {
+	// Atomic alarm intention.
+	Alarm *SetAlarmCommand `protobuf:"bytes,12,opt,name=alarm,proto3,oneof"`
+}
+
+type ExecuteCapabilityRequest_Helper struct {
+	// Atomic helper intention.
+	Helper *SetHelperCommand `protobuf:"bytes,13,opt,name=helper,proto3,oneof"`
+}
+
+type ExecuteCapabilityRequest_Media struct {
+	// Explicit media intention retaining its current source route.
+	Media *MediaCommand `protobuf:"bytes,14,opt,name=media,proto3,oneof"`
+}
+
 func (*ExecuteCapabilityRequest_Power) isExecuteCapabilityRequest_Command() {}
 
 func (*ExecuteCapabilityRequest_Level) isExecuteCapabilityRequest_Command() {}
+
+func (*ExecuteCapabilityRequest_Light) isExecuteCapabilityRequest_Command() {}
+
+func (*ExecuteCapabilityRequest_Fan) isExecuteCapabilityRequest_Command() {}
+
+func (*ExecuteCapabilityRequest_TemperatureControl) isExecuteCapabilityRequest_Command() {}
+
+func (*ExecuteCapabilityRequest_Cover) isExecuteCapabilityRequest_Command() {}
+
+func (*ExecuteCapabilityRequest_Lock) isExecuteCapabilityRequest_Command() {}
+
+func (*ExecuteCapabilityRequest_Alarm) isExecuteCapabilityRequest_Command() {}
+
+func (*ExecuteCapabilityRequest_Helper) isExecuteCapabilityRequest_Command() {}
+
+func (*ExecuteCapabilityRequest_Media) isExecuteCapabilityRequest_Command() {}
 
 // Reads entity metadata, for example homes/demo/entities/lamp-a.
 type GetEntityRequest struct {
@@ -1176,7 +1167,7 @@ type GetEntityRequest struct {
 
 func (x *GetEntityRequest) Reset() {
 	*x = GetEntityRequest{}
-	mi := &file_home_api_v2_home_proto_msgTypes[12]
+	mi := &file_home_api_v2_home_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1188,7 +1179,7 @@ func (x *GetEntityRequest) String() string {
 func (*GetEntityRequest) ProtoMessage() {}
 
 func (x *GetEntityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[12]
+	mi := &file_home_api_v2_home_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1201,7 +1192,7 @@ func (x *GetEntityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetEntityRequest.ProtoReflect.Descriptor instead.
 func (*GetEntityRequest) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{12}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetEntityRequest) GetName() string {
@@ -1220,8 +1211,16 @@ type ListEntitiesRequest struct {
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// Opaque continuation bound to the caller and filter; page_size may change.
 	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	// Bounded AIP-160 expression over documented fields; unsupported fields fail
-	// INVALID_ARGUMENT. Empty means all authorized entities, never all house data.
+	// AIP-160 filter over name/display_name: =, !=, <, <=, >, >=, : and
+	// presence :*. Boundary * wildcards are supported for equality/contains.
+	// Boolean device("homes/.../devices/..."), trait("power") and
+	// availability(AVAILABLE|UNAVAILABLE|UNKNOWN) inspect only authorized facts.
+	// OR binds before explicit/implicit AND; NOT and - negate one expression.
+	// Parentheses group predicates. Literals may use single or double quotes.
+	// Unknown fields/functions/traits/enums, traversal, indices and malformed
+	// expressions fail INVALID_ARGUMENT. Limits: 4096 bytes, 256 tokens, 64
+	// nodes and eight nested groups/negations. Empty selects authorized entities.
+	// Selection precedes pagination over one frozen capture; no live reads occur.
 	Filter        string `protobuf:"bytes,4,opt,name=filter,proto3" json:"filter,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1229,7 +1228,7 @@ type ListEntitiesRequest struct {
 
 func (x *ListEntitiesRequest) Reset() {
 	*x = ListEntitiesRequest{}
-	mi := &file_home_api_v2_home_proto_msgTypes[13]
+	mi := &file_home_api_v2_home_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1241,7 +1240,7 @@ func (x *ListEntitiesRequest) String() string {
 func (*ListEntitiesRequest) ProtoMessage() {}
 
 func (x *ListEntitiesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[13]
+	mi := &file_home_api_v2_home_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1254,7 +1253,7 @@ func (x *ListEntitiesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEntitiesRequest.ProtoReflect.Descriptor instead.
 func (*ListEntitiesRequest) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{13}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListEntitiesRequest) GetParent() string {
@@ -1298,7 +1297,7 @@ type ListEntitiesResponse struct {
 
 func (x *ListEntitiesResponse) Reset() {
 	*x = ListEntitiesResponse{}
-	mi := &file_home_api_v2_home_proto_msgTypes[14]
+	mi := &file_home_api_v2_home_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1310,7 +1309,7 @@ func (x *ListEntitiesResponse) String() string {
 func (*ListEntitiesResponse) ProtoMessage() {}
 
 func (x *ListEntitiesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[14]
+	mi := &file_home_api_v2_home_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1323,7 +1322,7 @@ func (x *ListEntitiesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEntitiesResponse.ProtoReflect.Descriptor instead.
 func (*ListEntitiesResponse) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{14}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListEntitiesResponse) GetEntities() []*Entity {
@@ -1356,7 +1355,7 @@ type UpdateEntityRequest struct {
 
 func (x *UpdateEntityRequest) Reset() {
 	*x = UpdateEntityRequest{}
-	mi := &file_home_api_v2_home_proto_msgTypes[15]
+	mi := &file_home_api_v2_home_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1368,7 +1367,7 @@ func (x *UpdateEntityRequest) String() string {
 func (*UpdateEntityRequest) ProtoMessage() {}
 
 func (x *UpdateEntityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[15]
+	mi := &file_home_api_v2_home_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1381,7 +1380,7 @@ func (x *UpdateEntityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateEntityRequest.ProtoReflect.Descriptor instead.
 func (*UpdateEntityRequest) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{15}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UpdateEntityRequest) GetEntity() *Entity {
@@ -1416,7 +1415,7 @@ type GetCapabilityRequest struct {
 
 func (x *GetCapabilityRequest) Reset() {
 	*x = GetCapabilityRequest{}
-	mi := &file_home_api_v2_home_proto_msgTypes[16]
+	mi := &file_home_api_v2_home_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1428,7 +1427,7 @@ func (x *GetCapabilityRequest) String() string {
 func (*GetCapabilityRequest) ProtoMessage() {}
 
 func (x *GetCapabilityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[16]
+	mi := &file_home_api_v2_home_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1441,7 +1440,7 @@ func (x *GetCapabilityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCapabilityRequest.ProtoReflect.Descriptor instead.
 func (*GetCapabilityRequest) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{16}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetCapabilityRequest) GetName() string {
@@ -1466,7 +1465,7 @@ type ListCapabilitiesRequest struct {
 
 func (x *ListCapabilitiesRequest) Reset() {
 	*x = ListCapabilitiesRequest{}
-	mi := &file_home_api_v2_home_proto_msgTypes[17]
+	mi := &file_home_api_v2_home_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1478,7 +1477,7 @@ func (x *ListCapabilitiesRequest) String() string {
 func (*ListCapabilitiesRequest) ProtoMessage() {}
 
 func (x *ListCapabilitiesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[17]
+	mi := &file_home_api_v2_home_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1491,7 +1490,7 @@ func (x *ListCapabilitiesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCapabilitiesRequest.ProtoReflect.Descriptor instead.
 func (*ListCapabilitiesRequest) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{17}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListCapabilitiesRequest) GetParent() string {
@@ -1528,7 +1527,7 @@ type ListCapabilitiesResponse struct {
 
 func (x *ListCapabilitiesResponse) Reset() {
 	*x = ListCapabilitiesResponse{}
-	mi := &file_home_api_v2_home_proto_msgTypes[18]
+	mi := &file_home_api_v2_home_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1540,7 +1539,7 @@ func (x *ListCapabilitiesResponse) String() string {
 func (*ListCapabilitiesResponse) ProtoMessage() {}
 
 func (x *ListCapabilitiesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_home_proto_msgTypes[18]
+	mi := &file_home_api_v2_home_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1553,7 +1552,7 @@ func (x *ListCapabilitiesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCapabilitiesResponse.ProtoReflect.Descriptor instead.
 func (*ListCapabilitiesResponse) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_home_proto_rawDescGZIP(), []int{18}
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListCapabilitiesResponse) GetCapabilities() []*Capability {
@@ -1570,13 +1569,171 @@ func (x *ListCapabilitiesResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Reads one installation identity under the current authenticated account.
+type GetHomeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical home name, without a network address or an alias.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHomeRequest) Reset() {
+	*x = GetHomeRequest{}
+	mi := &file_home_api_v2_home_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHomeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHomeRequest) ProtoMessage() {}
+
+func (x *GetHomeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_home_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHomeRequest.ProtoReflect.Descriptor instead.
+func (*GetHomeRequest) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GetHomeRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Discovers the persistent installation identity. No synthetic default is used.
+type ListHomesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Zero selects 100; negative is invalid; values above 500 clamp to 500.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation; caller authorization is checked on every page.
+	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListHomesRequest) Reset() {
+	*x = ListHomesRequest{}
+	mi := &file_home_api_v2_home_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListHomesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListHomesRequest) ProtoMessage() {}
+
+func (x *ListHomesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_home_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListHomesRequest.ProtoReflect.Descriptor instead.
+func (*ListHomesRequest) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ListHomesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListHomesRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// Page of installations visible to this authenticated account.
+type ListHomesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Persistent home resources in canonical name order.
+	Homes []*Home `protobuf:"bytes,1,rep,name=homes,proto3" json:"homes,omitempty"`
+	// Empty at the end; never an authorization credential.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListHomesResponse) Reset() {
+	*x = ListHomesResponse{}
+	mi := &file_home_api_v2_home_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListHomesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListHomesResponse) ProtoMessage() {}
+
+func (x *ListHomesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_home_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListHomesResponse.ProtoReflect.Descriptor instead.
+func (*ListHomesResponse) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ListHomesResponse) GetHomes() []*Home {
+	if x != nil {
+		return x.Homes
+	}
+	return nil
+}
+
+func (x *ListHomesResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
 var File_home_api_v2_home_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_home_proto_rawDesc = "" +
 	"\n" +
-	"\x16home/api/v2/home.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"`\n" +
+	"\x16home/api/v2/home.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!home/api/v2/extended_traits.proto\x1a\x1ehome/api/v2/media_traits.proto\x1a\x18home/api/v2/traits.proto\"\xa3\x01\n" +
 	"\x04Home\x12\x18\n" +
-	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name:>\xeaA;\n" +
+	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12A\n" +
+	"\vcreate_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
+	"createTime:>\xeaA;\n" +
 	"\x1ehomeward.damiengoehrig.ca/Home\x12\fhomes/{home}*\x05homes2\x04home\"\xbe\x02\n" +
 	"\x06Entity\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12'\n" +
@@ -1586,21 +1743,36 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	"\vupdate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
 	"updateTime\x12\x12\n" +
 	"\x04etag\x18\x05 \x01(\tR\x04etag:W\xeaAT\n" +
-	" homeward.damiengoehrig.ca/Entity\x12\x1ehomes/{home}/entities/{entity}*\bentities2\x06entity\"\x9a\x02\n" +
+	" homeward.damiengoehrig.ca/Entity\x12\x1ehomes/{home}/entities/{entity}*\bentities2\x06entity\"\xc9\v\n" +
 	"\n" +
 	"Capability\x12\x18\n" +
-	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x124\n" +
+	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12\x12\n" +
+	"\x04etag\x18\a \x01(\tR\x04etag\x12D\n" +
+	"\raction_access\x18\x15 \x01(\x0e2\x19.home.api.v2.ActionAccessB\x04\xe2A\x01\x03R\factionAccess\x124\n" +
 	"\x05power\x18\x02 \x01(\v2\x1c.home.api.v2.PowerCapabilityH\x00R\x05power\x124\n" +
-	"\x05level\x18\x03 \x01(\v2\x1c.home.api.v2.LevelCapabilityH\x00R\x05level:}\xeaAz\n" +
+	"\x05level\x18\x03 \x01(\v2\x1c.home.api.v2.LevelCapabilityH\x00R\x05level\x12\\\n" +
+	"\x13temperature_control\x18\x04 \x01(\v2).home.api.v2.TemperatureControlCapabilityH\x00R\x12temperatureControl\x12\\\n" +
+	"\x13numeric_measurement\x18\x05 \x01(\v2).home.api.v2.NumericMeasurementCapabilityH\x00R\x12numericMeasurement\x12Y\n" +
+	"\x12binary_observation\x18\x06 \x01(\v2(.home.api.v2.BinaryObservationCapabilityH\x00R\x11binaryObservation\x12J\n" +
+	"\rlight_control\x18\b \x01(\v2#.home.api.v2.LightControlCapabilityH\x00R\flightControl\x12D\n" +
+	"\vfan_control\x18\t \x01(\v2!.home.api.v2.FanControlCapabilityH\x00R\n" +
+	"fanControl\x124\n" +
+	"\x05cover\x18\n" +
+	" \x01(\v2\x1c.home.api.v2.CoverCapabilityH\x00R\x05cover\x121\n" +
+	"\x04lock\x18\v \x01(\v2\x1b.home.api.v2.LockCapabilityH\x00R\x04lock\x124\n" +
+	"\x05alarm\x18\f \x01(\v2\x1c.home.api.v2.AlarmCapabilityH\x00R\x05alarm\x127\n" +
+	"\x06helper\x18\r \x01(\v2\x1d.home.api.v2.HelperCapabilityH\x00R\x06helper\x124\n" +
+	"\x05solar\x18\x0e \x01(\v2\x1c.home.api.v2.SolarCapabilityH\x00R\x05solar\x12D\n" +
+	"\vsolar_event\x18\x0f \x01(\v2!.home.api.v2.SolarEventCapabilityH\x00R\n" +
+	"solarEvent\x12:\n" +
+	"\aweather\x18\x10 \x01(\v2\x1e.home.api.v2.WeatherCapabilityH\x00R\aweather\x12=\n" +
+	"\bpresence\x18\x11 \x01(\v2\x1f.home.api.v2.PresenceCapabilityH\x00R\bpresence\x12S\n" +
+	"\x10presence_details\x18\x12 \x01(\v2&.home.api.v2.PresenceDetailsCapabilityH\x00R\x0fpresenceDetails\x127\n" +
+	"\x06opaque\x18\x13 \x01(\v2\x1d.home.api.v2.OpaqueCapabilityH\x00R\x06opaque\x12M\n" +
+	"\x0emedia_playback\x18\x14 \x01(\v2$.home.api.v2.MediaPlaybackCapabilityH\x00R\rmediaPlayback:}\xeaAz\n" +
 	"$homeward.damiengoehrig.ca/Capability\x128homes/{home}/entities/{entity}/capabilities/{capability}*\fcapabilities2\n" +
 	"capabilityB\a\n" +
-	"\x05trait\"\xd4\x01\n" +
-	"\x12ObservationQuality\x12C\n" +
-	"\favailability\x18\x01 \x01(\x0e2\x19.home.api.v2.AvailabilityB\x04\xe2A\x01\x03R\favailability\x12:\n" +
-	"\tfreshness\x18\x02 \x01(\x0e2\x16.home.api.v2.FreshnessB\x04\xe2A\x01\x03R\tfreshness\x12=\n" +
-	"\n" +
-	"provenance\x18\x03 \x01(\x0e2\x17.home.api.v2.ProvenanceB\x04\xe2A\x01\x03R\n" +
-	"provenance\"\x81\x01\n" +
+	"\x05trait\"\x81\x01\n" +
 	"\x0fPowerCapability\x12'\n" +
 	"\fsupports_set\x18\x01 \x01(\bB\x04\xe2A\x01\x03R\vsupportsSet\x12E\n" +
 	"\vobservation\x18\x02 \x01(\v2\x1d.home.api.v2.PowerObservationB\x04\xe2A\x01\x03R\vobservation\"\xde\x01\n" +
@@ -1608,12 +1780,7 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	"\x05value\x18\x01 \x01(\x0e2\x17.home.api.v2.PowerValueB\x04\xe2A\x01\x03H\x00R\x05value\x88\x01\x01\x12E\n" +
 	"\robserved_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\fobservedTime\x12?\n" +
 	"\aquality\x18\x03 \x01(\v2\x1f.home.api.v2.ObservationQualityB\x04\xe2A\x01\x03R\aqualityB\b\n" +
-	"\x06_value\"z\n" +
-	"\x10PercentageBounds\x12\x1e\n" +
-	"\aminimum\x18\x01 \x01(\x01B\x04\xe2A\x01\x03R\aminimum\x12\x1e\n" +
-	"\amaximum\x18\x02 \x01(\x01B\x04\xe2A\x01\x03R\amaximum\x12\x1d\n" +
-	"\x04step\x18\x03 \x01(\x01B\x04\xe2A\x01\x03H\x00R\x04step\x88\x01\x01B\a\n" +
-	"\x05_step\"\xbe\x01\n" +
+	"\x06_value\"\xbe\x01\n" +
 	"\x0fLevelCapability\x12'\n" +
 	"\fsupports_set\x18\x01 \x01(\bB\x04\xe2A\x01\x03R\vsupportsSet\x12;\n" +
 	"\x06bounds\x18\x02 \x01(\v2\x1d.home.api.v2.PercentageBoundsB\x04\xe2A\x01\x03R\x06bounds\x12E\n" +
@@ -1624,21 +1791,24 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	"percentage\x88\x01\x01\x12E\n" +
 	"\robserved_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\fobservedTime\x12?\n" +
 	"\aquality\x18\x03 \x01(\v2\x1f.home.api.v2.ObservationQualityB\x04\xe2A\x01\x03R\aqualityB\r\n" +
-	"\v_percentage\"F\n" +
-	"\x0fSetPowerCommand\x123\n" +
-	"\x05value\x18\x01 \x01(\x0e2\x17.home.api.v2.PowerValueB\x04\xe2A\x01\x02R\x05value\"=\n" +
-	"\x0fSetLevelCommand\x12 \n" +
-	"\n" +
-	"percentage\x18\x01 \x01(\x01H\x00R\n" +
-	"percentageB\b\n" +
-	"\x06target\"\xc4\x02\n" +
+	"\v_percentage\"\xad\x06\n" +
 	"\x18ExecuteCapabilityRequest\x12A\n" +
 	"\x04name\x18\x01 \x01(\tB-\xe2A\x01\x02\xfaA&\n" +
 	"$homeward.damiengoehrig.ca/CapabilityR\x04name\x124\n" +
 	"\x05power\x18\x02 \x01(\v2\x1c.home.api.v2.SetPowerCommandH\x00R\x05power\x124\n" +
-	"\x05level\x18\x03 \x01(\v2\x1c.home.api.v2.SetLevelCommandH\x00R\x05level\x12+\n" +
+	"\x05level\x18\x03 \x01(\v2\x1c.home.api.v2.SetLevelCommandH\x00R\x05level\x124\n" +
+	"\x05light\x18\a \x01(\v2\x1c.home.api.v2.SetLightCommandH\x00R\x05light\x12.\n" +
+	"\x03fan\x18\b \x01(\v2\x1a.home.api.v2.SetFanCommandH\x00R\x03fan\x12\\\n" +
+	"\x13temperature_control\x18\t \x01(\v2).home.api.v2.SetTemperatureControlCommandH\x00R\x12temperatureControl\x124\n" +
+	"\x05cover\x18\n" +
+	" \x01(\v2\x1c.home.api.v2.SetCoverCommandH\x00R\x05cover\x121\n" +
+	"\x04lock\x18\v \x01(\v2\x1b.home.api.v2.SetLockCommandH\x00R\x04lock\x124\n" +
+	"\x05alarm\x18\f \x01(\v2\x1c.home.api.v2.SetAlarmCommandH\x00R\x05alarm\x127\n" +
+	"\x06helper\x18\r \x01(\v2\x1d.home.api.v2.SetHelperCommandH\x00R\x06helper\x121\n" +
+	"\x05media\x18\x0e \x01(\v2\x19.home.api.v2.MediaCommandH\x00R\x05media\x12+\n" +
 	"\n" +
-	"request_id\x18\x04 \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId\x12A\n" +
+	"request_id\x18\x04 \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId\x12\x18\n" +
+	"\x04etag\x18\x06 \x01(\tB\x04\xe2A\x01\x01R\x04etag\x12A\n" +
 	"\vexpire_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x02R\n" +
 	"expireTimeB\t\n" +
 	"\acommand\"Q\n" +
@@ -1670,25 +1840,17 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\x7f\n" +
 	"\x18ListCapabilitiesResponse\x12;\n" +
 	"\fcapabilities\x18\x01 \x03(\v2\x17.home.api.v2.CapabilityR\fcapabilities\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*R\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"M\n" +
+	"\x0eGetHomeRequest\x12;\n" +
+	"\x04name\x18\x01 \x01(\tB'\xe2A\x01\x02\xfaA \n" +
+	"\x1ehomeward.damiengoehrig.ca/HomeR\x04name\"Z\n" +
+	"\x10ListHomesRequest\x12!\n" +
+	"\tpage_size\x18\x01 \x01(\x05B\x04\xe2A\x01\x01R\bpageSize\x12#\n" +
 	"\n" +
-	"PowerValue\x12\x1b\n" +
-	"\x17POWER_VALUE_UNSPECIFIED\x10\x00\x12\x12\n" +
-	"\x0ePOWER_VALUE_ON\x10\x01\x12\x13\n" +
-	"\x0fPOWER_VALUE_OFF\x10\x02*f\n" +
-	"\fAvailability\x12\x1c\n" +
-	"\x18AVAILABILITY_UNSPECIFIED\x10\x00\x12\x1a\n" +
-	"\x16AVAILABILITY_AVAILABLE\x10\x01\x12\x1c\n" +
-	"\x18AVAILABILITY_UNAVAILABLE\x10\x02*R\n" +
-	"\tFreshness\x12\x19\n" +
-	"\x15FRESHNESS_UNSPECIFIED\x10\x00\x12\x15\n" +
-	"\x11FRESHNESS_CURRENT\x10\x01\x12\x13\n" +
-	"\x0fFRESHNESS_STALE\x10\x02*Y\n" +
-	"\n" +
-	"Provenance\x12\x1a\n" +
-	"\x16PROVENANCE_UNSPECIFIED\x10\x00\x12\x17\n" +
-	"\x13PROVENANCE_OBSERVED\x10\x01\x12\x16\n" +
-	"\x12PROVENANCE_DERIVED\x10\x02*\xda\x03\n" +
+	"page_token\x18\x02 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"d\n" +
+	"\x11ListHomesResponse\x12'\n" +
+	"\x05homes\x18\x01 \x03(\v2\x11.home.api.v2.HomeR\x05homes\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\xda\x03\n" +
 	"\x10ValidationReason\x12!\n" +
 	"\x1dVALIDATION_REASON_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eVALIDATION_REASON_INVALID_NAME\x10\x01\x12$\n" +
@@ -1702,8 +1864,10 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	" VALIDATION_REASON_INVALID_FORMAT\x10\t\x12)\n" +
 	"%VALIDATION_REASON_INCONSISTENT_FIELDS\x10\n" +
 	"\x12\"\n" +
-	"\x1eVALIDATION_REASON_INVALID_MASK\x10\v2\xdf\x05\n" +
-	"\vHomeService\x12m\n" +
+	"\x1eVALIDATION_REASON_INVALID_MASK\x10\v2\x9f\a\n" +
+	"\vHomeService\x12\\\n" +
+	"\aGetHome\x12\x1b.home.api.v2.GetHomeRequest\x1a\x11.home.api.v2.Home\"!\xdaA\x04name\x82\xd3\xe4\x93\x02\x14\x12\x12/v2/{name=homes/*}\x12`\n" +
+	"\tListHomes\x12\x1d.home.api.v2.ListHomesRequest\x1a\x1e.home.api.v2.ListHomesResponse\"\x14\xdaA\x00\x82\xd3\xe4\x93\x02\v\x12\t/v2/homes\x12m\n" +
 	"\tGetEntity\x12\x1d.home.api.v2.GetEntityRequest\x1a\x13.home.api.v2.Entity\",\xdaA\x04name\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v2/{name=homes/*/entities/*}\x12\x83\x01\n" +
 	"\fListEntities\x12 .home.api.v2.ListEntitiesRequest\x1a!.home.api.v2.ListEntitiesResponse\".\xdaA\x06parent\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v2/{parent=homes/*}/entities\x12\x90\x01\n" +
 	"\fUpdateEntity\x12 .home.api.v2.UpdateEntityRequest\x1a\x13.home.api.v2.Entity\"I\xdaA\x12entity,update_mask\x82\xd3\xe4\x93\x02.:\x06entity2$/v2/{entity.name=homes/*/entities/*}\x12\x88\x01\n" +
@@ -1723,75 +1887,127 @@ func file_home_api_v2_home_proto_rawDescGZIP() []byte {
 	return file_home_api_v2_home_proto_rawDescData
 }
 
-var file_home_api_v2_home_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_home_api_v2_home_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_home_api_v2_home_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_home_api_v2_home_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_home_api_v2_home_proto_goTypes = []any{
-	(PowerValue)(0),                  // 0: home.api.v2.PowerValue
-	(Availability)(0),                // 1: home.api.v2.Availability
-	(Freshness)(0),                   // 2: home.api.v2.Freshness
-	(Provenance)(0),                  // 3: home.api.v2.Provenance
-	(ValidationReason)(0),            // 4: home.api.v2.ValidationReason
-	(*Home)(nil),                     // 5: home.api.v2.Home
-	(*Entity)(nil),                   // 6: home.api.v2.Entity
-	(*Capability)(nil),               // 7: home.api.v2.Capability
-	(*ObservationQuality)(nil),       // 8: home.api.v2.ObservationQuality
-	(*PowerCapability)(nil),          // 9: home.api.v2.PowerCapability
-	(*PowerObservation)(nil),         // 10: home.api.v2.PowerObservation
-	(*PercentageBounds)(nil),         // 11: home.api.v2.PercentageBounds
-	(*LevelCapability)(nil),          // 12: home.api.v2.LevelCapability
-	(*LevelObservation)(nil),         // 13: home.api.v2.LevelObservation
-	(*SetPowerCommand)(nil),          // 14: home.api.v2.SetPowerCommand
-	(*SetLevelCommand)(nil),          // 15: home.api.v2.SetLevelCommand
-	(*ExecuteCapabilityRequest)(nil), // 16: home.api.v2.ExecuteCapabilityRequest
-	(*GetEntityRequest)(nil),         // 17: home.api.v2.GetEntityRequest
-	(*ListEntitiesRequest)(nil),      // 18: home.api.v2.ListEntitiesRequest
-	(*ListEntitiesResponse)(nil),     // 19: home.api.v2.ListEntitiesResponse
-	(*UpdateEntityRequest)(nil),      // 20: home.api.v2.UpdateEntityRequest
-	(*GetCapabilityRequest)(nil),     // 21: home.api.v2.GetCapabilityRequest
-	(*ListCapabilitiesRequest)(nil),  // 22: home.api.v2.ListCapabilitiesRequest
-	(*ListCapabilitiesResponse)(nil), // 23: home.api.v2.ListCapabilitiesResponse
-	(*timestamppb.Timestamp)(nil),    // 24: google.protobuf.Timestamp
-	(*fieldmaskpb.FieldMask)(nil),    // 25: google.protobuf.FieldMask
+	(ValidationReason)(0),                // 0: home.api.v2.ValidationReason
+	(*Home)(nil),                         // 1: home.api.v2.Home
+	(*Entity)(nil),                       // 2: home.api.v2.Entity
+	(*Capability)(nil),                   // 3: home.api.v2.Capability
+	(*PowerCapability)(nil),              // 4: home.api.v2.PowerCapability
+	(*PowerObservation)(nil),             // 5: home.api.v2.PowerObservation
+	(*LevelCapability)(nil),              // 6: home.api.v2.LevelCapability
+	(*LevelObservation)(nil),             // 7: home.api.v2.LevelObservation
+	(*ExecuteCapabilityRequest)(nil),     // 8: home.api.v2.ExecuteCapabilityRequest
+	(*GetEntityRequest)(nil),             // 9: home.api.v2.GetEntityRequest
+	(*ListEntitiesRequest)(nil),          // 10: home.api.v2.ListEntitiesRequest
+	(*ListEntitiesResponse)(nil),         // 11: home.api.v2.ListEntitiesResponse
+	(*UpdateEntityRequest)(nil),          // 12: home.api.v2.UpdateEntityRequest
+	(*GetCapabilityRequest)(nil),         // 13: home.api.v2.GetCapabilityRequest
+	(*ListCapabilitiesRequest)(nil),      // 14: home.api.v2.ListCapabilitiesRequest
+	(*ListCapabilitiesResponse)(nil),     // 15: home.api.v2.ListCapabilitiesResponse
+	(*GetHomeRequest)(nil),               // 16: home.api.v2.GetHomeRequest
+	(*ListHomesRequest)(nil),             // 17: home.api.v2.ListHomesRequest
+	(*ListHomesResponse)(nil),            // 18: home.api.v2.ListHomesResponse
+	(*timestamppb.Timestamp)(nil),        // 19: google.protobuf.Timestamp
+	(ActionAccess)(0),                    // 20: home.api.v2.ActionAccess
+	(*TemperatureControlCapability)(nil), // 21: home.api.v2.TemperatureControlCapability
+	(*NumericMeasurementCapability)(nil), // 22: home.api.v2.NumericMeasurementCapability
+	(*BinaryObservationCapability)(nil),  // 23: home.api.v2.BinaryObservationCapability
+	(*LightControlCapability)(nil),       // 24: home.api.v2.LightControlCapability
+	(*FanControlCapability)(nil),         // 25: home.api.v2.FanControlCapability
+	(*CoverCapability)(nil),              // 26: home.api.v2.CoverCapability
+	(*LockCapability)(nil),               // 27: home.api.v2.LockCapability
+	(*AlarmCapability)(nil),              // 28: home.api.v2.AlarmCapability
+	(*HelperCapability)(nil),             // 29: home.api.v2.HelperCapability
+	(*SolarCapability)(nil),              // 30: home.api.v2.SolarCapability
+	(*SolarEventCapability)(nil),         // 31: home.api.v2.SolarEventCapability
+	(*WeatherCapability)(nil),            // 32: home.api.v2.WeatherCapability
+	(*PresenceCapability)(nil),           // 33: home.api.v2.PresenceCapability
+	(*PresenceDetailsCapability)(nil),    // 34: home.api.v2.PresenceDetailsCapability
+	(*OpaqueCapability)(nil),             // 35: home.api.v2.OpaqueCapability
+	(*MediaPlaybackCapability)(nil),      // 36: home.api.v2.MediaPlaybackCapability
+	(PowerValue)(0),                      // 37: home.api.v2.PowerValue
+	(*ObservationQuality)(nil),           // 38: home.api.v2.ObservationQuality
+	(*PercentageBounds)(nil),             // 39: home.api.v2.PercentageBounds
+	(*SetPowerCommand)(nil),              // 40: home.api.v2.SetPowerCommand
+	(*SetLevelCommand)(nil),              // 41: home.api.v2.SetLevelCommand
+	(*SetLightCommand)(nil),              // 42: home.api.v2.SetLightCommand
+	(*SetFanCommand)(nil),                // 43: home.api.v2.SetFanCommand
+	(*SetTemperatureControlCommand)(nil), // 44: home.api.v2.SetTemperatureControlCommand
+	(*SetCoverCommand)(nil),              // 45: home.api.v2.SetCoverCommand
+	(*SetLockCommand)(nil),               // 46: home.api.v2.SetLockCommand
+	(*SetAlarmCommand)(nil),              // 47: home.api.v2.SetAlarmCommand
+	(*SetHelperCommand)(nil),             // 48: home.api.v2.SetHelperCommand
+	(*MediaCommand)(nil),                 // 49: home.api.v2.MediaCommand
+	(*fieldmaskpb.FieldMask)(nil),        // 50: google.protobuf.FieldMask
 }
 var file_home_api_v2_home_proto_depIdxs = []int32{
-	24, // 0: home.api.v2.Entity.create_time:type_name -> google.protobuf.Timestamp
-	24, // 1: home.api.v2.Entity.update_time:type_name -> google.protobuf.Timestamp
-	9,  // 2: home.api.v2.Capability.power:type_name -> home.api.v2.PowerCapability
-	12, // 3: home.api.v2.Capability.level:type_name -> home.api.v2.LevelCapability
-	1,  // 4: home.api.v2.ObservationQuality.availability:type_name -> home.api.v2.Availability
-	2,  // 5: home.api.v2.ObservationQuality.freshness:type_name -> home.api.v2.Freshness
-	3,  // 6: home.api.v2.ObservationQuality.provenance:type_name -> home.api.v2.Provenance
-	10, // 7: home.api.v2.PowerCapability.observation:type_name -> home.api.v2.PowerObservation
-	0,  // 8: home.api.v2.PowerObservation.value:type_name -> home.api.v2.PowerValue
-	24, // 9: home.api.v2.PowerObservation.observed_time:type_name -> google.protobuf.Timestamp
-	8,  // 10: home.api.v2.PowerObservation.quality:type_name -> home.api.v2.ObservationQuality
-	11, // 11: home.api.v2.LevelCapability.bounds:type_name -> home.api.v2.PercentageBounds
-	13, // 12: home.api.v2.LevelCapability.observation:type_name -> home.api.v2.LevelObservation
-	24, // 13: home.api.v2.LevelObservation.observed_time:type_name -> google.protobuf.Timestamp
-	8,  // 14: home.api.v2.LevelObservation.quality:type_name -> home.api.v2.ObservationQuality
-	0,  // 15: home.api.v2.SetPowerCommand.value:type_name -> home.api.v2.PowerValue
-	14, // 16: home.api.v2.ExecuteCapabilityRequest.power:type_name -> home.api.v2.SetPowerCommand
-	15, // 17: home.api.v2.ExecuteCapabilityRequest.level:type_name -> home.api.v2.SetLevelCommand
-	24, // 18: home.api.v2.ExecuteCapabilityRequest.expire_time:type_name -> google.protobuf.Timestamp
-	6,  // 19: home.api.v2.ListEntitiesResponse.entities:type_name -> home.api.v2.Entity
-	6,  // 20: home.api.v2.UpdateEntityRequest.entity:type_name -> home.api.v2.Entity
-	25, // 21: home.api.v2.UpdateEntityRequest.update_mask:type_name -> google.protobuf.FieldMask
-	7,  // 22: home.api.v2.ListCapabilitiesResponse.capabilities:type_name -> home.api.v2.Capability
-	17, // 23: home.api.v2.HomeService.GetEntity:input_type -> home.api.v2.GetEntityRequest
-	18, // 24: home.api.v2.HomeService.ListEntities:input_type -> home.api.v2.ListEntitiesRequest
-	20, // 25: home.api.v2.HomeService.UpdateEntity:input_type -> home.api.v2.UpdateEntityRequest
-	21, // 26: home.api.v2.HomeService.GetCapability:input_type -> home.api.v2.GetCapabilityRequest
-	22, // 27: home.api.v2.HomeService.ListCapabilities:input_type -> home.api.v2.ListCapabilitiesRequest
-	6,  // 28: home.api.v2.HomeService.GetEntity:output_type -> home.api.v2.Entity
-	19, // 29: home.api.v2.HomeService.ListEntities:output_type -> home.api.v2.ListEntitiesResponse
-	6,  // 30: home.api.v2.HomeService.UpdateEntity:output_type -> home.api.v2.Entity
-	7,  // 31: home.api.v2.HomeService.GetCapability:output_type -> home.api.v2.Capability
-	23, // 32: home.api.v2.HomeService.ListCapabilities:output_type -> home.api.v2.ListCapabilitiesResponse
-	28, // [28:33] is the sub-list for method output_type
-	23, // [23:28] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	19, // 0: home.api.v2.Home.create_time:type_name -> google.protobuf.Timestamp
+	19, // 1: home.api.v2.Entity.create_time:type_name -> google.protobuf.Timestamp
+	19, // 2: home.api.v2.Entity.update_time:type_name -> google.protobuf.Timestamp
+	20, // 3: home.api.v2.Capability.action_access:type_name -> home.api.v2.ActionAccess
+	4,  // 4: home.api.v2.Capability.power:type_name -> home.api.v2.PowerCapability
+	6,  // 5: home.api.v2.Capability.level:type_name -> home.api.v2.LevelCapability
+	21, // 6: home.api.v2.Capability.temperature_control:type_name -> home.api.v2.TemperatureControlCapability
+	22, // 7: home.api.v2.Capability.numeric_measurement:type_name -> home.api.v2.NumericMeasurementCapability
+	23, // 8: home.api.v2.Capability.binary_observation:type_name -> home.api.v2.BinaryObservationCapability
+	24, // 9: home.api.v2.Capability.light_control:type_name -> home.api.v2.LightControlCapability
+	25, // 10: home.api.v2.Capability.fan_control:type_name -> home.api.v2.FanControlCapability
+	26, // 11: home.api.v2.Capability.cover:type_name -> home.api.v2.CoverCapability
+	27, // 12: home.api.v2.Capability.lock:type_name -> home.api.v2.LockCapability
+	28, // 13: home.api.v2.Capability.alarm:type_name -> home.api.v2.AlarmCapability
+	29, // 14: home.api.v2.Capability.helper:type_name -> home.api.v2.HelperCapability
+	30, // 15: home.api.v2.Capability.solar:type_name -> home.api.v2.SolarCapability
+	31, // 16: home.api.v2.Capability.solar_event:type_name -> home.api.v2.SolarEventCapability
+	32, // 17: home.api.v2.Capability.weather:type_name -> home.api.v2.WeatherCapability
+	33, // 18: home.api.v2.Capability.presence:type_name -> home.api.v2.PresenceCapability
+	34, // 19: home.api.v2.Capability.presence_details:type_name -> home.api.v2.PresenceDetailsCapability
+	35, // 20: home.api.v2.Capability.opaque:type_name -> home.api.v2.OpaqueCapability
+	36, // 21: home.api.v2.Capability.media_playback:type_name -> home.api.v2.MediaPlaybackCapability
+	5,  // 22: home.api.v2.PowerCapability.observation:type_name -> home.api.v2.PowerObservation
+	37, // 23: home.api.v2.PowerObservation.value:type_name -> home.api.v2.PowerValue
+	19, // 24: home.api.v2.PowerObservation.observed_time:type_name -> google.protobuf.Timestamp
+	38, // 25: home.api.v2.PowerObservation.quality:type_name -> home.api.v2.ObservationQuality
+	39, // 26: home.api.v2.LevelCapability.bounds:type_name -> home.api.v2.PercentageBounds
+	7,  // 27: home.api.v2.LevelCapability.observation:type_name -> home.api.v2.LevelObservation
+	19, // 28: home.api.v2.LevelObservation.observed_time:type_name -> google.protobuf.Timestamp
+	38, // 29: home.api.v2.LevelObservation.quality:type_name -> home.api.v2.ObservationQuality
+	40, // 30: home.api.v2.ExecuteCapabilityRequest.power:type_name -> home.api.v2.SetPowerCommand
+	41, // 31: home.api.v2.ExecuteCapabilityRequest.level:type_name -> home.api.v2.SetLevelCommand
+	42, // 32: home.api.v2.ExecuteCapabilityRequest.light:type_name -> home.api.v2.SetLightCommand
+	43, // 33: home.api.v2.ExecuteCapabilityRequest.fan:type_name -> home.api.v2.SetFanCommand
+	44, // 34: home.api.v2.ExecuteCapabilityRequest.temperature_control:type_name -> home.api.v2.SetTemperatureControlCommand
+	45, // 35: home.api.v2.ExecuteCapabilityRequest.cover:type_name -> home.api.v2.SetCoverCommand
+	46, // 36: home.api.v2.ExecuteCapabilityRequest.lock:type_name -> home.api.v2.SetLockCommand
+	47, // 37: home.api.v2.ExecuteCapabilityRequest.alarm:type_name -> home.api.v2.SetAlarmCommand
+	48, // 38: home.api.v2.ExecuteCapabilityRequest.helper:type_name -> home.api.v2.SetHelperCommand
+	49, // 39: home.api.v2.ExecuteCapabilityRequest.media:type_name -> home.api.v2.MediaCommand
+	19, // 40: home.api.v2.ExecuteCapabilityRequest.expire_time:type_name -> google.protobuf.Timestamp
+	2,  // 41: home.api.v2.ListEntitiesResponse.entities:type_name -> home.api.v2.Entity
+	2,  // 42: home.api.v2.UpdateEntityRequest.entity:type_name -> home.api.v2.Entity
+	50, // 43: home.api.v2.UpdateEntityRequest.update_mask:type_name -> google.protobuf.FieldMask
+	3,  // 44: home.api.v2.ListCapabilitiesResponse.capabilities:type_name -> home.api.v2.Capability
+	1,  // 45: home.api.v2.ListHomesResponse.homes:type_name -> home.api.v2.Home
+	16, // 46: home.api.v2.HomeService.GetHome:input_type -> home.api.v2.GetHomeRequest
+	17, // 47: home.api.v2.HomeService.ListHomes:input_type -> home.api.v2.ListHomesRequest
+	9,  // 48: home.api.v2.HomeService.GetEntity:input_type -> home.api.v2.GetEntityRequest
+	10, // 49: home.api.v2.HomeService.ListEntities:input_type -> home.api.v2.ListEntitiesRequest
+	12, // 50: home.api.v2.HomeService.UpdateEntity:input_type -> home.api.v2.UpdateEntityRequest
+	13, // 51: home.api.v2.HomeService.GetCapability:input_type -> home.api.v2.GetCapabilityRequest
+	14, // 52: home.api.v2.HomeService.ListCapabilities:input_type -> home.api.v2.ListCapabilitiesRequest
+	1,  // 53: home.api.v2.HomeService.GetHome:output_type -> home.api.v2.Home
+	18, // 54: home.api.v2.HomeService.ListHomes:output_type -> home.api.v2.ListHomesResponse
+	2,  // 55: home.api.v2.HomeService.GetEntity:output_type -> home.api.v2.Entity
+	11, // 56: home.api.v2.HomeService.ListEntities:output_type -> home.api.v2.ListEntitiesResponse
+	2,  // 57: home.api.v2.HomeService.UpdateEntity:output_type -> home.api.v2.Entity
+	3,  // 58: home.api.v2.HomeService.GetCapability:output_type -> home.api.v2.Capability
+	15, // 59: home.api.v2.HomeService.ListCapabilities:output_type -> home.api.v2.ListCapabilitiesResponse
+	53, // [53:60] is the sub-list for method output_type
+	46, // [46:53] is the sub-list for method input_type
+	46, // [46:46] is the sub-list for extension type_name
+	46, // [46:46] is the sub-list for extension extendee
+	0,  // [0:46] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_home_proto_init() }
@@ -1799,27 +2015,50 @@ func file_home_api_v2_home_proto_init() {
 	if File_home_api_v2_home_proto != nil {
 		return
 	}
+	file_home_api_v2_extended_traits_proto_init()
+	file_home_api_v2_media_traits_proto_init()
+	file_home_api_v2_traits_proto_init()
 	file_home_api_v2_home_proto_msgTypes[2].OneofWrappers = []any{
 		(*Capability_Power)(nil),
 		(*Capability_Level)(nil),
+		(*Capability_TemperatureControl)(nil),
+		(*Capability_NumericMeasurement)(nil),
+		(*Capability_BinaryObservation)(nil),
+		(*Capability_LightControl)(nil),
+		(*Capability_FanControl)(nil),
+		(*Capability_Cover)(nil),
+		(*Capability_Lock)(nil),
+		(*Capability_Alarm)(nil),
+		(*Capability_Helper)(nil),
+		(*Capability_Solar)(nil),
+		(*Capability_SolarEvent)(nil),
+		(*Capability_Weather)(nil),
+		(*Capability_Presence)(nil),
+		(*Capability_PresenceDetails)(nil),
+		(*Capability_Opaque)(nil),
+		(*Capability_MediaPlayback)(nil),
 	}
-	file_home_api_v2_home_proto_msgTypes[5].OneofWrappers = []any{}
+	file_home_api_v2_home_proto_msgTypes[4].OneofWrappers = []any{}
 	file_home_api_v2_home_proto_msgTypes[6].OneofWrappers = []any{}
-	file_home_api_v2_home_proto_msgTypes[8].OneofWrappers = []any{}
-	file_home_api_v2_home_proto_msgTypes[10].OneofWrappers = []any{
-		(*SetLevelCommand_Percentage)(nil),
-	}
-	file_home_api_v2_home_proto_msgTypes[11].OneofWrappers = []any{
+	file_home_api_v2_home_proto_msgTypes[7].OneofWrappers = []any{
 		(*ExecuteCapabilityRequest_Power)(nil),
 		(*ExecuteCapabilityRequest_Level)(nil),
+		(*ExecuteCapabilityRequest_Light)(nil),
+		(*ExecuteCapabilityRequest_Fan)(nil),
+		(*ExecuteCapabilityRequest_TemperatureControl)(nil),
+		(*ExecuteCapabilityRequest_Cover)(nil),
+		(*ExecuteCapabilityRequest_Lock)(nil),
+		(*ExecuteCapabilityRequest_Alarm)(nil),
+		(*ExecuteCapabilityRequest_Helper)(nil),
+		(*ExecuteCapabilityRequest_Media)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_api_v2_home_proto_rawDesc), len(file_home_api_v2_home_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   19,
+			NumEnums:      1,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -446,7 +446,7 @@ type Manager struct {
 	inflight                        map[commandEndpointSlot]bool
 	volatile                        *volatileCommandLedger
 	unprotectedCommandDispatch      bool
-	commandPolicies                 map[domain.CommandID]commandPolicy
+	commandPolicies                 map[domain.CommandID]commandPolicyClaim
 	actions                         *actionTracker
 	supervisor                      *Supervisor
 	durable                         *DurableCommandService
@@ -529,7 +529,7 @@ func newHost(authority IdentityAuthority, sink Sink, catalog *contracts.Capabili
 	}
 	tracker := newActionTracker(realActionClock{})
 	tracker.observation = cells
-	return &Manager{mqttReadOnlyObservation: readOnly, observation: cells, authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), lightProfiles: make(map[domain.EntityID]*lightEncodingSnapshot), fanProfiles: make(map[domain.EntityID]*fanProfileSnapshot), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicy), actions: tracker}, nil
+	return &Manager{mqttReadOnlyObservation: readOnly, observation: cells, authority: authority, sink: sink, catalog: catalog, admission: admissionOpen, composition: compositionOpen, durableRegistration: durableRegistrationFree, active: make(map[domain.IntegrationInstanceID]*Session), owners: make(map[domain.EntityID]Binding), lightProfiles: make(map[domain.EntityID]*lightEncodingSnapshot), fanProfiles: make(map[domain.EntityID]*fanProfileSnapshot), retiring: make(map[domain.EntityID]struct{}), retiringSources: make(map[retiringSource]struct{}), commandOwners: make(map[commandOwnerSlot]domain.EntityID), inflight: make(map[commandEndpointSlot]bool), commandPolicies: make(map[domain.CommandID]commandPolicyClaim), actions: tracker}, nil
 }
 
 // CloseAdmissions linearizes shutdown with both command-policy claims and the

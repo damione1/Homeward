@@ -4,24 +4,16 @@
 //! cleanup never retries or weakens its16-view bound.
 use async_trait::async_trait;
 use home_client_session::{AccessLease, SessionCoordinator};
-use home_client_transport::{AccessToken, Failure, StateTransport};
-use home_wire_contract::home::state::v1 as wire;
+use home_client_transport::{AccessToken, EntityViewTransport, Failure};
+use home_wire_contract::home::api::v2 as wire;
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-struct SnapshotToken(String);
-impl SnapshotToken {
-    fn parse(value: &str) -> Option<Self> {
-        (value.len() == 64
-            && value
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
-        .then(|| Self(value.into()))
-    }
-}
+use home_client_model::api::EntityViewName;
+
 struct Release {
-    snapshot: SnapshotToken,
+    snapshot: EntityViewName,
     token: AccessToken,
     cancel: CancellationToken,
     admitted: Box<dyn Fn() -> bool + Send + Sync>,
@@ -31,11 +23,11 @@ trait Api: Send + Sync + 'static {
     async fn release(&self, value: &Release, stop: &CancellationToken) -> Result<(), Failure>;
 }
 #[async_trait]
-impl Api for StateTransport {
+impl Api for EntityViewTransport {
     async fn release(&self, value: &Release, stop: &CancellationToken) -> Result<(), Failure> {
-        self.release_view(
-            wire::ReleaseViewRequest {
-                snapshot_token: value.snapshot.0.clone(),
+        self.delete_entity_view(
+            wire::DeleteEntityViewRequest {
+                name: value.snapshot.as_str().to_owned(),
                 ..Default::default()
             },
             &value.token,
@@ -70,7 +62,7 @@ impl Drop for ReleaseGuard {
 }
 impl CleanupHandle {
     pub(crate) fn track(&self, snapshot: &str, lease: &AccessLease) -> Option<ReleaseGuard> {
-        let snapshot = SnapshotToken::parse(snapshot)?;
+        let snapshot = EntityViewName::try_from(snapshot).ok()?;
         let session = self.session.clone();
         let generation = lease.generation;
         let cancel = lease.cancellation.clone();
@@ -91,7 +83,7 @@ impl CleanupHandle {
 impl CleanupOwner {
     pub(crate) fn start(
         session: SessionCoordinator,
-        transport: StateTransport,
+        transport: EntityViewTransport,
     ) -> (Self, CleanupHandle) {
         let (owner, sender) = Self::build(Arc::new(transport));
         (owner, CleanupHandle { sender, session })
@@ -158,7 +150,10 @@ mod tests {
     #[async_trait]
     impl Api for Fake {
         async fn release(&self, value: &Release, _stop: &CancellationToken) -> Result<(), Failure> {
-            self.calls.lock().unwrap().push(value.snapshot.0.clone());
+            self.calls
+                .lock()
+                .unwrap()
+                .push(value.snapshot.as_str().to_owned());
             self.entered.notify_one();
             let gate = self.first_gate.lock().unwrap().take();
             if let Some(gate) = gate {
@@ -169,7 +164,10 @@ mod tests {
     }
     fn value(index: u64) -> Release {
         Release {
-            snapshot: SnapshotToken::parse(&format!("{index:064x}")).unwrap(),
+            snapshot: EntityViewName::try_from(
+                format!("homes/synthetic/entityViews/view-{index}").as_str(),
+            )
+            .unwrap(),
             token: AccessToken::parse("synthetic-access").unwrap(),
             cancel: CancellationToken::new(),
             admitted: Box::new(|| true),
@@ -190,7 +188,10 @@ mod tests {
         });
         entered(&api).await;
         owner.close().await;
-        assert_eq!(*api.calls.lock().unwrap(), vec![format!("{:064x}", 1)]);
+        assert_eq!(
+            *api.calls.lock().unwrap(),
+            vec!["homes/synthetic/entityViews/view-1".to_owned()]
+        );
     }
     #[tokio::test]
     async fn queued_cleanup_rechecks_admission_and_access_cancellation() {
@@ -217,7 +218,10 @@ mod tests {
         owner.close().await;
         assert_eq!(
             *api.calls.lock().unwrap(),
-            vec![format!("{:064x}", 1), format!("{:064x}", 4)]
+            vec![
+                "homes/synthetic/entityViews/view-1".to_owned(),
+                "homes/synthetic/entityViews/view-4".to_owned()
+            ]
         );
     }
     #[tokio::test]

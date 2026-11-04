@@ -14,6 +14,7 @@ import (
 
 	"connectrpc.com/connect"
 	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -58,6 +59,8 @@ var specifications = map[wire.ApiErrorReason]specification{
 	wire.ApiErrorReason_API_ERROR_REASON_INTERNAL_FAILURE:          {code.Code_INTERNAL, "The request could not complete; retain the support reference."},
 	wire.ApiErrorReason_API_ERROR_REASON_STORED_DATA_INTEGRITY:     {code.Code_DATA_LOSS, "Stored data violates its documented invariants."},
 	wire.ApiErrorReason_API_ERROR_REASON_METHOD_NOT_SUPPORTED:      {code.Code_UNIMPLEMENTED, "This implementation does not support the requested method."},
+	wire.ApiErrorReason_API_ERROR_REASON_STATE_PRECONDITION_FAILED: {code.Code_FAILED_PRECONDITION, "The current resource state prevents this transition; resolve the documented precondition."},
+	wire.ApiErrorReason_API_ERROR_REASON_CONFIG_RESTART_REQUIRED:   {code.Code_FAILED_PRECONDITION, "The server must restart before this configuration change can be applied."},
 }
 
 // Domain is derived from the actual resource annotation, not a second namespace.
@@ -120,6 +123,7 @@ type Fault struct {
 	reason     wire.ApiErrorReason
 	violations []Violation
 	truncated  bool
+	operation  apitypes.OperationName
 }
 
 func New(reason wire.ApiErrorReason) Fault {
@@ -137,6 +141,20 @@ func (f Fault) Reason() wire.ApiErrorReason {
 func (f Fault) Code() code.Code         { return specifications[f.Reason()].code }
 func (f Fault) Error() string           { return specifications[f.Reason()].message }
 func (f Fault) Violations() []Violation { return append([]Violation(nil), f.violations...) }
+
+// WithOperation attaches a reconciliation read handle, never authority or a retry
+// instruction. Only uncertainty faults can carry it. An invalid attachment is
+// omitted without erasing the original uncertainty or reconciliation disposition.
+func (f Fault) WithOperation(name apitypes.OperationName) Fault {
+	if !name.Valid() || (f.Reason() != wire.ApiErrorReason_API_ERROR_REASON_COMMIT_OUTCOME_UNKNOWN && f.Reason() != wire.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN) {
+		return f
+	}
+	f.operation = name
+	return f
+}
+func (f Fault) Operation() (apitypes.OperationName, bool) {
+	return f.operation, f.operation.Valid()
+}
 
 func Validation(violations ...Violation) Fault {
 	f := New(wire.ApiErrorReason_API_ERROR_REASON_VALIDATION_FAILED)
@@ -217,6 +235,9 @@ func (f Fault) Status() *statuspb.Status {
 			Phase: phase, Disposition: wire.ReconciliationDisposition_RECONCILIATION_DISPOSITION_RECONCILE_ONLY,
 		}))
 	}
+	if f.operation.Valid() {
+		result.Details = append(result.Details, pack(&errdetails.ResourceInfo{ResourceType: "longrunning.googleapis.com/Operation", ResourceName: f.operation.String()}))
+	}
 	if reason == wire.ApiErrorReason_API_ERROR_REASON_INTERNAL_FAILURE {
 		var id [16]byte
 		if _, err := rand.Read(id[:]); err == nil {
@@ -228,7 +249,7 @@ func (f Fault) Status() *statuspb.Status {
 
 func (f Fault) Connect() *connect.Error {
 	status := f.Status()
-	result := connect.NewError(connect.Code(status.Code), errors.New(status.Message))
+	result := connect.NewError(connect.Code(status.Code), f)
 	for _, value := range status.Details {
 		detail, _ := connect.NewErrorDetail(value)
 		result.AddDetail(detail)

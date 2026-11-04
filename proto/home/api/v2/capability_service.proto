@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package home.api.v2;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/longrunning/operations.proto";
+import "google/protobuf/timestamp.proto";
+import "home/api/v2/home.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "CapabilityServiceProto";
+option java_package = "com.home.api.v2";
+
+// Executes one explicit typed intention against an advertised capability. The
+// native dispatcher, durable ledger and current target authorization remain
+// the sole physical admission path. Operations reads never dispatch a command.
+service CapabilityService {
+  option (google.api.default_host) = "homeward.damiengoehrig.ca";
+
+  // Returns a standard operation after durable admission. An acknowledgement
+  // does not prove that an observed physical state reached the requested value.
+  // Failure before admission is an RPC error; terminal execution failures use
+  // Operation.error. A possible commit/effect never authorizes automatic retry.
+  rpc ExecuteCapability(ExecuteCapabilityRequest) returns (google.longrunning.Operation) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/entities/*/capabilities/*}:execute"
+      body: "*"
+    };
+    option (google.api.method_signature) = "name,expire_time";
+    option (google.longrunning.operation_info) = {
+      response_type: "home.api.v2.ExecuteCapabilityResponse"
+      metadata_type: "home.api.v2.CommandMetadata"
+    };
+  }
+}
+
+// Readable progress of one admitted intention; never a command or a permission.
+// The metadata type is fixed by ExecuteCapability.operation_info. A caller must
+// still hold the native target read permission on every Get/Wait/Watch request.
+message CommandMetadata {
+  // Exact capability admitted for this intention, never a mutable alias.
+  string capability = 1 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Capability"
+  ];
+  // Current qualified progression. ACKNOWLEDGED is not physical confirmation.
+  CommandPhase phase = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Durable intention acceptance time, not a provider observation timestamp.
+  google.protobuf.Timestamp create_time = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Optional client key supplied during admission, for authorized reconciliation.
+  string request_id = 4 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.field_info).format = UUID4
+  ];
+  // Whether a current-epoch live tracker remains available. False neither
+  // erases the durable intention nor permits replay of its physical effect.
+  bool live_progress_available = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Successful terminal result. Failure or uncertainty is represented by the
+// standard Operation.error, with Homeward's canonical structured error details.
+// A successful unverified acknowledgement remains explicitly different from
+// a confirmation established by the native causal/protocol proof owner.
+message ExecuteCapabilityResponse {
+  // The unchanged target of the admitted intention.
+  string capability = 1 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Capability"
+  ];
+  // Which native guarantee was actually established, never inferred from ACK.
+  CommandOutcome outcome = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source observation time only when a qualified observation proof supplies
+  // it. A provider ACK or server response time cannot populate this field.
+  google.protobuf.Timestamp observed_time = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Qualified progress from the existing native command/confirmation owners.
+enum CommandPhase {
+  // Unknown progression; never emitted for an admitted current phase.
+  COMMAND_PHASE_UNSPECIFIED = 0;
+  // The intention has a durable reservation; no effect has been asserted.
+  COMMAND_PHASE_ACCEPTED = 1;
+  // The dispatch commitment barrier was crossed.
+  COMMAND_PHASE_DISPATCHED = 2;
+  // The provider acknowledged; the physical result has not been proven.
+  COMMAND_PHASE_ACKNOWLEDGED = 3;
+  // The native qualified causal/protocol confirmation has been established.
+  COMMAND_PHASE_CONFIRMED = 4;
+  // Execution failed with a canonical terminal Operation.error.
+  COMMAND_PHASE_FAILED = 5;
+  // Cancellation was established before any irreversible effect commitment.
+  COMMAND_PHASE_CANCELLED = 6;
+  // The result cannot be established; only reconciliation is permitted.
+  COMMAND_PHASE_INDETERMINATE = 7;
+}
+
+// The guarantee actually established by a successful terminal command.
+enum CommandOutcome {
+  // No established guarantee; never emitted as a successful terminal result.
+  COMMAND_OUTCOME_UNSPECIFIED = 0;
+  // Qualified observation or native protocol confirmation exists.
+  COMMAND_OUTCOME_CONFIRMED = 1;
+  // This source can promise an acknowledgement only; no confirmation invented.
+  COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED = 2;
+}

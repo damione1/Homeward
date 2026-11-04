@@ -2208,12 +2208,7 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\"RESYNC_REASON_CAPABILITIES_CHANGED\x10\t\x12&\n" +
 	"\"RESYNC_REASON_REGISTRY_UNAVAILABLE\x10\n" +
 	"\x12!\n" +
-	"\x1dRESYNC_REASON_FRAME_TOO_LARGE\x10\v2\xd0\x02\n" +
-	"\fStateService\x12K\n" +
-	"\bOpenView\x12\x1e.home.state.v1.OpenViewRequest\x1a\x1f.home.state.v1.OpenViewResponse\x12K\n" +
-	"\bReadPage\x12\x1e.home.state.v1.ReadPageRequest\x1a\x1f.home.state.v1.ReadPageResponse\x12T\n" +
-	"\vReleaseView\x12!.home.state.v1.ReleaseViewRequest\x1a\".home.state.v1.ReleaseViewResponse\x12P\n" +
-	"\tWatchView\x12\x1f.home.state.v1.WatchViewRequest\x1a .home.state.v1.WatchViewResponse0\x01B8Z6github.com/damione1/Homeward/gen/home/state/v1;statev1b\x06proto3"
+	"\x1dRESYNC_REASON_FRAME_TOO_LARGE\x10\vB8Z6github.com/damione1/Homeward/gen/home/state/v1;statev1b\x06proto3"
 
 var (
 	file_home_state_v1_state_proto_rawDescOnce sync.Once
@@ -2322,16 +2317,8 @@ var file_home_state_v1_state_proto_depIdxs = []int32{
 	13, // 44: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
 	24, // 45: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
 	25, // 46: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
-	17, // 47: home.state.v1.StateService.OpenView:input_type -> home.state.v1.OpenViewRequest
-	19, // 48: home.state.v1.StateService.ReadPage:input_type -> home.state.v1.ReadPageRequest
-	21, // 49: home.state.v1.StateService.ReleaseView:input_type -> home.state.v1.ReleaseViewRequest
-	23, // 50: home.state.v1.StateService.WatchView:input_type -> home.state.v1.WatchViewRequest
-	18, // 51: home.state.v1.StateService.OpenView:output_type -> home.state.v1.OpenViewResponse
-	20, // 52: home.state.v1.StateService.ReadPage:output_type -> home.state.v1.ReadPageResponse
-	22, // 53: home.state.v1.StateService.ReleaseView:output_type -> home.state.v1.ReleaseViewResponse
-	26, // 54: home.state.v1.StateService.WatchView:output_type -> home.state.v1.WatchViewResponse
-	51, // [51:55] is the sub-list for method output_type
-	47, // [47:51] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for method output_type
+	47, // [47:47] is the sub-list for method input_type
 	47, // [47:47] is the sub-list for extension type_name
 	47, // [47:47] is the sub-list for extension extendee
 	0,  // [0:47] is the sub-list for field type_name
@@ -2377,7 +2364,7 @@ func file_home_state_v1_state_proto_init() {
 			NumEnums:      6,
 			NumMessages:   21,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   0,
 		},
 		GoTypes:           file_home_state_v1_state_proto_goTypes,
 		DependencyIndexes: file_home_state_v1_state_proto_depIdxs,

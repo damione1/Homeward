@@ -24,10 +24,10 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
@@ -400,10 +400,10 @@ func TestNHA181RunTLSConnectStreamAndDrain(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
-		return statev1connect.NewStateServiceHandler(state, options...)
+		return apiv2connect.NewEntityViewServiceHandler(state, options...)
 	},
-		ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: statev1connect.StateServiceWatchViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.EntityViewServiceCreateEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.EntityViewServiceWatchEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportTLSRequired},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -480,21 +480,21 @@ func TestNHA181RunTLSConnectStreamAndDrain(t *testing.T) {
 		if grpc {
 			options = append(options, connect.WithGRPC())
 		}
-		api := statev1connect.NewStateServiceClient(client, url, options...)
-		unary := connect.NewRequest(&statev1.OpenViewRequest{})
+		clientRPC := apiv2connect.NewEntityViewServiceClient(client, url, options...)
+		unary := connect.NewRequest(&api.CreateEntityViewRequest{})
 		unary.Header().Set("Authorization", "Bearer fixture")
-		if _, err := api.OpenView(ctx, unary); err != nil {
+		if _, err := clientRPC.CreateEntityView(ctx, unary); err != nil {
 			t.Fatalf("unary grpc=%t: %v", grpc, err)
 		}
 		streamCtx, streamCancel := context.WithCancel(ctx)
-		request := connect.NewRequest(&statev1.WatchViewRequest{})
+		request := connect.NewRequest(&api.WatchEntityViewRequest{})
 		request.Header().Set("Authorization", "Bearer fixture")
-		stream, err := api.WatchView(streamCtx, request)
+		stream, err := clientRPC.WatchEntityView(streamCtx, request)
 		if err != nil {
 			streamCancel()
 			t.Fatalf("stream grpc=%t: %v", grpc, err)
 		}
-		if !stream.Receive() || stream.Msg().GetStreamSequence() != 1 {
+		if !stream.Receive() || stream.Msg().GetResumeToken() != "1" {
 			streamCancel()
 			t.Fatalf("stream grpc=%t: %v", grpc, stream.Err())
 		}

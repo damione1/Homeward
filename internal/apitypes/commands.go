@@ -5,6 +5,8 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -65,10 +67,11 @@ func (v LevelCommand) Percentage() Percentage     { return v.percentage }
 // Command is an immutable representation-admitted request. It does not prove
 // permission, future expiry, instance bounds, epoch/CAS or durable admission.
 type Command struct {
-	target     CapabilityName
-	intent     Intent
-	requestID  RequestID
-	expireTime time.Time
+	target         CapabilityName
+	intent         Intent
+	requestID      RequestID
+	expireTime     time.Time
+	definitionETag string
 }
 
 // NewCommand is the sole complete construction path. requestID=nil explicitly
@@ -79,6 +82,38 @@ func NewCommand(target CapabilityName, intent Intent, requestID *RequestID, expi
 	}
 	switch value := intent.(type) {
 	case PowerCommand:
+		if !value.Valid() {
+			return Command{}, ErrIntent
+		}
+	case MediaCommand:
+		if !value.Valid() {
+			return Command{}, ErrIntent
+		}
+	case LightCommand:
+		if !value.Valid() {
+			return Command{}, ErrIntent
+		}
+	case FanCommand:
+		if !value.Valid() {
+			return Command{}, ErrIntent
+		}
+	case ThermalCommand:
+		if !value.Valid() {
+			return Command{}, ErrIntent
+		}
+	case CoverCommand:
+		if !value.Valid() {
+			return Command{}, ErrIntent
+		}
+	case LockCommand:
+		if !value.Valid() {
+			return Command{}, ErrIntent
+		}
+	case AlarmCommand:
+		if !value.Valid() {
+			return Command{}, ErrIntent
+		}
+	case HelperCommand:
 		if !value.Valid() {
 			return Command{}, ErrIntent
 		}
@@ -97,7 +132,7 @@ func NewCommand(target CapabilityName, intent Intent, requestID *RequestID, expi
 		}
 		id = *requestID
 	}
-	return Command{target, intent, id, expireTime.UTC()}, nil
+	return Command{target: target, intent: intent, requestID: id, expireTime: expireTime.UTC()}, nil
 }
 
 func (v Command) Target() CapabilityName       { return v.target }
@@ -114,3 +149,19 @@ func (v Command) Valid() bool {
 	_, err := NewCommand(v.target, v.intent, id, v.expireTime)
 	return err == nil
 }
+
+// WithDefinitionETag retains an opaque current definition binding. It does not
+// establish authorization; execution compares it to the current registry cut.
+func (v Command) WithDefinitionETag(etag string) (Command, error) {
+	if !v.Valid() || len(etag) == 0 || len(etag) > 256 || !utf8.ValidString(etag) {
+		return Command{}, ErrIntent
+	}
+	for _, r := range etag {
+		if unicode.IsControl(r) {
+			return Command{}, ErrIntent
+		}
+	}
+	v.definitionETag = etag
+	return v, nil
+}
+func (v Command) DefinitionETag() string { return v.definitionETag }

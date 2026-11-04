@@ -4,22 +4,29 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	helperv1 "github.com/damione1/Homeward/gen/home/helpers/v1"
 	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
 	solarv1 "github.com/damione1/Homeward/gen/home/solar/v1"
-	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/integrations/fake"
+	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/view"
 	"google.golang.org/protobuf/proto"
@@ -35,6 +42,31 @@ func (a nha147ValueGrant) CurrentGrant(context.Context, view.ActorID) (view.Gran
 }
 func (a nha147ValueGrant) SubscribeGrantChanges(context.Context, view.ActorID) (<-chan struct{}, func(), error) {
 	return make(chan struct{}), func() {}, nil
+}
+
+type nha147ProjectionOwner struct {
+	home    apitypes.HomeMetadata
+	records []integrations.RegistryRecord
+}
+
+func (o nha147ProjectionOwner) HomeName(context.Context) (apitypes.HomeName, error) {
+	return o.home.Name(), nil
+}
+func (o nha147ProjectionOwner) HomeMetadata(context.Context) (apitypes.HomeMetadata, error) {
+	return o.home, nil
+}
+func (o nha147ProjectionOwner) ResolveEntityName(_ context.Context, name apitypes.EntityName) (domain.EntityID, error) {
+	for _, record := range o.records {
+		_, id, _ := record.IDs()
+		expected, _ := apitypes.EntityNameForIdentity(o.home.Name(), id)
+		if name == expected {
+			return id, nil
+		}
+	}
+	return domain.EntityID{}, registry.ErrUnconfigured
+}
+func (o nha147ProjectionOwner) UpdateEntityMetadata(context.Context, authorization.MetadataEvidence, domain.EntityID, apitypes.EntityUpdate, func(apitypes.EntityMetadata) ([]byte, error)) (apitypes.EntityMetadata, error) {
+	return apitypes.EntityMetadata{}, errors.New("read-only synthetic fixture")
 }
 
 func nha147FixtureRequest[T any](message *T) *connect.Request[T] {
@@ -85,25 +117,9 @@ func TestNHA147ConnectValuesKeepFalseZeroSolarAbsenceAndPartialSlots(t *testing.
 		t.Fatal(err)
 	}
 	records := make([]integrations.RegistryRecord, len(identities))
-	access := make([]view.EntityAccess, len(identities))
 	for i, identity := range identities {
 		alias, _ := domain.ParseHAAlias("sensor.nha147_" + string(rune('a'+i)))
 		records[i], err = integrations.NewRegistryRecord(identity.Device, identity.Entity, instance, keys[i], alias, alias, []domain.HAAlias{alias}, false)
-		if err != nil {
-			t.Fatal(err)
-		}
-		all := make([]authorization.CapabilitySlot, len(descriptions[i]))
-		for n, description := range descriptions[i] {
-			all[n], err = authorization.NewCapabilitySlot(description.SchemaId, description.Endpoint)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		readable := all
-		if i == len(identities)-1 {
-			readable = all[:1]
-		}
-		access[i], err = view.NewEntityAccess(identity.Entity, all, readable)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,23 +165,52 @@ func TestNHA147ConnectValuesKeepFalseZeroSolarAbsenceAndPartialSlots(t *testing.
 	for i, value := range values {
 		publish(i, value)
 	}
-	actor, _ := domain.ParseActorID("nha139-test-actor")
-	grant, err := view.NewScopedGrant(actor, 1, sha256.Sum256([]byte("nha147-synthetic-credential")), access)
+	homeName, _ := apitypes.ParseHomeName("homes/synthetic-values")
+	homeMeta, err := apitypes.NewHomeMetadata(homeName, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := nha147ProjectionOwner{home: homeMeta, records: records}
+	account, _ := contracts.ParseAccountID("nha139-test-actor")
+	var policyYAML strings.Builder
+	fmt.Fprintf(&policyYAML, "schema: homeward.authorization/1\naccount_id: %q\ngrants:\n  - scope: {family: state_registry, operation: read}\n    objects:\n      entities:\n        explicit:\n", "nha139-test-actor")
+	for i, identity := range identities {
+		id, _ := identity.Entity.Value()
+		if i == len(identities)-1 {
+			fmt.Fprintf(&policyYAML, "          - entity_id: %q\n            capabilities: {explicit: [{schema_id: %s, endpoint: value}]}\n", id, contracts.SwitchSchema)
+		} else {
+			fmt.Fprintf(&policyYAML, "          - entity_id: %q\n            capabilities: {all: {}}\n", id)
+		}
+	}
+	policySource, err := authorization.AdmitPolicySource(account, []byte(policyYAML.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	authAuthority := authorization.NewAuthority()
+	if err := authAuthority.Hydrate([]authorization.AccountState{nha164AuthorityState(t, policySource, auth.AccountRole_ACCOUNT_ROLE_USER, 1)}); err != nil {
+		t.Fatal(err)
+	}
+	sessionID, _ := contracts.ParseSessionID("nha147-values-session")
+	principal, err := authorization.NativePrincipal(account, sessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	stamp, _ := view.NewConfigStamp(1, sha256.Sum256([]byte("nha147-values-config")))
-	authority := nha147ValueGrant{grant: grant, nha050ViewConfig: nha050ViewConfig{stamp: stamp}}
-	service, err := view.NewService(fixture.Sequencer(), authority, authority, sequencer.RealClock{})
+	viewAuth := &policyViewAuthorizer{authority: authAuthority, source: fixture.Sequencer()}
+	core := &coreRPCHandler{epoch: fixture.Sequencer()}
+	service, err := view.NewService(fixture.Sequencer(), viewAuth, nha050ViewConfig{stamp: stamp}, sequencer.RealClock{}, core.capabilityProjector(owner, authAuthority))
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := &coreRPCHandler{views: service, grants: authority, commands: &integrations.DurableCommandService{}, epoch: fixture.Sequencer()}
+	homeHandler, err := newHomeResourceHandler(owner, authAuthority, service)
+	if err != nil {
+		t.Fatal(err)
+	}
 	plan, err := NewPublicPlan(&nha139Authenticator{}, &nha139Authorizer{}, &nha139Auditor{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := registerCoreRPCRoutes(plan, handler); err != nil {
+	if err := registerEntityViewRoutes(plan, homeHandler); err != nil {
 		t.Fatal(err)
 	}
 	settings := config.DefaultPublicSettings()
@@ -173,53 +218,81 @@ func TestNHA147ConnectValuesKeepFalseZeroSolarAbsenceAndPartialSlots(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewUnstartedServer(compiled.handler(settings, newPublicAdmissions()))
+	baseHandler := compiled.handler(settings, newPublicAdmissions())
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		withPrincipal, err := authorization.WithPrincipal(r.Context(), principal)
+		if err != nil {
+			http.Error(w, "fixture principal", http.StatusInternalServerError)
+			return
+		}
+		baseHandler.ServeHTTP(w, r.WithContext(withPrincipal))
+	}))
 	server.EnableHTTP2 = true
 	server.StartTLS()
 	defer server.Close()
-	client := statev1connect.NewStateServiceClient(server.Client(), server.URL)
-	response, err := client.OpenView(ctx, nha147FixtureRequest(&statev1.OpenViewRequest{PageSize: 16, Filter: &statev1.ViewFilter{}}))
+	client := apiv2connect.NewEntityViewServiceClient(server.Client(), server.URL)
+	created, err := client.CreateEntityView(ctx, nha147FixtureRequest(&api.CreateEntityViewRequest{Parent: homeName.String(), EntityView: &api.EntityView{}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.QueryEntityView(ctx, nha147FixtureRequest(&api.QueryEntityViewRequest{Name: created.Msg.Name, PageSize: 16}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	page := response.Msg
-	if len(page.Entities) != 6 || len(page.States) != 5 {
+	observedCount := 0
+	for _, entry := range page.Entries {
+		for _, cap := range entry.Capabilities {
+			if cap.GetHelper().GetObservation() != nil || cap.GetSolar().GetObservation() != nil || cap.GetSolarEvent().GetObservation() != nil || cap.GetPower().GetObservation() != nil {
+				observedCount++
+			}
+		}
+	}
+	if len(page.Entries) != 6 || observedCount != 5 {
 		t.Fatal("partial slot leaked or values vanished", page)
 	}
 	encoded, err := proto.Marshal(page)
 	if err != nil || bytes.Contains(encoded, []byte("NHA147-FORBIDDEN-SLOT-CANARY")) {
 		t.Fatal("forbidden slot escaped the public conversion", err)
 	}
-	byID := make(map[string]*statev1.ObservedState)
-	for _, state := range page.States {
-		byID[state.Entity.GetEntityId()] = state
+	byName := make(map[string]*api.EntityViewEntry)
+	for _, entry := range page.Entries {
+		byName[entry.Entity.GetName()] = entry
 	}
-	id := func(index int) string { text, _ := identities[index].Entity.Value(); return text }
+	entityName := func(index int) string {
+		n, _ := apitypes.EntityNameForIdentity(homeName, identities[index].Entity)
+		return n.String()
+	}
 	for index := 0; index < 5; index++ {
-		if byID[id(index)] == nil {
+		if byName[entityName(index)] == nil || len(byName[entityName(index)].Capabilities) == 0 {
 			t.Fatal("typed observation missing", index)
 		}
 	}
-	if _, ok := byID[id(0)].GetHelper().Value.(*helperv1.HelperValue_Boolean); !ok || byID[id(0)].GetHelper().GetBoolean() || byID[id(0)].GetHelper().HelperRevision != 1 {
+	helper0 := byName[entityName(0)].Capabilities[0].GetHelper().GetObservation().GetValue()
+	if _, ok := helper0.GetValue().(*api.HelperValue_BooleanValue); !ok || helper0.GetBooleanValue() || helper0.GetHelperRevision() != 1 {
 		t.Fatal("present false became absence")
 	}
-	if _, ok := byID[id(1)].GetHelper().Value.(*helperv1.HelperValue_Counter); !ok || byID[id(1)].GetHelper().GetCounter() != 0 {
+	helper1 := byName[entityName(1)].Capabilities[0].GetHelper().GetObservation().GetValue()
+	if _, ok := helper1.GetValue().(*api.HelperValue_Counter); !ok || helper1.GetCounter() != 0 {
 		t.Fatal("present zero became absence")
 	}
-	if byID[id(2)].GetSolar() == nil || byID[id(2)].GetSolar().ElevationDegrees == nil || *byID[id(2)].GetSolar().ElevationDegrees != 0 {
+	solar2 := byName[entityName(2)].Capabilities[0].GetSolar().GetObservation().GetValue()
+	if solar2 == nil || solar2.ElevationDegrees == nil || *solar2.ElevationDegrees != 0 {
 		t.Fatal("present solar zero became absence")
 	}
-	if byID[id(3)].GetSolarEvent().Occurrence.GetAt() == nil || byID[id(4)].GetSolarEvent().Occurrence.GetAbsent() != solarv1.SolarAbsenceReason_SOLAR_ABSENCE_REASON_NO_EVENT_WITHIN_SEARCH_HORIZON {
+	event3 := byName[entityName(3)].Capabilities[0].GetSolarEvent().GetObservation().GetValue()
+	event4 := byName[entityName(4)].Capabilities[0].GetSolarEvent().GetObservation().GetValue()
+	if event3.GetOccurrence().GetEventTime() == nil || event4.GetOccurrence().GetAbsent() != api.SolarAbsenceReason_SOLAR_ABSENCE_REASON_NO_EVENT_WITHIN_SEARCH_HORIZON {
 		t.Fatal("solar presence and absence conflated")
 	}
 	// A newer absent event passes through replay; the old page remains present.
 	publish(3, values[4])
-	watch, err := client.WatchView(ctx, nha147FixtureRequest(&statev1.WatchViewRequest{Cursor: page.Cursor, Filter: &statev1.ViewFilter{}}))
+	watch, err := client.WatchEntityView(ctx, nha147FixtureRequest(&api.WatchEntityViewRequest{Name: created.Msg.Name, ResumeToken: page.ResumeToken}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer watch.Close()
-	if !watch.Receive() || watch.Msg().GetDelta() == nil || len(watch.Msg().GetDelta().States) != 1 || watch.Msg().GetDelta().States[0].GetSolarEvent().Occurrence.GetAbsent() != solarv1.SolarAbsenceReason_SOLAR_ABSENCE_REASON_NO_EVENT_WITHIN_SEARCH_HORIZON || byID[id(3)].GetSolarEvent().Occurrence.GetAt() == nil {
+	if !watch.Receive() || watch.Msg().GetUpsert() == nil || len(watch.Msg().GetUpsert().Capabilities) != 1 || watch.Msg().GetUpsert().Capabilities[0].GetSolarEvent().GetObservation().GetValue().GetOccurrence().GetAbsent() != api.SolarAbsenceReason_SOLAR_ABSENCE_REASON_NO_EVENT_WITHIN_SEARCH_HORIZON || byName[entityName(3)].Capabilities[0].GetSolarEvent().GetObservation().GetValue().GetOccurrence().GetEventTime() == nil {
 		t.Fatal("solar replay mutated its capture", watch.Err())
 	}
 }

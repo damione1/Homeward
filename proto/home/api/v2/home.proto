@@ -9,12 +9,14 @@ import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
-
-option java_package = "com.home.api.v2";
-option java_multiple_files = true;
-option java_outer_classname = "HomeProto";
+import "home/api/v2/extended_traits.proto";
+import "home/api/v2/media_traits.proto";
+import "home/api/v2/traits.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "HomeProto";
+option java_package = "com.home.api.v2";
 
 // Public installation resources. Annotations describe REST bindings; they do
 // not install a REST gateway. Native clients use Connect/gRPC. The private Host
@@ -23,6 +25,18 @@ option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
 service HomeService {
   option (google.api.default_host) = "homeward.damiengoehrig.ca";
 
+  // Reads the persistent installation identity for a currently authenticated
+  // account. The name is independent of the listener address or user aliases.
+  rpc GetHome(GetHomeRequest) returns (Home) {
+    option (google.api.http) = {get: "/v2/{name=homes/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Discovers the installation available to the currently authenticated account.
+  // This server serves one persistent home; page tokens confer no authority.
+  rpc ListHomes(ListHomesRequest) returns (ListHomesResponse) {
+    option (google.api.http) = {get: "/v2/homes"};
+    option (google.api.method_signature) = "";
+  }
   // Reads authorized entity metadata without refreshing or commanding hardware.
   // Authorization precedes detailed validation; unknown names return NOT_FOUND
   // only to an authorized caller. No automatic mutation or retry occurs.
@@ -68,6 +82,8 @@ message Home {
   };
   // Canonical immutable installation name, independent of host/IP and aliases.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Time this persistent installation identity was created locally.
+  google.protobuf.Timestamp create_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // Entity metadata; capabilities carry observations independently per trait.
@@ -102,26 +118,53 @@ message Capability {
   };
   // Immutable slot identity; observations do not change its name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Weak opaque definition binding (W/quoted); observations may change without
+  // changing this token. Never an authorization or a provider route.
+  string etag = 7;
+  // Current caller write admission for this exact entity/source slot. Intrinsic
+  // supports_set fields do not grant access. Media route dependencies can further
+  // deny preparation through the media trait action_access. Rechecked at effect.
+  ActionAccess action_access = 21 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Exactly one trait is supplied. Absence is unsupported, never Power OFF.
   oneof trait {
     // Binary controllable power, reusable for a lamp, outlet or fan.
     PowerCapability power = 2;
     // Percentage semantics shared by intensity, speed or linear volume.
     LevelCapability level = 3;
+    // Cohesive thermal control, independent of temperature/humidity readings.
+    TemperatureControlCapability temperature_control = 4;
+    // A read-only, dimensioned numeric quantity.
+    NumericMeasurementCapability numeric_measurement = 5;
+    // A read-only binary fact; a missing value is distinct from false.
+    BinaryObservationCapability binary_observation = 6;
+    // Typed light control source trait.
+    LightControlCapability light_control = 8;
+    // Typed fan control source trait.
+    FanControlCapability fan_control = 9;
+    // Typed cover source trait.
+    CoverCapability cover = 10;
+    // Typed lock source trait.
+    LockCapability lock = 11;
+    // Typed alarm source trait.
+    AlarmCapability alarm = 12;
+    // Typed helper source trait.
+    HelperCapability helper = 13;
+    // Typed solar source trait.
+    SolarCapability solar = 14;
+    // Typed solar event source trait.
+    SolarEventCapability solar_event = 15;
+    // Typed weather source trait.
+    WeatherCapability weather = 16;
+    // Typed presence source trait.
+    PresenceCapability presence = 17;
+    // Typed presence details source trait.
+    PresenceDetailsCapability presence_details = 18;
+    // Registered metadata without an executable public codec.
+    OpaqueCapability opaque = 19;
+    // Generic media playback with independently authorized route metadata.
+    MediaPlaybackCapability media_playback = 20;
   }
 }
-
-
-// Independent quality dimensions; missing observations never fabricate a value.
-message ObservationQuality {
-  // Whether the source is currently reachable; distinct from its power state.
-  Availability availability = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
-  // Whether this observation is current under the source freshness contract.
-  Freshness freshness = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
-  // How the value was obtained; an acknowledgement is not an observation.
-  Provenance provenance = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
-}
-
 
 // Binary power definition and observation. An absent observation is not OFF.
 message PowerCapability {
@@ -130,6 +173,7 @@ message PowerCapability {
   // Last qualified value if one exists.
   PowerObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
+
 // Last power observation; absent value remains explicitly unknown.
 message PowerObservation {
   // ON/OFF if known. Future values are non-actionable on an older client.
@@ -140,16 +184,6 @@ message PowerObservation {
   ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
-// Finite percentage constraints: 0 <= minimum <= maximum <= 100; positive step.
-// Advertised instance bounds supplement, never replace, intrinsic domain types.
-message PercentageBounds {
-  // Inclusive lower bound in percent. Zero is a valid bound.
-  double minimum = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
-  // Inclusive upper bound in percent.
-  double maximum = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
-  // Optional positive increment relative to minimum; absent means continuous.
-  optional double step = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
-}
 // Linear percentage definition and observation; unrelated dB gains need a
 // different dimensional quantity rather than a coercion to this trait.
 message LevelCapability {
@@ -160,6 +194,7 @@ message LevelCapability {
   // Last qualified observation, absent if no value has ever been obtained.
   LevelObservation observation = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
+
 // Percentage observation; missing and zero remain different states.
 message LevelObservation {
   // Finite value in [0,100]; absent is unknown, not zero.
@@ -170,39 +205,48 @@ message LevelObservation {
   ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
-// Explicit power intent. An empty message cannot silently mean OFF.
-message SetPowerCommand {
-  // ON or OFF only; UNSPECIFIED and unknown numeric values are invalid.
-  PowerValue value = 1 [(google.api.field_behavior) = REQUIRED];
-}
-// Exactly one target is required; presence preserves a legitimate zero percent.
-message SetLevelCommand {
-  // The presence of this union is mandatory for an executable command.
-  oneof target {
-    // Finite percentage in [0,100], also subject to instance bounds and step.
-    double percentage = 1;
-  }
-}
-
 // Typed intent envelope. Admission requires authorization before detailed
 // diagnostics, current source/capability/epoch checks and a durable reservation
 // before I/O. Parsing this message proves representation, never authorization.
 // No route is activated by the foundation schema alone.
 message ExecuteCapabilityRequest {
   // Target slot; a mismatched known trait fails FAILED_PRECONDITION after authz.
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Capability"];
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Capability"
+  ];
   // Exactly one explicit intention; unknown intent must never execute a fallback.
   oneof command {
     // Binary power intent.
     SetPowerCommand power = 2;
     // Linear percentage intent.
     SetLevelCommand level = 3;
+    // Atomic light intention.
+    SetLightCommand light = 7;
+    // Atomic fan intention.
+    SetFanCommand fan = 8;
+    // Atomic temperature control intention.
+    SetTemperatureControlCommand temperature_control = 9;
+    // Atomic cover intention.
+    SetCoverCommand cover = 10;
+    // Atomic lock intention.
+    SetLockCommand lock = 11;
+    // Atomic alarm intention.
+    SetAlarmCommand alarm = 12;
+    // Atomic helper intention.
+    SetHelperCommand helper = 13;
+    // Explicit media intention retaining its current source route.
+    MediaCommand media = 14;
   }
   // Optional UUIDv4 idempotency key. Homeward clients always provide it. Omission
   // disables client deduplication and never permits blind automatic retries.
-  string request_id = 4 [(google.api.field_behavior) = OPTIONAL,
-    (google.api.field_info).format = UUID4];
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+  // Definition binding from the authorized capability capture. Required by
+  // live execution admission, after object authorization and syntax parsing.
+  string etag = 6 [(google.api.field_behavior) = OPTIONAL];
   // Required physical-intent deadline; enforced again at the point of effect.
   google.protobuf.Timestamp expire_time = 5 [(google.api.field_behavior) = REQUIRED];
 }
@@ -210,22 +254,36 @@ message ExecuteCapabilityRequest {
 // Reads entity metadata, for example homes/demo/entities/lamp-a.
 message GetEntityRequest {
   // Canonical entity name; permission checked before detailed validation.
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"];
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"
+  ];
 }
+
 // Lists entity metadata. An opaque token is not a permission grant.
 message ListEntitiesRequest {
   // Installation whose entities are listed.
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Entity"];
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Entity"
+  ];
   // Zero selects 100; negative is invalid; values above 500 are clamped to 500.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
   // Opaque continuation bound to the caller and filter; page_size may change.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
-  // Bounded AIP-160 expression over documented fields; unsupported fields fail
-  // INVALID_ARGUMENT. Empty means all authorized entities, never all house data.
+  // AIP-160 filter over name/display_name: =, !=, <, <=, >, >=, : and
+  // presence :*. Boundary * wildcards are supported for equality/contains.
+  // Boolean device("homes/.../devices/..."), trait("power") and
+  // availability(AVAILABLE|UNAVAILABLE|UNKNOWN) inspect only authorized facts.
+  // OR binds before explicit/implicit AND; NOT and - negate one expression.
+  // Parentheses group predicates. Literals may use single or double quotes.
+  // Unknown fields/functions/traits/enums, traversal, indices and malformed
+  // expressions fail INVALID_ARGUMENT. Limits: 4096 bytes, 256 tokens, 64
+  // nodes and eight nested groups/negations. Empty selects authorized entities.
+  // Selection precedes pagination over one frozen capture; no live reads occur.
   string filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
+
 // Authorized metadata page. An empty page may still contain a continuation.
 message ListEntitiesResponse {
   // Resources in ascending canonical name order within the same capture.
@@ -233,6 +291,7 @@ message ListEntitiesResponse {
   // Empty only at the end; never contains raw authorization or identity data.
   string next_page_token = 2;
 }
+
 // Updates entity metadata with independent CAS and deduplication preconditions.
 message UpdateEntityRequest {
   // Entity with required name and etag; output-only input is ignored.
@@ -241,25 +300,34 @@ message UpdateEntityRequest {
   // '*': replace mutable fields. Unchanged immutable fields are accepted.
   google.protobuf.FieldMask update_mask = 2 [(google.api.field_behavior) = OPTIONAL];
   // Optional UUIDv4 deduplication key, systematically supplied by native clients.
-  string request_id = 3 [(google.api.field_behavior) = OPTIONAL,
-    (google.api.field_info).format = UUID4];
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
+
 // Reads one authorized capability without probing the physical device.
 message GetCapabilityRequest {
   // Canonical capability slot name.
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Capability"];
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Capability"
+  ];
 }
+
 // Lists the independent traits of one authorized entity.
 message ListCapabilitiesRequest {
   // Canonical entity name, not a provider or device alias.
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Capability"];
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Capability"
+  ];
   // Zero selects 100; negative fails; values above 500 are clamped to 500.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
   // Opaque continuation; caller reauthorization is required on every page.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
 // Slots in canonical name order. Observations have independent qualities.
 message ListCapabilitiesResponse {
   // Authorized capability resources; no mutable source catalogue is embedded.
@@ -268,44 +336,29 @@ message ListCapabilitiesResponse {
   string next_page_token = 2;
 }
 
-// Explicit binary intent or observation; UNSPECIFIED is not an OFF command.
-enum PowerValue {
-  // No known value. Invalid in executable intent; permitted as no observation.
-  POWER_VALUE_UNSPECIFIED = 0;
-  // Turn controllable power on.
-  POWER_VALUE_ON = 1;
-  // Turn controllable power off.
-  POWER_VALUE_OFF = 2;
+// Reads one installation identity under the current authenticated account.
+message GetHomeRequest {
+  // Canonical home name, without a network address or an alias.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"
+  ];
 }
 
-// Reachability of an observation's source.
-enum Availability {
-  // Source reachability is unknown.
-  AVAILABILITY_UNSPECIFIED = 0;
-  // Source is available.
-  AVAILABILITY_AVAILABLE = 1;
-  // Source is unavailable; a last known value may remain present.
-  AVAILABILITY_UNAVAILABLE = 2;
+// Discovers the persistent installation identity. No synthetic default is used.
+message ListHomesRequest {
+  // Zero selects 100; negative is invalid; values above 500 clamp to 500.
+  int32 page_size = 1 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation; caller authorization is checked on every page.
+  string page_token = 2 [(google.api.field_behavior) = OPTIONAL];
 }
 
-// Age qualification, independent of source reachability.
-enum Freshness {
-  // Freshness is unknown.
-  FRESHNESS_UNSPECIFIED = 0;
-  // Within the source's freshness limit.
-  FRESHNESS_CURRENT = 1;
-  // Last known value exceeds its freshness limit.
-  FRESHNESS_STALE = 2;
-}
-
-// Evidence origin of a value; never inferred from a transport ACK.
-enum Provenance {
-  // No established origin.
-  PROVENANCE_UNSPECIFIED = 0;
-  // Measured or read back from the source.
-  PROVENANCE_OBSERVED = 1;
-  // Computed from explicitly identified observations.
-  PROVENANCE_DERIVED = 2;
+// Page of installations visible to this authenticated account.
+message ListHomesResponse {
+  // Persistent home resources in canonical name order.
+  repeated Home homes = 1;
+  // Empty at the end; never an authorization credential.
+  string next_page_token = 2;
 }
 
 // Closed classification for representation admission. Field paths accompany

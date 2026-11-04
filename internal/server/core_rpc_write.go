@@ -19,22 +19,3 @@ func interruptCoreRPCWriteOnCancel(ctx, operation context.Context) func() {
 		}
 	}
 }
-
-func interruptCoreRPCWriteOnChange(ctx context.Context, changes <-chan struct{}) func() {
-	interrupt, ok := ctx.Value(publicWriteInterruptContextKey{}).(func())
-	if !ok || changes == nil {
-		return func() {}
-	}
-	stop, done := make(chan struct{}), make(chan struct{})
-	go func() {
-		defer close(done)
-		select {
-		case <-changes:
-			interrupt()
-		case <-ctx.Done():
-			interrupt()
-		case <-stop:
-		}
-	}()
-	return func() { close(stop); <-done }
-}

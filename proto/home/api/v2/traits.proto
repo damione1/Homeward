@@ -1,0 +1,326 @@
+syntax = "proto3";
+
+package home.api.v2;
+
+import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "TraitsProto";
+option java_package = "com.home.api.v2";
+
+// Independent quality dimensions; missing observations never fabricate a value.
+message ObservationQuality {
+  // Whether the source is currently reachable; distinct from its power state.
+  Availability availability = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Whether this observation is current under the source freshness contract.
+  Freshness freshness = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // How the value was obtained; an acknowledgement is not an observation.
+  Provenance provenance = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Finite dimension-specific instance bounds. Absence means no advertised bound,
+// never an invented zero. A supplied step is finite and strictly positive.
+message NumberBounds {
+  // Inclusive finite minimum, less than or equal to maximum.
+  double minimum = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Inclusive finite maximum.
+  double maximum = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Positive increment relative to minimum; absent means continuous.
+  optional double step = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Both temperatures are present or the range is invalid. Zero Celsius is a
+// legitimate endpoint. Intrinsic temperatures are finite and >= -273.15 C.
+message TemperatureRange {
+  // Inclusive low threshold, less than or equal to high_celsius.
+  optional double low_celsius = 1;
+  // Inclusive high threshold; omission is never a default of zero.
+  optional double high_celsius = 2;
+}
+
+// Instance bounds for an atomic low/high temperature pair.
+message TemperatureRangeBounds {
+  // Finite lower-threshold bounds in degrees Celsius; may be unknown for
+  // observations, but required when the enclosing range is writable.
+  NumberBounds low_celsius = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Finite upper-threshold bounds; the same presence rule as low_celsius.
+  NumberBounds high_celsius = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Optional nonnegative minimum high-low difference, in degrees Celsius.
+  optional double minimum_delta_celsius = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Optional maximum difference, at least the minimum, in degrees Celsius.
+  optional double maximum_delta_celsius = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Presence advertises a temperature observation even when device bounds are
+// unknown. This definition never authorizes a setpoint command.
+message TemperatureObservationDefinition {
+  // Optional source bounds, in degrees Celsius; absence is not a zero bound.
+  NumberBounds bounds = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Cohesive thermostat control. Commands and observations are advertised
+// independently. Empty writable options do not imply a writable observation.
+// Current temperature and humidity are separate NumericMeasurement slots.
+message TemperatureControlCapability {
+  // Writable simple setpoint bounds; absent means no simple-setpoint command.
+  NumberBounds setpoint_celsius = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Writable atomic pair; no decomposition into separate physical commands.
+  TemperatureRangeBounds setpoint_range_celsius = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Operating modes admitted for commands; an empty list means read-only mode.
+  repeated TemperatureMode mode_options = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Fan targets admitted for commands, separately from fan activity readings.
+  repeated TemperatureFanTarget fan_target_options = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified control observation; absent if none was established.
+  TemperatureControlObservation observation = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Simple setpoint reading, independently of simple setpoint commands.
+  TemperatureObservationDefinition observed_setpoint_celsius = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Atomic pair reading, independently of writable range support.
+  TemperatureRangeBounds observed_setpoint_range_celsius = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Modes that can be observed, independently of modes that can be requested.
+  repeated TemperatureMode observed_mode_options = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Physical activities the source can report; these never authorize commands.
+  repeated TemperatureActivity observed_activity_options = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Whether physical fan activity can be reported, independently of fan policy.
+  bool observes_fan_activity = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Fan policy readings, independently of admitted fan target commands.
+  repeated TemperatureFanTarget observed_fan_target_options = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// One control observation. Every optional value preserves absence; idle mode,
+// false fan activity and zero Celsius are never used as absence sentinels.
+message TemperatureControlObservation {
+  // Simple and paired setpoints are mutually exclusive source representations.
+  oneof setpoint {
+    // Known simple setpoint in degrees Celsius.
+    double setpoint_celsius = 1;
+    // Known atomic low/high pair in degrees Celsius.
+    TemperatureRange setpoint_range_celsius = 2;
+  }
+  // Requested operating mode, independent of actual heating/cooling activity.
+  optional TemperatureMode mode = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Physical activity reported by the source, never inferred from mode.
+  optional TemperatureActivity activity = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Known physical fan activity; absent is not false.
+  optional bool fan_active = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Requested fan policy, independent of physical fan activity.
+  optional TemperatureFanTarget fan_target = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time of source observation, not time of API response generation.
+  google.protobuf.Timestamp observed_time = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent reachability, freshness and original evidence.
+  ObservationQuality quality = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// A reusable numeric observation with an explicit unit and aggregation contract.
+// It is read-only; a numeric sensor never implies a SetLevel operation.
+message NumericMeasurementCapability {
+  // Source-declared unit; no conversion or inference from entity alias.
+  string unit = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source-declared decimal display precision, independent of stored precision.
+  int32 precision = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Meaning of repeated values, independently of preferred display precision.
+  MeasurementSemantic semantic = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Permitted summary operation for this quantity.
+  MeasurementAggregation aggregation = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source-declared instance bounds; absence means not advertised.
+  NumberBounds bounds = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Explicit physical role for composite readings; never parsed from a name.
+  MeasurementRole role = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified reading; absent if no value has ever been observed.
+  NumericObservation observation = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// A finite numeric reading, optionally retaining a source's exact decimal text.
+// Decimal text is admitted by the source quantity type, never a free-form label.
+message NumericObservation {
+  // Known finite value; absent is unknown, not zero.
+  optional double value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Exact canonical source decimal when available; do not round currency to value.
+  optional string decimal_value = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time of source observation.
+  google.protobuf.Timestamp observed_time = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Original quality; unavailable readings may retain their last known value.
+  ObservationQuality quality = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// A binary fact such as contact or motion, independent of controllable power.
+message BinaryObservationCapability {
+  // Optional open source classification for display, never command dispatch.
+  optional string device_class = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified fact; absent means no observation.
+  BinaryObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Known false and absent remain distinct.
+message BinaryObservation {
+  // Last observed fact; never synthesized from availability or an ACK.
+  optional bool value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time at which the source obtained this fact.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent quality of this fact.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Finite percentage constraints: 0 <= minimum <= maximum <= 100; positive step.
+// Advertised instance bounds supplement, never replace, intrinsic domain types.
+message PercentageBounds {
+  // Inclusive lower bound in percent. Zero is a valid bound.
+  double minimum = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Inclusive upper bound in percent.
+  double maximum = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Optional positive increment relative to minimum; absent means continuous.
+  optional double step = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Explicit power intent. An empty message cannot silently mean OFF.
+message SetPowerCommand {
+  // ON or OFF only; UNSPECIFIED and unknown numeric values are invalid.
+  PowerValue value = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Exactly one target is required; presence preserves a legitimate zero percent.
+message SetLevelCommand {
+  // The presence of this union is mandatory for an executable command.
+  oneof target {
+    // Finite percentage in [0,100], also subject to instance bounds and step.
+    double percentage = 1;
+  }
+}
+
+// Reachability of an observation's source.
+enum Availability {
+  // Source reachability is unknown.
+  AVAILABILITY_UNSPECIFIED = 0;
+  // Source is available.
+  AVAILABILITY_AVAILABLE = 1;
+  // Source is unavailable; a last known value may remain present.
+  AVAILABILITY_UNAVAILABLE = 2;
+  // The source has not established whether it is reachable.
+  AVAILABILITY_UNKNOWN = 3;
+}
+
+// Age qualification, independent of source reachability.
+enum Freshness {
+  // Freshness is unknown.
+  FRESHNESS_UNSPECIFIED = 0;
+  // Within the source's freshness limit.
+  FRESHNESS_CURRENT = 1;
+  // Last known value exceeds its freshness limit.
+  FRESHNESS_STALE = 2;
+}
+
+// Evidence origin of a value; never inferred from a transport ACK.
+enum Provenance {
+  // No established origin.
+  PROVENANCE_UNSPECIFIED = 0;
+  // Measured or read back from the source.
+  PROVENANCE_OBSERVED = 1;
+  // Computed from explicitly identified observations.
+  PROVENANCE_DERIVED = 2;
+  // Restored from durable history; never a fresh device readback.
+  PROVENANCE_RESTORED = 3;
+  // Estimated by the source, distinct from an observed or derived value.
+  PROVENANCE_ESTIMATED = 4;
+}
+
+// Requested thermostat operating mode, independent of physical activity.
+enum TemperatureMode {
+  // Unknown, never an executable default.
+  TEMPERATURE_MODE_UNSPECIFIED = 0;
+  // Disable heating/cooling demand; unrelated to source reachability.
+  TEMPERATURE_MODE_OFF = 1;
+  // Heating mode.
+  TEMPERATURE_MODE_HEAT = 2;
+  // Cooling mode.
+  TEMPERATURE_MODE_COOL = 3;
+  // Automatic source-controlled heat/cool selection.
+  TEMPERATURE_MODE_AUTO = 4;
+  // Dehumidification mode.
+  TEMPERATURE_MODE_DRY = 5;
+  // Fan-only mode without heating/cooling demand.
+  TEMPERATURE_MODE_FAN_ONLY = 6;
+}
+
+// Actual equipment activity, never inferred from requested mode.
+enum TemperatureActivity {
+  // No established activity reading.
+  TEMPERATURE_ACTIVITY_UNSPECIFIED = 0;
+  // Equipment is currently idle.
+  TEMPERATURE_ACTIVITY_IDLE = 1;
+  // Heating is currently active.
+  TEMPERATURE_ACTIVITY_HEATING = 2;
+  // Cooling is currently active.
+  TEMPERATURE_ACTIVITY_COOLING = 3;
+  // Dehumidification is currently active.
+  TEMPERATURE_ACTIVITY_DRYING = 4;
+  // Only the fan is currently active.
+  TEMPERATURE_ACTIVITY_FAN_ONLY = 5;
+}
+
+// Requested fan policy rather than proof of fan movement.
+enum TemperatureFanTarget {
+  // No established target; never a command default.
+  TEMPERATURE_FAN_TARGET_UNSPECIFIED = 0;
+  // Request continuous fan operation.
+  TEMPERATURE_FAN_TARGET_ON = 1;
+  // Let the equipment choose when the fan operates.
+  TEMPERATURE_FAN_TARGET_AUTO = 2;
+}
+
+// Semantics of successive numeric values.
+enum MeasurementSemantic {
+  // No established numeric interpretation.
+  MEASUREMENT_SEMANTIC_UNSPECIFIED = 0;
+  // Instantaneous measurement.
+  MEASUREMENT_SEMANTIC_MEASUREMENT = 1;
+  // Total that may increase or decrease.
+  MEASUREMENT_SEMANTIC_TOTAL = 2;
+  // Monotonically increasing total, subject to explicit resets.
+  MEASUREMENT_SEMANTIC_TOTAL_INCREASING = 3;
+}
+
+// Source-declared permitted aggregation, independent of semantic.
+enum MeasurementAggregation {
+  // No established aggregation policy.
+  MEASUREMENT_AGGREGATION_UNSPECIFIED = 0;
+  // The current value only.
+  MEASUREMENT_AGGREGATION_CURRENT = 1;
+  // Sum over the requested interval.
+  MEASUREMENT_AGGREGATION_SUM = 2;
+  // Mean over the requested interval.
+  MEASUREMENT_AGGREGATION_MEAN = 3;
+}
+
+// Explicit measurement role; labels and resource IDs are never discriminants.
+enum MeasurementRole {
+  // An older client must not infer a specialized role.
+  MEASUREMENT_ROLE_UNSPECIFIED = 0;
+  // Generic numeric measurement, interpreted with its declared unit.
+  MEASUREMENT_ROLE_GENERIC = 1;
+  // Observed current temperature, distinct from a requested setpoint.
+  MEASUREMENT_ROLE_TEMPERATURE = 2;
+  // Observed relative humidity in percent.
+  MEASUREMENT_ROLE_HUMIDITY = 3;
+}
+
+// Explicit binary intent or observation; UNSPECIFIED is not an OFF command.
+enum PowerValue {
+  // No known value. Invalid in executable intent; permitted as no observation.
+  POWER_VALUE_UNSPECIFIED = 0;
+  // Turn controllable power on.
+  POWER_VALUE_ON = 1;
+  // Turn controllable power off.
+  POWER_VALUE_OFF = 2;
+}
+
+// Current caller admission, independent of intrinsic hardware support.
+// Missing or future values never authorize an executable intention.
+enum ActionAccess {
+  // Current admission is not established; command preparation is denied.
+  ACTION_ACCESS_UNSPECIFIED = 0;
+  // The current caller cannot prepare this operation.
+  ACTION_ACCESS_DENIED = 1;
+  // Preparation is allowed, subject to all current server revalidation.
+  ACTION_ACCESS_ALLOWED = 2;
+}

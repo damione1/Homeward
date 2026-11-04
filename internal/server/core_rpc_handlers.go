@@ -3,19 +3,15 @@ package server
 import (
 	"context"
 	"encoding/hex"
-	"errors"
-	"io"
 
-	"connectrpc.com/connect"
-	"github.com/damione1/Homeward/contracts"
-	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
-	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/view"
 )
 
 type coreRPCHandler struct {
+	home     *homeResourceHandler
+	media    mediaCapabilityProjector
 	views    *view.Service
 	grants   view.GrantChangeNotifier
 	commands *integrations.DurableCommandService
@@ -40,26 +36,6 @@ func coreRPCActor(ctx context.Context) (domain.ActorID, error) {
 	return actor, nil
 }
 
-func coreViewFilter(raw *statev1.ViewFilter) (view.Filter, error) {
-	if raw == nil {
-		return view.Filter{}, view.ErrInvalidInput
-	}
-	if len(raw.EntityIds) == 0 {
-		return view.All(), nil
-	}
-	if len(raw.EntityIds) > sequencer.MaxProjectedEntities {
-		return view.Filter{}, view.ErrInvalidInput
-	}
-	ids := make([]domain.EntityID, 0, len(raw.EntityIds))
-	for _, text := range raw.EntityIds {
-		id, err := domain.ParseEntityID(text)
-		if err != nil {
-			return view.Filter{}, view.ErrInvalidInput
-		}
-		ids = append(ids, id)
-	}
-	return view.Only(ids)
-}
 func corePageToken(text string) bool {
 	if len(text) != 64 {
 		return false
@@ -74,112 +50,4 @@ func corePageToken(text string) bool {
 		}
 	}
 	return false
-}
-
-func (h *coreRPCHandler) OpenView(ctx context.Context, request *connect.Request[statev1.OpenViewRequest]) (*connect.Response[statev1.OpenViewResponse], error) {
-	actor, err := coreRPCActor(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if h == nil || h.views == nil || request == nil || request.Msg == nil || request.Msg.PageSize == 0 || request.Msg.PageSize > view.MaxPageSize || contracts.AdmitCoreViewWire(request.Msg) != nil {
-		return nil, coreRPCError(ctx, view.ErrInvalidInput)
-	}
-	filter, err := coreViewFilter(request.Msg.Filter)
-	if err != nil {
-		return nil, coreRPCError(ctx, err)
-	}
-	page, err := h.views.OpenView(ctx, actor, filter, int(request.Msg.PageSize))
-	if err != nil {
-		return nil, coreRPCError(ctx, err)
-	}
-	wire, err := view.EncodePage(page)
-	if err != nil {
-		_ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken)
-		return nil, coreRPCError(ctx, err)
-	}
-	if err := ctx.Err(); err != nil {
-		_ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken)
-		return nil, coreRPCError(ctx, err)
-	}
-	return connect.NewResponse(wire), nil
-}
-
-func (h *coreRPCHandler) ReadPage(ctx context.Context, request *connect.Request[statev1.ReadPageRequest]) (*connect.Response[statev1.ReadPageResponse], error) {
-	actor, err := coreRPCActor(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if h == nil || h.views == nil || request == nil || request.Msg == nil || contracts.AdmitCoreViewWire(request.Msg) != nil || !corePageToken(request.Msg.SnapshotToken) || !corePageToken(request.Msg.PageToken) {
-		return nil, coreRPCError(ctx, view.ErrInvalidInput)
-	}
-	page, err := h.views.ReadPage(ctx, actor, request.Msg.SnapshotToken, request.Msg.PageToken)
-	if err != nil {
-		return nil, coreRPCError(ctx, err)
-	}
-	wire, err := view.EncodePage(page)
-	if err != nil {
-		return nil, coreRPCError(ctx, err)
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, coreRPCError(ctx, err)
-	}
-	return connect.NewResponse(&statev1.ReadPageResponse{Page: wire}), nil
-}
-
-func (h *coreRPCHandler) ReleaseView(ctx context.Context, request *connect.Request[statev1.ReleaseViewRequest]) (*connect.Response[statev1.ReleaseViewResponse], error) {
-	actor, err := coreRPCActor(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if h == nil || h.views == nil || request == nil || request.Msg == nil || contracts.AdmitCoreViewWire(request.Msg) != nil || !corePageToken(request.Msg.SnapshotToken) {
-		return nil, coreRPCError(ctx, view.ErrInvalidInput)
-	}
-	if err := h.views.ReleaseView(ctx, actor, request.Msg.SnapshotToken); err != nil {
-		return nil, coreRPCError(ctx, err)
-	}
-	return connect.NewResponse(&statev1.ReleaseViewResponse{}), nil
-}
-
-func (h *coreRPCHandler) WatchView(ctx context.Context, request *connect.Request[statev1.WatchViewRequest], stream *connect.ServerStream[statev1.WatchViewResponse]) error {
-	actor, err := coreRPCActor(ctx)
-	if err != nil {
-		return err
-	}
-	if h == nil || h.views == nil || nilReactiveInterface(h.grants) || request == nil || request.Msg == nil || stream == nil || contracts.AdmitCoreViewWire(request.Msg) != nil {
-		return coreRPCError(ctx, view.ErrInvalidInput)
-	}
-	// Subscribe before WatchView's first authority read. Next cannot consume
-	// this notification while Send is blocked by HTTP/2 flow control.
-	changes, release, err := h.grants.SubscribeGrantChanges(ctx, actor)
-	if err != nil {
-		return coreRPCError(ctx, err)
-	}
-	if changes == nil || release == nil {
-		if release != nil {
-			release()
-		}
-		return coreRPCError(ctx, view.ErrInvalidInput)
-	}
-	defer release()
-	defer interruptCoreRPCWriteOnChange(ctx, changes)()
-	watch, err := h.views.WatchView(ctx, actor, request.Msg)
-	if err != nil {
-		return coreRPCError(ctx, err)
-	}
-	defer watch.Close()
-	for {
-		frame, err := watch.Next(ctx)
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return coreRPCError(ctx, err)
-		}
-		if err := ctx.Err(); err != nil {
-			return coreRPCError(ctx, err)
-		}
-		if err := stream.Send(frame); err != nil {
-			return coreRPCError(ctx, err)
-		}
-	}
 }

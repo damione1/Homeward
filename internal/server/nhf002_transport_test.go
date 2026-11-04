@@ -16,11 +16,11 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
-	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -220,10 +220,22 @@ func TestNHF002TransportServer(t *testing.T) {
 		}
 	}
 	publish(0)
-	api := statev1connect.NewStateServiceClient(client, base)
-	check, err := api.OpenView(ctx, nha141BearerRequest(&statev1.OpenViewRequest{Filter: &statev1.ViewFilter{}, PageSize: 16}, tokens.AccessToken))
-	if err != nil || len(check.Msg.Entities) != 1 || check.Msg.Entities[0].State.GetSwitchOn() {
-		t.Fatal("fixture StateService readiness:", err)
+	homesResp, err := apiv2connect.NewHomeServiceClient(client, base).ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{PageSize: 1}, tokens.AccessToken))
+	if err != nil || len(homesResp.Msg.Homes) != 1 {
+		t.Fatal("fixture HomeService readiness:", err)
+	}
+	homeName := homesResp.Msg.Homes[0].GetName()
+	viewsClient := apiv2connect.NewEntityViewServiceClient(client, base)
+	createdView, err := viewsClient.CreateEntityView(ctx, nha141BearerRequest(&api.CreateEntityViewRequest{Parent: homeName, EntityView: &api.EntityView{}}, tokens.AccessToken))
+	if err != nil {
+		t.Fatal("fixture CreateEntityView readiness:", err)
+	}
+	check, err := viewsClient.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{Name: createdView.Msg.GetName(), PageSize: 16}, tokens.AccessToken))
+	if err != nil || len(check.Msg.Entries) != 1 || len(check.Msg.Entries[0].Capabilities) == 0 || check.Msg.Entries[0].Capabilities[0].GetPower().GetObservation().GetValue() != api.PowerValue_POWER_VALUE_OFF {
+		t.Fatal("fixture EntityViewService readiness:", err)
+	}
+	if _, err := viewsClient.DeleteEntityView(ctx, nha141BearerRequest(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, tokens.AccessToken)); err != nil {
+		t.Fatal("fixture DeleteEntityView readiness:", err)
 	}
 	certificate, err := os.ReadFile(filepath.Join(data, nha181CertificateName))
 	if err != nil {
@@ -240,7 +252,7 @@ func TestNHF002TransportServer(t *testing.T) {
 	future, futureCertificate, stats := nhf002StartFutureWire(t)
 	futureStats = stats
 	defer func() { future.Close(); futureJoined = true }()
-	write("ready.json", map[string]any{"mode": "synthetic-only", "origin": base, "ca_pem": string(certificate), "untrusted_ca_pem": string(untrusted), "access_token": tokens.AccessToken, "entity_id": entityID, "wire_origin": future.URL, "wire_ca_pem": futureCertificate})
+	write("ready.json", map[string]any{"mode": "synthetic-only", "origin": base, "ca_pem": string(certificate), "untrusted_ca_pem": string(untrusted), "access_token": tokens.AccessToken, "home": homeName, "entity_name": check.Msg.Entries[0].GetEntity().GetName(), "entity_id": entityID, "wire_origin": future.URL, "wire_ca_pem": futureCertificate})
 	ticker := time.NewTicker(5 * time.Millisecond)
 	defer ticker.Stop()
 	revoked := false

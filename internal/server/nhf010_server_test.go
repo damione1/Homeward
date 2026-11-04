@@ -16,11 +16,11 @@ import (
 
 	imported "github.com/damione1/Homeward/compat/ha/dashboard"
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -252,35 +252,62 @@ func TestNHF010EnvironmentServer(t *testing.T) {
 	setPolicy(guest, false)
 	// Actual authenticated TLS preflight includes pagination for both rights
 	// profiles. This is a Go/network proof, not a Rust or native UI proof.
-	stateAPI := statev1connect.NewStateServiceClient(client, base)
+	homeAPI := apiv2connect.NewHomeServiceClient(client, base)
+	entityViews := apiv2connect.NewEntityViewServiceClient(client, base)
 	for i, user := range []reader{member, guest} {
-		first, err := stateAPI.OpenView(ctx, nha141BearerRequest(&state.OpenViewRequest{Filter: &state.ViewFilter{}, PageSize: 1}, user.token))
+		homeResp, err := homeAPI.ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{PageSize: 1}, user.token))
+		if err != nil || len(homeResp.Msg.GetHomes()) != 1 {
+			t.Fatal(err)
+		}
+		createdView, err := entityViews.CreateEntityView(ctx, nha141BearerRequest(&api.CreateEntityViewRequest{
+			Parent:     homeResp.Msg.GetHomes()[0].Name,
+			EntityView: &api.EntityView{Filter: ""},
+		}, user.token))
+		if err != nil {
+			t.Fatal(err)
+		}
+		first, err := entityViews.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{
+			Name:     createdView.Msg.GetName(),
+			PageSize: 1,
+		}, user.token))
 		if err != nil {
 			t.Fatal(err)
 		}
 		page := first.Msg
 		count := 0
 		for {
-			if page.GetDisplayProfile().GetTimeZone() != "America/Toronto" {
+			// Native profile remains authoritative; Dashboard v2 owns its public projection.
+			if zone, err := profiles.DisplayTimeZone(ctx, user.actor); err != nil || zone != "America/Toronto" {
 				t.Fatal("missing authorized profile")
 			}
-			for _, entity := range page.Entities {
-				if entity.State == nil || entity.State.Value == nil {
-					t.Fatal("missing typed synthetic observation")
+			for _, entry := range page.Entries {
+				observed := false
+				for _, capability := range entry.Capabilities {
+					if i == 1 && capability.GetPresenceDetails() != nil {
+						t.Fatal("guest received private coordinates")
+					}
+					observed = observed || capability.GetWeather().GetObservation().GetValue() != nil || capability.GetPresence().GetObservation().GetValue() != nil || capability.GetPresenceDetails().GetObservation().GetValue() != nil || capability.GetSolarEvent().GetObservation().GetValue() != nil
 				}
-				if i == 1 && entity.State.GetPresenceDetails() != nil {
-					t.Fatal("guest received private coordinates")
+				if !observed {
+					t.Fatal("missing typed synthetic observation")
 				}
 				count++
 			}
 			if page.NextPageToken == "" {
 				break
 			}
-			next, err := stateAPI.ReadPage(ctx, nha141BearerRequest(&state.ReadPageRequest{SnapshotToken: page.SnapshotToken, PageToken: page.NextPageToken}, user.token))
+			next, err := entityViews.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{
+				Name:      createdView.Msg.GetName(),
+				PageSize:  1,
+				PageToken: page.NextPageToken,
+			}, user.token))
 			if err != nil {
 				t.Fatal(err)
 			}
-			page = next.Msg.Page
+			page = next.Msg
+		}
+		if _, err := entityViews.DeleteEntityView(ctx, nha141BearerRequest(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, user.token)); err != nil {
+			t.Fatal(err)
 		}
 		want := 4
 		if i == 1 {

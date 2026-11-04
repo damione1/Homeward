@@ -16,22 +16,22 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
-	actions "github.com/damione1/Homeward/gen/home/actions/v1"
-	"github.com/damione1/Homeward/gen/home/actions/v1/actionsv1connect"
+	"cloud.google.com/go/longrunning/autogen/longrunningpb"
+	"github.com/damione1/Homeward/gen/google/longrunning/longrunningpbconnect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	dashboardwire "github.com/damione1/Homeward/gen/home/dashboard/v1"
 	"github.com/damione1/Homeward/gen/home/dashboard/v1/dashboardv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -81,9 +81,12 @@ func (d *nhf006Driver) Dispatch(_ context.Context, command integrations.Admitted
 	return command.Acknowledge()
 }
 
+type nhf006RequestIdentityKey struct{}
+
 type nhf006Calls struct {
 	mu                     sync.Mutex
-	submit, get, watch     []string
+	execute, get, wait     []string
+	admitted               map[string]string
 	lost                   atomic.Uint64
 	logins, views, revokes atomic.Uint64
 	refusalFaults          atomic.Uint64
@@ -93,32 +96,28 @@ type nhf006Calls struct {
 func (c *nhf006Calls) observe(path string, body []byte) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if len(c.submit) >= 32 || len(c.get) >= 256 || len(c.watch) >= 256 {
+	if len(c.execute) >= 32 || len(c.get) >= 256 || len(c.wait) >= 256 {
 		return false
 	}
-	// Server-streaming Connect requests use an envelope; unary messages do not.
-	if len(body) >= 5 && body[0] == 0 && strings.Contains(path, "WatchAction") {
-		body = body[5:]
-	}
 	switch path {
-	case actionsv1connect.ActionServiceSubmitActionProcedure:
-		value := new(actions.SubmitActionRequest)
+	case apiv2connect.CapabilityServiceExecuteCapabilityProcedure:
+		value := new(api.ExecuteCapabilityRequest)
 		if proto.Unmarshal(body, value) != nil || value.Command == nil {
 			return false
 		}
-		c.submit = append(c.submit, value.Command.CommandId)
-	case actionsv1connect.ActionServiceGetActionProcedure:
-		value := new(actions.GetActionRequest)
+		c.execute = append(c.execute, value.GetRequestId())
+	case longrunningpbconnect.OperationsGetOperationProcedure:
+		value := new(longrunningpb.GetOperationRequest)
 		if proto.Unmarshal(body, value) != nil {
 			return false
 		}
-		c.get = append(c.get, value.CommandId)
-	case actionsv1connect.ActionServiceWatchActionProcedure:
-		value := new(actions.WatchActionRequest)
+		c.get = append(c.get, value.GetName())
+	case longrunningpbconnect.OperationsWaitOperationProcedure:
+		value := new(longrunningpb.WaitOperationRequest)
 		if proto.Unmarshal(body, value) != nil {
 			return false
 		}
-		c.watch = append(c.watch, value.CommandId)
+		c.wait = append(c.wait, value.GetName())
 	default:
 		return false
 	}
@@ -126,6 +125,11 @@ func (c *nhf006Calls) observe(path string, body []byte) bool {
 }
 func (c *nhf006Calls) proxy(t *testing.T, upstream string, transport *http.Transport, pair tls.Certificate, scenario nhf006Scenario, native bool) *httptest.Server {
 	t.Helper()
+	c.mu.Lock()
+	if c.admitted == nil {
+		c.admitted = make(map[string]string)
+	}
+	c.mu.Unlock()
 	target, err := url.Parse(upstream)
 	if err != nil {
 		t.Fatal(err)
@@ -135,15 +139,49 @@ func (c *nhf006Calls) proxy(t *testing.T, upstream string, transport *http.Trans
 	proxy.ErrorLog = log.New(io.Discard, "", 0)
 	lost := errors.New("synthetic Submit response lost after commit")
 	proxy.ModifyResponse = func(response *http.Response) error {
-		if scenario == nhf006Lost && response.Request.URL.Path == actionsv1connect.ActionServiceSubmitActionProcedure && response.StatusCode == http.StatusOK && c.lost.CompareAndSwap(0, 1) {
-			data, err := io.ReadAll(io.LimitReader(response.Body, 65537))
-			_ = response.Body.Close()
+		if response.Request.URL.Path != apiv2connect.CapabilityServiceExecuteCapabilityProcedure || response.StatusCode != http.StatusOK {
+			return nil
+		}
+		data, err := io.ReadAll(io.LimitReader(response.Body, 65537))
+		_ = response.Body.Close()
+		if err != nil {
+			return err
+		}
+		if len(data) > 65536 {
 			clear(data)
-			if err != nil {
-				return err
-			}
+			return errors.New("synthetic operation exceeds bound")
+		}
+		operation := new(longrunningpb.Operation)
+		request, ok := response.Request.Context().Value(nhf006RequestIdentityKey{}).(apitypes.RequestID)
+		metadata := new(api.CommandMetadata)
+		if !ok || !request.Valid() || proto.Unmarshal(data, operation) != nil || operation.Metadata == nil || operation.Metadata.UnmarshalTo(metadata) != nil || metadata.RequestId != request.String() {
+			clear(data)
+			return errors.New("synthetic response lacks exact request provenance")
+		}
+		name, err := apitypes.ParseOperationName(operation.Name)
+		if err != nil {
+			clear(data)
+			return err
+		}
+		c.mu.Lock()
+		if c.admitted == nil {
+			c.admitted = make(map[string]string)
+		}
+		old, exists := c.admitted[request.String()]
+		valid := (exists && old == name.String()) || (!exists && len(c.admitted) < 32)
+		if valid {
+			c.admitted[request.String()] = name.String()
+		}
+		c.mu.Unlock()
+		if !valid {
+			clear(data)
+			return errors.New("synthetic request operation changed or exceeded bound")
+		}
+		if scenario == nhf006Lost && c.lost.CompareAndSwap(0, 1) {
+			clear(data)
 			return lost
 		}
+		response.Body = io.NopCloser(bytes.NewReader(data))
 		return nil
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
@@ -158,10 +196,12 @@ func (c *nhf006Calls) proxy(t *testing.T, upstream string, transport *http.Trans
 			c.logins.Add(1)
 		case authv1connect.AuthServiceRevokeSessionProcedure:
 			c.revokes.Add(1)
-		case statev1connect.StateServiceOpenViewProcedure:
+		case apiv2connect.EntityViewServiceCreateEntityViewProcedure:
 			c.views.Add(1)
 		}
-		if strings.HasPrefix(r.URL.Path, "/"+actionsv1connect.ActionServiceName+"/") {
+		if r.URL.Path == apiv2connect.CapabilityServiceExecuteCapabilityProcedure ||
+			r.URL.Path == longrunningpbconnect.OperationsGetOperationProcedure ||
+			r.URL.Path == longrunningpbconnect.OperationsWaitOperationProcedure {
 			data, err := io.ReadAll(io.LimitReader(r.Body, 65537))
 			_ = r.Body.Close()
 			if err != nil || len(data) > 65536 || !c.observe(r.URL.Path, data) {
@@ -171,18 +211,35 @@ func (c *nhf006Calls) proxy(t *testing.T, upstream string, transport *http.Trans
 			// A wire fault creates a deterministic configuration race for the
 			// native refusal case. Admission/typed refusal still run in the real
 			// server; no handler invents a successful or failed CommandResponse.
-			if native && scenario == nhf006Refusal && r.URL.Path == actionsv1connect.ActionServiceSubmitActionProcedure && c.refusalFaults.CompareAndSwap(0, 1) {
-				request := new(actions.SubmitActionRequest)
-				if err := proto.Unmarshal(data, request); err != nil || request.Command == nil {
-					http.Error(w, "invalid synthetic refusal request", http.StatusBadRequest)
+			if native && scenario == nhf006Refusal && r.URL.Path == apiv2connect.CapabilityServiceExecuteCapabilityProcedure && c.refusalFaults.CompareAndSwap(0, 1) {
+				switch r.URL.Path {
+				case apiv2connect.CapabilityServiceExecuteCapabilityProcedure:
+					request := new(api.ExecuteCapabilityRequest)
+					if err := proto.Unmarshal(data, request); err != nil || request.Command == nil {
+						http.Error(w, "invalid synthetic refusal request", http.StatusBadRequest)
+						return
+					}
+					request.Etag = `W/"synthetic-stale-definition"`
+					data, err = proto.Marshal(request)
+					if err != nil {
+						panic(err)
+					}
+					r.ContentLength = int64(len(data))
+
+				}
+			}
+			if r.URL.Path == apiv2connect.CapabilityServiceExecuteCapabilityProcedure {
+				request := new(api.ExecuteCapabilityRequest)
+				if proto.Unmarshal(data, request) != nil {
+					http.Error(w, "invalid synthetic execution", http.StatusBadRequest)
 					return
 				}
-				request.Command.ConfigRevision++
-				data, err = proto.Marshal(request)
+				key, err := apitypes.ParseRequestID(request.RequestId)
 				if err != nil {
-					panic(err)
+					http.Error(w, "missing exact synthetic request UUID", http.StatusBadRequest)
+					return
 				}
-				r.ContentLength = int64(len(data))
+				r = r.WithContext(context.WithValue(r.Context(), nhf006RequestIdentityKey{}, key))
 			}
 			r.Body = io.NopCloser(bytes.NewReader(data))
 		}
@@ -312,7 +369,7 @@ func TestNHF006ActionServer(t *testing.T) {
 		stopServer()
 		calls.mu.Lock()
 		defer calls.mu.Unlock()
-		result := map[string]any{"server_joined": started == joined, "servers_started": started, "servers_joined": joined, "fake_driver_calls": driver.count.Load(), "command_driver_entries": entries, "submit_ids": calls.submit, "get_ids": calls.get, "watch_ids": calls.watch, "lost_responses": calls.lost.Load(), "refusal_faults": calls.refusalFaults.Load(), "scenario": scenario, "native_login_calls": calls.logins.Load(), "native_open_views": calls.views.Load(), "native_revokes": calls.revokes.Load(), "entity_count": len(devices)}
+		result := map[string]any{"server_joined": started == joined, "servers_started": started, "servers_joined": joined, "fake_driver_calls": driver.count.Load(), "command_driver_entries": entries, "execute_request_ids": calls.execute, "get_operation_names": calls.get, "wait_operation_names": calls.wait, "admitted_operations": calls.admitted, "lost_responses": calls.lost.Load(), "refusal_faults": calls.refusalFaults.Load(), "scenario": scenario, "native_login_calls": calls.logins.Load(), "native_open_views": calls.views.Load(), "native_revokes": calls.revokes.Load(), "entity_count": len(devices)}
 		if dashboard != nil {
 			result["dashboard_list_calls"] = dashboard.lists.Load()
 			result["dashboard_get_calls"] = dashboard.gets.Load()
@@ -419,12 +476,28 @@ func TestNHF006ActionServer(t *testing.T) {
 		}
 	}
 	setPolicy(true)
-	page, err := statev1connect.NewStateServiceClient(client, base).OpenView(ctx, nha141BearerRequest(&state.OpenViewRequest{Filter: &state.ViewFilter{}, PageSize: 16}, tokens.AccessToken))
-	if err != nil || len(page.Msg.Entities) != len(devices) {
+	homeResp, err := apiv2connect.NewHomeServiceClient(client, base).ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{PageSize: 1}, tokens.AccessToken))
+	if err != nil || len(homeResp.Msg.GetHomes()) != 1 {
+		t.Fatal("effective write permission home absent", err)
+	}
+	entityViews := apiv2connect.NewEntityViewServiceClient(client, base)
+	createdView, err := entityViews.CreateEntityView(ctx, nha141BearerRequest(&api.CreateEntityViewRequest{
+		Parent:     homeResp.Msg.GetHomes()[0].Name,
+		EntityView: &api.EntityView{Filter: ""},
+	}, tokens.AccessToken))
+	if err != nil {
+		t.Fatal("effective write permission create view", err)
+	}
+	page, err := entityViews.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{
+		Name:     createdView.Msg.GetName(),
+		PageSize: 16,
+	}, tokens.AccessToken))
+	_, _ = entityViews.DeleteEntityView(ctx, nha141BearerRequest(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, tokens.AccessToken))
+	if err != nil || len(page.Msg.Entries) != len(devices) {
 		t.Fatal("effective write permission absent", err)
 	}
-	for _, entity := range page.Msg.Entities {
-		if len(entity.ActionAccess) != 1 || entity.ActionAccess[0].Access != state.ActionAccess_ACTION_ACCESS_ALLOWED {
+	for _, entity := range page.Msg.Entries {
+		if len(entity.Capabilities) != 1 || entity.Capabilities[0].ActionAccess != api.ActionAccess_ACTION_ACCESS_ALLOWED {
 			t.Fatal("effective per-slot write fact missing")
 		}
 	}

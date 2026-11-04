@@ -20,10 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/damione1/Homeward/gen/home/actions/v1/actionsv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -100,13 +99,13 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 	proxy.Director = func(request *http.Request) {
 		director(request)
 		request.Header.Set("Accept-Encoding", "identity")
-		if strings.HasPrefix(request.URL.Path, "/"+actionsv1connect.ActionServiceName+"/") {
+		if strings.HasPrefix(request.URL.Path, "/"+apiv2connect.CapabilityServiceName+"/") || strings.HasPrefix(request.URL.Path, "/"+apiv2connect.DeviceServiceName+"/") {
 			p.actions.Add(1)
 		}
 		switch request.URL.Path {
-		case statev1connect.StateServiceOpenViewProcedure:
+		case apiv2connect.EntityViewServiceCreateEntityViewProcedure, apiv2connect.EntityViewServiceQueryEntityViewProcedure, apiv2connect.HomeServiceListHomesProcedure:
 			p.stateReads.Add(1)
-		case statev1connect.StateServiceReleaseViewProcedure:
+		case apiv2connect.EntityViewServiceDeleteEntityViewProcedure:
 			p.stateReleases.Add(1)
 		case authv1connect.AuthServiceStartLoginProcedure:
 			p.login.Add(1)
@@ -125,10 +124,10 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 			return nil
 		}
 		path := response.Request.URL.Path
-		if path == statev1connect.StateServiceOpenViewProcedure {
+		if path == apiv2connect.EntityViewServiceCreateEntityViewProcedure || path == apiv2connect.EntityViewServiceQueryEntityViewProcedure || path == apiv2connect.HomeServiceListHomesProcedure {
 			p.stateReadOK.Add(1)
 		}
-		if path == statev1connect.StateServiceReleaseViewProcedure {
+		if path == apiv2connect.EntityViewServiceDeleteEntityViewProcedure {
 			p.stateReleaseOK.Add(1)
 		}
 		if path == authv1connect.AuthServiceRevokeSessionProcedure {

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/domain"
 	"google.golang.org/protobuf/proto"
 )
@@ -26,6 +27,7 @@ type RegistryRecord struct {
 	current  domain.HAAlias
 	aliases  []domain.HAAlias
 	retired  bool
+	metadata apitypes.EntityMetadata
 }
 
 func NewRegistryRecord(device domain.DeviceID, entity domain.EntityID, instance domain.IntegrationInstanceID, key SourceKey, original, current domain.HAAlias, aliases []domain.HAAlias, retired bool) (RegistryRecord, error) {
@@ -63,7 +65,23 @@ func NewRegistryRecord(device domain.DeviceID, entity domain.EntityID, instance 
 	if !foundOriginal || !foundCurrent {
 		return RegistryRecord{}, ErrInvalidInput
 	}
-	return RegistryRecord{device, entity, instance, key, original, current, append([]domain.HAAlias(nil), aliases...), retired}, nil
+	metadata, err := apitypes.NewEntityMetadata(entity, apitypes.DisplayName{}, 1, nil, nil)
+	if err != nil {
+		return RegistryRecord{}, ErrInvalidInput
+	}
+	return RegistryRecord{device: device, entity: entity, instance: instance, key: key, original: original, current: current,
+		aliases: append([]domain.HAAlias(nil), aliases...), retired: retired, metadata: metadata}, nil
+}
+
+// Metadata shares the registry's immutable capture and publication boundary.
+// A label change invalidates the same views as any other registry change.
+func (r RegistryRecord) Metadata() apitypes.EntityMetadata { return r.metadata }
+func (r RegistryRecord) WithMetadata(metadata apitypes.EntityMetadata) (RegistryRecord, error) {
+	if !metadata.Valid() || metadata.Entity() != r.entity {
+		return RegistryRecord{}, ErrInvalidInput
+	}
+	r.metadata = metadata
+	return r, nil
 }
 
 func (r RegistryRecord) IDs() (domain.DeviceID, domain.EntityID, error) {
@@ -96,7 +114,7 @@ func (r RegistryRecord) Aliases() (domain.HAAlias, domain.HAAlias, []domain.HAAl
 func (r RegistryRecord) Retired() bool { return r.retired }
 
 func (r RegistryRecord) Equal(other RegistryRecord) bool {
-	if r.device != other.device || r.entity != other.entity || r.instance != other.instance || r.key != other.key || r.original != other.original || r.current != other.current || r.retired != other.retired || len(r.aliases) != len(other.aliases) {
+	if r.device != other.device || r.entity != other.entity || r.instance != other.instance || r.key != other.key || r.original != other.original || r.current != other.current || r.retired != other.retired || r.metadata != other.metadata || len(r.aliases) != len(other.aliases) {
 		return false
 	}
 	for i, alias := range r.aliases {

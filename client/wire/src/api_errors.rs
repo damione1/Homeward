@@ -1,6 +1,7 @@
 //! Admitted canonical error values. Human messages/descriptions are discarded;
 //! no error detail confers authority or permission to retry a mutation.
 use crate::{google::rpc, home::api::v2 as api};
+use home_client_model::api::OperationName;
 use buffa::{EnumValue, Enumeration, Message};
 use std::collections::BTreeSet;
 
@@ -39,6 +40,7 @@ pub struct ApiFailure {
     truncated: bool,
     uncertainty: Option<api::UncertaintyPhase>,
     support_reference: Option<String>,
+    operation: Option<OperationName>,
 }
 impl ApiFailure {
     pub fn code(&self) -> rpc::Code {
@@ -55,6 +57,9 @@ impl ApiFailure {
     }
     pub fn uncertainty(&self) -> Option<api::UncertaintyPhase> {
         self.uncertainty
+    }
+    pub fn operation(&self) -> Option<&OperationName> {
+        self.operation.as_ref()
     }
     pub fn support_reference(&self) -> Option<&str> {
         self.support_reference.as_deref()
@@ -112,6 +117,7 @@ pub fn admit_status(status: &rpc::Status) -> Result<ApiFailure, InvalidApiError>
     let mut truncated = false;
     let mut uncertainty = None;
     let mut support_reference = None;
+    let mut operation = None;
     let mut seen = BTreeSet::new();
     for detail in &status.details {
         if !detail.__buffa_unknown_fields.is_empty() {
@@ -222,7 +228,14 @@ pub fn admit_status(status: &rpc::Status) -> Result<ApiFailure, InvalidApiError>
                 let _: rpc::Help = decode(&detail.value)?;
             }
             "google.rpc.ResourceInfo" => {
-                let _: rpc::ResourceInfo = decode(&detail.value)?;
+                let value: rpc::ResourceInfo = decode(&detail.value)?;
+                if !value.__buffa_unknown_fields.is_empty()
+                    || value.resource_type != "longrunning.googleapis.com/Operation"
+                    || !value.owner.is_empty() || !value.description.is_empty() {
+                    return Err(InvalidApiError::Unsupported);
+                }
+                operation = Some(OperationName::try_from(value.resource_name.as_str())
+                    .map_err(|_| InvalidApiError::Malformed)?);
             }
             _ => return Err(InvalidApiError::Unsupported),
         }
@@ -239,6 +252,8 @@ pub fn admit_status(status: &rpc::Status) -> Result<ApiFailure, InvalidApiError>
         R::ConfigChanged
         | R::TopologyChanged
         | R::CapabilityUnavailable
+        | R::StatePreconditionFailed
+        | R::ConfigRestartRequired
         | R::SourceReadOnly
         | R::ResyncRequired => rpc::Code::FAILED_PRECONDITION,
         R::RateLimited | R::RequestTooLarge | R::StreamCapacity | R::QueryBudgetExceeded => {
@@ -278,6 +293,8 @@ pub fn admit_status(status: &rpc::Status) -> Result<ApiFailure, InvalidApiError>
         | api::ApiErrorReason::ConfigChanged
         | api::ApiErrorReason::TopologyChanged
         | api::ApiErrorReason::CapabilityUnavailable
+        | api::ApiErrorReason::StatePreconditionFailed
+        | api::ApiErrorReason::ConfigRestartRequired
         | api::ApiErrorReason::SourceReadOnly
         | api::ApiErrorReason::ResyncRequired
         | api::ApiErrorReason::RateLimited
@@ -295,6 +312,9 @@ pub fn admit_status(status: &rpc::Status) -> Result<ApiFailure, InvalidApiError>
             }
         }
     }
+    if operation.is_some() && uncertainty.is_none() {
+        return Err(InvalidApiError::Inconsistent);
+    }
     if truncated && violations.len() != MAX_VIOLATIONS {
         return Err(InvalidApiError::Inconsistent);
     }
@@ -308,5 +328,6 @@ pub fn admit_status(status: &rpc::Status) -> Result<ApiFailure, InvalidApiError>
         truncated,
         uncertainty,
         support_reference,
+        operation,
     })
 }

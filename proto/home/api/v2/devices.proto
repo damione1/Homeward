@@ -1,0 +1,70 @@
+syntax = "proto3";
+package home.api.v2;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "DevicesProto";
+option java_package = "com.home.api.v2";
+
+// Read-only physical identities discovered by the native registry. An authorized
+// entity proves its device association; labels never merge devices. Discovery
+// is independent of these reads and no create/delete hardware RPC is exposed.
+service DeviceService {
+  option (google.api.default_host) = "homeward.damiengoehrig.ca";
+  // Reads a device only when at least one attached entity is currently readable.
+  rpc GetDevice(GetDeviceRequest) returns (Device) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/devices/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Lists distinct authorized device identities in ascending canonical order.
+  // Pages share an immutable native capture; changed rights require resync.
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}/devices"};
+    option (google.api.method_signature) = "parent";
+  }
+}
+
+// A physical identity proved by the native registry, never inferred from labels.
+// Provider addresses, source IDs and credentials are deliberately not metadata.
+message Device {
+  option (google.api.resource) = {
+    type: "homeward.damiengoehrig.ca/Device"
+    pattern: "homes/{home}/devices/{device}"
+    singular: "device"
+    plural: "devices"
+  };
+  // Immutable public identity; Entity.device references this exact resource.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+}
+// Reads one discovered device through its currently authorized entity association.
+message GetDeviceRequest {
+  // Device name; absent and unauthorized resources have the same denial.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Device"
+  ];
+}
+// Selects a bounded page of authorized device identities from one native capture.
+message ListDevicesRequest {
+  // Persistent installation containing the authorized devices.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Device"
+  ];
+  // Zero selects 100; negative is invalid and values above 500 are capped.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque bounded continuation bound to caller, rights and capture; not authority.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+// One page of distinct authorized device identities, without hardware I/O.
+message ListDevicesResponse {
+  // Authorized identities on this page, with no hidden resource count.
+  repeated Device devices = 1;
+  // Empty at the end. Page size may change without changing the capture.
+  string next_page_token = 2;
+}

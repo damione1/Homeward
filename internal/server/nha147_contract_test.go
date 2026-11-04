@@ -2,12 +2,16 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
-	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apierrors"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/storage"
@@ -49,18 +53,30 @@ func TestNHA147CanonicalActionFailuresDoNotFabricateResponse(t *testing.T) {
 }
 
 func TestNHA147StoredAndLiveUnknownAreNotConflated(t *testing.T) {
+	name, _ := apitypes.ParseOperationName("homes/synthetic/operations/cmd-nha147-recovered")
+	capability, _ := apitypes.ParseCapabilityName("homes/synthetic/entities/relay/capabilities/power")
+	metadata, _ := storage.NewCommandAPIMetadata(capability, nil, sha256.Sum256([]byte("nha147-recovered")))
 	status := integrations.DurableCommandStatus{State: storage.IntentIndeterminate, ErrorKind: storage.IntentOutcomeIndeterminate,
-		Response: &actions.CommandResponse{CommandId: "nha147-recovered", Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}}
-	durable, err := coreDurableResult(status)
-	if err != nil {
-		t.Fatal(err)
+		Response: &actions.CommandResponse{CommandId: "nha147-recovered", Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE},
+		Metadata: metadata, HasMetadata: true, AcceptedAt: time.Now()}
+	operation, err := physicalOperation(name, status)
+	if err != nil || !operation.Done {
+		t.Fatal(operation, err)
 	}
-	result := &actions.GetActionResponse{Durable: durable, Live: &actions.GetActionResponse_Unavailable{Unavailable: &actions.NoLiveActionProgress{}}}
-	if contracts.AdmitGetActionResponse(result) != nil || result.Durable.State != actions.DurableActionState_DURABLE_ACTION_STATE_INDETERMINATE {
-		t.Fatal("restart erased persisted uncertainty", result)
+	cmdMeta := &api.CommandMetadata{}
+	if err := operation.Metadata.UnmarshalTo(cmdMeta); err != nil || cmdMeta.Phase != api.CommandPhase_COMMAND_PHASE_INDETERMINATE || cmdMeta.LiveProgressAvailable {
+		t.Fatal("restart erased persisted uncertainty or invented live progress", cmdMeta, err)
 	}
-	for _, bad := range []integrations.DurableCommandStatus{{State: storage.IntentUnknown}, {State: storage.IntentState(255)}, {State: storage.IntentResult, ErrorKind: storage.IntentError(255)}} {
-		if _, err := coreDurableResult(bad); err == nil {
+	fault, err := apierrors.AdmitStatus(operation.GetError())
+	if err != nil || fault.Reason() != api.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN {
+		t.Fatal("restart lost uncertain effect reason", fault, err)
+	}
+	for _, bad := range []integrations.DurableCommandStatus{
+		{State: storage.IntentUnknown, Metadata: metadata, HasMetadata: true, AcceptedAt: time.Now(), Response: status.Response},
+		{State: storage.IntentState(255), Metadata: metadata, HasMetadata: true, AcceptedAt: time.Now(), Response: status.Response},
+		{State: storage.IntentResult, ErrorKind: storage.IntentError(255), Metadata: metadata, HasMetadata: true, AcceptedAt: time.Now(), Response: status.Response},
+	} {
+		if _, err := physicalOperation(name, bad); err == nil {
 			t.Fatal("unknown storage state cast into wire", bad)
 		}
 	}

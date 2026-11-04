@@ -1,194 +1,204 @@
+use crate::{
+    CacheFailure, CachedView, Filter, MAX_ENTITIES, MAX_PAGE_SIZE, MAX_VIEW_BYTES, entry_bytes,
+    entry_name, time_key, valid_time, valid_token,
+};
+use buffa::Message;
+use buffa_types::google::protobuf::Timestamp;
+use home_client_model::api::{EntityName, EntityViewName, HomeName};
+use home_wire_contract::home::api::v2 as wire;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
-use buffa::Message;
-use buffa_types::google::protobuf::Timestamp;
-use home_client_model::EntityId;
-use home_wire_contract::home::environment::v1::DisplayProfile;
-use home_wire_contract::home::state::v1 as wire;
-
-use crate::{
-    CacheFailure, CachedView, Filter, MAX_ENTITIES, MAX_PAGE_SIZE, MAX_VIEW_BYTES, admit_cursor,
-    observation_id, time_key, valid_time,
-};
-
-/// Provisional data cannot be inspected or projected. Any failed page erases it.
+/// Provisional pages never enter a UI projection. Any failed page erases them;
+/// only the final page's checkpoint can activate a complete capture.
 pub struct SnapshotCapture {
     filter: Filter,
+    home: HomeName,
+    name: EntityViewName,
     page_size: u32,
-    token: String,
-    cursor: wire::ViewCursor,
-    expires_at: Timestamp,
-    started_at: Timestamp,
+    expires: Timestamp,
+    started: Timestamp,
     next: String,
+    resume: String,
+    complete: bool,
     seen_tokens: BTreeSet<String>,
-    entities: BTreeMap<EntityId, Arc<wire::ViewEntity>>,
+    entities: BTreeMap<EntityName, Arc<wire::EntityViewEntry>>,
     encoded_bytes: usize,
     abandoned: bool,
-    display_profile: Option<DisplayProfile>,
 }
-
 impl SnapshotCapture {
     pub fn begin(
+        home: HomeName,
         filter: Filter,
         page_size: u32,
-        first: wire::OpenViewResponse,
+        resource: wire::EntityView,
         now: &Timestamp,
     ) -> Result<Self, CacheFailure> {
         if !(1..=MAX_PAGE_SIZE).contains(&page_size) {
             return Err(CacheFailure::InvalidPageSize);
         }
-        let cursor = first
-            .cursor
+        let name = EntityViewName::try_from(resource.name.as_str())
+            .map_err(|_| CacheFailure::InvalidResponse)?;
+        let created = resource
+            .create_time
             .as_option()
-            .ok_or(CacheFailure::InvalidResponse)?
-            .clone();
-        admit_cursor(&cursor, &filter)?;
-        let expires_at = first
-            .expires_at
+            .ok_or(CacheFailure::InvalidResponse)?;
+        let expires = resource
+            .expire_time
             .as_option()
-            .ok_or(CacheFailure::InvalidResponse)?
-            .clone();
-        if first.snapshot_token.is_empty() || !valid_time(&expires_at) || !valid_time(now) {
+            .ok_or(CacheFailure::InvalidResponse)?;
+        if !resource.__buffa_unknown_fields.is_empty()
+            || resource.filter != filter.expression()
+            || name.home() != home
+            || !valid_time(created)
+            || !valid_time(expires)
+            || !valid_time(now)
+            || time_key(expires) <= time_key(created)
+            || expires.seconds - created.seconds > 61
+            || time_key(now) >= time_key(expires)
+        {
             return Err(CacheFailure::InvalidResponse);
         }
-        let mut capture = Self {
+        Ok(Self {
+            home,
             filter,
+            name,
             page_size,
-            token: first.snapshot_token.clone(),
-            cursor,
-            expires_at,
-            started_at: now.clone(),
+            expires: expires.clone(),
+            started: now.clone(),
             next: String::new(),
+            resume: String::new(),
+            complete: false,
             seen_tokens: BTreeSet::new(),
             entities: BTreeMap::new(),
-            encoded_bytes: 0,
+            encoded_bytes: resource.encoded_len() as usize + 512,
             abandoned: false,
-            display_profile: first.display_profile.as_option().cloned(),
-        };
-        capture.append(first, now)?;
-        Ok(capture)
+        })
     }
-
-    pub fn next_request(&self) -> Option<wire::ReadPageRequest> {
-        if self.abandoned || self.next.is_empty() {
-            return None;
-        }
-        Some(wire::ReadPageRequest {
-            snapshot_token: self.token.clone(),
+    pub fn name(&self) -> &EntityViewName {
+        &self.name
+    }
+    pub fn next_request(&self) -> Option<wire::QueryEntityViewRequest> {
+        (!self.abandoned && !self.complete).then(|| wire::QueryEntityViewRequest {
+            name: self.name.as_str().to_owned(),
+            page_size: self.page_size as i32,
             page_token: self.next.clone(),
             ..Default::default()
         })
     }
-
     pub fn push(
         &mut self,
-        page: wire::OpenViewResponse,
+        page: wire::QueryEntityViewResponse,
         now: &Timestamp,
     ) -> Result<(), CacheFailure> {
         let result = if self.abandoned {
             Err(CacheFailure::Abandoned)
-        } else if self.next.is_empty() {
+        } else if self.complete {
             Err(CacheFailure::InvalidResponse)
         } else {
             self.append(page, now)
         };
         if result.is_err() {
-            self.abandon();
+            self.abandon()
         }
         result
     }
-
-    /// Call on a refused/failed ReadPage as well as dropping the capture.
     pub fn abandon(&mut self) {
         self.abandoned = true;
         self.entities.clear();
         self.next.clear();
+        self.resume.clear();
+        self.seen_tokens.clear();
         self.encoded_bytes = 0;
-        self.display_profile = None;
     }
-
     fn unexpired(&self, now: &Timestamp) -> Result<(), CacheFailure> {
-        if !valid_time(now) || time_key(now) < time_key(&self.started_at) {
+        if !valid_time(now) || time_key(now) < time_key(&self.started) {
             return Err(CacheFailure::InvalidResponse);
         }
-        if time_key(now) >= time_key(&self.expires_at) {
+        if time_key(now) >= time_key(&self.expires) {
             return Err(CacheFailure::Expired);
         }
         Ok(())
     }
-
     fn append(
         &mut self,
-        page: wire::OpenViewResponse,
+        page: wire::QueryEntityViewResponse,
         now: &Timestamp,
     ) -> Result<(), CacheFailure> {
         self.unexpired(now)?;
-        if page.snapshot_token != self.token
-            || page.cursor.as_option() != Some(&self.cursor)
-            || page.expires_at.as_option() != Some(&self.expires_at)
-            || page.display_profile.as_option() != self.display_profile.as_ref()
-        {
-            return Err(CacheFailure::GenerationChanged);
+        if !page.__buffa_unknown_fields.is_empty() || page.entries.len() > self.page_size as usize {
+            return Err(CacheFailure::InvalidResponse);
         }
-        if page.entities.len() > self.page_size as usize
-            || (!page.next_page_token.is_empty() && page.entities.is_empty())
-            || !page.__buffa_unknown_fields.is_empty()
+        let complete = page.next_page_token.is_empty();
+        if complete {
+            if !valid_token(&page.resume_token) {
+                return Err(CacheFailure::Incomplete);
+            }
+        } else if !page.resume_token.is_empty()
+            || !valid_token(&page.next_page_token)
+            || page.entries.is_empty()
+            || !self.seen_tokens.insert(page.next_page_token.clone())
         {
             return Err(CacheFailure::InvalidResponse);
         }
-        // Includes duplicated legacy states/capabilities in the wire memory budget.
         self.encoded_bytes = self
             .encoded_bytes
-            .checked_add(page.encoded_len() as usize)
+            .checked_add(page.encoded_len() as usize * 4 + 512)
             .ok_or(CacheFailure::BudgetExceeded)?;
         if self.encoded_bytes > MAX_VIEW_BYTES
-            || self.entities.len() + page.entities.len() > MAX_ENTITIES
+            || self.entities.len() + page.entries.len() > MAX_ENTITIES
         {
             return Err(CacheFailure::BudgetExceeded);
         }
-        for entity in page.entities {
-            let id: EntityId = entity
-                .entity_id
-                .parse()
-                .map_err(|_| CacheFailure::InvalidResponse)?;
-            if !self.filter.permits(&id) {
+        for entry in page.entries {
+            let name = entry_name(&entry)?;
+            if name.home() != self.home || !self.filter.permits(&name) {
                 return Err(CacheFailure::ForeignEntity);
             }
-            if let Some(observed) = entity.state.as_option()
-                && (observation_id(observed)? != id || observed.revision == 0)
+            if self
+                .entities
+                .last_key_value()
+                .is_some_and(|(previous, _)| previous >= &name)
             {
-                return Err(CacheFailure::InvalidResponse);
+                return Err(CacheFailure::OutOfOrder);
             }
-            if self.entities.insert(id, Arc::new(entity)).is_some() {
+            if self.entities.insert(name, Arc::new(entry)).is_some() {
                 return Err(CacheFailure::DuplicateEntity);
             }
         }
-        if !page.next_page_token.is_empty()
-            && !self.seen_tokens.insert(page.next_page_token.clone())
-        {
-            return Err(CacheFailure::OutOfOrder);
-        }
         self.next = page.next_page_token;
+        self.resume = page.resume_token;
+        self.complete = complete;
         Ok(())
     }
-
     pub fn finish(self, now: &Timestamp) -> Result<CachedView, CacheFailure> {
         if self.abandoned {
             return Err(CacheFailure::Abandoned);
         }
         self.unexpired(now)?;
-        if !self.next.is_empty() {
+        if !self.complete || !valid_token(&self.resume) {
             return Err(CacheFailure::Incomplete);
         }
+        let mut retained = 10 * 1024 + self.filter.expression().len() + self.name.as_str().len();
+        for entry in self.entities.values() {
+            retained = retained
+                .checked_add(entry_bytes(entry)?)
+                .ok_or(CacheFailure::BudgetExceeded)?;
+        }
+        if retained > MAX_VIEW_BYTES {
+            return Err(CacheFailure::BudgetExceeded);
+        }
         Ok(CachedView {
+            incarnation: crate::CaptureIncarnation(Arc::new(())),
+            _cleanup: None,
             entities: self.entities,
-            cursor: self.cursor,
+            name: self.name,
+            resume: self.resume,
+            expires: self.expires,
             filter: self.filter,
-            encoded_bytes: self.encoded_bytes,
-            display_profile: self.display_profile,
+            encoded_bytes: retained,
         })
     }
 }

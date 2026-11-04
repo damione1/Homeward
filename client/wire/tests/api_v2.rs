@@ -28,6 +28,12 @@ fn shared_protobuf_command_corpus() {
                 parse_command(&encode_command(&command)),
                 Ok(command.clone())
             );
+            if parts[0] == "definition-etag" {
+                assert_eq!(
+                    command.definition_etag().unwrap().as_str(),
+                    "definition-abc"
+                );
+            }
             if parts[0] == "off" {
                 assert_eq!(command.intent(), Intent::Power(Power::Off));
             }
@@ -38,8 +44,18 @@ fn shared_protobuf_command_corpus() {
                 );
             }
         } else {
+            let error = result.expect_err(parts[0]);
+            if matches!(
+                parts[0],
+                "light-off-brightness-transition" | "helper-toggle-value"
+            ) {
+                assert_eq!(
+                    error.kind,
+                    home_wire_contract::home::api::v2::ValidationReason::InconsistentFields
+                );
+            }
             assert_eq!(
-                result.expect_err(parts[0]).field,
+                error.field,
                 if parts[3] == "-" { "" } else { parts[3] },
                 "{}",
                 parts[0]

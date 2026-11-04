@@ -67,7 +67,7 @@ func apiFault(err error) apierrors.Fault {
 	}
 	var violation *boundary.Violation
 	if errors.As(err, &violation) && violation != nil {
-		value, parseErr := apierrors.NewViolation((&api.ExecuteCapabilityRequest{}).ProtoReflect().Descriptor(), violation.Field(), violation.Kind())
+		value, parseErr := apierrors.NewViolation(violation.Descriptor(), violation.Field(), violation.Kind())
 		if parseErr == nil {
 			return apierrors.Validation(value)
 		}
@@ -79,6 +79,8 @@ func apiFault(err error) apierrors.Fault {
 	}
 	var reason api.ApiErrorReason
 	switch {
+	case errors.Is(err, view.ErrAlreadyExists):
+		reason = api.ApiErrorReason_API_ERROR_REASON_RESOURCE_ALREADY_EXISTS
 	case errors.Is(err, context.Canceled):
 		reason = api.ApiErrorReason_API_ERROR_REASON_REQUEST_CANCELLED
 	case errors.Is(err, context.DeadlineExceeded):

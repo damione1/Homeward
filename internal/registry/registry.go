@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"sync"
-	"time"
 
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/storage"
@@ -44,6 +44,7 @@ type Repository struct {
 	mu              sync.RWMutex
 	projection      integrations.ProjectionSink
 	projectionDirty bool
+	home            apitypes.HomeName
 }
 
 // Registry statements deliberately omit Commit and Rollback. The ordinary
@@ -171,20 +172,7 @@ func (r *Repository) mutate(ctx context.Context, fn func(registryStatements) err
 	if projection == nil {
 		return nil
 	}
-	// Commit is now durable. The caller's cancellation cannot skip publication.
-	background, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
-	records, err := r.listUnlocked(background)
-	if err == nil {
-		err = projection.PublishRegistry(background, records)
-	}
-	if err != nil {
-		r.mu.Lock()
-		r.projectionDirty = true
-		r.mu.Unlock()
-		projection.InvalidateRegistry()
-	}
-	return err
+	return r.publishAPIProjection(ctx)
 }
 
 // ConfigureBinding records an operator's explicit mapping from a stable source

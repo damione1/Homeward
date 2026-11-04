@@ -1,290 +1,207 @@
+//! Current command tracking contract: UUID correlation, monotonic standard LRO
+//! reads and qualified terminal evidence. Submission/stop ownership is exercised
+//! by the CapabilityController unit tests, not a second tracking state machine.
 use buffa::Message;
-use home_client_actions::{ActionRecord, CommandId, LiveState, SubmissionState, TrackingError};
-use home_wire_contract::{actions_contract as admit, home::actions::v1 as wire};
+use buffa_types::google::protobuf::{Any, Timestamp};
+use home_client_actions::new_request_id;
+use home_client_model::api::{CapabilityName, Command, Deadline, Intent, Power};
+use home_wire_contract::{
+    api_command_operations::{CommandCompletion, CommandOutcome, admit_command_operation},
+    google::longrunning::{Operation, operation},
+    home::api::v2 as wire,
+};
 
-const EPOCH: &str = "aabbccddeeff00112233445566778899";
-const ID: &str = "opaque command identity";
-
-fn record() -> ActionRecord {
-    ActionRecord::new(ID.parse().unwrap(), EPOCH, 7).unwrap()
+fn command() -> Command {
+    Command::new(
+        CapabilityName::try_from("homes/test/entities/relay/capabilities/power").unwrap(),
+        Intent::Power(Power::Off),
+        Some(new_request_id().unwrap()),
+        Deadline::new(2_000_000_000, 0).unwrap(),
+    )
 }
-fn response(status: wire::ActionStatus) -> wire::CommandResponse {
-    wire::CommandResponse {
-        command_id: ID.into(),
-        status: status.into(),
-        ..Default::default()
-    }
-}
-fn point(status: wire::ActionStatus, sequence: u64) -> wire::ActionProgress {
-    wire::ActionProgress {
-        admission_epoch: EPOCH.into(),
-        config_revision: 7,
-        status: status.into(),
-        sequence,
-        ..Default::default()
-    }
-}
-fn frame(
-    status: wire::ActionStatus,
-    sequence: u64,
-    stream_sequence: u64,
-) -> wire::WatchActionResponse {
-    wire::WatchActionResponse {
-        stream_sequence,
-        frame: Some(wire::watch_action_response::Frame::Progress(
-            point(status, sequence).into(),
-        )),
-        ..Default::default()
-    }
-}
-fn unavailable(durable: wire::DurableActionResult) -> wire::GetActionResponse {
-    wire::GetActionResponse {
-        durable: Some(durable).into(),
-        live: Some(wire::get_action_response::Live::Unavailable(
-            wire::NoLiveActionProgress::default().into(),
-        )),
-        ..Default::default()
-    }
-}
-
-#[test]
-fn ack_and_even_a_dispatch_record_named_confirmed_are_not_physical_confirmation() {
-    let mut action = record();
-    action.begin_submission().unwrap();
-    action
-        .submitted(wire::SubmitActionResponse {
-            result: Some(response(wire::ActionStatus::Acknowledged)).into(),
-            ..Default::default()
-        })
-        .unwrap();
-    assert!(!action.confirmed());
-    action
-        .got(unavailable(wire::DurableActionResult {
-            state: wire::DurableActionState::Result.into(),
-            response: Some(response(wire::ActionStatus::Confirmed)).into(),
-            error: wire::DurableActionError::None.into(),
-            ..Default::default()
-        }))
-        .unwrap();
-    assert_eq!(action.live(), LiveState::Unavailable);
-    assert!(
-        !action.confirmed(),
-        "a dispatch record never asserts a physical effect"
-    );
-    assert_eq!(
-        action.response().unwrap().status,
-        wire::ActionStatus::Acknowledged
-    );
-    assert_eq!(
-        action.begin_submission(),
-        Err(TrackingError::AlreadySubmitted)
-    );
-}
-
-#[test]
-fn lost_submit_and_read_only_recovery_keep_the_exact_id_without_rearming_submission() {
-    let mut action = record();
-    action.begin_submission().unwrap();
-    use home_wire_contract::{
-        api_errors::{DOMAIN, admit_status},
-        google::rpc::{Code, ErrorInfo, Status},
-        home::api::v2::{ExecutionUncertainty, ReconciliationDisposition, UncertaintyPhase},
-    };
-    let status = Status {
-        code: Code::UNKNOWN as i32,
-        details: vec![
-            buffa_types::google::protobuf::Any {
-                type_url: ErrorInfo::TYPE_URL.into(),
-                value: ErrorInfo {
-                    domain: DOMAIN.into(),
-                    reason: "COMMIT_OUTCOME_UNKNOWN".into(),
-                    ..Default::default()
-                }
-                .encode_to_vec()
-                .into(),
+fn pending(command: &Command, phase: wire::CommandPhase) -> Operation {
+    Operation {
+        name: "homes/test/operations/cmd-one".into(),
+        metadata: Any {
+            type_url: wire::CommandMetadata::TYPE_URL.into(),
+            value: wire::CommandMetadata {
+                capability: command.target().as_str().into(),
+                request_id: command.request_id().unwrap().as_str().into(),
+                create_time: Timestamp::from_unix_secs(1_700_000_000).into(),
+                phase: phase.into(),
                 ..Default::default()
-            },
-            buffa_types::google::protobuf::Any {
-                type_url: ExecutionUncertainty::TYPE_URL.into(),
-                value: ExecutionUncertainty {
-                    phase: UncertaintyPhase::Commit.into(),
-                    disposition: ReconciliationDisposition::ReconcileOnly.into(),
-                    ..Default::default()
-                }
-                .encode_to_vec()
-                .into(),
-                ..Default::default()
-            },
-        ],
-        ..Default::default()
-    };
-    action
-        .submission_uncertain(Some(admit_status(&status).unwrap()))
-        .unwrap();
-    assert!(
-        action.response().is_none(),
-        "an error must not manufacture an ACK"
-    );
-    assert_eq!(
-        action.operation_failure().unwrap().uncertainty(),
-        Some(UncertaintyPhase::Commit)
-    );
-    assert_eq!(action.submission(), SubmissionState::Uncertain);
-    assert_eq!(action.id().as_str(), ID);
-    action
-        .got(unavailable(wire::DurableActionResult {
-            state: wire::DurableActionState::Indeterminate.into(),
-            response: Some(response(wire::ActionStatus::Indeterminate)).into(),
-            error: wire::DurableActionError::Deadline.into(),
+            }
+            .encode_to_vec()
+            .into(),
             ..Default::default()
-        }))
-        .unwrap();
-    assert_eq!(
-        action.durable().unwrap().error,
-        wire::DurableActionError::Deadline
-    );
-    assert!(!action.confirmed());
-    action.interrupted();
-    action.begin_watch().unwrap();
-    assert_eq!(
-        action.begin_submission(),
-        Err(TrackingError::AlreadySubmitted)
-    );
-    let mut recovered = ActionRecord::recover(action.id().clone(), EPOCH, 7).unwrap();
-    assert_eq!(recovered.id(), action.id());
-    assert_eq!(
-        recovered.begin_submission(),
-        Err(TrackingError::AlreadySubmitted)
-    );
-    assert!(!format!("{:?}", recovered.id()).contains(ID));
+        }
+        .into(),
+        ..Default::default()
+    }
+}
+fn terminal(
+    command: &Command,
+    phase: wire::CommandPhase,
+    outcome: wire::CommandOutcome,
+) -> Operation {
+    let mut raw = pending(command, phase);
+    raw.done = true;
+    raw.result = Some(operation::Result::Response(Box::new(Any {
+        type_url: wire::ExecuteCapabilityResponse::TYPE_URL.into(),
+        value: wire::ExecuteCapabilityResponse {
+            capability: command.target().as_str().into(),
+            outcome: outcome.into(),
+            ..Default::default()
+        }
+        .encode_to_vec()
+        .into(),
+        ..Default::default()
+    })));
+    raw
 }
 
 #[test]
-fn action_sequence_survives_stream_reconnect_but_foreign_or_reordered_points_are_rejected() {
-    let mut action = record();
-    action.begin_submission().unwrap();
-    action.submission_uncertain(None).unwrap();
-    action.begin_watch().unwrap();
-    action
-        .watched(frame(wire::ActionStatus::Acknowledged, 3, 1))
-        .unwrap();
-    action.interrupted();
-    action.begin_watch().unwrap();
-    action
-        .watched(frame(wire::ActionStatus::Acknowledged, 3, 1))
-        .unwrap();
-    assert_eq!(
-        action.watched(frame(wire::ActionStatus::Dispatched, 2, 2)),
-        Err(TrackingError::OutOfOrder)
+fn acknowledgement_remains_unverified_and_confirmation_requires_consistent_terminal_evidence() {
+    let command = command();
+    let ack = admit_command_operation(
+        &pending(&command, wire::CommandPhase::Acknowledged),
+        &command,
+        None,
+    )
+    .unwrap();
+    assert_eq!(ack.completion(), &CommandCompletion::Pending);
+    let raw = terminal(
+        &command,
+        wire::CommandPhase::Acknowledged,
+        wire::CommandOutcome::AcknowledgedUnverified,
     );
-    let mut foreign = frame(wire::ActionStatus::Confirmed, 4, 2);
-    let Some(wire::watch_action_response::Frame::Progress(value)) = &mut foreign.frame else {
-        panic!("progress fixture")
-    };
-    value.admission_epoch = "11223344556677889900112233445566".into();
-    assert_eq!(action.watched(foreign), Err(TrackingError::ForeignContext));
-    assert!(!action.confirmed());
-    action
-        .watched(frame(wire::ActionStatus::Confirmed, 4, 2))
-        .unwrap();
-    assert!(action.confirmed());
+    let durable = admit_command_operation(&raw, &command, Some(&ack)).unwrap();
+    assert!(matches!(
+        durable.completion(),
+        CommandCompletion::Success {
+            outcome: CommandOutcome::AcknowledgedUnverified,
+            ..
+        }
+    ));
+    let wrong = terminal(
+        &command,
+        wire::CommandPhase::Acknowledged,
+        wire::CommandOutcome::Confirmed,
+    );
+    assert!(admit_command_operation(&wrong, &command, Some(&ack)).is_err());
+    assert!(
+        admit_command_operation(
+            &pending(&command, wire::CommandPhase::Confirmed),
+            &command,
+            Some(&ack)
+        )
+        .is_err()
+    );
+    let confirmed = terminal(
+        &command,
+        wire::CommandPhase::Confirmed,
+        wire::CommandOutcome::Confirmed,
+    );
+    assert!(matches!(
+        admit_command_operation(&confirmed, &command, Some(&ack))
+            .unwrap()
+            .completion(),
+        CommandCompletion::Success {
+            outcome: CommandOutcome::Confirmed,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn reconnect_reads_cannot_regress_or_replace_an_immutable_terminal() {
+    let command = command();
+    let ack = admit_command_operation(
+        &pending(&command, wire::CommandPhase::Acknowledged),
+        &command,
+        None,
+    )
+    .unwrap();
+    assert!(
+        admit_command_operation(
+            &pending(&command, wire::CommandPhase::Dispatched),
+            &command,
+            Some(&ack)
+        )
+        .is_err()
+    );
+    let raw = terminal(
+        &command,
+        wire::CommandPhase::Confirmed,
+        wire::CommandOutcome::Confirmed,
+    );
+    let confirmed = admit_command_operation(&raw, &command, Some(&ack)).unwrap();
     assert_eq!(
-        action.watched(frame(wire::ActionStatus::Failed, 5, 3)),
-        Err(TrackingError::OutOfOrder)
+        admit_command_operation(&raw, &command, Some(&confirmed)).unwrap(),
+        confirmed
     );
     assert!(
-        action.confirmed(),
-        "a contradictory late frame does not replace an admitted terminal point"
+        admit_command_operation(
+            &terminal(
+                &command,
+                wire::CommandPhase::Acknowledged,
+                wire::CommandOutcome::AcknowledgedUnverified
+            ),
+            &command,
+            Some(&confirmed)
+        )
+        .is_err()
     );
 }
 
 #[test]
-fn foreign_get_and_future_nested_fields_leave_the_previous_action_untouched() {
-    let mut action = ActionRecord::recover(ID.parse().unwrap(), EPOCH, 7).unwrap();
-    let mut foreign = unavailable(wire::DurableActionResult {
-        state: wire::DurableActionState::Accepted.into(),
-        response: Some(response(wire::ActionStatus::Accepted)).into(),
-        error: wire::DurableActionError::None.into(),
-        ..Default::default()
-    });
-    foreign
-        .durable
-        .as_option_mut()
-        .unwrap()
-        .response
-        .as_option_mut()
-        .unwrap()
-        .command_id = "another command".into();
-    assert_eq!(action.got(foreign), Err(TrackingError::ForeignCommand));
-    assert!(action.durable().is_none());
-    let mut future = frame(wire::ActionStatus::Accepted, 1, 1);
-    let Some(wire::watch_action_response::Frame::Progress(value)) = &mut future.frame else {
-        panic!("progress fixture")
-    };
-    let mut encoded = value.encode_to_vec();
+fn foreign_identity_and_future_metadata_leave_the_previous_operation_untouched() {
+    let command = command();
+    let raw = pending(&command, wire::CommandPhase::Accepted);
+    let prior = admit_command_operation(&raw, &command, None).unwrap();
+    let mut foreign = raw.clone();
+    foreign.name = "homes/test/operations/cmd-other".into();
+    assert!(admit_command_operation(&foreign, &command, Some(&prior)).is_err());
+    assert!(admit_command_operation(&raw, &self::command(), None).is_err());
+    let mut future = raw.clone();
+    let mut encoded = future.metadata.value.to_vec();
     encoded.extend([0xf8, 0x07, 0x01]);
-    **value = wire::ActionProgress::decode_from_slice(&encoded).unwrap();
-    assert_eq!(action.watched(future), Err(TrackingError::InvalidResponse));
-    assert!(action.progress().is_none());
-    assert_eq!(action.live(), LiveState::NotRequested);
-}
-
-#[test]
-fn stop_is_local_tracking_only_and_closed_streams_cannot_revive_it() {
-    let mut action = record();
-    assert_eq!(action.begin_watch(), Err(TrackingError::NotSubmitted));
-    action.begin_submission().unwrap();
-    action.submission_uncertain(None).unwrap();
-    action.stop_tracking();
-    action.interrupted();
-    assert_eq!(action.live(), LiveState::Stopped);
+    future.metadata.as_option_mut().unwrap().value = encoded.into();
+    assert!(admit_command_operation(&future, &command, Some(&prior)).is_err());
     assert_eq!(
-        action.watched(frame(wire::ActionStatus::Confirmed, 4, 1)),
-        Err(TrackingError::Stopped)
-    );
-    assert_eq!(action.begin_watch(), Err(TrackingError::Stopped));
-    assert_eq!(action.submission(), SubmissionState::Uncertain);
-    assert_eq!(
-        action.begin_submission(),
-        Err(TrackingError::AlreadySubmitted)
+        admit_command_operation(&raw, &command, Some(&prior)).unwrap(),
+        prior
     );
 }
 
 #[test]
-fn unknown_action_branches_and_inconsistent_durable_records_are_never_admitted() {
-    let mut future = frame(wire::ActionStatus::Accepted, 1, 1);
-    let Some(wire::watch_action_response::Frame::Progress(value)) = &mut future.frame else {
-        panic!("progress fixture")
+fn future_phase_and_unexpected_result_type_are_rejected() {
+    let command = command();
+    let mut raw = pending(&command, wire::CommandPhase::Accepted);
+    let mut metadata = wire::CommandMetadata::decode_from_slice(&raw.metadata.value).unwrap();
+    metadata.phase = 999.into();
+    raw.metadata.as_option_mut().unwrap().value = metadata.encode_to_vec().into();
+    assert!(admit_command_operation(&raw, &command, None).is_err());
+    let mut raw = terminal(
+        &command,
+        wire::CommandPhase::Confirmed,
+        wire::CommandOutcome::Confirmed,
+    );
+    let Some(operation::Result::Response(value)) = &mut raw.result else {
+        panic!("response fixture")
     };
-    value.status = 999.into();
-    assert!(admit::watch_response(&future).is_err());
-    let inconsistent = wire::DurableActionResult {
-        state: wire::DurableActionState::Accepted.into(),
-        response: Some(response(wire::ActionStatus::Confirmed)).into(),
-        error: wire::DurableActionError::None.into(),
-        ..Default::default()
-    };
-    assert!(admit::durable(&inconsistent).is_err());
-    let no_live = wire::WatchActionResponse {
-        stream_sequence: 2,
-        frame: Some(wire::watch_action_response::Frame::Unavailable(
-            wire::NoLiveActionProgress::default().into(),
-        )),
-        ..Default::default()
-    };
-    assert!(admit::watch_response(&no_live).is_err());
+    value.type_url = "type.googleapis.com/home.api.v2.Entity".into();
+    assert!(admit_command_operation(&raw, &command, None).is_err());
 }
 
 #[test]
-fn opaque_command_ids_are_exact_bounded_and_generated_without_secrets_in_debug() {
-    assert!("".parse::<CommandId>().is_err());
-    assert!("a".repeat(257).parse::<CommandId>().is_err());
-    assert_eq!(
-        " Exact identity ".parse::<CommandId>().unwrap().as_str(),
-        " Exact identity "
-    );
-    let first = CommandId::generate().unwrap();
-    let second = CommandId::generate().unwrap();
+fn every_explicit_intention_gets_a_distinct_uuid4() {
+    let first = new_request_id().unwrap();
+    let second = new_request_id().unwrap();
     assert_ne!(first, second);
-    assert_eq!(first.as_str().len(), 32);
+    assert_eq!(first.as_str().as_bytes()[14], b'4');
+    assert!(matches!(
+        first.as_str().as_bytes()[19],
+        b'8' | b'9' | b'a' | b'b'
+    ));
 }

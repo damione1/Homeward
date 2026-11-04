@@ -3,7 +3,9 @@
 package view
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
@@ -17,6 +19,8 @@ import (
 	environmentwire "github.com/damione1/Homeward/gen/home/environment/v1"
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
 	statewire "github.com/damione1/Homeward/gen/home/state/v1"
+	"github.com/damione1/Homeward/internal/apiresources"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -25,6 +29,7 @@ import (
 )
 
 var (
+	ErrAlreadyExists     = errors.New("entity view already exists")
 	ErrInvalidInput      = errors.New("invalid view input")
 	ErrViewChanged       = errors.New("view authority or configuration changed; open a new view")
 	ErrSnapshotExpired   = errors.New("snapshot expired; open a new view")
@@ -33,7 +38,7 @@ var (
 	ErrResourceExhausted = errors.New("snapshot memory limit reached")
 )
 
-const MaxPageSize = 256
+const MaxPageSize = 500
 const MaxSnapshots = 16
 const MaxSnapshotBytes = 16 << 20
 const MaxTotalBytes = 128 << 20
@@ -123,6 +128,10 @@ type Filter struct {
 	hash [32]byte
 }
 
+func None() Filter {
+	return Filter{kind: filterOnly, ids: map[domain.EntityID]struct{}{}, hash: hashIDs(3, nil)}
+}
+
 func All() Filter { return Filter{kind: filterAll, hash: hashIDs(2, nil)} }
 func Only(ids []domain.EntityID) (Filter, error) {
 	if len(ids) == 0 || len(ids) > sequencer.MaxProjectedEntities {
@@ -142,7 +151,7 @@ func (f Filter) valid() bool {
 	case filterAll:
 		return f.ids == nil && f.hash == hashIDs(2, nil)
 	case filterOnly:
-		return len(f.ids) > 0 && f.hash == hashIDs(3, f.ids)
+		return f.ids != nil && f.hash == hashIDs(3, f.ids)
 	case filterUnspecified:
 		return false
 	default:
@@ -187,11 +196,21 @@ func hashIDs(tag byte, ids map[domain.EntityID]struct{}) [32]byte {
 
 type Cursor struct {
 	sequence              sequencer.Cursor
+	catalogue             sequencer.Cursor
 	config                ConfigStamp
 	authorizationRevision uint64
 	filterHash            [32]byte
 	grantDigest           [32]byte
 	proof                 [40]byte
+}
+
+// CataloguePosition is the registry/capability admission fence captured during
+// preparation. It is independent of state sequence and grants no authority.
+func (c Cursor) CataloguePosition() (sequencer.Cursor, error) {
+	if _, _, err := c.catalogue.Components(); err != nil {
+		return sequencer.Cursor{}, ErrInvalidInput
+	}
+	return c.catalogue, nil
 }
 
 func (c Cursor) Components() (sequencer.Cursor, ConfigStamp, uint64, [32]byte, error) {
@@ -205,12 +224,27 @@ func (c Cursor) Components() (sequencer.Cursor, ConfigStamp, uint64, [32]byte, e
 }
 
 type Item struct {
-	record       integrations.RegistryRecord
-	state        domain.ObservedState
-	hasState     bool
-	capabilities []*wireregistry.CapabilityDescription
-	actions      []*statewire.CapabilityActionAccess
+	record        integrations.RegistryRecord
+	state         domain.ObservedState
+	hasState      bool
+	capabilities  []*wireregistry.CapabilityDescription
+	actions       []*statewire.CapabilityActionAccess
+	projected     []apiresources.Capability
+	hasProjection bool
 }
+
+// ProjectedCapabilities returns the immutable prepared image. The boolean
+// distinguishes a configured empty image from a native view without a projector.
+func (i Item) ProjectedCapabilities() ([]apiresources.Capability, bool) {
+	return append([]apiresources.Capability(nil), i.projected...), i.hasProjection
+}
+
+// CapabilityProjector materializes only already filtered native items. It runs
+// once per item during capture preparation, outside view/sequencer locks. It
+// must read bounded trusted owner caches, perform no device I/O, and preserve
+// the supplied actor's exact readable slots and private media permissions.
+// The cursor contains capture stamps; its admission proof is finalized later.
+type CapabilityProjector func(context.Context, ActorID, Item, Cursor) ([]apiresources.Capability, error)
 
 func (i Item) Registry() integrations.RegistryRecord { return i.record }
 func (i Item) State() (domain.ObservedState, bool)   { return i.state, i.hasState }
@@ -239,6 +273,14 @@ type Page struct {
 }
 
 type capture struct {
+	name            apitypes.EntityViewName
+	selection       *entitySelection
+	catalogue       map[domain.EntityID]Item
+	created         time.Time
+	lifetime        context.Context
+	cancel          context.CancelFunc
+	retired         bool
+	watchers        int
 	actor           ActorID
 	grantRevision   uint64
 	grantDigest     [32]byte
@@ -246,9 +288,6 @@ type capture struct {
 	cursor          Cursor
 	items           []Item
 	pageSize        int
-	position        int
-	expected        string
-	served          map[string]pageSpan
 	expires         time.Time
 	bytes           int
 	displayTimeZone string
@@ -268,16 +307,20 @@ type Service struct {
 	preparing   chan struct{}
 	replaySlots chan struct{}
 	proofKey    [32]byte
+	projector   CapabilityProjector
 }
 
-func NewService(source *sequencer.Sequencer, auth Authorizer, config Configuration, clock sequencer.Clock) (*Service, error) {
-	if source == nil || nilInterface(auth) || nilInterface(config) || nilInterface(clock) {
+func NewService(source *sequencer.Sequencer, auth Authorizer, config Configuration, clock sequencer.Clock, projectors ...CapabilityProjector) (*Service, error) {
+	if source == nil || nilInterface(auth) || nilInterface(config) || nilInterface(clock) || len(projectors) > 1 || len(projectors) == 1 && projectors[0] == nil {
 		return nil, ErrInvalidInput
 	}
 	if err := source.CheckCaptureAvailable(); err != nil {
 		return nil, err
 	}
 	s := &Service{source: source, auth: auth, config: config, clock: clock, captures: make(map[string]*capture), preparing: make(chan struct{}, MaxPreparations), replaySlots: make(chan struct{}, MaxConcurrentReplays)}
+	if len(projectors) == 1 {
+		s.projector = projectors[0]
+	}
 	if _, err := rand.Read(s.proofKey[:]); err != nil {
 		return nil, err
 	}
@@ -335,6 +378,10 @@ func (s *Service) authority(ctx context.Context, actor ActorID) (Grant, ConfigSt
 }
 
 func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pageSize int) (Page, error) {
+	return s.openView(ctx, actor, filter, pageSize, nil)
+}
+
+func (s *Service) openView(ctx context.Context, actor ActorID, filter Filter, pageSize int, selection *entitySelection) (Page, error) {
 	if !s.ready() || ctx == nil || pageSize < 1 || pageSize > MaxPageSize || !filter.valid() {
 		return Page{}, ErrInvalidInput
 	}
@@ -348,6 +395,10 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 		return Page{}, ErrResourceExhausted
 	}
 	firstGrant, firstConfig, err := s.authority(ctx, actor)
+	if err != nil {
+		return Page{}, err
+	}
+	firstCatalogue, err := s.source.CataloguePosition()
 	if err != nil {
 		return Page{}, err
 	}
@@ -368,6 +419,11 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 	if firstGrant.revision != lastGrant.revision || firstGrant.digest != lastGrant.digest || firstConfig != lastConfig {
 		return Page{}, ErrViewChanged
 	}
+	filterHash := filter.hash
+	if selection != nil {
+		filterHash = selection.hash(filterHash)
+	}
+	cursor := Cursor{sequence: snapshot.Cursor, catalogue: firstCatalogue, config: lastConfig, authorizationRevision: lastGrant.revision, filterHash: filterHash, grantDigest: lastGrant.digest}
 	ids := make([]domain.EntityID, 0, len(snapshot.Registry))
 	for id, record := range snapshot.Registry {
 		if record.Retired() || !filter.permits(id) {
@@ -377,8 +433,19 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 			ids = append(ids, id)
 		}
 	}
-	sort.Slice(ids, func(i, j int) bool { left, _ := ids[i].Value(); right, _ := ids[j].Value(); return left < right })
+	// API resource IDs are the first192 bits of this registry identity hash.
+	// Canonical ordering is independent of mutable labels and native prefixes.
+	sort.Slice(ids, func(i, j int) bool {
+		left, _ := ids[i].Value()
+		right, _ := ids[j].Value()
+		a, b := sha256.Sum256([]byte(left)), sha256.Sum256([]byte(right))
+		return bytes.Compare(a[:24], b[:24]) < 0
+	})
 	items := make([]Item, 0, len(ids))
+	var catalogue map[domain.EntityID]Item
+	if selection != nil && selection.exposed {
+		catalogue = make(map[domain.EntityID]Item, len(ids))
+	}
 	bytes := 0
 	for _, id := range ids {
 		record := snapshot.Registry[id]
@@ -421,14 +488,65 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 			}
 			itemBytes += stateBytes
 		}
-		if itemBytes > MaxSnapshotBytes-bytes {
-			return Page{}, ErrResourceExhausted
+		item := Item{record: record, state: state, hasState: hasState, capabilities: descriptions, actions: actions}
+		if s.projector != nil {
+			projected, err := s.projector(ctx, actor, item, cursor)
+			if err != nil {
+				return Page{}, err
+			}
+			retained, err := validateProjection(id, descriptions, projected)
+			if err != nil {
+				return Page{}, err
+			}
+			if retained > MaxSnapshotBytes-itemBytes {
+				return Page{}, ErrResourceExhausted
+			}
+			itemBytes += retained
+			item.projected = append([]apiresources.Capability(nil), projected...)
+			item.hasProjection = true
 		}
-		bytes += itemBytes
-		items = append(items, Item{record: record, state: state, hasState: hasState, capabilities: descriptions, actions: actions})
+		if catalogue != nil {
+			// Charge all authorized seeds and selection references once. The
+			// public watch uses these frozen declarations for membership changes.
+			if itemBytes+256 > MaxSnapshotBytes-bytes {
+				return Page{}, ErrResourceExhausted
+			}
+			bytes += itemBytes + 256
+			catalogue[id] = item
+		}
+		if selection != nil {
+			selected, err := selection.matches(item)
+			if err != nil {
+				return Page{}, err
+			}
+			if !selected {
+				continue
+			}
+		}
+		if catalogue == nil {
+			if itemBytes > MaxSnapshotBytes-bytes {
+				return Page{}, ErrResourceExhausted
+			}
+			bytes += itemBytes
+		}
+		items = append(items, item)
+	}
+	finalGrant, finalConfig, err := s.authority(ctx, actor)
+	if err != nil {
+		return Page{}, err
+	}
+	finalCatalogue, err := s.source.CataloguePosition()
+	if err != nil {
+		return Page{}, err
+	}
+	if finalGrant.revision != lastGrant.revision || finalGrant.digest != lastGrant.digest || finalConfig != lastConfig || finalCatalogue != firstCatalogue {
+		return Page{}, ErrViewChanged
 	}
 	pageCount := (len(items) + pageSize - 1) / pageSize
 	bytes += pageCount*(160+4*len(lastGrant.displayTimeZone)) + 1024
+	if selection != nil && selection.exposed {
+		bytes += 2*len(selection.filter.Source()) + 1024
+	}
 	if bytes > MaxSnapshotBytes {
 		return Page{}, ErrResourceExhausted
 	}
@@ -440,19 +558,44 @@ func (s *Service) OpenView(ctx context.Context, actor ActorID, filter Filter, pa
 	if now.IsZero() {
 		return Page{}, ErrInvalidInput
 	}
-	cursor := Cursor{sequence: snapshot.Cursor, config: lastConfig, authorizationRevision: lastGrant.revision, filterHash: filter.hash, grantDigest: lastGrant.digest}
 	if err := s.signCursorAt(&cursor, actor, lastGrant, snapshot.CapturedTick); err != nil {
 		return Page{}, err
 	}
-	c := &capture{actor: actor, grantRevision: lastGrant.revision, grantDigest: lastGrant.digest, config: lastConfig, cursor: cursor, items: items, pageSize: pageSize, served: make(map[string]pageSpan), expires: now.Add(SnapshotTTL), bytes: bytes}
+	c := &capture{actor: actor, grantRevision: lastGrant.revision, grantDigest: lastGrant.digest, config: lastConfig, cursor: cursor, items: items, pageSize: pageSize, expires: now.Add(SnapshotTTL), bytes: bytes}
 	c.displayTimeZone = lastGrant.displayTimeZone
+	if catalogue != nil {
+		digest := sha256.Sum256([]byte(token))
+		name, nameErr := apitypes.ParseEntityViewName(selection.home.String() + "/entityViews/view-" + hex.EncodeToString(digest[:24]))
+		if nameErr != nil {
+			return Page{}, nameErr
+		}
+		if selection.requested != nil {
+			name = *selection.requested
+		}
+		c.name, c.selection, c.catalogue, c.created = name, selection, catalogue, now
+		c.lifetime, c.cancel = context.WithCancel(context.Background())
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.expire(now)
+	if c.name.Valid() {
+		for _, existing := range s.captures {
+			if existing.name == c.name {
+				c.cancel()
+				if existing.actor != actor {
+					return Page{}, authorization.ErrDenied
+				}
+				if existing.grantDigest != lastGrant.digest || existing.grantRevision != lastGrant.revision {
+					return Page{}, authorization.ErrDenied
+				}
+				return Page{}, ErrAlreadyExists
+			}
+		}
+	}
 	if len(s.captures) >= MaxSnapshots || s.used+bytes > MaxTotalBytes {
 		return Page{}, ErrResourceExhausted
 	}
-	page, err := s.nextPage(token, c, "")
+	page, err := s.pageAt(token, c, 0, pageSize)
 	if err != nil {
 		return Page{}, err
 	}
@@ -469,23 +612,29 @@ func renderPage(token string, c *capture, span pageSpan) Page {
 	return page
 }
 
-func (s *Service) nextPage(token string, c *capture, requestToken string) (Page, error) {
-	end := c.position + c.pageSize
+// Continuations bind a fixed offset to this immutable capture. No growing
+// per-page replay map is needed; changing page_size never changes the cut.
+func (s *Service) continuation(snapshot string, offset int) string {
+	var value [32]byte
+	binary.BigEndian.PutUint64(value[:8], uint64(offset))
+	mac := hmac.New(sha256.New, s.proofKey[:])
+	mac.Write([]byte("homeward.view-page/v2\x00"))
+	mac.Write([]byte(snapshot))
+	mac.Write(value[:8])
+	copy(value[8:], mac.Sum(nil)[:24])
+	return hex.EncodeToString(value[:])
+}
+func (s *Service) pageAt(token string, c *capture, start, size int) (Page, error) {
+	if start < 0 || start > len(c.items) || size < 1 || size > MaxPageSize {
+		return Page{}, ErrPageToken
+	}
+	end := start + size
 	if end > len(c.items) {
 		end = len(c.items)
 	}
-	span := pageSpan{start: c.position, end: end}
+	span := pageSpan{start: start, end: end}
 	if end < len(c.items) {
-		next, err := randomToken()
-		if err != nil {
-			return Page{}, err
-		}
-		span.next = next
-	}
-	c.position = end
-	c.expected = span.next
-	if requestToken != "" {
-		c.served[requestToken] = span
+		span.next = s.continuation(token, end)
 	}
 	return renderPage(token, c, span), nil
 }
@@ -493,8 +642,7 @@ func (s *Service) nextPage(token string, c *capture, requestToken string) (Page,
 func (s *Service) expire(now time.Time) {
 	for token, c := range s.captures {
 		if !now.Before(c.expires) {
-			s.used -= c.bytes
-			delete(s.captures, token)
+			s.retireCaptureLocked(token, c)
 		}
 	}
 }
@@ -515,14 +663,35 @@ func (s *Service) ReleaseView(ctx context.Context, actor ActorID, snapshotToken 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if capture, exists := s.captures[snapshotToken]; exists && capture.actor == actor {
-		s.used -= capture.bytes
-		delete(s.captures, snapshotToken)
+		s.retireCaptureLocked(snapshotToken, capture)
 	}
 	return nil
 }
 
 func (s *Service) ReadPage(ctx context.Context, actor ActorID, snapshotToken, pageToken string) (Page, error) {
-	if !s.ready() || ctx == nil || snapshotToken == "" || pageToken == "" {
+	return s.ReadPageSize(ctx, actor, snapshotToken, pageToken, 0)
+}
+
+// ReadPageSize honors an explicitly changed page size within the same capture.
+// Zero keeps the initial size for native callers; API adapters supply a bound.
+func (s *Service) ReadPageSize(ctx context.Context, actor ActorID, snapshotToken, pageToken string, size int) (Page, error) {
+	if pageToken == "" {
+		return Page{}, ErrInvalidInput
+	}
+	return s.readPage(ctx, actor, snapshotToken, pageToken, size)
+}
+
+// ReadFirstPage reads the original frozen image, with current ownership, rights,
+// configuration and expiry checks. It performs no recapture or provider read.
+func (s *Service) ReadFirstPage(ctx context.Context, actor ActorID, snapshotToken string, size int) (Page, error) {
+	return s.readPage(ctx, actor, snapshotToken, "", size)
+}
+
+func (s *Service) readPage(ctx context.Context, actor ActorID, snapshotToken, pageToken string, size int) (Page, error) {
+	if size < 0 || size > MaxPageSize {
+		return Page{}, ErrInvalidInput
+	}
+	if !s.ready() || ctx == nil || snapshotToken == "" {
 		return Page{}, ErrInvalidInput
 	}
 	if _, err := actor.Value(); err != nil {
@@ -539,8 +708,7 @@ func (s *Service) ReadPage(ctx context.Context, actor ActorID, snapshotToken, pa
 		return Page{}, ErrSnapshotUnknown
 	}
 	if !now.Before(preflight.expires) {
-		s.used -= preflight.bytes
-		delete(s.captures, snapshotToken)
+		s.retireCaptureLocked(snapshotToken, preflight)
 		s.mu.Unlock()
 		return Page{}, ErrSnapshotExpired
 	}
@@ -560,23 +728,29 @@ func (s *Service) ReadPage(ctx context.Context, actor ActorID, snapshotToken, pa
 		return Page{}, ErrSnapshotUnknown
 	}
 	if !now.Before(c.expires) {
-		s.used -= c.bytes
-		delete(s.captures, snapshotToken)
+		s.retireCaptureLocked(snapshotToken, c)
 		return Page{}, ErrSnapshotExpired
 	}
 	if c.actor != actor {
 		return Page{}, ErrSnapshotUnknown
 	}
 	if c.grantRevision != grant.revision || c.grantDigest != grant.digest || c.config != config {
-		s.used -= c.bytes
-		delete(s.captures, snapshotToken)
+		s.retireCaptureLocked(snapshotToken, c)
 		return Page{}, ErrViewChanged
 	}
-	if span, served := c.served[pageToken]; served {
-		return renderPage(snapshotToken, c, span), nil
+	if size == 0 {
+		size = c.pageSize
 	}
-	if c.expected == "" || c.expected != pageToken {
+	if pageToken == "" {
+		return s.pageAt(snapshotToken, c, 0, size)
+	}
+	raw, err := hex.DecodeString(pageToken)
+	if err != nil || len(raw) != 32 {
 		return Page{}, ErrPageToken
 	}
-	return s.nextPage(snapshotToken, c, pageToken)
+	offset := binary.BigEndian.Uint64(raw[:8])
+	if offset == 0 || offset >= uint64(len(c.items)) || !hmac.Equal([]byte(pageToken), []byte(s.continuation(snapshotToken, int(offset)))) {
+		return Page{}, ErrPageToken
+	}
+	return s.pageAt(snapshotToken, c, int(offset), size)
 }

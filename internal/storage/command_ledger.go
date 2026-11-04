@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -43,14 +45,18 @@ const (
 )
 
 type IntentRecord struct {
-	state       IntentState
-	origin      IntentOriginKind
-	actor       string
-	originKey   string
-	fingerprint []byte
-	response    []byte
-	errorKind   IntentError
-	target      *authorization.CommandTarget
+	state           IntentState
+	origin          IntentOriginKind
+	actor           string
+	originKey       string
+	fingerprint     []byte
+	response        []byte
+	errorKind       IntentError
+	target          *authorization.CommandTarget
+	api             CommandAPIMetadata
+	acceptedAt      time.Time
+	apiTerminal     []byte
+	apiAcknowledged []byte
 }
 
 func (r IntentRecord) State() IntentState           { return r.state }
@@ -160,7 +166,8 @@ func (f InternalAutomationFingerprint) Bytes() []byte {
 // migration tests deliberately stop before version 20. On v20 the SQL default
 // and CHECK still own the exact external/internal branch.
 const intentSelectColumns = `state::text,fingerprint,response,result_error::text,authorization_entity_id,authorization_schema_id,authorization_endpoint,
-	COALESCE(to_jsonb(command_intents)->>'origin_kind','external_actor'),actor_id,to_jsonb(command_intents)->>'origin_key'`
+	COALESCE(to_jsonb(command_intents)->>'origin_kind','external_actor'),actor_id,to_jsonb(command_intents)->>'origin_key',accepted_at,
+ to_jsonb(command_intents)->>'api_capability_name',to_jsonb(command_intents)->>'api_request_id',to_jsonb(command_intents)->>'api_fingerprint',to_jsonb(command_intents)->>'api_terminal_response',to_jsonb(command_intents)->>'api_acknowledged_response'`
 
 func scanIntent(row pgx.Row) (IntentRecord, error) {
 	var state string
@@ -169,7 +176,29 @@ func scanIntent(row pgx.Row) (IntentRecord, error) {
 	var entityText, schema, endpoint *string
 	var originText string
 	var actor, originKey *string
-	if err := row.Scan(&state, &fingerprint, &response, &errorText, &entityText, &schema, &endpoint, &originText, &actor, &originKey); err != nil {
+	var capability, request, apiFingerprint, apiTerminalText, apiAcknowledgedText *string
+	var acceptedAt time.Time
+	if err := row.Scan(&state, &fingerprint, &response, &errorText, &entityText, &schema, &endpoint, &originText, &actor, &originKey, &acceptedAt, &capability, &request, &apiFingerprint, &apiTerminalText, &apiAcknowledgedText); err != nil {
+		return IntentRecord{}, err
+	}
+	var apiTerminal []byte
+	if apiTerminalText != nil {
+		var err error
+		apiTerminal, err = hex.DecodeString(strings.TrimPrefix(*apiTerminalText, `\x`))
+		if err != nil || len(apiTerminal) == 0 || len(apiTerminal) > 65536 {
+			return IntentRecord{}, &Error{kind: InconsistentSchema}
+		}
+	}
+	var apiAcknowledged []byte
+	if apiAcknowledgedText != nil {
+		var err error
+		apiAcknowledged, err = hex.DecodeString(strings.TrimPrefix(*apiAcknowledgedText, `\x`))
+		if err != nil || len(apiAcknowledged) == 0 || len(apiAcknowledged) > 65536 {
+			return IntentRecord{}, &Error{kind: InconsistentSchema}
+		}
+	}
+	metadata, err := parseCommandAPIMetadata(capability, request, apiFingerprint)
+	if err != nil {
 		return IntentRecord{}, err
 	}
 	origin, err := parseIntentOriginKind(originText)
@@ -237,7 +266,7 @@ func scanIntent(row pgx.Row) (IntentRecord, error) {
 	if actor != nil {
 		actorText = *actor
 	}
-	return IntentRecord{state: parsed, origin: origin, actor: actorText, originKey: key, fingerprint: bytes.Clone(fingerprint), response: bytes.Clone(response), errorKind: errorKind, target: target}, nil
+	return IntentRecord{state: parsed, origin: origin, actor: actorText, originKey: key, fingerprint: bytes.Clone(fingerprint), response: bytes.Clone(response), errorKind: errorKind, target: target, api: metadata, acceptedAt: acceptedAt, apiTerminal: apiTerminal, apiAcknowledged: apiAcknowledged}, nil
 }
 
 func (s *Store) CommandIntent(ctx context.Context, id domain.CommandID) (IntentRecord, bool, error) {
@@ -288,6 +317,7 @@ func (s *Store) AcceptInternalAutomationIntent(ctx context.Context, id domain.Co
 }
 
 type commandOrigin struct {
+	api   *CommandAPIMetadata
 	kind  IntentOriginKind
 	actor string
 	key   string
@@ -323,7 +353,15 @@ func (s *Store) acceptCommandIntent(ctx context.Context, id domain.CommandID, or
 	outcome, err := s.InTransactionOutcome(ctx, func(tx pgx.Tx) error {
 		var tag pgconn.CommandTag
 		var err error
-		if origin.kind == IntentOriginExternalActor {
+		if origin.api != nil {
+			var requestID any
+			if origin.api.request.Valid() {
+				requestID = origin.api.request.String()
+			}
+			tag, err = tx.Exec(ctx, `INSERT INTO public.command_intents(command_id,actor_id,admission_epoch,fingerprint,state,authorization_entity_id,authorization_schema_id,authorization_endpoint,api_capability_name,api_request_id,api_fingerprint)
+                VALUES ($1,$2,$3,$4,'accepted',$5,$6,$7,$8,$9,$10) ON CONFLICT (command_id) DO NOTHING`,
+				idText, actorID, epoch, fingerprint, entityText, schema, endpoint, origin.api.capability.String(), requestID, origin.api.fingerprint[:])
+		} else if origin.kind == IntentOriginExternalActor {
 			tag, err = tx.Exec(ctx, `INSERT INTO public.command_intents(command_id,actor_id,admission_epoch,fingerprint,state,authorization_entity_id,authorization_schema_id,authorization_endpoint)
 				VALUES ($1,$2,$3,$4,'accepted',$5,$6,$7) ON CONFLICT (command_id) DO NOTHING`,
 				idText, actorID, epoch, fingerprint, entityText, schema, endpoint)
@@ -337,8 +375,8 @@ func (s *Store) acceptCommandIntent(ctx context.Context, id domain.CommandID, or
 		}
 		if tag.RowsAffected() == 1 {
 			created = true
-			record = IntentRecord{state: IntentAccepted, origin: origin.kind, actor: origin.actor, originKey: origin.key, fingerprint: bytes.Clone(fingerprint), errorKind: IntentNoError, target: target}
-			return nil
+			record, err = scanIntent(tx.QueryRow(ctx, `SELECT `+intentSelectColumns+` FROM public.command_intents WHERE command_id=$1`, idText))
+			return err
 		}
 		record, err = scanIntent(tx.QueryRow(ctx, `SELECT `+intentSelectColumns+` FROM public.command_intents WHERE command_id=$1`, idText))
 		if err != nil {

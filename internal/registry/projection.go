@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"reflect"
+	"time"
 
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/jackc/pgx/v5"
@@ -26,7 +28,8 @@ func (r *Repository) List(ctx context.Context) ([]integrations.RegistryRecord, e
 func (r *Repository) listUnlocked(ctx context.Context) ([]integrations.RegistryRecord, error) {
 	var records []integrations.RegistryRecord
 	err := r.transaction(ctx, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT e.id,e.device_id,e.manifest_alias,e.tombstoned,b.instance_id,b.source_device,b.source_entity,a.alias,a.current
+		rows, err := tx.Query(ctx, `SELECT e.id,e.device_id,e.manifest_alias,e.tombstoned,b.instance_id,b.source_device,b.source_entity,a.alias,a.current,
+			e.api_display_name,e.api_metadata_revision,e.api_create_time,e.api_update_time
 			FROM public.registry_entities e
 			LEFT JOIN public.registry_source_bindings b ON b.entity_id=e.id
 			LEFT JOIN public.registry_aliases a ON a.entity_id=e.id
@@ -44,6 +47,7 @@ func (r *Repository) listUnlocked(ctx context.Context) ([]integrations.RegistryR
 			current  domain.HAAlias
 			aliases  []domain.HAAlias
 			retired  bool
+			metadata apitypes.EntityMetadata
 		}
 		var pending *pendingRecord
 		finish := func() error {
@@ -51,6 +55,10 @@ func (r *Repository) listUnlocked(ctx context.Context) ([]integrations.RegistryR
 				return nil
 			}
 			record, err := integrations.NewRegistryRecord(pending.device, pending.entity, pending.instance, pending.key, pending.original, pending.current, pending.aliases, pending.retired)
+			if err != nil {
+				return ErrStorage
+			}
+			record, err = record.WithMetadata(pending.metadata)
 			if err != nil {
 				return ErrStorage
 			}
@@ -66,13 +74,32 @@ func (r *Repository) listUnlocked(ctx context.Context) ([]integrations.RegistryR
 			var instanceText, sourceDevice, sourceEntity, aliasText sql.NullString
 			var retired bool
 			var current sql.NullBool
-			if err := rows.Scan(&entityText, &deviceText, &originalText, &retired, &instanceText, &sourceDevice, &sourceEntity, &aliasText, &current); err != nil {
+			var displayName string
+			var metadataRevision int64
+			var created, updated sql.NullTime
+			if err := rows.Scan(&entityText, &deviceText, &originalText, &retired, &instanceText, &sourceDevice, &sourceEntity, &aliasText, &current,
+				&displayName, &metadataRevision, &created, &updated); err != nil {
 				return err
 			}
 			if !instanceText.Valid || !sourceDevice.Valid || !sourceEntity.Valid || !aliasText.Valid || !current.Valid {
 				return ErrStorage
 			}
 			entity, err := domain.ParseEntityID(entityText)
+			if err != nil {
+				return ErrStorage
+			}
+			label, err := apitypes.NewDisplayName(displayName)
+			if err != nil {
+				return ErrStorage
+			}
+			var createTime, updateTime *time.Time
+			if created.Valid {
+				createTime = &created.Time
+			}
+			if updated.Valid {
+				updateTime = &updated.Time
+			}
+			metadata, err := apitypes.NewEntityMetadata(entity, label, metadataRevision, createTime, updateTime)
 			if err != nil {
 				return ErrStorage
 			}
@@ -96,8 +123,8 @@ func (r *Repository) listUnlocked(ctx context.Context) ([]integrations.RegistryR
 				if err := finish(); err != nil {
 					return err
 				}
-				pending = &pendingRecord{device: device, entity: entity, instance: instance, key: key, original: original, retired: retired}
-			} else if pending.device != device || pending.instance != instance || pending.key != key || pending.original != original || pending.retired != retired {
+				pending = &pendingRecord{device: device, entity: entity, instance: instance, key: key, original: original, retired: retired, metadata: metadata}
+			} else if pending.device != device || pending.instance != instance || pending.key != key || pending.original != original || pending.retired != retired || pending.metadata != metadata {
 				return ErrStorage
 			}
 			alias, err := ParseHAAlias(aliasText.String)

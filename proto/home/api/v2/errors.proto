@@ -5,9 +5,9 @@ package home.api.v2;
 import "google/api/field_behavior.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
-option java_package = "com.home.api.v2";
 option java_multiple_files = true;
 option java_outer_classname = "ErrorsProto";
+option java_package = "com.home.api.v2";
 
 // A possible durable effect is not permission to retry. This is an error detail,
 // carried in the native Connect/gRPC error envelope, never a successful reply.
@@ -81,6 +81,10 @@ enum ApiErrorReason {
   API_ERROR_REASON_STORED_DATA_INTEGRITY = 23;
   // UNIMPLEMENTED: this implementation does not support the requested method.
   API_ERROR_REASON_METHOD_NOT_SUPPORTED = 24;
+  // FAILED_PRECONDITION: current resource or security state prevents this transition.
+  API_ERROR_REASON_STATE_PRECONDITION_FAILED = 25;
+  // FAILED_PRECONDITION: restart the server before this uncommitted change can be applied.
+  API_ERROR_REASON_CONFIG_RESTART_REQUIRED = 26;
 }
 
 // The boundary whose result could not be established, without raw intent data.

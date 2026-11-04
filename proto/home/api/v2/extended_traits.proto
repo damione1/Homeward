@@ -1,0 +1,944 @@
+syntax = "proto3";
+package home.api.v2;
+
+import "google/api/field_behavior.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "google/type/timeofday.proto";
+import "home/api/v2/traits.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "ExtendedTraitsProto";
+option java_package = "com.home.api.v2";
+
+// Cover Definition: closed typed source vocabulary; no label inference.
+message CoverDefinition {
+  // Operations. Presence preserves unknown, zero and false independently.
+  repeated CoverOperation operations = 1;
+  // Set position percent. Presence preserves unknown, zero and false independently.
+  PercentageBounds set_position_percent = 2;
+  // Observed states. Presence preserves unknown, zero and false independently.
+  repeated CoverState observed_states = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Observes position percent. Presence preserves unknown, zero and false independently.
+  bool observes_position_percent = 4;
+  // Observes obstruction. Presence preserves unknown, zero and false independently.
+  bool observes_obstruction = 5;
+}
+
+// Cover Value: closed typed source vocabulary; no label inference.
+message CoverValue {
+  // State. Presence preserves unknown, zero and false independently.
+  optional CoverState state = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Position percent. Presence preserves unknown, zero and false independently.
+  optional double position_percent = 2;
+  // Obstructed. Presence preserves unknown, zero and false independently.
+  optional bool obstructed = 3;
+}
+
+// Lock Definition: closed typed source vocabulary; no label inference.
+message LockDefinition {
+  // Operations. Presence preserves unknown, zero and false independently.
+  repeated LockOperation operations = 1;
+  // Observed states. Presence preserves unknown, zero and false independently.
+  repeated LockState observed_states = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Lock Value: closed typed source vocabulary; no label inference.
+message LockValue {
+  // State. Presence preserves unknown, zero and false independently.
+  LockState state = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Alarm Definition: closed typed source vocabulary; no label inference.
+message AlarmDefinition {
+  // Operations. Presence preserves unknown, zero and false independently.
+  repeated AlarmOperation operations = 1;
+  // Observed states. Presence preserves unknown, zero and false independently.
+  repeated AlarmState observed_states = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Alarm Value: closed typed source vocabulary; no label inference.
+message AlarmValue {
+  // State. Presence preserves unknown, zero and false independently.
+  AlarmState state = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Solar Occurrence: closed typed source vocabulary; no label inference.
+message SolarOccurrence {
+  oneof occurrence {
+    // At. Presence preserves unknown, zero and false independently.
+    google.protobuf.Timestamp event_time = 1;
+    // Absent. Presence preserves unknown, zero and false independently.
+    SolarAbsenceReason absent = 2;
+  }
+}
+
+// Solar Value: closed typed source vocabulary; no label inference.
+message SolarValue {
+  // Horizon. Presence preserves unknown, zero and false independently.
+  SolarHorizon horizon = 1;
+  // Elevation degrees. Presence preserves unknown, zero and false independently.
+  optional double elevation_degrees = 2;
+  // Azimuth degrees. Presence preserves unknown, zero and false independently.
+  optional double azimuth_degrees = 3;
+  // Rising. Presence preserves unknown, zero and false independently.
+  optional bool rising = 4;
+  // Next dawn. Presence preserves unknown, zero and false independently.
+  SolarOccurrence next_dawn = 5;
+  // Next dusk. Presence preserves unknown, zero and false independently.
+  SolarOccurrence next_dusk = 6;
+  // Next midnight. Presence preserves unknown, zero and false independently.
+  SolarOccurrence next_midnight = 7;
+  // Next noon. Presence preserves unknown, zero and false independently.
+  SolarOccurrence next_noon = 8;
+  // Next rising. Presence preserves unknown, zero and false independently.
+  SolarOccurrence next_rising = 9;
+  // Next setting. Presence preserves unknown, zero and false independently.
+  SolarOccurrence next_setting = 10;
+}
+
+// Solar Event Value: closed typed source vocabulary; no label inference.
+message SolarEventValue {
+  // Event. Presence preserves unknown, zero and false independently.
+  SolarEventKind event = 1;
+  // Occurrence. Presence preserves unknown, zero and false independently.
+  SolarOccurrence occurrence = 2;
+}
+
+// Solar Definition: closed typed source vocabulary; no label inference.
+message SolarDefinition {}
+
+// Solar Event Definition: closed typed source vocabulary; no label inference.
+message SolarEventDefinition {
+  // Event. Presence preserves unknown, zero and false independently.
+  SolarEventKind event = 1;
+}
+
+// Temperature: closed typed source vocabulary; no label inference.
+message Temperature {
+  // Value. Presence preserves unknown, zero and false independently.
+  optional double value = 1;
+  // Unit. Presence preserves unknown, zero and false independently.
+  TemperatureUnit unit = 2;
+}
+
+// Wind: closed typed source vocabulary; no label inference.
+message Wind {
+  // Speed. Presence preserves unknown, zero and false independently.
+  optional double speed = 1;
+  // Unit. Presence preserves unknown, zero and false independently.
+  SpeedUnit unit = 2;
+  // Bearing degrees. Presence preserves unknown, zero and false independently.
+  optional double bearing_degrees = 3;
+}
+
+// Precipitation: closed typed source vocabulary; no label inference.
+message Precipitation {
+  // Amount. Presence preserves unknown, zero and false independently.
+  optional double amount = 1;
+  // Unit. Presence preserves unknown, zero and false independently.
+  PrecipitationUnit unit = 2;
+}
+
+// Forecast Period: closed typed source vocabulary; no label inference.
+message ForecastPeriod {
+  // Start time. Presence preserves unknown, zero and false independently.
+  google.protobuf.Timestamp start_time = 1;
+  // End time. Presence preserves unknown, zero and false independently.
+  google.protobuf.Timestamp end_time = 2;
+  // Kind. Presence preserves unknown, zero and false independently.
+  ForecastKind kind = 3;
+  // Condition. Presence preserves unknown, zero and false independently.
+  optional WeatherCondition condition = 4;
+  // Temperature. Presence preserves unknown, zero and false independently.
+  Temperature temperature = 5;
+  // Low. Presence preserves unknown, zero and false independently.
+  Temperature low = 6;
+  // High. Presence preserves unknown, zero and false independently.
+  Temperature high = 7;
+  // Precipitation probability percent. Presence preserves unknown, zero and false independently.
+  optional double precipitation_probability_percent = 8;
+  // Precipitation. Presence preserves unknown, zero and false independently.
+  Precipitation precipitation = 9;
+}
+
+// Forecast: closed typed source vocabulary; no label inference.
+message Forecast {
+  // Issue time. Presence preserves unknown, zero and false independently.
+  google.protobuf.Timestamp issue_time = 1;
+  // Expire time. Presence preserves unknown, zero and false independently.
+  google.protobuf.Timestamp expire_time = 2;
+
+  // Periods. Presence preserves unknown, zero and false independently.
+  repeated ForecastPeriod periods = 3;
+}
+
+// Weather Value: closed typed source vocabulary; no label inference.
+message WeatherValue {
+  // Condition. Presence preserves unknown, zero and false independently.
+  optional WeatherCondition condition = 1;
+  // Temperature. Presence preserves unknown, zero and false independently.
+  Temperature temperature = 2;
+  // Humidity percent. Presence preserves unknown, zero and false independently.
+  optional double humidity_percent = 3;
+  // Wind. Presence preserves unknown, zero and false independently.
+  Wind wind = 4;
+  // Forecast. Presence preserves unknown, zero and false independently.
+  Forecast forecast = 5;
+  // Source label. Presence preserves unknown, zero and false independently.
+  string source_label = 6;
+}
+
+// Weather Definition: closed typed source vocabulary; no label inference.
+message WeatherDefinition {}
+
+// Presence Value: closed typed source vocabulary; no label inference.
+message PresenceValue {
+  // Person id. Presence preserves unknown, zero and false independently.
+  string person_id = 1;
+  // Residence. Presence preserves unknown, zero and false independently.
+  Residence residence = 2;
+  // Confidence. Presence preserves unknown, zero and false independently.
+  PresenceConfidence confidence = 3;
+  // Source label. Presence preserves unknown, zero and false independently.
+  string source_label = 4;
+}
+
+// Presence Definition: closed typed source vocabulary; no label inference.
+message PresenceDefinition {}
+
+// Presence Zone: closed typed source vocabulary; no label inference.
+message PresenceZone {
+  // Zone id. Presence preserves unknown, zero and false independently.
+  string zone_id = 1;
+  // Label. Presence preserves unknown, zero and false independently.
+  string label = 2;
+}
+
+// Coordinates: closed typed source vocabulary; no label inference.
+message Coordinates {
+  // Latitude degrees. Presence preserves unknown, zero and false independently.
+  optional double latitude_degrees = 1;
+  // Longitude degrees. Presence preserves unknown, zero and false independently.
+  optional double longitude_degrees = 2;
+  // Accuracy meters. Presence preserves unknown, zero and false independently.
+  optional double accuracy_meters = 3;
+}
+
+// Presence Details Value: closed typed source vocabulary; no label inference.
+message PresenceDetailsValue {
+  // Person id. Presence preserves unknown, zero and false independently.
+  string person_id = 1;
+  // Zone. Presence preserves unknown, zero and false independently.
+  PresenceZone zone = 2;
+  // Coordinates. Presence preserves unknown, zero and false independently.
+  Coordinates coordinates = 3;
+  // Source label. Presence preserves unknown, zero and false independently.
+  string source_label = 4;
+}
+
+// Presence Details Definition: closed typed source vocabulary; no label inference.
+message PresenceDetailsDefinition {}
+
+// Local Date Time: closed typed source vocabulary; no label inference.
+message LocalDateTime {
+  // Date. Presence preserves unknown, zero and false independently.
+  google.type.Date date = 1 [(google.api.field_behavior) = REQUIRED];
+  // Time. Presence preserves unknown, zero and false independently.
+  google.type.TimeOfDay time = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Helper value. Civil dates require year/month/day; civil clocks use whole
+// seconds and preserve midnight. SET forbids trigger_time and helper_revision.
+message HelperValue {
+  oneof value {
+    // Boolean. Presence preserves unknown, zero and false independently.
+    bool boolean_value = 1;
+    // Number. Presence preserves unknown, zero and false independently.
+    double number = 2;
+    // Counter. Presence preserves unknown, zero and false independently.
+    int64 counter = 3;
+    // Trigger time. Presence preserves unknown, zero and false independently.
+    google.protobuf.Timestamp trigger_time = 4;
+    // Date. Presence preserves unknown, zero and false independently.
+    google.type.Date date = 5;
+    // Time. Presence preserves unknown, zero and false independently.
+    google.type.TimeOfDay time = 6;
+    // Datetime. Presence preserves unknown, zero and false independently.
+    LocalDateTime local_value = 7;
+    // Selected option. Presence preserves unknown, zero and false independently.
+    string selected_option = 8;
+    // Text. Presence preserves unknown, zero and false independently.
+    string text = 9;
+  }
+
+  // Helper revision. Presence preserves unknown, zero and false independently.
+  int64 helper_revision = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Writable helper payload. Server observation timestamps and revisions have
+// no representation in this request value. Civil dates and clocks stay typed.
+message HelperInputValue {
+  oneof value {
+    // Boolean. Presence preserves unknown, zero and false independently.
+    bool boolean_value = 1;
+    // Number. Presence preserves unknown, zero and false independently.
+    double number = 2;
+    // Counter. Presence preserves unknown, zero and false independently.
+    int64 counter = 3;
+    // Date. Presence preserves unknown, zero and false independently.
+    google.type.Date date = 5;
+    // Time. Presence preserves unknown, zero and false independently.
+    google.type.TimeOfDay time = 6;
+    // Datetime. Presence preserves unknown, zero and false independently.
+    LocalDateTime local_value = 7;
+    // Selected option. Presence preserves unknown, zero and false independently.
+    string selected_option = 8;
+    // Text. Presence preserves unknown, zero and false independently.
+    string text = 9;
+  }
+}
+
+// Helper Definition: closed typed source vocabulary; no label inference.
+message HelperDefinition {
+  // Kind. Presence preserves unknown, zero and false independently.
+  HelperKind kind = 1;
+  // Operations. Presence preserves unknown, zero and false independently.
+  repeated HelperOperation operations = 2;
+  // Number minimum. Presence preserves unknown, zero and false independently.
+  optional double number_minimum = 3;
+  // Number maximum. Presence preserves unknown, zero and false independently.
+  optional double number_maximum = 4;
+  // Number step. Presence preserves unknown, zero and false independently.
+  optional double number_step = 5;
+  // Counter minimum. Presence preserves unknown, zero and false independently.
+  optional int64 counter_minimum = 6;
+  // Counter maximum. Presence preserves unknown, zero and false independently.
+  optional int64 counter_maximum = 7;
+  // Counter step. Presence preserves unknown, zero and false independently.
+  optional int64 counter_step = 8;
+  // Select options. Presence preserves unknown, zero and false independently.
+  repeated string select_options = 9;
+  // Text minimum length. Presence preserves unknown, zero and false independently.
+  optional int32 text_minimum_length = 10;
+  // Text maximum length. Presence preserves unknown, zero and false independently.
+  optional int32 text_maximum_length = 11;
+  // Unavailable reason. Presence preserves unknown, zero and false independently.
+  HelperReason unavailable_reason = 12;
+}
+
+// Cover source declaration and independently qualified observation.
+message CoverCapability {
+  // Supported operations and observations. No operation is inferred from a value.
+  CoverDefinition definition = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified observation, absent until established.
+  CoverObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Cover observation; absence of value remains distinct from its defaults.
+message CoverObservation {
+  // Source value, absent when not established.
+  CoverValue value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time obtained from the source, independent of response generation.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent source availability, freshness and provenance.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Lock source declaration and independently qualified observation.
+message LockCapability {
+  // Supported operations and observations. No operation is inferred from a value.
+  LockDefinition definition = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified observation, absent until established.
+  LockObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Lock observation; absence of value remains distinct from its defaults.
+message LockObservation {
+  // Source value, absent when not established.
+  LockValue value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time obtained from the source, independent of response generation.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent source availability, freshness and provenance.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Alarm source declaration and independently qualified observation.
+message AlarmCapability {
+  // Supported operations and observations. No operation is inferred from a value.
+  AlarmDefinition definition = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified observation, absent until established.
+  AlarmObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Alarm observation; absence of value remains distinct from its defaults.
+message AlarmObservation {
+  // Source value, absent when not established.
+  AlarmValue value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time obtained from the source, independent of response generation.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent source availability, freshness and provenance.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Helper source declaration and independently qualified observation.
+message HelperCapability {
+  // Supported operations and observations. No operation is inferred from a value.
+  HelperDefinition definition = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified observation, absent until established.
+  HelperObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Helper observation; absence of value remains distinct from its defaults.
+message HelperObservation {
+  // Source value, absent when not established.
+  HelperValue value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time obtained from the source, independent of response generation.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent source availability, freshness and provenance.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Solar source declaration and independently qualified observation.
+message SolarCapability {
+  // Supported operations and observations. No operation is inferred from a value.
+  SolarDefinition definition = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified observation, absent until established.
+  SolarObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Solar observation; absence of value remains distinct from its defaults.
+message SolarObservation {
+  // Source value, absent when not established.
+  SolarValue value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time obtained from the source, independent of response generation.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent source availability, freshness and provenance.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// SolarEvent source declaration and independently qualified observation.
+message SolarEventCapability {
+  // Supported operations and observations. No operation is inferred from a value.
+  SolarEventDefinition definition = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified observation, absent until established.
+  SolarEventObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// SolarEvent observation; absence of value remains distinct from its defaults.
+message SolarEventObservation {
+  // Source value, absent when not established.
+  SolarEventValue value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time obtained from the source, independent of response generation.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent source availability, freshness and provenance.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Weather source declaration and independently qualified observation.
+message WeatherCapability {
+  // Supported operations and observations. No operation is inferred from a value.
+  WeatherDefinition definition = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified observation, absent until established.
+  WeatherObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Weather observation; absence of value remains distinct from its defaults.
+message WeatherObservation {
+  // Source value, absent when not established.
+  WeatherValue value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time obtained from the source, independent of response generation.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent source availability, freshness and provenance.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Presence source declaration and independently qualified observation.
+message PresenceCapability {
+  // Supported operations and observations. No operation is inferred from a value.
+  PresenceDefinition definition = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified observation, absent until established.
+  PresenceObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Presence observation; absence of value remains distinct from its defaults.
+message PresenceObservation {
+  // Source value, absent when not established.
+  PresenceValue value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time obtained from the source, independent of response generation.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent source availability, freshness and provenance.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// PresenceDetails source declaration and independently qualified observation.
+message PresenceDetailsCapability {
+  // Supported operations and observations. No operation is inferred from a value.
+  PresenceDetailsDefinition definition = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified observation, absent until established.
+  PresenceDetailsObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// PresenceDetails observation; absence of value remains distinct from its defaults.
+message PresenceDetailsObservation {
+  // Source value, absent when not established.
+  PresenceDetailsValue value = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time obtained from the source, independent of response generation.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent source availability, freshness and provenance.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// A selector key from the source catalogue. Keys are open data, not labels.
+message SelectorDefinition {
+  // Exact admitted keys; an empty list means no selection command.
+  repeated string options = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Atomic fan controls. Power and speed stay one physical intention.
+message FanControlCapability {
+  // Whether power commands are supported.
+  bool supports_power = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Exact source speed keys; never guessed from display names.
+  SelectorDefinition speed = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified speed observation, absent until obtained.
+  FanControlObservation observation = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// A fan speed reading, with an explicitly typed OFF.
+message FanControlObservation {
+  // Observed speed; independent of command selector catalogue.
+  optional FanSpeed speed = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source observation time.
+  google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent observation quality.
+  ObservationQuality quality = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Cohesive light control; optional atomic updates never split into dispatches.
+message LightControlCapability {
+  // Whether explicit power is supported.
+  bool supports_power = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source brightness command bounds, absent when unsupported.
+  NumberBounds brightness_percent = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source color-temperature command bounds in reciprocal megakelvin.
+  NumberBounds color_temperature_mireds = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source transition command bounds in seconds; zero is an instant transition.
+  NumberBounds transition_duration_bounds = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source observations remain independent of writable fields.
+  LightControlObservation observation = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Atomic source light frame. A missing field is not a default value.
+message LightControlObservation {
+  // Explicit power; absent means unknown.
+  optional bool on = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Observed brightness; zero remains present.
+  optional double brightness_percent = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Observed color temperature, independent of command support.
+  optional int32 color_temperature_mireds = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source observation time.
+  google.protobuf.Timestamp observed_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent observation quality.
+  ObservationQuality quality = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Registered source metadata without an executable public codec. No raw action
+// payload or descriptor executable mechanism is exposed through this trait.
+message OpaqueCapability {
+  // Exact registered schema identity; not a command target.
+  string schema_id = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Registered schema major version.
+  int64 major_version = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source display label, never a semantic discriminator.
+  string display_name = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Registered descriptor fingerprint; payload remains private.
+  bytes descriptor_sha256 = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// One atomic light intention. At least one target is required; a transition
+// alone and an OFF transition combined with brightness/color are invalid.
+message SetLightCommand {
+  // Shared explicit ON/OFF intent; absent leaves power unchanged.
+  SetPowerCommand power = 1 [(google.api.field_behavior) = OPTIONAL];
+  // Shared finite percentage intent, preserving a legitimate zero.
+  SetLevelCommand level = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Integer reciprocal megakelvin target in [1,1000].
+  optional int32 color_temperature_mireds = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Nonnegative transition; absent uses source policy.
+  google.protobuf.Duration transition_duration = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// One atomic fan power/selection intention, with at least one explicit field.
+message SetFanCommand {
+  // Shared explicit power intent, independent of source reachability.
+  SetPowerCommand power = 1 [(google.api.field_behavior) = OPTIONAL];
+  // Exact key from the currently advertised source catalogue.
+  optional string speed = 2 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// One atomic thermal intention. A simple setpoint and pair are mutually
+// exclusive. Mode and fan target may accompany either target in one dispatch.
+message SetTemperatureControlCommand {
+  // Optional atomic temperature target.
+  oneof setpoint {
+    // Finite temperature >= absolute zero Celsius.
+    double setpoint_celsius = 1;
+    // Both endpoints required, low <= high.
+    TemperatureRange setpoint_range_celsius = 2;
+  }
+  // Explicit operating mode, unrelated to observed activity.
+  optional TemperatureMode mode = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Explicit fan policy, unrelated to observed fan activity.
+  optional TemperatureFanTarget fan_target = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Cover operation or absolute position, never both.
+message SetCoverCommand {
+  // Required explicit physical intention.
+  oneof target {
+    // Open, close or stop, checked against source support.
+    CoverOperation operation = 1;
+    // Finite percentage, including a closed position of zero.
+    double position_percent = 2;
+  }
+}
+
+// Explicit lock intention; no per-request device code.
+message SetLockCommand {
+  // Lock or unlock; unknown and unspecified values are rejected.
+  LockOperation operation = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Explicit alarm intention; no per-request device code.
+message SetAlarmCommand {
+  // Arm home, arm away or disarm; no inferred mode.
+  AlarmOperation operation = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Typed helper operation. SET requires one matching value branch; other
+// operations forbid a value. The helper CAS token is separate from observation.
+message SetHelperCommand {
+  // Operation admitted by this helper's kind and current declaration.
+  HelperOperation operation = 1 [(google.api.field_behavior) = REQUIRED];
+  // Required for SET only. helper_revision must be zero in command input.
+  HelperInputValue value = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Required independent helper storage CAS precondition; zero is valid.
+  optional int64 expected_helper_revision = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Cover State: closed typed source vocabulary; no label inference.
+enum CoverState {
+  // Cover state unspecified.
+  COVER_STATE_UNSPECIFIED = 0;
+
+  // Open includes a stationary, partly open cover; it does not imply 100 percent.
+  COVER_STATE_OPEN = 1;
+  // Cover state closed.
+  COVER_STATE_CLOSED = 2;
+  // Cover state opening.
+  COVER_STATE_OPENING = 3;
+  // Cover state closing.
+  COVER_STATE_CLOSING = 4;
+}
+
+// Cover Operation: closed typed source vocabulary; no label inference.
+enum CoverOperation {
+  // Cover operation unspecified.
+  COVER_OPERATION_UNSPECIFIED = 0;
+  // Cover operation open.
+  COVER_OPERATION_OPEN = 1;
+  // Cover operation close.
+  COVER_OPERATION_CLOSE = 2;
+  // Cover operation stop.
+  COVER_OPERATION_STOP = 3;
+}
+
+// Lock State: closed typed source vocabulary; no label inference.
+enum LockState {
+  // Lock state unspecified.
+  LOCK_STATE_UNSPECIFIED = 0;
+  // Lock state locked.
+  LOCK_STATE_LOCKED = 1;
+  // Lock state unlocked.
+  LOCK_STATE_UNLOCKED = 2;
+  // Lock state locking.
+  LOCK_STATE_LOCKING = 3;
+  // Lock state unlocking.
+  LOCK_STATE_UNLOCKING = 4;
+  // Lock state jammed.
+  LOCK_STATE_JAMMED = 5;
+  // Lock state opening.
+  LOCK_STATE_OPENING = 6;
+  // Lock state open.
+  LOCK_STATE_OPEN = 7;
+}
+
+// Lock Operation: closed typed source vocabulary; no label inference.
+enum LockOperation {
+  // Lock operation unspecified.
+  LOCK_OPERATION_UNSPECIFIED = 0;
+  // Lock operation lock.
+  LOCK_OPERATION_LOCK = 1;
+  // Lock operation unlock.
+  LOCK_OPERATION_UNLOCK = 2;
+}
+
+// Alarm State: closed typed source vocabulary; no label inference.
+enum AlarmState {
+  // Alarm state unspecified.
+  ALARM_STATE_UNSPECIFIED = 0;
+  // Alarm state disarmed.
+  ALARM_STATE_DISARMED = 1;
+  // Alarm state armed home.
+  ALARM_STATE_ARMED_HOME = 2;
+  // Alarm state armed away.
+  ALARM_STATE_ARMED_AWAY = 3;
+  // Alarm state armed night.
+  ALARM_STATE_ARMED_NIGHT = 4;
+  // Alarm state armed vacation.
+  ALARM_STATE_ARMED_VACATION = 5;
+  // Alarm state armed custom bypass.
+  ALARM_STATE_ARMED_CUSTOM_BYPASS = 6;
+  // Alarm state pending.
+  ALARM_STATE_PENDING = 7;
+  // Alarm state arming.
+  ALARM_STATE_ARMING = 8;
+  // Alarm state disarming.
+  ALARM_STATE_DISARMING = 9;
+  // Alarm state triggered.
+  ALARM_STATE_TRIGGERED = 10;
+}
+
+// Alarm Operation: closed typed source vocabulary; no label inference.
+enum AlarmOperation {
+  // Alarm operation unspecified.
+  ALARM_OPERATION_UNSPECIFIED = 0;
+  // Alarm operation arm home.
+  ALARM_OPERATION_ARM_HOME = 1;
+  // Alarm operation arm away.
+  ALARM_OPERATION_ARM_AWAY = 2;
+  // Alarm operation disarm.
+  ALARM_OPERATION_DISARM = 3;
+}
+
+// Solar Event Kind: closed typed source vocabulary; no label inference.
+enum SolarEventKind {
+  // Solar event kind unspecified.
+  SOLAR_EVENT_KIND_UNSPECIFIED = 0;
+  // Solar event kind dawn.
+  SOLAR_EVENT_KIND_DAWN = 1;
+  // Solar event kind dusk.
+  SOLAR_EVENT_KIND_DUSK = 2;
+  // Solar event kind midnight.
+  SOLAR_EVENT_KIND_MIDNIGHT = 3;
+  // Solar event kind noon.
+  SOLAR_EVENT_KIND_NOON = 4;
+  // Solar event kind rising.
+  SOLAR_EVENT_KIND_RISING = 5;
+  // Solar event kind setting.
+  SOLAR_EVENT_KIND_SETTING = 6;
+}
+
+// Solar Horizon: closed typed source vocabulary; no label inference.
+enum SolarHorizon {
+  // Solar horizon unspecified.
+  SOLAR_HORIZON_UNSPECIFIED = 0;
+  // Solar horizon above.
+  SOLAR_HORIZON_ABOVE = 1;
+  // Solar horizon below.
+  SOLAR_HORIZON_BELOW = 2;
+}
+
+// Solar Absence Reason: closed typed source vocabulary; no label inference.
+enum SolarAbsenceReason {
+  // Solar absence reason unspecified.
+  SOLAR_ABSENCE_REASON_UNSPECIFIED = 0;
+  // Solar absence reason no transit on date.
+  SOLAR_ABSENCE_REASON_NO_TRANSIT_ON_DATE = 1;
+  // Solar absence reason no event within search horizon.
+  SOLAR_ABSENCE_REASON_NO_EVENT_WITHIN_SEARCH_HORIZON = 2;
+}
+
+// Weather Condition: closed typed source vocabulary; no label inference.
+enum WeatherCondition {
+  // Weather condition unspecified.
+  WEATHER_CONDITION_UNSPECIFIED = 0;
+  // Weather condition unknown.
+  WEATHER_CONDITION_UNKNOWN = 1;
+  // Weather condition clear day.
+  WEATHER_CONDITION_CLEAR_DAY = 2;
+  // Weather condition clear night.
+  WEATHER_CONDITION_CLEAR_NIGHT = 3;
+  // Weather condition cloudy.
+  WEATHER_CONDITION_CLOUDY = 4;
+  // Weather condition partly cloudy.
+  WEATHER_CONDITION_PARTLY_CLOUDY = 5;
+  // Weather condition rainy.
+  WEATHER_CONDITION_RAINY = 6;
+  // Weather condition pouring.
+  WEATHER_CONDITION_POURING = 7;
+  // Weather condition snowy.
+  WEATHER_CONDITION_SNOWY = 8;
+  // Weather condition snowy rainy.
+  WEATHER_CONDITION_SNOWY_RAINY = 9;
+  // Weather condition hail.
+  WEATHER_CONDITION_HAIL = 10;
+  // Weather condition lightning.
+  WEATHER_CONDITION_LIGHTNING = 11;
+  // Weather condition lightning rainy.
+  WEATHER_CONDITION_LIGHTNING_RAINY = 12;
+  // Weather condition windy.
+  WEATHER_CONDITION_WINDY = 13;
+  // Weather condition windy variant.
+  WEATHER_CONDITION_WINDY_VARIANT = 14;
+  // Weather condition fog.
+  WEATHER_CONDITION_FOG = 15;
+  // Weather condition exceptional.
+  WEATHER_CONDITION_EXCEPTIONAL = 16;
+}
+
+// Temperature Unit: closed typed source vocabulary; no label inference.
+enum TemperatureUnit {
+  // Temperature unit unspecified.
+  TEMPERATURE_UNIT_UNSPECIFIED = 0;
+  // Temperature unit celsius.
+  TEMPERATURE_UNIT_CELSIUS = 1;
+  // Temperature unit fahrenheit.
+  TEMPERATURE_UNIT_FAHRENHEIT = 2;
+  // Temperature unit kelvin.
+  TEMPERATURE_UNIT_KELVIN = 3;
+}
+
+// Speed Unit: closed typed source vocabulary; no label inference.
+enum SpeedUnit {
+  // Speed unit unspecified.
+  SPEED_UNIT_UNSPECIFIED = 0;
+  // Speed unit meters per second.
+  SPEED_UNIT_METERS_PER_SECOND = 1;
+  // Speed unit kilometers per hour.
+  SPEED_UNIT_KILOMETERS_PER_HOUR = 2;
+  // Speed unit miles per hour.
+  SPEED_UNIT_MILES_PER_HOUR = 3;
+  // Speed unit knots.
+  SPEED_UNIT_KNOTS = 4;
+}
+
+// Precipitation Unit: closed typed source vocabulary; no label inference.
+enum PrecipitationUnit {
+  // Precipitation unit unspecified.
+  PRECIPITATION_UNIT_UNSPECIFIED = 0;
+  // Precipitation unit millimeters.
+  PRECIPITATION_UNIT_MILLIMETERS = 1;
+  // Precipitation unit inches.
+  PRECIPITATION_UNIT_INCHES = 2;
+}
+
+// Forecast Kind: closed typed source vocabulary; no label inference.
+enum ForecastKind {
+  // Forecast kind unspecified.
+  FORECAST_KIND_UNSPECIFIED = 0;
+  // Forecast kind hourly.
+  FORECAST_KIND_HOURLY = 1;
+  // Forecast kind daily.
+  FORECAST_KIND_DAILY = 2;
+}
+
+// Residence: closed typed source vocabulary; no label inference.
+enum Residence {
+  // Residence unspecified.
+  RESIDENCE_UNSPECIFIED = 0;
+  // Residence home.
+  RESIDENCE_HOME = 1;
+  // Residence away.
+  RESIDENCE_AWAY = 2;
+  // Residence unknown.
+  RESIDENCE_UNKNOWN = 3;
+}
+
+// Presence Confidence: closed typed source vocabulary; no label inference.
+enum PresenceConfidence {
+  // Presence confidence unspecified.
+  PRESENCE_CONFIDENCE_UNSPECIFIED = 0;
+  // Presence confidence unknown.
+  PRESENCE_CONFIDENCE_UNKNOWN = 1;
+  // Presence confidence low.
+  PRESENCE_CONFIDENCE_LOW = 2;
+  // Presence confidence medium.
+  PRESENCE_CONFIDENCE_MEDIUM = 3;
+  // Presence confidence high.
+  PRESENCE_CONFIDENCE_HIGH = 4;
+}
+
+// Helper Kind: closed typed source vocabulary; no label inference.
+enum HelperKind {
+  // Helper kind unspecified.
+  HELPER_KIND_UNSPECIFIED = 0;
+  // Helper kind boolean.
+  HELPER_KIND_BOOLEAN = 1;
+  // Helper kind number.
+  HELPER_KIND_NUMBER = 2;
+  // Helper kind counter.
+  HELPER_KIND_COUNTER = 3;
+  // Helper kind button press.
+  HELPER_KIND_BUTTON_PRESS = 4;
+  // Helper kind date.
+  HELPER_KIND_DATE = 5;
+  // Helper kind time.
+  HELPER_KIND_TIME = 6;
+  // Helper kind datetime.
+  HELPER_KIND_DATETIME = 7;
+  // Helper kind select.
+  HELPER_KIND_SELECT = 8;
+  // Helper kind text.
+  HELPER_KIND_TEXT = 9;
+}
+
+// Helper Operation: closed typed source vocabulary; no label inference.
+enum HelperOperation {
+  // Helper operation unspecified.
+  HELPER_OPERATION_UNSPECIFIED = 0;
+  // Helper operation set.
+  HELPER_OPERATION_SET = 1;
+  // Helper operation toggle.
+  HELPER_OPERATION_TOGGLE = 2;
+  // Helper operation increment.
+  HELPER_OPERATION_INCREMENT = 3;
+  // Helper operation decrement.
+  HELPER_OPERATION_DECREMENT = 4;
+  // Helper operation reset.
+  HELPER_OPERATION_RESET = 5;
+  // Helper operation press.
+  HELPER_OPERATION_PRESS = 6;
+  // Helper operation next.
+  HELPER_OPERATION_NEXT = 7;
+  // Helper operation previous.
+  HELPER_OPERATION_PREVIOUS = 8;
+}
+
+// Helper Reason: closed typed source vocabulary; no label inference.
+enum HelperReason {
+  // Helper reason unspecified.
+  HELPER_REASON_UNSPECIFIED = 0;
+  // Helper reason no authorized target.
+  HELPER_REASON_NO_AUTHORIZED_TARGET = 1;
+}
+
+// Closed observed fan speeds, independent of open source selector keys.
+enum FanSpeed {
+  // No observed value, never an executable default.
+  FAN_SPEED_UNSPECIFIED = 0;
+  // Observed stopped fan.
+  FAN_SPEED_OFF = 1;
+  // Observed low speed.
+  FAN_SPEED_LOW = 2;
+  // Observed medium speed.
+  FAN_SPEED_MEDIUM = 3;
+  // Observed medium-high speed.
+  FAN_SPEED_MEDIUM_HIGH = 4;
+  // Observed high speed.
+  FAN_SPEED_HIGH = 5;
+}

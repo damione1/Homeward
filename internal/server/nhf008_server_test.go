@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
@@ -192,7 +192,7 @@ func TestNHF008ControlServer(t *testing.T) {
 		}
 		driver.mu.Unlock()
 		nhf003WritePrivate(t, out, "result.json", map[string]any{"server_joined": joined, "fake_driver_calls": driver.count.Load(), "command_driver_entries": count,
-			"submit_ids": calls.submit, "get_ids": calls.get, "watch_ids": calls.watch, "entity_count": len(devices) + len(definitions),
+			"execute_request_ids": calls.execute, "get_operation_names": calls.get, "wait_operation_names": calls.wait, "admitted_operations": calls.admitted, "entity_count": len(devices) + len(definitions),
 			"native_login_calls": calls.logins.Load(), "native_revokes": calls.revokes.Load(), "helper_sql_initial": initial, "helper_sql_final": final,
 			"dashboard_get_calls": dashboard.gets.Load(), "dashboard_watch_calls": dashboard.watches.Load(), "real_device_writes": 0, "last_device_arguments": deviceArguments, "device_arguments": allArguments})
 	}()
@@ -308,13 +308,29 @@ func TestNHF008ControlServer(t *testing.T) {
 		}
 	}
 	setPolicy(true)
+	homeResp, err := apiv2connect.NewHomeServiceClient(client, base).ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{PageSize: 1}, tokens.AccessToken))
+	if err != nil || len(homeResp.Msg.GetHomes()) != 1 {
+		t.Fatal(err)
+	}
+	entityViews := apiv2connect.NewEntityViewServiceClient(client, base)
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		page, err := statev1connect.NewStateServiceClient(client, base).OpenView(ctx, nha141BearerRequest(&state.OpenViewRequest{Filter: &state.ViewFilter{}, PageSize: 32}, tokens.AccessToken))
+		createdView, err := entityViews.CreateEntityView(ctx, nha141BearerRequest(&api.CreateEntityViewRequest{
+			Parent:     homeResp.Msg.GetHomes()[0].Name,
+			EntityView: &api.EntityView{Filter: ""},
+		}, tokens.AccessToken))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(page.Msg.Entities) == len(resolved) {
+		page, err := entityViews.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{
+			Name:     createdView.Msg.GetName(),
+			PageSize: 32,
+		}, tokens.AccessToken))
+		_, _ = entityViews.DeleteEntityView(ctx, nha141BearerRequest(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, tokens.AccessToken))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Msg.Entries) == len(resolved) {
 			break
 		}
 		if time.Now().After(deadline) {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/storage"
@@ -36,6 +38,9 @@ type DurableCommandService struct {
 	gate     durableGate
 	closed   chan struct{}
 	closeErr error
+	// Lifecycle signal only: never used to dispatch or authorize an effect.
+	proofDrain     context.Context
+	stopProofDrain context.CancelFunc
 }
 
 func NewDurableCommandService(ctx context.Context, host *Manager, generation GenerationAuthority, store *storage.Store) (*DurableCommandService, error) {
@@ -105,6 +110,10 @@ func newDurableCommandService(ctx context.Context, host *Manager, generation Gen
 	if outcome != storage.TransactionCommitted || err != nil {
 		return nil, errors.Join(durableTransactionError(outcome), err, runtime.Close())
 	}
+	outcome, err = store.RecoverCommandAPITerminals(ctx)
+	if outcome != storage.TransactionCommitted || err != nil {
+		return nil, errors.Join(durableTransactionError(outcome), err, runtime.Close())
+	}
 	_ = host.observation.AddDurableRecoveredIndeterminate(recovered)
 	service := &DurableCommandService{router: router, store: store, runtime: runtime, epoch: epoch, closed: make(chan struct{}), gate: durableGate{state: gateOpen, changed: make(chan struct{}), limits: limits}}
 	router.internal = &InternalAutomationPort{service: service}
@@ -126,8 +135,9 @@ func (s *DurableCommandService) Done() <-chan struct{} {
 }
 
 // Close rejects new admissions immediately and wakes paused waiters. It does
-// not cancel an admitted occurrence or driver. A timed-out Close retains the
-// DB guard until their last dispatch and result-persistence attempt return.
+// not cancel an admitted effect or driver. It ends read-only API proof waits,
+// which persist their last native evidence before releasing the runtime guard.
+// A timed-out Close retains the DB guard until the last persistence attempt ends.
 func (s *DurableCommandService) Close(ctx context.Context) error {
 	if s == nil || nilInterface(ctx) || s.router == nil || s.store == nil || s.closed == nil {
 		return ErrInvalidInput
@@ -137,6 +147,9 @@ func (s *DurableCommandService) Close(ctx context.Context) error {
 		s.gate.state = gateClosing
 		s.gate.pause = nil
 		s.gateChangedLocked()
+		if s.stopProofDrain != nil {
+			s.stopProofDrain()
+		}
 	}
 	runtime := s.finishIfDrainedLocked()
 	done := s.closed
@@ -185,17 +198,26 @@ func (s *DurableCommandService) finishClose(runtime *storage.CommandRuntime) {
 	close(s.closed)
 }
 
-// DurableCommandStatus is a persisted state, never proof of a physical effect.
+// DurableCommandStatus carries persisted evidence and a separate native-owner
+// reconciliation failure. Neither is inferred from UI equality or live status.
 type DurableCommandStatus struct {
-	State     storage.IntentState
-	Response  *actions.CommandResponse
-	ErrorKind storage.IntentError
+	State           storage.IntentState
+	Response        *actions.CommandResponse
+	ErrorKind       storage.IntentError
+	Metadata        storage.CommandAPIMetadata
+	HasMetadata     bool
+	AcceptedAt      time.Time
+	APITerminal     *actions.CommandResponse
+	APIAcknowledged *actions.CommandResponse
+	// True only after this exact native API occurrence finished its SQL attempts.
+	APIReconciliationUnavailable bool
 }
 
 func (s *DurableCommandService) Status(ctx context.Context, id domain.CommandID) (DurableCommandStatus, bool, error) {
 	if s == nil || ctx == nil || s.store == nil || s.router == nil {
 		return DurableCommandStatus{}, false, ErrInvalidInput
 	}
+	flight := s.router.host.sampleAPICommandFlight(id)
 	record, found, err := s.store.CommandIntent(ctx, id)
 	if err != nil {
 		if ctx.Err() == nil {
@@ -223,7 +245,16 @@ func (s *DurableCommandService) Status(ctx context.Context, id domain.CommandID)
 	if err != nil {
 		return DurableCommandStatus{}, false, err
 	}
-	return DurableCommandStatus{State: record.State(), Response: response, ErrorKind: record.ErrorKind()}, true, nil
+	metadata, hasMetadata := record.APIMetadata()
+	terminal, err := apiTerminalResponse(record)
+	if err != nil {
+		return DurableCommandStatus{}, false, err
+	}
+	acknowledged, err := apiAcknowledgedResponse(id, record)
+	if err != nil {
+		return DurableCommandStatus{}, false, err
+	}
+	return DurableCommandStatus{State: record.State(), Response: response, ErrorKind: record.ErrorKind(), Metadata: metadata, HasMetadata: hasMetadata, AcceptedAt: record.AcceptedAt(), APITerminal: terminal, APIAcknowledged: acknowledged, APIReconciliationUnavailable: present && flight.unavailable(id, s.epoch, target, record.Fingerprint())}, true, nil
 }
 
 func (s *DurableCommandService) Dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest) (*actions.CommandResponse, error) {
@@ -389,7 +420,63 @@ func (s *DurableCommandService) recordedPrepared(ctx context.Context, actor doma
 	return response, true, err
 }
 
-func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedCommandRoute) (response *actions.CommandResponse, resultErr error) {
+// Admit returns as soon as a new external intention is durably accepted. Only
+// the winning occurrence continues on the retained authenticated credential.
+// The caller supplies a credential-bound, deadline-limited continuation context;
+// completion releases that credential on every path, including deduplicated and
+// rejected requests. All admission checks and SQL acceptance use the original
+// HTTP context. Neither cancellation of HTTP nor reads can redispatch an intent.
+func (s *DurableCommandService) Admit(ctx, continuation context.Context, actor domain.ActorID, request *actions.CommandRequest, metadata storage.CommandAPIMetadata, completion func()) (*actions.CommandResponse, error) {
+	if ctx == nil || continuation == nil || completion == nil || request == nil || !metadata.Capability().Valid() {
+		if completion != nil {
+			completion()
+		}
+		return nil, ErrInvalidInput
+	}
+	if err := ctx.Err(); err != nil {
+		completion()
+		return nil, err
+	}
+	if err := continuation.Err(); err != nil {
+		completion()
+		return nil, err
+	}
+	// Caller-owned protobuf memory cannot race the single native occurrence.
+	if proto.Size(request) > maxVolatileIntentBytes {
+		completion()
+		return nil, ErrCommandIntentTooLarge
+	}
+	request = proto.Clone(request).(*actions.CommandRequest)
+	type result struct {
+		response *actions.CommandResponse
+		err      error
+	}
+	admitted := make(chan result, 1)
+	go func() {
+		defer completion()
+		notified := false
+		response, err := s.dispatchContinuing(ctx, actor, request, nil, func() context.Context {
+			notified = true
+			admitted <- result{response: &actions.CommandResponse{CommandId: request.CommandId, Status: actions.ActionStatus_ACTION_STATUS_ACCEPTED}}
+			return continuation
+		}, &metadata)
+		if !notified {
+			admitted <- result{response: response, err: err}
+		}
+	}()
+	select {
+	case value := <-admitted:
+		return value.response, value.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedCommandRoute) (*actions.CommandResponse, error) {
+	return s.dispatchContinuing(ctx, actor, request, preparedRoute, nil, nil)
+}
+
+func (s *DurableCommandService) dispatchContinuing(ctx context.Context, actor domain.ActorID, request *actions.CommandRequest, preparedRoute *preparedCommandRoute, continuation func() context.Context, metadata *storage.CommandAPIMetadata) (response *actions.CommandResponse, resultErr error) {
 	if s == nil || nilInterface(ctx) || request == nil || s.router == nil {
 		return nil, ErrInvalidInput
 	}
@@ -399,7 +486,7 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	ctx = preparedAuthorizationContext(ctx, preparedRoute)
 	internal, err := s.router.internalFromContext(ctx)
 	if err != nil || (internal != nil && actor != (domain.ActorID{})) ||
-		(preparedRoute != nil && preparedRoute.internal() != internal) {
+		(preparedRoute != nil && preparedRoute.internal() != internal) || (metadata != nil && internal != nil) {
 		return nil, ErrCommandAuthorizationDenied
 	}
 	runtime, err := s.begin(ctx, internal)
@@ -493,6 +580,9 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 				return nil, err
 			}
 		}
+		if metadata != nil {
+			return replayAPICommand(id, record, *metadata)
+		}
 		return replayDurable(id, record, fingerprint)
 	}
 	authority := s.router.projection.(CommandEpochAuthority)
@@ -510,6 +600,8 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	var outcome storage.TransactionOutcome
 	if internal != nil {
 		record, created, outcome, err = s.store.AcceptInternalAutomationIntent(ctx, id, originKey, s.epoch, internalFingerprint, target)
+	} else if metadata != nil {
+		record, created, outcome, err = s.store.AcceptAPICommandIntent(ctx, id, actor, s.epoch, fingerprint, target, *metadata)
 	} else if _, _, targetErr := target.Values(); targetErr == nil {
 		record, created, outcome, err = s.store.AcceptAuthorizedCommandIntent(ctx, id, actor, s.epoch, fingerprint, target)
 	} else {
@@ -540,13 +632,32 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 				return nil, err
 			}
 		}
+		if metadata != nil {
+			return replayAPICommand(id, record, *metadata)
+		}
 		return replayDurable(id, record, fingerprint)
 	}
+	// A durable new reservation is the only handoff point. Existing records
+	// returned above never acquire another dispatch occurrence or continuation.
+	var apiFlight *commandAPIFlight
 	defer func() {
+		if metadata != nil && resultErr != nil {
+			s.finalizeAbandonedAPICommand(id)
+		}
+		s.router.host.finishAPICommandFlight(apiFlight, resultErr != nil)
 		if response != nil && response.Status == actions.ActionStatus_ACTION_STATUS_INDETERMINATE || errors.Is(resultErr, ErrCommandOutcomeIndeterminate) || errors.Is(resultErr, ErrDurableCommitUnknown) {
 			_ = s.router.host.observation.AddFirstAttemptIndeterminate(obs.AttemptLedger_ATTEMPT_LEDGER_DURABLE)
 		}
 	}()
+	if metadata != nil {
+		apiFlight, err = s.router.host.beginAPICommandFlight(id, s.epoch, target, fingerprint)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if continuation != nil {
+		ctx = continuation()
+	}
 	// The dispatching commit deliberately precedes every final route fence.
 	// A crash here may overstate uncertainty, but can never cause a resend.
 	moved, outcome, err := s.store.MoveCommandIntent(ctx, id, storage.IntentAccepted, storage.IntentDispatching, nil, storage.IntentNoError)
@@ -585,6 +696,23 @@ func (s *DurableCommandService) dispatch(ctx context.Context, actor domain.Actor
 	s.router.host.observeDurableTransaction(outcome, err)
 	if outcome != storage.TransactionCommitted || err != nil || !moved {
 		return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}, ErrCommandOutcomeIndeterminate
+	}
+	if metadata != nil && terminal == storage.IntentResult {
+		final := response
+		if response.Status == actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED || response.Status == actions.ActionStatus_ACTION_STATUS_DISPATCHED || response.Status == actions.ActionStatus_ACTION_STATUS_ACCEPTED {
+			final = s.awaitAPICommandProof(ctx, id, target, response)
+		}
+		proof, proofErr := proto.Marshal(final)
+		if proofErr != nil {
+			return response, ErrCommandOutcomeIndeterminate
+		}
+		proofCtx, proofCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		outcome, proofErr := s.store.AppendCommandAPITerminal(proofCtx, id, proof)
+		proofCancel()
+		s.router.host.observeDurableTransaction(outcome, proofErr)
+		if outcome != storage.TransactionCommitted || proofErr != nil {
+			return response, ErrCommandOutcomeIndeterminate
+		}
 	}
 	return response, durableRecordedError(errorKind)
 }
@@ -690,4 +818,235 @@ func durableTransactionError(outcome storage.TransactionOutcome) error {
 	default:
 		return ErrDurableLedgerUnavailable
 	}
+}
+
+// API idempotence compares the original public intention, not a newly resolved
+// native epoch/route. An existing reservation is read only, including accepted
+// and dispatching records; it never enters the continuation branch again.
+func replayAPICommand(id domain.CommandID, record storage.IntentRecord, expected storage.CommandAPIMetadata) (*actions.CommandResponse, error) {
+	actual, present := record.APIMetadata()
+	if !present || actual != expected {
+		return nil, ErrCommandIDConflict
+	}
+	return storedCommandResponse(id, record)
+}
+
+func apiTerminalResponse(record storage.IntentRecord) (*actions.CommandResponse, error) {
+	encoded := record.APITerminalResponse()
+	if len(encoded) == 0 {
+		return nil, nil
+	}
+	response := &actions.CommandResponse{}
+	if proto.Unmarshal(encoded, response) != nil {
+		return nil, ErrDurableLedgerUnavailable
+	}
+	return response, nil
+}
+
+// apiProofContext narrows an already retained credential context with the
+// service's shutdown signal. The lifecycle context carries no authority and is
+// never passed to a driver or a SQL persistence attempt. Pausing admission for
+// configuration activation does not cancel proof tracking.
+func (s *DurableCommandService) apiProofContext(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(parent)
+	s.mu.Lock()
+	if s.gate.state == gateClosing {
+		s.mu.Unlock()
+		cancel()
+		return ctx, cancel
+	}
+	if s.proofDrain == nil {
+		s.proofDrain, s.stopProofDrain = context.WithCancel(context.Background())
+	}
+	stop := context.AfterFunc(s.proofDrain, cancel)
+	s.mu.Unlock()
+	return ctx, func() { stop(); cancel() }
+}
+
+// Without an admitted ACK or terminal native proof, stopping observation leaves
+// the effect explicitly uncertain. ACCEPTED and DISPATCHED cannot prove success.
+func stoppedAPICommandProof(last *actions.CommandResponse) *actions.CommandResponse {
+	if last.Status == actions.ActionStatus_ACTION_STATUS_ACCEPTED || last.Status == actions.ActionStatus_ACTION_STATUS_DISPATCHED {
+		return &actions.CommandResponse{CommandId: last.CommandId, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}
+	}
+	return last
+}
+
+// Only the existing native causal/protocol tracker can establish confirmation.
+// This read-only wait never resends, infers equality from UI data, or outlives
+// the retained credential/deadline or service drain. Final SQL proof remains
+// append-once and is attempted after this read-only wait has ended.
+func (s *DurableCommandService) awaitAPICommandProof(ctx context.Context, id domain.CommandID, target authorization.CommandTarget, acknowledged *actions.CommandResponse) *actions.CommandResponse {
+	ctx, cancel := s.apiProofContext(ctx)
+	defer cancel()
+	subscription, err := s.router.host.SubscribeAction(id)
+	if err != nil {
+		return stoppedAPICommandProof(acknowledged)
+	}
+	defer subscription.Close()
+	ackAttempted := false
+	for {
+		snapshot, err := subscription.Next(ctx)
+		if err != nil {
+			return stoppedAPICommandProof(acknowledged)
+		}
+		if snapshot.Command != id {
+			return &actions.CommandResponse{CommandId: acknowledged.CommandId, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}
+		}
+		if snapshot.Status == actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED && !ackAttempted {
+			ackAttempted = true
+			proof := &actions.CommandResponse{CommandId: acknowledged.CommandId, Status: snapshot.Status}
+			encoded, encodeErr := proto.Marshal(proof)
+			if encodeErr != nil {
+				return &actions.CommandResponse{CommandId: acknowledged.CommandId, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}
+			}
+			// This is already attempted native work. HTTP cancellation cannot
+			// erase its evidence; the independent SQL write is bounded to 5s.
+			proofCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			outcome, proofErr := s.store.AppendCommandAPIAcknowledgement(proofCtx, id, target, encoded)
+			cancel()
+			s.router.host.observeDurableTransaction(outcome, proofErr)
+			// A failed ACK append must not stop the causal tracker. This local
+			// fact is not durable status: only a committed ACK or terminal SQL
+			// append can expose durable evidence. No ACK retry is scheduled.
+			acknowledged = proof
+		}
+		if terminalAction(snapshot.Status) {
+			return &actions.CommandResponse{CommandId: acknowledged.CommandId, Status: snapshot.Status}
+		}
+	}
+}
+
+// RecordedAPICommand reconciles a public intention before live definition and
+// deadline checks. It requires the historical native read authorization and an
+// exact public fingerprint; no reconstruction of a dispatcher is involved.
+func (s *DurableCommandService) RecordedAPICommand(ctx context.Context, id domain.CommandID, expected storage.CommandAPIMetadata) (bool, error) {
+	if s == nil || s.store == nil || s.router == nil || ctx == nil || !expected.Capability().Valid() {
+		return false, ErrInvalidInput
+	}
+	record, found, err := s.store.CommandIntent(ctx, id)
+	if err != nil {
+		return false, ErrDurableLedgerUnavailable
+	}
+	if !found {
+		return false, nil
+	}
+	if record.OriginKind() != storage.IntentOriginExternalActor {
+		return false, ErrCommandAuthorizationDenied
+	}
+	target, present, err := record.AuthorizationTarget()
+	if err != nil {
+		return false, ErrCommandAuthorizationDenied
+	}
+	if err := s.router.authorizeStored(ctx, record.Fingerprint(), target, present); err != nil {
+		return false, err
+	}
+	actual, present := record.APIMetadata()
+	if !present || actual != expected {
+		return false, ErrCommandIDConflict
+	}
+	return true, nil
+}
+
+// APICommandNames is a bounded candidate scan of the native ledger. Current
+// historical read permits filter every candidate before it crosses the port.
+func (s *DurableCommandService) APICommandNames(ctx context.Context, actor domain.ActorID, home apitypes.HomeName, after *apitypes.OperationName, limit uint32, cutoff time.Time) ([]apitypes.OperationName, *apitypes.OperationName, error) {
+	if s == nil || s.store == nil {
+		return nil, nil, ErrInvalidInput
+	}
+	names, next, err := s.store.ListAPICommandNames(ctx, actor, home, after, limit, cutoff)
+	if err != nil {
+		return nil, nil, ErrDurableLedgerUnavailable
+	}
+	admitted := make([]apitypes.OperationName, 0, len(names))
+	for _, name := range names {
+		id, err := domain.ParseCommandID(strings.TrimPrefix(name.ID(), "cmd-"))
+		if err != nil {
+			return nil, nil, ErrDurableLedgerUnavailable
+		}
+		read, err := s.AuthorizeActionRead(ctx, id)
+		if errors.Is(err, ErrCommandAuthorizationDenied) {
+			continue
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		ready := read.Ready()
+		read.Close()
+		if ready {
+			admitted = append(admitted, name)
+		}
+	}
+	return admitted, next, nil
+}
+
+func (s *DurableCommandService) APICommandsByRequest(ctx context.Context, actor domain.ActorID, home apitypes.HomeName, key apitypes.RequestID, cutoff time.Time) ([]apitypes.OperationName, error) {
+	if s == nil || s.store == nil {
+		return nil, ErrInvalidInput
+	}
+	names, err := s.store.FindAPICommandsByRequest(ctx, actor, home, key, cutoff)
+	if err != nil {
+		return nil, ErrDurableLedgerUnavailable
+	}
+	admitted := make([]apitypes.OperationName, 0, len(names))
+	for _, name := range names {
+		id, err := domain.ParseCommandID(strings.TrimPrefix(name.ID(), "cmd-"))
+		if err != nil {
+			return nil, ErrDurableLedgerUnavailable
+		}
+		read, err := s.AuthorizeActionRead(ctx, id)
+		if errors.Is(err, ErrCommandAuthorizationDenied) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		ready := read.Ready()
+		read.Close()
+		if ready {
+			admitted = append(admitted, name)
+		}
+	}
+	return admitted, nil
+}
+
+// An admitted occurrence that cannot continue leaves a durable terminal fact
+// whenever SQL is reachable. This never changes an existing final proof and
+// never retries a physical effect. Failed persistence remains for recovery.
+func (s *DurableCommandService) finalizeAbandonedAPICommand(id domain.CommandID) {
+	key, _ := id.Value()
+	cancelled, _ := proto.Marshal(&actions.CommandResponse{CommandId: key, Status: actions.ActionStatus_ACTION_STATUS_CANCELLED})
+	uncertain, _ := proto.Marshal(&actions.CommandResponse{CommandId: key, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	moved, outcome, err := s.store.MoveCommandIntent(ctx, id, storage.IntentAccepted, storage.IntentResult, cancelled, storage.IntentCanceled)
+	s.router.host.observeDurableTransaction(outcome, err)
+	if moved {
+		return
+	}
+	moved, outcome, err = s.store.MoveCommandIntent(ctx, id, storage.IntentDispatching, storage.IntentIndeterminate, uncertain, storage.IntentOutcomeIndeterminate)
+	s.router.host.observeDurableTransaction(outcome, err)
+	if moved {
+		return
+	}
+	outcome, err = s.store.AppendCommandAPITerminal(ctx, id, uncertain)
+	s.router.host.observeDurableTransaction(outcome, err)
+}
+
+// Only a strictly admitted ACK for this exact native command may refine pending
+// durable progress. The immutable terminal proof, when present, takes precedence.
+func apiAcknowledgedResponse(id domain.CommandID, record storage.IntentRecord) (*actions.CommandResponse, error) {
+	encoded := record.APIAcknowledgedResponse()
+	if len(encoded) == 0 {
+		return nil, nil
+	}
+	key, err := id.Value()
+	if err != nil {
+		return nil, ErrDurableLedgerUnavailable
+	}
+	response := &actions.CommandResponse{}
+	if proto.Unmarshal(encoded, response) != nil || response.CommandId != key || response.Status != actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED || response.Error != nil || len(response.ProtoReflect().GetUnknown()) != 0 {
+		return nil, ErrDurableLedgerUnavailable
+	}
+	return response, nil
 }

@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use home_wire_contract::home::state::v1 as state;
+use home_wire_contract::home::api::v2 as wire;
 use tokio_util::sync::CancellationToken;
 
-use crate::{AccessToken, Failure, StateTransport, StateWatch};
+use crate::{AccessToken, EntityViewTransport, EntityViewWatch, Failure};
 
 /// Unlimited outage recovery: Fibonacci seconds, capped at one hour. Each
 /// successful connection starts a fresh sequence. Manual retry skips a wait.
@@ -75,22 +75,22 @@ impl ReconnectPolicy {
     }
 }
 
-impl StateTransport {
+impl EntityViewTransport {
     /// Reopen only this supplied read cursor. Transport errors/deadlines can be
     /// retried; TLS identity, authentication and authorization failures cannot.
     /// A successful resync/EOF remains visible to the caller as such.
     pub async fn reconnect_watch(
         &self,
-        request: state::WatchViewRequest,
+        request: wire::WatchEntityViewRequest,
         token: &AccessToken,
         timeout: Duration,
         cancel: &CancellationToken,
         policy: ReconnectPolicy,
-    ) -> Result<StateWatch, Failure> {
+    ) -> Result<EntityViewWatch, Failure> {
         let mut attempt = 1;
         loop {
             match self
-                .watch_view(request.clone(), token, timeout, cancel)
+                .watch_entity_view(request.clone(), token, timeout, cancel)
                 .await
             {
                 Ok(stream) => return Ok(stream),

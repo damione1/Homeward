@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	statewire "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/damione1/Homeward/internal/domain"
@@ -222,7 +222,16 @@ func TestNHF008NumberServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := registerCoreRPCRoutes(plan, core); err != nil {
+	if err := registerHomeResourceRoutes(plan, core.home); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerEntityViewRoutes(plan, core.home); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerCapabilityRoutes(plan, core); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerOperationRoutes(plan, core, nil, rig.coordinator.authority); err != nil {
 		t.Fatal(err)
 	}
 	plan, _, err = composeSessionsWithCoordinator(plan, rig.store, rig.coordinator)
@@ -250,13 +259,29 @@ func TestNHF008NumberServer(t *testing.T) {
 	defer client.CloseIdleConnections()
 	const login, password = "NHA162 Admin", "NHA162 synthetic admin password canary"
 	tokens := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, server.URL), login, password)
+	homeResp, err := apiv2connect.NewHomeServiceClient(client, server.URL).ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{PageSize: 1}, tokens.AccessToken))
+	if err != nil || len(homeResp.Msg.GetHomes()) != 1 {
+		t.Fatal(err)
+	}
+	entityViews := apiv2connect.NewEntityViewServiceClient(client, server.URL)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		page, err := statev1connect.NewStateServiceClient(client, server.URL).OpenView(ctx, nha141BearerRequest(&statewire.OpenViewRequest{Filter: &statewire.ViewFilter{}, PageSize: 16}, tokens.AccessToken))
+		createdView, err := entityViews.CreateEntityView(ctx, nha141BearerRequest(&api.CreateEntityViewRequest{
+			Parent:     homeResp.Msg.GetHomes()[0].Name,
+			EntityView: &api.EntityView{Filter: ""},
+		}, tokens.AccessToken))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(page.Msg.Entities) == 1 && page.Msg.Entities[0].State.GetHelper() != nil {
+		page, err := entityViews.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{
+			Name:     createdView.Msg.GetName(),
+			PageSize: 16,
+		}, tokens.AccessToken))
+		_, _ = entityViews.DeleteEntityView(ctx, nha141BearerRequest(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, tokens.AccessToken))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Msg.Entries) == 1 && len(page.Msg.Entries[0].Capabilities) == 1 && page.Msg.Entries[0].Capabilities[0].GetHelper().GetObservation() != nil {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -283,7 +308,7 @@ func TestNHF008NumberServer(t *testing.T) {
 		calls.mu.Lock()
 		defer calls.mu.Unlock()
 		nhf003WritePrivate(t, out, "result.json", map[string]any{"server_joined": joined, "fixture_mode": "number-contract-only", "entity_count": 1,
-			"submit_ids": calls.submit, "get_ids": calls.get, "watch_ids": calls.watch, "native_login_calls": calls.logins.Load(), "native_revokes": calls.revokes.Load(),
+			"execute_request_ids": calls.execute, "get_operation_names": calls.get, "wait_operation_names": calls.wait, "admitted_operations": calls.admitted, "native_login_calls": calls.logins.Load(), "native_revokes": calls.revokes.Load(),
 			"fake_driver_calls": 0, "command_driver_entries": count, "helper_sql_initial": initial, "helper_sql_final": final,
 			"dashboard_get_calls": dashboard.gets.Load(), "dashboard_watch_calls": dashboard.watches.Load(), "real_device_writes": 0})
 	}()

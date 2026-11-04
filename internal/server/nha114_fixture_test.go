@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"connectrpc.com/connect"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -18,16 +19,16 @@ import (
 	"testing"
 	"time"
 
+	longrunningpb "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"github.com/damione1/Homeward/contracts"
-	actions "github.com/damione1/Homeward/gen/home/actions/v1"
-	"github.com/damione1/Homeward/gen/home/actions/v1/actionsv1connect"
+	"github.com/damione1/Homeward/gen/google/longrunning/longrunningpbconnect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
 	applywire "github.com/damione1/Homeward/gen/home/configurationapply/v1"
 	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
 	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
-	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/cli"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
@@ -79,8 +80,12 @@ type nha114Fixture struct {
 	packets        <-chan *paho.Publish
 	producer       *testbroker.Peer
 	client         *http.Client
-	actions        actionsv1connect.ActionServiceClient
-	states         statev1connect.StateServiceClient
+	capabilities   apiv2connect.CapabilityServiceClient
+	views          apiv2connect.EntityViewServiceClient
+	homes          apiv2connect.HomeServiceClient
+	operations     longrunningpbconnect.OperationsClient
+	home           string
+	operationNames map[string]string
 	observation    observabilityv1connect.ObservabilityServiceClient
 	data, clientID string
 	ids            []string
@@ -90,13 +95,13 @@ type nha114Fixture struct {
 }
 
 type nha114Projection struct {
-	Cursor   *state.ViewCursor
-	Entities []*state.ViewEntity
+	Name, Resume string
+	Entities     []*api.EntityViewEntry
 }
 type nha114PublicView struct {
 	mu         sync.Mutex
 	projection nha114Projection
-	resync     state.ResyncReason
+	resync     bool
 	err        error
 	close      func()
 	done       chan struct{}
@@ -222,8 +227,18 @@ func (f *nha114Fixture) refreshClients(t *testing.T) {
 	t.Helper()
 	f.client = nha162RunClient(t, f.roots, f.run.address)
 	base := "https://" + f.run.address.String()
-	f.actions = actionsv1connect.NewActionServiceClient(f.client, base)
-	f.states = statev1connect.NewStateServiceClient(f.client, base)
+	f.capabilities = apiv2connect.NewCapabilityServiceClient(f.client, base)
+	f.views = apiv2connect.NewEntityViewServiceClient(f.client, base)
+	f.homes = apiv2connect.NewHomeServiceClient(f.client, base)
+	f.operations = longrunningpbconnect.NewOperationsClient(f.client, base)
+	if f.operationNames == nil {
+		f.operationNames = make(map[string]string)
+	}
+	homes, err := f.homes.ListHomes(f.ctx, nha056SessionRequest(&api.ListHomesRequest{}, f.token))
+	if err != nil || len(homes.Msg.GetHomes()) != 1 {
+		t.Fatal("authenticated installation discovery", err)
+	}
+	f.home = homes.Msg.Homes[0].Name
 	f.observation = observabilityv1connect.NewObservabilityServiceClient(f.client, base)
 	f.refreshPublicView(t)
 }
@@ -251,19 +266,42 @@ func (f *nha114Fixture) refreshPublicView(t *testing.T) {
 		select {
 		case <-f.publicView.done:
 		case <-f.ctx.Done():
-			t.Fatal("public state watch did not close", f.ctx.Err())
+			t.Fatal("public entity watch did not join", f.ctx.Err())
 		}
+		// Explicitly release superseded captures; teardown/restart may already have invalidated them.
+		_, _ = f.views.DeleteEntityView(f.ctx, nha056SessionRequest(&api.DeleteEntityViewRequest{Name: f.publicView.projection.Name}, f.token))
 	}
-	// Cover initial startup, restart, hot publication and resync through the
-	// same real readiness cut before ANY authenticated snapshot is attempted.
 	f.waitNativeBindingSession(t, "")
 	ctx, cancel := context.WithCancel(f.ctx)
-	r, err := f.states.OpenView(ctx, nha056SessionRequest(&state.OpenViewRequest{PageSize: 100, Filter: &state.ViewFilter{}}, f.token))
+	created, err := f.views.CreateEntityView(ctx, nha056SessionRequest(&api.CreateEntityViewRequest{Parent: f.home, EntityView: &api.EntityView{}}, f.token))
 	if err != nil {
 		cancel()
-		t.Fatal("authenticated state snapshot", err)
+		t.Fatal("authenticated entity capture", err)
 	}
-	p := &nha114PublicView{projection: nha114Projection{Cursor: r.Msg.Cursor, Entities: r.Msg.Entities}, done: make(chan struct{})}
+	projection := nha114Projection{Name: created.Msg.Name}
+	pageToken := ""
+	for {
+		page, err := f.views.QueryEntityView(ctx, nha056SessionRequest(&api.QueryEntityViewRequest{Name: created.Msg.Name, PageSize: 100, PageToken: pageToken}, f.token))
+		if err != nil {
+			cancel()
+			t.Fatal("complete authenticated entity snapshot", err)
+		}
+		projection.Entities = append(projection.Entities, page.Msg.Entries...)
+		pageToken = page.Msg.NextPageToken
+		if pageToken == "" {
+			projection.Resume = page.Msg.ResumeToken
+			break
+		}
+		if page.Msg.ResumeToken != "" {
+			cancel()
+			t.Fatal("partial page supplied a checkpoint")
+		}
+	}
+	if projection.Resume == "" {
+		cancel()
+		t.Fatal("completed snapshot omitted checkpoint")
+	}
+	p := &nha114PublicView{projection: projection, done: make(chan struct{})}
 	var once sync.Once
 	p.close = func() { once.Do(cancel) }
 	t.Cleanup(func() {
@@ -271,63 +309,60 @@ func (f *nha114Fixture) refreshPublicView(t *testing.T) {
 		select {
 		case <-p.done:
 		case <-f.ctx.Done():
-			t.Error("public state watch cleanup did not join", f.ctx.Err())
+			t.Error("public entity watch cleanup did not join", f.ctx.Err())
 		}
 	})
 	f.publicView = p
-	states, token := f.states, f.token
+	views, token := f.views, f.token
 	go func() {
 		defer close(p.done)
-		// Opening the Connect call can wait for response headers. The server
-		// sends its first headers with a delta/resync, so the caller must remain
-		// free to publish the real OFF receipt used as the initial barrier.
-		stream, err := states.WatchView(ctx, nha056SessionRequest(&state.WatchViewRequest{Cursor: r.Msg.Cursor, Filter: &state.ViewFilter{}}, token))
-		if err != nil {
-			p.mu.Lock()
-			if ctx.Err() == nil {
-				p.err = err
-			}
-			p.mu.Unlock()
-			return
-		}
-		// This goroutine owns opening, Receive and Close. Cancellation also
-		// interrupts an opening call that has not received headers yet.
-		defer stream.Close()
-		for stream.Receive() {
-			frame := stream.Msg()
-			p.mu.Lock()
-			if resync := frame.GetResyncRequired(); resync != nil {
-				p.resync = resync.Reason
-				p.mu.Unlock()
-				return
-			}
-			if frame.Cursor == nil || frame.GetDelta() == nil {
-				p.err = errors.New("public watch omitted cursor/delta")
-				p.mu.Unlock()
-				return
-			}
-			p.projection.Cursor = proto.Clone(frame.Cursor).(*state.ViewCursor)
-			for _, value := range frame.GetDelta().States {
-				found := false
-				for _, entity := range p.projection.Entities {
-					if entity.EntityId == value.GetEntity().GetEntityId() {
-						entity.State = proto.Clone(value).(*state.ObservedState)
-						found = true
-						break
+		stream, err := views.WatchEntityView(ctx, nha056SessionRequest(&api.WatchEntityViewRequest{Name: projection.Name, ResumeToken: projection.Resume}, token))
+		if err == nil {
+			defer stream.Close()
+			for stream.Receive() {
+				frame := stream.Msg()
+				p.mu.Lock()
+				if frame.ResumeToken == "" {
+					p.err = errors.New("public watch omitted checkpoint")
+					p.mu.Unlock()
+					return
+				}
+				p.projection.Resume = frame.ResumeToken
+				if entry := frame.GetUpsert(); entry != nil {
+					found := false
+					for i, old := range p.projection.Entities {
+						if old.Entity.GetName() == entry.Entity.GetName() {
+							p.projection.Entities[i] = proto.Clone(entry).(*api.EntityViewEntry)
+							found = true
+							break
+						}
 					}
+					if !found {
+						p.projection.Entities = append(p.projection.Entities, proto.Clone(entry).(*api.EntityViewEntry))
+					}
+				} else if removed := frame.GetRemove(); removed != "" {
+					for i, old := range p.projection.Entities {
+						if old.Entity.GetName() == removed {
+							p.projection.Entities = append(p.projection.Entities[:i], p.projection.Entities[i+1:]...)
+							break
+						}
+					}
+				} else {
+					p.err = errors.New("public entity watch omitted membership change")
 				}
-				if !found {
-					p.err = errors.New("public state delta has no snapshot entity")
-				}
+				p.mu.Unlock()
 			}
-			p.mu.Unlock()
+			err = stream.Err()
 		}
 		p.mu.Lock()
 		defer p.mu.Unlock()
 		if ctx.Err() == nil {
-			p.err = stream.Err()
-			if p.err == nil {
-				p.err = errors.New("public state watch ended without resync")
+			if connect.CodeOf(err) == connect.CodeFailedPrecondition {
+				p.resync = true
+			} else if err != nil {
+				p.err = err
+			} else {
+				p.err = errors.New("public entity watch ended without invalidation")
 			}
 		}
 	}()
@@ -338,25 +373,57 @@ func (f *nha114Fixture) view(t *testing.T) *nha114Projection {
 		p := f.publicView
 		p.mu.Lock()
 		resync, err := p.resync, p.err
-		result := &nha114Projection{Cursor: proto.Clone(p.projection.Cursor).(*state.ViewCursor)}
-		for _, entity := range p.projection.Entities {
-			result.Entities = append(result.Entities, proto.Clone(entity).(*state.ViewEntity))
+		result := &nha114Projection{Name: p.projection.Name, Resume: p.projection.Resume}
+		for _, entry := range p.projection.Entities {
+			result.Entities = append(result.Entities, proto.Clone(entry).(*api.EntityViewEntry))
 		}
 		p.mu.Unlock()
 		if err != nil {
-			t.Fatal("public state watch failed", err)
+			t.Fatal("public entity watch failed", err)
 		}
-		if resync != state.ResyncReason_RESYNC_REASON_UNSPECIFIED {
+		if resync {
 			f.refreshPublicView(t)
 			continue
 		}
 		return result
 	}
 }
+func (f *nha114Fixture) entityName(t *testing.T, native string) string {
+	t.Helper()
+	home, err := apitypes.ParseHomeName(f.home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entity, err := domain.ParseEntityID(native)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name, err := apitypes.EntityNameForIdentity(home, entity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return name.String()
+}
+func (f *nha114Fixture) aliasName(t *testing.T, alias string) string {
+	t.Helper()
+	parsed, err := registry.ParseHAAlias(alias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := f.actual.sequence.ResolveCommandAlias(parsed)
+	if err != nil {
+		t.Fatal("fixture alias has no native binding", err)
+	}
+	text, err := id.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f.entityName(t, text)
+}
 
 // waitNativeBindingSession is a fixture readiness barrier, not a public view
 // substitute. It reads the SAME Run-owned sequencer; all assertions below still
-// use native authenticated OpenView/WatchView and the real MQTT packet count.
+// use native authenticated EntityViews and the real MQTT packet count.
 // A catalogue change during CurrentGrant correctly fails closed. Do not mask
 // that error by retrying OpenView while discovery is still publishing metadata.
 func (f *nha114Fixture) waitNativeBindingSession(t *testing.T, previous string) string {
@@ -411,7 +478,7 @@ func (f *nha114Fixture) waitBindings(t *testing.T) {
 		found := 0
 		for _, e := range v.Entities {
 			for _, id := range f.ids {
-				if e.EntityId == id && len(e.Capabilities) == 1 && e.Capabilities[0].Endpoint == "mqtt" && e.State != nil {
+				if e.Entity.GetName() == f.entityName(t, id) && len(e.Capabilities) == 1 && e.Capabilities[0].GetPower().GetObservation() != nil {
 					found++
 				}
 			}
@@ -451,34 +518,99 @@ func (f *nha114Fixture) nextCommand(t *testing.T) *paho.Publish {
 		return nil
 	}
 }
-func (f *nha114Fixture) command(t *testing.T, id, alias string, on bool) *actions.CommandRequest {
-	t.Helper()
-	cursor := f.view(t).Cursor
-	return &actions.CommandRequest{CommandId: id, AdmissionEpoch: cursor.Epoch, ConfigRevision: cursor.ConfigRevision,
-		Target: &registrywire.EntityRef{Reference: &registrywire.EntityRef_HaAlias{HaAlias: alias}}, CapabilitySchemaId: contracts.SwitchSchema, Endpoint: "mqtt",
-		Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetSwitch{SetSwitch: &actions.SetSwitch{On: on}}}, ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}
+func nha114RequestID(label string) string {
+	digest := sha256.Sum256([]byte(label))
+	digest[6] = (digest[6] & 15) | 64
+	digest[8] = (digest[8] & 63) | 128
+	return fmt.Sprintf("%x-%x-%x-%x-%x", digest[:4], digest[4:6], digest[6:8], digest[8:10], digest[10:16])
 }
-func (f *nha114Fixture) submit(t *testing.T, command *actions.CommandRequest) {
+func (f *nha114Fixture) command(t *testing.T, label, alias string, on bool) *api.ExecuteCapabilityRequest {
 	t.Helper()
-	result, err := f.actions.SubmitAction(f.ctx, nha056SessionRequest(&actions.SubmitActionRequest{Command: command}, f.token))
+	entity := f.aliasName(t, alias)
+	for _, entry := range f.view(t).Entities {
+		if entry.Entity.GetName() != entity {
+			continue
+		}
+		for _, capability := range entry.Capabilities {
+			if capability.GetPower() == nil && capability.GetHelper() == nil {
+				continue
+			}
+			value := api.PowerValue_POWER_VALUE_OFF
+			if on {
+				value = api.PowerValue_POWER_VALUE_ON
+			}
+			return &api.ExecuteCapabilityRequest{Name: capability.Name, Etag: capability.Etag, RequestId: nha114RequestID(label), ExpireTime: timestamppb.New(time.Now().Add(time.Minute)), Command: &api.ExecuteCapabilityRequest_Power{Power: &api.SetPowerCommand{Value: value}}}
+		}
+	}
+	t.Fatal("fixture capability not publicly advertised", alias)
+	return nil
+}
+func (f *nha114Fixture) submit(t *testing.T, command *api.ExecuteCapabilityRequest) *longrunningpb.Operation {
+	t.Helper()
+	result, err := f.capabilities.ExecuteCapability(f.ctx, nha056SessionRequest(command, f.token))
 	if err != nil {
 		t.Fatal("actual API durable dispatch", err)
 	}
-	if result == nil || result.Msg == nil {
-		t.Fatal("actual API durable dispatch returned no response")
+	if result == nil || result.Msg == nil || result.Msg.Name == "" {
+		t.Fatal("actual API durable dispatch returned no operation")
 	}
-	response := result.Msg.GetResult()
-	if response.GetCommandId() != command.CommandId || response.GetStatus() != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
-		t.Fatalf("actual API durable dispatch: request=%s result_id=%s status=%s code=%s field=%s", command.CommandId, response.GetCommandId(), response.GetStatus(), response.GetError().GetCode(), response.GetError().GetFieldPath())
+	metadata := nha114Metadata(t, result.Msg)
+	if metadata.RequestId != command.RequestId || metadata.Capability != command.Name || result.Msg.GetError() != nil {
+		t.Fatal("operation changed admitted intention", result.Msg)
 	}
+	f.operationNames[command.RequestId] = result.Msg.Name
+	return result.Msg
 }
-func (f *nha114Fixture) progress(t *testing.T, id string) *actions.GetActionResponse {
+func nha114Metadata(t *testing.T, operation *longrunningpb.Operation) *api.CommandMetadata {
 	t.Helper()
-	r, err := f.actions.GetAction(f.ctx, nha056SessionRequest(&actions.GetActionRequest{CommandId: id}, f.token))
-	if err != nil {
-		t.Fatal("read existing command", err)
+	metadata := new(api.CommandMetadata)
+	if operation == nil || operation.Metadata == nil {
+		t.Fatal("operation metadata absent")
 	}
-	return r.Msg
+	if err := operation.Metadata.UnmarshalTo(metadata); err != nil {
+		t.Fatal("operation metadata", err)
+	}
+	return metadata
+}
+func (f *nha114Fixture) progress(t *testing.T, id string) *longrunningpb.Operation {
+	t.Helper()
+	name := f.operationNames[id]
+	if name == "" {
+		t.Fatal("no admitted operation for request", id)
+	}
+	response, err := f.operations.GetOperation(f.ctx, nha056SessionRequest(&longrunningpb.GetOperationRequest{Name: name}, f.token))
+	if err != nil {
+		t.Fatal("read existing operation", err)
+	}
+	return response.Msg
+}
+func (f *nha114Fixture) durableResponse(t *testing.T, id string) []byte {
+	t.Helper()
+	name, err := apitypes.ParseOperationName(f.operationNames[id])
+	if err != nil {
+		t.Fatal(err)
+	}
+	native, err := domain.ParseCommandID(strings.TrimPrefix(name.ID(), "cmd-"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response []byte
+	nha114Eventually(t, "original durable dispatch result did not commit", func() bool {
+		record, found, err := f.actual.store.CommandIntent(f.ctx, native)
+		if err != nil || !found {
+			t.Fatal("original durable occurrence unavailable", err)
+		}
+		if record.State() == storage.IntentAccepted || record.State() == storage.IntentDispatching {
+			return false
+		}
+		if record.State() != storage.IntentResult || record.ErrorKind() != storage.IntentNoError {
+			t.Fatal("original durable dispatch failed", record.State(), record.ErrorKind())
+		}
+		response = record.Response()
+		return len(response) > 0
+	})
+	return response
+
 }
 func (f *nha114Fixture) publish(t *testing.T, topic string, payload []byte, correlation []byte) {
 	t.Helper()

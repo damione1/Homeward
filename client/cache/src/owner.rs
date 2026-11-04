@@ -7,7 +7,7 @@ use std::{
 };
 
 use home_client_session::{Phase, SessionCoordinator, SessionFailure};
-use home_client_transport::{FailureKind, ReconnectPolicy, StateTransport};
+use home_client_transport::{EntityViewTransport, FailureKind, HomeTransport, ReconnectPolicy};
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
@@ -41,7 +41,7 @@ pub enum CacheEvent {
     Transport(FailureKind),
     Session(SessionFailure),
     Contract(CacheFailure),
-    Resync(buffa::EnumValue<home_wire_contract::home::state::v1::ResyncReason>),
+    Resync(home_wire_contract::home::api::v2::ApiErrorReason),
     StreamEnded,
 }
 
@@ -338,20 +338,24 @@ pub struct CacheOwner<P: Send + 'static> {
 impl<P: Send + 'static> CacheOwner<P> {
     pub fn start(
         session: SessionCoordinator,
-        transport: StateTransport,
+        transport: EntityViewTransport,
+        homes: HomeTransport,
         filter: Filter,
         project: impl Fn(CachePhase, Option<&CachedView>, Viewport) -> P + Send + Sync + 'static,
         notify: impl Fn(DeliveryTicket<P>) + Send + Sync + 'static,
     ) -> (Self, mpsc::Receiver<CacheEvent>) {
         let (cleanup, releases) = CleanupOwner::start(session.clone(), transport.clone());
         let runner = Arc::new(move |context: RunContext<P>| -> RunFuture {
-            let (session, transport, filter, releases) = (
+            let (session, transport, homes, filter, releases) = (
                 session.clone(),
                 transport.clone(),
+                homes.clone(),
                 filter.clone(),
                 releases.clone(),
             );
-            Box::pin(native_run(context, session, transport, filter, releases))
+            Box::pin(native_run(
+                context, session, transport, homes, filter, releases,
+            ))
         });
         let (mut owner, events) = Self::build(Arc::new(project), Arc::new(notify), runner);
         owner.cleanup = Some(cleanup);
@@ -510,7 +514,8 @@ impl<P: Send + 'static> Emitter<P> {
 async fn native_run<P: Send + 'static>(
     context: RunContext<P>,
     session: SessionCoordinator,
-    transport: StateTransport,
+    transport: EntityViewTransport,
+    homes: HomeTransport,
     filter: Filter,
     releases: CleanupHandle,
 ) {
@@ -526,7 +531,9 @@ async fn native_run<P: Send + 'static>(
     let mut viewport = context.inner.viewport.subscribe();
     // Pin both futures across viewport changes. A scroll never drops/restarts an
     // in-flight decoder or a shared credential-refresh waiter.
-    let feed = feed(&emitter, &session, &transport, filter, cancel, &releases);
+    let feed = feed(
+        &emitter, &session, &transport, &homes, filter, cancel, &releases,
+    );
     let maintenance = maintain_access(&emitter, &session, cancel);
     tokio::pin!(feed, maintenance);
     let mut ended = false;
@@ -568,23 +575,16 @@ async fn maintain_access<P: Send + 'static>(
     }
 }
 
-// Read retries count consecutive attempts without an admitted cursor advance
-// or a sustained watch retaining that admitted view. A new pagination token or
-// admission proof is not evidence of progress.
+// Read retries count consecutive attempts without an admitted membership change
+// or a sustained watch. Fresh opaque snapshot/checkpoint strings alone never
+// reset the retry budget.
 #[derive(Default)]
 struct ReadProgress {
-    cursor: Option<home_wire_contract::home::state::v1::ViewCursor>,
     failures: u8,
 }
 impl ReadProgress {
-    fn observe(&mut self, cursor: &home_wire_contract::home::state::v1::ViewCursor) {
-        if self.cursor.as_ref().is_none_or(|previous| {
-            !crate::same_generation(previous, cursor)
-                || cursor.global_sequence > previous.global_sequence
-        }) {
-            self.cursor = Some(cursor.clone());
-            self.failures = 0;
-        }
+    fn applied(&mut self) {
+        self.failures = 0;
     }
     fn failed(&mut self) -> u8 {
         self.failures = self.failures.saturating_add(1);
@@ -684,7 +684,8 @@ fn transient_session_failure(failure: SessionFailure) -> bool {
 async fn feed<P: Send + 'static>(
     emitter: &Emitter<P>,
     session: &SessionCoordinator,
-    transport: &StateTransport,
+    transport: &EntityViewTransport,
+    homes: &HomeTransport,
     filter: Filter,
     cancel: &CancellationToken,
     releases: &CleanupHandle,
@@ -733,60 +734,66 @@ async fn feed<P: Send + 'static>(
             access_generation = Some(lease.generation);
             emitter.set(CachePhase::Loading, None);
         }
-        let view =
-            match read_snapshot_owned(transport, &lease, filter.clone(), 256, cancel, releases)
-                .await
-            {
-                Ok(view) => {
-                    if !session.is_current(lease.generation) || cancel.is_cancelled() {
-                        continue;
-                    }
-                    emitter.set(CachePhase::Live, Some(&view));
-                    network = NetworkRetry::default();
-                    view
+        let view = match read_snapshot_owned(
+            transport,
+            homes,
+            &lease,
+            filter.clone(),
+            256,
+            cancel,
+            releases,
+        )
+        .await
+        {
+            Ok(view) => {
+                if !session.is_current(lease.generation) || cancel.is_cancelled() {
+                    continue;
                 }
-                Err(SnapshotFailure::Cancelled) => {
-                    if cancel.is_cancelled() {
-                        return;
+                emitter.set(CachePhase::Live, Some(&view));
+                network = NetworkRetry::default();
+                view
+            }
+            Err(SnapshotFailure::Cancelled) => {
+                if cancel.is_cancelled() {
+                    return;
+                }
+                continue;
+            }
+            Err(SnapshotFailure::Transport(failure)) => {
+                if !session.is_current(lease.generation) {
+                    continue;
+                }
+                if failure.may_resume_read() {
+                    emitter.offline();
+                } else {
+                    emitter.set(CachePhase::Blocked, None);
+                }
+                let _ = session.observe_failure(lease.generation, &failure).await;
+                emitter
+                    .event(CacheEvent::Transport(failure.kind()), cancel)
+                    .await;
+                let authority_unavailable =
+                    session.subscribe().borrow().phase == Phase::AuthorityUnavailable;
+                let access_rejected = session.subscribe().borrow().phase == Phase::Offline
+                    && failure.kind()
+                        == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated);
+                let retryable =
+                    failure.may_resume_read() || authority_unavailable || access_rejected;
+                if retryable && resume_network(&mut network, cancel).await {
+                    if authority_unavailable {
+                        let _ = session.allow_new_view_attempt().await;
                     }
                     continue;
                 }
-                Err(SnapshotFailure::Transport(failure)) => {
-                    if !session.is_current(lease.generation) {
-                        continue;
-                    }
-                    if failure.may_resume_read() {
-                        emitter.offline();
-                    } else {
-                        emitter.set(CachePhase::Blocked, None);
-                    }
-                    let _ = session.observe_failure(lease.generation, &failure).await;
-                    emitter
-                        .event(CacheEvent::Transport(failure.kind()), cancel)
-                        .await;
-                    let authority_unavailable =
-                        session.subscribe().borrow().phase == Phase::AuthorityUnavailable;
-                    let access_rejected = session.subscribe().borrow().phase == Phase::Offline
-                        && failure.kind()
-                            == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated);
-                    let retryable =
-                        failure.may_resume_read() || authority_unavailable || access_rejected;
-                    if retryable && resume_network(&mut network, cancel).await {
-                        if authority_unavailable {
-                            let _ = session.allow_new_view_attempt().await;
-                        }
-                        continue;
-                    }
-                    emitter.set(CachePhase::Blocked, None);
-                    return;
-                }
-                Err(SnapshotFailure::Contract(error)) => {
-                    emitter.set(CachePhase::Invalid, None);
-                    emitter.event(CacheEvent::Contract(error), cancel).await;
-                    return;
-                }
-            };
-        progress.observe(view.cursor());
+                emitter.set(CachePhase::Blocked, None);
+                return;
+            }
+            Err(SnapshotFailure::Contract(error)) => {
+                emitter.set(CachePhase::Invalid, None);
+                emitter.event(CacheEvent::Contract(error), cancel).await;
+                return;
+            }
+        };
         let watch_started = tokio::time::Instant::now();
         let exit = watch_once(
             transport,
@@ -795,7 +802,7 @@ async fn feed<P: Send + 'static>(
             Duration::from_secs(30),
             cancel,
             |view| {
-                progress.observe(view.cursor());
+                progress.applied();
                 emitter.set(CachePhase::Live, Some(view));
             },
         )
@@ -978,31 +985,32 @@ mod tests {
         }
     }
 
-    fn captured_cursor(config: u64, sequence: u64, proof: u8, token: &str) -> CachedView {
-        use buffa_types::google::protobuf::Timestamp;
-        use home_wire_contract::home::state::v1 as state;
-        let filter = Filter::all();
-        let response = state::OpenViewResponse {
-            snapshot_token: token.into(),
-            cursor: state::ViewCursor {
-                epoch: "read-recovery-epoch".into(),
-                config_revision: config,
-                authorization_revision: 1,
-                global_sequence: sequence,
-                filter_sha256: filter.digest().to_vec(),
-                config_sha256: vec![1; 32],
-                grant_sha256: vec![2; 32],
-                admission_proof: vec![proof; 40],
-                ..Default::default()
-            }
-            .into(),
-            expires_at: Timestamp::from_unix_secs(60).into(),
+    fn captured_view(token: &str) -> CachedView {
+        use home_client_model::api::{EntityViewName, HomeName};
+        use home_wire_contract::home::api::v2 as wire;
+        let now = crate::wall_now().unwrap();
+        let mut expires = now.clone();
+        expires.seconds += 60;
+        let home = HomeName::try_from("homes/synthetic").unwrap();
+        let name = EntityViewName::try_from("homes/synthetic/entityViews/view-one").unwrap();
+        let resource = wire::EntityView {
+            name: name.as_str().to_owned(),
+            create_time: now.clone().into(),
+            expire_time: expires.into(),
             ..Default::default()
         };
-        crate::SnapshotCapture::begin(filter, 256, response, &Timestamp::from_unix_secs(0))
-            .unwrap()
-            .finish(&Timestamp::from_unix_secs(0))
-            .unwrap()
+        let mut capture =
+            crate::SnapshotCapture::begin(home, Filter::all(), 256, resource, &now).unwrap();
+        capture
+            .push(
+                wire::QueryEntityViewResponse {
+                    resume_token: token.into(),
+                    ..Default::default()
+                },
+                &now,
+            )
+            .unwrap();
+        capture.finish(&now).unwrap()
     }
     fn recovery_emitter(rig: &Rig) -> Emitter<CachePhase> {
         Emitter {
@@ -1015,7 +1023,7 @@ mod tests {
         }
     }
     #[tokio::test]
-    async fn coherent_new_config_captures_recover_beyond_the_retry_budget_without_watch_deltas() {
+    async fn admitted_membership_changes_restore_the_bounded_retry_budget() {
         let rig = Rig::new();
         let emitter = recovery_emitter(&rig);
         let policy =
@@ -1023,18 +1031,17 @@ mod tests {
         let cancel = CancellationToken::new();
         let mut progress = ReadProgress::default();
         for config in 1..=8 {
-            // Every new active configuration forces a resync before any delta.
-            // Pagination storage and proof happen to be fresh too, but are not
-            // the reason this coherent capture earns another bounded budget.
-            let view = captured_cursor(config, 10, config as u8, &format!("capture-{config}"));
-            progress.observe(view.cursor());
+            // Each iteration represents a validated membership frame, not a
+            // fresh opaque token or a newly created capture alone.
+            let view = captured_view(&format!("capture-{config}"));
+            progress.applied();
             emitter.set(CachePhase::Live, Some(&view));
             emitter.set(CachePhase::Resyncing, None);
             assert!(resume_read(&emitter, policy, &mut progress, &cancel).await);
             assert_eq!(progress.failures, 1);
         }
-        let view = captured_cursor(8, 11, 9, "advanced-global-sequence");
-        progress.observe(view.cursor());
+
+        progress.applied();
         assert!(resume_read(&emitter, policy, &mut progress, &cancel).await);
         assert_eq!(progress.failures, 1);
         rig.owner.close().await;
@@ -1048,8 +1055,7 @@ mod tests {
         let cancel = CancellationToken::new();
         let mut progress = ReadProgress::default();
         for attempt in 1..=4 {
-            let view = captured_cursor(1, 10, attempt, &format!("different-token-{attempt}"));
-            progress.observe(view.cursor());
+            let view = captured_view(&format!("different-token-{attempt}"));
             emitter.set(CachePhase::Live, Some(&view));
             emitter.set(CachePhase::Resyncing, None);
             assert_eq!(
@@ -1076,9 +1082,9 @@ mod tests {
         let policy =
             ReconnectPolicy::new(4, Duration::from_millis(1), Duration::from_millis(4)).unwrap();
         let cancel = CancellationToken::new();
-        let view = captured_cursor(1, 10, 1, "quiet-view");
+        let view = captured_view("quiet-view");
         let mut progress = ReadProgress::default();
-        progress.observe(view.cursor());
+        progress.applied();
         for rotation in 0..8 {
             // No data changes, new snapshot tokens or refreshed proofs are
             // needed: an idle retained stream may rotate repeatedly.
@@ -1114,9 +1120,9 @@ mod tests {
 
     #[test]
     fn long_resyncs_invalidations_and_authority_failures_never_reset_watch_failures() {
-        let view = captured_cursor(1, 10, 1, "unchanged-view");
+        let view = captured_view("unchanged-view");
         let mut progress = ReadProgress::default();
-        progress.observe(view.cursor());
+        progress.applied();
         progress.failures = 3;
         let exits = [
             WatchExit::Ended(view.clone()),
@@ -1134,7 +1140,7 @@ mod tests {
             assert_eq!(progress.failures, 3, "short watches remain bounded");
         }
         let exits = [
-            WatchExit::Resync(buffa::EnumValue::Unknown(255)),
+            WatchExit::Resync(home_wire_contract::home::api::v2::ApiErrorReason::ResyncRequired),
             WatchExit::Invalid(CacheFailure::Expired),
             WatchExit::Cancelled,
             WatchExit::Transport {
@@ -1159,36 +1165,6 @@ mod tests {
             assert_eq!(progress.failures, 3, "duration cannot restore authority");
         }
     }
-    #[test]
-    fn only_admitted_cohort_changes_or_forward_positions_reset_read_failures() {
-        let mut progress = ReadProgress::default();
-        let original = captured_cursor(1, 10, 1, "original");
-        progress.observe(original.cursor());
-        progress.failed();
-        let older = captured_cursor(1, 9, 2, "older-position");
-        progress.observe(older.cursor());
-        assert_eq!(progress.failures, 1);
-        let same = captured_cursor(1, 10, 3, "same-position");
-        progress.observe(same.cursor());
-        assert_eq!(progress.failures, 1);
-        for change in 0..6 {
-            let mut cursor = original.cursor().clone();
-            match change {
-                0 => cursor.epoch = "restarted-epoch".into(),
-                1 => cursor.config_revision += 1,
-                2 => cursor.authorization_revision += 1,
-                3 => cursor.config_sha256 = vec![7; 32],
-                4 => cursor.grant_sha256 = vec![8; 32],
-                5 => cursor.global_sequence += 1,
-                _ => unreachable!(),
-            }
-            progress.cursor = Some(original.cursor().clone());
-            progress.failures = 3;
-            progress.observe(&cursor);
-            assert_eq!(progress.failures, 0, "progress case {change}");
-        }
-    }
-
     #[tokio::test]
     async fn a_captured_active_fence_is_withdrawn_synchronously_and_never_revives() {
         let rig = Rig::new();
